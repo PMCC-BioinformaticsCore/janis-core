@@ -71,14 +71,15 @@ outp = j.Output("outputIdentifier")
 
 w.add_edges([
     (inp, echostep.inp),    # Connect 'inp' to 'echostep'
-    (echostep, outp.outp)    # Connect output of 'echostep' to 'out'
+    (echostep, outp)    # Connect output of 'echostep' to 'out'
 ])
   
 # Will print the CWL, input file and relevant tools to the console  
-w.translate("cwl")  # or "wdl"
+w.translate("cwl", to_disk=False)  # or "wdl"
 ```
 
-We can export a CWL representation to the console using `.translate("cwl")`.
+We can export a CWL representation to the console using `.translate("cwl")`. By including the 
+`to_disk=True` parameter, we can write this workflow to disk at the current location. 
 
 #### Named inputs and Outputs
 
