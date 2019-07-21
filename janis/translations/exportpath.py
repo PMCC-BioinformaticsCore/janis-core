@@ -28,17 +28,18 @@ class ExportPathKeywords:
                 "but caller of .resolve did not pass workflow name"
             )
 
+        path = p.expanduser(path)
+
         if (len(path) == 1 and path == ".") or path[:2] == "./":
             path = getcwd() + (path[1:] if len(path) > 1 else "")
 
-        return (
-            p.expanduser(path)
-            .replace(
-                ExportPathKeywords.workflow_spec,
-                workflow_spec.lower() if workflow_spec else "",
-            )
-            .replace(
-                ExportPathKeywords.workflow_name,
-                workflow_name.lower() if workflow_name else "",
-            )
+        elif path[0] != "/":
+            path = p.join(getcwd(), path)
+
+        return path.replace(
+            ExportPathKeywords.workflow_spec,
+            workflow_spec.lower() if workflow_spec else "",
+        ).replace(
+            ExportPathKeywords.workflow_name,
+            workflow_name.lower() if workflow_name else "",
         )

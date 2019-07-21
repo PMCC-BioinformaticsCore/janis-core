@@ -20,21 +20,21 @@ class TestExportPath(unittest.TestCase):
 
     def test_workflow_spec(self):
         self.assertEqual(
-            "my/path/to/cwl",
-            ExportPathKeywords.resolve("my/path/to/{language}", "cwl", None),
+            "/my/path/to/cwl",
+            ExportPathKeywords.resolve("/my/path/to/{language}", "cwl", None),
         )
 
     def test_workflow_name(self):
         self.assertEqual(
-            "my/workflow_name/path",
-            ExportPathKeywords.resolve("my/{name}/path", None, "workflow_name"),
+            "/my/workflow_name/path",
+            ExportPathKeywords.resolve("/my/{name}/path", None, "workflow_name"),
         )
 
     def test_multi_replace(self):
         self.assertEqual(
-            "test_multi_replace/test_multi_replace/test_multi_replace",
+            "/test_multi_replace/test_multi_replace/test_multi_replace",
             ExportPathKeywords.resolve(
-                "{name}/{name}/{name}", None, "test_multi_replace"
+                "/{name}/{name}/{name}", None, "test_multi_replace"
             ),
         )
 
@@ -65,12 +65,18 @@ class TestExportPath(unittest.TestCase):
         )
 
     def test_replace_dontreplace(self):
-        path = ".myfile/starting/with/dot"
+        path = "/.myfile/starting/with/dot"
         self.assertEqual(path, ExportPathKeywords.resolve(path, None, None))
 
     def test_random_dot(self):
         path = "/mypath/./starting/with/dot"
         self.assertEqual(path, ExportPathKeywords.resolve(path, None, None))
+
+    def test_no_preceding_slash(self):
+        path = "test/"
+        self.assertEqual(
+            os.path.join(getcwd(), path), ExportPathKeywords.resolve(path, None, None)
+        )
 
     def test_no_spec_except(self):
         self.assertRaises(
