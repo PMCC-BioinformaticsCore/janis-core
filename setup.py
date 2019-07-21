@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-# Version information is found in the __init__ file of `janis/`
+# Version information is found in the __init__ file of `janiscore/`
 DESCRIPTION = "Contains classes and helpers to build a workflow, and provide options to convert to CWL / WDL"
 
 ######## SHOULDN'T NEED EDITS BELOW THIS LINE ########
@@ -33,14 +33,14 @@ with open("./README.md") as readme:
 #       [4] https://github.com/pypa/pip/issues/6163
 #
 vsn = {}
-with open("./janis/__meta__.py") as fp:
+with open("./core/__meta__.py") as fp:
     exec(fp.read(), vsn)
 __version__ = vsn["__version__"]
 githuburl = vsn["GITHUB_URL"]
 
 
 setup(
-    name="janis pipelines",
+    name="janis-pipelines.core",
     version=__version__,
     description=DESCRIPTION,
     url=githuburl,
@@ -67,5 +67,4 @@ setup(
         "Topic :: Scientific/Engineering",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
-    extras_require={"bioinformatics": ["janis-pipelines.bioinformatics>=0.0.7"]},
 )
