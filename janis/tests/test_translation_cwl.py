@@ -403,7 +403,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         trans = cwl.CwlTranslator
         translated = trans.translate_tool(TestTool())
         arg: cwlgen.CommandLineBinding = translated.arguments[0]
-        self.assertEqual('test:\\t:escaped:\\n:characters"', arg.valueFrom)
+        self.assertEqual('test:\\\\t:escaped:\\\\n:characters"', arg.valueFrom)
 
 
 class TestCwlTranslateInput(unittest.TestCase):
@@ -619,7 +619,7 @@ class TestCwlGenerateInput(unittest.TestCase):
 cwl_testtool = """\
 arguments:
 - position: 0
-  valueFrom: test:\\t:escaped:\\n:characters"
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
 baseCommand: echo
 class: CommandLineTool
 cwlVersion: v1.0

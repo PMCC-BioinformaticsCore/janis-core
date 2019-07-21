@@ -643,14 +643,16 @@ def translate_string_formatter(
     selector: StringFormatter, code_environment=True, **debugkwargs
 ):
 
+    escapedFormat = selector._format.replace("\\", "\\\\")
+
     if len(selector.kwargs) == 0:
-        return selector._format
+        return escapedFormat
 
     kwargreplacements = [
         f".replace(/{re.escape('{' +k + '}')}/g, {get_input_value_from_potential_selector_or_generator(v, code_environment=True, **debugkwargs)})"
         for k, v in selector.kwargs.items()
     ]
-    return f'$("{selector._format}"' + "".join(kwargreplacements) + ")"
+    return f'$("{escapedFormat}"' + "".join(kwargreplacements) + ")"
 
 
 def translate_to_cwl_glob(glob, **debugkwargs):
