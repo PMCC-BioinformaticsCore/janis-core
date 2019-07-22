@@ -33,7 +33,7 @@ with open("./README.md") as readme:
 #       [4] https://github.com/pypa/pip/issues/6163
 #
 vsn = {}
-with open("./core/__meta__.py") as fp:
+with open("./janis_core/__meta__.py") as fp:
     exec(fp.read(), vsn)
 __version__ = vsn["__version__"]
 githuburl = vsn["GITHUB_URL"]
@@ -48,15 +48,16 @@ setup(
     author_email="michael.franklin@petermac.org",
     license="GNU",
     keywords=["pipelines", "bioinformatics"],
-    packages=["janis"] + ["janis." + p for p in sorted(find_packages("./janis"))],
+    packages=["janis_core"]
+    + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
-        "networkx>=2.1",
-        "ruamel.yaml >= 0.12.4, <= 0.15.77",
-        "six",
-        "tabulate",
-        "illusional.wdlgen >= 0.2.3",
         "cwlgen >= 0.3.0",
+        "illusional.wdlgen >= 0.2.3",
+        "ruamel.yaml >= 0.12.4, <= 0.15.77",
+        "networkx>=2.1",
+        "tabulate",
     ],
+    # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,
     long_description=long_description,
     long_description_content_type="text/markdown",
