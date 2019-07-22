@@ -17,6 +17,7 @@ from typing import Any, List, Optional
 import cwlgen as cwl
 from wdlgen import WdlType
 
+from janis_core.utils import is_array_prefix
 from janis_core.utils.logger import Logger
 
 NativeType = str
@@ -179,7 +180,19 @@ class DataType(ABC):
         :param source_has_default: If the source has default, then we can return true even if the source is optional
         :return:
         """
-        if not isinstance(other.received_type(), type(self.received_type())):
+
+        # Depending on the way types are imported, the 'isinstance' method doesn't always work
+        #
+        # A small example:
+        #     from janis import File as F1
+        #     from janis_core import File as F2
+        #
+        # Although these are the same definition, they won't actually compare to the same value
+
+        receive_from = list(reversed([x.__name__ for x in type(other).mro()]))
+        receive_to = list(reversed([x.__name__ for x in type(self).mro()]))
+
+        if not is_array_prefix(receive_to, receive_from):
             return False
         if self.optional or source_has_default:
             # If I'm optional I can receive from optional / non optional

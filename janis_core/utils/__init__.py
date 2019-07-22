@@ -33,3 +33,14 @@ def zip_directory(parent_dir, dir_name):
         Logger.info("Zipped tools")
     else:
         Logger.critical(zip_result.stderr)
+
+
+def is_array_prefix(prefix, to):
+    if len(prefix) > len(to):
+        return False
+
+    for i in range(len(prefix)):
+        if prefix[i] != to[i]:
+            return False
+
+    return True

@@ -25,8 +25,6 @@ _Proudly made on Planet Earth._
 import sys
 import pkg_resources
 
-print("NAME: " + __name__)
-
 
 # PEP396:  https://www.python.org/dev/peps/pep-0396/
 from janis_core.__meta__ import __version__
@@ -56,6 +54,7 @@ from janis_core.types.common_data_types import (
 )
 from janis_core.types.data_types import DataType
 from janis_core.unix import *
+from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
 from janis_core.workflow.input import Input
