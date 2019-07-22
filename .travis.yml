@@ -4,7 +4,7 @@ python:
 install:
 - pip install -r requirements/tests.txt
 - pip install codecov coverage requests_mock nose_parameterized
-script: nosetests -w janis --with-coverage --cover-package=janis
+script: nosetests -w janis_core --with-coverage --cover-package=janis_core
 after_success: codecov
 deploy:
   provider: pypi
@@ -14,4 +14,4 @@ deploy:
   distributions: "sdist bdist_wheel"
   on:
     tags: true
-    repo: PMCC-BioinformaticsCore/janis
+    repo: PMCC-BioinformaticsCore/janis-core
