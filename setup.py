@@ -47,7 +47,7 @@ setup(
     author="Michael Franklin, Evan Thomas, Mohammad Bhuyan",
     author_email="michael.franklin@petermac.org",
     license="GNU",
-    keywords=["pipelines", "bioinformatics"],
+    keywords=["janis", "workflows", "pipelines", "cwl", "wdl", "bioinformatics"],
     packages=["janis_core"]
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
