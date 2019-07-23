@@ -49,6 +49,10 @@ class TestTool(CommandTool):
     def docker():
         return "ubuntu:latest"
 
+    @staticmethod
+    def version():
+        return None
+
 
 class TestToolWithSecondaryOutput(TestTool):
     def outputs(self):

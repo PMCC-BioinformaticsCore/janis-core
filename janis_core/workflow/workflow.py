@@ -92,6 +92,11 @@ class Workflow(Tool):
     def doc(self):
         return self._metadata.documentation
 
+    @staticmethod
+    def version():
+        # Todo: This might need to be transitioned to an instance property?
+        return '0.1.0"'
+
     @classmethod
     def type(cls) -> ToolType:
         """

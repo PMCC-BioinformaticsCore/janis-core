@@ -184,6 +184,7 @@ class Tool(ABC, object):
         return None
 
     @staticmethod
+    @abstractmethod
     def version():
         return None
 

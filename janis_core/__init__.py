@@ -53,7 +53,6 @@ from janis_core.types.common_data_types import (
     Stdout,
 )
 from janis_core.types.data_types import DataType
-from janis_core.unix import *
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata

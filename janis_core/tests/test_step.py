@@ -28,6 +28,10 @@ class ArrayTestTool(CommandTool):
     def docker():
         return None
 
+    @staticmethod
+    def version():
+        return None
+
 
 class TestStep(TestCase):
     def setUp(self):

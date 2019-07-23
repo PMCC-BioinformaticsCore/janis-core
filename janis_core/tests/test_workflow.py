@@ -14,10 +14,10 @@ from janis_core import (
     ToolOutput,
 )
 from janis_core.graph.stepinput import StepInput, first_value, Edge
-from janis_core.unix.data_types.tarfile import TarFile
-from janis_core.unix.tools.cat import Cat
-from janis_core.unix.tools.echo import Echo
-from janis_core.unix.tools.untar import Untar
+from janis_unix.data_types.tarfile import TarFile
+from janis_unix.tools.cat import Cat
+from janis_unix.tools.echo import Echo
+from janis_unix.tools.untar import Untar
 
 
 class SingleTestTool(CommandTool):
@@ -42,6 +42,10 @@ class SingleTestTool(CommandTool):
     def docker():
         return None
 
+    @staticmethod
+    def version():
+        return None
+
 
 class ArrayTestTool(CommandTool):
     @staticmethod
@@ -63,6 +67,10 @@ class ArrayTestTool(CommandTool):
 
     @staticmethod
     def docker():
+        return None
+
+    @staticmethod
+    def version():
         return None
 
 
