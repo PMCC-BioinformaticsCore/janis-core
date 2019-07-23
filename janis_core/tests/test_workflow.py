@@ -14,10 +14,6 @@ from janis_core import (
     ToolOutput,
 )
 from janis_core.graph.stepinput import StepInput, first_value, Edge
-from janis_unix.data_types.tarfile import TarFile
-from janis_unix.tools.cat import Cat
-from janis_unix.tools.echo import Echo
-from janis_unix.tools.untar import Untar
 
 
 class SingleTestTool(CommandTool):
@@ -103,7 +99,7 @@ class TestWorkflow(TestCase):
 
     def test_add_step(self):
         w = Workflow("test_add_input")
-        step = Step("catStep", Cat())
+        step = Step("catStep", SingleTestTool())
         w._add_item(step)
         self.assertEqual(len(w._steps), 1)
         self.assertEqual(w._steps[0].step, step)
@@ -120,7 +116,7 @@ class TestWorkflow(TestCase):
     def test_add_node(self):
         w = Workflow("test_add_node")
         inp = Input("inp", String())
-        stp = Step("stp", Cat())
+        stp = Step("stp", SingleTestTool())
         w.add_items([inp, stp])
         self.assertEqual(len(w._inputs), 1)
         self.assertEqual(len(w._steps), 1)
@@ -131,8 +127,8 @@ class TestWorkflow(TestCase):
     def test_add_qualified_edge(self):
         w = Workflow("test_add_edge")
         inp = Input("inp", String())
-        stp = Step("stp", Echo())  # Only has one input, with no output
-        e = w.add_edge(inp, stp.inp)
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
+        e = w.add_edge(inp, stp.inputs)
 
         self.assertEqual(e.start.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
@@ -142,7 +138,7 @@ class TestWorkflow(TestCase):
     def test_add_edge(self):
         w = Workflow("test_add_edge")
         inp = Input("inp", String())
-        stp = Step("stp", Echo())  # Only has one input, with no output
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
         w.add_items([inp, stp])
         e = w.add_edge(inp, stp)
 
@@ -154,7 +150,7 @@ class TestWorkflow(TestCase):
     def test_anonymous_add_edge(self):
         w = Workflow("test_add_edge")
         inp = Input("inp", String())
-        stp = Step("stp", Echo())  # Only has one input, with no output
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
         # w.add_items([inp, stp])
         e = w.add_edge(inp, stp)
 
@@ -166,8 +162,8 @@ class TestWorkflow(TestCase):
     def test_anonymous_add_qualified_edge(self):
         w = Workflow("test_add_edge")
         inp = Input("inp", String())
-        stp = Step("stp", Echo())  # Only has one input, with no output
-        e = w.add_edge(inp, stp.inp)
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
+        e = w.add_edge(inp, stp.inputs)
 
         self.assertEqual(e.start.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
@@ -176,8 +172,8 @@ class TestWorkflow(TestCase):
 
     def test_pipe(self):
         w = Workflow("test_add_edge")
-        inp = Input("tarred", TarFile())
-        stp = Step("stp", Untar())  # Only has one input, with no output
+        inp = Input("tarred", File())
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
         out = Output("outp", Array(File()))
 
         w.add_pipe(inp, stp, out)
@@ -204,11 +200,11 @@ class TestWorkflow(TestCase):
 
     def test_qualified_pipe(self):
         w = Workflow("test_add_edge")
-        inp = Input("tarred", TarFile())
-        stp = Step("stp", Untar())  # Only has one input, with no output
+        inp = Input("tarred", File())
+        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
         out = Output("outp", Array(File()))
 
-        w.add_pipe(inp, stp.tarFile, out)
+        w.add_pipe(inp, stp.inputs, out)
 
         # the nodes are usually internal
         inp_node = w._nodes[inp.id()]
@@ -235,12 +231,12 @@ class TestWorkflow(TestCase):
         w = Workflow("test_subworkflow")
 
         sub_w = Workflow("subworkflow")
-        sub_inp = Input("sub_inp", TarFile())
-        sub_stp = Step("sub_stp", Untar())
+        sub_inp = Input("sub_inp", File())
+        sub_stp = Step("sub_stp", SingleTestTool())
         sub_out = Output("sub_out", Array(File()))
         sub_w.add_pipe(sub_inp, sub_stp, sub_out)
 
-        inp = Input("inp", TarFile())
+        inp = Input("inp", File())
         stp = Step("stp_workflow", sub_w)
         out = Output("out", Array(File()))
         w.add_items([inp, stp, out])
