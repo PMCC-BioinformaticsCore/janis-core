@@ -48,10 +48,12 @@ class Filename(String):
         :param extension: with no '.' (dot)
         :param guid: Use this guid instead of generating one
         """
+        import uuid
+
         self.prefix = prefix
         self.extension = extension
         self.suffix = suffix
-        self.guid = guid
+        self.guid = guid if guid is not None else str(uuid.uuid1())
         super().__init__(optional=True)
 
     @staticmethod
@@ -86,10 +88,9 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         parameter.default = self.generated_filenamecwl()
 
     def generated_filename(self) -> str:
-        import uuid
 
         pre = (self.prefix + "-") if self.prefix is not None else ""
-        guid = self.guid if self.guid else str(uuid.uuid1())
+        guid = self.guid
         suf = self.suffix if self.suffix else ""
         ex = "" if self.extension is None else self.extension
 

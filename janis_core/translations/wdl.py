@@ -433,34 +433,26 @@ class WdlTranslator(TranslatorBase):
         return workflow.id() + "-resources.json"
 
 
-def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
-    # make sure it has some essence of a command line binding, else we'll skip it
-    # TODO: make a property on ToolInput (.bind_to_commandline) and set default to true
-    if not (tool_input.position is not None or tool_input.prefix):
-        return None
-
+def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     name = tool_input.id()
-    optional = tool_input.input_type.optional
-    position = tool_input.position
-    separate_value_from_prefix = tool_input.separate_value_from_prefix
-    prefix = tool_input.prefix
-    true = None
-    sep = tool_input.separator
-
     indefault = (
-        None if isinstance(tool_input.input_type, Filename) else tool_input.default
+        tool_input.input_type
+        if isinstance(tool_input.input_type, Filename)
+        else tool_input.default
     )
+
     if isinstance(indefault, CpuSelector):
         indefault = indefault.default
+
     elif isinstance(indefault, InputSelector):
         Logger.critical(
             f"WDL does not support command line level defaults that select a different input, this will remove the "
-            f"value: '{indefault}' for tool_input '{tool_input.tag}' for {debugkwargs}"
+            f"value: '{indefault}' for tool_input '{tool_input.tag}'"
         )
         indefault = None
 
     default = get_input_value_from_potential_selector_or_generator(
-        indefault, inputsdict, string_environment=False, **debugkwargs
+        indefault, None, string_environment=False, **debugkwargs
     )
 
     if default:
@@ -468,6 +460,23 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
 
     if tool_input.localise_file:
         name = "basename(%s)" % name
+
+    return name
+
+
+def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
+    # make sure it has some essence of a command line binding, else we'll skip it
+    # TODO: make a property on ToolInput (.bind_to_commandline) and set default to true
+    if not (tool_input.position is not None or tool_input.prefix):
+        return None
+
+    name = resolve_tool_input_value(tool_input, **debugkwargs)
+    optional = tool_input.input_type.optional
+    position = tool_input.position
+    separate_value_from_prefix = tool_input.separate_value_from_prefix
+    prefix = tool_input.prefix
+    true = None
+    sep = tool_input.separator
 
     separate_arrays = tool_input.prefix_applies_to_all_elements
     if (
@@ -594,6 +603,21 @@ def translate_input_selector_for_output(
 def translate_string_formatter_for_output(
     out, selector: StringFormatter, tool
 ) -> List[wdl.Output]:
+    """
+    The output glob was a string formatter, so we'll need to build the correct glob
+    by resolving the string formatter. Some minor complications involve how an output
+    with a secondary file must resolve input selectors.
+
+    For example, if you are generating an output with the Filename class, and your output
+    type has secondary files, you will need to translate the generated filename with
+    respect to the secondary file extension. Or the File class also has a recommended
+    "extension" property now that this should consider.
+
+    :param out:
+    :param selector:
+    :param tool:
+    :return:
+    """
     inputs_to_retranslate = {
         k: v
         for k, v in selector.kwargs.items()
@@ -662,10 +686,14 @@ def translate_string_formatter_for_output(
             sec_expression = expression + s
 
         elif tool_in:
-            if (
-                isinstance(tool_in.input_type, Filename)
-                and tool_in.input_type.extension
-            ):
+            if isinstance(tool_in.input_type, Filename):
+                if not tool_in.input_type.extension:
+                    raise Exception(
+                        f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
+                        f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
+                        f"WDL translation. You will to annotate the input with an extension Filename(extension=)"
+                    )
+
                 # use the wdl function: sub
                 sec_expression = '${sub({inp}, "\\\\{old_ext}$", "{new_ext}")}'.format(
                     inp=expression,
@@ -674,6 +702,14 @@ def translate_string_formatter_for_output(
                 )
 
             elif File().can_receive_from(tool_in.input_type):
+                if not tool_in.input_type.extension:
+                    raise Exception(
+                        f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
+                        f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
+                        f"WDL translation. When creating an instance of the {tool_in.input_type.__name__} class, "
+                        f"it's possible to annotate an extension. For example, the Zip filetype is going to "
+                        f'have the .zip extension, so could be initialised with Zip(extension=".zip"'
+                    )
                 # use basename
                 replaced_s = s.replace("^", "")
                 sec_expression = f'basename({tool_in.id()}, "{tool_in.input_type.extension}") + "{replaced_s}"'
@@ -681,7 +717,8 @@ def translate_string_formatter_for_output(
                 raise Exception(
                     f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
                     f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
-                    f"WDL translation. You will to annotate the input with an extension Filename(extension=)"
+                    f"WDL translation. Extra handling in 'wdl.translate_string_formatter_for_output' may be"
+                    f"required for the '{tool_in.input_type.__name__}' type might be required."
                 )
         else:
             sec_expression = apply_secondary_file_format_to_filename(expression, s)
@@ -1053,10 +1090,14 @@ def get_input_value_from_potential_selector_or_generator(
         raise Exception(
             f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
         )
-    elif isinstance(value, CpuSelector):
-        return translate_cpu_selector(value, string_environment=string_environment)
-    elif isinstance(value, MemorySelector):
-        return translate_mem_selector(value, string_environment=string_environment)
+    # elif isinstance(value, CpuSelector):
+    #     return translate_cpu_selector(
+    #         value, inputsdict, string_environment=string_environment
+    #     )
+    # elif isinstance(value, MemorySelector):
+    #     return translate_mem_selector(
+    #         value, inputsdict, string_environment=string_environment
+    #     )
     elif isinstance(value, InputSelector):
         return translate_input_selector(
             selector=value,
@@ -1073,6 +1114,33 @@ def get_input_value_from_potential_selector_or_generator(
 def translate_string_formatter(
     selector: StringFormatter, inputsdict, string_environment=False, **debugkwargs
 ):
+    # we should raise an Exception if any of our inputs are optional without a default
+
+    invalid_select_inputs = [
+        (k, selector.kwargs[k].input_to_select)
+        for k in selector.kwargs
+        # Our selector is getting an input
+        if isinstance(selector.kwargs[k], InputSelector)
+        and selector.kwargs[k].input_to_select in inputsdict
+        and not isinstance(
+            inputsdict[selector.kwargs[k].input_to_select].input_type, Filename
+        )
+        # our selected input is optional
+        and inputsdict[selector.kwargs[k].input_to_select].input_type.optional
+        # our selected input does NOT have a default
+        # tbh, this ToolInput might have a default that selects a different input that is null,
+        # but I'm not going down this rabbit hole
+        and inputsdict[selector.kwargs[k].input_to_select].default is None
+    ]
+
+    if len(invalid_select_inputs) > 0:
+        tags = ", ".join(f"'{k[0]}'" for k in invalid_select_inputs)
+        inps = ", ".join(f"'{k[1]}'" for k in invalid_select_inputs)
+        raise Exception(
+            f'There was an error when resolving the format "{selector._format}", the tag(s) {tags} respectively '
+            f"selected input(s) {inps} that were optional and did NOT have a default value."
+        )
+
     value = selector.resolve_with_resolved_values(
         **{
             k: get_input_value_from_potential_selector_or_generator(
@@ -1094,55 +1162,30 @@ def translate_input_selector(
     if not selector.input_to_select:
         raise Exception("No input was selected for input selector: " + str(selector))
 
-    if inputsdict and selector.input_to_select not in inputsdict:
+    if not inputsdict:
+        raise Exception(
+            f"An internal error has occurred when selecting the input '{selector.input_to_select}'"
+        )
+
+    if selector.input_to_select not in inputsdict:
         raise Exception(
             f"Couldn't find input '{selector.input_to_select}' in tool '{debugkwargs}'"
         )
 
+    inp = inputsdict[selector.input_to_select]
+    name = resolve_tool_input_value(inp, **debugkwargs)
     if string_environment:
-        return f"${{{selector.input_to_select}}}"
+        return f"${{{name}}}"
     else:
-        return selector.input_to_select
+        return name
 
 
-def translate_cpu_selector(selector: CpuSelector, string_environment=True):
-    return translate_input_selector(
-        selector, None, string_environment=string_environment
-    )
-    # if selector.default:
-    #     value = wdl.IfThenElse(
-    #         f"defined(runtime_cpu)",
-    #         value,
-    #         get_input_value_from_potential_selector_or_generator(
-    #             selector.default, None, string_environment=False
-    #         ),
-    #     ).get_string()
-    # return "${%s}" % value if string_environment else value
+# These are now handled entirely by the translate_input_selector_class
 
-
-def translate_mem_selector(selector: MemorySelector, string_environment=True):
-    return translate_input_selector(
-        selector, None, string_environment=string_environment
-    )
-    # pre = selector.prefix if selector.prefix else ""
-    # suf = selector.suffix if selector.suffix else ""
-    #
-    # val = "runtime_memory"  # remove floor as memory is now string
-    # if selector.default:
-    #     val = wdl.IfThenElse(
-    #         "defined(runtime_memory)",
-    #         val,
-    #         get_input_value_from_potential_selector_or_generator(
-    #             selector.default, None, string_environment=False
-    #         ),
-    #     ).get_string()
-    #
-    # if string_environment:
-    #     return f"{pre}${{{val}}}{suf}"
-    # else:
-    #     pref = ('"%s" + ' % pre) if pre else ""
-    #     suff = (' + "%s"' % suf) if suf else ""
-    #     return pref + val + suff
+# def translate_cpu_selector(selector: CpuSelector, inputsdict, string_environment=True):
+#     return translate_input_selector(selector, inputsdict, string_environment=string_environment)
+# def translate_mem_selector(selector: MemorySelector, inputsdict, string_environment=True):
+#     return translate_input_selector(selector, inputsdict, string_environment=string_environment)
 
 
 def translate_wildcard_selector(selector: WildcardSelector):

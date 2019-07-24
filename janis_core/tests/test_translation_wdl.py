@@ -19,6 +19,7 @@ from janis_core import (
     WildcardSelector,
     ToolArgument,
     Boolean,
+    Int,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
@@ -146,17 +147,19 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
 
 class TestWdlSelectorsAndGenerators(unittest.TestCase):
     def test_input_selector_base_stringenv(self):
+        ti = {"random": ToolInput("random", String())}
         input_sel = InputSelector("random")
         self.assertEqual(
             "${random}",
-            wdl.translate_input_selector(input_sel, None, string_environment=True),
+            wdl.translate_input_selector(input_sel, ti, string_environment=True),
         )
 
     def test_input_selector_base_nostringenv(self):
+        ti = {"random": ToolInput("random", String())}
         input_sel = InputSelector("random")
         self.assertEqual(
             "random",
-            wdl.translate_input_selector(input_sel, None, string_environment=False),
+            wdl.translate_input_selector(input_sel, ti, string_environment=False),
         )
 
     def test_input_value_none_stringenv(self):
@@ -238,29 +241,29 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_cpuselect_stringenv(self):
+        # CpuSelector relies on their being a runtime_cpu attribute,
+        # this test will assume it's present, and '' will test ensure
+        # that it is actually present
+        ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
         inp = CpuSelector()
         self.assertEqual(
-            "${runtime_cpu}",
+            "${if defined(runtime_cpu) then runtime_cpu else 1}",
             wdl.get_input_value_from_potential_selector_or_generator(
-                inp, None, string_environment=True
+                inp, ti, string_environment=True
             ),
         )
 
     def test_input_value_cpuselect_nostringenv(self):
-        inp = CpuSelector()
-        self.assertEqual(
-            "runtime_cpu",
-            wdl.get_input_value_from_potential_selector_or_generator(
-                inp, None, string_environment=False
-            ),
-        )
+        # CpuSelector relies on their being a runtime_cpu attribute,
+        # this test will assume it's present, and '' will test ensure
+        # that it is actually present
 
-    def test_input_value_cpuselectnone_nostringenv(self):
+        ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
         inp = CpuSelector()
         self.assertEqual(
-            "runtime_cpu",
+            "if defined(runtime_cpu) then runtime_cpu else 1",
             wdl.get_input_value_from_potential_selector_or_generator(
-                inp, None, string_environment=False
+                inp, ti, string_environment=False
             ),
         )
 
@@ -313,18 +316,23 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         self.assertEqual("there's a string arg", res)
 
     def test_string_formatter_one_input_selector_param(self):
+        d = {"random_input": ToolInput("random_input", String())}
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, None)
+        res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
         self.assertEqual("an input ${random_input}", res)
 
     def test_string_formatter_two_param(self):
         # vardict input format
+        d = {
+            "tumorInputName": ToolInput("tumorInputName", String()),
+            "normalInputName": ToolInput("normalInputName", String()),
+        }
         b = StringFormatter(
             "{tumorName}:{normalName}",
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, None)
+        res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
         self.assertEqual("${tumorInputName}:${normalInputName}", res)
 
     def test_escaped_characters(self):
@@ -332,6 +340,29 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         translated = trans.translate_tool(TestTool())
         arg = translated.command[0].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
+
+    def test_string_formatter_optional_inpselect_no_default(self):
+        # will throw
+        ti = {"ti": ToolInput("ti", String(optional=True))}
+        b = StringFormatter("{place} michael", place=InputSelector("ti"))
+        self.assertRaises(
+            Exception, wdl.get_input_value_from_potential_selector_or_generator, b, ti
+        )
+
+    def test_string_formatter_optional_inpselect_with_default(self):
+        ti = {"ti": ToolInput("ti", String(optional=True), default="hi")}
+        b = StringFormatter("{place} michael", place=InputSelector("ti"))
+        res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
+        self.assertEqual('${if defined(ti) then ti else "hi"} michael', res)
+
+    def test_resolve_filename_in_inpselect(self):
+        fn = Filename(extension=".ext")
+        ti = {"ti": ToolInput("ti", fn)}
+        b = StringFormatter("fn: {place}", place=InputSelector("ti"))
+        res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
+        self.assertEqual(
+            f'fn: ${{if defined(ti) then ti else "{fn.generated_filename()}"}}', res
+        )
 
 
 class TestWdlGenerateInput(unittest.TestCase):
