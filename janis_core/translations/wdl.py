@@ -329,7 +329,9 @@ class WdlTranslator(TranslatorBase):
             r.add_docker(tool.docker())
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        r.kwargs["cpu"] = "runtime_cpu"
+        r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
+            CpuSelector(), inmap, string_environment=False, id="runtimestats"
+        )
         r.kwargs["memory"] = wdl.IfThenElse(
             "defined(runtime_memory)", '"${runtime_memory}G"', '"4G"'
         )
