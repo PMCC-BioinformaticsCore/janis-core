@@ -175,13 +175,14 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # Generate import statements (relative tool dir is later?)
+        uniquetoolmap: Dict[str, Tool] = {t.id(): t for t in tools}
         w.imports = [
             wdl.Workflow.WorkflowImport(
                 t.id(),
                 tool_aliases[t.id().lower()].upper(),
                 None if is_nested_tool else "tools/",
             )
-            for t in tools
+            for t in uniquetoolmap.values()
         ]
 
         # Step[] -> (wdl.Task | wdl.Workflow)[]
