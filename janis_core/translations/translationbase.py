@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import os
 from typing import Tuple, List, Dict
 
+from janis_core.tool.tool import ToolInput
+from janis_core.types.common_data_types import Int
 from janis_core.translations.exportpath import ExportPathKeywords
 from janis_core.utils.logger import Logger
 from janis_core.workflow.input import Input, InputNode
@@ -241,6 +243,14 @@ class TranslatorBase(ABC):
             and not inp.include_in_inputs_file_if_none
             and (inp.data_type.optional and inp.default is None)
         )
+
+    # Resource overrides
+    @staticmethod
+    def get_resource_override_inputs() -> List[ToolInput]:
+        return [
+            ToolInput("runtime_cpu", Int(optional=True), default=1),
+            ToolInput("runtime_memory", Int(optional=True), default=4),
+        ]
 
     # STRINGIFY
 

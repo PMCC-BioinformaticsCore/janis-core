@@ -590,9 +590,12 @@ class TestWdlGenerateInput(unittest.TestCase):
         # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
     def test_tool_output_with_input_selector(self):
+
         tool = TestToolWithSecondaryOutput()
         toolout = tool.outputs()[0]
-        os = wdl.translate_output_node_with_glob(toolout, toolout.glob, tool)
+        os = wdl.translate_output_node_with_glob(
+            toolout, toolout.glob, tool.inputs_map(), toolId=tool.id()
+        )
 
         self.assertEqual("out", os[0].name)
         self.assertEqual('"${testtool}/out"', os[0].expression)

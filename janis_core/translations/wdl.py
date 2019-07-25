@@ -20,11 +20,12 @@ import json
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
+
 from janis_core.workflow.input import InputNode
 
 from janis_core.graph.stepinput import Edge, StepInput
 from janis_core.tool.commandtool import CommandTool
-from janis_core.tool.tool import Tool, ToolInput
+from janis_core.tool.tool import Tool, ToolInput, ToolArgument, ToolOutput
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -33,7 +34,14 @@ from janis_core.types import (
     MemorySelector,
     StringFormatter,
 )
-from janis_core.types.common_data_types import Stdout, Array, Boolean, Filename, File
+from janis_core.types.common_data_types import (
+    Stdout,
+    Array,
+    Boolean,
+    Filename,
+    File,
+    Int,
+)
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.validators import Validators
@@ -89,13 +97,17 @@ class WdlTranslator(TranslatorBase):
         w = wdl.Workflow(wf.identifier, version="development")
         tools: List[Tool] = [s.step.tool() for s in wf._steps]
 
+        inputs = [*wf._inputs]
+        steps = [*wf._steps]
+        outputs = [*wf._outputs]
+
         wtools = {}  # Store all the tools by their name in this dictionary
         tool_aliases, step_aliases = build_aliases(
             wf._steps
         )  # Generate call and import aliases
 
         # Convert self._inputs -> wdl.Input
-        for i in wf._inputs:
+        for i in inputs:
             wd = i.input.data_type.wdl(has_default=i.input.default is not None)
 
             expr = None
@@ -129,7 +141,7 @@ class WdlTranslator(TranslatorBase):
             w.inputs.extend(resource_inputs)
 
         # Convert self._outputs -> wdl.Output
-        for o in wf._outputs:
+        for o in outputs:
             w.outputs.append(
                 wdl.Output(
                     o.output.data_type.wdl(),
@@ -173,7 +185,7 @@ class WdlTranslator(TranslatorBase):
         ]
 
         # Step[] -> (wdl.Task | wdl.Workflow)[]
-        for s in wf._steps:
+        for s in steps:
             t = s.step.tool()
 
             if isinstance(t, Workflow):
@@ -211,22 +223,9 @@ class WdlTranslator(TranslatorBase):
         return w, wtools
 
     @classmethod
-    def translate_tool(
-        cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
-    ):
-
-        if not Validators.validate_identifier(tool.id()):
-            raise Exception(
-                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
-                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
-                f"numbers or an underscore)"
-            )
-
-        inputsdict = tool.inputs_map()
-
-        ins: List[wdl.Input] = []
-        outs: List[wdl.Output] = []
-        for i in tool.inputs():
+    def translate_tool_inputs(cls, toolinputs: List[ToolInput]):
+        ins = []
+        for i in toolinputs:
             wd = i.input_type.wdl(has_default=i.default is not None)
             expr = None
             if isinstance(i.input_type, Filename):
@@ -247,32 +246,72 @@ class WdlTranslator(TranslatorBase):
                     wdl.Input(wd, get_secondary_tag_from_original_tag(i.id(), s))
                     for s in sec
                 )
+        return ins
 
-        for o in tool.outputs():
-            outs.extend(translate_output_node_with_glob(o, o.glob, tool))
+    @classmethod
+    def translate_tool_outputs(
+        cls, tooloutputs: List[ToolOutput], inputsmap: Dict[str, ToolInput], toolid
+    ):
+        outs: List[wdl.Output] = []
 
+        for o in tooloutputs:
+            outs.extend(
+                translate_output_node_with_glob(o, o.glob, inputsmap, toolId=toolid)
+            )
+        return outs
+
+    @classmethod
+    def translate_tool_args(
+        cls, toolargs: List[ToolArgument], inpmap: Dict[str, ToolInput], **debugkwargs
+    ):
+        if not toolargs:
+            return []
+        commandargs = []
+        for a in toolargs:
+            val = get_input_value_from_potential_selector_or_generator(a.value, inpmap)
+            should_wrap_in_quotes = isinstance(val, str) and (
+                a.shell_quote is None or a.shell_quote
+            )
+            wrapped_val = f"'{val}'" if should_wrap_in_quotes else val
+            commandargs.append(
+                wdl.Task.Command.CommandArgument(a.prefix, wrapped_val, a.position)
+            )
+        return commandargs
+
+    @classmethod
+    def build_command_from_inputs(
+        cls, toolinputs: List[ToolInput], inputmap: Dict[str, ToolInput]
+    ):
         command_ins = []
-        inmap = tool.inputs_map()
-        if tool.inputs():
-            for i in tool.inputs():
-                cmd = translate_command_input(i, inmap)
-                if cmd:
-                    command_ins.append(cmd)
+        for i in toolinputs:
+            cmd = translate_command_input(i, inputmap)
+            if cmd:
+                command_ins.append(cmd)
+        return command_ins
 
-        command_args = []
-        args = tool.arguments()
-        if args:
-            for a in args:
-                val = get_input_value_from_potential_selector_or_generator(
-                    a.value, inputsdict, tool_id=tool.id()
-                )
-                should_wrap_in_quotes = isinstance(val, str) and (
-                    a.shell_quote is None or a.shell_quote
-                )
-                wrapped_val = f"'{val}'" if should_wrap_in_quotes else val
-                command_args.append(
-                    wdl.Task.Command.CommandArgument(a.prefix, wrapped_val, a.position)
-                )
+    @classmethod
+    def translate_tool(
+        cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
+    ):
+
+        if not Validators.validate_identifier(tool.id()):
+            raise Exception(
+                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+                f"numbers or an underscore)"
+            )
+
+        inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
+        inmap = {i.tag: i for i in inputs}
+
+        ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
+        outs: List[wdl.Output] = cls.translate_tool_outputs(
+            tool.outputs(), inmap, tool.id()
+        )
+        command_args = cls.translate_tool_args(
+            tool.arguments(), inmap, toolId=tool.id()
+        )
+        command_ins = cls.build_command_from_inputs(tool.inputs(), inmap)
 
         commands = [
             prepare_move_statement_for_input_to_localise(ti)
@@ -288,27 +327,6 @@ class WdlTranslator(TranslatorBase):
         r = wdl.Task.Runtime()
         if with_docker:
             r.add_docker(tool.docker())
-
-        # generate resource inputs, for memory, cpu and disk at the moment
-        # CPU input must always be non-optional
-        ins.insert(
-            0,
-            wdl.Input(
-                wdl.WdlType.parse_type("Int"),
-                "runtime_cpu",
-                expression="1",
-                requires_quotes=False,
-            ),
-        )
-        ins.insert(
-            1,
-            wdl.Input(
-                wdl.WdlType.parse_type("Int"),
-                "runtime_memory",
-                expression="4",
-                requires_quotes=False,
-            ),
-        )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
         r.kwargs["cpu"] = "runtime_cpu"
@@ -507,22 +525,24 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
     )
 
 
-def translate_output_node_with_glob(o, glob, tool) -> List[wdl.Output]:
+def translate_output_node_with_glob(
+    o, glob, inputmap: Dict[str, ToolInput], **debugkwargs
+) -> List[wdl.Output]:
     if isinstance(o.output_type, Stdout):
         base_expression = "stdout()"
         return [wdl.Output(o.output_type.wdl(), o.id(), base_expression)]
 
     elif isinstance(glob, InputSelector):
-        return translate_input_selector_for_output(o, glob, tool)
+        return translate_input_selector_for_output(o, glob, inputmap, **debugkwargs)
 
     elif isinstance(glob, StringFormatter):
-        return translate_string_formatter_for_output(o, glob, tool)
+        return translate_string_formatter_for_output(o, glob, inputmap, **debugkwargs)
 
     elif isinstance(glob, WildcardSelector):
         base_expression = translate_wildcard_selector(glob)
         if not isinstance(o.output_type, Array):
             Logger.warn(
-                f"The command tool '{tool.id()}.{o.tag}' used a star-bind (*) glob to find the output, "
+                f"The command tool ({debugkwargs}).{o.tag}' used a star-bind (*) glob to find the output, "
                 f"but the return type was not an array. For WDL, the first element will be used, "
                 f"ie: '{base_expression}[0]'"
             )
@@ -544,23 +564,22 @@ def translate_output_node_with_glob(o, glob, tool) -> List[wdl.Output]:
 
     else:
         raise Exception(
-            f"Tool '{tool.id()}' has the non-selector glob: '{glob}', this is deprecated. "
+            f"Tool ({debugkwargs}) has the non-selector glob: '{glob}', this is deprecated. "
             f"Please use the WildcardSelector to build output for '{o.id()}'"
         )
 
 
 def translate_input_selector_for_output(
-    out, selector: InputSelector, tool
+    out, selector: InputSelector, inp_map: Dict[str, ToolInput], **debugkwargs
 ) -> List[wdl.Output]:
-    inp_map = tool.inputs_map()
     base_expression = translate_input_selector(
-        selector, inp_map, string_environment=False, toolid=tool.id()
+        selector, inp_map, string_environment=False, **debugkwargs
     )
 
     tool_in = inp_map.get(selector.input_to_select)
     if not tool_in:
         raise Exception(
-            f"The InputSelector for tool '{tool.id()}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
+            f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
         )
 
     expression = (
@@ -601,7 +620,7 @@ def translate_input_selector_for_output(
 
 
 def translate_string_formatter_for_output(
-    out, selector: StringFormatter, tool
+    out, selector: StringFormatter, inp_map: Dict[str, ToolInput], **debugkwargs
 ) -> List[wdl.Output]:
     """
     The output glob was a string formatter, so we'll need to build the correct glob
@@ -613,9 +632,9 @@ def translate_string_formatter_for_output(
     respect to the secondary file extension. Or the File class also has a recommended
     "extension" property now that this should consider.
 
+    :param inp_map:
     :param out:
     :param selector:
-    :param tool:
     :return:
     """
     inputs_to_retranslate = {
@@ -624,7 +643,6 @@ def translate_string_formatter_for_output(
         if not any(isinstance(v, t) for t in StringFormatter.resolved_types)
     }
 
-    inp_map = tool.inputs_map()
     has_secondary_files = bool(out.output_type.secondary_files())
 
     if not has_secondary_files:
@@ -632,7 +650,7 @@ def translate_string_formatter_for_output(
             **selector.kwargs,
             **{
                 k: get_input_value_from_potential_selector_or_generator(
-                    v, inputsdict=inp_map, string_environment=True, tool_id=tool.id()
+                    v, inputsdict=inp_map, string_environment=True, **debugkwargs
                 )
                 for k, v in inputs_to_retranslate.items()
             },
@@ -657,7 +675,7 @@ def translate_string_formatter_for_output(
             input_selectors_with_secondaries[k] = v
 
         translated_inputs[k] = get_input_value_from_potential_selector_or_generator(
-            v, inputsdict=inp_map, string_environment=True, tool_id=tool.id()
+            v, inputsdict=inp_map, string_environment=True, **debugkwargs
         )
 
     if len(input_selectors_with_secondaries) > 1:
