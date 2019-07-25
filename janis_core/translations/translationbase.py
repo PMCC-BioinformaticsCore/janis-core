@@ -104,7 +104,7 @@ class TranslatorBase(ABC):
         fn_inputs = self.inputs_filename(workflow)
         fn_resources = self.resources_filename(workflow)
 
-        if write_inputs_file:
+        if to_disk and write_inputs_file:
             if not os.path.isdir(d):
                 os.makedirs(d)
 
