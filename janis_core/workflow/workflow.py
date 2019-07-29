@@ -896,6 +896,30 @@ class Workflow(Tool):
                 tools[tl.id()] = tl
         return tools
 
+    def report(self, to_console=True, tabulate_tablefmt=None):
+        import tabulate
+
+        tools = self.get_tools()
+        keys = sorted(tools.keys(), key=lambda a: a[0].lower())
+
+        header = ["tool", "version", "container"]
+        data = []
+        for t in keys:
+            tool = tools[t]
+            data.append(
+                [
+                    f"{tool.friendly_name()} ({tool.id()})",
+                    tool.version(),
+                    tool.container(),
+                ]
+            )
+
+        retval = tabulate.tabulate(data, headers=header, tablefmt=tabulate_tablefmt)
+        if to_console:
+            print(retval)
+
+        return retval
+
     def generate_resources_table(
         self,
         hints: Dict[str, Any],

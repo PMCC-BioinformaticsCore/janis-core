@@ -263,9 +263,6 @@ class CwlTranslator(TranslatorBase):
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptReq()])
 
-        if tool.requirements():
-            tool_cwl.requirements.extend(tool.requirements())
-
         inputs_that_require_localisation = [
             ti
             for ti in tool.inputs()
@@ -289,7 +286,7 @@ class CwlTranslator(TranslatorBase):
         if with_docker:
             tool_cwl.requirements.append(
                 cwlgen.DockerRequirement(
-                    docker_pull=tool.docker(),
+                    docker_pull=tool.container(),
                     # docker_load=None,
                     # docker_file=None,
                     # docker_import=None,

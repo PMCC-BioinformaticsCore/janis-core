@@ -1,38 +1,97 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 
-from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolTypes
+from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolTypes, ToolOutput
+from janis_core.enums.supportedtranslations import SupportedTranslation
 from janis_core.utils.metadata import ToolMetadata, Metadata
-
-import cwlgen
 
 
 class CommandTool(Tool, ABC):
     """
-    Notes:
-        - If you're thinking about secondary files, DON'T!! Consider creating a new DataType.
-        - This class is similar to how RABIX COMPOSER creates the tools
-        - You can subclass and override whichever fields you'd like, including the INPUTS / OUTPUTS!
-        - Take note which options you can provide to the ToolInput and ToolOutput.
+    A CommandTool is an interface between Janis and a program to be executed.
+    Simply put, a CommandTool has a name, a command, inputs, outputs and a container to run in.
+
+    Additionally you can attach metadata to a tool.
     """
 
     def __init__(self):
         super().__init__()
         self._metadata = ToolMetadata()
 
-    def id(self):
-        return self.tool()
-
+    # Tool base
     @staticmethod
     @abstractmethod
     def tool() -> str:
         """
-        This is the name of the tool. ALL versions of the same tool should share this common name.
-        As of 2019-07-11, there are no known restrictions on this identifier, but it MUST be unique,
-        succinct and should be self-evident.
-        :return: String identifier for the tool
+        Unique identifier of the tool
+        :return:
         """
-        raise Exception(f"subclass MUST implement 'tool' method")
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def base_command() -> Optional[Union[str, List[str]]]:
+        """
+        The command of the tool to execute, usually the tool name or path and not related to any inputs.
+        This field will always come before any inputs or arguments, though it's possible to omit this
+        field and the program will use the first ordered argument / position.
+        :return: Optional[Union[str, List[str]]]
+        """
+        pass
+
+    @abstractmethod
+    def inputs(self) -> List[ToolInput]:
+        """
+        A list of named tool inputs that will be used to create the command line. See :class:`janis.ToolInput`
+        for options on how to configure this command line binding.
+        :return: List[janis.ToolInput]
+        """
+        pass
+
+    def arguments(self) -> Optional[List[ToolArgument]]:
+        """
+        A list of arguments that will be used to create the command line. Although they are not directly
+        addressable as inputs, it's possible to use use a :class:`janis.InputSelector` or
+        :class:`janis.StringFormatter` in the value field. See :class:`janis.ToolArgument` for
+        options on how to configure a this command line binding.
+        :return: List[janis.ToolArgument]
+        """
+        return None
+
+    @abstractmethod
+    def outputs(self) -> List[ToolOutput]:
+        """
+        A list of named outputs of the tool. Each :class:`janis.ToolOutput` has a ``glob`` field that
+        can be used to select the outputs, see its documentation for more information.
+        :return:
+        """
+        pass
+
+    # Tool versions
+
+    @staticmethod
+    @abstractmethod
+    def container() -> str:
+        """
+        A link to an OCI compliant container accessible by your engine. Previously, docker().
+        :return: str
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def version() -> str:
+        """
+        Version of the tool. Janis supports multiple versions of tools with the same ``.tool()`` value.
+        The recommended format is `SemVer <https://semver.org/>`_, though you should reflect the tool version.
+        :return: str
+        """
+        pass
+
+    ## Other studd
+
+    def id(self):
+        return self.tool()
 
     @classmethod
     def __hash__(cls):
@@ -43,18 +102,6 @@ class CommandTool(Tool, ABC):
         if cls.version() is not None:
             return f"{cls.tool()}/{cls.version()}"
         return cls.tool()
-
-    @staticmethod
-    @abstractmethod
-    def docker():
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def base_command():
-        raise Exception(
-            "Subclass MUST implement the 'base_command' method with str or [str] return types"
-        )
 
     def memory(self, hints: Dict[str, Any]) -> Optional[float]:
         """
@@ -83,9 +130,6 @@ class CommandTool(Tool, ABC):
         """
         return None
 
-    def arguments(self) -> Optional[List[ToolArgument]]:
-        return None
-
     def metadata(self) -> ToolMetadata:
         return self._metadata
 
@@ -93,21 +137,9 @@ class CommandTool(Tool, ABC):
     def type(cls):
         return ToolTypes.CommandTool
 
-    @staticmethod
-    def environment_variables() -> Optional[Dict[str, str]]:
-        return None
-
-    @staticmethod
-    def requirements() -> Optional[List[cwlgen.Requirement]]:
-        return None
-
-    @staticmethod
-    def hint_map() -> Optional[Dict[str, Any]]:
-        return None
-
     def translate(
         self,
-        translation,
+        translation: SupportedTranslation,
         to_console=True,
         to_disk=False,
         with_docker=True,
@@ -145,7 +177,7 @@ class CommandTool(Tool, ABC):
         )
 
         metadata = self.metadata() if self.metadata() else Metadata()
-        docker = self.docker()
+        docker = self.container()
 
         base = (
             (

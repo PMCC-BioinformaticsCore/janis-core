@@ -35,7 +35,7 @@ class SingleTestTool(CommandTool):
         return [ToolOutput("out", String())]
 
     @staticmethod
-    def docker():
+    def container():
         return None
 
     @staticmethod
@@ -62,7 +62,7 @@ class ArrayTestTool(CommandTool):
         return [ToolOutput("outs", Array(String()))]
 
     @staticmethod
-    def docker():
+    def container():
         return None
 
     @staticmethod

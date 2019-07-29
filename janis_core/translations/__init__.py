@@ -1,24 +1,14 @@
-from enum import Enum
 from typing import Dict
 
-from janis_core.translations.exportpath import ExportPathKeywords
-from janis_core.translations.wdl import WdlTranslator
 from janis_core.__meta__ import GITHUB_URL
+from janis_core.translations.exportpath import ExportPathKeywords
+from janis_core.enums.supportedtranslations import (
+    SupportedTranslations,
+    SupportedTranslation,
+)
+from janis_core.translations.wdl import WdlTranslator
 from .cwl import CwlTranslator
 from .translationbase import TranslatorBase
-
-SupportedTranslation = str
-
-
-class SupportedTranslations(Enum):
-    CWL = "cwl"
-    WDL = "wdl"
-
-    def __str__(self):
-        return self.value
-
-    def __eq__(self, other):
-        return str(self) == str(other)
 
 
 def get_translator(translation: SupportedTranslation) -> TranslatorBase:

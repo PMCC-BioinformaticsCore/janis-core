@@ -25,7 +25,7 @@ class ArrayTestTool(CommandTool):
         return "'test_step' array of strings tool"
 
     @staticmethod
-    def docker():
+    def container():
         return None
 
     @staticmethod

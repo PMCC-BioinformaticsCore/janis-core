@@ -22,8 +22,8 @@ class {toolClass}(CommandTool):
         return {baseCommand}
 
     @staticmethod
-    def docker():
-        return {docker}
+    def container():
+        return {container}
 
     def doc(self):
         return {doc}

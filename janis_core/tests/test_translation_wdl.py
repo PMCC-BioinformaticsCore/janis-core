@@ -47,7 +47,7 @@ class TestTool(CommandTool):
         return "Tool for testing translation"
 
     @staticmethod
-    def docker():
+    def container():
         return "ubuntu:latest"
 
     @staticmethod

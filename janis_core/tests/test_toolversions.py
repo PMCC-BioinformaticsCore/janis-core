@@ -10,5 +10,5 @@
 #     def test_docker_resolution_order(self):
 #         tool = Gatk4HaplotypeCaller()
 #
-#         # tool.docker() will error if the method order resolution breaks
-#         self.assertNotEqual(tool.docker(), "")
+#         # tool.container() will error if the method order resolution breaks
+#         self.assertNotEqual(tool.container(), "")

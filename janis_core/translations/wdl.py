@@ -327,7 +327,7 @@ class WdlTranslator(TranslatorBase):
 
         r = wdl.Task.Runtime()
         if with_docker:
-            r.add_docker(tool.docker())
+            r.add_docker(tool.container())
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
         r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
