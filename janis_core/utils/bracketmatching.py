@@ -1,5 +1,5 @@
 from keyword import iskeyword
-from typing import Tuple
+from typing import Tuple, List
 
 from janis_core.utils.logger import Logger
 
@@ -16,6 +16,8 @@ def get_keywords_between_braces(
     highest_level = -1
     start_idx = None
     matches = set()
+    rejected = set()
+    skipped = set()
 
     for i in range(len(text)):
 
@@ -31,13 +33,25 @@ def get_keywords_between_braces(
             if start_idx is not None and counter == 0:
                 match = text[start_idx + 1 : i]
                 if highest_level > 1:
-                    Logger.log("Skipping match: " + match)
+                    skipped.add(match)
                 elif argument_validator is not None and not argument_validator(match):
-                    Logger.log("Match was rejected by validator: " + match)
+                    rejected.add(match)
                 else:
-                    Logger.log("Recognised match: " + match)
                     matches.add(match)
                 highest_level = -1
                 start_idx = None
+    extra: List[str] = []
+    if len(matches) > 0:
+        extra.append("matches=" + ",".join(matches))
+    if len(rejected) > 0:
+        extra.append("rejected=" + ",".join(rejected))
+    if len(skipped) > 0:
+        extra.append("skipped=" + ",".join(skipped))
+
+    extrastr = ""
+    if len(extra) > 0:
+        extrastr = " (" + " | ".join(extra) + ")"
+
+    Logger.log(f"Recognised {len(matches)} matches in '{text}'" + extrastr)
 
     return matches, counter
