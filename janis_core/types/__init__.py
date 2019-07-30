@@ -24,6 +24,9 @@ class InputSelector(Selector):
         kwarg = {self.input_to_select: self}
         return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
 
+    def __radd__(self, other):
+        return StringFormatter(other) + self.to_string_formatter()
+
     def __add__(self, other):
         return self.to_string_formatter() + other
 
