@@ -1,6 +1,6 @@
 import unittest
 
-from janis_core import String, Array, File, Int
+from janis_core import String, Array, File, Int, Stdout
 from janis_core.types.common_data_types import Filename
 
 
@@ -79,3 +79,25 @@ class Test_ReceiveFrom(unittest.TestCase):
         s1 = Filename()
         s2 = String()
         self.assertTrue(s2.can_receive_from(s1))
+
+
+class TestRecieveFromStdout(unittest.TestCase):
+    def test_receivefromstdout_file(self):
+        s1 = Stdout()
+        s2 = File()
+        self.assertTrue(s2.can_receive_from(s1))
+
+    def test_recievefromstdout_optional(self):
+        s1 = Stdout()
+        s2 = File(optional=True)
+        self.assertTrue(s2.can_receive_from(s1))
+
+    def test_recievefromstdout_subtype(self):
+        s1 = Stdout(FileSubclass())
+        s2 = File()
+        self.assertTrue(s2.can_receive_from(s1))
+
+    def test_receivefromstdout_reverse(self):
+        s1 = File()
+        s2 = Stdout(FileSubclass())
+        self.assertFalse(s2.can_receive_from(s1))
