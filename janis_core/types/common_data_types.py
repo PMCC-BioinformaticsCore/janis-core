@@ -377,10 +377,17 @@ class Stdout(File):
     def primitive():
         return NativeTypes.kStdout
 
-    def __init__(self, subtype=File(), stdoutname=None):
+    def __init__(self, subtype=None, stdoutname=None):
         super().__init__(optional=False)
+
         self.subtype = subtype if subtype is not None else File()
         self.stdoutname = stdoutname
+
+        if self.subtype.secondary_files():
+            raise Exception(
+                f"The subtype '{self.subtype.__name__}' has secondary files, "
+                f"but stdout does not have the ability to collect files"
+            )
 
     def received_type(self):
         return self.subtype
