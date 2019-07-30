@@ -64,16 +64,29 @@ class ToolInput(ToolArgument):
         position: Optional[int] = None,
         prefix: Optional[str] = None,
         separate_value_from_prefix: bool = None,
+        prefix_applies_to_all_elements: bool = None,
+        separator: str = None,
+        shell_quote: bool = None,
+        localise_file: bool = None,
         default: Any = None,
         doc: Optional[str] = None,
-        prefix_applies_to_all_elements: bool = None,
-        shell_quote=None,
-        separator=None,
-        localise_file=None,
     ):
         """
-        :param tag: tag for input, what the yml will reference (eg: input1: path/to/file)
-        :param input_type:
+        A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.
+        The ToolInput must have either a position or prefix set to be bound onto the command line.
+
+        :param tag: The identifier of the input (unique to inputs and outputs of a tool)
+        :param input_type: The data type that this input accepts
+        :param position: The position of the input to be applied. (Default = 0, after the base_command).
+        :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
+        :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
+        :param prefix_applies_to_all_elements: Applies the prefix to each element of the array (Array inputs only)
+        :param shell_quote: Stops shell quotes from being applied in all circumstances, useful when joining multiple commands together.
+        :param separator: The separator between each element of an array (defaults to ' ')
+        :param localise_file: Ensures that the file(s) are localised into the execution directory.
+        :param default: The default value to be applied if the input is not defined.
+        :param doc: Documentation string for the ToolInput, this is used to generate the tool documentation and provide
+        hints to the user.
         """
         super().__init__(
             value=None,
@@ -120,6 +133,16 @@ class ToolOutput:
         glob: Optional[Union[Selector, str]] = None,
         doc: Optional[str] = None,
     ):
+        """
+        A ToolOutput instructs the the engine how to collect an output and how
+        it may be referenced in a workflow.
+
+        :param tag: The identifier of a output, must be unique in the inputs and outputs.
+        :param output_type: The type of output that is being collected.
+        :param glob: How to collect this output, can accept any :class:`janis.Selector`.
+        :param doc: Documentation on what the output is, used to generate docs.
+        """
+
         if not Validators.validate_identifier(tag):
             raise Exception(
                 f"The identifier '{tag}' was not validated by '{Validators.identifier_regex}' "

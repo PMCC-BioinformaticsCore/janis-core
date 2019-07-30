@@ -10,8 +10,6 @@ class CommandTool(Tool, ABC):
     """
     A CommandTool is an interface between Janis and a program to be executed.
     Simply put, a CommandTool has a name, a command, inputs, outputs and a container to run in.
-
-    Additionally you can attach metadata to a tool.
     """
 
     def __init__(self):
