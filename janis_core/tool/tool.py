@@ -29,6 +29,20 @@ class ToolArgument:
         doc: Optional[str] = None,
         shell_quote: bool = None,
     ):
+        """
+        A ``ToolArgument`` is a CLI parameter that cannot be override (at runtime).
+        The value can
+
+
+        :param value:
+        :type value: ``str`` | ``janis.InputSelector`` | ``janis.StringFormatter``
+        :param position: The position of the input to be applied. (Default = 0, after the base_command).
+        :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
+        :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
+        :param doc: Documentation string for the argument, this is used to generate the tool documentation and provide
+        :param shell_quote: Stops shell quotes from being applied in all circumstances, useful when joining multiple commands together.
+        """
+
         self.prefix: Optional[str] = prefix
         self.value = value
         self.position: Optional[int] = position
@@ -77,6 +91,7 @@ class ToolInput(ToolArgument):
 
         :param tag: The identifier of the input (unique to inputs and outputs of a tool)
         :param input_type: The data type that this input accepts
+        :type input_type: ``janis.DataType``
         :param position: The position of the input to be applied. (Default = 0, after the base_command).
         :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
         :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
@@ -198,10 +213,14 @@ class Tool(ABC, object):
     def outputs_map(self) -> Dict[str, ToolOutput]:
         return {outp.tag: outp for outp in self.outputs()}
 
-    @abstractmethod
-    def friendly_name(self) -> str:
-        # maps to CWL label (still exploring for WDL)
-        raise Exception("Tools must implement friendly_name() method")
+    def friendly_name(self) -> Optional[str]:
+        """
+        Overriding this method is not required UNLESS you distribute your tool.
+        Generating the docs will fail if your tool does not provide a name.
+
+        :return: A friendly name of your tool
+        """
+        return None
 
     def metadata(self) -> Optional[Metadata]:
         return None
