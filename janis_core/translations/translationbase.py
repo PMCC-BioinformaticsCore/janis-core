@@ -201,6 +201,8 @@ class TranslatorBase(ABC):
             d = ExportPathKeywords.resolve(
                 export_path, workflow_spec=self.name, workflow_name=tool.id()
             )
+            if not os.path.exists(d):
+                os.makedirs(d)
             fn_tool = self.tool_filename(tool)
             with open(os.path.join(d, fn_tool), "w+") as wf:
                 Logger.log(f"Writing {fn_tool} to disk")
