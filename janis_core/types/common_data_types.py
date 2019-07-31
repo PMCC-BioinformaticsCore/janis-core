@@ -373,12 +373,13 @@ class Stdout(File):
     def name():
         return "Stdout"
 
-    @staticmethod
-    def primitive():
-        return NativeTypes.kStdout
-
     def __init__(self, subtype=None, stdoutname=None):
         super().__init__(optional=False)
+
+        if subtype and not isinstance(subtype, File):
+            raise Exception(
+                "Janis does not currently support non-File stdout annotations"
+            )
 
         self.subtype = subtype if subtype is not None else File()
         self.stdoutname = stdoutname
@@ -388,6 +389,13 @@ class Stdout(File):
                 f"The subtype '{self.subtype.__name__}' has secondary files, "
                 f"but stdout does not have the ability to collect files"
             )
+
+    @staticmethod
+    def primitive():
+        return NativeTypes.kStdout
+
+    def id(self):
+        return f"stdout<{self.subtype.id()}>"
 
     def received_type(self):
         return self.subtype
