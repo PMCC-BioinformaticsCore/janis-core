@@ -140,6 +140,7 @@ class CommandTool(Tool, ABC):
         translation: SupportedTranslation,
         to_console=True,
         to_disk=False,
+        export_path=None,
         with_docker=True,
         with_resource_overrides=False,
     ):
@@ -149,6 +150,8 @@ class CommandTool(Tool, ABC):
             self,
             translation,
             to_console=to_console,
+            to_disk=to_disk,
+            export_path=export_path,
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
         )

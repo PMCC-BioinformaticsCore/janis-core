@@ -141,7 +141,7 @@ class CwlTranslator(TranslatorBase):
                 tools[tool.id()] = wf_cwl
                 tools.update(subtools)
             elif isinstance(tool, CommandTool):
-                tool_cwl = cls.translate_tool(
+                tool_cwl = cls.translate_tool_internal(
                     tool,
                     with_docker=with_docker,
                     with_resource_overrides=with_resource_overrides,
@@ -231,7 +231,9 @@ class CwlTranslator(TranslatorBase):
         return w
 
     @classmethod
-    def translate_tool(cls, tool, with_docker=True, with_resource_overrides=False):
+    def translate_tool_internal(
+        cls, tool, with_docker=True, with_resource_overrides=False
+    ):
         metadata = tool.metadata() if tool.metadata() else ToolMetadata()
         stdouts = [
             o.output_type
@@ -518,7 +520,7 @@ def translate_step(
                 tool, with_resource_overrides=has_resources_overrides
             )
         else:
-            run_ref = CwlTranslator.translate_tool(
+            run_ref = CwlTranslator.translate_tool_internal(
                 tool, True, with_resource_overrides=has_resources_overrides
             )
 

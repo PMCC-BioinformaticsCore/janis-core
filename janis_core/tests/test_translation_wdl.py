@@ -337,7 +337,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = wdl.WdlTranslator
-        translated = trans.translate_tool(TestTool())
+        translated = trans.translate_tool_internal(TestTool())
         arg = translated.command[0].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 

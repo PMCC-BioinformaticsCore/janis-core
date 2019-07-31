@@ -61,22 +61,20 @@ def translate_tool(
     tool,
     translation: SupportedTranslation,
     to_console=True,
+    to_disk=False,
+    export_path=None,
     with_docker=True,
     with_resource_overrides=False,
 ) -> str:
     translator = get_translator(translation)
-    tool_out = translator.stringify_translated_tool(
-        translator.translate_tool(
-            tool,
-            with_docker=with_docker,
-            with_resource_overrides=with_resource_overrides,
-        )
+    return translator.translate_tool(
+        tool,
+        to_console=to_console,
+        to_disk=to_disk,
+        export_path=export_path,
+        with_docker=with_docker,
+        with_resource_overrides=with_resource_overrides,
     )
-
-    if to_console:
-        print(tool_out)
-
-    return tool_out
 
 
 def build_resources_input(workflow, translation: SupportedTranslation, hints) -> str:

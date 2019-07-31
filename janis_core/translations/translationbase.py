@@ -176,6 +176,39 @@ class TranslatorBase(ABC):
 
         return str_wf, str_inp, str_tools
 
+    def translate_tool(
+        self,
+        tool,
+        to_console=True,
+        to_disk=False,
+        export_path=None,
+        with_docker=True,
+        with_resource_overrides=False,
+    ):
+
+        tool_out = self.stringify_translated_tool(
+            self.translate_tool_internal(
+                tool,
+                with_docker=with_docker,
+                with_resource_overrides=with_resource_overrides,
+            )
+        )
+
+        if to_console:
+            print(tool_out)
+
+        if to_disk:
+            d = ExportPathKeywords.resolve(
+                export_path, workflow_spec=self.name, workflow_name=tool.id()
+            )
+            fn_tool = self.tool_filename(tool)
+            with open(os.path.join(d, fn_tool), "w+") as wf:
+                Logger.log(f"Writing {fn_tool} to disk")
+                wf.write(tool_out)
+                Logger.log(f"Wrote {fn_tool}  to disk")
+
+        return tool_out
+
     @classmethod
     def validate_inputs(cls, inputs: List[InputNode], allow_null_if_optional):
         invalid = [
@@ -216,7 +249,9 @@ class TranslatorBase(ABC):
 
     @classmethod
     @abstractmethod
-    def translate_tool(cls, tool, with_docker=True, with_resource_overrides=False):
+    def translate_tool_internal(
+        cls, tool, with_docker=True, with_resource_overrides=False
+    ):
         pass
 
     @classmethod

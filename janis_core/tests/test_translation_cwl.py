@@ -405,7 +405,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = cwl.CwlTranslator
-        translated = trans.translate_tool(TestTool())
+        translated = trans.translate_tool_internal(TestTool())
         arg: cwlgen.CommandLineBinding = translated.arguments[0]
         self.assertEqual('test:\\\\t:escaped:\\\\n:characters"', arg.valueFrom)
 

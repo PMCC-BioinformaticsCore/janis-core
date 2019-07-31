@@ -200,7 +200,7 @@ class WdlTranslator(TranslatorBase):
                 wtools.update(wf_tools)
 
             elif isinstance(t, CommandTool):
-                wtools[t.id()] = cls.translate_tool(
+                wtools[t.id()] = cls.translate_tool_internal(
                     t,
                     with_docker=with_docker,
                     with_resource_overrides=with_resource_overrides,
@@ -291,7 +291,7 @@ class WdlTranslator(TranslatorBase):
         return command_ins
 
     @classmethod
-    def translate_tool(
+    def translate_tool_internal(
         cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
     ):
 
