@@ -12,3 +12,7 @@ class SupportedTranslations(Enum):
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+    @staticmethod
+    def all():
+        return [SupportedTranslations.CWL, SupportedTranslations.WDL]
