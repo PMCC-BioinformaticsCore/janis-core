@@ -162,19 +162,15 @@ class CwlTranslator(TranslatorBase):
         additional_inputs: Dict = None,
     ) -> Dict[str, any]:
 
+        ad = additional_inputs or {}
         inp = {
-            i.id(): i.input.cwl_input()
+            i.id(): i.input.cwl_input(ad.get(i.id()))
             for i in workflow._inputs
-            if i.input.include_in_inputs_file_if_none or i.input.value
+            if i.input.include_in_inputs_file_if_none or i.input.value or i.id() in ad
         }
 
         if merge_resources:
             inp.update(cls.build_resources_input(workflow, hints))
-
-        if additional_inputs:
-            for k in inp:
-                if k in additional_inputs:
-                    inp[k] = additional_inputs[k]
 
         return inp
 

@@ -57,8 +57,8 @@ class Input:
     def id(self):
         return self._identifier
 
-    def cwl_input(self):
-        return self.data_type.cwl_input(self.value)
+    def cwl_input(self, overridevalue=None):
+        return self.data_type.cwl_input(overridevalue or self.value)
 
     def wdl_input(self):
         return self.value
