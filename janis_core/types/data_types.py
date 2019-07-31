@@ -189,8 +189,12 @@ class DataType(ABC):
         #
         # Although these are the same definition, they won't actually compare to the same value
 
-        receive_from = list(reversed([x.__name__ for x in type(other).mro()]))
-        receive_to = list(reversed([x.__name__ for x in type(self).mro()]))
+        receive_from = list(
+            reversed([x.__name__ for x in type(other.received_type()).mro()])
+        )
+        receive_to = list(
+            reversed([x.__name__ for x in type(self.received_type()).mro()])
+        )
 
         if not is_array_prefix(receive_to, receive_from):
             return False

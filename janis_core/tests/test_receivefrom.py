@@ -9,6 +9,11 @@ class FileSubclass(File):
         return "test_receivefrom_subclass"
 
 
+class FileSubclassSubclass(FileSubclass):
+    def name(self):
+        return super().name() + "_2"
+
+
 class Test_ReceiveFrom(unittest.TestCase):
     def test_str_str(self):
         s1 = String()
@@ -101,3 +106,8 @@ class TestRecieveFromStdout(unittest.TestCase):
         s1 = File()
         s2 = Stdout(FileSubclass())
         self.assertFalse(s2.can_receive_from(s1))
+
+    def test_receive_from_nonfile_stdout(self):
+        s1 = FileSubclass()
+        s2 = Stdout(FileSubclass())
+        self.assertTrue(s2.can_receive_from(s1))
