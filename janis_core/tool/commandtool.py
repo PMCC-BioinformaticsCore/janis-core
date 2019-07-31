@@ -240,3 +240,22 @@ INPUTS:
 OUTPUTS:
 {outputs}
 """
+
+    def wrapped_in_wf(self):
+        from copy import copy
+        from janis_core.workflow.workflow import Workflow, Input, Output, Step
+
+        wf = Workflow(self.id() + "Wf")
+        stp = Step(self.tool().lower(), self)
+        wf.add_items([stp])
+        for i in self.inputs():
+            intp = copy(i.input_type)
+            if i.default:
+                intp.optional = True
+
+            wf.add_edge(Input(i.id(), intp), f"{stp.id()}/{i.id()}")
+
+        for o in self.outputs():
+            wf.add_edge(f"{stp.id()}/{o.id()}", Output(o.id()))
+
+        return wf
