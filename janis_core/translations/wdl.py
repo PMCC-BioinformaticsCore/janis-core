@@ -314,11 +314,11 @@ class WdlTranslator(TranslatorBase):
         )
         command_ins = cls.build_command_from_inputs(tool.inputs(), inmap)
 
-        commands = [
-            prepare_move_statement_for_input_to_localise(ti)
-            for ti in tool.inputs()
-            if ti.localise_file
-        ]
+        commands = []
+        for ti in tool.inputs():
+            if not ti.localise_file:
+                continue
+            commands.extend(prepare_move_statement_for_input_to_localise(ti))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -1297,9 +1297,29 @@ def prepare_move_statement_for_input_to_localise(ti: ToolInput):
     it = ti.input_type
 
     if issubclass(type(it), File):
-        return wdl.Task.Command(f"mv ${{{ti.id()}}} -t .")
+        commands = [wdl.Task.Command(f"mv ${{{ti.id()}}} -t .")]
+        if it.secondary_files():
+            for s in it.secondary_files():
+                commands.append(
+                    wdl.Task.Command(
+                        f"mv ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} -t ."
+                    )
+                )
+        return commands
     if isinstance(it, Array) and issubclass(type(it.subtype()), File):
-        return wdl.Task.Command("mv ${{sep=' ' {s}}} -t .".format(s=ti.id()))
+        subtype = it.subtype()
+        commands = [wdl.Task.Command("mv ${{sep=' ' {s}}} -t .".format(s=ti.id()))]
+        if subtype.secondary_files():
+            for s in it.secondary_files():
+                commands.append(
+                    wdl.Task.Command(
+                        "mv ${{sep=' ' {s}}} -t .".format(
+                            s=get_secondary_tag_from_original_tag(ti.id(), s)
+                        )
+                    )
+                )
+
+        return commands
 
     raise Exception(f"WDL is unable to localise type '{type(it)}'")
 
