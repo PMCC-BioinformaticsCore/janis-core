@@ -56,6 +56,8 @@ class TranslatorBase(ABC):
         hints=None,
         allow_null_if_not_optional=True,
         additional_inputs: Dict = None,
+        max_cores=None,
+        max_mem=None,
     ):
 
         self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
@@ -71,6 +73,8 @@ class TranslatorBase(ABC):
             merge_resources=merge_resources,
             hints=hints,
             additional_inputs=additional_inputs,
+            max_cores=max_cores,
+            max_mem=max_mem,
         )
         tr_res = self.build_resources_input(workflow, hints)
 
@@ -184,6 +188,8 @@ class TranslatorBase(ABC):
         export_path=None,
         with_docker=True,
         with_resource_overrides=False,
+        max_cores=None,
+        max_mem=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -265,12 +271,14 @@ class TranslatorBase(ABC):
         merge_resources=False,
         hints=None,
         additional_inputs: Dict = None,
+        max_cores=None,
+        max_mem=None,
     ) -> Dict[str, any]:
         pass
 
     @classmethod
     @abstractmethod
-    def build_resources_input(cls, workflow, hints):
+    def build_resources_input(cls, workflow, hints, max_cores=None, max_mem=None):
         pass
 
     @staticmethod

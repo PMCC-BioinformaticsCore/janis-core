@@ -1,5 +1,5 @@
 import unittest
-from typing import List
+from typing import List, Dict, Any
 
 import wdlgen
 
@@ -42,6 +42,12 @@ class TestTool(CommandTool):
 
     def outputs(self) -> List[ToolOutput]:
         return [ToolOutput("std", Stdout())]
+
+    def cpus(self, hints: Dict[str, Any]):
+        return 2
+
+    def memory(self, hints: Dict[str, Any]):
+        return 2
 
     def friendly_name(self) -> str:
         return "Tool for testing translation"
@@ -604,7 +610,6 @@ class TestWdlGenerateInput(unittest.TestCase):
         self.assertEqual('"${testtool}/out.txt"', os[1].expression)
 
 
-#
 class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_nooptional_position(self):
         ti = ToolInput("tag", String(), position=0)
@@ -722,3 +727,37 @@ class TestWdlInputTranslation(unittest.TestCase):
     def test_string_optional_default(self):
         s = String(optional=True)
         self.assertEqual("String?", s.wdl(has_default=True).get_string())
+
+
+class TestWdlMaxResources(unittest.TestCase):
+    def test_cores(self):
+        tool = TestTool()
+        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        self.assertEqual(
+            2, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
+        )
+
+    def test_max_cores(self):
+        tool = TestTool()
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, max_cores=1
+        )
+        self.assertEqual(
+            1, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
+        )
+
+    def test_memory(self):
+        tool = TestTool()
+        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        self.assertEqual(
+            2, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
+        )
+
+    def test_max_memory(self):
+        tool = TestTool()
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, max_mem=1
+        )
+        self.assertEqual(
+            1, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
+        )

@@ -1,5 +1,5 @@
 import unittest
-from typing import List
+from typing import List, Dict, Any
 
 import cwlgen
 
@@ -40,6 +40,12 @@ class TestTool(CommandTool):
 
     def outputs(self) -> List[ToolOutput]:
         return [ToolOutput("std", Stdout())]
+
+    def cpus(self, hints: Dict[str, Any]):
+        return 2
+
+    def memory(self, hints: Dict[str, Any]):
+        return 2
 
     def friendly_name(self) -> str:
         return "Tool for testing translation"
@@ -618,6 +624,32 @@ class TestCwlGenerateInput(unittest.TestCase):
 
         self.assertDictEqual({}, self.translator.build_inputs_file(wf))
         # self.assertDictEqual({'inpId': None}, self.translator.build_inputs_file(wf))
+
+
+class TestCwlMaxResources(unittest.TestCase):
+    def test_cores(self):
+        tool = TestTool()
+        resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        self.assertEqual(2, resources["testtranslationtool_runtime_cpu"])
+
+    def test_max_cores(self):
+        tool = TestTool()
+        resources = CwlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, max_cores=1
+        )
+        self.assertEqual(1, resources["testtranslationtool_runtime_cpu"])
+
+    def test_memory(self):
+        tool = TestTool()
+        resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        self.assertEqual(2, resources["testtranslationtool_runtime_memory"])
+
+    def test_max_memory(self):
+        tool = TestTool()
+        resources = CwlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, max_mem=1
+        )
+        self.assertEqual(1, resources["testtranslationtool_runtime_memory"])
 
 
 cwl_testtool = """\

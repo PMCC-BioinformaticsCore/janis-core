@@ -160,6 +160,8 @@ class CwlTranslator(TranslatorBase):
         merge_resources=False,
         hints=None,
         additional_inputs: Dict = None,
+        max_cores=None,
+        max_mem=None,
     ) -> Dict[str, any]:
 
         ad = additional_inputs or {}
@@ -170,7 +172,7 @@ class CwlTranslator(TranslatorBase):
         }
 
         if merge_resources:
-            inp.update(cls.build_resources_input(workflow, hints))
+            inp.update(cls.build_resources_input(workflow, hints, max_cores, max_mem))
 
         return inp
 
@@ -324,7 +326,9 @@ class CwlTranslator(TranslatorBase):
         return tool_cwl
 
     @classmethod
-    def build_resources_input(cls, workflow, hints, prefix=None):
+    def build_resources_input(
+        cls, workflow, hints, max_cores=None, max_mem=None, prefix=None
+    ):
         from janis_core.workflow.workflow import Workflow
 
         # returns a list of key, value pairs
@@ -340,16 +344,38 @@ class CwlTranslator(TranslatorBase):
 
             if isinstance(tool, CommandTool):
                 tool_pre = prefix + s.id() + "_"
+                cpus = tool.cpus(hints) or 1
+                mem = tool.memory(hints)
+                if max_cores and cpus > max_cores:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
+                        "this was dropped to the new maximum"
+                    )
+                    cpus = max_cores
+                if max_mem and mem > max_mem:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
+                        "this was dropped to the new maximum"
+                    )
+                    mem = max_mem
                 steps.update(
                     {
-                        tool_pre + "runtime_memory": tool.memory(hints),
-                        tool_pre + "runtime_cpu": tool.cpus(hints),
+                        tool_pre + "runtime_memory": mem,
+                        tool_pre + "runtime_cpu": cpus,
                         # tool_pre + "runtime_disks": None
                     }
                 )
             elif isinstance(tool, Workflow):
                 tool_pre = prefix + s.id()
-                steps.update(cls.build_resources_input(tool, hints, tool_pre))
+                steps.update(
+                    cls.build_resources_input(
+                        tool,
+                        hints,
+                        max_cores=max_cores,
+                        max_mem=max_mem,
+                        prefix=tool_pre,
+                    )
+                )
 
         return steps
 

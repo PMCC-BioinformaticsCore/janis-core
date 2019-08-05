@@ -38,6 +38,8 @@ def translate_workflow(
     hints=None,
     allow_null_if_not_optional=True,
     additional_inputs: Dict = None,
+    max_cores=None,
+    max_mem=None,
 ):
     translator = get_translator(translation)
     return translator.translate(
@@ -54,6 +56,8 @@ def translate_workflow(
         hints=hints,
         allow_null_if_not_optional=allow_null_if_not_optional,
         additional_inputs=additional_inputs,
+        max_cores=max_cores,
+        max_mem=max_mem,
     )
 
 
@@ -65,6 +69,8 @@ def translate_tool(
     export_path=None,
     with_docker=True,
     with_resource_overrides=False,
+    max_cores=None,
+    max_mem=None,
 ) -> str:
     translator = get_translator(translation)
     return translator.translate_tool(
@@ -74,11 +80,17 @@ def translate_tool(
         export_path=export_path,
         with_docker=with_docker,
         with_resource_overrides=with_resource_overrides,
+        max_cores=max_cores,
+        max_mem=max_mem,
     )
 
 
-def build_resources_input(workflow, translation: SupportedTranslation, hints) -> str:
+def build_resources_input(
+    workflow, translation: SupportedTranslation, hints, max_cores=None, max_mem=None
+) -> str:
     translator = get_translator(translation)
     return translator.stringify_translated_inputs(
-        translator.build_resources_input(workflow, hints)
+        translator.build_resources_input(
+            workflow, hints, max_cores=max_cores, max_mem=max_mem
+        )
     )
