@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Union
 
+from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolTypes, ToolOutput
 from janis_core.enums.supportedtranslations import SupportedTranslation
 from janis_core.utils.metadata import ToolMetadata, Metadata
@@ -252,9 +253,13 @@ OUTPUTS:
         stp = Step(self.tool().lower(), self)
         wf.add_items([stp])
         for i in self.inputs():
-            intp = copy(i.input_type)
-            if i.default:
-                intp.optional = True
+
+            if isinstance(i.input_type, Filename):
+                intp = String(optional=True)
+            else:
+                intp = copy(i.input_type)
+                if i.default:
+                    intp.optional = True
 
             wf.add_edge(Input(i.id(), intp), f"{stp.id()}/{i.id()}")
 
