@@ -28,10 +28,11 @@ import pkg_resources
 
 # PEP396:  https://www.python.org/dev/peps/pep-0396/
 from janis_core.__meta__ import __version__
-
+from janis_core.registry.shed import JanisShed
+import janis_core.registry.entrypoints as entrypoints
 from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
 from janis_core.tool.commandtool import CommandTool
-from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolOutput
+from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolOutput, ToolTypes
 from janis_core.translations import SupportedTranslations
 from janis_core.types import (
     InputSelector,
