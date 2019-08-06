@@ -60,7 +60,7 @@ class JanisShed:
         # go get everything
         if JanisShed._has_been_hydrated and not force:
             return
-
+        Logger.mute()
         if not modules:
             modules = []
             # modules.extend(JanisShed._get_datatype_entrypoints())
@@ -69,6 +69,7 @@ class JanisShed:
         seen_modules = set()
         for m in modules:
             JanisShed.traverse_module(m, seen_modules=seen_modules)
+        Logger.unmute()
         JanisShed._has_been_hydrated = True
 
     @staticmethod
