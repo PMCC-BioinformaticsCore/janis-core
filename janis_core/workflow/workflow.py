@@ -857,6 +857,8 @@ class Workflow(Tool):
         hints=None,
         allow_null_if_not_optional=True,
         additional_inputs: Dict = None,
+        max_cores=None,
+        max_mem=None,
     ):
         return translations.translate_workflow(
             self,
@@ -873,7 +875,17 @@ class Workflow(Tool):
             hints=hints,
             allow_null_if_not_optional=allow_null_if_not_optional,
             additional_inputs=additional_inputs,
+            max_cores=max_cores,
+            max_mem=max_mem,
         )
+
+    def generate_inputs_override(self):
+        """
+        Generate the overrides to be used with Janis. Although it may work with
+        other
+        :return:
+        """
+        return {i.id(): i.input.value or i.input.default for i in self._inputs}
 
     def generate_resources_file(
         self,

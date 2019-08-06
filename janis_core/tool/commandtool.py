@@ -245,6 +245,18 @@ OUTPUTS:
 {outputs}
 """
 
+    def generate_inputs_override(self):
+        """
+        Generate the overrides to be used with Janis. Although it may work with
+        other
+        :return:
+        """
+        d = {}
+        for i in self.inputs():
+            if not i.input_type.optional or i.default:
+                d[i] = i.default
+        return d
+
     def wrapped_in_wf(self):
         from copy import copy
         from janis_core.workflow.workflow import Workflow, Input, Output, Step
