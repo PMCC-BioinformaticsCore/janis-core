@@ -367,13 +367,15 @@ class WdlTranslator(TranslatorBase):
         :return:
         """
         inp = {}
+        ad = additional_inputs or {}
+
         for i in workflow._inputs:
             inp_key = f"{workflow.id()}.{i.id()}"
-            if cls.inp_can_be_skipped(i.input):
+            value = ad.get(i.id()) or i.input.value or i.input.default
+            if cls.inp_can_be_skipped(i.input, value):
                 continue
-            inp_val = i.input.wdl_input()
-            if inp_val is None:
-                inp_val = i.input.default
+
+            inp_val = i.input.wdl_input(value)
 
             inp[inp_key] = inp_val
             if i.input.data_type.secondary_files():
@@ -398,13 +400,6 @@ class WdlTranslator(TranslatorBase):
 
         if merge_resources:
             inp.update(cls.build_resources_input(workflow, hints, max_cores, max_mem))
-
-        if additional_inputs:
-            len_of_wfid_prefix = len(workflow.id()) + 1
-            for k in inp:
-                k_adjusted = k[len_of_wfid_prefix:]
-                if k_adjusted in additional_inputs:
-                    inp[k] = additional_inputs.get(k_adjusted)
 
         return inp
 

@@ -282,9 +282,10 @@ class TranslatorBase(ABC):
         pass
 
     @staticmethod
-    def inp_can_be_skipped(inp: Input):
+    def inp_can_be_skipped(inp: Input, override_value=None):
         return (
             inp.value is None
+            and override_value is None
             and not inp.include_in_inputs_file_if_none
             and (inp.data_type.optional and inp.default is None)
         )

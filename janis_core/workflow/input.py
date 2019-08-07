@@ -60,8 +60,8 @@ class Input:
     def cwl_input(self, overridevalue=None):
         return self.data_type.cwl_input(overridevalue or self.value)
 
-    def wdl_input(self):
-        return self.value
+    def wdl_input(self, override_value=None):
+        return override_value if override_value is not None else self.value
 
     def validate_value(self, allow_null_if_not_optional: bool) -> bool:
         return self.default or self.data_type.validate_value(
