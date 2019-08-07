@@ -1,6 +1,7 @@
 """
     Logger - Controls logging of the application
 """
+import sys
 from datetime import datetime
 from typing import Optional, TextIO
 
@@ -114,7 +115,7 @@ class Logger:
 
         m = f"{Logger.get_prefix(level)}: {message}"
         if Logger.CONSOLE_LEVEL is not None and level <= Logger.CONSOLE_LEVEL:
-            print(LogLevel.get_color(level) + m + _bcolors.ENDC)
+            print(LogLevel.get_color(level) + m + _bcolors.ENDC, file=sys.stderr)
 
         if (
             Logger.WRITE_LEVEL is not None
