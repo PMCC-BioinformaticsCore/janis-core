@@ -189,22 +189,23 @@ class WdlTranslator(TranslatorBase):
         for s in steps:
             t = s.step.tool()
 
-            if isinstance(t, Workflow):
-                wf_wdl, wf_tools = cls.translate_workflow(
-                    t,
-                    with_docker=with_docker,
-                    is_nested_tool=True,
-                    with_resource_overrides=with_resource_overrides,
-                )
-                wtools[t.id()] = wf_wdl
-                wtools.update(wf_tools)
+            if t.id() not in wtools:
+                if isinstance(t, Workflow):
+                    wf_wdl, wf_tools = cls.translate_workflow(
+                        t,
+                        with_docker=with_docker,
+                        is_nested_tool=True,
+                        with_resource_overrides=with_resource_overrides,
+                    )
+                    wtools[t.id()] = wf_wdl
+                    wtools.update(wf_tools)
 
-            elif isinstance(t, CommandTool):
-                wtools[t.id()] = cls.translate_tool_internal(
-                    t,
-                    with_docker=with_docker,
-                    with_resource_overrides=with_resource_overrides,
-                )
+                elif isinstance(t, CommandTool):
+                    wtools[t.id()] = cls.translate_tool_internal(
+                        t,
+                        with_docker=with_docker,
+                        with_resource_overrides=with_resource_overrides,
+                    )
 
             resource_overrides = {}
             for r in resource_inputs:
@@ -791,6 +792,10 @@ def translate_step_node(
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
+    
+    This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
+    and tbh it's pretty confusing.
+    
     :param node:
     :param step_identifier:
     :param step_alias:
@@ -799,6 +804,18 @@ def translate_step_node(
     """
 
     ins = node.inputs()
+
+    # Let's sanity check our inputs, make sure they're all present:
+    missing_keys = [
+        k
+        for k in ins.keys()
+        if k not in node.connection_map and not ins[k].input_type.optional
+    ]
+    if missing_keys:
+        raise Exception(
+            f"Error when building connections for step '{node.id()}', "
+            f"missing the required connection(s): '{', '.join(missing_keys)}'"
+        )
 
     # One step => One WorkflowCall. We need to traverse the edge list to see if there's a scatter
     # then we can build up the WorkflowCall and then wrap them in scatters
@@ -816,7 +833,7 @@ def translate_step_node(
         scatterable.append(step_input)
 
     # We need to replace the scatterable key(s) with some random variable, eg: for i in iterable:
-    ordered_variable_identifiers = [
+    scattered_ordered_variable_identifiers = [
         "i",
         "j",
         "k",
@@ -833,12 +850,14 @@ def translate_step_node(
         "yy",
         "zz",
     ]
-    old_to_new_identifier = {
+    scattered_old_to_new_identifier = {
         k.dotted_source(): (k.dotted_source(), k.source())
         for k in scatterable
         if not isinstance(k.dotted_source(), list)
     }
-    current_identifiers = set(v[0] for v in old_to_new_identifier.values())
+    current_identifiers_that_are_scattered = set(
+        v[0] for v in scattered_old_to_new_identifier.values()
+    )
 
     # We'll wrap everything in the scatter block later, but let's replace the fields we need to scatter
     # with the new scatter variable (we'll try to guess one based on the fieldname). We might need to eventually
@@ -846,33 +865,29 @@ def translate_step_node(
     # Todo: Pass Workflow input tags to wdl scatter generation to ensure scatter var doesn't conflict with inputs
 
     for s in scatterable:
-        current_identifiers.remove(s.dotted_source())
+        current_identifiers_that_are_scattered.remove(s.dotted_source())
         e: Edge = first_value(s.source_map)
         new_var = e.stag[0] if e.stag else e.source()[0]
 
-        while new_var in current_identifiers:
-            new_var = ordered_variable_identifiers.pop(0)
-        old_to_new_identifier[s.dotted_source()] = (new_var, e.start)
-        current_identifiers.add(new_var)
+        while new_var in current_identifiers_that_are_scattered:
+            new_var = scattered_ordered_variable_identifiers.pop(0)
+        scattered_old_to_new_identifier[s.dotted_source()] = (new_var, e.start)
+        current_identifiers_that_are_scattered.add(new_var)
 
     # Let's map the inputs, to the source. We're using a dictionary for the map atm, but WDL requires the _format:
     #       fieldName: sourceCall.Output
 
     inputs_map = {}
     for k in ins:
-        inp = ins[k]
         if k not in node.connection_map:
-            if inp.input_type.optional:
-                continue
-            else:
-                raise Exception(
-                    f"Error when building connections for step '{node.id()}', "
-                    f"could not find required connection: '{k}'"
-                )
+            continue
+
+        array_input_from_single_source = False
 
         edge: StepInput = node.connection_map[k]
         source: Edge = edge.source()  # potentially single item or array
 
+        # We have multiple sources going to the same entry
         if isinstance(source, list):
             if len(source) == 1:
                 source = source[0]
@@ -925,10 +940,20 @@ def translate_step_node(
                         )
                 continue
 
+        elif source:
+            it = source.finish.inputs()[source.ftag].input_type
+            if source.stag:
+                ot = source.start.outputs()[source.stag].output_type
+            else:
+                ot = first_value(source.start.outputs()).output_type
+            if isinstance(it, Array) and not isinstance(ot, Array):
+                array_input_from_single_source = True
         secondary = None
+        # We're connecting to another step
         if source and isinstance(source.finish, StepNode) and source.ftag:
 
             it = source.finish.inputs()[source.ftag].input_type
+
             secondary = (
                 it.subtype().secondary_files()
                 if isinstance(it, Array)
@@ -953,6 +978,8 @@ def translate_step_node(
                         f"'{source.finish.id()}.{source.ftag}', there were secondary files in the final node "
                         f"that weren't present in the source: {', '.join(sec_out.difference(sec_in))}"
                     )
+
+        # Edge defaults
         if not source:
             # edge but no source, probably a default
             if not edge.default:
@@ -969,6 +996,7 @@ def translate_step_node(
             else:
                 inputs_map[k] = edge.default
 
+        # Scattering on multiple secondary files
         elif edge in scatterable and secondary:
             # We're ensured through inheritance and .receiveBy that secondary files will match.
             ds = source.dotted_source()
@@ -976,7 +1004,7 @@ def translate_step_node(
                 f"Oh boii, we're gonna have some complicated scattering here with {len(secondary)} secondary file(s)"
             )
 
-            identifier = old_to_new_identifier[ds]
+            identifier = scattered_old_to_new_identifier[ds]
             inputs_map[k] = identifier[0] + "[0]"
             for idx in range(len(secondary)):
                 sec = secondary[idx]
@@ -991,10 +1019,13 @@ def translate_step_node(
                 default = source.start.input.default
 
             inpsourcevalue = None
-            if ds in old_to_new_identifier and old_to_new_identifier[ds]:
+            if (
+                ds in scattered_old_to_new_identifier
+                and scattered_old_to_new_identifier[ds]
+            ):
                 # can't get here with secondary
 
-                s = old_to_new_identifier[ds]
+                s = scattered_old_to_new_identifier[ds]
                 inpsourcevalue = s[0]
                 default = None
 
@@ -1022,6 +1053,8 @@ def translate_step_node(
 
                 inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
 
+            if array_input_from_single_source:
+                inpsourcevalue = f"[{inpsourcevalue}]"
             inputs_map[k] = inpsourcevalue
 
     inputs_map.update(resource_overrides)
@@ -1059,11 +1092,13 @@ def translate_step_node(
             )
             transformed = f"transform([{ds}, {joined_tags}])"
             call = wdl.WorkflowScatter(
-                old_to_new_identifier[s.dotted_source()][0], transformed, [call]
+                scattered_old_to_new_identifier[s.dotted_source()][0],
+                transformed,
+                [call],
             )
 
         else:
-            (newid, startnode) = old_to_new_identifier[s.dotted_source()]
+            (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
             insource = s.dotted_source()
             if isinstance(startnode, InputNode) and startnode.input.default is not None:
                 resolved = get_input_value_from_potential_selector_or_generator(

@@ -20,6 +20,7 @@ from janis_core import (
     ToolArgument,
     Boolean,
     Int,
+    Step,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
@@ -35,7 +36,7 @@ class TestTool(CommandTool):
         return "echo"
 
     def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String())]
+        return [ToolInput("testtool", String()), ToolInput("arrayInp", Array(File()))]
 
     def arguments(self) -> List[ToolArgument]:
         return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
@@ -149,6 +150,18 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
         inpsdict = WdlTranslator().build_inputs_file(w, merge_resources=False)
         self.assertListEqual(["test.ext"], inpsdict.get("tst.wsec"))
         self.assertListEqual(["test.txt"], inpsdict.get("tst.wsec_txt"))
+
+    def test_translate_single_to_array_edge(self):
+        w = Workflow("wf")
+        tool1 = Step("stp1", TestTool())
+        tool2 = Step("stp2", TestTool())
+        [stpnode] = w.add_items(tool2)
+        w.add_edge(Input("inp", String()), tool2.testtool)
+        w.add_edge(tool1.std, tool2.arrayInp)
+        outp = wdl.translate_step_node(stpnode, "stp1", stpnode.id(), {})
+        self.assertEqual(
+            outp.get_string().split("\n")[3].strip(), f"arrayInp=[{tool1.id()}.std]"
+        )
 
 
 class TestWdlSelectorsAndGenerators(unittest.TestCase):
