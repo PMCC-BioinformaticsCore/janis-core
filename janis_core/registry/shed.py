@@ -49,7 +49,7 @@ class JanisShed:
             Logger.critical(t)
             return False
 
-        return JanisShed._toolshed.register(tool.id(), v.lower(), tool)
+        return JanisShed._toolshed.register(tool.id().lower(), v.lower(), tool)
 
     @staticmethod
     def add_type(datatype: Type[DataType]) -> bool:
@@ -63,7 +63,7 @@ class JanisShed:
         Logger.mute()
         if not modules:
             modules = []
-            # modules.extend(JanisShed._get_datatype_entrypoints())
+            modules.extend(JanisShed._get_datatype_entrypoints())
             modules.extend(JanisShed._get_tool_entrypoints())
 
         seen_modules = set()
