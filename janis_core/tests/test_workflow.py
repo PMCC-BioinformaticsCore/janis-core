@@ -306,3 +306,11 @@ class TestWorkflow(TestCase):
 
         self.assertTrue(e1.scatter)
         self.assertTrue(e2.scatter)
+
+    def test_add_single_to_array_edge(self):
+        w = Workflow("test_add_single_to_array_edge")
+        inp1 = Input("inp1", String())
+        step1 = Step("stp1", ArrayTestTool())
+
+        e = w.add_edge(inp1, step1.inputs)
+        self.assertTrue(w.has_multiple_inputs)
