@@ -1,5 +1,6 @@
 import unittest
 from typing import List, Dict, Any
+from janis_core.tests.testtools import SingleTestTool, ArrayTestTool
 
 import cwlgen
 
@@ -18,6 +19,7 @@ from janis_core import (
     Input,
     StringFormatter,
     ToolArgument,
+    Step,
 )
 from janis_core.translations import CwlTranslator
 from janis_core.types import CpuSelector, MemorySelector
@@ -652,6 +654,17 @@ class TestCwlMaxResources(unittest.TestCase):
         self.assertEqual(1, resources["testtranslationtool_runtime_memory"])
 
 
+class TestCwlSingleToMultipleInput(unittest.TestCase):
+    def test_add_single_to_array_edge(self):
+        w = Workflow("test_add_single_to_array_edge")
+        inp1 = Input("inp1", String())
+        step1 = Step("stp1", ArrayTestTool())
+
+        w.add_edge(inp1, step1.inputs)
+        c, _, _ = CwlTranslator().translate(w)
+        self.assertEqual(cwl_multiinput, c)
+
+
 cwl_testtool = """\
 arguments:
 - position: 0
@@ -674,4 +687,31 @@ requirements:
     dockerPull: ubuntu:latest
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
+"""
+
+
+cwl_multiinput = """\
+class: Workflow
+cwlVersion: v1.0
+id: test_add_single_to_array_edge
+inputs:
+  inp1:
+    id: inp1
+    type: string
+outputs: {}
+requirements:
+  InlineJavascriptRequirement: {}
+  MultipleInputFeatureRequirement: {}
+  StepInputExpressionRequirement: {}
+steps:
+  stp1:
+    in:
+      inputs:
+        id: inputs
+        linkMerge: merge_nested
+        source:
+        - inp1
+    out:
+    - outs
+    run: tools/ArrayStepTool.cwl
 """

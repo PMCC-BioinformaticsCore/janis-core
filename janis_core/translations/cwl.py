@@ -582,8 +582,12 @@ def translate_step(
         ss = edge.slashed_source()
         link_merge = None
 
-        if not isinstance(ss, list) and isinstance(inp.input_type, Array):
-            outssval = edge.start.outputs()
+        if (
+            ss is not None
+            and not isinstance(ss, list)
+            and isinstance(inp.input_type, Array)
+        ):
+            outssval = edge.source().start.outputs()
             inp_type = (
                 first_value(outssval) if len(outssval) == 1 else outssval[edge.stag]
             ).output_type

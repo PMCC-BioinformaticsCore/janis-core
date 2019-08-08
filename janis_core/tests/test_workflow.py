@@ -1,73 +1,8 @@
 from unittest import TestCase
 
-from janis_core import (
-    File,
-    Array,
-    Logger,
-    CommandTool,
-    ToolInput,
-    String,
-    Input,
-    Output,
-    Step,
-    Workflow,
-    ToolOutput,
-)
+from janis_core import File, Array, Logger, String, Input, Output, Step, Workflow
 from janis_core.graph.stepinput import StepInput, first_value, Edge
-
-
-class SingleTestTool(CommandTool):
-    @staticmethod
-    def tool():
-        return "TestStepTool"
-
-    @staticmethod
-    def base_command():
-        return "echo"
-
-    def inputs(self):
-        return [ToolInput("inputs", String())]
-
-    def friendly_name(self):
-        return None
-
-    def outputs(self):
-        return [ToolOutput("out", String())]
-
-    @staticmethod
-    def container():
-        return None
-
-    @staticmethod
-    def version():
-        return None
-
-
-class ArrayTestTool(CommandTool):
-    @staticmethod
-    def tool():
-        return "ArrayStepTool"
-
-    def friendly_name(self):
-        return None
-
-    @staticmethod
-    def base_command():
-        return "echo"
-
-    def inputs(self):
-        return [ToolInput("inputs", Array(String()))]
-
-    def outputs(self):
-        return [ToolOutput("outs", Array(String()))]
-
-    @staticmethod
-    def container():
-        return None
-
-    @staticmethod
-    def version():
-        return None
+from janis_core.tests.testtools import SingleTestTool, ArrayTestTool
 
 
 class TestWorkflow(TestCase):
