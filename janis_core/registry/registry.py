@@ -53,7 +53,9 @@ class TaggedRegistry(Generic[T]):
 
         d = self.registry.get(name) if name in self.registry else {}
 
-        if tag is not None:
+        # We handle the default tag differently, so make sure the tag isn't
+        # the default tag either.
+        if tag is not None and tag != self.default_tag:
             if tag in d:
                 return False
             d[tag] = obj
