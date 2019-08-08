@@ -168,6 +168,10 @@ class StepInput:
         :param stag:
         :return:
         """
+        start_type = (
+            start.outputs()[stag] if stag is not None else first_value(start.outputs())
+        ).output_type
+
         finish_type = (
             self.finish.inputs()[self.ftag]
             if self.ftag is not None
@@ -181,6 +185,10 @@ class StepInput:
                 Logger.warn(
                     f"Adding multiple inputs to '{self.finish.id()}' and '{finish_type.id()}' is not an array"
                 )
+
+        if not isinstance(start_type, Array) and isinstance(finish_type, Array):
+            # https://www.commonwl.org/user_guide/misc/#connect-a-solo-value-to-an-input-that-expects-an-array-of-that-type
+            self.multiple_inputs = True
 
         e = Edge(start, stag, self.finish, self.ftag)
         self.source_map[start.id()] = e

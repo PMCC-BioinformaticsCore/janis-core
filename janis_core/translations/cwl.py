@@ -38,6 +38,7 @@ from janis_core.types import (
     StringFormatter,
 )
 from janis_core.types.common_data_types import Stdout, Array, File, Filename
+from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
 from janis_core.translations.exportpath import ExportPathKeywords
@@ -578,10 +579,22 @@ def translate_step(
                 )
 
         edge = step.connection_map[k]
+        ss = edge.slashed_source()
+        link_merge = None
+
+        if not isinstance(ss, list) and isinstance(inp.input_type, Array):
+            outssval = edge.start.outputs()
+            inp_type = (
+                first_value(outssval) if len(outssval) == 1 else outssval[edge.stag]
+            ).output_type
+            if not isinstance(inp_type, Array):
+                ss = [ss]
+                link_merge = "merge_nested"
+
         d = cwlgen.WorkflowStepInput(
             input_id=inp.tag,
-            source=edge.slashed_source(),
-            link_merge=None,  # this will need to change when edges have multiple source_map
+            source=ss,
+            link_merge=link_merge,  # this will need to change when edges have multiple source_map
             value_from=None,
         )
         if edge.has_scatter():
