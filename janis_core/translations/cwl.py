@@ -589,7 +589,9 @@ def translate_step(
         ):
             outssval = edge.source().start.outputs()
             inp_type = (
-                first_value(outssval) if len(outssval) == 1 else outssval[edge.stag]
+                first_value(outssval)
+                if len(outssval) == 1
+                else outssval[edge.source().stag]
             ).output_type
             if not isinstance(inp_type, Array):
                 ss = [ss]
