@@ -886,8 +886,9 @@ class Workflow(Tool):
         :return:
         """
         return {
-            i.id(): i.input.value or i.input.default or not i.input.data_type.optional
+            i.id(): i.input.value or i.input.default
             for i in self._inputs
+            if i.input.value or i.input.default or not i.input.data_type.optional
         }
 
     def generate_resources_file(
