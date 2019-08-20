@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import os
+from path import Path
 from typing import Tuple, List, Dict
 
 from janis_core.tool.tool import ToolInput
@@ -150,33 +151,32 @@ class TranslatorBase(ABC):
 
             if should_zip:
                 Logger.info("Zipping tools")
-                os.chdir(d)
-
-                zip_result = subprocess.run(["zip", "-r", "tools.zip", "tools/"])
-                if zip_result.returncode == 0:
-                    Logger.info("Zipped tools")
-                else:
-                    Logger.critical(zip_result.stderr)
+                with Path(d):
+                    zip_result = subprocess.run(["zip", "-r", "tools.zip", "tools/"])
+                    if zip_result.returncode == 0:
+                        Logger.info("Zipped tools")
+                    else:
+                        Logger.critical(zip_result.stderr)
 
             if should_validate:
-                os.chdir(d)
+                with Path(d):
 
-                Logger.info(f"Validating outputted {self.name}")
+                    Logger.info(f"Validating outputted {self.name}")
 
-                enved_vcs = [
-                    (os.getenv(x[1:]) if x.startswith("$") else x)
-                    for x in self.validate_command_for(
-                        fn_workflow, fn_inputs, "tools/", "tools.zip"
-                    )
-                ]
+                    enved_vcs = [
+                        (os.getenv(x[1:]) if x.startswith("$") else x)
+                        for x in self.validate_command_for(
+                            fn_workflow, fn_inputs, "tools/", "tools.zip"
+                        )
+                    ]
 
-                cwltool_result = subprocess.run(enved_vcs)
-                if cwltool_result.returncode == 0:
-                    Logger.info(
-                        "Exported workflow was validated by: " + " ".join(enved_vcs)
-                    )
-                else:
-                    Logger.critical(cwltool_result.stderr)
+                    cwltool_result = subprocess.run(enved_vcs)
+                    if cwltool_result.returncode == 0:
+                        Logger.info(
+                            "Exported workflow was validated by: " + " ".join(enved_vcs)
+                        )
+                    else:
+                        Logger.critical(cwltool_result.stderr)
 
         return str_wf, str_inp, str_tools
 

@@ -56,6 +56,7 @@ setup(
         "ruamel.yaml >= 0.12.4, <= 0.15.77",
         "networkx>=2.1",
         "tabulate",
+        "path.py",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,
