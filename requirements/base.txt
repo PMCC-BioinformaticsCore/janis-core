@@ -3,3 +3,4 @@ illusional.wdlgen>=0.2.3
 networkx>=2.1
 ruamel.yaml>=0.12.4,<=0.15.77
 tabulate
+path.py
