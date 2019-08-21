@@ -941,7 +941,14 @@ def translate_step_node(
                 ot = source.start.outputs()[source.stag].output_type
             else:
                 ot = first_value(source.start.outputs()).output_type
-            if isinstance(it, Array) and not isinstance(ot, Array):
+            if (
+                isinstance(it, Array)
+                and not isinstance(ot, Array)
+                and not any(
+                    isinstance(e, StepInput) and e.has_scatter()
+                    for e in source.start.connection_map.values()
+                )
+            ):
                 array_input_from_single_source = True
         secondary = None
         # We're connecting to another step
