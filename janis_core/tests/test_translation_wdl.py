@@ -286,6 +286,26 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
             ),
         )
 
+    def test_tool_input_value_default_cpuselect(self):
+        ti = ToolInput("threads", Int(), default=CpuSelector(), prefix="-t")
+        tid = {"threads": ti}
+
+        tr = wdl.translate_command_input(ti, tid)
+        self.assertEqual(
+            '${"-t " + if defined(threads) then threads else if defined(runtime_cpu) then runtime_cpu else 1}',
+            tr.get_string(),
+        )
+
+    def test_tool_input_value_default_cpuselect_nodefault(self):
+        ti = ToolInput("threads", Int(), default=CpuSelector(None), prefix="-t")
+        tid = {"threads": ti}
+
+        tr = wdl.translate_command_input(ti, tid)
+        self.assertEqual(
+            '${"-t " + if defined(threads) then threads else runtime_cpu}',
+            tr.get_string(),
+        )
+
     # def test_input_value_memselect_stringenv(self):
     #     inp = MemorySelector()
     #     self.assertEqual(

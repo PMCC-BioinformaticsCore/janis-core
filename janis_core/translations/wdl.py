@@ -484,19 +484,25 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
         else tool_input.default
     )
 
+    default = None
     if isinstance(indefault, CpuSelector):
-        indefault = indefault.default
+        if indefault.default:
+            default = "if defined(runtime_cpu) then runtime_cpu else " + str(
+                indefault.default
+            )
+        else:
+            default = "runtime_cpu"
 
     elif isinstance(indefault, InputSelector):
         Logger.critical(
             f"WDL does not support command line level defaults that select a different input, this will remove the "
             f"value: '{indefault}' for tool_input '{tool_input.tag}'"
         )
-        indefault = None
 
-    default = get_input_value_from_potential_selector_or_generator(
-        indefault, None, string_environment=False, **debugkwargs
-    )
+    else:
+        default = get_input_value_from_potential_selector_or_generator(
+            indefault, None, string_environment=False, **debugkwargs
+        )
 
     if default:
         name = f"if defined({name}) then {name} else {default}"
@@ -514,7 +520,9 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         return None
 
     name = resolve_tool_input_value(tool_input, **debugkwargs)
-    optional = tool_input.input_type.optional
+    optional = tool_input.input_type.optional or isinstance(
+        tool_input.default, CpuSelector
+    )
     position = tool_input.position
     separate_value_from_prefix = tool_input.separate_value_from_prefix
     prefix = tool_input.prefix
@@ -538,9 +546,11 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         optional=optional,
         prefix=prefix,
         position=position,
-        separate_value_from_prefix=separate_value_from_prefix
-        if separate_value_from_prefix is not None
-        else True,
+        separate_value_from_prefix=(
+            separate_value_from_prefix
+            if separate_value_from_prefix is not None
+            else True
+        ),
         # Instead of using default, we'll use the ${if defined($var) then val1 else val2}
         # as it progress through the rest properly
         # default=default,
