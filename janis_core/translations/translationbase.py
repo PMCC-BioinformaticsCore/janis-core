@@ -61,7 +61,7 @@ class TranslatorBase(ABC):
         max_mem=None,
     ):
 
-        self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
+        # self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
 
         tr_wf, tr_tools = self.translate_workflow(
             workflow,

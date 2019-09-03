@@ -128,8 +128,10 @@ class Workflow2(Tool):
 
         # { nodeId: Node }
         self.nodes = {}
-        # { stepId: StepInput }
-        self.connections = {}
+
+        self.input_nodes: Dict[str, InputNode] = {}
+        self.step_nodes: Dict[str, StepNode] = {}
+        self.output_nodes: Dict[str, OutputNode] = {}
 
     def input(self, identifier: str, datatype: ParseableType, default: any = None):
         """
@@ -151,6 +153,7 @@ class Workflow2(Tool):
             default=default,
         )
         self.nodes[identifier] = inp
+        self.input_nodes[identifier] = inp
         return inp
 
     def output(
@@ -180,6 +183,7 @@ class Workflow2(Tool):
             source=(node, tag),
         )
         self.nodes[identifier] = otp
+        self.output_nodes[identifier] = otp
         return otp
 
     def step(self, identifier: str, tool: Union[Tool, Type[Tool]], **connections):
@@ -211,6 +215,7 @@ class Workflow2(Tool):
             stp._add_edge(k, verify_or_try_get_source(v))
 
         self.nodes[identifier] = stp
+        self.step_nodes[identifier] = stp
         return stp
 
     def __getattr__(self, item):
