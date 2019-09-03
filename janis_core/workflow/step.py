@@ -62,7 +62,7 @@ class Step:
 
 class StepNode(Node):
     def __init__(self, step: Step):
-        super().__init__(NodeTypes.TASK, step.id())
+        super().__init__(NodeTypes.STEP, step.id())
         self.step = step
 
     def inputs(self) -> Dict[str, ToolInput]:

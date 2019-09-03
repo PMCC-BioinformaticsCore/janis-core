@@ -47,14 +47,14 @@ class Edge:
 
     def validate_tags(self):
         if (
-            self.start.node_type == NodeTypes.TASK
+            self.start.node_type == NodeTypes.STEP
             and self.stag not in self.start.outputs()
         ):
             raise Exception(
                 f"Could not find the tag '{self.stag}' in the inputs of '{self.start.id()}'"
             )
         if (
-            self.finish.node_type == NodeTypes.TASK
+            self.finish.node_type == NodeTypes.STEP
             and self.ftag not in self.finish.inputs()
         ):
             raise Exception(
@@ -161,7 +161,7 @@ class StepInput:
 
         self.source_map: Dict[str, Edge] = {}
 
-    def add_source(self, start: Node, stag: Optional[str]):
+    def add_source(self, start: Node, stag: Optional[str]) -> Edge:
         """
         Add a connection
         :param start:

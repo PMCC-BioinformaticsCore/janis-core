@@ -15,7 +15,7 @@ NodeType = int
 class NodeTypes:
     INPUT: NodeType = 1
     OUTPUT: NodeType = 2
-    TASK: NodeType = 3
+    STEP: NodeType = 3
 
     @staticmethod
     def to_str(node_type: NodeType) -> str:
@@ -23,7 +23,7 @@ class NodeTypes:
             return "Input"
         if node_type == NodeTypes.OUTPUT:
             return "Output"
-        if node_type == NodeTypes.TASK:
+        if node_type == NodeTypes.STEP:
             return "Task"
         raise Exception(f"Unhandled task type: '{node_type}'")
 
@@ -33,7 +33,7 @@ class NodeTypes:
             return "red"
         if node_type == NodeTypes.OUTPUT:
             return "lightblue"
-        if node_type == NodeTypes.TASK:
+        if node_type == NodeTypes.STEP:
             return "blue"
         raise Exception(f"Unhandled task type: '{node_type}'")
 
@@ -43,10 +43,11 @@ class Node(ABC):
     _N_counter: int = 1
     _N_nodeId_map: Dict[int, Any] = {}
 
-    def __init__(self, node_type: NodeType, label: NodeLabel, depth=0):
+    def __init__(self, wf, node_type: NodeType, identifier: NodeLabel, depth=0):
 
+        self.wf = wf
         self.node_type: NodeType = node_type
-        self._label: NodeLabel = label
+        self.identifier: NodeLabel = identifier
         self.depth = depth
 
         self.connection_map: Dict[str, Any] = {}  # actually an edge
@@ -59,7 +60,7 @@ class Node(ABC):
         self._N_nodeId_map[self._nodeId] = self
 
     def id(self) -> str:
-        return self._label
+        return self.identifier
 
     def __hash__(self):
         return self._nodeId
@@ -68,7 +69,7 @@ class Node(ABC):
         return f"{self.node_type}: {self.id()}"
 
     def __str__(self):
-        return f"{NodeTypes.to_str(self.node_type)}: {self._label}"
+        return f"{NodeTypes.to_str(self.node_type)}: {self.identifier}"
 
     def set_depth(self, depth: int):
         self.depth = max(self.depth, depth)

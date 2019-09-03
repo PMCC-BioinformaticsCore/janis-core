@@ -349,7 +349,7 @@ class Workflow(Tool):
                     and not node.node_type == NodeTypes.INPUT
                 )
                 or (
-                    isinstance(component, Step) and not node.node_type == NodeTypes.TASK
+                    isinstance(component, Step) and not node.node_type == NodeTypes.STEP
                 )
                 or (
                     isinstance(component, Output)
