@@ -182,6 +182,9 @@ class Tool(ABC, object):
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
 
+    def __init__(self):
+        self.metadata = Metadata()
+
     @classmethod
     @abstractmethod
     def type(cls) -> ToolType:
@@ -220,9 +223,6 @@ class Tool(ABC, object):
 
         :return: A friendly name of your tool
         """
-        return None
-
-    def metadata(self) -> Optional[Metadata]:
         return None
 
     @staticmethod

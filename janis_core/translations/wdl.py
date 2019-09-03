@@ -21,8 +21,6 @@ from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
 
-from janis_core.workflow.input import InputNode
-
 from janis_core.graph.stepinput import Edge, StepInput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput, ToolArgument, ToolOutput
@@ -87,9 +85,9 @@ class WdlTranslator(TranslatorBase):
         """
         # Import needs to be here, otherwise we end up circularly importing everything
         # I need the workflow for type comparison
-        from janis_core.workflow.workflow2 import Workflow2
+        from janis_core.workflow.workflow import Workflow
 
-        wf: Workflow2 = wfi
+        wf: Workflow = wfi
 
         # Notes:
         #       All wdlgen classes have a .get_string(**kwargs) function
@@ -97,7 +95,7 @@ class WdlTranslator(TranslatorBase):
 
         # As of 2019-04-16: we use development (Biscayne) features
         # like Directories and wdlgen uses the new input {} syntax
-        w = wdl.Workflow(wf.identifier, version="development")
+        w = wdl.Workflow(wf.id(), version="development")
         tools: List[Tool] = [s.tool for s in wf.step_nodes.values()]
 
         inputs = list(wf.input_nodes.values())
@@ -184,7 +182,7 @@ class WdlTranslator(TranslatorBase):
             t = s.tool
 
             if t.id() not in wtools:
-                if isinstance(t, Workflow2):
+                if isinstance(t, Workflow):
                     wf_wdl, wf_tools = cls.translate_workflow(
                         t,
                         with_docker=with_docker,
@@ -797,7 +795,7 @@ def translate_step_node(
     :param resource_overrides:
     :return:
     """
-    from janis_core.workflow.workflow2 import StepNode
+    from janis_core.workflow.workflow import StepNode, InputNode
 
     node: StepNode = node2
 
@@ -1021,7 +1019,7 @@ def translate_step_node(
             ds = source.dotted_source()
             default = None
             if source.start and isinstance(source.start, InputNode):
-                default = source.start.input.default
+                default = source.start.default
 
             inpsourcevalue = None
             if (
@@ -1105,9 +1103,9 @@ def translate_step_node(
         else:
             (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
             insource = s.dotted_source()
-            if isinstance(startnode, InputNode) and startnode.input.default is not None:
+            if isinstance(startnode, InputNode) and startnode.default is not None:
                 resolved = get_input_value_from_potential_selector_or_generator(
-                    startnode.input.default,
+                    startnode.default,
                     None,
                     string_environment=False,
                     scatterstep=insource,
@@ -1303,7 +1301,7 @@ def build_aliases(steps2):
     :param steps: list of step nodes
     :return:
     """
-    from janis_core.workflow.workflow2 import StepNode
+    from janis_core.workflow.workflow import StepNode
 
     steps: List[StepNode] = steps2
 

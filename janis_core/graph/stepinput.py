@@ -62,7 +62,7 @@ class Edge:
             )
 
     def check_types(self):
-        from janis_core.workflow.input import InputNode
+        from janis_core.workflow.workflow import InputNode
 
         stype: ToolOutput = self.start.outputs()[
             self.stag
@@ -74,12 +74,10 @@ class Edge:
         self.compatible_types = False
         self.scatter = False
 
-        start_is_scattered = any(
-            e.has_scatter() for e in self.start.connection_map.values()
-        )
+        start_is_scattered = any(e.has_scatter() for e in self.start.sources.values())
 
         source_has_default = (
-            isinstance(self.start, InputNode) and self.start.input.default is not None
+            isinstance(self.start, InputNode) and self.start.default is not None
         )
         if not start_is_scattered and ftype.input_type.can_receive_from(
             stype.output_type, source_has_default=source_has_default

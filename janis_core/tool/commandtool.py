@@ -129,9 +129,6 @@ class CommandTool(Tool, ABC):
         """
         return None
 
-    def metadata(self) -> ToolMetadata:
-        return self._metadata
-
     @classmethod
     def type(cls):
         return ToolTypes.CommandTool

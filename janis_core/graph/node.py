@@ -50,7 +50,8 @@ class Node(ABC):
         self.identifier: NodeLabel = identifier
         self.depth = depth
 
-        self.connection_map: Dict[str, Any] = {}  # actually an edge
+        # actually a StepInput
+        self.sources: Dict[str, any] = {}
 
         # Update unique counter for hash
         self._nodeId = Node._N_counter
@@ -90,9 +91,6 @@ class Node(ABC):
         raise Exception(
             f"Subclass {type(self)} must implement outputs, return dict: key: ToolOutput"
         )
-
-    def __setitem__(self, key, value):
-        self.connection_map[key] = value
 
 
 NodeAndTag = Tuple[str, Node]

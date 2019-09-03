@@ -1,4 +1,5 @@
 from abc import ABC
+from inspect import isclass
 from typing import Any, List, Optional, Union, Type
 from .data_types import PythonPrimitive, DataType
 from .common_data_types import *
@@ -26,16 +27,17 @@ def get_instantiated_type(datatype: ParseableType):
     if isinstance(datatype, DataType):
         return datatype
 
-    if issubclass(datatype, DataType):
+    if isclass(datatype) and issubclass(datatype, DataType):
         return datatype()
 
-    if datatype == str:
+    typedt = type(datatype)
+    if datatype == str or typedt == str:
         return String()
-    if datatype == bool:
+    if datatype == bool or typedt == bool:
         return Boolean()
-    if datatype == int:
-        return Float()
-    if datatype == float:
+    if datatype == int or typedt == int:
+        return Int()
+    if datatype == float or typedt == float:
         return Float()
 
     raise TypeError(f"Unable to parse type '{str(datatype)}'")

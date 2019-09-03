@@ -25,7 +25,9 @@ PythonPrimitive = Union[str, float, int, bool]
 
 
 def is_python_primitive(t):
-    return any(isinstance(t, T) for T in [str, float, int, bool])
+    return (isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])) or any(
+        isinstance(t, T) for T in [str, float, int, bool]
+    )
 
 
 # see below for ParseableType

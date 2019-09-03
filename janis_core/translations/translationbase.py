@@ -7,7 +7,8 @@ from janis_core.tool.tool import ToolInput
 from janis_core.types.common_data_types import Int
 from janis_core.translations.exportpath import ExportPathKeywords
 from janis_core.utils.logger import Logger
-from janis_core.workflow.input import Input, InputNode
+
+# from janis_core.workflow.input import Input, InputNode
 
 
 class TranslatorBase(ABC):
@@ -218,24 +219,25 @@ class TranslatorBase(ABC):
         return tool_out
 
     @classmethod
-    def validate_inputs(cls, inputs: List[InputNode], allow_null_if_optional):
-        invalid = [
-            i
-            for i in inputs
-            if not i.input.validate_value(
-                allow_null_if_not_optional=allow_null_if_optional
-            )
-        ]
-        if len(invalid) == 0:
-            return True
-        raise TypeError(
-            "Couldn't validate inputs: "
-            + ", ".join(
-                f"{i.id()} (expected: {i.input.data_type.id()}, "
-                f"got: '{TranslatorBase.get_type(i.input.value)}')"
-                for i in invalid
-            )
-        )
+    def validate_inputs(cls, inputs, allow_null_if_optional):
+        return True
+        # invalid = [
+        #     i
+        #     for i in inputs
+        #     if not i.input.validate_value(
+        #         allow_null_if_not_optional=allow_null_if_optional
+        #     )
+        # ]
+        # if len(invalid) == 0:
+        #     return True
+        # raise TypeError(
+        #     "Couldn't validate inputs: "
+        #     + ", ".join(
+        #         f"{i.id()} (expected: {i.input.data_type.id()}, "
+        #         f"got: '{TranslatorBase.get_type(i.input.value)}')"
+        #         for i in invalid
+        #     )
+        # )
 
     @staticmethod
     def get_type(t):
@@ -282,12 +284,12 @@ class TranslatorBase(ABC):
         pass
 
     @staticmethod
-    def inp_can_be_skipped(inp: Input, override_value=None):
+    def inp_can_be_skipped(inp, override_value=None):
         return (
-            inp.value is None
+            inp.default is None
             and override_value is None
-            and not inp.include_in_inputs_file_if_none
-            and (inp.data_type.optional and inp.default is None)
+            # and not inp.include_in_inputs_file_if_none
+            and (inp.datatype.optional and inp.default is None)
         )
 
     # Resource overrides
