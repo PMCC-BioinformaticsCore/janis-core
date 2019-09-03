@@ -12,7 +12,7 @@
 
 """
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 import cwlgen as cwl
 from wdlgen import WdlType
@@ -21,6 +21,14 @@ from janis_core.utils import is_array_prefix
 from janis_core.utils.logger import Logger
 
 NativeType = str
+PythonPrimitive = Union[str, float, int, bool]
+
+
+def is_python_primitive(t):
+    return any(isinstance(t, T) for T in [str, float, int, bool])
+
+
+# see below for ParseableType
 
 
 class NativeTypes:

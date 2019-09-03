@@ -1,4 +1,7 @@
 from abc import ABC
+from typing import Any, List, Optional, Union, Type
+from .data_types import PythonPrimitive, DataType
+from .common_data_types import *
 
 from janis_core.utils.bracketmatching import get_keywords_between_braces
 from janis_core.utils.errors import (
@@ -8,6 +11,34 @@ from janis_core.utils.errors import (
     ConflictingArgumentsException,
 )
 from janis_core.utils.logger import Logger
+
+ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
+ParseableType = Union[ParseableTypeBase, List[ParseableTypeBase]]
+
+
+def get_instantiated_type(datatype: ParseableType):
+
+    if isinstance(datatype, list):
+        if len(datatype) == 0:
+            raise TypeError("Couldn't determine type of array with length 0")
+        return Array(get_instantiated_type(datatype[0]))
+
+    if isinstance(datatype, DataType):
+        return datatype
+
+    if issubclass(datatype, DataType):
+        return datatype()
+
+    if datatype == str:
+        return String()
+    if datatype == bool:
+        return Boolean()
+    if datatype == int:
+        return Float()
+    if datatype == float:
+        return Float()
+
+    raise TypeError(f"Unable to parse type '{str(datatype)}'")
 
 
 class Selector(ABC):
