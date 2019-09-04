@@ -2,7 +2,7 @@ import os
 from inspect import isclass
 from typing import List, Type, Union, Optional, Dict, Tuple, Any
 
-import janis_core.translations as translations
+from janis_core import translations
 from janis_core.utils import first_value
 from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.logger import Logger
