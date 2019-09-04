@@ -1401,8 +1401,8 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
     else:
         prefix += "_"
 
-    for s in wf._steps:
-        tool: Tool = s.step.tool()
+    for s in wf.step_nodes.values():
+        tool: Tool = s.tool
 
         if isinstance(tool, CommandTool):
             tool_pre = prefix + s.id() + "_"

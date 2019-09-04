@@ -275,8 +275,15 @@ class Workflow(Tool):
 
         if not provided_keys.issubset(all_keys):
             unrecparams = ", ".join(provided_keys - all_keys)
+
+            ins = self.inputs()
+            outs = self.outputs()
+
+            tags = ", ".join([f"in.{i}" for i in all_keys])
+
             raise Exception(
-                f"Unrecognised parameters {unrecparams} when creating '{identifier}' ({tool.id()})"
+                f"Unrecognised parameters {unrecparams} when creating '{identifier}' ({tool.id()}). "
+                f"Expected types: {tags}"
             )
 
         if not ignore_missing and not required_keys.issubset(provided_keys):
@@ -303,6 +310,9 @@ class Workflow(Tool):
                     )
 
                 v = self.input(inp_identifier, referencedtype, default=v)
+            if v is None:
+                inp_identifier = f"{identifier}_{k}"
+                v = self.input(inp_identifier, inputs[k].input_type, default=v)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
