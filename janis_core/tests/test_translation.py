@@ -2,7 +2,7 @@ import unittest
 from os import getcwd
 import os.path
 
-from janis_core import String, Input
+from janis_core import String
 from janis_core.translations.exportpath import ExportPathKeywords
 from janis_core.translations.translationbase import TranslatorBase
 
@@ -97,147 +97,147 @@ class TestExportPath(unittest.TestCase):
         )
 
 
-class TestCanSkipIncludeTrueImport(unittest.TestCase):
-    def test_input_in_input_value_includetrue_nooptional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), value="1", include_in_inputs_file_if_none=True)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includetrue_nooptional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(),
-                value="1",
-                default="2",
-                include_in_inputs_file_if_none=True,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includetrue_optional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                value="1",
-                include_in_inputs_file_if_none=True,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includetrue_optional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                value="1",
-                default="2",
-                include_in_inputs_file_if_none=True,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includefalse_nooptional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), value="1", include_in_inputs_file_if_none=False)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includefalse_nooptional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(),
-                value="1",
-                default="2",
-                include_in_inputs_file_if_none=False,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includefalse_optional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                value="1",
-                include_in_inputs_file_if_none=False,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_value_includefalse_optional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                value="1",
-                default="2",
-                include_in_inputs_file_if_none=False,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includetrue_nooptional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), include_in_inputs_file_if_none=True)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includetrue_nooptional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), default="2", include_in_inputs_file_if_none=True)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includetrue_optional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(optional=True), include_in_inputs_file_if_none=True)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includetrue_optional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                default="2",
-                include_in_inputs_file_if_none=True,
-            )
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includefalse_nooptional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), include_in_inputs_file_if_none=False)
-        )
-        self.assertEqual(False, can_skip)
-
-    def test_input_in_input_novalue_includefalse_nooptional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(), default="2", include_in_inputs_file_if_none=False)
-        )
-        # new interpretation: can't skip because default
-        self.assertEqual(False, can_skip)
-        # self.assertEqual(True, can_skip)
-
-    def test_input_in_input_novalue_includefalse_optional_nodefault(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input("inpId", String(optional=True), include_in_inputs_file_if_none=False)
-        )
-        self.assertEqual(True, can_skip)
-
-    def test_input_in_input_novalue_includefalse_optional_default(self):
-        can_skip = TranslatorBase.inp_can_be_skipped(
-            Input(
-                "inpId",
-                String(optional=True),
-                default="2",
-                include_in_inputs_file_if_none=False,
-            )
-        )
-        # new interpretation: can't skip because default
-        self.assertEqual(False, can_skip)
-        # self.assertEqual(True, can_skip)
+# class TestCanSkipIncludeTrueImport(unittest.TestCase):
+#     def test_input_in_input_value_includetrue_nooptional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), value="1", include_in_inputs_file_if_none=True)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includetrue_nooptional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(),
+#                 value="1",
+#                 default="2",
+#                 include_in_inputs_file_if_none=True,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includetrue_optional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 value="1",
+#                 include_in_inputs_file_if_none=True,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includetrue_optional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 value="1",
+#                 default="2",
+#                 include_in_inputs_file_if_none=True,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includefalse_nooptional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), value="1", include_in_inputs_file_if_none=False)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includefalse_nooptional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(),
+#                 value="1",
+#                 default="2",
+#                 include_in_inputs_file_if_none=False,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includefalse_optional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 value="1",
+#                 include_in_inputs_file_if_none=False,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_value_includefalse_optional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 value="1",
+#                 default="2",
+#                 include_in_inputs_file_if_none=False,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includetrue_nooptional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), include_in_inputs_file_if_none=True)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includetrue_nooptional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), default="2", include_in_inputs_file_if_none=True)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includetrue_optional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(optional=True), include_in_inputs_file_if_none=True)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includetrue_optional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 default="2",
+#                 include_in_inputs_file_if_none=True,
+#             )
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includefalse_nooptional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), include_in_inputs_file_if_none=False)
+#         )
+#         self.assertEqual(False, can_skip)
+#
+#     def test_input_in_input_novalue_includefalse_nooptional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(), default="2", include_in_inputs_file_if_none=False)
+#         )
+#         # new interpretation: can't skip because default
+#         self.assertEqual(False, can_skip)
+#         # self.assertEqual(True, can_skip)
+#
+#     def test_input_in_input_novalue_includefalse_optional_nodefault(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input("inpId", String(optional=True), include_in_inputs_file_if_none=False)
+#         )
+#         self.assertEqual(True, can_skip)
+#
+#     def test_input_in_input_novalue_includefalse_optional_default(self):
+#         can_skip = TranslatorBase.inp_can_be_skipped(
+#             Input(
+#                 "inpId",
+#                 String(optional=True),
+#                 default="2",
+#                 include_in_inputs_file_if_none=False,
+#             )
+#         )
+#         # new interpretation: can't skip because default
+#         self.assertEqual(False, can_skip)
+#         # self.assertEqual(True, can_skip)
