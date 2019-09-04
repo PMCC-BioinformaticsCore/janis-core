@@ -26,6 +26,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import cwlgen
 import ruamel.yaml
 
+from janis_core.graph.stepinput import full_lbl
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput
 from janis_core.translations.translationbase import TranslatorBase
@@ -415,7 +416,7 @@ def translate_input(inp):
 
 
 def translate_output_node(node):
-    return translate_output(node, first_value(node.source).slashed_source())
+    return translate_output(node, full_lbl(node.source[0], node.source[1]))
 
 
 def translate_output(outp, source):
@@ -748,8 +749,8 @@ def build_resource_override_maps_for_workflow(
     else:
         prefix += "_"
 
-    for s in wf._steps:
-        tool: Tool = s.step.tool()
+    for s in wf.step_nodes.values():
+        tool: Tool = s.tool
 
         if isinstance(tool, CommandTool):
             tool_pre = prefix + s.id() + "_"

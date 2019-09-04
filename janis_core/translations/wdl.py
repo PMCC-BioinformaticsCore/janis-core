@@ -68,7 +68,7 @@ class WdlTranslator(TranslatorBase):
 
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
-        return ["java", "-jar", "$womtool", "validate", wfpath]
+        return ["java", "-jar", "$womtooljar", "validate", wfpath]
 
     @classmethod
     def translate_workflow(
@@ -1085,9 +1085,7 @@ def translate_step_node(
             raise Exception(
                 "An internal error has occured when generating scatterable input map"
             )
-        secondary = (
-            s.finish.step.tool().inputs_map()[s.ftag].input_type.secondary_files()
-        )
+        secondary = s.finish.tool.inputs_map()[s.ftag].input_type.secondary_files()
         if secondary:
             ds = s.dotted_source()
             joined_tags = ", ".join(
