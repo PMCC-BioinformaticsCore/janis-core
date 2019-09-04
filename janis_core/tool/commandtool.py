@@ -256,11 +256,11 @@ OUTPUTS:
 
     def wrapped_in_wf(self):
         from copy import copy
-        from janis_core.workflow.workflow import Workflow, Input, Output, Step
+        from janis_core.workflow.workflow import Workflow
 
         wf = Workflow(self.id() + "Wf")
-        stp = Step(self.tool().lower(), self)
-        wf.add_items([stp])
+        stp = wf.step(self.tool().lower(), self, ignore_missing=True)
+
         for i in self.inputs():
 
             if isinstance(i.input_type, Filename):
@@ -270,9 +270,9 @@ OUTPUTS:
                 if i.default:
                     intp.optional = True
 
-            wf.add_edge(Input(i.id(), intp), f"{stp.id()}/{i.id()}")
+            stp[i.id()] = wf.input(i.id(), intp)
 
         for o in self.outputs():
-            wf.add_edge(f"{stp.id()}/{o.id()}", Output(o.id()))
+            wf.output(o.id(), source=stp[o.id()])
 
         return wf
