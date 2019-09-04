@@ -1,4 +1,5 @@
 import os
+import copy
 from inspect import isclass
 from typing import List, Type, Union, Optional, Dict, Tuple, Any
 
@@ -218,12 +219,12 @@ class Workflow(Tool):
 
         self.verify_identifier(identifier, repr(datatype))
 
+        datatype = get_instantiated_type(datatype)
+        if default:
+            datatype.optional = True
+
         inp = InputNode(
-            self,
-            identifier=identifier,
-            datatype=get_instantiated_type(datatype),
-            default=default,
-            doc=doc,
+            self, identifier=identifier, datatype=datatype, default=default, doc=doc
         )
         self.nodes[identifier] = inp
         self.input_nodes[identifier] = inp
@@ -276,9 +277,6 @@ class Workflow(Tool):
         if not provided_keys.issubset(all_keys):
             unrecparams = ", ".join(provided_keys - all_keys)
 
-            ins = self.inputs()
-            outs = self.outputs()
-
             tags = ", ".join([f"in.{i}" for i in all_keys])
 
             raise Exception(
@@ -300,7 +298,7 @@ class Workflow(Tool):
             if is_python_primitive(v):
                 inp_identifier = f"{identifier}_{k}"
 
-                referencedtype = inputs[k].input_type
+                referencedtype = copy.copy(inputs[k].input_type)
                 parsed_type = get_instantiated_type(v)
 
                 if parsed_type and not referencedtype.can_receive_from(parsed_type):
@@ -308,6 +306,8 @@ class Workflow(Tool):
                         f"The type {parsed_type.id()} inferred from the value '{v}' is not "
                         f"compatible with the '{identifier}.{k}' type: {referencedtype.id()}"
                     )
+
+                referencedtype.optional = True
 
                 v = self.input(inp_identifier, referencedtype, default=v)
             if v is None:
@@ -384,7 +384,7 @@ class Workflow(Tool):
         with_docker=True,
         with_hints=False,
         with_resource_overrides=False,
-        should_validate=False,
+        validate=False,
         should_zip=True,
         export_path=ExportPathKeywords.default,
         merge_resources=False,
@@ -404,7 +404,7 @@ class Workflow(Tool):
             should_zip=should_zip,
             export_path=export_path,
             write_inputs_file=write_inputs_file,
-            should_validate=should_validate,
+            should_validate=validate,
             merge_resources=merge_resources,
             hints=hints,
             allow_null_if_not_optional=allow_null_if_not_optional,
