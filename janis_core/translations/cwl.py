@@ -87,7 +87,7 @@ class CwlTranslator(TranslatorBase):
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.inputs_map().values()
+            translate_input(i) for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -125,7 +125,9 @@ class CwlTranslator(TranslatorBase):
             w.requirements.append(cwlgen.MultipleInputFeatureRequirement())
 
         tools = {}
-        tools_to_build: Dict[str, Tool] = {s.tool.id(): s.tool for s in wf.step_nodes}
+        tools_to_build: Dict[str, Tool] = {
+            s.tool.id(): s.tool for s in wf.step_nodes.values()
+        }
         for t in tools_to_build:
             tool: Tool = tools_to_build[t]
             if isinstance(tool, Workflow):
@@ -163,9 +165,9 @@ class CwlTranslator(TranslatorBase):
 
         ad = additional_inputs or {}
         inp = {
-            i.id(): i.input.cwl_input(ad.get(i.id()))
-            for i in workflow._inputs
-            if i.input.include_in_inputs_file_if_none or i.input.value or i.id() in ad
+            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.default)
+            for i in workflow.input_nodes.values()
+            if i.default or i.id() in ad
         }
 
         if merge_resources:
@@ -233,7 +235,7 @@ class CwlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls, tool, with_docker=True, with_resource_overrides=False
     ):
-        metadata = tool.metadata() if tool.metadata() else ToolMetadata()
+        metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
             o.output_type
             for o in tool.outputs()
