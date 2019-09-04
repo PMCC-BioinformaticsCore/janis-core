@@ -1,11 +1,22 @@
 ###################
 # Implementations #
 ###################
-from typing import Dict, Any
+from inspect import isclass
+from typing import Dict, Any, Union, Type, List
+
 import wdlgen
 import cwlgen
 
-from janis_core.types.data_types import DataType, NativeTypes, NativeType
+from janis_core.types.data_types import (
+    DataType,
+    NativeTypes,
+    NativeType,
+    PythonPrimitive,
+)
+
+
+ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
+ParseableType = Union[ParseableTypeBase, List[ParseableTypeBase]]
 
 
 class String(DataType):
@@ -288,11 +299,12 @@ class Directory(DataType):
 
 
 class Array(DataType):
-    def __init__(self, t: DataType, optional=False):
-        if not isinstance(t, DataType):
+    def __init__(self, t: ParseableType, optional=False):
+        resolvedtype = get_instantiated_type(t)
+        if not isinstance(resolvedtype, DataType):
             raise Exception(f"Type t ({type(t)}) must be an instance of 'DataType'")
 
-        self._t = t
+        self._t = resolvedtype
         super().__init__(optional)
 
     def subtype(self):
@@ -419,3 +431,29 @@ all_types = [
     Stdout,
     Array,
 ]
+
+
+def get_instantiated_type(datatype: ParseableType):
+
+    if isinstance(datatype, list):
+        if len(datatype) == 0:
+            raise TypeError("Couldn't determine type of array with length 0")
+        return Array(get_instantiated_type(datatype[0]))
+
+    if isinstance(datatype, DataType):
+        return datatype
+
+    if isclass(datatype) and issubclass(datatype, DataType):
+        return datatype()
+
+    typedt = type(datatype)
+    if datatype == str or typedt == str:
+        return String()
+    if datatype == bool or typedt == bool:
+        return Boolean()
+    if datatype == int or typedt == int:
+        return Int()
+    if datatype == float or typedt == float:
+        return Float()
+
+    raise TypeError(f"Unable to parse type '{str(datatype)}'")
