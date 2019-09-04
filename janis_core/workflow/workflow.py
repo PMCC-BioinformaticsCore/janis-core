@@ -280,13 +280,14 @@ class Workflow(Tool):
             )
 
         if not ignore_missing and not required_keys.issubset(provided_keys):
-            missing = ", ".join(required_keys - provided_keys)
+            missing = ", ".join(f"'{i}'" for i in (required_keys - provided_keys))
             raise Exception(
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
         stp = StepNode(self, identifier=identifier, tool=tool)
 
+        added_edges = []
         for (k, v) in connections.items():
 
             if is_python_primitive(v):
@@ -306,9 +307,14 @@ class Workflow(Tool):
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
                 for vv in verifiedsource:
-                    stp._add_edge(k, vv)
+                    added_edges.append(stp._add_edge(k, vv))
             else:
-                stp._add_edge(k, verifiedsource)
+                added_edges.append(stp._add_edge(k, verifiedsource))
+
+        for e in added_edges:
+            self.has_scatter = self.has_scatter or e.scatter
+            si = e.finish.sources[e.ftag] if e.ftag else first_value(e.finish.sources)
+            self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 
         self.nodes[identifier] = stp
         self.step_nodes[identifier] = stp
@@ -324,6 +330,13 @@ class Workflow(Tool):
         raise AttributeError(
             f"AttributeError: '{type(self).__name__}' object has no attribute '{item}'"
         )
+
+    def __getitem__(self, item):
+
+        if item in self.nodes:
+            return self.nodes[item]
+
+        raise KeyError(f"KeyError: '{type(self).__name__}' object has no node '{item}'")
 
     @classmethod
     def type(cls) -> ToolType:
