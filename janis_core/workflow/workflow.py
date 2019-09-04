@@ -3,6 +3,7 @@ from inspect import isclass
 from typing import List, Type, Union, Optional, Dict, Tuple, Any
 
 import janis_core.translations as translations
+from janis_core.utils import first_value
 from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.logger import Logger
 from janis_core.graph.node import Node, NodeTypes
@@ -85,23 +86,25 @@ class StepNode(Node):
         if item in self.__dict__:
             return self.__dict__[item]
 
-        if "tool" in self.__dict__:
-            ins = self.inputs()
-            if item in ins:
-                return self, item
-            outs = self.outputs()
-            if item in outs:
-                return self, item
+        return self.get_item(item)
 
-            tags = ", ".join(
-                [f"in.{i}" for i in ins.keys()] + [f"out.{o}" for o in outs.keys()]
-            )
+    def __getitem__(self, item):
+        return self.get_item(item)
 
-            raise AttributeError(
-                f"Step '{self.id()}' with tool '{self.tool.id()}' has no identifier '{item}' ({tags})"
-            )
-        raise AttributeError(
-            f"Step '{self.id()}' with tool '{self.tool.id()}' has no identifier '{item}'"
+    def get_item(self, item):
+        ins = self.inputs()
+        if item in ins:
+            return self, item
+        outs = self.outputs()
+        if item in outs:
+            return self, item
+
+        tags = ", ".join(
+            [f"in.{i}" for i in ins.keys()] + [f"out.{o}" for o in outs.keys()]
+        )
+
+        raise KeyError(
+            f"Step '{self.id()}' with tool '{self.tool.id()}' has no identifier '{item}' ({tags})"
         )
 
     # "always set attributes keys"
