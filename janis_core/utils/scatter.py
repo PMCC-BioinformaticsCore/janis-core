@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
@@ -10,11 +9,15 @@ class ScatterMethods(Enum):
     cross: ScatterMethod = "cross"
 
 
-@dataclass(unsafe_hash=True)
 class ScatterDescription:
     """
     Class for keeping track of scatter information
     """
 
-    fields: List[str]
-    method: ScatterMethod = None
+    def __init__(self, fields: List[str], method: ScatterMethod = None):
+        self.fields = fields
+        self.method = method
+        if len(fields) > 1 and method is None:
+            raise Exception(
+                "When there is more than one field, a ScatterMethod must be selected"
+            )
