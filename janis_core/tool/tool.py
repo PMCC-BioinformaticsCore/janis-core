@@ -69,8 +69,6 @@ class ToolArgument:
 
 
 class ToolInput(ToolArgument):
-    illegal_keywords = ["input"]
-
     def __init__(
         self,
         tag: str,
@@ -117,14 +115,7 @@ class ToolInput(ToolArgument):
 
         if not Validators.validate_identifier(tag):
             raise Exception(
-                f"The identifier '{tag}' was not validated by '{Validators.identifier_regex}' "
-                f"(must startpip instal with letters, and then only contain letters, numbers and an underscore)"
-            )
-
-        if tag in ToolInput.illegal_keywords:
-            raise Exception(
-                f"The input identifier '{tag}' is a reserved keyword "
-                f"({', '.join(ToolInput.illegal_keywords)})"
+                f"The identifier '{tag}' was not validated because {Validators.reason_for_failure(tag)}"
             )
 
         self.tag: str = tag
@@ -139,8 +130,6 @@ class ToolInput(ToolArgument):
 
 
 class ToolOutput:
-    illegal_keywords = ["output"]
-
     def __init__(
         self,
         tag: str,
@@ -160,14 +149,9 @@ class ToolOutput:
 
         if not Validators.validate_identifier(tag):
             raise Exception(
-                f"The identifier '{tag}' was not validated by '{Validators.identifier_regex}' "
-                f"(must start with letters, and then only contain letters, numbers and an underscore)"
+                f"The identifier '{tag}' was invalid because {Validators.reason_for_failure(tag)}"
             )
-        if tag in ToolOutput.illegal_keywords:
-            raise Exception(
-                f"The output identifier '{tag}' is a reserved keyword "
-                f"({', '.join(ToolOutput.illegal_keywords)})"
-            )
+
         self.tag = tag
         self.output_type: DataType = output_type
         self.glob = glob

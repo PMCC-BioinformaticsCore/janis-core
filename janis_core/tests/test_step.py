@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 from janis_core import String, CommandTool, ToolInput, Array, Logger, Workflow
-from janis_core.graph.stepinput import StepInput, Edge
+from janis_core.graph.steptaginput import StepTagInput, Edge
+from janis_core.tests.testtools import SingleTestTool
 
 
 class ArrayTestTool(CommandTool):
@@ -39,19 +40,36 @@ class TestStep(TestCase):
     def tearDown(self):
         Logger.unmute()
 
-    def test_sources_single(self):
+    def test_sources_single_slashed(self):
         start1 = self.wf.input("test1", str)
-        step = self.wf.step("step", ArrayTestTool, inputs=start1)
+        step = self.wf.step("step", SingleTestTool, inputs=start1)
+        source = step.sources["inputs"].slashed_source()
+
+        self.assertEqual(start1.id(), source)
+
+    def test_sources_single_dotted(self):
+        start1 = self.wf.input("test1", str)
+        step = self.wf.step("step", SingleTestTool, inputs=start1)
         source = step.sources["inputs"].dotted_source()
 
-        self.assertEqual(source, start1.id())
+        self.assertEqual(start1.id(), source)
 
-    def test_sources_multiple(self):
+    def test_sources_multiple_slashed(self):
         test1 = self.wf.input("test1", str)
         test2 = self.wf.input("test2", str)
 
         step = self.wf.step("step", ArrayTestTool, inputs=[test1, test2])
-        source = step.sources["inputs"].source()
+        source = step.sources["inputs"].slashed_source()
+
+        self.assertIsInstance(source, list)
+        self.assertEqual(len(source), 2)
+
+    def test_sources_multiple_dotted(self):
+        test1 = self.wf.input("test1", str)
+        test2 = self.wf.input("test2", str)
+
+        step = self.wf.step("step", ArrayTestTool, inputs=[test1, test2])
+        source = step.sources["inputs"].dotted_source()
 
         self.assertIsInstance(source, list)
         self.assertEqual(len(source), 2)

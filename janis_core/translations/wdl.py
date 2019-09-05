@@ -21,7 +21,7 @@ from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
 
-from janis_core.graph.stepinput import Edge, StepInput
+from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput, ToolArgument, ToolOutput
 from janis_core.translations.translationbase import TranslatorBase
@@ -815,18 +815,17 @@ def translate_step_node(
 
     # One step => One WorkflowCall. We need to traverse the edge list to see if there's a scatter
     # then we can build up the WorkflowCall and then wrap them in scatters
-    scatterable: List[StepInput] = []
+    scatterable: List[StepTagInput] = []
 
-    for k in node.inputs():
-        if not (k in node.sources and node.sources[k].has_scatter()):
-            continue
-        step_input: StepInput = node.sources[k]
-        if step_input.multiple_inputs or isinstance(step_input.source(), list):
-            raise NotImplementedError(
-                f"The edge '{step_input.dotted_source()}' on node '{node.id()}' scatters"
-                f"on multiple inputs, and I don't know how this can be implemented in WDL"
-            )
-        scatterable.append(step_input)
+    if node.scatter:
+        scatterable = [node.sources[k] for k in node.scatter.fields]
+
+        for si in scatterable:
+            if si.multiple_inputs or isinstance(si.source(), list):
+                raise NotImplementedError(
+                    f"The edge '{si.dotted_source()}' on node '{node.id()}' scatters"
+                    f"on multiple inputs, and I don't know how this can be implemented in WDL"
+                )
 
     # We need to replace the scatterable key(s) with some random variable, eg: for i in iterable:
     scattered_ordered_variable_identifiers = [
@@ -880,7 +879,7 @@ def translate_step_node(
 
         array_input_from_single_source = False
 
-        edge: StepInput = node.sources[k]
+        edge: StepTagInput = node.sources[k]
         source: Edge = edge.source()  # potentially single item or array
 
         # We have multiple sources going to the same entry
@@ -945,10 +944,7 @@ def translate_step_node(
             if (
                 isinstance(it, Array)
                 and not isinstance(ot, Array)
-                and not any(
-                    isinstance(e, StepInput) and e.has_scatter()
-                    for e in source.start.sources.values()
-                )
+                and not source.scatter
             ):
                 array_input_from_single_source = True
         secondary = None
@@ -1002,7 +998,7 @@ def translate_step_node(
         # Scattering on multiple secondary files
         elif edge in scatterable and secondary:
             # We're ensured through inheritance and .receiveBy that secondary files will match.
-            ds = source.dotted_source()
+            ds = source.source_dotted()
             Logger.log(
                 f"Oh boii, we're gonna have some complicated scattering here with {len(secondary)} secondary file(s)"
             )
@@ -1016,7 +1012,7 @@ def translate_step_node(
                 ] = f"{identifier}[{idx + 1}]"
 
         else:
-            ds = source.dotted_source()
+            ds = source.source_dotted()
             default = None
             if source.start and isinstance(source.start, InputNode):
                 default = source.start.default

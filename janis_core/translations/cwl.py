@@ -26,7 +26,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import cwlgen
 import ruamel.yaml
 
-from janis_core.graph.stepinput import full_lbl
+from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput
 from janis_core.translations.translationbase import TranslatorBase
@@ -566,7 +566,6 @@ def translate_step(
     ]
 
     ins = step.inputs()
-    scatterable = []
 
     for k in ins:
         inp = ins[k]
@@ -604,8 +603,6 @@ def translate_step(
             link_merge=link_merge,  # this will need to change when edges have multiple source_map
             value_from=None,
         )
-        if edge.has_scatter():
-            scatterable.append(k)
 
         cwlstep.inputs.append(d)
 
@@ -614,14 +611,16 @@ def translate_step(
             cwlgen.WorkflowStepInput(input_id=r, source=resource_overrides[r])
         )
 
-    if len(scatterable) > 0:
-        if len(scatterable) > 1:
+    if step.scatter:
+        if len(step.scatter.fields) > 1:
             Logger.info(
                 "Discovered more than one scatterable field on cwlstep '{step_id}', "
-                "deciding scatterMethod to be dot_product".format(step_id=step.id())
+                "deciding scatterMethod to be '{method}".format(
+                    step_id=step.id(), method=step.scatter.method
+                )
             )
-            cwlstep.scatterMethod = "dot_product"
-        cwlstep.scatter = scatterable
+            cwlstep.scatterMethod = step.scatter.method
+        cwlstep.scatter = step.scatter.fields
 
     return cwlstep
 

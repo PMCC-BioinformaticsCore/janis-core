@@ -8,12 +8,13 @@ from janis_core.utils import first_value
 from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.logger import Logger
 from janis_core.graph.node import Node, NodeTypes
-from janis_core.graph.stepinput import StepInput
+from janis_core.graph.steptaginput import StepTagInput
 from janis_core.translations import ExportPathKeywords
 from janis_core.types import DataType, ParseableType, get_instantiated_type
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, ToolInput, ToolOutput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.types.data_types import is_python_primitive
+from janis_core.utils.scatter import ScatterDescription
 from janis_core.utils.validators import Validators
 
 ConnectionSource = Union[Node, Tuple[Node, str]]
@@ -64,10 +65,18 @@ class InputNode(Node):
 
 
 class StepNode(Node):
-    def __init__(self, wf, identifier, tool: Tool, doc: str = None):
+    def __init__(
+        self,
+        wf,
+        identifier,
+        tool: Tool,
+        doc: str = None,
+        scatter: ScatterDescription = None,
+    ):
         super().__init__(wf, NodeTypes.STEP, identifier)
         self.tool = tool
         self.doc = doc
+        self.scatter = scatter
 
     def inputs(self):
         return self.tool.inputs_map()
@@ -79,9 +88,12 @@ class StepNode(Node):
         node, outtag = verify_or_try_get_source(source)
 
         if tag not in self.sources:
-            self.sources[tag] = StepInput(self, tag)
+            self.sources[tag] = StepTagInput(self, tag)
 
-        return self.sources[tag].add_source(node, outtag)
+        # If tag is in scatter.fields, then we can
+        scatter = self.scatter and tag in self.scatter.fields
+
+        return self.sources[tag].add_source(node, outtag, should_scatter=scatter)
 
     def __getattr__(self, item):
         if item in self.__dict__:
@@ -201,8 +213,7 @@ class Workflow(Tool):
 
         if not Validators.validate_identifier(identifier):
             raise Exception(
-                f"The identifier '{identifier}' was not validated by '{Validators.identifier_regex}' "
-                f"(must start with letters, and then only contain letters, numbers and an underscore)"
+                f"The identifier '{identifier}' was invalid because {Validators.reason_for_failure(identifier)}"
             )
 
     def input(
@@ -259,13 +270,43 @@ class Workflow(Tool):
         self,
         identifier: str,
         tool: Union[Tool, Type[Tool]],
+        scatter: Union[str, ScatterDescription] = None,
         ignore_missing=False,
         **connections,
     ):
+        """
+        Method to do
+        :param identifier:
+        :param tool:
+        :param scatter: Indicate whether a scatter should occur, on what, and how
+        :type scatter: Union[str, ScatterDescription]
+        :param ignore_missing: Don't throw an error if required params are missing from this function
+        :param connections: kvargs for the properties on `tool`.
+        :return:
+        """
+
         if isclass(tool) and issubclass(tool, Tool):
             tool = tool()
 
         self.verify_identifier(identifier, tool.id())
+
+        if scatter is not None and isinstance(scatter, str):
+
+            scatter = ScatterDescription(
+                [scatter] if isinstance(scatter, str) else scatter
+            )
+
+        # verify scatter
+        if scatter:
+            ins = set(tool.inputs_map().keys())
+            fields = set(scatter.fields)
+            if any(f not in ins for f in fields):
+                # if there is a field not in the input map, we have a problem
+                extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
+                raise Exception(
+                    f"Couldn't scatter the field(s) for step '{identifier}' "
+                    f"(tool: '{tool}') {extra_keys} as they were not found in the input map"
+                )
 
         tool.workflow = self
         inputs = tool.inputs_map()
@@ -290,7 +331,7 @@ class Workflow(Tool):
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
-        stp = StepNode(self, identifier=identifier, tool=tool)
+        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter)
 
         added_edges = []
         for (k, v) in connections.items():
@@ -322,7 +363,7 @@ class Workflow(Tool):
                 added_edges.append(stp._add_edge(k, verifiedsource))
 
         for e in added_edges:
-            self.has_scatter = self.has_scatter or e.scatter
+            self.has_scatter = stp.scatter is not None
             si = e.finish.sources[e.ftag] if e.ftag else first_value(e.finish.sources)
             self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 

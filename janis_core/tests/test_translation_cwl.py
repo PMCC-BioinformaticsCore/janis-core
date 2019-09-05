@@ -534,7 +534,6 @@ steps:
     in:
       inputs:
         id: inputs
-        linkMerge: merge_nested
         source:
         - inp1
     out:
