@@ -166,8 +166,11 @@ class Tool(ABC, object):
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
 
-    def __init__(self):
-        self.metadata = Metadata()
+    def __init__(self, metadata_class=Metadata):
+        self.metadata = metadata_class()
+        meta = self.bind_metadata()
+        if meta:
+            self.metadata = meta
 
     @classmethod
     @abstractmethod
@@ -223,6 +226,9 @@ class Tool(ABC, object):
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 
+    def bind_metadata(self):
+        return self.metadata
+
     def help(self):
         import inspect
 
@@ -255,7 +261,7 @@ class Tool(ABC, object):
         )
         outputs = "\n".join(output_format(o) for o in self.outputs())
 
-        meta = self.metadata() if self.metadata() else Metadata()
+        meta = self.metadata
 
         fn = self.friendly_name() if self.friendly_name() else self.id()
         en = f" ({self.id()})" if fn != self.id() else ""

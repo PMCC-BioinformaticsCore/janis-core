@@ -182,7 +182,7 @@ class CwlTranslator(TranslatorBase):
     ) -> cwlgen.Workflow:
         from janis_core.workflow.workflow import Workflow
 
-        metadata = wf.metadata() if wf.metadata() else WorkflowMetadata()
+        metadata = wf.metadata
         w = cwlgen.Workflow(
             wf.identifier,
             wf.friendly_name(),
@@ -594,10 +594,8 @@ def translate_step(
                 if len(outssval) == 1
                 else outssval[edge.source().stag]
             ).output_type
-            if (
-                not isinstance(inp_type, Array)
-                and not isinstance(start, StepNode)
-                or start.scatter
+            if not isinstance(inp_type, Array) and (
+                not isinstance(start, StepNode) or start.scatter
             ):
                 ss = [ss]
                 link_merge = "merge_nested"

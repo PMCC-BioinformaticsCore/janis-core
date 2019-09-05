@@ -499,6 +499,10 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
         name = f"if defined({name}) then {name} else {default}"
 
     if tool_input.localise_file:
+        if isinstance(tool_input.input_type, Array):
+            raise Exception(
+                "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
+            )
         name = "basename(%s)" % name
 
     return name
@@ -520,13 +524,8 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
     true = None
     sep = tool_input.separator
 
-    separate_arrays = tool_input.prefix_applies_to_all_elements
-    if (
-        separate_arrays is None
-        and sep is None
-        and isinstance(tool_input.input_type, Array)
-    ):
-        separate_arrays = True
+    is_array = isinstance(tool_input.input_type, Array)
+    separate_arrays = is_array and tool_input.prefix_applies_to_all_elements
 
     if isinstance(tool_input.input_type, Boolean):
         true = tool_input.prefix
@@ -546,7 +545,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         # as it progress through the rest properly
         # default=default,
         true=true,
-        separator=sep,
+        separator=(None if not is_array or separate_arrays else (sep or " ")),
         separate_arrays=separate_arrays,
     )
 

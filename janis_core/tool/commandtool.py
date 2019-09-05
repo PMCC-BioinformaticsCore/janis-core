@@ -14,8 +14,7 @@ class CommandTool(Tool, ABC):
     """
 
     def __init__(self):
-        super().__init__()
-        self._metadata = ToolMetadata()
+        super().__init__(metadata_class=ToolMetadata)
 
     # Tool base
     @staticmethod
@@ -175,7 +174,7 @@ class CommandTool(Tool, ABC):
             if i.prefix is not None
         )
 
-        metadata = self.metadata() if self.metadata() else Metadata()
+        metadata = self.metadata
         docker = self.container()
 
         base = (

@@ -174,9 +174,7 @@ class OutputNode(Node):
 
 class Workflow(Tool):
     def __init__(self, identifier: str, name: str = None):
-        super().__init__()
-
-        self.metadata = WorkflowMetadata()
+        super().__init__(metadata_class=WorkflowMetadata)
 
         Logger.log(f"Creating workflow with identifier: '{identifier}'")
 
@@ -382,7 +380,7 @@ class Workflow(Tool):
         return stp
 
     def __getattr__(self, item):
-        if item in self.__dict__:
+        if item in self.__dict__ or item == "nodes":
             return self.__dict__.get(item)
 
         if item in self.nodes:
