@@ -211,7 +211,7 @@ class StepTagInput:
 
         if n == 0:
             return None
-        elif n == 1 and not self.multiple_inputs:
+        elif n == 1:
             return first_value(self.source_map).source_dotted()
         else:
             return [e.source_dotted() for e in self.source_map.values()]

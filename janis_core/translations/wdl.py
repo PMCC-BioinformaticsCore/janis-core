@@ -862,7 +862,7 @@ def translate_step_node(
     for s in scatterable:
         current_identifiers_that_are_scattered.remove(s.dotted_source())
         e: Edge = first_value(s.source_map)
-        new_var = e.stag[0] if e.stag else e.source()[0]
+        new_var = e.stag[0] if e.stag else e.source_dotted()[0]
 
         while new_var in current_identifiers_that_are_scattered:
             new_var = scattered_ordered_variable_identifiers.pop(0)
@@ -905,7 +905,7 @@ def translate_step_node(
                     multiple_sources_failure_reasons.append(
                         f"has {len(unique_types)} different DataTypes"
                     )
-                if edge.has_scatter():
+                if node.scatter:
                     multiple_sources_failure_reasons.append(f"is scattered")
 
                 if len(multiple_sources_failure_reasons) > 0:
@@ -916,7 +916,10 @@ def translate_step_node(
                         f"AND this field ('{k}') is not scattered. However this connection {reasons}"
                     )
 
-                inputs_map[k] = "[" + ", ".join(edge.dotted_source()) + "]"
+                ds = edge.dotted_source()
+                if isinstance(ds, list):
+                    ds = "[" + ", ".join(ds) + "]"
+                inputs_map[k] = ds
                 f = edge.finish.inputs()[edge.ftag]
                 secs = (
                     f.input_type.subtype().secondary_files()
@@ -973,7 +976,7 @@ def translate_step_node(
                 sec_in = set(secondary)
                 if not sec_out.issubset(sec_in):
                     raise Exception(
-                        f"An error occurred when connecting '{source.dotted_source()}' to "
+                        f"An error occurred when connecting '{source.source_dotted()}' to "
                         f"'{source.finish.id()}.{source.ftag}', there were secondary files in the final node "
                         f"that weren't present in the source: {', '.join(sec_out.difference(sec_in))}"
                     )
@@ -1052,8 +1055,13 @@ def translate_step_node(
 
                 inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
 
-            if array_input_from_single_source:
+            if array_input_from_single_source and not source.start.scatter:
                 inpsourcevalue = f"[{inpsourcevalue}]"
+                if secondary:
+                    for sec in secondary:
+                        tag = get_secondary_tag_from_original_tag(k, sec)
+                        inputs_map[tag] = f"[{inputs_map[tag]}]"
+
             inputs_map[k] = inpsourcevalue
 
     inputs_map.update(resource_overrides)
