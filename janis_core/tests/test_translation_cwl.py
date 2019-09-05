@@ -91,7 +91,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                 "id": "filesA",
                 "label": "filesA",
                 "type": {"items": "string", "type": "array"},
-                "inputBinding": {"prefix": "-A", "position": 1},
+                "inputBinding": {"itemSeparator": " ", "prefix": "-A", "position": 1},
             },
             cwltoolinput.get_dict(),
         )

@@ -2,7 +2,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, Union
 
-from janis_core.types import Selector
+from janis_core.types import Selector, Array
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import Metadata
@@ -124,6 +124,10 @@ class ToolInput(ToolArgument):
         self.prefix_applies_to_all_elements = prefix_applies_to_all_elements
         self.separator = separator
         self.localise_file = localise_file
+
+        if isinstance(input_type, Array):
+            if self.prefix_applies_to_all_elements is None and self.separator is None:
+                self.separator = " "
 
     def id(self):
         return self.tag

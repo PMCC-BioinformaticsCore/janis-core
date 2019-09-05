@@ -545,7 +545,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         # as it progress through the rest properly
         # default=default,
         true=true,
-        separator=(None if not is_array or separate_arrays else (sep or " ")),
+        separator=(None if not is_array or separate_arrays else (sep)),
         separate_arrays=separate_arrays,
     )
 
