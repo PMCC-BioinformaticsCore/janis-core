@@ -165,6 +165,15 @@ class TestWorkflow(TestCase):
         self.assertTrue(e.compatible_types)
         self.assertListEqual(["inputs"], stp.scatter.fields)
 
+    def test_add_non_scatter_fail(self):
+        w = Workflow("scatterededge")
+        w.input("inp", Array(str))
+        stp = w.step("stp", SingleTestTool, inputs=w.inp)
+
+        e = first_value(w.stp.sources["inputs"].source_map)
+
+        self.assertFalse(e.compatible_types)
+
     def test_add_scatter_incompatible(self):
         w = Workflow("scatterededge")
         w.input("inp", Array(int))

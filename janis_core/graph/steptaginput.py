@@ -113,10 +113,13 @@ class Edge:
 
             s = full_dot(self.start, self.stag)
             f = full_dot(self.finish, self.ftag)
-            Logger.critical(
-                f"Mismatch of types when joining '{s}' to '{f}' "
-                f"({stoolin.output_type.id()} -/→ {ftoolin.input_type.id()})"
+            message = (
+                f"Mismatch of types when joining '{s}' to '{f}': "
+                f"{stoolin.output_type.id()} -/→ {ftoolin.input_type.id()}"
             )
+            if isinstance(stype, Array) and ftype.can_receive_from(stype.subtype()):
+                message += " (did you forget to SCATTER?)"
+            Logger.critical(message)
 
 
 class StepTagInput:
