@@ -587,13 +587,18 @@ def translate_step(
             and not isinstance(ss, list)
             and isinstance(inp.input_type, Array)
         ):
-            outssval = edge.source().start.outputs()
+            start = edge.source().start
+            outssval = start.outputs()
             inp_type = (
                 first_value(outssval)
                 if len(outssval) == 1
                 else outssval[edge.source().stag]
             ).output_type
-            if not isinstance(inp_type, Array):
+            if (
+                not isinstance(inp_type, Array)
+                and not isinstance(start, StepNode)
+                or start.scatter
+            ):
                 ss = [ss]
                 link_merge = "merge_nested"
 

@@ -10,7 +10,7 @@ from janis_core.utils.logger import Logger
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.translations import ExportPathKeywords
-from janis_core.types import DataType, ParseableType, get_instantiated_type
+from janis_core.types import DataType, ParseableType, get_instantiated_type, Array
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, ToolInput, ToolOutput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.types.data_types import is_python_primitive
@@ -151,9 +151,13 @@ class OutputNode(Node):
             )
 
         stype = source[0].outputs()[source[1]].output_type
+        snode = source[0]
+        if isinstance(snode, StepNode) and snode.scatter:
+            stype = Array(stype)
+
         if not datatype.can_receive_from(stype):
             Logger.critical(
-                f"Mismatch of types when joining '{source[0].id()}.{source[1]}' to '{identifier}' "
+                f"Mismatch of types when joining to output node '{source[0].id()}.{source[1]}' to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
@@ -255,6 +259,9 @@ class Workflow(Tool):
         node, tag = verify_or_try_get_source(source)
         if not datatype:
             datatype = node.outputs()[tag].output_type
+
+            if isinstance(node, StepNode) and node.scatter:
+                datatype = Array(datatype)
 
         otp = OutputNode(
             self,
@@ -363,12 +370,15 @@ class Workflow(Tool):
                 added_edges.append(stp._add_edge(k, verifiedsource))
 
         for e in added_edges:
-            self.has_scatter = stp.scatter is not None
+
             si = e.finish.sources[e.ftag] if e.ftag else first_value(e.finish.sources)
             self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 
+        self.has_scatter = self.has_scatter or scatter is not None
+        self.has_subworkflow = self.has_subworkflow or isinstance(tool, Workflow)
         self.nodes[identifier] = stp
         self.step_nodes[identifier] = stp
+
         return stp
 
     def __getattr__(self, item):

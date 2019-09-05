@@ -487,7 +487,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
         w.input("inp1", str)
         w.step("stp1", ArrayTestTool, inputs=w.inp1)
 
-        c, _, _ = CwlTranslator().translate(w)
+        c, _, _ = CwlTranslator().translate(w, to_console=False)
         self.assertEqual(cwl_multiinput, c)
 
 
@@ -534,6 +534,7 @@ steps:
     in:
       inputs:
         id: inputs
+        linkMerge: merge_nested
         source:
         - inp1
     out:
