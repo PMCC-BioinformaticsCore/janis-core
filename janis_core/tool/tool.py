@@ -2,8 +2,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, Union
 
-from janis_core.types import Selector, Array
-from janis_core.types.data_types import DataType
+from janis_core.types import ParseableType, Selector, Array, get_instantiated_type
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
@@ -72,7 +71,7 @@ class ToolInput(ToolArgument):
     def __init__(
         self,
         tag: str,
-        input_type: DataType,
+        input_type: ParseableType,
         position: Optional[int] = None,
         prefix: Optional[str] = None,
         separate_value_from_prefix: bool = None,
@@ -89,7 +88,7 @@ class ToolInput(ToolArgument):
 
         :param tag: The identifier of the input (unique to inputs and outputs of a tool)
         :param input_type: The data type that this input accepts
-        :type input_type: ``janis.DataType``
+        :type input_type: ``janis.ParseableType``
         :param position: The position of the input to be applied. (Default = 0, after the base_command).
         :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
         :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
@@ -119,7 +118,7 @@ class ToolInput(ToolArgument):
             )
 
         self.tag: str = tag
-        self.input_type: DataType = input_type
+        self.input_type: ParseableType = get_instantiated_type(input_type)
         self.default = default
         self.prefix_applies_to_all_elements = prefix_applies_to_all_elements
         self.separator = separator
@@ -137,7 +136,7 @@ class ToolOutput:
     def __init__(
         self,
         tag: str,
-        output_type: DataType,
+        output_type: ParseableType,
         glob: Optional[Union[Selector, str]] = None,
         doc: Optional[str] = None,
     ):
@@ -157,7 +156,7 @@ class ToolOutput:
             )
 
         self.tag = tag
-        self.output_type: DataType = output_type
+        self.output_type: ParseableType = get_instantiated_type(output_type)
         self.glob = glob
         self.doc = doc
 
