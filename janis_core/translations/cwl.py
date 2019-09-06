@@ -420,6 +420,10 @@ def translate_output_node(node):
 
 
 def translate_output(outp, source):
+    ot = outp.datatype
+    if isinstance(ot, Stdout):
+        ot = ot.subtype or File()
+
     return cwlgen.WorkflowOutputParameter(
         param_id=outp.id(),
         output_source=source,
@@ -427,7 +431,7 @@ def translate_output(outp, source):
         param_format=None,
         streamable=None,
         doc=outp.doc,
-        param_type=outp.datatype.cwl_type(),
+        param_type=ot.cwl_type(),
         output_binding=None,
         linkMerge=None,
     )
