@@ -27,6 +27,7 @@ def translate_workflow(
     workflow,
     translation: SupportedTranslation,
     to_console=True,
+    tool_to_console=False,
     with_docker=True,
     with_resource_overrides=False,
     to_disk=False,
@@ -45,6 +46,7 @@ def translate_workflow(
     return translator.translate(
         workflow,
         to_console=to_console,
+        tool_to_console=tool_to_console,
         with_docker=with_docker,
         with_resource_overrides=with_resource_overrides,
         to_disk=to_disk,

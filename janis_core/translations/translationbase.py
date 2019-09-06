@@ -47,6 +47,7 @@ class TranslatorBase(ABC):
         self,
         workflow,
         to_console=True,
+        tool_to_console=False,
         with_docker=True,
         with_resource_overrides=False,
         to_disk=False,
@@ -94,8 +95,9 @@ class TranslatorBase(ABC):
         if to_console:
             print("=== WORKFLOW ===")
             print(str_wf)
-            print("\n=== TOOLS ===")
-            [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
+            if tool_to_console:
+                print("\n=== TOOLS ===")
+                [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
             print("\n=== INPUTS ===")
             print(str_inp)
             if not merge_resources and with_resource_overrides:
