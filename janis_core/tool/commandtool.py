@@ -258,8 +258,7 @@ OUTPUTS:
         from janis_core.workflow.workflow import Workflow
 
         wf = Workflow(self.id() + "Wf")
-        stp = wf.step(self.tool().lower(), self, ignore_missing=True)
-
+        inpmap = {}
         for i in self.inputs():
 
             if isinstance(i.input_type, Filename):
@@ -269,7 +268,9 @@ OUTPUTS:
                 if i.default:
                     intp.optional = True
 
-            stp[i.id()] = wf.input(i.id(), intp)
+            inpmap[i.id()] = wf.input(i.id(), intp)
+
+        stp = wf.step(self.tool().lower(), self, **inpmap)
 
         for o in self.outputs():
             wf.output(o.id(), source=stp[o.id()])
