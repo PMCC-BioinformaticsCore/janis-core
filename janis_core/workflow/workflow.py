@@ -131,7 +131,6 @@ class StepNode(Node):
     always_set = {"tool", "sources", "node_type", "identifier"}
 
     def __setitem__(self, key, value):
-        print("Attempting to set: " + key)
         if key not in StepNode.always_set and key in self.inputs():
             if isinstance(value, list):
                 return [self._add_edge(key, v) for v in value]
