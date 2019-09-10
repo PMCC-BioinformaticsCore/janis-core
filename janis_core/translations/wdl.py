@@ -363,7 +363,7 @@ class WdlTranslator(TranslatorBase):
 
         for i in workflow.input_nodes.values():
             inp_key = f"{workflow.id()}.{i.id()}"
-            value = ad.get(i.id()) or i.default
+            value = ad.get(i.id()) or i.value or i.default
             if cls.inp_can_be_skipped(i):
                 continue
 
@@ -545,7 +545,11 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         # as it progress through the rest properly
         # default=default,
         true=true,
-        separator=(None if not is_array or separate_arrays else (sep)),
+        separator=(
+            None
+            if not is_array or separate_arrays
+            else (sep if sep is not None else " ")
+        ),
         separate_arrays=separate_arrays,
     )
 
@@ -1054,7 +1058,9 @@ def translate_step_node(
 
                 inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
 
-            if array_input_from_single_source and not source.start.scatter:
+            if array_input_from_single_source and not (
+                isinstance(source.start, StepNode) and source.start.scatter
+            ):
                 inpsourcevalue = f"[{inpsourcevalue}]"
                 if secondary:
                     for sec in secondary:

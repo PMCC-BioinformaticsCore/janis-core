@@ -166,9 +166,9 @@ class CwlTranslator(TranslatorBase):
 
         ad = additional_inputs or {}
         inp = {
-            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.default)
+            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.value or i.default)
             for i in workflow.input_nodes.values()
-            if i.default or i.id() in ad
+            if i.value or i.default or i.id() in ad
         }
 
         if merge_resources:

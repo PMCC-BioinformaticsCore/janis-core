@@ -124,9 +124,9 @@ class ToolInput(ToolArgument):
         self.separator = separator
         self.localise_file = localise_file
 
-        if isinstance(input_type, Array):
-            if self.prefix_applies_to_all_elements is None and self.separator is None:
-                self.separator = " "
+        # if isinstance(input_type, Array):
+        #     if self.prefix_applies_to_all_elements is None and self.separator is None:
+        # self.separator = " "
 
     def id(self):
         return self.tag
@@ -170,7 +170,7 @@ class Tool(ABC, object):
     """
 
     def __init__(self, metadata_class=Metadata):
-        self.metadata = metadata_class()
+        self.metadata: metadata_class = metadata_class()
         meta = self.bind_metadata()
         if meta:
             self.metadata = meta

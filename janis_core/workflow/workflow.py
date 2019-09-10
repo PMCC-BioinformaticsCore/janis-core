@@ -49,12 +49,19 @@ def verify_or_try_get_source(source: Union[ConnectionSource, List[ConnectionSour
 
 class InputNode(Node):
     def __init__(
-        self, wf, identifier: str, datatype: DataType, default: any, doc: str = None
+        self,
+        wf,
+        identifier: str,
+        datatype: DataType,
+        default: any,
+        value: any,
+        doc: str = None,
     ):
         super().__init__(wf, NodeTypes.INPUT, identifier)
         self.datatype = datatype
         self.default = default
         self.doc = doc
+        self.value = value
 
     def outputs(self) -> Dict[str, ToolOutput]:
         # Program will just grab first value anyway
@@ -180,10 +187,8 @@ class Workflow(Tool):
 
         if not Validators.validate_identifier(identifier):
             raise Exception(
-                f"The identifier '{identifier}' was not validated by '{Validators.identifier_regex}' "
-                f"(must start with letters, and then only contain letters, numbers and an underscore)"
+                f"The identifier '{identifier}' was invalid because {Validators.reason_for_failure(identifier)}"
             )
-
         self._identifier = identifier
         self._name = name
 
@@ -223,6 +228,7 @@ class Workflow(Tool):
         identifier: str,
         datatype: ParseableType,
         default: any = None,
+        value: any = None,
         doc: str = None,
     ):
         """
@@ -237,7 +243,12 @@ class Workflow(Tool):
             datatype.optional = True
 
         inp = InputNode(
-            self, identifier=identifier, datatype=datatype, default=default, doc=doc
+            self,
+            identifier=identifier,
+            datatype=datatype,
+            default=default,
+            doc=doc,
+            value=value,
         )
         self.nodes[identifier] = inp
         self.input_nodes[identifier] = inp
@@ -318,7 +329,9 @@ class Workflow(Tool):
 
         provided_keys = set(connections.keys())
         all_keys = set(inputs.keys())
-        required_keys = set(i for i, v in inputs.items() if not v.input_type.optional)
+        required_keys = set(
+            i for i, v in inputs.items() if not v.input_type.optional and not v.default
+        )
 
         if not provided_keys.issubset(all_keys):
             unrecparams = ", ".join(provided_keys - all_keys)
@@ -471,7 +484,7 @@ class Workflow(Tool):
         :return:
         """
         return {
-            i.id(): i.default
+            i.id(): i.value or i.default
             for i in self.input_nodes.values()
             if i.default or not i.datatype.optional
         }

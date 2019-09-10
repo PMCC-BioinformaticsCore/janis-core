@@ -91,7 +91,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                 "id": "filesA",
                 "label": "filesA",
                 "type": {"items": "string", "type": "array"},
-                "inputBinding": {"itemSeparator": " ", "prefix": "-A", "position": 1},
+                "inputBinding": {"prefix": "-A", "position": 1},
             },
             cwltoolinput.get_dict(),
         )
@@ -380,6 +380,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             datatype=String(),
             default="defaultValue",
             doc="docstring",
+            value=None,
         )
         tinp = cwl.translate_input(inp)
 
@@ -397,6 +398,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             identifier="testIdentifier",
             datatype=TestTypeWithSecondary(),
             default=None,
+            value=None,
         )
         tinp = cwl.translate_input(inp)
 
