@@ -10,7 +10,13 @@ from janis_core.utils.logger import Logger
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.translations import ExportPathKeywords
-from janis_core.types import DataType, ParseableType, get_instantiated_type, Array
+from janis_core.types import (
+    DataType,
+    ParseableType,
+    get_instantiated_type,
+    Array,
+    InputSelector,
+)
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, ToolInput, ToolOutput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.types.data_types import is_python_primitive
@@ -147,6 +153,8 @@ class OutputNode(Node):
         datatype: DataType,
         source: ConnectionSource,
         doc: str = None,
+        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
+        output_prefix: Union[str, InputSelector] = None,
     ):
         super().__init__(wf, NodeTypes.OUTPUT, identifier)
         self.datatype = datatype
@@ -169,6 +177,8 @@ class OutputNode(Node):
 
         self.source = verify_or_try_get_source(source)
         self.doc = doc
+        self.output_tag = output_tag
+        self.output_prefix = output_prefix
 
     def inputs(self) -> Dict[str, ToolInput]:
         # Program will just grab first value anyway
@@ -258,7 +268,24 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
+        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
+        output_prefix: Union[str, InputSelector] = None,
     ):
+        """
+        Create an output on a workflow
+
+        :param identifier: The identifier for the output
+        :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
+        :param source: The source of the output, must be an output to a step node
+        :param output_tag: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
+        a structure of nested directories, the first element being the root directory.
+        At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
+        scattered source, and the number of elements is equal.
+        :param output_prefix: Decides the prefix that an output will have, or acts as a map if the InputSelector
+        resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
+        may result in an unexpected termination.
+        :return:
+        """
         self.verify_identifier(identifier, repr(datatype))
 
         if source is None:
@@ -276,6 +303,8 @@ class Workflow(Tool):
             identifier=identifier,
             datatype=get_instantiated_type(datatype),
             source=(node, tag),
+            output_tag=output_tag,
+            output_prefix=output_prefix,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
