@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 from path import Path
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional, Any
 
 from janis_core.tool.tool import ToolInput
 from janis_core.types.common_data_types import Int
@@ -281,9 +281,58 @@ class TranslatorBase(ABC):
         pass
 
     @classmethod
-    @abstractmethod
-    def build_resources_input(cls, workflow, hints, max_cores=None, max_mem=None):
-        pass
+    def build_resources_input(
+        cls, workflow, hints, max_cores=None, max_mem=None, prefix=None
+    ):
+        from janis_core.workflow.workflow import Workflow, Tool, CommandTool
+
+        # returns a list of key, value pairs
+        steps: Dict[str, Optional[Any]] = {}
+
+        if not prefix:
+            prefix = ""
+        else:
+            prefix += "_"
+
+        for s in workflow.step_nodes.values():
+            tool: Tool = s.tool
+
+            if isinstance(tool, CommandTool):
+                tool_pre = prefix + s.id() + "_"
+                cpus = tool.cpus(hints) or 1
+                mem = tool.memory(hints)
+                if max_cores and cpus > max_cores:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
+                        "this was dropped to the new maximum"
+                    )
+                    cpus = max_cores
+                if max_mem and mem > max_mem:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
+                        "this was dropped to the new maximum"
+                    )
+                    mem = max_mem
+                steps.update(
+                    {
+                        tool_pre + "runtime_memory": mem,
+                        tool_pre + "runtime_cpu": cpus,
+                        # tool_pre + "runtime_disks": None
+                    }
+                )
+            elif isinstance(tool, Workflow):
+                tool_pre = prefix + s.id()
+                steps.update(
+                    cls.build_resources_input(
+                        tool,
+                        hints,
+                        max_cores=max_cores,
+                        max_mem=max_mem,
+                        prefix=tool_pre,
+                    )
+                )
+
+        return steps
 
     @staticmethod
     def inp_can_be_skipped(inp, override_value=None):

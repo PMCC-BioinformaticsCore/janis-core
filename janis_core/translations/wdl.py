@@ -808,7 +808,7 @@ def translate_step_node(
     missing_keys = [
         k
         for k in ins.keys()
-        if k not in node.sources and not ins[k].input_type.optional
+        if k not in node.sources and not (ins[k].input_type.optional or ins[k].default)
     ]
     if missing_keys:
         raise Exception(
