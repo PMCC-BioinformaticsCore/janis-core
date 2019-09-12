@@ -59,7 +59,7 @@ from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
 
-from janis_core.workflow.workflow import Workflow
+from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 
 # from janis_core.workflow.input import Input
 # from janis_core.workflow.output import Output

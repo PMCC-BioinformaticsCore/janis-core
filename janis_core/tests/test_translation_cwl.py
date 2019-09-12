@@ -12,7 +12,7 @@ import cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (
-    Workflow,
+    WorkflowBuilder,
     ToolOutput,
     ToolInput,
     String,
@@ -44,7 +44,7 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
     def setUp(self):
         self.translator = CwlTranslator()
 
-    def test_stringify_workflow(self):
+    def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow("wid")
         self.assertEqual(
             "class: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
@@ -63,7 +63,7 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         self.assertEqual("inp1: 1\n", self.translator.stringify_translated_inputs(d))
 
     def test_workflow_filename(self):
-        w = Workflow("wid")
+        w = WorkflowBuilder("wid")
         self.assertEqual("wid.cwl", self.translator.workflow_filename(w))
 
     def test_tools_filename(self):
@@ -72,11 +72,11 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         )
 
     def test_inputs_filename(self):
-        w = Workflow("wid")
+        w = WorkflowBuilder("wid")
         self.assertEqual("wid-inp.yml", self.translator.inputs_filename(w))
 
     def test_resources_filename(self):
-        w = Workflow("wid")
+        w = WorkflowBuilder("wid")
         self.assertEqual("wid-resources.yml", self.translator.resources_filename(w))
 
 
@@ -414,45 +414,45 @@ class TestCwlGenerateInput(unittest.TestCase):
         self.translator = cwl.CwlTranslator()
 
     def test_input_in_input_value_nooptional_nodefault(self):
-        wf = Workflow("test_cwl_input_in_input_value_nooptional_nodefault")
+        wf = WorkflowBuilder("test_cwl_input_in_input_value_nooptional_nodefault")
         wf.input("inpId", String(), default="1")
         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_value_nooptional_default(self):
-        wf = Workflow("test_cwl_input_in_input_value_nooptional_default")
+        wf = WorkflowBuilder("test_cwl_input_in_input_value_nooptional_default")
         wf.input("inpId", String(), default="1")
         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_value_optional_nodefault(self):
-        wf = Workflow("test_cwl_input_in_input_value_optional_nodefault")
+        wf = WorkflowBuilder("test_cwl_input_in_input_value_optional_nodefault")
         wf.input("inpId", String(optional=True), default="1")
         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_value_optional_default(self):
-        wf = Workflow("test_cwl_input_in_input_value_optional_default")
+        wf = WorkflowBuilder("test_cwl_input_in_input_value_optional_default")
         wf.input("inpId", String(optional=True), default="1")
         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_nooptional_nodefault(self):
-        wf = Workflow("test_cwl_input_in_input_novalue_nooptional_nodefault")
+        wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_nodefault")
         wf.input("inpId", String())
         # included because no value, no default, and not optional
         # self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
         self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_nooptional_default(self):
-        wf = Workflow("test_cwl_input_in_input_novalue_nooptional_default")
+        wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_default")
         wf.input("inpId", String(), default="2")
         self.assertDictEqual({"inpId": "2"}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_optional_nodefault(self):
-        wf = Workflow("test_cwl_input_in_input_novalue_optional_nodefault")
+        wf = WorkflowBuilder("test_cwl_input_in_input_novalue_optional_nodefault")
         wf.input("inpId", String(optional=True))
         # self.assertDictEqual({'inpId': None}, self.translator.build_inputs_file(wf))
         self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_optional_default(self):
-        wf = Workflow("test_cwl_input_in_input_novalue_optional_default")
+        wf = WorkflowBuilder("test_cwl_input_in_input_novalue_optional_default")
         wf.input("inpId", String(optional=True), default="2")
         self.assertDictEqual({"inpId": "2"}, self.translator.build_inputs_file(wf))
 
@@ -485,9 +485,9 @@ class TestCwlMaxResources(unittest.TestCase):
 
 class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
-        w = Workflow("test_add_single_to_array_edge")
+        w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", ArrayTestTool, inputs=w.inp1)
+        w.step("stp1", ArrayTestTool(inputs=w.inp1))
 
         c, _, _ = CwlTranslator().translate(w, to_console=False)
         self.assertEqual(cwl_multiinput, c)

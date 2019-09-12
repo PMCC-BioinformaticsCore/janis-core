@@ -267,9 +267,9 @@ OUTPUTS:
 
     def wrapped_in_wf(self):
         from copy import copy
-        from janis_core.workflow.workflow import Workflow
+        from janis_core.workflow.workflow import WorkflowBuilder
 
-        wf = Workflow(self.id() + "Wf")
+        wf = WorkflowBuilder(self.id() + "Wf")
         inpmap = {}
         for i in self.inputs():
 
@@ -282,7 +282,7 @@ OUTPUTS:
 
             inpmap[i.id()] = wf.input(i.id(), intp)
 
-        stp = wf.step(self.tool().lower(), self, **inpmap)
+        stp = wf.step(self.tool().lower(), self.__class__(**inpmap))
 
         for o in self.outputs():
             wf.output(o.id(), source=stp[o.id()])
