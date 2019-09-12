@@ -169,11 +169,18 @@ class Tool(ABC, object):
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
 
-    def __init__(self, metadata_class=Metadata):
+    def __init__(self, metadata_class=Metadata, **connections):
+        """
+        :param metadata_class:
+        :param connections:
+        """
+
         self.metadata: metadata_class = metadata_class()
         meta = self.bind_metadata()
         if meta:
             self.metadata = meta
+
+        self.connections = connections
 
     @classmethod
     @abstractmethod

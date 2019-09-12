@@ -1,5 +1,6 @@
 import os
 import copy
+from abc import abstractmethod
 from inspect import isclass
 from typing import List, Type, Union, Optional, Dict, Tuple, Any
 
@@ -189,17 +190,17 @@ class OutputNode(Node):
 
 
 class Workflow(Tool):
-    def __init__(self, identifier: str, name: str = None):
+    def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 
-        Logger.log(f"Creating workflow with identifier: '{identifier}'")
+        self.connections = connections
 
-        if not Validators.validate_identifier(identifier):
+        Logger.log(f"Creating workflow with identifier: '{self.id()}'")
+
+        if not Validators.validate_identifier(self.id()):
             raise Exception(
-                f"The identifier '{identifier}' was invalid because {Validators.reason_for_failure(identifier)}"
+                f"The identifier '{self.id()}' was invalid because {Validators.reason_for_failure(self.id())}"
             )
-        self._identifier = identifier
-        self._name = name
 
         # The following variables allow us to quickly check data about the graph
         self.nodes: Dict[str, Node] = {}
@@ -212,6 +213,22 @@ class Workflow(Tool):
         self.has_scatter = False
         self.has_subworkflow = False
         self.has_multiple_inputs = False
+
+        # Now that we've initialised everything, we can "construct" the workflows for that subclass this class
+        # else, for the WorkflowBuilder it will do nothing and they'll add workflows later
+        self.constructor()
+
+    @abstractmethod
+    def friendly_name(self):
+        pass
+
+    @abstractmethod
+    def constructor(self):
+        """
+        Construct your workflow in here
+        :return:
+        """
+        pass
 
     def verify_identifier(self, identifier: str, component: str):
 
@@ -313,10 +330,9 @@ class Workflow(Tool):
     def step(
         self,
         identifier: str,
-        tool: Union[Tool, Type[Tool]],
+        tool: Tool,
         scatter: Union[str, ScatterDescription] = None,
         ignore_missing=False,
-        **connections,
     ):
         """
         Method to do
@@ -325,12 +341,8 @@ class Workflow(Tool):
         :param scatter: Indicate whether a scatter should occur, on what, and how
         :type scatter: Union[str, ScatterDescription]
         :param ignore_missing: Don't throw an error if required params are missing from this function
-        :param connections: kvargs for the properties on `tool`.
         :return:
         """
-
-        if isclass(tool) and issubclass(tool, Tool):
-            tool = tool()
 
         self.verify_identifier(identifier, tool.id())
 
@@ -354,6 +366,8 @@ class Workflow(Tool):
 
         tool.workflow = self
         inputs = tool.inputs_map()
+
+        connections = tool.connections
 
         provided_keys = set(connections.keys())
         all_keys = set(inputs.keys())
@@ -442,11 +456,9 @@ class Workflow(Tool):
     def type(cls) -> ToolType:
         return ToolTypes.Workflow
 
-    def id(self) -> str:
-        return self._identifier
-
+    @abstractmethod
     def friendly_name(self):
-        return self._name
+        pass
 
     def inputs(self) -> List[ToolInput]:
         """
@@ -610,10 +622,35 @@ class Workflow(Tool):
         return data
 
 
+class WorkflowBuilder(Workflow):
+    def __init__(self, identifier: str = None, friendly_name: str = None):
+        self._identifier = identifier
+        self._name = friendly_name
+
+        super().__init__()
+
+    def id(self):
+        return self._identifier
+
+    def friendly_name(self):
+        return self._name
+
+    def as_subworkflow(self, **connections):
+        self.connections = connections
+        return self
+
+    def constructor(self):
+        """
+        Empty placeholder as users will construct their workflow manually, and not as part of this class
+        :return:
+        """
+        return self
+
+
 if __name__ == "__main__":
     # from janis_unix import Echo
 
-    wf = Workflow("simple")
+    wf = WorkflowBuilder("simple")
 
     from janis_bioinformatics.tools.cutadapt import CutAdapt_1_18 as Cutadapt
     from janis_bioinformatics.tools.common import BwaMem_SamToolsView
@@ -626,23 +663,23 @@ if __name__ == "__main__":
     wf.input("fastq", Fastq)
 
     # Steps
-    wf.step("cutadapt", Cutadapt, fastq=wf.fastq)
+    wf.step("cutadapt", Cutadapt(fastq=wf.fastq))
     wf.step(
         "bwamem",
-        BwaMem_SamToolsView,
-        reads=wf.cutadapt.out,
-        sampleName=wf.sampleName,
-        reference=wf.reference,
+        BwaMem_SamToolsView(
+            reads=wf.cutadapt.out, sampleName=wf.sampleName, reference=wf.reference
+        ),
     )
     wf.step(
         "sortsam",
-        Gatk4SortSam_4_0,
-        bam=wf.bwamem.out,
-        sortOrder="coordinate",
-        createIndex=True,
-        validationStringency="SILENT",
-        maxRecordsInRam=5000000,
-        tmpDir=".",
+        Gatk4SortSam_4_0(
+            bam=wf.bwamem.out,
+            sortOrder="coordinate",
+            createIndex=True,
+            validationStringency="SILENT",
+            maxRecordsInRam=5000000,
+            tmpDir=".",
+        ),
     )
 
     # outputs

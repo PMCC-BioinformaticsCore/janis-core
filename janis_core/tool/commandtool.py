@@ -13,8 +13,8 @@ class CommandTool(Tool, ABC):
     Simply put, a CommandTool has a name, a command, inputs, outputs and a container to run in.
     """
 
-    def __init__(self):
-        super().__init__(metadata_class=ToolMetadata)
+    def __init__(self, **connections):
+        super().__init__(metadata_class=ToolMetadata, **connections)
 
     # Tool base
     @staticmethod
