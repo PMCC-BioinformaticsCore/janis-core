@@ -573,7 +573,7 @@ def translate_step(
                     step_id=step.id(), method=step.scatter.method
                 )
             )
-            cwlstep.scatterMethod = step.scatter.method
+            cwlstep.scatterMethod = step.scatter.method.cwl()
         cwlstep.scatter = step.scatter.fields
 
     return cwlstep
