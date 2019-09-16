@@ -237,6 +237,12 @@ class Tool(ABC, object):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 
     def bind_metadata(self):
+        """
+        A convenient place to add metadata about the tool. You are guaranteed that self.metadata will exist.
+        It's possible to return a new instance of the ToolMetadata / WorkflowMetadata which will be rebound.
+        This is usually called after the initialiser, though it may be called multiple times.
+        :return:
+        """
         return self.metadata
 
     def help(self):

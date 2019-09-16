@@ -148,7 +148,7 @@ class TestWorkflow(TestCase):
         sub_w.output("sub_out", source=sub_w.sub_stp.out)
 
         w.input("inp", str)
-        w.step("stp_workflow", sub_w.as_subworkflow(sub_inp=w.inp))
+        w.step("stp_workflow", sub_w(sub_inp=w.inp))
         w.output("out", source=w.stp_workflow.sub_out)
 
         # would be good to come up with some tests

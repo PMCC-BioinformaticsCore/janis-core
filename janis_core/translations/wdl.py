@@ -610,10 +610,12 @@ def translate_input_selector_for_output(
         raise Exception(
             f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
         )
-
-    expression = (
-        base_expression if not tool_in.localise_file else f"basename({base_expression})"
+    use_basename = (
+        tool_in.localise_file
+        or isinstance(selector, InputSelector)
+        and selector.use_basename
     )
+    expression = base_expression if not use_basename else f"basename({base_expression})"
 
     outputs = [wdl.Output(out.output_type.wdl(), out.id(), expression)]
     for s in value_or_default(out.output_type.secondary_files(), []):
