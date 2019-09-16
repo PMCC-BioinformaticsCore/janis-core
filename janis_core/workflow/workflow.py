@@ -225,7 +225,7 @@ class Workflow(Tool):
     @abstractmethod
     def constructor(self):
         """
-        Construct your workflow in here
+        A place to construct your workflows. This is called directly after initialisation.
         :return:
         """
         pass
@@ -285,8 +285,13 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
-        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
-        output_prefix: Union[str, InputSelector] = None,
+        output_tag: Union[
+            str,
+            InputSelector,
+            ConnectionSource,
+            List[Union[str, InputSelector, ConnectionSource]],
+        ] = None,
+        output_prefix: Union[str, InputSelector, ConnectionSource] = None,
     ):
         """
         Create an output on a workflow
@@ -315,6 +320,15 @@ class Workflow(Tool):
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
 
+        if output_prefix:
+            output_prefix = self.verify_output_source_type(
+                identifier, output_prefix, "output_prefix"
+            )
+        if output_tag:
+            output_tag = self.verify_output_source_type(
+                identifier, output_tag, "output_tag"
+            )
+
         otp = OutputNode(
             self,
             identifier=identifier,
@@ -326,6 +340,46 @@ class Workflow(Tool):
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
         return otp
+
+    def verify_output_source_type(
+        self,
+        identifier,
+        out: Union[
+            str,
+            InputSelector,
+            ConnectionSource,
+            List[Union[str, InputSelector, ConnectionSource]],
+        ],
+        outtype: str,
+    ):
+        if isinstance(out, list):
+            return [self.verify_output_source_type(o) for o in out]
+
+        if isinstance(out, str):
+            return out
+
+        if isinstance(out, tuple):
+            # ConnectionSource tuple
+            out = out[0]
+
+        if isinstance(out, Node):
+            if not isinstance(out, InputNode):
+                raise Exception(
+                    f"The source for the {outtype} '{identifier}' was a {out.__class__.__name__} and must be an Input"
+                )
+
+            return InputSelector(out.identifier)
+
+        if isinstance(out, InputSelector):
+            keys = set(self.input_nodes.keys())
+            if out.input_to_select not in keys:
+                raise Exception(
+                    f"Couldn't find the input {out.input_to_select} in the workflow, expected one of: "
+                    + ", ".join(keys)
+                )
+            return out
+
+        raise Exception(f"Invalidate type for {outtype}: {out.__class__.__name__}")
 
     def step(
         self,
@@ -455,10 +509,6 @@ class Workflow(Tool):
     @classmethod
     def type(cls) -> ToolType:
         return ToolTypes.Workflow
-
-    @abstractmethod
-    def friendly_name(self):
-        pass
 
     def inputs(self) -> List[ToolInput]:
         """
@@ -635,7 +685,7 @@ class WorkflowBuilder(Workflow):
     def friendly_name(self):
         return self._name
 
-    def as_subworkflow(self, **connections):
+    def __call__(self, **connections):
         self.connections = connections
         return self
 
