@@ -859,17 +859,18 @@ def translate_step_node(
 
                 multiple_sources_failure_reasons = []
 
-                unique_types = set(
-                    (
+                unique_types = set()
+                for x in edge.source():
+                    t = (
                         first_value(x.start.outputs())
                         if not x.stag
                         else x.start.outputs()[x.stag]
-                    ).output_type.name()
-                    for x in edge.source()
-                )
+                    )
+
+                    unique_types.update(t.output_type.secondary_files() or [""])
                 if len(unique_types) > 1:
                     multiple_sources_failure_reasons.append(
-                        f"has {len(unique_types)} different DataTypes"
+                        f"has {len(unique_types)} different DataTypes with varying secondaries"
                     )
                 if node.scatter:
                     multiple_sources_failure_reasons.append(f"is scattered")
