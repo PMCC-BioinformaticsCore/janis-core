@@ -567,20 +567,26 @@ class Workflow(Tool):
             max_mem=max_mem,
         )
 
-    def generate_inputs_override(self, with_resource_overrides=False, hints=None):
+    def generate_inputs_override(
+        self, additional_inputs=None, with_resource_overrides=False, hints=None
+    ):
         """
         Generate the overrides to be used with Janis. Although it may work with
         other
         :return:
         """
+        ad = additional_inputs or {}
+
         d = {
-            i.id(): i.value or i.default
+            i.id(): ad.get(i.id(), i.value or i.default)
             for i in self.input_nodes.values()
-            if i.default or not i.datatype.optional
+            if i.id() in ad or i.default or i.value or not i.datatype.optional
         }
 
         if with_resource_overrides:
             d.update(translations.CwlTranslator().build_resources_input(self, hints))
+
+        return d
 
     def generate_resources_file(
         self,
