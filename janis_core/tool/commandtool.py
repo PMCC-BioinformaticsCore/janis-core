@@ -241,26 +241,24 @@ OUTPUTS:
 {outputs}
 """
 
-    def generate_inputs_override(self, with_resource_overrides=False, hints=None):
+    def generate_inputs_override(
+        self, additional_inputs=None, with_resource_overrides=False, hints=None
+    ):
         """
         Generate the overrides to be used with Janis. Although it may work with
         other
         :return:
         """
-        d = {}
+        d, ad = {}, additional_inputs or {}
         for i in self.inputs():
-            if not i.input_type.optional or i.default:
-                d[i] = i.default
+            if not i.input_type.optional or i.default or i.id() in ad:
+                d[i] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
             cpus = self.cpus(hints) or 1
             mem = self.memory(hints)
             d.update(
-                {
-                    "runtime_memory": mem,
-                    "runtime_cpu": cpus,
-                    # "runtime_disks": None
-                }
+                {"runtime_memory": mem, "runtime_cpu": cpus, "runtime_disks": None}
             )
 
         return d

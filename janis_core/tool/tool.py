@@ -222,6 +222,12 @@ class Tool(ABC, object):
         """
         return None
 
+    @abstractmethod
+    def generate_inputs_override(
+        self, additional_inputs=None, with_resource_overrides=False, hints=None
+    ):
+        pass
+
     @staticmethod
     @abstractmethod
     def version():
