@@ -172,7 +172,10 @@ class CwlTranslator(TranslatorBase):
         }
 
         if merge_resources:
-            inp.update(cls.build_resources_input(workflow, hints, max_cores, max_mem))
+            for k, v in cls.build_resources_input(
+                workflow, hints, max_cores, max_mem
+            ).items():
+                inp[k] = additional_inputs.get(k, v)
 
         return inp
 

@@ -282,25 +282,29 @@ class TranslatorBase(ABC):
 
     @classmethod
     def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, prefix=None
+        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
     ):
         from janis_core.workflow.workflow import Workflow, Tool, CommandTool
 
         # returns a list of key, value pairs
         steps: Dict[str, Optional[Any]] = {}
+        inputs = inputs or {}
 
-        if not prefix:
-            prefix = ""
-        else:
-            prefix += "_"
+        # prefix = ""
+        # if not prefix:
+        #     prefix = ""
+        # else:
+        #     prefix += ""
 
         for s in workflow.step_nodes.values():
             tool: Tool = s.tool
 
             if isinstance(tool, CommandTool):
                 tool_pre = prefix + s.id() + "_"
-                cpus = tool.cpus(hints) or 1
-                mem = tool.memory(hints)
+                cpus = inputs.get(f"{s.id()}_runtime_cpu", tool.cpus(hints) or 1)
+                mem = inputs.get(f"{s.id()}_runtime_memory", tool.memory(hints))
+                disk = inputs.get(f"{s.id()}_runtime_disks")
+
                 if max_cores and cpus > max_cores:
                     Logger.info(
                         f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
@@ -317,11 +321,11 @@ class TranslatorBase(ABC):
                     {
                         tool_pre + "runtime_memory": mem,
                         tool_pre + "runtime_cpu": cpus,
-                        # tool_pre + "runtime_disks": None
+                        tool_pre + "runtime_disks": disk,
                     }
                 )
             elif isinstance(tool, Workflow):
-                tool_pre = prefix + s.id()
+                tool_pre = prefix + s.id() + "_"
                 steps.update(
                     cls.build_resources_input(
                         tool,
@@ -329,6 +333,11 @@ class TranslatorBase(ABC):
                         max_cores=max_cores,
                         max_mem=max_mem,
                         prefix=tool_pre,
+                        inputs={
+                            k[len(s.id()) + 1 :]: v
+                            for k, v in inputs.items()
+                            if k.startswith(s.id())
+                        },
                     )
                 )
 
