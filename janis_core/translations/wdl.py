@@ -309,9 +309,10 @@ class WdlTranslator(TranslatorBase):
 
         commands = []
         for ti in tool.inputs():
-            if not ti.localise_file:
-                continue
-            commands.extend(prepare_move_statement_for_input_to_localise(ti))
+            if ti.localise_file:
+                commands.extend(prepare_move_statement_for_input_to_localise(ti))
+            else:
+                commands.extend(prepare_move_statement_for_potential_secondaries(ti))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -1329,6 +1330,22 @@ def apply_secondary_file_format_to_filename(
 
     split = filename.split(".")
     return basepath + ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
+
+
+def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
+    it = ti.input_type
+    if not issubclass(type(it), File) or not it.secondary_files():
+        return []
+
+    commands = []
+    for s in it.secondary_files():
+        sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+        commands.append(
+            wdl.Task.Command(
+                f'if [ $(dirname "${{{sectag}}}") != $(dirname "{ti.id()}") ]; then mv ${{{sectag}}} $(dirname ${{{ti.id()}}}); fi'
+            )
+        )
+    return commands
 
 
 def prepare_move_statement_for_input_to_localise(ti: ToolInput):
