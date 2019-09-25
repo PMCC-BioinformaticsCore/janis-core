@@ -303,7 +303,7 @@ class TranslatorBase(ABC):
                 tool_pre = prefix + s.id() + "_"
                 cpus = inputs.get(f"{s.id()}_runtime_cpu", tool.cpus(hints) or 1)
                 mem = inputs.get(f"{s.id()}_runtime_memory", tool.memory(hints))
-                disk = inputs.get(f"{s.id()}_runtime_disks")
+                disk = inputs.get(f"{s.id()}_runtime_disks", "local-disk 60 SSD")
 
                 if max_cores and cpus > max_cores:
                     Logger.info(

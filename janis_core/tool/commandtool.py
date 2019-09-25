@@ -258,7 +258,11 @@ OUTPUTS:
             cpus = self.cpus(hints) or 1
             mem = self.memory(hints)
             d.update(
-                {"runtime_memory": mem, "runtime_cpu": cpus, "runtime_disks": None}
+                {
+                    "runtime_memory": mem,
+                    "runtime_cpu": cpus,
+                    "runtime_disks": "local-disk 60 SSD",
+                }
             )
 
         return d
