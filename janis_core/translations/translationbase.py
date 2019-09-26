@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 import os
 from path import Path
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional, Any
 
 from janis_core.tool.tool import ToolInput
 from janis_core.types.common_data_types import Int
 from janis_core.translations.exportpath import ExportPathKeywords
 from janis_core.utils.logger import Logger
-from janis_core.workflow.input import Input, InputNode
+
+# from janis_core.workflow.input import Input, InputNode
 
 
 class TranslatorBase(ABC):
@@ -46,6 +47,7 @@ class TranslatorBase(ABC):
         self,
         workflow,
         to_console=True,
+        tool_to_console=False,
         with_docker=True,
         with_resource_overrides=False,
         to_disk=False,
@@ -61,7 +63,7 @@ class TranslatorBase(ABC):
         max_mem=None,
     ):
 
-        self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
+        # self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
 
         tr_wf, tr_tools = self.translate_workflow(
             workflow,
@@ -93,8 +95,9 @@ class TranslatorBase(ABC):
         if to_console:
             print("=== WORKFLOW ===")
             print(str_wf)
-            print("\n=== TOOLS ===")
-            [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
+            if tool_to_console:
+                print("\n=== TOOLS ===")
+                [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
             print("\n=== INPUTS ===")
             print(str_inp)
             if not merge_resources and with_resource_overrides:
@@ -218,24 +221,25 @@ class TranslatorBase(ABC):
         return tool_out
 
     @classmethod
-    def validate_inputs(cls, inputs: List[InputNode], allow_null_if_optional):
-        invalid = [
-            i
-            for i in inputs
-            if not i.input.validate_value(
-                allow_null_if_not_optional=allow_null_if_optional
-            )
-        ]
-        if len(invalid) == 0:
-            return True
-        raise TypeError(
-            "Couldn't validate inputs: "
-            + ", ".join(
-                f"{i.id()} (expected: {i.input.data_type.id()}, "
-                f"got: '{TranslatorBase.get_type(i.input.value)}')"
-                for i in invalid
-            )
-        )
+    def validate_inputs(cls, inputs, allow_null_if_optional):
+        return True
+        # invalid = [
+        #     i
+        #     for i in inputs
+        #     if not i.input.validate_value(
+        #         allow_null_if_not_optional=allow_null_if_optional
+        #     )
+        # ]
+        # if len(invalid) == 0:
+        #     return True
+        # raise TypeError(
+        #     "Couldn't validate inputs: "
+        #     + ", ".join(
+        #         f"{i.id()} (expected: {i.input.data_type.id()}, "
+        #         f"got: '{TranslatorBase.get_type(i.input.value)}')"
+        #         for i in invalid
+        #     )
+        # )
 
     @staticmethod
     def get_type(t):
@@ -277,17 +281,75 @@ class TranslatorBase(ABC):
         pass
 
     @classmethod
-    @abstractmethod
-    def build_resources_input(cls, workflow, hints, max_cores=None, max_mem=None):
-        pass
+    def build_resources_input(
+        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
+    ):
+        from janis_core.workflow.workflow import Workflow, Tool, CommandTool
+
+        # returns a list of key, value pairs
+        steps: Dict[str, Optional[Any]] = {}
+        inputs = inputs or {}
+
+        # prefix = ""
+        # if not prefix:
+        #     prefix = ""
+        # else:
+        #     prefix += ""
+
+        for s in workflow.step_nodes.values():
+            tool: Tool = s.tool
+
+            if isinstance(tool, CommandTool):
+                tool_pre = prefix + s.id() + "_"
+                cpus = inputs.get(f"{s.id()}_runtime_cpu", tool.cpus(hints) or 1)
+                mem = inputs.get(f"{s.id()}_runtime_memory", tool.memory(hints))
+                disk = inputs.get(f"{s.id()}_runtime_disks", "local-disk 60 SSD")
+
+                if max_cores and cpus > max_cores:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
+                        "this was dropped to the new maximum"
+                    )
+                    cpus = max_cores
+                if max_mem and mem > max_mem:
+                    Logger.info(
+                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
+                        "this was dropped to the new maximum"
+                    )
+                    mem = max_mem
+                steps.update(
+                    {
+                        tool_pre + "runtime_memory": mem,
+                        tool_pre + "runtime_cpu": cpus,
+                        tool_pre + "runtime_disks": disk,
+                    }
+                )
+            elif isinstance(tool, Workflow):
+                tool_pre = prefix + s.id() + "_"
+                steps.update(
+                    cls.build_resources_input(
+                        tool,
+                        hints,
+                        max_cores=max_cores,
+                        max_mem=max_mem,
+                        prefix=tool_pre,
+                        inputs={
+                            k[len(s.id()) + 1 :]: v
+                            for k, v in inputs.items()
+                            if k.startswith(s.id())
+                        },
+                    )
+                )
+
+        return steps
 
     @staticmethod
-    def inp_can_be_skipped(inp: Input, override_value=None):
+    def inp_can_be_skipped(inp, override_value=None):
         return (
-            inp.value is None
+            inp.default is None
             and override_value is None
-            and not inp.include_in_inputs_file_if_none
-            and (inp.data_type.optional and inp.default is None)
+            # and not inp.include_in_inputs_file_if_none
+            and (inp.datatype.optional and inp.default is None)
         )
 
     # Resource overrides

@@ -30,6 +30,7 @@ import pkg_resources
 from janis_core.__meta__ import __version__
 from janis_core.registry.shed import JanisShed
 import janis_core.registry.entrypoints as entrypoints
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolOutput, ToolTypes
@@ -57,7 +58,10 @@ from janis_core.types.data_types import DataType
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
-from janis_core.workflow.input import Input
-from janis_core.workflow.output import Output
-from janis_core.workflow.step import Step
-from janis_core.workflow.workflow import Workflow
+
+from janis_core.workflow.workflow import Workflow, WorkflowBuilder
+
+# from janis_core.workflow.input import Input
+# from janis_core.workflow.output import Output
+# from janis_core.workflow.step import Step
+# from janis_core.workflow.workflow import Workflow

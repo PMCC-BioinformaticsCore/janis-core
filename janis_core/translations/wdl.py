@@ -21,9 +21,7 @@ from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
 
-from janis_core.workflow.input import InputNode
-
-from janis_core.graph.stepinput import Edge, StepInput
+from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput, ToolArgument, ToolOutput
 from janis_core.translations.translationbase import TranslatorBase
@@ -45,7 +43,8 @@ from janis_core.types.common_data_types import (
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.validators import Validators
-from janis_core.workflow.step import StepNode
+
+# from janis_core.workflow.step import StepNode
 
 
 ## PRIMARY TRANSLATION METHODS
@@ -69,11 +68,11 @@ class WdlTranslator(TranslatorBase):
 
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
-        return ["java", "-jar", "$womtool", "validate", wfpath]
+        return ["java", "-jar", "$womtooljar", "validate", wfpath]
 
     @classmethod
     def translate_workflow(
-        cls, wf, with_docker=True, with_resource_overrides=False, is_nested_tool=False
+        cls, wfi, with_docker=True, with_resource_overrides=False, is_nested_tool=False
     ) -> Tuple[any, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
@@ -88,31 +87,33 @@ class WdlTranslator(TranslatorBase):
         # I need the workflow for type comparison
         from janis_core.workflow.workflow import Workflow
 
+        wf: Workflow = wfi
+
         # Notes:
         #       All wdlgen classes have a .get_string(**kwargs) function
         #       The wdlgen Workflow class requires a
 
         # As of 2019-04-16: we use development (Biscayne) features
         # like Directories and wdlgen uses the new input {} syntax
-        w = wdl.Workflow(wf.identifier, version="development")
-        tools: List[Tool] = [s.step.tool() for s in wf._steps]
+        w = wdl.Workflow(wf.id(), version="development")
+        tools: List[Tool] = [s.tool for s in wf.step_nodes.values()]
 
-        inputs = [*wf._inputs]
-        steps = [*wf._steps]
-        outputs = [*wf._outputs]
+        inputs = list(wf.input_nodes.values())
+        steps = list(wf.step_nodes.values())
+        outputs = list(wf.output_nodes.values())
 
         wtools = {}  # Store all the tools by their name in this dictionary
         tool_aliases, step_aliases = build_aliases(
-            wf._steps
+            wf.step_nodes.values()
         )  # Generate call and import aliases
 
         # Convert self._inputs -> wdl.Input
         for i in inputs:
-            wd = i.input.data_type.wdl(has_default=i.input.default is not None)
+            wd = i.datatype.wdl(has_default=i.default is not None)
 
             expr = None
-            if isinstance(i.input.data_type, Filename):
-                expr = f'"{i.input.data_type.generated_filename()}"'
+            if isinstance(i.datatype, Filename):
+                expr = f'"{i.datatype.generated_filename()}"'
 
             w.inputs.append(
                 wdl.Input(
@@ -120,14 +121,14 @@ class WdlTranslator(TranslatorBase):
                 )
             )
 
-            is_array = isinstance(i.input.data_type, Array)
-            if i.input.data_type.secondary_files() or (
-                is_array and i.input.data_type.subtype().secondary_files()
+            is_array = isinstance(i.datatype, Array)
+            if i.datatype.secondary_files() or (
+                is_array and i.datatype.subtype().secondary_files()
             ):
                 secs = (
-                    i.input.data_type.secondary_files()
+                    i.datatype.secondary_files()
                     if not is_array
-                    else i.input.data_type.subtype().secondary_files()
+                    else i.datatype.subtype().secondary_files()
                 )
 
                 w.inputs.extend(
@@ -142,36 +143,27 @@ class WdlTranslator(TranslatorBase):
 
         # Convert self._outputs -> wdl.Output
         for o in outputs:
+            sourcenode, sourcetag = o.source
             w.outputs.append(
                 wdl.Output(
-                    o.output.data_type.wdl(),
+                    o.datatype.wdl(),
                     o.id(),
                     "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                        a=first_value(
-                            first_value(o.connection_map).source_map
-                        ).start.id(),
-                        b=first_value(first_value(o.connection_map).source_map).stag,
+                        a=sourcenode.id(), b=sourcetag
                     ),
                 )
             )
-            if o.output.data_type.secondary_files():
+            if o.datatype.secondary_files():
                 w.outputs.extend(
                     wdl.Output(
-                        o.output.data_type.wdl(),
+                        o.datatype.wdl(),
                         get_secondary_tag_from_original_tag(o.id(), s),
                         "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                            a=first_value(
-                                first_value(o.connection_map).source_map
-                            ).start.id(),
-                            b=get_secondary_tag_from_original_tag(
-                                first_value(
-                                    first_value(o.connection_map).source_map
-                                ).stag,
-                                s,
-                            ),
+                            a=sourcenode.id(),
+                            b=get_secondary_tag_from_original_tag(sourcetag, s),
                         ),
                     )
-                    for s in o.output.data_type.secondary_files()
+                    for s in o.datatype.secondary_files()
                 )
 
         # Generate import statements (relative tool dir is later?)
@@ -187,7 +179,7 @@ class WdlTranslator(TranslatorBase):
 
         # Step[] -> (wdl.Task | wdl.Workflow)[]
         for s in steps:
-            t = s.step.tool()
+            t = s.tool
 
             if t.id() not in wtools:
                 if isinstance(t, Workflow):
@@ -317,9 +309,10 @@ class WdlTranslator(TranslatorBase):
 
         commands = []
         for ti in tool.inputs():
-            if not ti.localise_file:
-                continue
-            commands.extend(prepare_move_statement_for_input_to_localise(ti))
+            if ti.localise_file:
+                commands.extend(prepare_move_statement_for_input_to_localise(ti))
+            else:
+                commands.extend(prepare_move_statement_for_potential_secondaries(ti))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -369,26 +362,25 @@ class WdlTranslator(TranslatorBase):
         inp = {}
         ad = additional_inputs or {}
 
-        for i in workflow._inputs:
+        for i in workflow.input_nodes.values():
             inp_key = f"{workflow.id()}.{i.id()}"
-            value = ad.get(i.id()) or i.input.value or i.input.default
-            if cls.inp_can_be_skipped(i.input, value):
+            value = ad.get(i.id()) or i.value or i.default
+            if cls.inp_can_be_skipped(i):
                 continue
 
-            inp_val = i.input.wdl_input(value)
+            inp_val = value
 
             inp[inp_key] = inp_val
-            if i.input.data_type.secondary_files():
-                for sec in i.input.data_type.secondary_files():
+            if i.datatype.secondary_files():
+                for sec in i.datatype.secondary_files():
                     inp[
                         get_secondary_tag_from_original_tag(inp_key, sec)
                     ] = apply_secondary_file_format_to_filename(inp_val, sec)
             elif (
-                isinstance(i.input.data_type, Array)
-                and i.input.data_type.subtype().secondary_files()
+                isinstance(i.datatype, Array) and i.datatype.subtype().secondary_files()
             ):
                 # handle array of secondary files
-                for sec in i.input.data_type.subtype().secondary_files():
+                for sec in i.datatype.subtype().secondary_files():
                     inp[get_secondary_tag_from_original_tag(inp_key, sec)] = (
                         [
                             apply_secondary_file_format_to_filename(iinp_val, sec)
@@ -399,65 +391,26 @@ class WdlTranslator(TranslatorBase):
                     )
 
         if merge_resources:
-            inp.update(cls.build_resources_input(workflow, hints, max_cores, max_mem))
+            inp.update(
+                cls.build_resources_input(
+                    workflow, hints, max_cores, max_mem, inputs=ad
+                )
+            )
 
         return inp
 
     @classmethod
     def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, prefix=None
+        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
     ):
-        from janis_core.workflow.workflow import Workflow
-
-        # returns a list of key, value pairs
-        steps: Dict[str, Optional[Any]] = {}
-        if not prefix:
-            prefix = workflow.id() + "."
-        else:
-            prefix += "_"
-
-        for s in workflow._steps:
-            tool: Tool = s.step.tool()
-
-            if isinstance(tool, CommandTool):
-                tool_pre = prefix + s.id() + "_"
-
-                cpus = tool.cpus(hints) or 1
-                mem = tool.memory(hints)
-
-                if max_cores and cpus > max_cores:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
-                        "this was dropped to the new maximum"
-                    )
-                    cpus = max_cores
-                if max_mem and mem > max_mem:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
-                        "this was dropped to the new maximum"
-                    )
-                    mem = max_mem
-
-                steps.update(
-                    {
-                        tool_pre + "runtime_memory": mem,
-                        tool_pre + "runtime_cpu": cpus,
-                        tool_pre + "runtime_disks": "local-disk 100 SSD",
-                    }
-                )
-            elif isinstance(tool, Workflow):
-                tool_pre = prefix + s.id()
-                steps.update(
-                    cls.build_resources_input(
-                        tool,
-                        hints,
-                        max_cores=max_cores,
-                        max_mem=max_mem,
-                        prefix=tool_pre,
-                    )
-                )
-
-        return steps
+        return super().build_resources_input(
+            workflow=workflow,
+            hints=hints,
+            max_cores=max_cores,
+            max_mem=max_mem,
+            prefix=prefix or f"{workflow.id()}.",
+            inputs=inputs,
+        )
 
     @staticmethod
     def workflow_filename(workflow):
@@ -508,6 +461,10 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
         name = f"if defined({name}) then {name} else {default}"
 
     if tool_input.localise_file:
+        if isinstance(tool_input.input_type, Array):
+            raise Exception(
+                "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
+            )
         name = "basename(%s)" % name
 
     return name
@@ -529,13 +486,8 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
     true = None
     sep = tool_input.separator
 
-    separate_arrays = tool_input.prefix_applies_to_all_elements
-    if (
-        separate_arrays is None
-        and sep is None
-        and isinstance(tool_input.input_type, Array)
-    ):
-        separate_arrays = True
+    is_array = isinstance(tool_input.input_type, Array)
+    separate_arrays = is_array and tool_input.prefix_applies_to_all_elements
 
     if isinstance(tool_input.input_type, Boolean):
         true = tool_input.prefix
@@ -555,7 +507,11 @@ def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
         # as it progress through the rest properly
         # default=default,
         true=true,
-        separator=sep,
+        separator=(
+            None
+            if not is_array or separate_arrays
+            else (sep if sep is not None else " ")
+        ),
         separate_arrays=separate_arrays,
     )
 
@@ -616,10 +572,12 @@ def translate_input_selector_for_output(
         raise Exception(
             f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
         )
-
-    expression = (
-        base_expression if not tool_in.localise_file else f"basename({base_expression})"
+    use_basename = (
+        tool_in.localise_file
+        or isinstance(selector, InputSelector)
+        and selector.use_basename
     )
+    expression = base_expression if not use_basename else f"basename({base_expression})"
 
     outputs = [wdl.Output(out.output_type.wdl(), out.id(), expression)]
     for s in value_or_default(out.output_type.secondary_files(), []):
@@ -788,10 +746,7 @@ def translate_string_formatter_for_output(
 
 
 def translate_step_node(
-    node: StepNode,
-    step_identifier: str,
-    step_alias: str,
-    resource_overrides: Dict[str, str],
+    node2, step_identifier: str, step_alias: str, resource_overrides: Dict[str, str]
 ) -> wdl.WorkflowCallBase:
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
@@ -807,6 +762,9 @@ def translate_step_node(
     :param resource_overrides:
     :return:
     """
+    from janis_core.workflow.workflow import StepNode, InputNode
+
+    node: StepNode = node2
 
     ins = node.inputs()
 
@@ -814,7 +772,7 @@ def translate_step_node(
     missing_keys = [
         k
         for k in ins.keys()
-        if k not in node.connection_map and not ins[k].input_type.optional
+        if k not in node.sources and not (ins[k].input_type.optional or ins[k].default)
     ]
     if missing_keys:
         raise Exception(
@@ -824,18 +782,17 @@ def translate_step_node(
 
     # One step => One WorkflowCall. We need to traverse the edge list to see if there's a scatter
     # then we can build up the WorkflowCall and then wrap them in scatters
-    scatterable: List[StepInput] = []
+    scatterable: List[StepTagInput] = []
 
-    for k in node.inputs():
-        if not (k in node.connection_map and node.connection_map[k].has_scatter()):
-            continue
-        step_input: StepInput = node.connection_map[k]
-        if step_input.multiple_inputs or isinstance(step_input.source(), list):
-            raise NotImplementedError(
-                f"The edge '{step_input.dotted_source()}' on node '{node.id()}' scatters"
-                f"on multiple inputs, and I don't know how this can be implemented in WDL"
-            )
-        scatterable.append(step_input)
+    if node.scatter:
+        scatterable = [node.sources[k] for k in node.scatter.fields]
+
+        for si in scatterable:
+            if si.multiple_inputs or isinstance(si.source(), list):
+                raise NotImplementedError(
+                    f"The edge '{si.dotted_source()}' on node '{node.id()}' scatters"
+                    f"on multiple inputs, and I don't know how this can be implemented in WDL"
+                )
 
     # We need to replace the scatterable key(s) with some random variable, eg: for i in iterable:
     scattered_ordered_variable_identifiers = [
@@ -872,7 +829,7 @@ def translate_step_node(
     for s in scatterable:
         current_identifiers_that_are_scattered.remove(s.dotted_source())
         e: Edge = first_value(s.source_map)
-        new_var = e.stag[0] if e.stag else e.source()[0]
+        new_var = e.stag[0] if e.stag else e.source_dotted()[0]
 
         while new_var in current_identifiers_that_are_scattered:
             new_var = scattered_ordered_variable_identifiers.pop(0)
@@ -884,12 +841,12 @@ def translate_step_node(
 
     inputs_map = {}
     for k in ins:
-        if k not in node.connection_map:
+        if k not in node.sources:
             continue
 
         array_input_from_single_source = False
 
-        edge: StepInput = node.connection_map[k]
+        edge: StepTagInput = node.sources[k]
         source: Edge = edge.source()  # potentially single item or array
 
         # We have multiple sources going to the same entry
@@ -903,19 +860,20 @@ def translate_step_node(
 
                 multiple_sources_failure_reasons = []
 
-                unique_types = set(
-                    (
+                unique_types = set()
+                for x in edge.source():
+                    t = (
                         first_value(x.start.outputs())
                         if not x.stag
                         else x.start.outputs()[x.stag]
-                    ).output_type.name()
-                    for x in edge.source()
-                )
+                    )
+
+                    unique_types.update(t.output_type.secondary_files() or [""])
                 if len(unique_types) > 1:
                     multiple_sources_failure_reasons.append(
-                        f"has {len(unique_types)} different DataTypes"
+                        f"has {len(unique_types)} different DataTypes with varying secondaries"
                     )
-                if edge.has_scatter():
+                if node.scatter:
                     multiple_sources_failure_reasons.append(f"is scattered")
 
                 if len(multiple_sources_failure_reasons) > 0:
@@ -926,7 +884,10 @@ def translate_step_node(
                         f"AND this field ('{k}') is not scattered. However this connection {reasons}"
                     )
 
-                inputs_map[k] = "[" + ", ".join(edge.dotted_source()) + "]"
+                ds = edge.dotted_source()
+                if isinstance(ds, list):
+                    ds = "[" + ", ".join(ds) + "]"
+                inputs_map[k] = ds
                 f = edge.finish.inputs()[edge.ftag]
                 secs = (
                     f.input_type.subtype().secondary_files()
@@ -954,10 +915,7 @@ def translate_step_node(
             if (
                 isinstance(it, Array)
                 and not isinstance(ot, Array)
-                and not any(
-                    isinstance(e, StepInput) and e.has_scatter()
-                    for e in source.start.connection_map.values()
-                )
+                and not source.scatter
             ):
                 array_input_from_single_source = True
         secondary = None
@@ -986,7 +944,7 @@ def translate_step_node(
                 sec_in = set(secondary)
                 if not sec_out.issubset(sec_in):
                     raise Exception(
-                        f"An error occurred when connecting '{source.dotted_source()}' to "
+                        f"An error occurred when connecting '{source.source_dotted()}' to "
                         f"'{source.finish.id()}.{source.ftag}', there were secondary files in the final node "
                         f"that weren't present in the source: {', '.join(sec_out.difference(sec_in))}"
                     )
@@ -1011,7 +969,7 @@ def translate_step_node(
         # Scattering on multiple secondary files
         elif edge in scatterable and secondary:
             # We're ensured through inheritance and .receiveBy that secondary files will match.
-            ds = source.dotted_source()
+            ds = source.source_dotted()
             Logger.log(
                 f"Oh boii, we're gonna have some complicated scattering here with {len(secondary)} secondary file(s)"
             )
@@ -1025,10 +983,10 @@ def translate_step_node(
                 ] = f"{identifier}[{idx + 1}]"
 
         else:
-            ds = source.dotted_source()
+            ds = source.source_dotted()
             default = None
             if source.start and isinstance(source.start, InputNode):
-                default = source.start.input.default
+                default = source.start.default
 
             inpsourcevalue = None
             if (
@@ -1065,8 +1023,15 @@ def translate_step_node(
 
                 inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
 
-            if array_input_from_single_source:
+            if array_input_from_single_source and not (
+                isinstance(source.start, StepNode) and source.start.scatter
+            ):
                 inpsourcevalue = f"[{inpsourcevalue}]"
+                if secondary:
+                    for sec in secondary:
+                        tag = get_secondary_tag_from_original_tag(k, sec)
+                        inputs_map[tag] = f"[{inputs_map[tag]}]"
+
             inputs_map[k] = inpsourcevalue
 
     inputs_map.update(resource_overrides)
@@ -1094,9 +1059,7 @@ def translate_step_node(
             raise Exception(
                 "An internal error has occured when generating scatterable input map"
             )
-        secondary = (
-            s.finish.step.tool().inputs_map()[s.ftag].input_type.secondary_files()
-        )
+        secondary = s.finish.tool.inputs_map()[s.ftag].input_type.secondary_files()
         if secondary:
             ds = s.dotted_source()
             joined_tags = ", ".join(
@@ -1112,9 +1075,9 @@ def translate_step_node(
         else:
             (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
             insource = s.dotted_source()
-            if isinstance(startnode, InputNode) and startnode.input.default is not None:
+            if isinstance(startnode, InputNode) and startnode.default is not None:
                 resolved = get_input_value_from_potential_selector_or_generator(
-                    startnode.input.default,
+                    startnode.default,
                     None,
                     string_environment=False,
                     scatterstep=insource,
@@ -1303,18 +1266,21 @@ def value_or_default(ar, default):
     return default if ar is None else ar
 
 
-def build_aliases(steps: List[StepNode]):
+def build_aliases(steps2):
     """
     From a list of stepNodes, generate the toolname alias (tool name to unique import alias)
     and the step alias, which
     :param steps: list of step nodes
     :return:
     """
+    from janis_core.workflow.workflow import StepNode
+
+    steps: List[StepNode] = steps2
 
     get_alias = lambda t: t[0] + "".join([c for c in t[1:] if c.isupper()])
     aliases: Set[str] = set()
 
-    tools: List[Tool] = [s.step.tool() for s in steps]
+    tools: List[Tool] = [s.tool for s in steps]
     tool_name_to_tool: Dict[str, Tool] = {t.id().lower(): t for t in tools}
     tool_name_to_alias = {}
     steps_to_alias: Dict[str, str] = {
@@ -1366,6 +1332,22 @@ def apply_secondary_file_format_to_filename(
     return basepath + ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
 
 
+def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
+    it = ti.input_type
+    if not issubclass(type(it), File) or not it.secondary_files():
+        return []
+
+    commands = []
+    for s in it.secondary_files():
+        sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+        commands.append(
+            wdl.Task.Command(
+                f'if [ $(dirname "${{{sectag}}}") != $(dirname "{ti.id()}") ]; then mv ${{{sectag}}} $(dirname ${{{ti.id()}}}); fi'
+            )
+        )
+    return commands
+
+
 def prepare_move_statement_for_input_to_localise(ti: ToolInput):
     it = ti.input_type
 
@@ -1407,8 +1389,8 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
     else:
         prefix += "_"
 
-    for s in wf._steps:
-        tool: Tool = s.step.tool()
+    for s in wf.step_nodes.values():
+        tool: Tool = s.tool
 
         if isinstance(tool, CommandTool):
             tool_pre = prefix + s.id() + "_"

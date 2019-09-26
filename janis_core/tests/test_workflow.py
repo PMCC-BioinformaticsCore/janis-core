@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from janis_core import File, Array, Logger, String, Input, Output, Step, Workflow
-from janis_core.graph.stepinput import StepInput, first_value, Edge
+from janis_core import File, Array, Logger, String, WorkflowBuilder
+from janis_core.graph.steptaginput import StepTagInput, first_value, Edge
 from janis_core.tests.testtools import SingleTestTool, ArrayTestTool
 
 
@@ -14,238 +14,266 @@ class TestWorkflow(TestCase):
 
     def test_name(self):
         wn = "test_name"
-        w = Workflow(wn)
-        self.assertEqual(w.identifier, wn)
+        w = WorkflowBuilder(wn)
+        self.assertEqual(w.id(), wn)
 
     def test_rename(self):
         wn1 = "test_rename"
         wn2 = "test_rename2"
-        w = Workflow(wn1)
-        w.identifier = wn2
-        self.assertEqual(w.identifier, wn2)
+        w = WorkflowBuilder(wn1)
+        w._identifier = wn2
+        self.assertEqual(w.id(), wn2)
 
     def test_add_input(self):
-        w = Workflow("test_add_input")
-        inp = Input("inputLabel", String())
-        w._add_item(inp)
-        self.assertEqual(len(w._inputs), 1)
-        self.assertEqual(w._inputs[0].input, inp)
-        self.assertIsNotNone(w._nodes[inp.id()])
+        w = WorkflowBuilder("test_add_input")
+        inp = w.input("inputLabel", str)
+        self.assertEqual(len(w.input_nodes), 1)
+        self.assertEqual(inp, next(iter(w.input_nodes.values())))
+        self.assertIsNotNone(w.nodes[w.inputLabel.id()])
 
     def test_add_step(self):
-        w = Workflow("test_add_input")
-        step = Step("catStep", SingleTestTool())
-        w._add_item(step)
-        self.assertEqual(len(w._steps), 1)
-        self.assertEqual(w._steps[0].step, step)
-        self.assertIsNotNone(w._nodes[step.id()])
+        w = WorkflowBuilder("test_add_input")
+        step = w.step("catStep", SingleTestTool(), ignore_missing=True)
+        self.assertEqual(len(w.step_nodes), 1)
+        self.assertEqual(step, next(iter(w.step_nodes.values())))
+        self.assertIsNotNone(w.nodes[step.id()])
 
     def test_add_output(self):
-        w = Workflow("test_add_input")
-        outp = Output("outputStep", String())
-        w._add_item(outp)
-        self.assertEqual(len(w._outputs), 1)
-        self.assertEqual(w._outputs[0].output, outp)
-        self.assertIsNotNone(w._nodes[outp.id()])
+        w = WorkflowBuilder("test_add_input")
+        w.step("stp", SingleTestTool(), ignore_missing=True)
+        w.output("outputStep", str, source=w.stp)
+        self.assertEqual(len(w.output_nodes), 1)
+        self.assertEqual(w.outputStep, next(iter(w.output_nodes.values())))
+        self.assertIsNotNone(w.nodes["stp"])
 
-    def test_add_node(self):
-        w = Workflow("test_add_node")
-        inp = Input("inp", String())
-        stp = Step("stp", SingleTestTool())
-        w.add_items([inp, stp])
-        self.assertEqual(len(w._inputs), 1)
-        self.assertEqual(len(w._steps), 1)
-        self.assertEqual(len(w._outputs), 0)
-        self.assertEqual(w._nodes[inp.id()].id(), inp.id())
-        self.assertEqual(w._nodes[stp.id()].id(), stp.id())
+    def WorkflowBuilder(self):
+        w = WorkflowBuilder("test_add_node")
+        inp = w.input("inp", str)
+        stp = w.step("stp", SingleTestTool(), ignore_missing=True)
+
+        self.assertEqual(len(w.input_nodes), 1)
+        self.assertEqual(len(w.step_nodes), 1)
+        self.assertEqual(len(w.output_nodes), 0)
+        self.assertEqual(w.nodes["inp"].id(), inp.id())
+        self.assertEqual(w.nodes["stp"].id(), stp.id())
 
     def test_add_qualified_edge(self):
-        w = Workflow("test_add_edge")
-        inp = Input("inp", String())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        e = w.add_edge(inp, stp.inputs)
+        w = WorkflowBuilder("test_add_edge")
+        inp = w.input("inp", str)
+        stp = w.step("stp", SingleTestTool(inputs=w.inp))
+
+        e = first_value(stp.sources["inputs"].source_map)
 
         self.assertEqual(e.start.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
         self.assertIsNone(e.stag)
-        self.assertEqual(e.ftag, next(iter(stp.requires())))
+        self.assertEqual(e.ftag, first_value(stp.inputs()).id())
 
-    def test_add_edge(self):
-        w = Workflow("test_add_edge")
-        inp = Input("inp", String())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        w.add_items([inp, stp])
-        e = w.add_edge(inp, stp)
+    def test_add_edge_later(self):
+        w = WorkflowBuilder("test_add_edge")
+        inp = w.input("inp", str)
+        stp = w.step("stp", SingleTestTool(), ignore_missing=True)
 
-        self.assertEqual(e.start.id(), inp.id())
-        self.assertEqual(e.finish.id(), stp.id())
-        self.assertIsNone(e.stag)
-        self.assertEqual(e.ftag, next(iter(stp.requires())))
+        stp["inputs"] = inp
 
-    def test_anonymous_add_edge(self):
-        w = Workflow("test_add_edge")
-        inp = Input("inp", String())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        # w.add_items([inp, stp])
-        e = w.add_edge(inp, stp)
+        e = first_value(stp.sources["inputs"].source_map)
 
         self.assertEqual(e.start.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
         self.assertIsNone(e.stag)
-        self.assertEqual(e.ftag, next(iter(stp.requires())))
+        self.assertEqual(e.ftag, first_value(stp.inputs()).id())
 
-    def test_anonymous_add_qualified_edge(self):
-        w = Workflow("test_add_edge")
-        inp = Input("inp", String())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        e = w.add_edge(inp, stp.inputs)
-
-        self.assertEqual(e.start.id(), inp.id())
-        self.assertEqual(e.finish.id(), stp.id())
-        self.assertIsNone(e.stag)
-        self.assertEqual(e.ftag, next(iter(stp.requires())))
-
-    def test_pipe(self):
-        w = Workflow("test_add_edge")
-        inp = Input("tarred", File())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        out = Output("outp", Array(File()))
-
-        w.add_pipe(inp, stp, out)
-
-        # the nodes are usually internal
-        inp_node = w._nodes[inp.id()]
-        stp_node = w._nodes[stp.id()]
-        out_node = w._nodes[out.id()]
-
-        self.assertEqual(len(inp_node.connection_map), 0)
-        self.assertEqual(len(stp_node.connection_map), 1)
-        self.assertEqual(len(out_node.connection_map), 1)
-
-        s1: StepInput = first_value(stp_node.connection_map)
-        s2: StepInput = first_value(out_node.connection_map)
-
-        e1 = first_value(s1.source_map)
-        e2 = first_value(s2.source_map)
-
-        self.assertEqual(e1.start.id(), inp.id())
-        self.assertEqual(e1.finish.id(), stp.id())
-        self.assertEqual(e2.start.id(), stp.id())
-        self.assertEqual(e2.finish.id(), out.id())
-
-    def test_qualified_pipe(self):
-        w = Workflow("test_add_edge")
-        inp = Input("tarred", File())
-        stp = Step("stp", SingleTestTool())  # Only has one input, with no output
-        out = Output("outp", Array(File()))
-
-        w.add_pipe(inp, stp.inputs, out)
-
-        # the nodes are usually internal
-        inp_node = w._nodes[inp.id()]
-        stp_node = w._nodes[stp.id()]
-        out_node = w._nodes[out.id()]
-
-        self.assertEqual(len(inp_node.connection_map), 0)
-        self.assertEqual(len(stp_node.connection_map), 1)
-        self.assertEqual(len(out_node.connection_map), 1)
-
-        s1: StepInput = first_value(stp_node.connection_map)
-        s2: StepInput = first_value(out_node.connection_map)
-
-        e1: Edge = first_value(s1.source_map)
-        e2: Edge = first_value(s2.source_map)
-
-        self.assertEqual(e1.start.id(), inp.id())
-        self.assertEqual(e1.finish.id(), stp.id())
-        self.assertEqual(e2.start.id(), stp.id())
-        self.assertEqual(e2.finish.id(), out.id())
+    # def test_pipe(self):
+    #     w = Workflow("test_add_edge")
+    #     inp = Input("tarred", File())
+    #     stp = Step("stp", SingleTestTool())  # Only has one input, with no output
+    #     out = Output("outp", Array(File()))
+    #
+    #     w.add_pipe(inp, stp, out)
+    #
+    #     # the nodes are usually internal
+    #     inp_node = w._nodes[inp.id()]
+    #     stp_node = w._nodes[stp.id()]
+    #     out_node = w._nodes[out.id()]
+    #
+    #     self.assertEqual(len(inp_node.connection_map), 0)
+    #     self.assertEqual(len(stp_node.connection_map), 1)
+    #     self.assertEqual(len(out_node.connection_map), 1)
+    #
+    #     s1: StepInput = first_value(stp_node.connection_map)
+    #     s2: StepInput = first_value(out_node.connection_map)
+    #
+    #     e1 = first_value(s1.source_map)
+    #     e2 = first_value(s2.source_map)
+    #
+    #     self.assertEqual(e1.start.id(), inp.id())
+    #     self.assertEqual(e1.finish.id(), stp.id())
+    #     self.assertEqual(e2.start.id(), stp.id())
+    #     self.assertEqual(e2.finish.id(), out.id())
+    #
+    # def test_qualified_pipe(self):
+    #     w = Workflow("test_add_edge")
+    #     inp = Input("tarred", File())
+    #     stp = Step("stp", SingleTestTool())  # Only has one input, with no output
+    #     out = Output("outp", Array(File()))
+    #
+    #     w.add_pipe(inp, stp.inputs, out)
+    #
+    #     # the nodes are usually internal
+    #     inp_node = w._nodes[inp.id()]
+    #     stp_node = w._nodes[stp.id()]
+    #     out_node = w._nodes[out.id()]
+    #
+    #     self.assertEqual(len(inp_node.connection_map), 0)
+    #     self.assertEqual(len(stp_node.connection_map), 1)
+    #     self.assertEqual(len(out_node.connection_map), 1)
+    #
+    #     s1: StepInput = first_value(stp_node.connection_map)
+    #     s2: StepInput = first_value(out_node.connection_map)
+    #
+    #     e1: Edge = first_value(s1.source_map)
+    #     e2: Edge = first_value(s2.source_map)
+    #
+    #     self.assertEqual(e1.start.id(), inp.id())
+    #     self.assertEqual(e1.finish.id(), stp.id())
+    #     self.assertEqual(e2.start.id(), stp.id())
+    #     self.assertEqual(e2.finish.id(), out.id())
 
     def test_subworkflow(self):
+        w = WorkflowBuilder("test_subworkflow")
 
-        w = Workflow("test_subworkflow")
+        sub_w = WorkflowBuilder("subworkflow")
+        sub_w.input("sub_inp", str)
+        sub_w.step("sub_stp", SingleTestTool(inputs=sub_w.sub_inp))
+        sub_w.output("sub_out", source=sub_w.sub_stp.out)
 
-        sub_w = Workflow("subworkflow")
-        sub_inp = Input("sub_inp", File())
-        sub_stp = Step("sub_stp", SingleTestTool())
-        sub_out = Output("sub_out", Array(File()))
-        sub_w.add_pipe(sub_inp, sub_stp, sub_out)
+        w.input("inp", str)
+        w.step("stp_workflow", sub_w(sub_inp=w.inp))
+        w.output("out", source=w.stp_workflow.sub_out)
 
-        inp = Input("inp", File())
-        stp = Step("stp_workflow", sub_w)
-        out = Output("out", Array(File()))
-        w.add_items([inp, stp, out])
-        w.add_pipe(inp, stp, out)
-
-        # w.dump_cwl(to_disk=True)
-
+        # would be good to come up with some tests
+        # w.translate("wdl")
         self.assertTrue(True)
 
     def test_add_scatter(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(str))
+        stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
 
-        inp1 = Input("inp1", Array(String()))
-        step = Step("stp", SingleTestTool())
+        e = first_value(w.stp.sources["inputs"].source_map)
 
-        e = w.add_edge(inp1, step)
+        self.assertTrue(e.compatible_types)
+        self.assertListEqual(["inputs"], stp.scatter.fields)
+
+    def test_add_non_scatter_fail(self):
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(str))
+        stp = w.step("stp", SingleTestTool(inputs=w.inp))
+
+        e = first_value(w.stp.sources["inputs"].source_map)
+
+        self.assertFalse(e.compatible_types)
+
+    def test_add_scatter_incompatible(self):
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(int))
+        stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
+
+        e = first_value(w.stp.sources["inputs"].source_map)
+
         self.assertTrue(e.scatter)
+        self.assertFalse(e.compatible_types)
 
     def test_add_scatter_nested_arrays(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(Array(str)))
+        stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
 
-        inp1 = Input("inp1", Array(Array(String())))
-        step = Step("stp", ArrayTestTool())
+        e = first_value(w.stp.sources["inputs"].source_map)
 
-        e = w.add_edge(inp1, step)
-        self.assertTrue(e.scatter)
+        self.assertTrue(e.compatible_types)
+        self.assertListEqual(["inputs"], stp.scatter.fields)
+
+    def test_add_scatter_nested_arrays_incompatible(self):
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(Array(int)))
+        stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
+
+        e = first_value(w.stp.sources["inputs"].source_map)
+
+        self.assertFalse(e.compatible_types)
+        self.assertListEqual(["inputs"], stp.scatter.fields)
 
     def test_add_non_scatter(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
+        inp = w.input("inp", str)
+        stp = w.step("stp", SingleTestTool(inputs=inp))
 
-        inp1 = Input("inp1", String())
-        step = Step("stp", SingleTestTool())
-
-        e = w.add_edge(inp1, step)
-        self.assertFalse(e.scatter)
+        e = first_value(w.stp.sources["inputs"].source_map)
+        self.assertIsNone(stp.scatter)
 
     def test_add_non_scatter2(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(String()))
+        w.step("stp", ArrayTestTool(inputs=w.inp))
 
-        inp1 = Input("inp1", Array(String()))
-        step = Step("stp", ArrayTestTool())
-
-        e = w.add_edge(inp1, step)
+        e = first_value(w.stp.sources["inputs"].source_map)
         self.assertFalse(e.scatter)
 
+    def test_invalid_scatter_field(self):
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(String()))
+        self.assertRaises(
+            Exception,
+            w.step,
+            identifier="stp",
+            tool=ArrayTestTool(inputs=w.inp),
+            scatter="randomfield",
+        )
+
+    def test_invalid_scatter_field_list(self):
+        w = WorkflowBuilder("scatterededge")
+        w.input("inp", Array(String()))
+        self.assertRaises(
+            Exception,
+            w.step,
+            identifier="stp",
+            tool=ArrayTestTool(inputs=w.inp),
+            scatter=["inputs", "randomfield"],
+        )
+
     def test_merge(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
 
-        inp1 = Input("inp1", Array(String()))
-        step1 = Step("scatteredStp1", SingleTestTool())
-        step2 = Step("mergeStp2", ArrayTestTool())
+        w.input("inp1", Array(String()))
+        w.step("scatteredStp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
+        stp = w.step("mergeStp2", ArrayTestTool(inputs=w.scatteredStp1))
 
-        e1 = w.add_edge(inp1, step1)
-        e2 = w.add_edge(step1.out, step2)
+        e1 = first_value(w.scatteredStp1.sources["inputs"].source_map)
+        e2 = first_value(w.mergeStp2.sources["inputs"].source_map)
 
         self.assertTrue(e1.scatter)
         self.assertFalse(e2.scatter)
+        self.assertTrue(e2.compatible_types)
 
     def test_add_rescatter_scattered(self):
-        w = Workflow("scatterededge")
+        w = WorkflowBuilder("scatterededge")
 
-        inp1 = Input("inp1", Array(String()))
-        step1 = Step("stp1", SingleTestTool())
-        step2 = Step("stp2", SingleTestTool())
-        e1 = w.add_edge(inp1, step1)
-        e2 = w.add_edge(step1.out, step2)
+        w.input("inp1", Array(String()))
+        stp1 = w.step("stp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
+        stp2 = w.step("stp2", SingleTestTool(inputs=stp1), scatter="inputs")
+
+        e1 = first_value(stp1.sources["inputs"].source_map)
+        e2 = first_value(stp2.sources["inputs"].source_map)
 
         self.assertTrue(e1.scatter)
         self.assertTrue(e2.scatter)
 
     def test_add_single_to_array_edge(self):
-        w = Workflow("test_add_single_to_array_edge")
-        inp1 = Input("inp1", String())
-        step1 = Step("stp1", ArrayTestTool())
+        w = WorkflowBuilder("test_add_single_to_array_edge")
+        w.input("inp1", String())
+        w.step("stp1", ArrayTestTool(inputs=w.inp1))
 
-        e = w.add_edge(inp1, step1.inputs)
+        e = first_value(w.stp1.sources["inputs"].source_map)
         self.assertTrue(w.has_multiple_inputs)
+        self.assertTrue(e.compatible_types)

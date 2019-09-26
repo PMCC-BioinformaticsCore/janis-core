@@ -1,9 +1,8 @@
 from unittest import TestCase
 
-from janis_core import Input, String, CommandTool, ToolInput, Step, Array, Logger
-from janis_core.graph.stepinput import StepInput, Edge
-from janis_core.workflow.input import InputNode
-from janis_core.workflow.step import StepNode
+from janis_core import String, CommandTool, ToolInput, Array, Logger, WorkflowBuilder
+from janis_core.graph.steptaginput import StepTagInput, Edge
+from janis_core.tests.testtools import SingleTestTool
 
 
 class ArrayTestTool(CommandTool):
@@ -36,36 +35,41 @@ class ArrayTestTool(CommandTool):
 class TestStep(TestCase):
     def setUp(self):
         Logger.mute()
+        self.wf = WorkflowBuilder("testStep")
 
     def tearDown(self):
         Logger.unmute()
 
-    def test_sources_single(self):
-        start1 = InputNode(Input("test1", String()))
-        step = StepNode(Step("step", ArrayTestTool()))
+    def test_sources_single_slashed(self):
+        start1 = self.wf.input("test1", str)
+        step = self.wf.step("step", SingleTestTool(inputs=start1))
+        source = step.sources["inputs"].slashed_source()
 
-        con_map = StepInput(step, "inputs")
-        con_map.add_source(start1, None)
-        source: Edge = con_map.source()
-        self.assertEqual(source.dotted_source(), start1.id())
+        self.assertEqual(start1.id(), source)
 
-    def test_sources_multiple(self):
-        start1 = InputNode(Input("test1", String()))
-        start2 = InputNode(Input("test2", String()))
-        step = StepNode(Step("step", ArrayTestTool()))
+    def test_sources_single_dotted(self):
+        start1 = self.wf.input("test1", str)
+        step = self.wf.step("step", SingleTestTool(inputs=start1))
+        source = step.sources["inputs"].dotted_source()
 
-        con_map = StepInput(step, "inputs")
-        con_map.add_source(start1, None)
-        con_map.add_source(start2, None)
+        self.assertEqual(start1.id(), source)
 
-        self.assertIsInstance(con_map.source(), list)
-        self.assertEqual(len(con_map.source()), 2)
+    def test_sources_multiple_slashed(self):
+        test1 = self.wf.input("test1", str)
+        test2 = self.wf.input("test2", str)
 
-    def test_sources_none(self):
-        step = StepNode(Step("step", ArrayTestTool()))
-        con_map = StepInput(step, "inputs")
+        step = self.wf.step("step", ArrayTestTool(inputs=[test1, test2]))
+        source = step.sources["inputs"].slashed_source()
 
-        self.assertIsNone(con_map.source())
+        self.assertIsInstance(source, list)
+        self.assertEqual(len(source), 2)
 
-    def test_scatter(self):
-        pass
+    def test_sources_multiple_dotted(self):
+        test1 = self.wf.input("test1", str)
+        test2 = self.wf.input("test2", str)
+
+        step = self.wf.step("step", ArrayTestTool(inputs=[test1, test2]))
+        source = step.sources["inputs"].dotted_source()
+
+        self.assertIsInstance(source, list)
+        self.assertEqual(len(source), 2)

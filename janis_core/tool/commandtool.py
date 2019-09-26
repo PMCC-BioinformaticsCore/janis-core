@@ -13,9 +13,8 @@ class CommandTool(Tool, ABC):
     Simply put, a CommandTool has a name, a command, inputs, outputs and a container to run in.
     """
 
-    def __init__(self):
-        super().__init__()
-        self._metadata = ToolMetadata()
+    def __init__(self, **connections):
+        super().__init__(metadata_class=ToolMetadata, **connections)
 
     # Tool base
     @staticmethod
@@ -129,9 +128,6 @@ class CommandTool(Tool, ABC):
         """
         return None
 
-    def metadata(self) -> ToolMetadata:
-        return self._metadata
-
     @classmethod
     def type(cls):
         return ToolTypes.CommandTool
@@ -178,7 +174,7 @@ class CommandTool(Tool, ABC):
             if i.prefix is not None
         )
 
-        metadata = self.metadata() if self.metadata() else Metadata()
+        metadata = self.metadata
         docker = self.container()
 
         base = (
@@ -245,25 +241,38 @@ OUTPUTS:
 {outputs}
 """
 
-    def generate_inputs_override(self):
+    def generate_inputs_override(
+        self, additional_inputs=None, with_resource_overrides=False, hints=None
+    ):
         """
         Generate the overrides to be used with Janis. Although it may work with
         other
         :return:
         """
-        d = {}
+        d, ad = {}, additional_inputs or {}
         for i in self.inputs():
-            if not i.input_type.optional or i.default:
-                d[i] = i.default
+            if not i.input_type.optional or i.default or i.id() in ad:
+                d[i] = ad.get(i.id(), i.default)
+
+        if with_resource_overrides:
+            cpus = self.cpus(hints) or 1
+            mem = self.memory(hints)
+            d.update(
+                {
+                    "runtime_memory": mem,
+                    "runtime_cpu": cpus,
+                    "runtime_disks": "local-disk 60 SSD",
+                }
+            )
+
         return d
 
     def wrapped_in_wf(self):
         from copy import copy
-        from janis_core.workflow.workflow import Workflow, Input, Output, Step
+        from janis_core.workflow.workflow import WorkflowBuilder
 
-        wf = Workflow(self.id() + "Wf")
-        stp = Step(self.tool().lower(), self)
-        wf.add_items([stp])
+        wf = WorkflowBuilder(self.id() + "Wf")
+        inpmap = {}
         for i in self.inputs():
 
             if isinstance(i.input_type, Filename):
@@ -273,9 +282,11 @@ OUTPUTS:
                 if i.default:
                     intp.optional = True
 
-            wf.add_edge(Input(i.id(), intp), f"{stp.id()}/{i.id()}")
+            inpmap[i.id()] = wf.input(i.id(), intp)
+
+        stp = wf.step(self.tool().lower(), self.__class__(**inpmap))
 
         for o in self.outputs():
-            wf.add_edge(f"{stp.id()}/{o.id()}", Output(o.id()))
+            wf.output(o.id(), source=stp[o.id()])
 
         return wf

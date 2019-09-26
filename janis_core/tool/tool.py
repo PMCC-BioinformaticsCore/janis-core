@@ -2,8 +2,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, Union
 
-from janis_core.types import Selector
-from janis_core.types.data_types import DataType
+from janis_core.types import ParseableType, Selector, Array, get_instantiated_type
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
@@ -69,12 +68,10 @@ class ToolArgument:
 
 
 class ToolInput(ToolArgument):
-    illegal_keywords = ["input"]
-
     def __init__(
         self,
         tag: str,
-        input_type: DataType,
+        input_type: ParseableType,
         position: Optional[int] = None,
         prefix: Optional[str] = None,
         separate_value_from_prefix: bool = None,
@@ -91,7 +88,7 @@ class ToolInput(ToolArgument):
 
         :param tag: The identifier of the input (unique to inputs and outputs of a tool)
         :param input_type: The data type that this input accepts
-        :type input_type: ``janis.DataType``
+        :type input_type: ``janis.ParseableType``
         :param position: The position of the input to be applied. (Default = 0, after the base_command).
         :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
         :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
@@ -117,34 +114,29 @@ class ToolInput(ToolArgument):
 
         if not Validators.validate_identifier(tag):
             raise Exception(
-                f"The identifier '{tag}' was not validated by '{Validators.identifier_regex}' "
-                f"(must startpip instal with letters, and then only contain letters, numbers and an underscore)"
-            )
-
-        if tag in ToolInput.illegal_keywords:
-            raise Exception(
-                f"The input identifier '{tag}' is a reserved keyword "
-                f"({', '.join(ToolInput.illegal_keywords)})"
+                f"The identifier '{tag}' was not validated because {Validators.reason_for_failure(tag)}"
             )
 
         self.tag: str = tag
-        self.input_type: DataType = input_type
+        self.input_type: ParseableType = get_instantiated_type(input_type)
         self.default = default
         self.prefix_applies_to_all_elements = prefix_applies_to_all_elements
         self.separator = separator
         self.localise_file = localise_file
+
+        # if isinstance(input_type, Array):
+        #     if self.prefix_applies_to_all_elements is None and self.separator is None:
+        # self.separator = " "
 
     def id(self):
         return self.tag
 
 
 class ToolOutput:
-    illegal_keywords = ["output"]
-
     def __init__(
         self,
         tag: str,
-        output_type: DataType,
+        output_type: ParseableType,
         glob: Optional[Union[Selector, str]] = None,
         doc: Optional[str] = None,
     ):
@@ -160,16 +152,11 @@ class ToolOutput:
 
         if not Validators.validate_identifier(tag):
             raise Exception(
-                f"The identifier '{tag}' was not validated by '{Validators.identifier_regex}' "
-                f"(must start with letters, and then only contain letters, numbers and an underscore)"
+                f"The identifier '{tag}' was invalid because {Validators.reason_for_failure(tag)}"
             )
-        if tag in ToolOutput.illegal_keywords:
-            raise Exception(
-                f"The output identifier '{tag}' is a reserved keyword "
-                f"({', '.join(ToolOutput.illegal_keywords)})"
-            )
+
         self.tag = tag
-        self.output_type: DataType = output_type
+        self.output_type: ParseableType = get_instantiated_type(output_type)
         self.glob = glob
         self.doc = doc
 
@@ -181,6 +168,19 @@ class Tool(ABC, object):
     """
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
+
+    def __init__(self, metadata_class=Metadata, **connections):
+        """
+        :param metadata_class:
+        :param connections:
+        """
+
+        self.metadata: metadata_class = metadata_class()
+        meta = self.bind_metadata()
+        if meta:
+            self.metadata = meta
+
+        self.connections = connections
 
     @classmethod
     @abstractmethod
@@ -222,8 +222,11 @@ class Tool(ABC, object):
         """
         return None
 
-    def metadata(self) -> Optional[Metadata]:
-        return None
+    @abstractmethod
+    def generate_inputs_override(
+        self, additional_inputs=None, with_resource_overrides=False, hints=None
+    ):
+        pass
 
     @staticmethod
     @abstractmethod
@@ -238,6 +241,15 @@ class Tool(ABC, object):
         self, translation: str, with_docker=True, with_resource_overrides=False
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
+
+    def bind_metadata(self):
+        """
+        A convenient place to add metadata about the tool. You are guaranteed that self.metadata will exist.
+        It's possible to return a new instance of the ToolMetadata / WorkflowMetadata which will be rebound.
+        This is usually called after the initialiser, though it may be called multiple times.
+        :return:
+        """
+        return self.metadata
 
     def help(self):
         import inspect
@@ -271,7 +283,7 @@ class Tool(ABC, object):
         )
         outputs = "\n".join(output_format(o) for o in self.outputs())
 
-        meta = self.metadata() if self.metadata() else Metadata()
+        meta = self.metadata
 
         fn = self.friendly_name() if self.friendly_name() else self.id()
         en = f" ({self.id()})" if fn != self.id() else ""

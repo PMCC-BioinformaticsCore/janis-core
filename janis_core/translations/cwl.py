@@ -26,6 +26,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import cwlgen
 import ruamel.yaml
 
+from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.tool import Tool, ToolInput
 from janis_core.translations.translationbase import TranslatorBase
@@ -42,8 +43,9 @@ from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
 from janis_core.translations.exportpath import ExportPathKeywords
-from janis_core.workflow.input import Input
-from janis_core.workflow.step import StepNode
+
+# from janis_core.workflow.input import Input
+from janis_core.workflow.workflow import StepNode
 
 CWL_VERSION = "v1.0"
 
@@ -80,16 +82,13 @@ class CwlTranslator(TranslatorBase):
     ) -> Tuple[any, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
-        metadata = wf.metadata() if wf.metadata() else WorkflowMetadata()
+        metadata = wf.metadata
         w = cwlgen.Workflow(
-            wf.identifier,
-            wf.friendly_name(),
-            metadata.documentation,
-            cwl_version=CWL_VERSION,
+            wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i.input) for i in wf._inputs
+            translate_input(i) for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -99,7 +98,7 @@ class CwlTranslator(TranslatorBase):
 
         w.steps: List[cwlgen.WorkflowStep] = []
 
-        for s in wf._steps:
+        for s in wf.step_nodes.values():
             resource_overrides = {}
             for r in resource_inputs:
                 if not r.id.startswith(s.id()):
@@ -114,7 +113,7 @@ class CwlTranslator(TranslatorBase):
                 )
             )
 
-        w.outputs = [translate_output_node(o) for o in wf._outputs]
+        w.outputs = [translate_output_node(o) for o in wf.output_nodes.values()]
 
         w.requirements.append(cwlgen.InlineJavascriptReq())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -128,7 +127,7 @@ class CwlTranslator(TranslatorBase):
 
         tools = {}
         tools_to_build: Dict[str, Tool] = {
-            s.step.tool().id(): s.step.tool() for s in wf._steps
+            s.tool.id(): s.tool for s in wf.step_nodes.values()
         }
         for t in tools_to_build:
             tool: Tool = tools_to_build[t]
@@ -167,13 +166,16 @@ class CwlTranslator(TranslatorBase):
 
         ad = additional_inputs or {}
         inp = {
-            i.id(): i.input.cwl_input(ad.get(i.id()))
-            for i in workflow._inputs
-            if i.input.include_in_inputs_file_if_none or i.input.value or i.id() in ad
+            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.value or i.default)
+            for i in workflow.input_nodes.values()
+            if i.value or i.default or i.id() in ad
         }
 
         if merge_resources:
-            inp.update(cls.build_resources_input(workflow, hints, max_cores, max_mem))
+            for k, v in cls.build_resources_input(
+                workflow, hints, max_cores, max_mem
+            ).items():
+                inp[k] = ad.get(k, v)
 
         return inp
 
@@ -183,7 +185,7 @@ class CwlTranslator(TranslatorBase):
     ) -> cwlgen.Workflow:
         from janis_core.workflow.workflow import Workflow
 
-        metadata = wf.metadata() if wf.metadata() else WorkflowMetadata()
+        metadata = wf.metadata
         w = cwlgen.Workflow(
             wf.identifier,
             wf.friendly_name(),
@@ -192,7 +194,7 @@ class CwlTranslator(TranslatorBase):
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i.input) for i in wf._inputs
+            translate_input(i) for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -202,7 +204,7 @@ class CwlTranslator(TranslatorBase):
 
         w.steps: List[cwlgen.WorkflowStep] = []
 
-        for s in wf._steps:
+        for s in wf.step_nodes.values():
             resource_overrides = {}
             for r in resource_inputs:
                 if not r.id.startswith(s.id()):
@@ -237,7 +239,7 @@ class CwlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls, tool, with_docker=True, with_resource_overrides=False
     ):
-        metadata = tool.metadata() if tool.metadata() else ToolMetadata()
+        metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
             o.output_type
             for o in tool.outputs()
@@ -259,8 +261,8 @@ class CwlTranslator(TranslatorBase):
             stdout=stdout,
         )
 
-        if any(not i.shell_quote for i in tool.inputs()):
-            tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
+        # if any(not i.shell_quote for i in tool.inputs()):
+        tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptReq()])
 
@@ -326,60 +328,6 @@ class CwlTranslator(TranslatorBase):
 
         return tool_cwl
 
-    @classmethod
-    def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, prefix=None
-    ):
-        from janis_core.workflow.workflow import Workflow
-
-        # returns a list of key, value pairs
-        steps: Dict[str, Optional[Any]] = {}
-
-        if not prefix:
-            prefix = ""
-        else:
-            prefix += "_"
-
-        for s in workflow._steps:
-            tool: Tool = s.step.tool()
-
-            if isinstance(tool, CommandTool):
-                tool_pre = prefix + s.id() + "_"
-                cpus = tool.cpus(hints) or 1
-                mem = tool.memory(hints)
-                if max_cores and cpus > max_cores:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
-                        "this was dropped to the new maximum"
-                    )
-                    cpus = max_cores
-                if max_mem and mem > max_mem:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
-                        "this was dropped to the new maximum"
-                    )
-                    mem = max_mem
-                steps.update(
-                    {
-                        tool_pre + "runtime_memory": mem,
-                        tool_pre + "runtime_cpu": cpus,
-                        # tool_pre + "runtime_disks": None
-                    }
-                )
-            elif isinstance(tool, Workflow):
-                tool_pre = prefix + s.id()
-                steps.update(
-                    cls.build_resources_input(
-                        tool,
-                        hints,
-                        max_cores=max_cores,
-                        max_mem=max_mem,
-                        prefix=tool_pre,
-                    )
-                )
-
-        return steps
-
     @staticmethod
     def workflow_filename(workflow):
         return workflow.id() + ".cwl"
@@ -397,36 +345,42 @@ class CwlTranslator(TranslatorBase):
         return workflow.id() + "-resources.yml"
 
 
-def translate_input(inp: Input):
+def translate_input(inp):
+    """
+
+    :param inp:
+    :type inp: janis_core.workflow.workflow.InputNode
+    :return:
+    """
     return cwlgen.InputParameter(
         param_id=inp.id(),
         default=inp.default,
-        label=inp.label,
-        secondary_files=inp.data_type.secondary_files(),
+        secondary_files=inp.datatype.secondary_files(),
         param_format=None,
         streamable=None,
         doc=inp.doc,
         input_binding=None,
-        param_type=inp.data_type.cwl_type(inp.default is not None),
+        param_type=inp.datatype.cwl_type(inp.default is not None),
     )
 
 
 def translate_output_node(node):
-    return translate_output(
-        node.output, next(iter(node.connection_map.values())).slashed_source()
-    )
+    return translate_output(node, full_lbl(node.source[0], node.source[1]))
 
 
 def translate_output(outp, source):
+    ot = outp.datatype
+    if isinstance(ot, Stdout):
+        ot = ot.subtype or File()
+
     return cwlgen.WorkflowOutputParameter(
         param_id=outp.id(),
         output_source=source,
-        label=outp.label,
-        secondary_files=outp.data_type.secondary_files(),
+        secondary_files=outp.datatype.secondary_files(),
         param_format=None,
         streamable=None,
         doc=outp.doc,
-        param_type=outp.data_type.cwl_type(),
+        param_type=ot.cwl_type(),
         output_binding=None,
         linkMerge=None,
     )
@@ -533,10 +487,10 @@ def translate_step(
     use_run_ref=True,
 ):
 
-    tool = step.step.tool()
+    tool = step.tool
     if use_run_ref:
         run_ref = ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
-            tool=step.step.tool().id()
+            tool=tool.id()
         )
     else:
         from janis_core.workflow.workflow import Workflow
@@ -554,23 +508,22 @@ def translate_step(
     cwlstep = cwlgen.WorkflowStep(
         step_id=step.id(),
         run=run_ref,
-        label=step.step.label,
-        doc=step.step.doc,
+        # label=step.step.label,
+        doc=step.doc,
         scatter=None,  # Filled by StepNode
         scatter_method=None,  # Filled by StepNode
     )
 
     cwlstep.out = [
-        cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.step.tool().outputs()
+        cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.tool.outputs()
     ]
 
     ins = step.inputs()
-    scatterable = []
 
     for k in ins:
         inp = ins[k]
-        if k not in step.connection_map:
-            if inp.input_type.optional:
+        if k not in step.sources:
+            if inp.input_type.optional or inp.default:
                 continue
             else:
                 raise Exception(
@@ -578,7 +531,7 @@ def translate_step(
                     f"could not find required connection: '{k}'"
                 )
 
-        edge = step.connection_map[k]
+        edge = step.sources[k]
         ss = edge.slashed_source()
         link_merge = None
 
@@ -587,13 +540,17 @@ def translate_step(
             and not isinstance(ss, list)
             and isinstance(inp.input_type, Array)
         ):
-            outssval = edge.source().start.outputs()
-            inp_type = (
+            start = edge.source().start
+            outssval = start.outputs()
+            source_type = (
                 first_value(outssval)
                 if len(outssval) == 1
                 else outssval[edge.source().stag]
             ).output_type
-            if not isinstance(inp_type, Array):
+            # has scattered = isinstance(start, StepNode) and start.scatter
+            if not isinstance(source_type, Array) and not (
+                isinstance(start, StepNode) and start.scatter
+            ):
                 ss = [ss]
                 link_merge = "merge_nested"
 
@@ -603,8 +560,6 @@ def translate_step(
             link_merge=link_merge,  # this will need to change when edges have multiple source_map
             value_from=None,
         )
-        if edge.has_scatter():
-            scatterable.append(k)
 
         cwlstep.inputs.append(d)
 
@@ -613,14 +568,16 @@ def translate_step(
             cwlgen.WorkflowStepInput(input_id=r, source=resource_overrides[r])
         )
 
-    if len(scatterable) > 0:
-        if len(scatterable) > 1:
+    if step.scatter:
+        if len(step.scatter.fields) > 1:
             Logger.info(
                 "Discovered more than one scatterable field on cwlstep '{step_id}', "
-                "deciding scatterMethod to be dot_product".format(step_id=step.id())
+                "deciding scatterMethod to be '{method}".format(
+                    step_id=step.id(), method=step.scatter.method
+                )
             )
-            cwlstep.scatterMethod = "dot_product"
-        cwlstep.scatter = scatterable
+            cwlstep.scatterMethod = step.scatter.method.cwl()
+        cwlstep.scatter = step.scatter.fields
 
     return cwlstep
 
@@ -748,8 +705,8 @@ def build_resource_override_maps_for_workflow(
     else:
         prefix += "_"
 
-    for s in wf._steps:
-        tool: Tool = s.step.tool()
+    for s in wf.step_nodes.values():
+        tool: Tool = s.tool
 
         if isinstance(tool, CommandTool):
             tool_pre = prefix + s.id() + "_"
