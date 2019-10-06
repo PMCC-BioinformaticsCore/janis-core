@@ -465,6 +465,30 @@ class TestWdlGenerateInput(unittest.TestCase):
         )
         # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
+    def test_overrided_input_optional_nodefault(self):
+        wf = WorkflowBuilder("test_input_in_inputfile")
+        wf.input("inpId", String(optional=True))
+
+        ad = {"inpId": "2"}
+
+        # new interpretation: defaults appear in inputs
+        self.assertDictEqual(
+            {"test_input_in_inputfile.inpId": "2"},
+            self.translator.build_inputs_file(wf, additional_inputs=ad),
+        )
+
+    def test_overrided_input_optional_default(self):
+        wf = WorkflowBuilder("test_input_in_inputfile")
+        wf.input("inpId", String(optional=True), default="2")
+
+        ad = {"inpId": "4"}
+
+        # new interpretation: defaults appear in inputs
+        self.assertDictEqual(
+            {"test_input_in_inputfile.inpId": "4"},
+            self.translator.build_inputs_file(wf, additional_inputs=ad),
+        )
+
     def test_input_in_input_novalue_optional_nodefault(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True))
