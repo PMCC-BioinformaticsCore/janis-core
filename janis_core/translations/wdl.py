@@ -365,7 +365,7 @@ class WdlTranslator(TranslatorBase):
         for i in workflow.input_nodes.values():
             inp_key = f"{workflow.id()}.{i.id()}"
             value = ad.get(i.id()) or i.value or i.default
-            if cls.inp_can_be_skipped(i):
+            if cls.inp_can_be_skipped(i, value):
                 continue
 
             inp_val = value
