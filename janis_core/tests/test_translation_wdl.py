@@ -718,6 +718,28 @@ class TestWdlMaxResources(unittest.TestCase):
 
 
 class TestWdlScatterByMultipleFields(unittest.TestCase):
+    def test_scatter_single(self):
+        w = WorkflowBuilder("sbmf")
+        w.input("inp", Array(str))
+        w.input("inp2", str)
+
+        step = w.step(
+            "dotTool",
+            SingleTestTool(inputs=w.inp, input2=w.inp2),
+            scatter=ScatterDescription(fields=["inputs"], method=ScatterMethods.dot),
+        )
+
+        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        expected = """\
+scatter (i in inp) {
+   call A.SingleTestTool as dotTool {
+    input:
+      inputs=i,
+      input2=inp2
+  }
+}"""
+        self.assertEqual(expected, outp.get_string(indent=0))
+
     def test_dot_2(self):
         w = WorkflowBuilder("sbmf")
         w.input("inp", Array(str))

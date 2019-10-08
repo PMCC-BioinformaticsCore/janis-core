@@ -1158,13 +1158,16 @@ def wrap_scatter_call(
                 insource_ar.append(insource)
 
     insource = None
+    alias = None
     if len(insource_ar) == 1:
         insource = insource_ar[0]
+        alias = first_value(scattered_old_to_new_identifier)[0]
     else:
         method = "zip" if scatter.method == ScatterMethods.dot else "cross"
         insource = recursive_2param_wrap(method, insource_ar)
+        alias = scattered_old_to_new_identifier["-"]
 
-    return wdl.WorkflowScatter(scattered_old_to_new_identifier["-"], insource, [call])
+    return wdl.WorkflowScatter(alias, insource, [call])
 
 
 ## SELECTOR HELPERS
