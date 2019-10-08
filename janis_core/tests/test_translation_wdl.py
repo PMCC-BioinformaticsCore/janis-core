@@ -2,6 +2,7 @@ import unittest
 from typing import List, Dict, Any
 
 import wdlgen
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 import janis_core.translations.wdl as wdl
 from janis_core import (
@@ -20,8 +21,50 @@ from janis_core import (
     Boolean,
     Int,
 )
+from janis_core.tests.testtools import SingleTestTool
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
+
+
+class MultipleEcho(CommandTool):
+    @staticmethod
+    def tool():
+        return "TestStepTool"
+
+    @staticmethod
+    def base_command():
+        return "echo"
+
+    def inputs(self):
+        return [
+            ToolInput("input1", TxtSecondary, position=0),
+            ToolInput("input2", String(optional=True), position=1),
+            ToolInput("input3", String(optional=True), position=2),
+            ToolInput("input4", String(optional=True), position=3),
+        ]
+
+    def friendly_name(self):
+        return None
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    @staticmethod
+    def container():
+        return None
+
+    @staticmethod
+    def version():
+        return None
+
+
+class TxtSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional=optional, extension=".txt")
+
+    @staticmethod
+    def secondary_files():
+        return [".qt"]
 
 
 class TestTool(CommandTool):
@@ -158,7 +201,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
             "stp2", TestTool(arrayInp=stp1.std, testtool=w.inp), ignore_missing=True
         )
 
-        outp = wdl.translate_step_node(stp2, "stp1", stp2.id(), {})
+        outp = wdl.translate_step_node(stp2, stp2.id(), {}, set())
         self.assertEqual(
             outp.get_string().split("\n")[3].strip(), f"arrayInp=[{stp1.id()}.std]"
         )
@@ -672,3 +715,113 @@ class TestWdlMaxResources(unittest.TestCase):
         self.assertEqual(
             1, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
         )
+
+
+class TestWdlScatterByMultipleFields(unittest.TestCase):
+    def test_dot_2(self):
+        w = WorkflowBuilder("sbmf")
+        w.input("inp", Array(str))
+        w.input("inp2", Array(str))
+
+        step = w.step(
+            "dotTool",
+            SingleTestTool(inputs=w.inp, input2=w.inp2),
+            scatter=ScatterDescription(
+                fields=["inputs", "input2"], method=ScatterMethods.dot
+            ),
+        )
+
+        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        expected = """\
+scatter (Q in zip(inp, inp2)) {
+   call A.SingleTestTool as dotTool {
+    input:
+      inputs=Q.left,
+      input2=Q.right
+  }
+}"""
+        self.assertEqual(expected, outp.get_string(indent=0))
+
+    def test_dot_3(self):
+        w = WorkflowBuilder("sbmf")
+        w.input("inp", Array(str))
+        w.input("inp2", Array(str))
+        w.input("inp3", Array(str))
+
+        step = w.step(
+            "dotTool",
+            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3),
+            scatter=ScatterDescription(
+                fields=["inputs", "input2", "input3"], method=ScatterMethods.dot
+            ),
+        )
+
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3"}
+        )
+        expected = """\
+scatter (Q in zip(inp, zip(inp2, inp3))) {
+   call A.SingleTestTool as dotTool {
+    input:
+      inputs=Q.left,
+      input2=Q.right.left,
+      input3=Q.right.right
+  }
+}"""
+        self.assertEqual(expected, outp.get_string(indent=0))
+
+    def test_dot_4(self):
+        w = WorkflowBuilder("sbmf")
+        w.input("inp", Array(str))
+        w.input("inp2", Array(str))
+        w.input("inp3", Array(str))
+        w.input("inp4", Array(str))
+
+        step = w.step(
+            "dotTool",
+            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
+            scatter=ScatterDescription(
+                fields=["inputs", "input2", "input3", "input4"],
+                method=ScatterMethods.dot,
+            ),
+        )
+
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3", "inp4"}
+        )
+        expected = """\
+scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
+   call A.SingleTestTool as dotTool {
+    input:
+      inputs=Q.left,
+      input2=Q.right.left,
+      input3=Q.right.right.left,
+      input4=Q.right.right.right
+  }
+}"""
+        self.assertEqual(expected, outp.get_string(indent=0))
+
+    def test_dot_2_secondary(self):
+        w = WorkflowBuilder("sbmf")
+        w.input("inp", Array(TxtSecondary))
+        w.input("inp2", Array(str))
+
+        step = w.step(
+            "dotTool",
+            MultipleEcho(input1=w.inp, input2=w.inp2),
+            scatter=ScatterDescription(
+                fields=["input1", "input2"], method=ScatterMethods.dot
+            ),
+        )
+
+        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        expected = """\
+scatter (Q in zip(transpose([inp, inp_qt]), inp2)) {
+   call A.SingleTestTool as dotTool {
+    input:
+      input1=Q.left[0],
+      input1_qt=Q.left[1],
+      input2=Q.right
+  }
+}"""
+        self.assertEqual(expected, outp.get_string(indent=0))

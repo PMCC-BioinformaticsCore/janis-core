@@ -17,9 +17,11 @@ This file is logically structured similar to the cwl equiv:
 """
 
 import json
+from uuid import uuid4
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool
@@ -40,7 +42,8 @@ from janis_core.types.common_data_types import (
     File,
     Int,
 )
-from janis_core.utils import first_value
+from janis_core.utils import first_value, recursive_2param_wrap
+from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.validators import Validators
 
@@ -178,6 +181,11 @@ class WdlTranslator(TranslatorBase):
         ]
 
         # Step[] -> (wdl.Task | wdl.Workflow)[]
+        forbiddenidentifiers = set(
+            [i.id() for i in inputs]
+            + list(tool_aliases.keys())
+            + list(s.id() for s in steps)
+        )
         for s in steps:
             t = s.tool
 
@@ -208,8 +216,8 @@ class WdlTranslator(TranslatorBase):
             call = translate_step_node(
                 s,
                 tool_aliases[t.id().lower()].upper() + "." + t.id(),
-                s.id(),
                 resource_overrides,
+                forbiddenidentifiers,
             )
 
             w.calls.append(call)
@@ -746,7 +754,10 @@ def translate_string_formatter_for_output(
 
 
 def translate_step_node(
-    node2, step_identifier: str, step_alias: str, resource_overrides: Dict[str, str]
+    node2,
+    step_identifier: str,
+    resource_overrides: Dict[str, str],
+    invalid_identifiers: Set[str],
 ) -> wdl.WorkflowCallBase:
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
@@ -765,10 +776,13 @@ def translate_step_node(
     from janis_core.workflow.workflow import StepNode, InputNode
 
     node: StepNode = node2
+    step_alias: str = node.id()
 
     ins = node.inputs()
 
-    # Let's sanity check our inputs, make sure they're all present:
+    # Sanity check our step node connections:
+
+    # 1. make sure our inputs are all present:
     missing_keys = [
         k
         for k in ins.keys()
@@ -780,61 +794,31 @@ def translate_step_node(
             f"missing the required connection(s): '{', '.join(missing_keys)}'"
         )
 
-    # One step => One WorkflowCall. We need to traverse the edge list to see if there's a scatter
-    # then we can build up the WorkflowCall and then wrap them in scatters
+    # 2. gather the scatters, and make sure none of them are derived from multiple sources, otherwise
+    #       we're like double zipping things, it's complicated and it's even MORE complicated in WDL.
     scatterable: List[StepTagInput] = []
 
     if node.scatter:
         scatterable = [node.sources[k] for k in node.scatter.fields]
 
-        for si in scatterable:
-            if si.multiple_inputs or isinstance(si.source(), list):
-                raise NotImplementedError(
-                    f"The edge '{si.dotted_source()}' on node '{node.id()}' scatters"
-                    f"on multiple inputs, and I don't know how this can be implemented in WDL"
-                )
+        invalid_sources = [
+            si
+            for si in scatterable
+            if si.multiple_inputs or isinstance(si.source(), list)
+        ]
+        if len(invalid_sources) > 0:
+            invalid_sources_str = ", ".join(
+                si.dotted_source() for si in invalid_sources
+            )
+            raise NotImplementedError(
+                f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
+                f"on multiple inputs, this behaviour has not been implemented"
+            )
 
-    # We need to replace the scatterable key(s) with some random variable, eg: for i in iterable:
-    scattered_ordered_variable_identifiers = [
-        "i",
-        "j",
-        "k",
-        "x",
-        "y",
-        "z",
-        "a",
-        "b",
-        "c",
-        "ii",
-        "jj",
-        "kk",
-        "xx",
-        "yy",
-        "zz",
-    ]
-    scattered_old_to_new_identifier = {
-        k.dotted_source(): (k.dotted_source(), k.source())
-        for k in scatterable
-        if not isinstance(k.dotted_source(), list)
-    }
-    current_identifiers_that_are_scattered = set(
-        v[0] for v in scattered_old_to_new_identifier.values()
+    # 1. Generate replacement of the scatterable key(s) with some random variable, eg: for i in iterable:
+    scattered_old_to_new_identifier = generate_scatterable_details(
+        scatterable, forbiddenidentifiers=invalid_identifiers
     )
-
-    # We'll wrap everything in the scatter block later, but let's replace the fields we need to scatter
-    # with the new scatter variable (we'll try to guess one based on the fieldname). We might need to eventually
-    # pass the workflow inputs to make sure now conflict will arise.
-    # Todo: Pass Workflow input tags to wdl scatter generation to ensure scatter var doesn't conflict with inputs
-
-    for s in scatterable:
-        current_identifiers_that_are_scattered.remove(s.dotted_source())
-        e: Edge = first_value(s.source_map)
-        new_var = e.stag[0] if e.stag else e.source_dotted()[0]
-
-        while new_var in current_identifiers_that_are_scattered:
-            new_var = scattered_ordered_variable_identifiers.pop(0)
-        scattered_old_to_new_identifier[s.dotted_source()] = (new_var, e.start)
-        current_identifiers_that_are_scattered.add(new_var)
 
     # Let's map the inputs, to the source. We're using a dictionary for the map atm, but WDL requires the _format:
     #       fieldName: sourceCall.Output
@@ -980,7 +964,7 @@ def translate_step_node(
                 sec = secondary[idx]
                 inputs_map[
                     get_secondary_tag_from_original_tag(k, sec)
-                ] = f"{identifier}[{idx + 1}]"
+                ] = f"{identifier[0]}[{idx + 1}]"
 
         else:
             ds = source.source_dotted()
@@ -1038,39 +1022,123 @@ def translate_step_node(
 
     call = wdl.WorkflowCall(step_identifier, step_alias, inputs_map)
 
-    # So, the current way of mixing accessory files is not really                        _
-    # supported, but a little complicated basically, if our scatterable edge           _| |
-    # contains secondary files, they'll all be arrays of separate files, eg:         _| | |
-    #                                                                               | | | | __
-    # File[] bams = [...]                                                           | | | |/  \
-    # File[] bais = [...]                                                           |       /\ \
-    #                                                                               |       \/ /
-    # We can handle this by transposing the array of both items, eg:                 \        /
-    #                                                                                 |      /
-    #     transpose([bam1, bam2, ..., bamn], [bai1, bai2, ..., bai3])                 |     |
-    #           => [[bam1, bai1], [bam2, bai2], ..., [bamn, bain]]
-    #
-    # and then unwrap them using their indices and hoefully have everything line up:
-    #
-    # Source: https://software.broadinstitute.org/wdl/documentation/spec#arrayarrayx-transposearrayarrayx
+    if len(scatterable) > 0:
+        call = wrap_scatter_call(
+            call, node.scatter, scatterable, scattered_old_to_new_identifier
+        )
 
-    for s in scatterable:
-        if not isinstance(s.finish, StepNode) or not s.ftag:
-            raise Exception(
-                "An internal error has occured when generating scatterable input map"
+    return call
+
+
+def generate_scatterable_details(
+    scatterable: List[StepTagInput], forbiddenidentifiers: Set[str]
+):
+
+    # this dictionary is what we're going to use to map our current
+    # identifier to the scattered identifier. This step is just the
+    # setup, and in the next for loop, we'll
+    scattered_old_to_new_identifier = {
+        k.dotted_source(): (k.dotted_source(), k.source())
+        for k in scatterable
+        if not isinstance(k.dotted_source(), list)
+    }
+
+    # Make a copy of the forbiddenIds and add the identifiers of the source
+    forbiddenidentifierscopy = set(forbiddenidentifiers).union(
+        set(v[0] for v in scattered_old_to_new_identifier.values())
+    )
+
+    # We'll wrap everything in the scatter block later, but let's replace the fields we need to scatter
+    # with the new scatter variable (we'll try to guess one based on the fieldname). We might need to eventually
+    # pass the workflow inputs to make sure now conflict will arise.
+
+    if len(scatterable) > 1:
+        # We'll generate one variable in place
+        standin = generate_new_id_from("Q", forbiddenidentifierscopy)
+
+        # Store the the standin variable for us to use later (as an illegal identifier character)
+        scattered_old_to_new_identifier["-"] = standin
+        forbiddenidentifierscopy.add(standin)
+
+        # Then we'll need to generate something like:
+        #       A -> Q[0], B -> Q[0][0] -> ..., N -> Q([0] * (n-1))[1]
+        n = len(scatterable)
+        for i in range(len(scatterable)):
+            s = scatterable[i]
+            newid = standin + (i) * ".right" + ".left"
+            if i == n - 1:
+                newid = standin + (n - 1) * ".right"
+            scattered_old_to_new_identifier[s.dotted_source()] = (
+                newid,
+                first_value(s.source_map).start,
             )
+            forbiddenidentifierscopy.add(newid)
+    else:
+
+        for s in scatterable:
+
+            # We asserted earlier that the source_map only has one value (through multipleInputs)
+            e: Edge = first_value(s.source_map)
+            newid = generate_new_id_from(
+                e.stag or e.source_dotted().replace(".", ""), forbiddenidentifierscopy
+            )
+            scattered_old_to_new_identifier[s.dotted_source()] = (newid, e.start)
+            forbiddenidentifierscopy.add(newid)
+
+    return scattered_old_to_new_identifier
+
+
+def wrap_scatter_call(
+    call, scatter: ScatterDescription, scatterable, scattered_old_to_new_identifier
+):
+    from janis_core.workflow.workflow import StepNode, InputNode
+
+    # Let's start the difficult process of scattering, in WDL we'll:
+    #
+    #       1. We already generated the new "scatter" variable that will
+    #            be used in place of the original .dotted_source()
+    #
+    #       2. Generate annotations for accessory / secondary files
+    #
+    #       3. Wrap everything in the appropriate scatter block,
+    #           especially considering scattering by multiple variables
+    #
+
+    # 2. Explanation:
+    #     So, the current way of mixing accessory files is not really                        _
+    #     supported, but a little complicated basically, if our scatterable edge           _| |
+    #     contains secondary files, they'll all be arrays of separate files, eg:         _| | |
+    #                                                                                   | | | | __
+    #     File[] bams =     [...]                                                       | | | |/  \
+    #     File[] bams_bai = [...]                                                       |       /\ \
+    #                                                                                   |       \/ /
+    #     We can handle this by transposing the array of both items, eg:                 \        /
+    #                                                                                     |      /
+    #         transpose([bam1, bam2, ..., bamn], [bai1, bai2, ..., bai3])                 |     |
+    #               => [[bam1, bai1], [bam2, bai2], ..., [bamn, bain]]
+    #
+    #     and then unwrap them using their indices and hopefully have everything line up:
+    #
+    #     Source: https://software.broadinstitute.org/wdl/documentation/spec#arrayarrayx-transposearrayarrayx
+
+    # We need to generate the source statement, this is easy if we're scattering by one variable
+
+    # sanity check
+    if len(scatterable) == 0:
+        return call
+
+    # generate the new source map
+
+    insource_ar = []
+    for s in scatterable:
         secondary = s.finish.tool.inputs_map()[s.ftag].input_type.secondary_files()
         if secondary:
             ds = s.dotted_source()
             joined_tags = ", ".join(
                 get_secondary_tag_from_original_tag(ds, sec) for sec in secondary
             )
-            transformed = f"transform([{ds}, {joined_tags}])"
-            call = wdl.WorkflowScatter(
-                scattered_old_to_new_identifier[s.dotted_source()][0],
-                transformed,
-                [call],
-            )
+            transformed = f"transpose([{ds}, {joined_tags}])"
+            insource_ar.append(transformed)
 
         else:
             (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
@@ -1085,11 +1153,18 @@ def translate_step_node(
                 if isinstance(resolved, bool):
                     resolved = "true" if resolved else "false"
 
-                insource = f"select_first([{insource}, {resolved}])"
+                insource_ar.append(f"select_first([{insource}, {resolved}])")
+            else:
+                insource_ar.append(insource)
 
-            call = wdl.WorkflowScatter(newid, insource, [call])
+    insource = None
+    if len(insource_ar) == 1:
+        insource = insource_ar[0]
+    else:
+        method = "zip" if scatter.method == ScatterMethods.dot else "cross"
+        insource = recursive_2param_wrap(method, insource_ar)
 
-    return call
+    return wdl.WorkflowScatter(scattered_old_to_new_identifier["-"], insource, [call])
 
 
 ## SELECTOR HELPERS
@@ -1329,7 +1404,11 @@ def apply_secondary_file_format_to_filename(
         filename = filepath[idx:]
 
     split = filename.split(".")
-    return basepath + ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
+
+    newfname = filename + fixed_sec
+    if len(split) > 1:
+        newfname = ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
+    return basepath + newfname
 
 
 def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
