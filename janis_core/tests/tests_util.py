@@ -1,5 +1,8 @@
 from unittest import TestCase
-from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
+from janis_core.utils import (
+    get_value_for_hints_and_ordered_resource_tuple,
+    recursive_2param_wrap,
+)
 
 
 class TestOrderedHints(TestCase):
@@ -50,3 +53,30 @@ class TestOrderedHints(TestCase):
         hints = {"hinttype3": "ht3h1"}
         val = get_value_for_hints_and_ordered_resource_tuple(hints, self.ordered_hints)
         self.assertIsNone(val)
+
+
+class Test2ItemMethodWrap(TestCase):
+    def test_0_items(self):
+        items = []
+        self.assertRaises(Exception, recursive_2param_wrap, "zip", items)
+
+    def test_1_item(self):
+        items = ["item"]
+        self.assertRaises(Exception, recursive_2param_wrap, "zip", items)
+
+    def test_2_items(self):
+        items = ["item1", "item2"]
+        self.assertEqual("zip(item1, item2)", recursive_2param_wrap("zip", items))
+
+    def test_3_items(self):
+        items = ["item1", "item2", "item3"]
+        self.assertEqual(
+            "zip(item1, zip(item2, item3))", recursive_2param_wrap("zip", items)
+        )
+
+    def test_4_items(self):
+        items = ["item1", "item2", "item3", "item4"]
+        self.assertEqual(
+            "zip(item1, zip(item2, zip(item3, item4)))",
+            recursive_2param_wrap("zip", items),
+        )

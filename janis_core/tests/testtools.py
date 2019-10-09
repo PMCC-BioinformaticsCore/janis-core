@@ -24,7 +24,12 @@ class SingleTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inputs", String())]
+        return [
+            ToolInput("inputs", String(), position=0),
+            ToolInput("input2", String(optional=True), position=1),
+            ToolInput("input3", String(optional=True), position=2),
+            ToolInput("input4", String(optional=True), position=3),
+        ]
 
     def friendly_name(self):
         return None

@@ -315,7 +315,7 @@ class Workflow(Tool):
 
         node, tag = verify_or_try_get_source(source)
         if not datatype:
-            datatype = node.outputs()[tag].output_type
+            datatype: DataType = node.outputs()[tag].output_type.received_type()
 
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
@@ -353,7 +353,7 @@ class Workflow(Tool):
         outtype: str,
     ):
         if isinstance(out, list):
-            return [self.verify_output_source_type(o) for o in out]
+            return [self.verify_output_source_type(identifier, o, outtype) for o in out]
 
         if isinstance(out, str):
             return out
