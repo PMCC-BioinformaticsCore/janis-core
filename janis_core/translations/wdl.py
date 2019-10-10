@@ -799,6 +799,14 @@ def translate_step_node(
     scatterable: List[StepTagInput] = []
 
     if node.scatter:
+        unbound_scatter_keys = [k for k in node.scatter.fields if k not in node.sources]
+        if len(unbound_scatter_keys):
+            raise Exception(
+                f"Attempted to scatter {node.id()} on field(s) [{', '.join(unbound_scatter_keys)}] however "
+                "these inputs were not mapped on step construction. Make sure that those unbound keys exist"
+                f"in your step definition (eg: "
+                f"{node.tool.__class__.__name__}({', '.join(k + '=inp' for k in unbound_scatter_keys)})"
+            )
         scatterable = [node.sources[k] for k in node.scatter.fields]
 
         invalid_sources = [
