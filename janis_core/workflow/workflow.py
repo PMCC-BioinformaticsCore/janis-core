@@ -154,8 +154,10 @@ class OutputNode(Node):
         datatype: DataType,
         source: ConnectionSource,
         doc: str = None,
-        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
-        output_prefix: Union[str, InputSelector] = None,
+        output_tag: Union[str, InputSelector] = None,
+        output_prefix: Union[
+            str, InputSelector, List[Union[str, InputSelector]]
+        ] = None,
     ):
         super().__init__(wf, NodeTypes.OUTPUT, identifier)
         self.datatype = datatype
@@ -285,12 +287,7 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
-        output_tag: Union[
-            str,
-            InputSelector,
-            ConnectionSource,
-            List[Union[str, InputSelector, ConnectionSource]],
-        ] = None,
+        output_tag: Union[str, InputSelector, ConnectionSource] = None,
         output_prefix: Union[str, InputSelector, ConnectionSource] = None,
     ):
         """
