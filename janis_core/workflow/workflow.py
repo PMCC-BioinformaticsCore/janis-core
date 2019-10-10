@@ -287,7 +287,12 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
-        output_tag: Union[str, InputSelector, ConnectionSource] = None,
+        output_tag: Union[
+            str,
+            InputSelector,
+            ConnectionSource,
+            List[Union[str, InputSelector, ConnectionSource]],
+        ] = None,
         output_prefix: Union[str, InputSelector, ConnectionSource] = None,
     ):
         """
@@ -318,13 +323,13 @@ class Workflow(Tool):
                 datatype = Array(datatype)
 
         if output_prefix:
+            op = output_prefix if isinstance(output_prefix, list) else [output_prefix]
             output_prefix = self.verify_output_source_type(
-                identifier, output_prefix, "output_prefix"
+                identifier, op, "output_prefix"
             )
         if output_tag:
-            output_tag = self.verify_output_source_type(
-                identifier, output_tag, "output_tag"
-            )
+            ot = output_tag if isinstance(output_tag, list) else [output_tag]
+            output_tag = self.verify_output_source_type(identifier, ot, "output_tag")
 
         otp = OutputNode(
             self,
