@@ -55,6 +55,25 @@ class LogLevel:
 
         return ""
 
+    @staticmethod
+    def from_str(level: str):
+        level = level.upper()
+        if level == "CRITICAL":
+            return LogLevel.CRITICAL
+        if level == "WARN":
+            return LogLevel.WARNING
+        if level == "INFO":
+            return LogLevel.INFO
+        if level == "DEBUG":
+            return LogLevel.DEBUG
+        if level == "NONE":
+            return None
+
+        raise KeyError(
+            f"Couldn't detect LogLevel type '{level}', expected one of: "
+            f"CRITICAL, WARN, INFO, DEBUG, NONE"
+        )
+
 
 class Logger:
     CONSOLE_LEVEL: Optional[int] = LogLevel.INFO
