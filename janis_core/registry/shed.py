@@ -4,7 +4,7 @@ from inspect import isfunction, ismodule, isabstract, isclass
 
 from janis_core.tool.tool import Tool, ToolTypes
 from janis_core.types.data_types import DataType
-from janis_core.utils.logger import Logger
+from janis_core.utils.logger import Logger, LogLevel
 import janis_core.registry.entrypoints as EP
 from janis_core.registry.registry import TaggedRegistry, Registry
 
@@ -60,16 +60,23 @@ class JanisShed:
         # go get everything
         if JanisShed._has_been_hydrated and not force:
             return
-        Logger.mute()
+
         if not modules:
             modules = []
             modules.extend(JanisShed._get_datatype_entrypoints())
             modules.extend(JanisShed._get_tool_entrypoints())
 
+        Logger.log("Setting CONSOLE_LEVEL to None while traversing modules")
+        cl = Logger.CONSOLE_LEVEL
+        Logger.set_console_level(None)
         seen_modules = set()
         for m in modules:
             JanisShed.traverse_module(m, seen_modules=seen_modules)
-        Logger.unmute()
+        Logger.set_console_level(cl)
+        Logger.log(
+            f"Restoring CONSOLE_LEVEL to {LogLevel.get_str(cl)} now that Janis shed has been hydrated"
+        )
+
         JanisShed._has_been_hydrated = True
 
     @staticmethod
