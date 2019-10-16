@@ -54,7 +54,6 @@ setup(
         "cwlgen >= 0.3.0",
         "illusional.wdlgen >= 0.2.5",
         "ruamel.yaml >= 0.12.4, <= 0.15.77",
-        "networkx>=2.1",
         "tabulate",
         "path.py",
     ],
