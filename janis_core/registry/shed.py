@@ -70,8 +70,11 @@ class JanisShed:
         cl = Logger.CONSOLE_LEVEL
         Logger.set_console_level(None)
         seen_modules = set()
+        seen_classes = set()
         for m in modules:
-            JanisShed.traverse_module(m, seen_modules=seen_modules)
+            JanisShed.traverse_module(
+                m, seen_modules=seen_modules, seen_classes=seen_classes
+            )
         Logger.set_console_level(cl)
         Logger.log(
             f"Restoring CONSOLE_LEVEL to {LogLevel.get_str(cl)} now that Janis shed has been hydrated"
@@ -108,7 +111,7 @@ class JanisShed:
         return ep
 
     @staticmethod
-    def traverse_module(module, seen_modules: set):
+    def traverse_module(module, seen_modules: set, seen_classes: set):
         if module.__name__ in seen_modules:
             return
 
@@ -117,23 +120,29 @@ class JanisShed:
         q = {
             n: cls
             for n, cls in list(module.__dict__.items())
-            if not n.startswith("__") and type(cls) != type
+            if not n.startswith("__")
+            and type(cls) != type
+            and not (ismodule(cls) and cls.__name__ in seen_modules)
+            and not (isclass(cls) and cls in seen_classes)
         }
 
         for k in q:
             cls = q[k]
-            JanisShed.process_cls(cls, seen_modules)
+            JanisShed.process_cls(cls, seen_modules, seen_classes)
 
     @staticmethod
-    def process_cls(cls, seen_modules):
+    def process_cls(cls, seen_modules, seen_classes: set):
         try:
             if ismodule(cls):
-                return JanisShed.traverse_module(cls, seen_modules)
+                return JanisShed.traverse_module(cls, seen_modules, seen_classes)
             elif isfunction(cls) or isabstract(cls):
                 return
             elif not isclass(cls):
                 return
-            elif issubclass(cls, DataType):
+
+            seen_classes.add(cls)
+
+            if issubclass(cls, DataType):
                 return JanisShed.add_type(cls)
             elif not hasattr(cls, "type") or not callable(cls.type):
                 return

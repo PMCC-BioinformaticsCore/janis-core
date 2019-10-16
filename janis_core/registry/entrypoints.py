@@ -37,3 +37,10 @@ DATATYPES = "janis.types"
     Note: Users can still access your tool through a direct Python import (preferred)
 """
 TOOLS = "janis.tools"
+
+"""
+    Polished pipelines should be extended under the janis.pipelines class. This will allow
+    the documentation to produce a separate page called "Pipelines" with these workflows.
+    They are also rendered slightly differently.
+"""
+PIPELINES = "janis.pipelines"
