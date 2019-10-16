@@ -180,6 +180,9 @@ class DataType(ABC):
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         pass
 
+    def invalid_value_hint(self, meta):
+        return None
+
     def identify(self):
         print(self.id())
 

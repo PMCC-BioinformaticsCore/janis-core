@@ -49,6 +49,14 @@ class String(DataType):
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, str)
 
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+
+        return f"Value was of type {type(meta)}, expected string"
+
 
 class Filename(String):
     def __init__(
@@ -125,6 +133,12 @@ concerned what the filename should be. The Filename DataType should NOT be used 
     def wdl(self, has_default=True):
         return wdlgen.WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()))
 
+    def validate_value(self, meta: Any, allow_null_if_not_optional: bool):
+        return True
+
+    def invalid_value_hint(self, meta):
+        return None
+
 
 class Int(DataType):
     @staticmethod
@@ -149,6 +163,13 @@ class Int(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, int)
+
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected int"
 
 
 class Float(DataType):
@@ -175,6 +196,13 @@ class Float(DataType):
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, float) or isinstance(meta, int)
 
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected float | int"
+
 
 class Double(DataType):
     @staticmethod
@@ -200,6 +228,13 @@ class Double(DataType):
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, float) or isinstance(meta, int)
 
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected float | int"
+
 
 class Boolean(DataType):
     @staticmethod
@@ -224,6 +259,13 @@ class Boolean(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, bool)
+
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected bool"
 
 
 class File(DataType):
@@ -260,6 +302,14 @@ class File(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, str)
+
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+
+        return f"Value was of type {type(meta)}, expected string (path)"
 
 
 class Directory(DataType):
@@ -298,6 +348,13 @@ class Directory(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, str)
+
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected string (path)"
 
 
 class Array(DataType):
@@ -381,6 +438,17 @@ class Array(DataType):
             self.subtype().validate_value(q, allow_null_if_not_optional) for q in meta
         )
 
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+
+        if not isinstance(meta, list):
+            return f"Value was of type {type(meta)}, expected type Array<{self.subtype().id()}>"
+
+        return ", ".join({self.subtype().invalid_value_hint(m) for m in meta})
+
 
 class Stdout(File):
     @staticmethod
@@ -419,6 +487,9 @@ class Stdout(File):
         Will always toss away the value
         """
         return True
+
+    def invalid_value_hint(self, meta):
+        return None
 
 
 all_types = [
