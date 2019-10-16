@@ -155,7 +155,10 @@ class TranslatorBase(ABC):
             if should_zip:
                 Logger.info("Zipping tools")
                 with Path(d):
-                    zip_result = subprocess.run(["zip", "-r", "tools.zip", "tools/"])
+                    FNULL = open(os.devnull, "w")
+                    zip_result = subprocess.run(
+                        ["zip", "-r", "tools.zip", "tools/"], stdout=FNULL
+                    )
                     if zip_result.returncode == 0:
                         Logger.info("Zipped tools")
                     else:
