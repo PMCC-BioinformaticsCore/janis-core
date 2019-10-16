@@ -8,14 +8,14 @@ class TestMetadata(unittest.TestCase):
     def test_update(self):
 
         m = Metadata()
-        m2 = m.update(creator="c1")
-        self.assertEqual(m.creator, "c1")
-        self.assertEqual(m2.creator, "c1")
+        m2 = m.update(contributors=["c2"])
+        self.assertListEqual(["c2"], m.contributors)
+        self.assertListEqual(["c2"], m2.contributors)
 
     def test_serialize(self):
-        m = Metadata(creator="Michael Franklin")
+        m = Metadata(contributors=["Michael Franklin"])
         d = m.get_dict({"calculateChecksum": "ofThisDictionary"})
-        self.assertIn("creator", d)
+        self.assertIn("contributors", d)
         self.assertEqual("e7443fb68e7ecf065100f014b2a2c16d9e357752", d["checksum"])
 
         # Check for all attributes that are none, and check they're not in the output

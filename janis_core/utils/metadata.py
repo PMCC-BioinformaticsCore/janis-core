@@ -9,9 +9,7 @@ class Metadata(object):
 
     def __init__(
         self,
-        creator=None,
-        maintainer=None,
-        maintainerEmail=None,
+        contributors=None,
         dateCreated=None,
         dateUpdated=None,
         institution=None,
@@ -20,27 +18,31 @@ class Metadata(object):
         keywords=None,
         documentationUrl=None,
         documentation=None,
+        short_documentation=None,
         version=None,
     ):
         """
 
-        :param creator:
-        :param maintainer:
-        :param maintainerEmail:
+        :param contributors:
         :param dateCreated:
         :param dateUpdated:
         :param institution:
         :param doi:
         :param citation:
-        :type citation: str | list[str] | None
         :param keywords:
         :param documentationUrl:
         :param documentation:
+        :param short_documentation:
         :param version:
         """
-        self.creator = creator
-        self.maintainer = maintainer
-        self.maintainerEmail = maintainerEmail
+        self.contributors = []
+        if contributors:
+            self.contributors = (
+                contributors
+                if isinstance(contributors, list)
+                else contributors.split(",")
+            )
+
         self.dateCreated = (
             dateCreated.strftime(self.DATE_FORMAT)
             if isinstance(dateCreated, date)
@@ -56,6 +58,7 @@ class Metadata(object):
         self.citation = citation
         self.keywords = keywords
         self.documentation = documentation
+        self.short_documentation = short_documentation
         self.documentationUrl = documentationUrl
         self.version = version
 
