@@ -15,7 +15,11 @@ class ArrayTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inputs", Array(String()))]
+        return [
+            ToolInput("inputs", Array(String())),
+            ToolInput("optionalInput", String(optional=True)),
+            ToolInput("optionalInput2", String, default="2"),
+        ]
 
     def outputs(self):
         return []

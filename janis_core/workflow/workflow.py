@@ -428,7 +428,10 @@ class Workflow(Tool):
         provided_keys = set(connections.keys())
         all_keys = set(inputs.keys())
         required_keys = set(
-            i for i, v in inputs.items() if not v.input_type.optional and not v.default
+            # The input is optional if it's optional or has default)
+            i
+            for i, v in inputs.items()
+            if not (v.input_type.optional or v.default is not None)
         )
 
         if not provided_keys.issubset(all_keys):
@@ -517,7 +520,10 @@ class Workflow(Tool):
         List of ToolInputs of the workflow, we can toss out most of the metadata
         about positioning, prefixes, etc that the ToolInput class uses
         """
-        return [ToolInput(i.id(), i.datatype) for i in self.input_nodes.values()]
+        return [
+            ToolInput(i.id(), i.datatype, default=i.default)
+            for i in self.input_nodes.values()
+        ]
 
     def outputs(self) -> List[ToolOutput]:
         """
