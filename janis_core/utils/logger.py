@@ -119,7 +119,7 @@ class Logger:
             return
 
         Logger.WRITE_LOCATION = location
-        Logger.__WRITE_POINTER = open(location, "w+")
+        Logger.__WRITE_POINTER = open(location, "a")
 
     @staticmethod
     def close_file():
