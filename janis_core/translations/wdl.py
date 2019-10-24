@@ -17,6 +17,7 @@ This file is logically structured similar to the cwl equiv:
 """
 
 import json
+from inspect import isclass
 from uuid import uuid4
 from typing import List, Dict, Optional, Any, Set, Tuple
 
@@ -1251,7 +1252,15 @@ def get_input_value_from_potential_selector_or_generator(
     elif callable(getattr(value, "wdl", None)):
         return value.wdl()
 
-    raise Exception("Could not detect type %s to convert to input value" % type(value))
+    warning = ""
+    if isclass(value):
+        stype = value.__name__
+        warning = f", this is likely due to the '{stype}' not being initialised"
+    else:
+        stype = value.__class__.__name__
+    raise Exception(
+        f"Could not detect type '{stype}' to convert to input value{warning}"
+    )
 
 
 def translate_string_formatter(
