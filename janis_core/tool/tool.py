@@ -228,6 +228,10 @@ class Tool(ABC, object):
     ):
         pass
 
+    def __call__(self, **connections):
+        self.connections = connections
+        return self
+
     @staticmethod
     @abstractmethod
     def version():
