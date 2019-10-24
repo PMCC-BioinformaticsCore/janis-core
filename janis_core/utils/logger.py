@@ -2,6 +2,7 @@
     Logger - Controls logging of the application
 """
 import sys
+import os
 from datetime import datetime
 from typing import Optional, TextIO
 
@@ -125,6 +126,7 @@ class Logger:
     def close_file():
         if Logger.__WRITE_POINTER is not None:
             Logger.__WRITE_POINTER.close()
+            Logger.__WRITE_POINTER = None
 
     @staticmethod
     def log(message: str, level: int = LogLevel.DEBUG):
@@ -140,8 +142,11 @@ class Logger:
             Logger.WRITE_LEVEL is not None
             and level <= Logger.WRITE_LEVEL
             and Logger.__WRITE_POINTER is not None
+            and not Logger.__WRITE_POINTER.closed
         ):
             Logger.__WRITE_POINTER.write(m + "\n")
+            Logger.__WRITE_POINTER.flush()
+            os.fsync(Logger.__WRITE_POINTER.fileno())
 
     @staticmethod
     def info(message: str):
