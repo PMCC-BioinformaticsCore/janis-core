@@ -210,7 +210,7 @@ class WdlTranslator(TranslatorBase):
 
             resource_overrides = {}
             for r in resource_inputs:
-                if not r.name.startswith(s.id()):
+                if not r.name.startswith(s.id() + "_runtime"):
                     continue
 
                 resource_overrides[r.name[(len(s.id()) + 1) :]] = r.name

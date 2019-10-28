@@ -867,3 +867,41 @@ scatter (Q in zip(transpose([inp, inp_qt]), inp2)) {
   }
 }"""
         self.assertEqual(expected, outp.get_string(indent=0))
+
+
+class TestRuntimeOverrideGenerator(unittest.TestCase):
+    def test_basic(self):
+        w = WorkflowBuilder("wb")
+        w.input("inp", str)
+        w.step("echo", SingleTestTool(inputs=w.inp))
+        w.step("echo_2", SingleTestTool(inputs=w.inp))
+
+        wf, _, _ = w.translate("wdl", to_console=False, with_resource_overrides=True)
+        _tooldef = """\
+workflow wb {
+  input {
+    String inp
+    Int? echo_runtime_memory
+    Int? echo_runtime_cpu
+    String echo_runtime_disks
+    Int? echo_2_runtime_memory
+    Int? echo_2_runtime_cpu
+    String echo_2_runtime_disks
+  }
+  call T.TestStepTool as echo {
+    input:
+      inputs=inp,
+      runtime_memory=echo_runtime_memory,
+      runtime_cpu=echo_runtime_cpu,
+      runtime_disks=echo_runtime_disks
+  }
+  call T.TestStepTool as echo_2 {
+    input:
+      inputs=inp,
+      runtime_memory=echo_2_runtime_memory,
+      runtime_cpu=echo_2_runtime_cpu,
+      runtime_disks=echo_2_runtime_disks
+  }
+
+}"""
+        self.assertEqual(_tooldef, "\n".join(wf.split("\n")[4:]))
