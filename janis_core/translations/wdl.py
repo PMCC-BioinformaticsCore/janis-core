@@ -34,6 +34,7 @@ from janis_core.types import (
     CpuSelector,
     MemorySelector,
     StringFormatter,
+    String,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -113,11 +114,13 @@ class WdlTranslator(TranslatorBase):
 
         # Convert self._inputs -> wdl.Input
         for i in inputs:
-            wd = i.datatype.wdl(has_default=i.default is not None)
-
+            dt = i.datatype
             expr = None
             if isinstance(i.datatype, Filename):
-                expr = f'"{i.datatype.generated_filename()}"'
+                # expr = f'"{i.datatype.generated_filename()}"'
+                dt = String(optional=True)
+
+            wd = dt.wdl(has_default=i.default is not None)
 
             w.inputs.append(
                 wdl.Input(

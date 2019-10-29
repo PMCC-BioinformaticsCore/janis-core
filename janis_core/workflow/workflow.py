@@ -17,6 +17,7 @@ from janis_core.types import (
     get_instantiated_type,
     Array,
     InputSelector,
+    Filename,
 )
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, ToolInput, ToolOutput
 from janis_core.tool.commandtool import CommandTool
@@ -455,10 +456,12 @@ class Workflow(Tool):
         added_edges = []
         for (k, v) in connections.items():
 
-            if is_python_primitive(v):
+            isfilename = isinstance(v, Filename)
+            if is_python_primitive(v) or isfilename:
                 inp_identifier = f"{identifier}_{k}"
-
-                referencedtype = copy.copy(inputs[k].input_type)
+                referencedtype = (
+                    copy.copy(inputs[k].input_type) if not isfilename else v
+                )
                 parsed_type = get_instantiated_type(v)
 
                 if parsed_type and not referencedtype.can_receive_from(parsed_type):
@@ -469,7 +472,11 @@ class Workflow(Tool):
 
                 referencedtype.optional = True
 
-                v = self.input(inp_identifier, referencedtype, default=v)
+                v = self.input(
+                    inp_identifier,
+                    referencedtype,
+                    default=v.generated_filename() if isfilename else v,
+                )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
                 v = self.input(inp_identifier, inputs[k].input_type, default=v)
