@@ -212,11 +212,12 @@ class WdlTranslator(TranslatorBase):
                     )
 
             resource_overrides = {}
-            for r in resource_inputs:
-                if not r.name.startswith(s.id() + "_runtime"):
-                    continue
 
-                resource_overrides[r.name[(len(s.id()) + 1) :]] = r.name
+            if with_resource_overrides:
+                toolroverrides = build_resource_override_maps_for_tool(t)
+                for r in toolroverrides:
+                    resource_overrides[r.name] = s.id() + "_" + r.name
+
             call = translate_step_node(
                 s,
                 tool_aliases[t.id().lower()].upper() + "." + t.id(),
@@ -1481,34 +1482,37 @@ def prepare_move_statement_for_input_to_localise(ti: ToolInput):
     raise Exception(f"WDL is unable to localise type '{type(it)}'")
 
 
-def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input]:
-    from janis_core.workflow.workflow import Workflow
-
-    # returns a list of key, value pairs
+def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
     inputs = []
+
     if not prefix:
         prefix = ""  # wf.id() + "."
     else:
         prefix += "_"
 
+    if isinstance(tool, CommandTool):
+        inputs.extend(
+            [
+                wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_memory"),
+                wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_cpu"),
+                wdl.Input(wdl.WdlType.parse_type("String"), prefix + "runtime_disks"),
+            ]
+        )
+    else:
+        inputs.extend(build_resource_override_maps_for_workflow(tool, prefix=prefix))
+
+    return inputs
+
+
+def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input]:
+
+    # returns a list of key, value pairs
+    inputs = []
+
     for s in wf.step_nodes.values():
         tool: Tool = s.tool
 
-        if isinstance(tool, CommandTool):
-            tool_pre = prefix + s.id() + "_"
-            inputs.extend(
-                [
-                    wdl.Input(
-                        wdl.WdlType.parse_type("Int?"), tool_pre + "runtime_memory"
-                    ),
-                    wdl.Input(wdl.WdlType.parse_type("Int?"), tool_pre + "runtime_cpu"),
-                    wdl.Input(
-                        wdl.WdlType.parse_type("String"), tool_pre + "runtime_disks"
-                    ),
-                ]
-            )
-        elif isinstance(tool, Workflow):
-            tool_pre = prefix + s.id()
-            inputs.extend(build_resource_override_maps_for_workflow(tool, tool_pre))
+        tool_pre = (prefix or "") + s.id()
+        inputs.extend(build_resource_override_maps_for_tool(tool, prefix=tool_pre))
 
     return inputs
