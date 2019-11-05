@@ -1469,7 +1469,7 @@ def prepare_env_var_setters(
         val = get_input_value_from_potential_selector_or_generator(
             v, inputsdict=inputsdict, string_environment=True, **debugkwargs
         )
-        statements.append(wdl.Task.Command(f"export {k}={val}"))
+        statements.append(wdl.Task.Command(f"export {k}='{val}'"))
 
     return statements
 
