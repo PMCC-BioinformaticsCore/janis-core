@@ -108,6 +108,9 @@ class TestTool(CommandTool):
     def version():
         return None
 
+    def env_vars(self):
+        return {"test1": InputSelector("testtool")}
+
 
 class TestToolWithSecondaryOutput(TestTool):
     def outputs(self):

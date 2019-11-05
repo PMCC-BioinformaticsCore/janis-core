@@ -237,7 +237,7 @@ class CwlTranslator(TranslatorBase):
 
     @classmethod
     def translate_tool_internal(
-        cls, tool, with_docker=True, with_resource_overrides=False
+        cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
@@ -265,6 +265,19 @@ class CwlTranslator(TranslatorBase):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptReq()])
+
+        envs = tool.env_vars()
+        if envs:
+            lls = [
+                cwlgen.EnvVarRequirement.EnvironmentDef(
+                    k,
+                    get_input_value_from_potential_selector_or_generator(
+                        value=v, code_environment=False, toolid=tool.id()
+                    ),
+                )
+                for k, v in envs.items()
+            ]
+            tool_cwl.requirements.append(cwlgen.EnvVarRequirement(lls))
 
         inputs_that_require_localisation = [
             ti
@@ -680,14 +693,7 @@ def translate_cpu_selector(selector: CpuSelector):
 
 
 def translate_memory_selector(selector: MemorySelector):
-    pre = selector.prefix if selector.prefix else ""
-    suf = selector.suffix if selector.suffix else ""
-
-    val = "$(Math.floor(inputs.runtime_memory))"
-
-    pref = ('"%s" + ' % pre) if pre else ""
-    suff = (' + "%s"' % suf) if suf else ""
-    return pref + val + suff
+    return "$(Math.floor(inputs.runtime_memory))"
 
 
 ## OTHER HELPERS

@@ -321,6 +321,13 @@ class WdlTranslator(TranslatorBase):
         command_ins = cls.build_command_from_inputs(tool.inputs(), inmap)
 
         commands = []
+
+        env = tool.env_vars()
+        if env:
+            commands.extend(
+                prepare_env_var_setters(env, inputsdict=inmap, toolid=tool.id())
+            )
+
         for ti in tool.inputs():
             if ti.localise_file:
                 commands.extend(prepare_move_statement_for_input_to_localise(ti))
@@ -1449,6 +1456,22 @@ def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
             )
         )
     return commands
+
+
+def prepare_env_var_setters(
+    reqs: Dict[str, Any], inputsdict, **debugkwargs
+) -> List[wdl.Task.Command]:
+    if not reqs:
+        return []
+
+    statements = []
+    for k, v in reqs.items():
+        val = get_input_value_from_potential_selector_or_generator(
+            v, inputsdict=inputsdict, string_environment=True, **debugkwargs
+        )
+        statements.append(wdl.Task.Command(f"export {k}={val}"))
+
+    return statements
 
 
 def prepare_move_statement_for_input_to_localise(ti: ToolInput):

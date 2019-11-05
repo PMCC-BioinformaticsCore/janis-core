@@ -102,6 +102,9 @@ class TestTool(CommandTool):
     def version():
         return None
 
+    def env_vars(self):
+        return {"test1": InputSelector("testtool")}
+
 
 class TestToolWithSecondaryOutput(TestTool):
     def outputs(self):
@@ -420,7 +423,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
     def test_escaped_characters(self):
         trans = wdl.WdlTranslator
         translated = trans.translate_tool_internal(TestTool())
-        arg = translated.command[0].arguments[0]
+        arg = translated.command[-1].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 
     def test_string_formatter_optional_inpselect_no_default(self):
@@ -681,6 +684,13 @@ class TestWdlInputTranslation(unittest.TestCase):
     def test_string_optional_default(self):
         s = String(optional=True)
         self.assertEqual("String?", s.wdl(has_default=True).get_string())
+
+
+class TestWdlEnvVar(unittest.TestCase):
+    def test_environment1(self):
+        t = WdlTranslator().translate_tool_internal(tool=TestTool())
+        s = t.get_string()
+        print(s)
 
 
 class TestWdlMaxResources(unittest.TestCase):

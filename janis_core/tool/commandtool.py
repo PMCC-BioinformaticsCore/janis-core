@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Union
 
+from janis_core.types import Selector
+
 from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolTypes, ToolOutput
 from janis_core.enums.supportedtranslations import SupportedTranslation
@@ -64,6 +66,9 @@ class CommandTool(Tool, ABC):
         :return:
         """
         pass
+
+    def env_vars(self) -> Optional[Dict[str, Union[Selector]]]:
+        return None
 
     # Tool versions
 

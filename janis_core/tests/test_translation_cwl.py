@@ -372,6 +372,17 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         self.assertEqual('test:\\\\t:escaped:\\\\n:characters"', arg.valueFrom)
 
 
+class TestCwlEnvVar(unittest.TestCase):
+    def test_environment1(self):
+        t = CwlTranslator().translate_tool_internal(tool=TestTool())
+        envvar: cwlgen.EnvVarRequirement = [
+            t for t in t.requirements if t._req_class == "EnvVarRequirement"
+        ][0]
+        envdef: cwlgen.EnvVarRequirement.EnvironmentDef = envvar.envDef[0]
+        self.assertEqual("test1", envdef.envName)
+        self.assertEqual("$(inputs.testtool)", envdef.envValue)
+
+
 class TestCwlTranslateInput(unittest.TestCase):
     def test_translate_input(self):
         inp = InputNode(
@@ -513,6 +524,10 @@ outputs:
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
+  EnvVarRequirement:
+    envDef:
+    - envName: test1
+      envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
 """
