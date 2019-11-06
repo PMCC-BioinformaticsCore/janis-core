@@ -67,7 +67,7 @@ class CommandTool(Tool, ABC):
         """
         pass
 
-    def env_vars(self) -> Optional[Dict[str, Union[Selector]]]:
+    def env_vars(self) -> Optional[Dict[str, Union[str, Selector]]]:
         return None
 
     # Tool versions
