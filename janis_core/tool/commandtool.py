@@ -4,7 +4,13 @@ from typing import List, Dict, Optional, Any, Union
 
 from janis_core.utils.validators import Validators
 
-from janis_core.types import Selector, Logger, ParseableType, get_instantiated_type
+from janis_core.types import (
+    Selector,
+    Logger,
+    ParseableType,
+    get_instantiated_type,
+    Stdout,
+)
 
 from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
@@ -155,6 +161,12 @@ class ToolOutput:
 
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
+
+        if not glob and not isinstance(self.output_type, Stdout):
+            raise Exception(
+                "ToolOutput expects a glob when the output type is not Stdout"
+            )
+
         self.glob = glob
         self.doc = doc
 
