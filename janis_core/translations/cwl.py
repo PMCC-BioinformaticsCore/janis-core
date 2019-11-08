@@ -27,8 +27,8 @@ import cwlgen
 import ruamel.yaml
 
 from janis_core.graph.steptaginput import full_lbl
-from janis_core.tool.commandtool import CommandTool
-from janis_core.tool.tool import Tool, ToolInput
+from janis_core.tool.commandtool import CommandTool, ToolInput
+from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -536,7 +536,7 @@ def translate_step(
     for k in ins:
         inp = ins[k]
         if k not in step.sources:
-            if inp.input_type.optional or inp.default:
+            if inp.intype.optional or inp.default:
                 continue
             else:
                 raise Exception(
@@ -551,7 +551,7 @@ def translate_step(
         if (
             ss is not None
             and not isinstance(ss, list)
-            and isinstance(inp.input_type, Array)
+            and isinstance(inp.intype, Array)
         ):
             start = edge.source().start
             outssval = start.outputs()
@@ -559,7 +559,7 @@ def translate_step(
                 first_value(outssval)
                 if len(outssval) == 1
                 else outssval[edge.source().stag]
-            ).output_type
+            ).outtype
             # has scattered = isinstance(start, StepNode) and start.scatter
             if not isinstance(source_type, Array) and not (
                 isinstance(start, StepNode) and start.scatter

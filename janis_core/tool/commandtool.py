@@ -1,12 +1,165 @@
+import re
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Union
 
-from janis_core.types import Selector
+from janis_core.utils.validators import Validators
+
+from janis_core.types import Selector, Logger, ParseableType, get_instantiated_type
 
 from janis_core.types.common_data_types import String, Filename
-from janis_core.tool.tool import Tool, ToolArgument, ToolInput, ToolTypes, ToolOutput
+from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
 from janis_core.enums.supportedtranslations import SupportedTranslation
 from janis_core.utils.metadata import ToolMetadata, Metadata
+
+
+class ToolArgument:
+    expr_pattern = "\$\(.*\)"
+
+    def __init__(
+        self,
+        value: Any,
+        prefix: Optional[str] = None,
+        position: Optional[int] = 0,
+        separate_value_from_prefix=None,
+        doc: Optional[str] = None,
+        shell_quote: bool = None,
+    ):
+        """
+        A ``ToolArgument`` is a CLI parameter that cannot be override (at runtime).
+        The value can
+
+
+        :param value:
+        :type value: ``str`` | ``janis.InputSelector`` | ``janis.StringFormatter``
+        :param position: The position of the input to be applied. (Default = 0, after the base_command).
+        :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
+        :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
+        :param doc: Documentation string for the argument, this is used to generate the tool documentation and provide
+        :param shell_quote: Stops shell quotes from being applied in all circumstances, useful when joining multiple commands together.
+        """
+
+        self.prefix: Optional[str] = prefix
+        self.value = value
+        self.position: Optional[int] = position
+        self.is_expression = (
+            isinstance(self.value, Selector)
+            or (re.match(self.expr_pattern, self.value) is not None)
+            if self.value
+            else None
+        )
+        self.separate_value_from_prefix = separate_value_from_prefix
+        self.doc = doc
+        self.shell_quote = shell_quote
+
+        if (
+            self.prefix
+            and self.separate_value_from_prefix is not None
+            and not self.separate_value_from_prefix
+            and not self.prefix.endswith("=")
+        ):
+            # I don't really know what this means.
+            Logger.warn(
+                f"Argument ({self.prefix} {self.value}) is not separating and did not end with ='"
+            )
+
+
+# This should really be a CommandToolInput
+class ToolInput(ToolArgument):
+    def __init__(
+        self,
+        tag: str,
+        input_type: ParseableType,
+        position: Optional[int] = None,
+        prefix: Optional[str] = None,
+        separate_value_from_prefix: bool = None,
+        prefix_applies_to_all_elements: bool = None,
+        separator: str = None,
+        shell_quote: bool = None,
+        localise_file: bool = None,
+        default: Any = None,
+        doc: Optional[str] = None,
+    ):
+        """
+        A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.
+        The ToolInput must have either a position or prefix set to be bound onto the command line.
+
+        :param tag: The identifier of the input (unique to inputs and outputs of a tool)
+        :param input_type: The data type that this input accepts
+        :type input_type: ``janis.ParseableType``
+        :param position: The position of the input to be applied. (Default = 0, after the base_command).
+        :param prefix: The prefix to be appended before the element. (By default, a space will also be applied, see ``separate_value_from_prefix`` for more information)
+        :param separate_value_from_prefix: (Default: True) Add a space between the prefix and value when ``True``.
+        :param prefix_applies_to_all_elements: Applies the prefix to each element of the array (Array inputs only)
+        :param shell_quote: Stops shell quotes from being applied in all circumstances, useful when joining multiple commands together.
+        :param separator: The separator between each element of an array (defaults to ' ')
+        :param localise_file: Ensures that the file(s) are localised into the execution directory.
+        :param default: The default value to be applied if the input is not defined.
+        :param doc: Documentation string for the ToolInput, this is used to generate the tool documentation and provide
+        hints to the user.
+        """
+        super().__init__(
+            value=None,
+            prefix=prefix,
+            position=position,
+            separate_value_from_prefix=separate_value_from_prefix,
+            doc=doc,
+            shell_quote=shell_quote,
+        )
+
+        # if default is not None:
+        #     input_type.optional = True
+
+        if not Validators.validate_identifier(tag):
+            raise Exception(
+                f"The identifier '{tag}' was not validated because {Validators.reason_for_failure(tag)}"
+            )
+
+        self.tag: str = tag
+        self.input_type: ParseableType = get_instantiated_type(input_type)
+        self.default = default
+        self.prefix_applies_to_all_elements = prefix_applies_to_all_elements
+        self.separator = separator
+        self.localise_file = localise_file
+
+        # if isinstance(input_type, Array):
+        #     if self.prefix_applies_to_all_elements is None and self.separator is None:
+        # self.separator = " "
+
+    def id(self):
+        return self.tag
+
+
+# This should really be a CommandToolOutput
+class ToolOutput:
+    def __init__(
+        self,
+        tag: str,
+        output_type: ParseableType,
+        glob: Optional[Union[Selector, str]] = None,
+        doc: Optional[str] = None,
+    ):
+        """
+        A ToolOutput instructs the the engine how to collect an output and how
+        it may be referenced in a workflow.
+
+        :param tag: The identifier of a output, must be unique in the inputs and outputs.
+        :param output_type: The type of output that is being collected.
+        :param glob: How to collect this output, can accept any :class:`janis.Selector`.
+        :param doc: Documentation on what the output is, used to generate docs.
+        """
+
+        if not Validators.validate_identifier(tag):
+            raise Exception(
+                f"The identifier '{tag}' was invalid because {Validators.reason_for_failure(tag)}"
+            )
+
+        self.tag = tag
+        self.output_type: ParseableType = get_instantiated_type(output_type)
+        self.glob = glob
+        self.doc = doc
+
+    def id(self):
+        return self.tag
 
 
 class CommandTool(Tool, ABC):
@@ -157,6 +310,12 @@ class CommandTool(Tool, ABC):
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
         )
+
+    def tool_inputs(self) -> List[TInput]:
+        return [TInput(t.id(), t.input_type, default=t.default) for t in self.inputs()]
+
+    def tool_outputs(self) -> List[TOutput]:
+        return [TOutput(t.id(), t.output_type) for t in self.outputs()]
 
     def help(self):
         import inspect

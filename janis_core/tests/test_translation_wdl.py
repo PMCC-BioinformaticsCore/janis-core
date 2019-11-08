@@ -556,8 +556,9 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         tool = TestToolWithSecondaryOutput()
         toolout = tool.outputs()[0]
+        inmap = {t.id(): t for t in tool.inputs()}
         os = wdl.translate_output_node_with_glob(
-            toolout, toolout.glob, tool.inputs_map(), toolId=tool.id()
+            toolout, toolout.glob, inmap, toolId=tool.id()
         )
 
         self.assertEqual("out", os[0].name)

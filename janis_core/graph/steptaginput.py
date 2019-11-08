@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 
 from janis_core.graph.node import Node, NodeTypes
-from janis_core.tool.tool import ToolOutput, ToolInput
+from janis_core.tool.tool import TInput, TOutput
 from janis_core.types.common_data_types import Array
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
@@ -68,15 +68,15 @@ class Edge:
     def check_types(self):
         from janis_core.workflow.workflow import InputNode, StepNode
 
-        stoolin: ToolOutput = self.start.outputs()[
+        stoolin: TOutput = self.start.outputs()[
             self.stag
         ] if self.stag is not None else first_value(self.start.outputs())
-        ftoolin: ToolInput = self.finish.inputs()[
+        ftoolin: TInput = self.finish.inputs()[
             self.ftag
         ] if self.ftag is not None else first_value(self.finish.inputs())
 
-        stype = stoolin.output_type
-        ftype = ftoolin.input_type
+        stype = stoolin.outtype
+        ftype = ftoolin.intype
 
         start_is_scattered = (
             isinstance(self.start, StepNode) and self.start.scatter is not None
@@ -115,7 +115,7 @@ class Edge:
             f = full_dot(self.finish, self.ftag)
             message = (
                 f"Mismatch of types when joining '{s}' to '{f}': "
-                f"{stoolin.output_type.id()} -/→ {ftoolin.input_type.id()}"
+                f"{stoolin.outtype.id()} -/→ {ftoolin.intype.id()}"
             )
             if isinstance(stype, Array) and ftype.can_receive_from(stype.subtype()):
                 message += " (did you forget to SCATTER?)"
@@ -151,12 +151,12 @@ class StepTagInput:
 
         stype = (
             start.outputs()[stag] if stag is not None else first_value(start.outputs())
-        ).output_type
+        ).outtype
         ftype = (
             self.finish.inputs()[self.ftag]
             if self.ftag is not None
             else first_value(self.finish.inputs())
-        ).input_type
+        ).intype
 
         start_is_scattered = isinstance(start, StepNode) and start.scatter is not None
 

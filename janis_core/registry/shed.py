@@ -10,12 +10,18 @@ from janis_core.registry.registry import TaggedRegistry, Registry
 
 
 class JanisShed:
+    _byclassname = Registry()
     _toolshed = TaggedRegistry("latest")
     _typeshed = Registry()
 
     _has_been_hydrated = False
 
     # getters
+
+    @staticmethod
+    def get_by_class_name(name: str):
+        JanisShed.hydrate()
+        return JanisShed._byclassname.get(name)
 
     @staticmethod
     def get_tool(tool: str, version: str = None):
@@ -49,10 +55,12 @@ class JanisShed:
             Logger.critical(t)
             return False
 
+        JanisShed._byclassname.register(tool.__class__.__name__, tool)
         return JanisShed._toolshed.register(tool.id().lower(), v.lower(), tool)
 
     @staticmethod
     def add_type(datatype: Type[DataType]) -> bool:
+        JanisShed._byclassname.register(datatype.__name__, datatype)
         return JanisShed._typeshed.register(datatype.name().lower(), datatype)
 
     @staticmethod

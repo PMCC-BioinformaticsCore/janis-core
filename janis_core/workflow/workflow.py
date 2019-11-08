@@ -19,7 +19,7 @@ from janis_core.types import (
     InputSelector,
     Filename,
 )
-from janis_core.tool.tool import Tool, ToolType, ToolTypes, ToolInput, ToolOutput
+from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils.scatter import ScatterDescription
@@ -71,9 +71,9 @@ class InputNode(Node):
         self.doc = doc
         self.value = value
 
-    def outputs(self) -> Dict[str, ToolOutput]:
+    def outputs(self) -> Dict[str, TOutput]:
         # Program will just grab first value anyway
-        return {None: ToolOutput(self.identifier, self.datatype)}
+        return {None: TOutput(self.identifier, self.datatype)}
 
     def inputs(self):
         return None
@@ -168,7 +168,7 @@ class OutputNode(Node):
                 f"Unsupported connection type: {NodeTypes.OUTPUT} → {source[0].node_type}"
             )
 
-        stype = source[0].outputs()[source[1]].output_type
+        stype = source[0].outputs()[source[1]].outtype
         snode = source[0]
         if isinstance(snode, StepNode) and snode.scatter:
             stype = Array(stype)
@@ -184,9 +184,9 @@ class OutputNode(Node):
         self.output_tag = output_tag
         self.output_prefix = output_prefix
 
-    def inputs(self) -> Dict[str, ToolInput]:
+    def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
-        return {None: ToolInput(self.identifier, self.datatype)}
+        return {None: TInput(self.identifier, self.datatype)}
 
     def outputs(self):
         return None
@@ -318,7 +318,7 @@ class Workflow(Tool):
 
         node, tag = verify_or_try_get_source(source)
         if not datatype:
-            datatype: DataType = node.outputs()[tag].output_type.received_type()
+            datatype: DataType = node.outputs()[tag].outtype.received_type()
 
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
@@ -432,7 +432,7 @@ class Workflow(Tool):
             # The input is optional if it's optional or has default)
             i
             for i, v in inputs.items()
-            if not (v.input_type.optional or v.default is not None)
+            if not (v.intype.optional or v.default is not None)
         )
 
         if not provided_keys.issubset(all_keys):
@@ -459,9 +459,7 @@ class Workflow(Tool):
             isfilename = isinstance(v, Filename)
             if is_python_primitive(v) or isfilename:
                 inp_identifier = f"{identifier}_{k}"
-                referencedtype = (
-                    copy.copy(inputs[k].input_type) if not isfilename else v
-                )
+                referencedtype = copy.copy(inputs[k].intype) if not isfilename else v
                 parsed_type = get_instantiated_type(v)
 
                 if parsed_type and not referencedtype.can_receive_from(parsed_type):
@@ -479,7 +477,7 @@ class Workflow(Tool):
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(inp_identifier, inputs[k].input_type, default=v)
+                v = self.input(inp_identifier, inputs[k].intype, default=v)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
@@ -522,21 +520,21 @@ class Workflow(Tool):
     def type(cls) -> ToolType:
         return ToolTypes.Workflow
 
-    def inputs(self) -> List[ToolInput]:
+    def tool_inputs(self) -> List[TInput]:
         """
         List of ToolInputs of the workflow, we can toss out most of the metadata
         about positioning, prefixes, etc that the ToolInput class uses
         """
         return [
-            ToolInput(i.id(), i.datatype, default=i.default)
+            TInput(i.id(), i.datatype, default=i.default)
             for i in self.input_nodes.values()
         ]
 
-    def outputs(self) -> List[ToolOutput]:
+    def tool_outputs(self) -> List[TOutput]:
         """
         Similar to inputs, return a list of ToolOutputs of the workflow
         """
-        return [ToolOutput(i.id(), i.datatype) for i in self.output_nodes.values()]
+        return [TOutput(i.id(), i.datatype) for i in self.output_nodes.values()]
 
     @staticmethod
     def version():

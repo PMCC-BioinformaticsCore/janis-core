@@ -6,7 +6,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Any
 
-from janis_core.tool.tool import ToolInput, ToolOutput
+from janis_core.tool.tool import TInput, TOutput
 
 NodeLabel = str
 NodeType = int
@@ -81,13 +81,13 @@ class Node(ABC):
         return False
 
     @abstractmethod
-    def inputs(self) -> Dict[str, ToolInput]:
+    def inputs(self) -> Dict[str, TInput]:
         raise Exception(
             f"Subclass {type(self)} must implement inputs, return dict: key: ToolInput"
         )
 
     @abstractmethod
-    def outputs(self) -> Dict[str, ToolOutput]:
+    def outputs(self) -> Dict[str, TOutput]:
         raise Exception(
             f"Subclass {type(self)} must implement outputs, return dict: key: ToolOutput"
         )

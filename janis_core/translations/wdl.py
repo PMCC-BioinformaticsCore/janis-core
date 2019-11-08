@@ -25,8 +25,8 @@ import wdlgen as wdl
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
-from janis_core.tool.commandtool import CommandTool
-from janis_core.tool.tool import Tool, ToolInput, ToolArgument, ToolOutput
+from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
+from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -798,7 +798,7 @@ def translate_step_node(
     missing_keys = [
         k
         for k in ins.keys()
-        if k not in node.sources and not (ins[k].input_type.optional or ins[k].default)
+        if k not in node.sources and not (ins[k].intype.optional or ins[k].default)
     ]
     if missing_keys:
         raise Exception(
@@ -894,9 +894,9 @@ def translate_step_node(
                 inputs_map[k] = ds
                 f = edge.finish.inputs()[edge.ftag]
                 secs = (
-                    f.input_type.subtype().secondary_files()
-                    if isinstance(f.input_type, Array)
-                    else f.input_type.secondary_files()
+                    f.intype.subtype().secondary_files()
+                    if isinstance(f.intype, Array)
+                    else f.intype.secondary_files()
                 )
                 if secs:
                     for sec in secs:
@@ -911,11 +911,11 @@ def translate_step_node(
                 continue
 
         elif source:
-            it = source.finish.inputs()[source.ftag].input_type
+            it = source.finish.inputs()[source.ftag].intype
             if source.stag:
-                ot = source.start.outputs()[source.stag].output_type
+                ot = source.start.outputs()[source.stag].outtype
             else:
-                ot = first_value(source.start.outputs()).output_type
+                ot = first_value(source.start.outputs()).outtype
             if (
                 isinstance(it, Array)
                 and not isinstance(ot, Array)
@@ -926,7 +926,7 @@ def translate_step_node(
         # We're connecting to another step
         if source and isinstance(source.finish, StepNode) and source.ftag:
 
-            it = source.finish.inputs()[source.ftag].input_type
+            it = source.finish.inputs()[source.ftag].intype
 
             secondary = (
                 it.subtype().secondary_files()
@@ -935,7 +935,7 @@ def translate_step_node(
             )
             if secondary and isinstance(source.start, StepNode) and source.stag:
 
-                ot = source.start.outputs()[source.stag].output_type
+                ot = source.start.outputs()[source.stag].outtype
 
                 sec_out = set(
                     value_or_default(
@@ -1151,7 +1151,7 @@ def wrap_scatter_call(
 
     insource_ar = []
     for s in scatterable:
-        secondary = s.finish.tool.inputs_map()[s.ftag].input_type.secondary_files()
+        secondary = s.finish.tool.inputs_map()[s.ftag].intype.secondary_files()
         if secondary:
             ds = s.dotted_source()
             joined_tags = ", ".join(
