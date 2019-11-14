@@ -241,9 +241,9 @@ class CwlTranslator(TranslatorBase):
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
-            o.output_type
-            for o in tool.outputs()
-            if isinstance(o.output_type, Stdout) and o.output_type.stdoutname
+            o.outtype
+            for o in tool.tool_outputs()
+            if isinstance(o.outtype, Stdout) and o.outtype.stdoutname
         ]
         stdout = stdouts[0].stdoutname if len(stdouts) > 0 else None
 
@@ -528,7 +528,7 @@ def translate_step(
     )
 
     cwlstep.out = [
-        cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.tool.outputs()
+        cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.tool.tool_outputs()
     ]
 
     ins = step.inputs()
