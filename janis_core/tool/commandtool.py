@@ -329,6 +329,13 @@ class CommandTool(Tool, ABC):
     def tool_outputs(self) -> List[TOutput]:
         return [TOutput(t.id(), t.output_type) for t in self.outputs()]
 
+    def all_input_keys(self):
+        return super().all_input_keys() + [
+            "runtime_memory",
+            "runtime_cpu",
+            "runtime_disks",
+        ]
+
     def help(self):
         import inspect
 

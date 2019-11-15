@@ -99,6 +99,9 @@ class Tool(ABC, object):
         """
         return None
 
+    def all_input_keys(self) -> List[str]:
+        return [t.id() for t in self.tool_inputs()]
+
     @abstractmethod
     def generate_inputs_override(
         self, additional_inputs=None, with_resource_overrides=False, hints=None

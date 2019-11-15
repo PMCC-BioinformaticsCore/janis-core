@@ -344,6 +344,13 @@ class Workflow(Tool):
         self.output_nodes[identifier] = otp
         return otp
 
+    def all_input_keys(self):
+        from janis_core.translations.translationbase import TranslatorBase
+
+        return super().all_input_keys() + list(
+            TranslatorBase.build_resources_input(workflow=self, hints={}).keys()
+        )
+
     def verify_output_source_type(
         self,
         identifier,
