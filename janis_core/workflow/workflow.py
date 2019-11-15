@@ -392,10 +392,11 @@ class Workflow(Tool):
         ignore_missing=False,
     ):
         """
-        Method to do
-        :param identifier:
-        :param tool:
-        :param scatter: Indicate whether a scatter should occur, on what, and how
+        Construct a step on this workflow.
+
+        :param identifier: The identifier of the step, unique within the workflow.
+        :param tool: The tool that should run for this step.
+        :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
