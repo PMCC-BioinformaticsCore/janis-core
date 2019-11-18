@@ -51,7 +51,7 @@ setup(
     packages=["janis_core"]
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
-        "cwlgen >= 0.3.0",
+        "cwlgen >= 0.4.0",
         "illusional.wdlgen >= 0.2.5",
         "ruamel.yaml >= 0.12.4, <= 0.15.77",
         "tabulate",
