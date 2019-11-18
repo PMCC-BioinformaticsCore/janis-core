@@ -494,6 +494,50 @@ class Stdout(File):
         return None
 
 
+class Stderr(File):
+    @staticmethod
+    def name():
+        return "Stderr"
+
+    def __init__(self, subtype=None, stderrname=None):
+        super().__init__(optional=False)
+
+        subtype = get_instantiated_type(subtype) if subtype is not None else File()
+
+        if subtype and not isinstance(subtype, File):
+            raise Exception(
+                "Janis does not currently support non-File stderr annotations"
+            )
+
+        self.stderrname = stderrname
+        self.subtype = subtype
+
+        if self.subtype.secondary_files():
+            raise Exception(
+                f"The subtype '{self.subtype.__name__}' has secondary files, "
+                f"but stderr does not have the ability to collect files"
+            )
+
+    @staticmethod
+    def primitive():
+        return NativeTypes.kStderr
+
+    def id(self):
+        return f"stderr<{self.subtype.id()}>"
+
+    def received_type(self):
+        return self.subtype
+
+    def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
+        """
+        Will always toss away the value
+        """
+        return True
+
+    def invalid_value_hint(self, meta):
+        return None
+
+
 all_types = [
     String,
     Filename,

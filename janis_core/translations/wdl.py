@@ -38,6 +38,7 @@ from janis_core.types import (
 )
 from janis_core.types.common_data_types import (
     Stdout,
+    Stderr,
     Array,
     Boolean,
     Filename,
@@ -541,6 +542,10 @@ def translate_output_node_with_glob(
 ) -> List[wdl.Output]:
     if isinstance(o.output_type, Stdout):
         base_expression = "stdout()"
+        return [wdl.Output(o.output_type.wdl(), o.id(), base_expression)]
+
+    if isinstance(o.output_type, Stderr):
+        base_expression = "stderr()"
         return [wdl.Output(o.output_type.wdl(), o.id(), base_expression)]
 
     elif isinstance(glob, InputSelector):

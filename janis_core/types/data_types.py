@@ -44,9 +44,10 @@ class NativeTypes:
     kDirectory: NativeType = "dir"
     kArray: NativeType = "array"
     kStdout: NativeType = "stdout"
+    kStderr: NativeType = "stderr"
 
     _primitives: List[NativeType] = [kStr, kInt, kFloat, kLong, kDouble, kBool, kDouble]
-    all: List[NativeType] = _primitives + [kFile, kDirectory, kArray]
+    all: List[NativeType] = _primitives + [kFile, kDirectory, kArray, kStdout, kStderr]
 
     @staticmethod
     def is_primitive(t: NativeType) -> bool:
@@ -78,6 +79,8 @@ class NativeTypes:
             return cwl.CwlTypes.ARRAY
         elif t == NativeTypes.kStdout:
             return cwl.CwlTypes.STDOUT
+        elif t == NativeTypes.kStderr:
+            return cwl.CwlTypes.STDERR
         raise Exception(
             f"Unhandled primitive type {t}, expected one of {', '.join(NativeTypes.all)}"
         )
@@ -102,6 +105,8 @@ class NativeTypes:
         elif t == NativeTypes.kFile:
             return wdl.PrimitiveType.kFile
         elif t == NativeTypes.kStdout:
+            return wdl.PrimitiveType.kFile
+        elif t == NativeTypes.kStderr:
             return wdl.PrimitiveType.kFile
         elif t == NativeTypes.kDirectory:
             Logger.log(

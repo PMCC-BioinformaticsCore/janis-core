@@ -53,6 +53,7 @@ from janis_core.types.common_data_types import (
     Array,
     Filename,
     Stdout,
+    Stderr,
 )
 from janis_core.types.data_types import DataType
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple

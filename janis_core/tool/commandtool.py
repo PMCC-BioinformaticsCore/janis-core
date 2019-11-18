@@ -10,6 +10,7 @@ from janis_core.types import (
     ParseableType,
     get_instantiated_type,
     Stdout,
+    Stderr,
 )
 
 from janis_core.types.common_data_types import String, Filename
@@ -162,9 +163,11 @@ class ToolOutput:
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
 
-        if not glob and not isinstance(self.output_type, Stdout):
+        if not glob and not (
+            isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
+        ):
             raise Exception(
-                "ToolOutput expects a glob when the output type is not Stdout"
+                "ToolOutput expects a glob when the output type is not Stdout / Stderr"
             )
 
         self.glob = glob

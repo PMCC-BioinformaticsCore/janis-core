@@ -38,7 +38,7 @@ from janis_core.types import (
     CpuSelector,
     StringFormatter,
 )
-from janis_core.types.common_data_types import Stdout, Array, File, Filename
+from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
@@ -115,7 +115,7 @@ class CwlTranslator(TranslatorBase):
 
         w.outputs = [translate_output_node(o) for o in wf.output_nodes.values()]
 
-        w.requirements.append(cwlgen.InlineJavascriptReq())
+        w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
 
         if wf.has_scatter:
@@ -245,10 +245,19 @@ class CwlTranslator(TranslatorBase):
             for o in tool.tool_outputs()
             if isinstance(o.outtype, Stdout) and o.outtype.stdoutname
         ]
+        stderrs = [
+            o.outtype
+            for o in tool.tool_outputs()
+            if isinstance(o.outtype, Stderr) and o.outtype.stderrname
+        ]
         stdout = stdouts[0].stdoutname if len(stdouts) > 0 else None
+        stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
         if isinstance(stdout, InputSelector):
             stdout = translate_input_selector(stdout, code_environment=False)
+
+        if isinstance(stderr, InputSelector):
+            stderr = translate_input_selector(stderr, code_environment=False)
 
         tool_cwl = cwlgen.CommandLineTool(
             tool_id=tool.id(),
@@ -257,14 +266,14 @@ class CwlTranslator(TranslatorBase):
             doc=metadata.documentation,
             cwl_version=CWL_VERSION,
             stdin=None,
-            stderr=None,
+            stderr=stderr,
             stdout=stdout,
         )
 
         # if any(not i.shell_quote for i in tool.inputs()):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
-        tool_cwl.requirements.extend([cwlgen.InlineJavascriptReq()])
+        tool_cwl.requirements.extend([cwlgen.InlineJavascriptRequirement()])
 
         envs = tool.env_vars()
         if envs:
