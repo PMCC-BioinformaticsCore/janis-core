@@ -26,7 +26,7 @@ from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterM
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
-from janis_core.tool.tool import Tool
+from janis_core.tool.tool import Tool, TOutput
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -871,13 +871,13 @@ def translate_step_node(
 
                 unique_types = set()
                 for x in edge.source():
-                    t = (
+                    t: TOutput = (
                         first_value(x.start.outputs())
                         if not x.stag
                         else x.start.outputs()[x.stag]
                     )
 
-                    unique_types.update(t.output_type.secondary_files() or [""])
+                    unique_types.update(t.outtype.secondary_files() or [""])
                 if len(unique_types) > 1:
                     multiple_sources_failure_reasons.append(
                         f"has {len(unique_types)} different DataTypes with varying secondaries"
