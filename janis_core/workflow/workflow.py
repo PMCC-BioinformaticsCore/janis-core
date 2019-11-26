@@ -534,7 +534,7 @@ class Workflow(Tool):
         about positioning, prefixes, etc that the ToolInput class uses
         """
         return [
-            TInput(i.id(), i.datatype, default=i.default)
+            TInput(i.id(), i.datatype, default=i.default, doc=i.doc)
             for i in self.input_nodes.values()
         ]
 
@@ -542,7 +542,9 @@ class Workflow(Tool):
         """
         Similar to inputs, return a list of ToolOutputs of the workflow
         """
-        return [TOutput(i.id(), i.datatype) for i in self.output_nodes.values()]
+        return [
+            TOutput(o.id(), o.datatype, doc=o.doc) for o in self.output_nodes.values()
+        ]
 
     @staticmethod
     def version():

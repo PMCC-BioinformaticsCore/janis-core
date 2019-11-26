@@ -23,19 +23,21 @@ class ToolTypes:
 
 
 class TInput(object):
-    def __init__(self, tag: str, intype: DataType, default=None):
+    def __init__(self, tag: str, intype: DataType, default=None, doc: str = None):
         self.tag = tag
         self.intype = intype
         self.default = default
+        self.doc = doc
 
     def id(self):
         return self.tag
 
 
 class TOutput(object):
-    def __init__(self, tag, outtype):
+    def __init__(self, tag, outtype, doc: str = None):
         self.tag = tag
         self.outtype = outtype
+        self.doc = doc
 
     def id(self):
         return self.tag

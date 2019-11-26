@@ -327,10 +327,13 @@ class CommandTool(Tool, ABC):
         )
 
     def tool_inputs(self) -> List[TInput]:
-        return [TInput(t.id(), t.input_type, default=t.default) for t in self.inputs()]
+        return [
+            TInput(t.id(), t.input_type, default=t.default, doc=t.doc)
+            for t in self.inputs()
+        ]
 
     def tool_outputs(self) -> List[TOutput]:
-        return [TOutput(t.id(), t.output_type) for t in self.outputs()]
+        return [TOutput(t.id(), t.output_type, doc=t.doc) for t in self.outputs()]
 
     def all_input_keys(self):
         return super().all_input_keys() + [
