@@ -447,7 +447,21 @@ class Array(DataType):
         if not isinstance(meta, list):
             return f"Value was of type {type(meta)}, expected type Array<{self.subtype().id()}>"
 
-        return ", ".join({self.subtype().invalid_value_hint(m) for m in meta})
+        hints = []
+        st = self.subtype()
+        for i in range(len(meta)):
+            hint = st.invalid_value_hint(meta[i])
+            if not hint:
+                continue
+            hints.append(f"{i}. {hint}")
+
+        return str(hints)
+
+    def parse_value(self, valuetoparse):
+        if not isinstance(valuetoparse, list):
+            valuetoparse = [valuetoparse]
+
+        return [self.subtype().parse_value(v) for v in valuetoparse]
 
 
 class Stdout(File):

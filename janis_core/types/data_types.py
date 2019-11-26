@@ -185,8 +185,9 @@ class DataType(ABC):
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         pass
 
+    @abstractmethod
     def invalid_value_hint(self, meta):
-        return None
+        pass
 
     def identify(self):
         print(self.id())
@@ -264,6 +265,13 @@ class DataType(ABC):
     def wdl(self, has_default=False) -> WdlType:
         qm = self._question_mark_if_optional(has_default)
         return WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()) + qm)
+
+    def parse_value(self, valuetoparse):
+        """
+        Sometimes it's useful for a value to be parsed if possible by this class.
+        Eg, number, or arrays.
+        """
+        return valuetoparse
 
     # def default(self):
     #     return self.default_value
