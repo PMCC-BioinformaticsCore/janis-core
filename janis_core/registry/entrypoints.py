@@ -44,3 +44,11 @@ TOOLS = "janis.tools"
     They are also rendered slightly differently.
 """
 PIPELINES = "janis.pipelines"
+
+
+"""
+    Templates used by the janis-assistant for running can be extended by providing one
+    additional template per entry point. The name of entry point will be used as the
+    corresponding key, and these WILL override internal templates.
+"""
+TEMPLATES = "janis.templates"
