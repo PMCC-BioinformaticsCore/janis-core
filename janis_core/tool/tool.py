@@ -70,12 +70,10 @@ class Tool(ABC, object):
     def id(self) -> str:
         raise Exception("Must implement id() method")
 
-    @staticmethod
-    def tool_module():
+    def tool_module(self):
         return None
 
-    @staticmethod
-    def tool_provider():
+    def tool_provider(self):
         return None
 
     @abstractmethod
@@ -114,9 +112,8 @@ class Tool(ABC, object):
         self.connections = connections
         return self
 
-    @staticmethod
     @abstractmethod
-    def version():
+    def version(self):
         return None
 
     def doc(self) -> Optional[str]:

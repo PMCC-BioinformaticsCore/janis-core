@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, Callable
 
 from janis_core.utils.validators import Validators
 
@@ -187,18 +187,16 @@ class CommandTool(Tool, ABC):
         super().__init__(metadata_class=ToolMetadata, **connections)
 
     # Tool base
-    @staticmethod
     @abstractmethod
-    def tool() -> str:
+    def tool(self) -> str:
         """
         Unique identifier of the tool
         :return:
         """
         pass
 
-    @staticmethod
     @abstractmethod
-    def base_command() -> Optional[Union[str, List[str]]]:
+    def base_command(self) -> Optional[Union[str, List[str]]]:
         """
         The command of the tool to execute, usually the tool name or path and not related to any inputs.
         This field will always come before any inputs or arguments, though it's possible to omit this
@@ -240,18 +238,16 @@ class CommandTool(Tool, ABC):
 
     # Tool versions
 
-    @staticmethod
     @abstractmethod
-    def container() -> str:
+    def container(self) -> str:
         """
         A link to an OCI compliant container accessible by your engine. Previously, docker().
         :return: str
         """
         pass
 
-    @staticmethod
     @abstractmethod
-    def version() -> str:
+    def version(self) -> str:
         """
         Version of the tool. Janis supports multiple versions of tools with the same ``.tool()`` value.
         The recommended format is `SemVer <https://semver.org/>`_, though you should reflect the tool version.
@@ -264,15 +260,13 @@ class CommandTool(Tool, ABC):
     def id(self):
         return self.tool()
 
-    @classmethod
-    def __hash__(cls):
-        return cls.tool()
+    def __hash__(self):
+        return self.tool()
 
-    @classmethod
-    def full_name(cls):
-        if cls.version() is not None:
-            return f"{cls.tool()}/{cls.version()}"
-        return cls.tool()
+    def full_name(self):
+        if self.version() is not None:
+            return f"{self.tool()}/{self.version()}"
+        return self.tool()
 
     def memory(self, hints: Dict[str, Any]) -> Optional[float]:
         """
@@ -479,3 +473,74 @@ OUTPUTS:
             wf.output(o.id(), source=stp[o.id()])
 
         return wf
+
+
+class CommandToolBuilder(CommandTool):
+    def tool(self) -> str:
+        return self._tool
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return self._base_command
+
+    def inputs(self) -> List[ToolInput]:
+        return self._inputs
+
+    def outputs(self) -> List[ToolOutput]:
+        return self._outputs
+
+    def container(self) -> str:
+        return self._container
+
+    def version(self) -> str:
+        return self._version
+
+    def cpus(self, hints: Dict[str, Any]):
+        if self._cpu is None:
+            return None
+        if isinstance(self._cpu, int) or isinstance(self._cpu, float):
+            return self._cpu
+
+        if callable(self._cpu):
+            return self._cpu(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._cpu)} as a valid CPU type"
+        )
+
+    def memory(self, hints: Dict[str, Any]):
+        if self._memory is None:
+            return None
+        if isinstance(self._memory, int) or isinstance(self._memory, float):
+            return self._memory
+
+        if callable(self._memory):
+            return self._memory(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._memory)} as a valid memory type"
+        )
+
+    def __init__(
+        self,
+        tool: str,
+        base_command: Optional[Union[str, List[str]]],
+        inputs: List[ToolInput],
+        outputs: List[ToolOutput],
+        container: str,
+        version: str,
+        metadata: ToolMetadata = None,
+        cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
+    ):
+
+        super().__init__()
+
+        self._tool = tool
+        self._base_command = base_command
+        self._inputs = inputs
+        self._outputs = outputs
+        self._container = container
+        self._version = version
+        self._metadata = metadata
+        self._cpu = cpu
+        self._memory = memory
