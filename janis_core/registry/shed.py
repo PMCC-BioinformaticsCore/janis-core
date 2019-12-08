@@ -10,6 +10,9 @@ from janis_core.registry.registry import TaggedRegistry, Registry
 
 
 class JanisShed:
+
+    MAX_RECURSION_DEPTH = 4
+
     _byclassname = Registry()
     _toolshed = TaggedRegistry("latest")
     _typeshed = Registry()
@@ -119,7 +122,7 @@ class JanisShed:
         return ep
 
     @staticmethod
-    def traverse_module(module, seen_modules: set, seen_classes: set):
+    def traverse_module(module, seen_modules: set, seen_classes: set, current_layer=1):
         if module.__name__ in seen_modules:
             return
 
@@ -131,21 +134,25 @@ class JanisShed:
             if not n.startswith("__")
             and type(cls) != type
             and not (ismodule(cls) and cls.__name__ in seen_modules)
-            and not (isclass(cls) and cls in seen_classes)
+            and not (cls in seen_classes)
         }
 
         for k in q:
             cls = q[k]
-            JanisShed.process_cls(cls, seen_modules, seen_classes)
+            JanisShed.process_cls(cls, seen_modules, seen_classes, current_layer)
 
     @staticmethod
-    def process_cls(cls, seen_modules, seen_classes: set):
+    def process_cls(cls, seen_modules, seen_classes: set, current_layer: int):
         try:
             if ismodule(cls):
-                return JanisShed.traverse_module(cls, seen_modules, seen_classes)
+                if current_layer <= JanisShed.MAX_RECURSION_DEPTH:
+                    return JanisShed.traverse_module(
+                        cls, seen_modules, seen_classes, current_layer=current_layer + 1
+                    )
+                return Logger.log(
+                    f"Skip traversing module '{str(cls)}' as reached maximum depth ({JanisShed.MAX_RECURSION_DEPTH})"
+                )
             elif isfunction(cls) or isabstract(cls):
-                return
-            elif not isclass(cls):
                 return
 
             seen_classes.add(cls)
@@ -154,10 +161,12 @@ class JanisShed:
                 return JanisShed.add_type(cls)
             elif not hasattr(cls, "type") or not callable(cls.type):
                 return
-            elif cls.type() == ToolTypes.Workflow:
-                return JanisShed.add_tool(cls())
+
+            ic = cls() if isclass(cls) else cls
+            if cls.type() == ToolTypes.Workflow:
+                return JanisShed.add_tool(ic)
             elif cls.type() == ToolTypes.CommandTool:
-                return JanisShed.add_tool(cls())
+                return JanisShed.add_tool(ic)
 
         except Exception as e:
             Logger.log(f"{str(e)} for type {type(cls)}")
