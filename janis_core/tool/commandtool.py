@@ -341,6 +341,7 @@ class CommandTool(Tool, ABC):
     def help(self):
         import inspect
 
+        tb = " " * 4
         path = inspect.getfile(self.__class__)
 
         ins = sorted(
@@ -382,12 +383,12 @@ class CommandTool(Tool, ABC):
                     else t.prefix
                 )
             return (
-                f"\t\t{t.tag} ({prefix_with_space}{t.input_type.id()}{('=' + str(t.default)) if t.default is not None else ''})"
+                f"{2 * tb}{t.tag} ({prefix_with_space}{t.input_type.id()}{('=' + str(t.default)) if t.default is not None else ''})"
                 f": {'' if t.doc is None else t.doc}"
             )
 
         output_format = (
-            lambda t: f"\t\t{t.tag} ({t.output_type.id()}): {'' if t.doc is None else t.doc}"
+            lambda t: f"{2 * tb}{t.tag} ({t.output_type.id()}): {'' if t.doc is None else t.doc}"
         )
 
         requiredInputs = "\n".join(

@@ -133,3 +133,52 @@ class Tool(ABC, object):
         :return:
         """
         return self.metadata
+
+    def help(self):
+        import inspect
+
+        tb = " " * 4
+
+        path = inspect.getfile(self.__class__)
+
+        ins = self.tool_inputs()
+
+        metadata = self.metadata
+
+        def input_format(t: TInput):
+            return (
+                f"{2 * tb}{t.id()} ({t.intype.id()}{('=' + str(t.default)) if t.default is not None else ''})"
+                f": {'' if t.doc is None else t.doc}"
+            )
+
+        output_format = (
+            lambda t: f"{2 * tb}{t.id()} ({t.outtype.id()}): {'' if t.doc is None else t.doc}"
+        )
+
+        requiredInputs = "\n".join(
+            input_format(x) for x in ins if not x.intype.optional
+        )
+        optionalInputs = "\n".join(input_format(x) for x in ins if x.intype.optional)
+        outputs = "\n".join(output_format(o) for o in self.tool_outputs())
+
+        return f"""
+Pipeline tool: {path} ({self.id()})
+NAME
+    {self.id()} ({self.friendly_name()})
+
+DOCUMENTATION URL
+    {metadata.documentationUrl if metadata.documentationUrl else "No url provided"}
+
+DESCRIPTION
+    {metadata.documentation if metadata.documentation else "No documentation provided"}
+
+INPUTS:
+    REQUIRED:
+{requiredInputs}
+
+    OPTIONAL:
+{optionalInputs}
+
+OUTPUTS:
+{outputs}
+"""
