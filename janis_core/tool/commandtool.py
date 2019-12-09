@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, Callable
 
 from janis_core.utils.validators import Validators
 
@@ -181,24 +181,24 @@ class CommandTool(Tool, ABC):
     """
     A CommandTool is an interface between Janis and a program to be executed.
     Simply put, a CommandTool has a name, a command, inputs, outputs and a container to run in.
+
+    This class can be inherited to created a CommandTool, else a CommandToolBuilder may be used.
     """
 
     def __init__(self, **connections):
         super().__init__(metadata_class=ToolMetadata, **connections)
 
     # Tool base
-    @staticmethod
     @abstractmethod
-    def tool() -> str:
+    def tool(self) -> str:
         """
         Unique identifier of the tool
         :return:
         """
         pass
 
-    @staticmethod
     @abstractmethod
-    def base_command() -> Optional[Union[str, List[str]]]:
+    def base_command(self) -> Optional[Union[str, List[str]]]:
         """
         The command of the tool to execute, usually the tool name or path and not related to any inputs.
         This field will always come before any inputs or arguments, though it's possible to omit this
@@ -240,18 +240,16 @@ class CommandTool(Tool, ABC):
 
     # Tool versions
 
-    @staticmethod
     @abstractmethod
-    def container() -> str:
+    def container(self) -> str:
         """
         A link to an OCI compliant container accessible by your engine. Previously, docker().
         :return: str
         """
         pass
 
-    @staticmethod
     @abstractmethod
-    def version() -> str:
+    def version(self) -> str:
         """
         Version of the tool. Janis supports multiple versions of tools with the same ``.tool()`` value.
         The recommended format is `SemVer <https://semver.org/>`_, though you should reflect the tool version.
@@ -264,15 +262,13 @@ class CommandTool(Tool, ABC):
     def id(self):
         return self.tool()
 
-    @classmethod
-    def __hash__(cls):
-        return cls.tool()
+    def __hash__(self):
+        return hash(self.tool())
 
-    @classmethod
-    def full_name(cls):
-        if cls.version() is not None:
-            return f"{cls.tool()}/{cls.version()}"
-        return cls.tool()
+    def full_name(self):
+        if self.version() is not None:
+            return f"{self.tool()}/{self.version()}"
+        return self.tool()
 
     def memory(self, hints: Dict[str, Any]) -> Optional[float]:
         """
@@ -345,6 +341,7 @@ class CommandTool(Tool, ABC):
     def help(self):
         import inspect
 
+        tb = " " * 4
         path = inspect.getfile(self.__class__)
 
         ins = sorted(
@@ -386,12 +383,12 @@ class CommandTool(Tool, ABC):
                     else t.prefix
                 )
             return (
-                f"\t\t{t.tag} ({prefix_with_space}{t.input_type.id()}{('=' + str(t.default)) if t.default is not None else ''})"
+                f"{2 * tb}{t.tag} ({prefix_with_space}{t.input_type.id()}{('=' + str(t.default)) if t.default is not None else ''})"
                 f": {'' if t.doc is None else t.doc}"
             )
 
         output_format = (
-            lambda t: f"\t\t{t.tag} ({t.output_type.id()}): {'' if t.doc is None else t.doc}"
+            lambda t: f"{2 * tb}{t.tag} ({t.output_type.id()}): {'' if t.doc is None else t.doc}"
         )
 
         requiredInputs = "\n".join(
@@ -479,3 +476,117 @@ OUTPUTS:
             wf.output(o.id(), source=stp[o.id()])
 
         return wf
+
+
+class CommandToolBuilder(CommandTool):
+    def tool(self) -> str:
+        return self._tool
+
+    def friendly_name(self):
+        return self._friendly_name
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return self._base_command
+
+    def inputs(self) -> List[ToolInput]:
+        return self._inputs
+
+    def arguments(self):
+        return self._arguments
+
+    def outputs(self) -> List[ToolOutput]:
+        return self._outputs
+
+    def container(self) -> str:
+        return self._container
+
+    def version(self) -> str:
+        return self._version
+
+    def tool_provider(self):
+        return self._tool_provider
+
+    def tool_module(self):
+        return self._tool_module
+
+    def env_vars(self):
+        return self._env_vars
+
+    def cpus(self, hints: Dict[str, Any]):
+        if self._cpu is None:
+            return None
+        if isinstance(self._cpu, int) or isinstance(self._cpu, float):
+            return self._cpu
+
+        if callable(self._cpu):
+            return self._cpu(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._cpu)} as a valid CPU type"
+        )
+
+    def memory(self, hints: Dict[str, Any]):
+        if self._memory is None:
+            return None
+        if isinstance(self._memory, int) or isinstance(self._memory, float):
+            return self._memory
+
+        if callable(self._memory):
+            return self._memory(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._memory)} as a valid memory type"
+        )
+
+    def __init__(
+        self,
+        tool: str,
+        base_command: Optional[Union[str, List[str]]],
+        inputs: List[ToolInput],
+        outputs: List[ToolOutput],
+        container: str,
+        version: str,
+        friendly_name: Optional[str] = None,
+        arguments: List[ToolArgument] = None,
+        env_vars: Dict = None,
+        tool_module: str = None,
+        tool_provider: str = None,
+        metadata: ToolMetadata = None,
+        cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
+    ):
+        """
+        Builder for a CommandTool.
+
+        :param tool: Unique identifier of the tool
+        :param friendly_name: A user friendly name of your tool (must be implemented for generated docs)
+        :param base_command: The command of the tool to execute, usually the tool name or path and not related to any inputs.
+        :param inputs: A list of named tool inputs that will be used to create the command line.
+        :param outputs: A list of named outputs of the tool; a ``ToolOutput`` declares how the output is captured.
+        :param arguments: A list of arguments that will be used to create the command line.
+        :param container: A link to an OCI compliant container accessible by the engine.
+        :param version: Version of the tool.
+        :param env_vars: A dictionary of environment variables that should be defined within the container.
+        :param tool_module: Unix, bioinformatics, etc.
+        :param tool_provider: The manafacturer of the tool, eg: Illumina, Samtools
+        :param metadata: Metadata object describing the Janis tool interface
+        :param cpu: An integer, or function that takes a dictionary of hints and returns an integer
+        :param memory: An integer, or function that takes a dictionary of hints and returns an integer
+        """
+
+        super().__init__()
+
+        self._tool = tool
+        self._friendly_name = friendly_name
+        self._base_command = base_command
+        self._inputs = inputs
+        self._outputs = outputs
+        self._container = container
+        self._version = version
+        self._arguments = arguments
+        self._env_vars = env_vars
+        self._tool_module = tool_module
+        self._tool_provider = tool_provider
+        self._metadata = metadata
+        self._cpu = cpu
+        self._memory = memory
