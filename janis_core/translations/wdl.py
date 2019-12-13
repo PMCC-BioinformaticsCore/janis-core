@@ -1483,23 +1483,23 @@ def prepare_move_statement_for_input_to_localise(ti: ToolInput):
     it = ti.input_type
 
     if issubclass(type(it), File):
-        commands = [wdl.Task.Command(f"mv ${{{ti.id()}}} -t .")]
+        commands = [wdl.Task.Command(f"mv -n ${{{ti.id()}}} .")]
         if it.secondary_files():
             for s in it.secondary_files():
                 commands.append(
                     wdl.Task.Command(
-                        f"mv ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} -t ."
+                        f"mv -n ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} ."
                     )
                 )
         return commands
     if isinstance(it, Array) and issubclass(type(it.subtype()), File):
         subtype = it.subtype()
-        commands = [wdl.Task.Command("mv ${{sep=' ' {s}}} -t .".format(s=ti.id()))]
+        commands = [wdl.Task.Command("mv -n ${{sep=' ' {s}}} .".format(s=ti.id()))]
         if subtype.secondary_files():
             for s in it.secondary_files():
                 commands.append(
                     wdl.Task.Command(
-                        "mv ${{sep=' ' {s}}} -t .".format(
+                        "mv -n ${{sep=' ' {s}}} .".format(
                             s=get_secondary_tag_from_original_tag(ti.id(), s)
                         )
                     )
