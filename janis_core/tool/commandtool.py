@@ -1,5 +1,6 @@
 import re
 from abc import ABC, abstractmethod
+from inspect import isclass
 from typing import List, Dict, Optional, Any, Union, Callable
 
 from janis_core.utils.validators import Validators
@@ -80,6 +81,8 @@ class ToolInput(ToolArgument):
         prefix: Optional[str] = None,
         separate_value_from_prefix: bool = None,
         prefix_applies_to_all_elements: bool = None,
+        presents_as: str = None,
+        secondaries_present_as: Dict[str, str] = None,
         separator: str = None,
         shell_quote: bool = None,
         localise_file: bool = None,
@@ -126,8 +129,10 @@ class ToolInput(ToolArgument):
         self.default = default
         self.prefix_applies_to_all_elements = prefix_applies_to_all_elements
         self.separator = separator
-        self.localise_file = localise_file
 
+        self.localise_file = localise_file
+        self.presents_as = presents_as
+        self.secondaries_present_as = secondaries_present_as
         # if isinstance(input_type, Array):
         #     if self.prefix_applies_to_all_elements is None and self.separator is None:
         # self.separator = " "
@@ -143,6 +148,8 @@ class ToolOutput:
         tag: str,
         output_type: ParseableType,
         glob: Optional[Union[Selector, str]] = None,
+        presents_as: str = None,
+        secondaries_present_as: Dict[str, str] = None,
         doc: Optional[str] = None,
     ):
         """
@@ -171,6 +178,8 @@ class ToolOutput:
             )
 
         self.glob = glob
+        self.presents_as = presents_as
+        self.secondaries_present_as = secondaries_present_as
         self.doc = doc
 
     def id(self):
@@ -470,7 +479,7 @@ OUTPUTS:
 
             inpmap[i.id()] = wf.input(i.id(), intp)
 
-        stp = wf.step(self.tool().lower(), self.__class__(**inpmap))
+        stp = wf.step(self.tool().lower(), self(**inpmap))
 
         for o in self.outputs():
             wf.output(o.id(), source=stp[o.id()])
