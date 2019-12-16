@@ -55,6 +55,11 @@ from janis_core.utils.validators import Validators
 
 ## PRIMARY TRANSLATION METHODS
 
+SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
+REMOVE_EXTENSION = (
+    lambda x, iterations: f"`echo '{x}' {iterations * SED_REMOVE_EXTENSION}`"
+)
+
 
 class WdlTranslator(TranslatorBase):
     def __init__(self):
@@ -310,12 +315,11 @@ class WdlTranslator(TranslatorBase):
             )
 
         inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
+        toolouts = tool.outputs()
         inmap = {i.tag: i for i in inputs}
 
         ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
-        outs: List[wdl.Output] = cls.translate_tool_outputs(
-            tool.outputs(), inmap, tool.id()
-        )
+        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool.id())
         command_args = cls.translate_tool_args(
             tool.arguments(), inmap, toolId=tool.id()
         )
@@ -330,15 +334,17 @@ class WdlTranslator(TranslatorBase):
             )
 
         for ti in tool.inputs():
-            if ti.localise_file:
-                commands.extend(prepare_move_statement_for_input_to_localise(ti))
-            else:
-                commands.extend(prepare_move_statement_for_potential_secondaries(ti))
+            commands.extend(prepare_move_statements_for_input(ti))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
 
         commands.append(wdl.Task.Command(bc, command_ins, command_args))
+
+        for ito in range(len(tool.outputs())):
+            commands.extend(
+                prepare_move_statements_for_output(toolouts[ito], outs[ito].expression)
+            )
 
         r = wdl.Task.Runtime()
         if with_docker:
@@ -609,7 +615,7 @@ def translate_input_selector_for_output(
         sec_expression = None
         if "^" not in s:
             # do stuff here
-            sec_expression = f'{expression} + "{s.replace("^", "")}"'
+            sec_expression = f'({expression}) + "{s.replace("^", "")}"'
 
         elif isinstance(tool_in.input_type, Filename) and tool_in.input_type.extension:
             # use the wdl function: sub
@@ -1416,6 +1422,12 @@ def get_secondary_tag_from_original_tag(original, secondary):
     return original + "_" + secondary_without_punctuation
 
 
+def split_secondary_file_carats(secondary_annotation: str):
+    fixed_sec = secondary_annotation.lstrip("^")
+    leading = len(secondary_annotation) - len(fixed_sec)
+    return secondary_annotation[leading:], leading
+
+
 def apply_secondary_file_format_to_filename(
     filepath: Optional[str], secondary_file: str
 ):
@@ -1447,20 +1459,25 @@ def apply_secondary_file_format_to_filename(
     return basepath + newfname
 
 
-def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
-    it = ti.input_type
-    if not issubclass(type(it), File) or not it.secondary_files():
-        return []
-
-    commands = []
-    for s in it.secondary_files():
-        sectag = get_secondary_tag_from_original_tag(ti.id(), s)
-        commands.append(
-            wdl.Task.Command(
-                f'if [ $(dirname "${{{sectag}}}") != $(dirname "{ti.id()}") ]; then mv ${{{sectag}}} $(dirname ${{{ti.id()}}}); fi'
-            )
-        )
-    return commands
+# def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
+#     it = ti.input_type
+#     if not issubclass(type(it), File) or not it.secondary_files():
+#         return []
+#
+#     commands = []
+#     for s in it.secondary_files():
+#         sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+#
+#         if s in ti.secondaries_present_as:
+#             # different move statement
+#             continue
+#
+#         commands.append(
+#             wdl.Task.Command(
+#                 f'if [ $(dirname "${{{sectag}}}") != $(dirname "{ti.id()}") ]; then mv ${{{sectag}}} $(dirname ${{{ti.id()}}}); fi'
+#             )
+#         )
+#     return commands
 
 
 def prepare_env_var_setters(
@@ -1479,35 +1496,152 @@ def prepare_env_var_setters(
     return statements
 
 
-def prepare_move_statement_for_input_to_localise(ti: ToolInput):
+def prepare_move_statements_for_input(ti: ToolInput):
+    """
+    Update 2019-12-16:
+
+        ToolInput introduces 'presents_as' and 'secondaries_present_as' fields (in addition to 'localise').
+        This allows you to present a file as a specific filename, or change how the secondary files present to the tool.
+
+        Additional considerations:
+            - we MUST ensure that the secondary file is in the same directory as the base
+            - if something is unavailable for an array, we must let the user know
+
+        This is the logic that should be applied:
+
+            - localise=True :: Moves the file into the execution directory ('.')
+            - presents_as :: rewrites the input file to be the requires name (in the same directory).
+                             This should also rewrite the secondary files per the original rules
+            - secondaries_present_as :: rewrites the extension of the secondary files
+
+        Combinations of these can be used
+
+            - presents_as + localise :: should move the file into the execution directory as the new name
+            - secondaries_present_as + presents as :: should rewrite the secondary
+
+        The easiest way to do this is:
+
+            - if localise or presents_as is given, generate the new filename
+            - apply the secondary file naming rules to all the others (ensures it's in the same directory for free).
+
+    """
+
     it = ti.input_type
+    commands = []
 
-    if issubclass(type(it), File):
-        commands = [wdl.Task.Command(f"mv -n ${{{ti.id()}}} .")]
-        if it.secondary_files():
-            for s in it.secondary_files():
-                commands.append(
-                    wdl.Task.Command(
-                        f"mv -n ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} ."
-                    )
-                )
+    if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
         return commands
-    if isinstance(it, Array) and issubclass(type(it.subtype()), File):
-        subtype = it.subtype()
-        commands = [wdl.Task.Command("mv -n ${{sep=' ' {s}}} .".format(s=ti.id()))]
-        if subtype.secondary_files():
-            for s in it.secondary_files():
-                commands.append(
-                    wdl.Task.Command(
-                        "mv -n ${{sep=' ' {s}}} .".format(
-                            s=get_secondary_tag_from_original_tag(ti.id(), s)
-                        )
-                    )
-                )
 
+    if not issubclass(type(it), File):
+        Logger.critical(
+            "Janis has temporarily removed support for localising array types"
+        )
         return commands
+
+    base = f"${{{ti.id()}}}"
+
+    if ti.localise_file or ti.presents_as:
+        newlocation = None
+
+        if ti.localise_file and not ti.presents_as:
+            newlocation = "."
+        elif not ti.localise_file and ti.presents_as:
+            newlocation = f'"`dirname ${{{ti.id()}}}`/{ti.presents_as}"'
+            base = newlocation
+        else:
+            newlocation = ti.presents_as
+            base = f'"{ti.presents_as}"'
+
+        commands.append(f"ln -f ${{{ti.id()}}} {newlocation}")
+
+    if it.secondary_files():
+        for s in it.secondary_files():
+            sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+
+            newext, iters = split_secondary_file_carats(
+                ti.secondaries_present_as.get(s, s)
+            )
+            newpath = REMOVE_EXTENSION(base, iters) + newext
+            commands.append(wdl.Task.Command(f"ln -f ${{{sectag}}} {newpath}"))
+
+    return commands
+
+    # if issubclass(type(it), File):
+    #     commands = [wdl.Task.Command(f"mv -n ${{{ti.id()}}} .")]
+    #     if it.secondary_files():
+    #         for s in it.secondary_files():
+    #             commands.append(
+    #                 wdl.Task.Command(
+    #                     f"mv -n ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} ."
+    #                 )
+    #             )
+    #     return commands
+    # if isinstance(it, Array) and issubclass(type(it.subtype()), File):
+    #     subtype = it.subtype()
+    #     commands = [wdl.Task.Command("mv -n ${{sep=' ' {s}}} .".format(s=ti.id()))]
+    #     if subtype.secondary_files():
+    #         for s in it.secondary_files():
+    #             commands.append(
+    #                 wdl.Task.Command(
+    #                     "mv -n ${{sep=' ' {s}}} .".format(
+    #                         s=get_secondary_tag_from_original_tag(ti.id(), s)
+    #                     )
+    #                 )
+    #             )
+    #
+    #     return commands
 
     raise Exception(f"WDL is unable to localise type '{type(it)}'")
+
+
+def prepare_move_statements_for_output(to: ToolOutput, baseexpression):
+    """
+    Update 2019-12-16:
+
+            - presents_as :: rewrites the output file to be the requires name (in the same directory).
+                             This should also rewrite the secondary files per the original rules
+            - secondaries_present_as :: rewrites the extension of the secondary files
+
+        Combinations of these can be used
+
+            - presents_as + localise :: should move the file into the execution directory as the new name
+            - secondaries_present_as + presents as :: should rewrite the secondary
+    """
+
+    ot = to.output_type
+    commands = []
+
+    if not (to.presents_as or to.secondaries_present_as):
+        return commands
+
+    if not issubclass(type(ot), File):
+        Logger.critical(
+            f"Janis has temporarily removed support for localising '{type(ot)}' types"
+        )
+        return commands
+
+    base = f"${{{baseexpression}}}"
+
+    if to.presents_as:
+        newlocation = to.presents_as
+        base = f'"{to.presents_as}"'
+
+        commands.append(f"ln -f ${{{to.id()}}} {newlocation}")
+
+    if to.secondaries_present_as and ot.secondary_files():
+        for s in ot.secondary_files():
+            if s not in to.secondaries_present_as:
+                continue
+
+            newextvalues = split_secondary_file_carats(s)
+            oldextvalues = split_secondary_file_carats(to.secondaries_present_as[s])
+
+            oldpath = REMOVE_EXTENSION(base, oldextvalues[1]) + oldextvalues[0]
+            newpath = REMOVE_EXTENSION(base, newextvalues[1]) + newextvalues[0]
+
+            commands.append(wdl.Task.Command(f"ln -f {oldpath} {newpath}"))
+
+    return commands
 
 
 def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
