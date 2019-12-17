@@ -23,6 +23,7 @@ class LogLevel:
     WARNING = 3  # YELLOW
     INFO = 4  # WHITE
     DEBUG = 5  # GREY
+    VERBOSE = 6  # GREY
 
     @staticmethod
     def get_color(level: int):
@@ -36,6 +37,9 @@ class LogLevel:
             return _bcolors.OKBLUE
 
         if level == LogLevel.DEBUG:
+            return _bcolors.ENDC
+
+        if level == LogLevel.VERBOSE:
             return _bcolors.ENDC
 
         return _bcolors.ENDC
@@ -54,6 +58,9 @@ class LogLevel:
         if level == LogLevel.DEBUG:
             return "DEBUG"
 
+        if level == LogLevel.VERBOSE:
+            return "VERB"
+
         return ""
 
     @staticmethod
@@ -67,6 +74,8 @@ class LogLevel:
             return LogLevel.INFO
         if level == "DEBUG":
             return LogLevel.DEBUG
+        if level.startswith("VERB"):
+            return LogLevel.VERBOSE
         if level == "NONE":
             return None
 
@@ -129,7 +138,7 @@ class Logger:
             Logger.__WRITE_POINTER = None
 
     @staticmethod
-    def log(message: str, level: int = LogLevel.DEBUG):
+    def log(message: str, level: int = LogLevel.VERBOSE):
         if level is None:
             # This is a developer error, we should never try to log with no level, it's purely for
             return
@@ -147,6 +156,10 @@ class Logger:
             Logger.__WRITE_POINTER.write(m + "\n")
             Logger.__WRITE_POINTER.flush()
             os.fsync(Logger.__WRITE_POINTER.fileno())
+
+    @staticmethod
+    def debug(message: str):
+        Logger.log(message, LogLevel.DEBUG)
 
     @staticmethod
     def info(message: str):
