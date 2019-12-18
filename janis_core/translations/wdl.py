@@ -334,7 +334,9 @@ class WdlTranslator(TranslatorBase):
             )
 
         for ti in tool.inputs():
-            commands.extend(prepare_move_statements_for_input(ti))
+            commands.extend(
+                wdl.Task.Command(t) for t in prepare_move_statements_for_input(ti)
+            )
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -343,7 +345,10 @@ class WdlTranslator(TranslatorBase):
 
         for ito in range(len(tool.outputs())):
             commands.extend(
-                prepare_move_statements_for_output(toolouts[ito], outs[ito].expression)
+                wdl.Task.Command(t)
+                for t in prepare_move_statements_for_output(
+                    toolouts[ito], outs[ito].expression
+                )
             )
 
         r = wdl.Task.Runtime()
