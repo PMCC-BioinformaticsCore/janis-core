@@ -302,7 +302,9 @@ class CwlTranslator(TranslatorBase):
             tool_cwl.requirements.append(
                 cwlgen.InitialWorkDirRequirement(
                     [
-                        "$(inputs.%s)" % ti.id()
+                        cwlgen.InitialWorkDirRequirement.Dirent(
+                            entry="$(inputs.%s)" % ti.id(), entryname=ti.presents_as
+                        )
                         for ti in inputs_that_require_localisation
                     ]
                 )
@@ -460,7 +462,7 @@ def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
     return cwlgen.CommandInputParameter(
         param_id=toolinput.tag,
         label=toolinput.tag,
-        secondary_files=toolinput.input_type.secondary_files(),
+        secondary_files=prepare_tool_input_secondaries(toolinput),
         # streamable=None,
         doc=toolinput.doc,
         input_binding=input_binding,
@@ -484,10 +486,11 @@ def translate_tool_argument(argument):
 
 
 def translate_tool_output(output, **debugkwargs):
+
     return cwlgen.CommandOutputParameter(
         param_id=output.tag,
         label=output.tag,
-        secondary_files=output.output_type.secondary_files(),
+        secondary_files=prepare_tool_output_secondaries(output),
         # param_format=None,
         # streamable=None,
         doc=output.doc,
@@ -496,10 +499,85 @@ def translate_tool_output(output, **debugkwargs):
                 output.glob, outputtag=output.tag, **debugkwargs
             ),
             # load_contents=False,
-            # output_eval=None
+            output_eval=prepare_tool_output_eval(output),
         ),
         param_type=output.output_type.cwl_type(),
     )
+
+
+def prepare_tool_output_eval(output):
+    if not output.presents_as:
+        return None
+    return f"""${{
+    self[0].basename="{output.presents_as}"
+    return self
+$}}
+"""
+
+
+def prepare_tool_output_secondaries(output):
+    if not output.secondaries_present_as:
+        return output.output_type.secondary_files()
+
+    secs = output.secondaries_present_as
+    tb = "    "
+    formattedsecs = ",\n".join(
+        f"""\
+{4*tb}{{
+{5*tb}path: resolveSecondary(self.path, "{secs.get(s, s)}"),
+{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{4*tb}}}"""
+        for s in output.output_type.secondary_files()
+    )
+
+    return f"""${{
+
+        function resolveSecondary(base, secPattern) {{
+          if (secPattern[0] == "^") {{
+            var spl = base.split(".");
+            var endIndex = spl.length > 1 ? spl.length - 1 : 1;
+            return resolveSecondary(spl.slice(undefined, endIndex).join("."), secPattern.slice(1));
+          }}
+          return base + secPattern
+        }}
+        return [
+{formattedsecs}
+        ];
+
+}}"""
+
+
+def prepare_tool_input_secondaries(toolinp):
+    if not toolinp.secondaries_present_as:
+        return toolinp.input_type.secondary_files()
+
+    secs = toolinp.secondaries_present_as
+    tb = "    "
+    formattedsecs = ",\n".join(
+        f"""\
+{4*tb}{{
+{5*tb}location: resolveSecondary(self.location, "{secs.get(s, s)}"),
+{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{4*tb}}}"""
+        for s in toolinp.input_type.secondary_files()
+    )
+
+    return f"""${{
+
+        function resolveSecondary(base, secPattern) {{
+          if (secPattern[0] == "^") {{
+            var spl = base.split(".");
+            var endIndex = spl.length > 1 ? spl.length - 1 : 1;
+            return resolveSecondary(spl.slice(undefined, endIndex).join("."), secPattern.slice(1));
+          }}
+          return base + secPattern
+        }}
+
+        return [
+{formattedsecs}
+        ];
+
+}}"""
 
 
 def translate_step(
