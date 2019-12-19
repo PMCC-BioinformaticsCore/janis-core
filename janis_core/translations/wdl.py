@@ -334,9 +334,7 @@ class WdlTranslator(TranslatorBase):
             )
 
         for ti in tool.inputs():
-            commands.extend(
-                wdl.Task.Command(t) for t in prepare_move_statements_for_input(ti)
-            )
+            commands.extend(prepare_move_statements_for_input(ti))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -345,10 +343,7 @@ class WdlTranslator(TranslatorBase):
 
         for ito in range(len(tool.outputs())):
             commands.extend(
-                wdl.Task.Command(t)
-                for t in prepare_move_statements_for_output(
-                    toolouts[ito], outs[ito].expression
-                )
+                prepare_move_statements_for_output(toolouts[ito], outs[ito].expression)
             )
 
         r = wdl.Task.Runtime()
@@ -1532,7 +1527,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
     """
 
     it = ti.input_type
-    commands = []
+    commands: List[wdl.Task.Command] = []
 
     if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
         return commands
@@ -1557,7 +1552,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
             newlocation = ti.presents_as
             base = f'"{ti.presents_as}"'
 
-        commands.append(f"ln -f ${{{ti.id()}}} {newlocation}")
+        commands.append(wdl.Task.Command(f"ln -f ${{{ti.id()}}} {newlocation}"))
 
     if it.secondary_files():
         for s in it.secondary_files():
@@ -1599,7 +1594,9 @@ def prepare_move_statements_for_input(ti: ToolInput):
     raise Exception(f"WDL is unable to localise type '{type(it)}'")
 
 
-def prepare_move_statements_for_output(to: ToolOutput, baseexpression):
+def prepare_move_statements_for_output(
+    to: ToolOutput, baseexpression
+) -> List[wdl.Task.Command]:
     """
     Update 2019-12-16:
 
