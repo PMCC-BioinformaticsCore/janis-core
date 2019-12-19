@@ -109,20 +109,17 @@ concerned what the filename should be. The Filename DataType should NOT be used 
     def generated_filename(self) -> str:
 
         pre = self.prefix
-        guid = self.guid
-        suf = self.suffix if self.suffix else ""
+        suf = ("-" + str(self.suffix)) if self.suffix else ""
         ex = "" if self.extension is None else self.extension
-
-        dash1 = "-" if self.prefix else ""
-
-        return pre + dash1 + guid + suf + ex
+        return pre + suf + ex
 
     def generated_filenamecwl(self) -> str:
-        code = "Math.random().toString(16).substring(2, 8)"
-        pf = (self.prefix + "-") if self.prefix else ""
-        sf = self.suffix if self.suffix else ""
-        ext = self.extension if self.extension else ""
-        return f'"{pf}generated-" + {code} + "{sf + ext}"'
+        return f'"{self.generated_filename()}"'
+        # code = "Math.random().toString(16).substring(2, 8)"
+        # pf = (self.prefix + "-") if self.prefix else ""
+        # sf = self.suffix if self.suffix else ""
+        # ext = self.extension if self.extension else ""
+        # return f'"{pf}generated-" + {code} + "{sf + ext}"'
 
     def can_receive_from(self, other: DataType, source_has_default=False):
         # Specific override because Filename should be able to receive from string
