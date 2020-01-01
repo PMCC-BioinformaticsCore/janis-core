@@ -316,7 +316,7 @@ class TranslatorBase(ABC):
                     cpus = max_cores
                 if mem and max_mem and mem > max_mem:
                     Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory({max_mem} GB), "
+                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
                         "this was dropped to the new maximum"
                     )
                     mem = max_mem

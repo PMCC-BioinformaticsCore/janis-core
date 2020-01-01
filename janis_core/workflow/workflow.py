@@ -155,10 +155,8 @@ class OutputNode(Node):
         datatype: DataType,
         source: ConnectionSource,
         doc: str = None,
-        output_tag: Union[str, InputSelector] = None,
-        output_prefix: Union[
-            str, InputSelector, List[Union[str, InputSelector]]
-        ] = None,
+        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
+        output_name: Union[str, InputSelector] = None,
     ):
         super().__init__(wf, NodeTypes.OUTPUT, identifier)
         self.datatype = datatype
@@ -182,7 +180,7 @@ class OutputNode(Node):
         self.source = verify_or_try_get_source(source)
         self.doc = doc
         self.output_tag = output_tag
-        self.output_prefix = output_prefix
+        self.output_name = output_name
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -294,7 +292,7 @@ class Workflow(Tool):
             ConnectionSource,
             List[Union[str, InputSelector, ConnectionSource]],
         ] = None,
-        output_prefix: Union[str, InputSelector, ConnectionSource] = None,
+        output_name: Union[str, InputSelector, ConnectionSource] = None,
     ):
         """
         Create an output on a workflow
@@ -323,11 +321,9 @@ class Workflow(Tool):
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
 
-        if output_prefix:
-            op = output_prefix if isinstance(output_prefix, list) else [output_prefix]
-            output_prefix = self.verify_output_source_type(
-                identifier, op, "output_prefix"
-            )
+        if output_name:
+            op = output_name if isinstance(output_name, list) else [output_prefix]
+            output_name = self.verify_output_source_type(identifier, op, "output_name")
         if output_tag:
             ot = output_tag if isinstance(output_tag, list) else [output_tag]
             output_tag = self.verify_output_source_type(identifier, ot, "output_tag")
@@ -338,7 +334,7 @@ class Workflow(Tool):
             datatype=get_instantiated_type(datatype),
             source=(node, tag),
             output_tag=output_tag,
-            output_prefix=output_prefix,
+            output_name=output_name,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
