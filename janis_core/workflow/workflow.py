@@ -304,7 +304,7 @@ class Workflow(Tool):
         a structure of nested directories, the first element being the root directory.
         At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
         scattered source, and the number of elements is equal.
-        :param output_prefix: Decides the prefix that an output will have, or acts as a map if the InputSelector
+        :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
         resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
         may result in an unexpected termination.
         :return:
@@ -322,7 +322,7 @@ class Workflow(Tool):
                 datatype = Array(datatype)
 
         if output_name:
-            op = output_name if isinstance(output_name, list) else [output_prefix]
+            op = output_name if isinstance(output_name, list) else [output_name]
             output_name = self.verify_output_source_type(identifier, op, "output_name")
         if output_tag:
             ot = output_tag if isinstance(output_tag, list) else [output_tag]
