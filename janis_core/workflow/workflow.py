@@ -322,8 +322,11 @@ class Workflow(Tool):
                 datatype = Array(datatype)
 
         if output_name:
-            op = output_name if isinstance(output_name, list) else [output_name]
-            output_name = self.verify_output_source_type(identifier, op, "output_name")
+            if isinstance(output_name, list):
+                raise Exception("An output_name cannot be of type 'list'")
+            output_name = self.verify_output_source_type(
+                identifier, output_name, "output_name"
+            )
         if output_tag:
             ot = output_tag if isinstance(output_tag, list) else [output_tag]
             output_tag = self.verify_output_source_type(identifier, ot, "output_tag")
