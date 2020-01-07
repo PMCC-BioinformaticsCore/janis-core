@@ -2,7 +2,8 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Dict, Any, Union, Type, List
+import typing
+from typing import Union, Type, Dict, List, Any
 
 import wdlgen
 import cwlgen
@@ -460,6 +461,12 @@ class Array(DataType):
 
         return [self.subtype().parse_value(v) for v in valuetoparse]
 
+    def fundamental_type(self) -> DataType:
+        st = self.subtype()
+        if isinstance(st, Array):
+            return st.fundamental_type()
+        return st.received_type()
+
 
 class Stdout(File):
     @staticmethod
@@ -563,6 +570,45 @@ all_types = [
 ]
 
 
+def get_from_python_type(dt, optional: bool = False):
+    if dt is None:
+        return None
+
+    typedt = type(dt)
+
+    if dt == str or typedt == str:
+        return String(optional=optional)
+    if dt == bool or typedt == bool:
+        return Boolean(optional=optional)
+    if dt == int or typedt == int:
+        return Int(optional=optional)
+    if dt == float or typedt == float:
+        return Float(optional=optional)
+
+    if is_qualified_generic(dt):
+
+        if dt.__origin__ == list:
+            nt = get_from_python_type(dt.__args__[0])
+            return Array(nt, optional=optional)
+
+        args = dt.__args__
+        if len(args) > 2:
+            raise Exception(f"Janis is unsure how to parse qualfied generic '{dt}'")
+
+        aridxofnonetype = [
+            i for i, val in enumerate(a == type(None) for a in args) if val
+        ]
+        optional = len(aridxofnonetype) > 0
+        if len(aridxofnonetype) > 1 and optional == False:
+            raise Exception("Janis cannot accept union ")
+        idxofregtype = args[(len(args) - 1 - aridxofnonetype[0]) if optional else 0]
+
+        nt = get_from_python_type(idxofregtype, optional=optional)
+        return nt
+    elif is_generic(dt):
+        raise Exception(f"Generic {dt} was generic typing, but unqualified")
+
+
 def get_instantiated_type(datatype: ParseableType):
 
     if isinstance(datatype, list):
@@ -576,14 +622,108 @@ def get_instantiated_type(datatype: ParseableType):
     if isclass(datatype) and issubclass(datatype, DataType):
         return datatype()
 
-    typedt = type(datatype)
-    if datatype == str or typedt == str:
-        return String()
-    if datatype == bool or typedt == bool:
-        return Boolean()
-    if datatype == int or typedt == int:
-        return Int()
-    if datatype == float or typedt == float:
-        return Float()
+    dt = get_from_python_type(datatype)
+    if dt:
+        return dt
 
     raise TypeError(f"Unable to parse type '{str(datatype)}'")
+
+
+if hasattr(typing, "_GenericAlias"):
+    # python 3.7
+    def _is_generic(cls):
+        if isinstance(cls, typing._GenericAlias):
+            return True
+
+        if isinstance(cls, typing._SpecialForm):
+            return cls not in {typing.Any}
+
+        return False
+
+    def _is_base_generic(cls):
+        if isinstance(cls, typing._GenericAlias):
+            if cls.__origin__ in {typing.Generic, typing._Protocol}:
+                return False
+
+            if isinstance(cls, typing._VariadicGenericAlias):
+                return True
+
+            return len(cls.__parameters__) > 0
+
+        if isinstance(cls, typing._SpecialForm):
+            return cls._name in {"ClassVar", "Union", "Optional"}
+
+        return False
+
+
+else:
+    # python <3.7
+    if hasattr(typing, "_Union"):
+        # python 3.6
+        def _is_generic(cls):
+            return isinstance(
+                cls,
+                (typing.GenericMeta, typing._Union, typing._Optional, typing._ClassVar),
+            )
+
+        def _is_base_generic(cls):
+            if isinstance(cls, (typing.GenericMeta, typing._Union)):
+                return cls.__args__ in {None, ()}
+
+            return isinstance(cls, typing._Optional)
+
+    else:
+        # python 3.5
+        def _is_generic(cls):
+            return isinstance(
+                cls,
+                (
+                    typing.GenericMeta,
+                    typing.UnionMeta,
+                    typing.OptionalMeta,
+                    typing.CallableMeta,
+                    typing.TupleMeta,
+                ),
+            )
+
+        def _is_base_generic(cls):
+            if isinstance(cls, typing.GenericMeta):
+                return all(
+                    isinstance(arg, typing.TypeVar) for arg in cls.__parameters__
+                )
+
+            if isinstance(cls, typing.UnionMeta):
+                return cls.__union_params__ is None
+
+            if isinstance(cls, typing.TupleMeta):
+                return cls.__tuple_params__ is None
+
+            if isinstance(cls, typing.CallableMeta):
+                return cls.__args__ is None
+
+            if isinstance(cls, typing.OptionalMeta):
+                return True
+
+            return False
+
+
+def is_generic(cls):
+    """
+    Detects any kind of generic, for example `List` or `List[int]`. This includes "special" types like
+    Union and Tuple - anything that's subscriptable, basically.
+    """
+    return _is_generic(cls)
+
+
+def is_base_generic(cls):
+    """
+    Detects generic base classes, for example `List` (but not `List[int]`)
+    """
+    return _is_base_generic(cls)
+
+
+def is_qualified_generic(cls):
+    """
+    Detects generics with arguments, for example `List[int]` (but not `List`)
+    """
+    return is_generic(cls) and not is_base_generic(cls)
