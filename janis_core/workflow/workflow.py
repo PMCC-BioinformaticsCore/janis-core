@@ -155,7 +155,9 @@ class OutputNode(Node):
         datatype: DataType,
         source: ConnectionSource,
         doc: str = None,
-        output_tag: Union[str, InputSelector, List[Union[str, InputSelector]]] = None,
+        output_folder: Union[
+            str, InputSelector, List[Union[str, InputSelector]]
+        ] = None,
         output_name: Union[str, InputSelector] = None,
     ):
         super().__init__(wf, NodeTypes.OUTPUT, identifier)
@@ -179,7 +181,7 @@ class OutputNode(Node):
 
         self.source = verify_or_try_get_source(source)
         self.doc = doc
-        self.output_tag = output_tag
+        self.output_folder = output_folder
         self.output_name = output_name
 
     def inputs(self) -> Dict[str, TInput]:
@@ -286,7 +288,7 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
-        output_tag: Union[
+        output_folder: Union[
             str,
             InputSelector,
             ConnectionSource,
@@ -300,7 +302,7 @@ class Workflow(Tool):
         :param identifier: The identifier for the output
         :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
         :param source: The source of the output, must be an output to a step node
-        :param output_tag: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
+        :param output_folder: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
         a structure of nested directories, the first element being the root directory.
         At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
         scattered source, and the number of elements is equal.
@@ -327,16 +329,18 @@ class Workflow(Tool):
             output_name = self.verify_output_source_type(
                 identifier, output_name, "output_name"
             )
-        if output_tag:
-            ot = output_tag if isinstance(output_tag, list) else [output_tag]
-            output_tag = self.verify_output_source_type(identifier, ot, "output_tag")
+        if output_folder:
+            ot = output_folder if isinstance(output_folder, list) else [output_folder]
+            output_folder = self.verify_output_source_type(
+                identifier, ot, "output_folder"
+            )
 
         otp = OutputNode(
             self,
             identifier=identifier,
             datatype=get_instantiated_type(datatype),
             source=(node, tag),
-            output_tag=output_tag,
+            output_folder=output_folder,
             output_name=output_name,
         )
         self.nodes[identifier] = otp
