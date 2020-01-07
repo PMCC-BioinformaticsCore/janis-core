@@ -215,7 +215,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"random": ToolInput("random", String())}
         input_sel = InputSelector("random")
         self.assertEqual(
-            "${random}",
+            "~{random}",
             wdl.translate_input_selector(input_sel, ti, string_environment=True),
         )
 
@@ -312,7 +312,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
         inp = CpuSelector()
         self.assertEqual(
-            "${if defined(runtime_cpu) then runtime_cpu else 1}",
+            "~{if defined(runtime_cpu) then runtime_cpu else 1}",
             wdl.get_input_value_from_potential_selector_or_generator(
                 inp, ti, string_environment=True
             ),
@@ -336,9 +336,9 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = ToolInput("threads", Int(), default=CpuSelector(), prefix="-t")
         tid = {"threads": ti}
 
-        tr = wdl.translate_command_input(ti, tid)
+        tr = wdl.translate_command_input(ti)
         self.assertEqual(
-            '${"-t " + if defined(threads) then threads else if defined(runtime_cpu) then runtime_cpu else 1}',
+            '~{"-t " + if defined(threads) then threads else if defined(runtime_cpu) then runtime_cpu else 1}',
             tr.get_string(),
         )
 
@@ -346,16 +346,16 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = ToolInput("threads", Int(), default=CpuSelector(None), prefix="-t")
         tid = {"threads": ti}
 
-        tr = wdl.translate_command_input(ti, tid)
+        tr = wdl.translate_command_input(ti)
         self.assertEqual(
-            '${"-t " + if defined(threads) then threads else runtime_cpu}',
+            '~{"-t " + if defined(threads) then threads else runtime_cpu}',
             tr.get_string(),
         )
 
     # def test_input_value_memselect_stringenv(self):
     #     inp = MemorySelector()
     #     self.assertEqual(
-    #         "${floor(runtime_memory)}",
+    #         "~{floor(runtime_memory)}",
     #         wdl.get_input_value_from_potential_selector_or_generator(inp, string_environment=True)
     #     )
     #
@@ -404,7 +404,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         d = {"random_input": ToolInput("random_input", String())}
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
         res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
-        self.assertEqual("an input ${random_input}", res)
+        self.assertEqual("an input ~{random_input}", res)
 
     def test_string_formatter_two_param(self):
         # vardict input format
@@ -418,7 +418,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
             normalName=InputSelector("normalInputName"),
         )
         res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
-        self.assertEqual("${tumorInputName}:${normalInputName}", res)
+        self.assertEqual("~{tumorInputName}:~{normalInputName}", res)
 
     def test_escaped_characters(self):
         trans = wdl.WdlTranslator
@@ -438,7 +438,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"ti": ToolInput("ti", String(optional=True), default="hi")}
         b = StringFormatter("{place} michael", place=InputSelector("ti"))
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
-        self.assertEqual('${if defined(ti) then ti else "hi"} michael', res)
+        self.assertEqual('~{if defined(ti) then ti else "hi"} michael', res)
 
     def test_resolve_filename_in_inpselect(self):
         fn = Filename(extension=".ext")
@@ -446,7 +446,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         b = StringFormatter("fn: {place}", place=InputSelector("ti"))
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
         self.assertEqual(
-            f'fn: ${{if defined(ti) then ti else "{fn.generated_filename()}"}}', res
+            f'fn: ~{{if defined(ti) then ti else "{fn.generated_filename()}"}}', res
         )
 
 
@@ -562,39 +562,39 @@ class TestWdlGenerateInput(unittest.TestCase):
         )
 
         self.assertEqual("out", os[0].name)
-        self.assertEqual('"${testtool}/out"', os[0].expression)
+        self.assertEqual('"~{testtool}/out"', os[0].expression)
 
         self.assertEqual("out_txt", os[1].name)
-        self.assertEqual('"${testtool}/out.txt"', os[1].expression)
+        self.assertEqual('"~{testtool}/out.txt"', os[1].expression)
 
 
 class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_nooptional_position(self):
         ti = ToolInput("tag", String(), position=0)
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual("${tag}", resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual("~{tag}", resp.get_string())
 
     def test_nodefault_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing")
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual("--amazing ${tag}", resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual("--amazing ~{tag}", resp.get_string())
 
     def test_nodefault_nooptional_prefix_nosep(self):
         ti = ToolInput(
             "tag", String(), prefix="--amazing=", separate_value_from_prefix=False
         )
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual("--amazing=${tag}", resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual("--amazing=~{tag}", resp.get_string())
 
     def test_nodefault_optional_position(self):
         ti = ToolInput("tag", String(optional=True), position=0)
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual("${tag}", resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual("~{tag}", resp.get_string())
 
     def test_nodefault_optional_prefix_sep(self):
         ti = ToolInput("tag", String(optional=True), prefix="--amazing")
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual('${"--amazing " + tag}', resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual('~{"--amazing " + tag}', resp.get_string())
 
     def test_nodefault_optional_prefix_nosep(self):
         ti = ToolInput(
@@ -603,19 +603,19 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             prefix="--amazing=",
             separate_value_from_prefix=False,
         )
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual('${"--amazing=" + tag}', resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual('~{"--amazing=" + tag}', resp.get_string())
 
     def test_default_nooptional_position(self):
         ti = ToolInput("tag", String(), position=0, default="defval")
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual('${if defined(tag) then tag else "defval"}', resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual('~{if defined(tag) then tag else "defval"}', resp.get_string())
 
     def test_default_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing", default="defval")
-        resp = wdl.translate_command_input(ti, {"tag": ti})
+        resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing ${if defined(tag) then tag else "defval"}', resp.get_string()
+            '--amazing ~{if defined(tag) then tag else "defval"}', resp.get_string()
         )
 
     def test_default_nooptional_prefix_nosep(self):
@@ -626,23 +626,23 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             separate_value_from_prefix=False,
             default="defval",
         )
-        resp = wdl.translate_command_input(ti, {"tag": ti})
+        resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing=${if defined(tag) then tag else "defval"}', resp.get_string()
+            '--amazing=~{if defined(tag) then tag else "defval"}', resp.get_string()
         )
 
     def test_default_optional_position(self):
         ti = ToolInput("tag", String(optional=True), position=0, default="defval")
-        resp = wdl.translate_command_input(ti, {"tag": ti})
-        self.assertEqual('${if defined(tag) then tag else "defval"}', resp.get_string())
+        resp = wdl.translate_command_input(ti)
+        self.assertEqual('~{if defined(tag) then tag else "defval"}', resp.get_string())
 
     def test_default_optional_prefix_sep(self):
         ti = ToolInput(
             "tag", String(optional=True), prefix="--amazing", default="defval"
         )
-        resp = wdl.translate_command_input(ti, {"tag": ti})
+        resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '${"--amazing " + if defined(tag) then tag else "defval"}',
+            '~{"--amazing " + if defined(tag) then tag else "defval"}',
             resp.get_string(),
         )
 
@@ -654,17 +654,17 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             separate_value_from_prefix=False,
             default="defval",
         )
-        resp = wdl.translate_command_input(ti, {"tag": ti})
+        resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '${"--amazing=" + if defined(tag) then tag else "defval"}',
+            '~{"--amazing=" + if defined(tag) then tag else "defval"}',
             resp.get_string(),
         )
 
     def test_bind_boolean_as_default(self):
         ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing", default=True)
-        resp = wdl.translate_command_input(ti, None).get_string()
+        resp = wdl.translate_command_input(ti).get_string()
         self.assertEqual(
-            '${true="--amazing" false="" if defined(tag) then tag else true}', resp
+            '~{true="--amazing" false="" if defined(tag) then tag else true}', resp
         )
 
 
@@ -916,3 +916,30 @@ workflow wb {
 
 }"""
         self.assertEqual(_tooldef, "\n".join(wf.split("\n")[4:]))
+
+
+class TestLinkStatements(unittest.TestCase):
+    def test_1(self):
+        import janis_core as j
+        from janis_bioinformatics.data_types import BamBai
+
+        Tool = j.CommandToolBuilder(
+            tool="ls",
+            base_command=["ls"],
+            inputs=[
+                j.ToolInput("bam", BamBai, secondaries_present_as={".bai": "^.bai"})
+            ],
+            outputs=[
+                j.ToolOutput("std", j.Stdout),
+                j.ToolOutput(
+                    "out",
+                    BamBai,
+                    secondaries_present_as={".bai": "^.bai"},
+                    glob=j.InputSelector("bam"),
+                ),
+            ],
+            container="ubuntu:latest",
+            version="v0.1.0",
+        )
+
+        Tool.translate("wdl")

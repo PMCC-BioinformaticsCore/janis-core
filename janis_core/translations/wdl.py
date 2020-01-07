@@ -22,6 +22,8 @@ from uuid import uuid4
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
+
+from janis_core.code.pythontool import PythonTool
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -35,6 +37,7 @@ from janis_core.types import (
     MemorySelector,
     StringFormatter,
     String,
+    Selector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -59,6 +62,11 @@ SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
     lambda x, iterations: f"`echo '{x}' {iterations * SED_REMOVE_EXTENSION}`"
 )
+
+
+class CustomGlob(Selector):
+    def __init__(self, expression):
+        self.expression = expression
 
 
 class WdlTranslator(TranslatorBase):
@@ -236,7 +244,7 @@ class WdlTranslator(TranslatorBase):
         return w, wtools
 
     @classmethod
-    def translate_tool_inputs(cls, toolinputs: List[ToolInput]):
+    def translate_tool_inputs(cls, toolinputs: List[ToolInput]) -> List[wdl.Input]:
         ins = []
         for i in toolinputs:
             wd = i.input_type.wdl(has_default=i.default is not None)
@@ -292,12 +300,10 @@ class WdlTranslator(TranslatorBase):
         return commandargs
 
     @classmethod
-    def build_command_from_inputs(
-        cls, toolinputs: List[ToolInput], inputmap: Dict[str, ToolInput]
-    ):
+    def build_command_from_inputs(cls, toolinputs: List[ToolInput]):
         command_ins = []
         for i in toolinputs:
-            cmd = translate_command_input(i, inputmap)
+            cmd = translate_command_input(i)
             if cmd:
                 command_ins.append(cmd)
         return command_ins
@@ -323,7 +329,7 @@ class WdlTranslator(TranslatorBase):
         command_args = cls.translate_tool_args(
             tool.arguments(), inmap, toolId=tool.id()
         )
-        command_ins = cls.build_command_from_inputs(tool.inputs(), inmap)
+        command_ins = cls.build_command_from_inputs(tool.inputs())
 
         commands = []
 
@@ -366,6 +372,68 @@ class WdlTranslator(TranslatorBase):
         r.kwargs["preemptible"] = 2
 
         return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+
+    @classmethod
+    def translate_code_tool_internal(cls, tool: PythonTool, with_docker=True):
+        if not Validators.validate_identifier(tool.id()):
+            raise Exception(
+                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+                f"numbers or an underscore)"
+            )
+
+        ins = [
+            ToolInput(t.id(), input_type=t.intype, prefix=f"--{t.id()}", doc=t.doc)
+            for t in tool.tool_inputs()
+        ]
+        tr_ins = cls.translate_tool_inputs(cls.get_resource_override_inputs() + ins)
+
+        outs = []
+        for t in tool.tool_outputs():
+            if isinstance(t.outtype, Stdout):
+                outs.append(ToolOutput(t.id(), output_type=t.outtype))
+                continue
+
+            outs.append(
+                ToolOutput(
+                    t.id(),
+                    output_type=t.outtype,
+                    glob=CustomGlob(f'read_json(stdout())["{t.id()}"]'),
+                )
+            )
+
+        tr_outs = cls.translate_tool_outputs(outs, {}, tool.id())
+
+        commands = []
+
+        scriptname = f"{tool.id()}-script.py"
+
+        commands.append(
+            wdl.Task.Command(
+                f"""
+cat <<EOT >> {scriptname}
+{tool.prepared_script()}
+EOT"""
+            )
+        )
+
+        command_ins = cls.build_command_from_inputs(ins)
+        commands.append(wdl.Task.Command(["python", scriptname], command_ins, []))
+
+        r = wdl.Task.Runtime()
+        if with_docker:
+            r.add_docker(tool.container())
+
+        # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
+        # r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
+        #     CpuSelector(), {}, string_environment=False, id="runtimestats"
+        # )
+
+        r.kwargs["memory"] = wdl.IfThenElse(
+            "defined(runtime_memory)", '"${runtime_memory}G"', '"4G"'
+        )
+
+        return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
     @classmethod
     def build_inputs_file(
@@ -497,7 +565,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     return name
 
 
-def translate_command_input(tool_input: ToolInput, inputsdict, **debugkwargs):
+def translate_command_input(tool_input: ToolInput, **debugkwargs):
     # make sure it has some essence of a command line binding, else we'll skip it
     # TODO: make a property on ToolInput (.bind_to_commandline) and set default to true
     if not (tool_input.position is not None or tool_input.prefix):
@@ -583,6 +651,9 @@ def translate_output_node_with_glob(
                 for s in o.output_type.secondary_files()
             )
         return outputs
+
+    elif isinstance(glob, CustomGlob):
+        return [wdl.Output(o.output_type.wdl(), o.id(), glob.expression)]
 
     else:
         raise Exception(
@@ -1628,7 +1699,7 @@ def prepare_move_statements_for_output(
         newlocation = to.presents_as
         base = f'"{to.presents_as}"'
 
-        commands.append(f"ln -f ${{{to.id()}}} {newlocation}")
+        commands.append(wdl.Task.Command(f"ln -f ${{{to.id()}}} {newlocation}"))
 
     if to.secondaries_present_as and ot.secondary_files():
         for s in ot.secondary_files():
