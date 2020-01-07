@@ -26,8 +26,9 @@ from typing import List, Dict, Optional, Any, Tuple
 import cwlgen
 import ruamel.yaml
 
+from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import full_lbl
-from janis_core.tool.commandtool import CommandTool, ToolInput
+from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
@@ -37,6 +38,7 @@ from janis_core.types import (
     MemorySelector,
     CpuSelector,
     StringFormatter,
+    DataType,
 )
 from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
@@ -351,6 +353,138 @@ class CwlTranslator(TranslatorBase):
             )
 
         return tool_cwl
+
+    @classmethod
+    def translate_code_tool_internal(cls, tool: CodeTool, with_docker=True):
+
+        stdouts = [
+            o.outtype
+            for o in tool.tool_outputs()
+            if isinstance(o.outtype, Stdout) and o.outtype.stdoutname
+        ]
+        stderrs = [
+            o.outtype
+            for o in tool.tool_outputs()
+            if isinstance(o.outtype, Stderr) and o.outtype.stderrname
+        ]
+        stdout = "python-capture.stdout"
+        stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
+
+        scriptname = tool.script_name()
+
+        if isinstance(stderr, InputSelector):
+            stderr = translate_input_selector(stderr, code_environment=False)
+
+        tool_cwl = cwlgen.CommandLineTool(
+            tool_id=tool.id(),
+            base_command=tool.base_command(),
+            label=tool.id(),
+            doc="",  # metadata.documentation,
+            cwl_version=CWL_VERSION,
+            stderr=stderr,
+            stdout=stdout,
+        )
+
+        tool_cwl.inputs.extend(
+            translate_tool_input(
+                ToolInput(
+                    t.id(),
+                    input_type=t.intype,
+                    prefix=f"--{t.id()}",
+                    default=t.default,
+                    doc=t.doc,
+                )
+            )
+            for t in tool.inputs()
+        )
+
+        for output in tool.tool_outputs():
+            if isinstance(output.outtype, Stdout):
+                tool_cwl.outputs.append(
+                    cwlgen.CommandOutputParameter(
+                        param_id=output.tag,
+                        label=output.tag,
+                        param_type=output.outtype.cwl_type(),
+                    )
+                )
+                continue
+
+            tool_cwl.outputs.append(
+                cwlgen.CommandOutputParameter(
+                    param_id=output.tag,
+                    label=output.tag,
+                    # param_format=None,
+                    # streamable=None,
+                    doc=output.doc,
+                    output_binding=cwlgen.CommandOutputBinding(
+                        glob=stdout,
+                        load_contents=True,
+                        output_eval=cls.prepare_output_eval_for_python_codetool(
+                            tag=output.tag, outtype=output.outtype
+                        ),
+                    ),
+                    param_type=output.outtype.cwl_type(),
+                )
+            )
+
+        tool_cwl.requirements.append(
+            cwlgen.InitialWorkDirRequirement(
+                listing=[
+                    cwlgen.InitialWorkDirRequirement.Dirent(
+                        entryname=scriptname, entry=tool.prepared_script()
+                    )
+                ]
+            )
+        )
+        tool_cwl.requirements.append(cwlgen.InlineJavascriptRequirement())
+
+        return tool_cwl
+
+    @staticmethod
+    def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
+
+        isfile = isinstance(outtype, File)
+        arraylayers = None
+        if isinstance(outtype, Array) and isinstance(outtype.fundamental_type(), File):
+            isfile = True
+            base = outtype
+            arraylayers = 0
+            while isinstance(base, Array):
+                arraylayers += 1
+                base = outtype.subtype()
+
+        out_capture = ""
+        if isfile:
+            fileout_generator = (
+                lambda c: f"{{ class: 'File', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
+            )
+
+            if arraylayers:
+                els = ["var els = [];"]
+
+                base_var = f"v{arraylayers}"
+                center = f"els.push({fileout_generator(base_var)};"
+
+                def iteratively_wrap(center, iterable, layers_remaining):
+                    var = f"v{layers_remaining}"
+                    if layers_remaining > 1:
+                        center = iteratively_wrap(center, var, layers_remaining - 1)
+                    return f"for (var {var} of {iterable}) {{ {center} }}"
+
+                out_capture = "\n".join(
+                    [els, iteratively_wrap(center, "c", arraylayers)]
+                )
+            else:
+                out_capture = fileout_generator("c")
+        else:
+            out_capture = "c"
+
+        return f"""${{
+var d = JSON.parse(self[0].contents)
+if (!d) return null;
+var c = d["{tag}"]
+return {out_capture}
+}}"""
 
     @staticmethod
     def workflow_filename(workflow):
