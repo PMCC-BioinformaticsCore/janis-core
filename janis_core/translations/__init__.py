@@ -63,6 +63,24 @@ def translate_workflow(
     )
 
 
+def translate_code_tool(
+    tool,
+    translation: SupportedTranslation,
+    to_console=True,
+    to_disk=False,
+    export_path=None,
+    with_docker=True,
+):
+    translator = get_translator(translation)
+    return translator.translate_code_tool(
+        tool,
+        to_console=to_console,
+        to_disk=to_disk,
+        export_path=export_path,
+        with_docker=with_docker,
+    )
+
+
 def translate_tool(
     tool,
     translation: SupportedTranslation,
