@@ -15,6 +15,7 @@ from janis_core.types import (
     String,
     get_from_python_type,
     DataType,
+    get_instantiated_type,
 )
 
 inspect_ignore_keys = {"self", "args", "kwargs", "cls", "template"}
@@ -67,7 +68,7 @@ class PythonTool(CodeTool, ABC):
                     else inp.annotation
                 )
 
-                dt_type: Optional[Type[DataType]] = get_from_python_type(
+                dt_type: Optional[DataType] = get_instantiated_type(
                     annotation, optional=optional
                 )
                 if not dt_type:
@@ -77,7 +78,7 @@ class PythonTool(CodeTool, ABC):
                 ins.append(
                     TInput(
                         tag=inp.name,
-                        intype=dt_type(optional=optional),
+                        intype=dt_type,
                         default=default,
                         doc=paramdocs.get(inp.name),
                     )
