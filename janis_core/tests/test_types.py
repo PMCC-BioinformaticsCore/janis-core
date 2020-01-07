@@ -1,7 +1,7 @@
 import unittest
 
 from janis_core import Array, String, Stdout, File, Int, Float, Boolean
-from janis_core.types import get_instantiated_type
+from janis_core.types import get_instantiated_type, get_from_python_type
 
 
 class DataTypeWithSecondary(File):
@@ -86,3 +86,44 @@ class TestParseTypes(unittest.TestCase):
     def test_parse_instantiated_bool(self):
         t = get_instantiated_type(Boolean())
         self.assertIsInstance(t, Boolean)
+
+
+from typing import Optional, List
+
+
+class TestPythonAnnotations(unittest.TestCase):
+    def test_string(self):
+        t = get_from_python_type(str)
+        self.assertIsInstance(t, String)
+
+    def test_1(self):
+        t = get_from_python_type(Optional[bool])
+        self.assertTrue(t.optional)
+        self.assertIsInstance(t, Boolean)
+
+    def test_2(self):
+        t = get_from_python_type(List[str])
+        self.assertFalse(t.optional)
+        self.assertIsInstance(t, Array)
+        st = t.subtype()
+        self.assertFalse(st.optional)
+        self.assertIsInstance(st, String)
+
+    def test_3(self):
+        t = get_from_python_type(List[List[str]])
+        self.assertFalse(t.optional)
+        self.assertIsInstance(t, Array)
+        st = t.subtype()
+        self.assertFalse(st.optional)
+        self.assertIsInstance(st, Array)
+        sst = st.subtype()
+        self.assertFalse(sst.optional)
+        self.assertIsInstance(sst, String)
+
+    def test_4(self):
+        t = get_from_python_type(List[Optional[str]])
+        self.assertFalse(t.optional)
+        self.assertIsInstance(t, Array)
+        st = t.subtype()
+        self.assertTrue(st.optional)
+        self.assertIsInstance(st, String)

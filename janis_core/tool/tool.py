@@ -19,7 +19,7 @@ ToolType = str
 class ToolTypes:
     Workflow: ToolType = "workflow"
     CommandTool: ToolType = "command-tool"
-    ExpressionTool: ToolType = "expression-tool"
+    CodeTool: ToolType = "code-tool"
 
 
 class TInput(object):
