@@ -361,7 +361,7 @@ class WdlTranslator(TranslatorBase):
             CpuSelector(), inmap, string_environment=False, id="runtimestats"
         )
         r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"${runtime_memory}G"', '"4G"'
+            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
         )
 
         if with_resource_overrides:
@@ -430,7 +430,7 @@ EOT"""
         # )
 
         r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"${runtime_memory}G"', '"4G"'
+            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
         )
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
@@ -598,7 +598,7 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
             if separate_value_from_prefix is not None
             else True
         ),
-        # Instead of using default, we'll use the ${if defined($var) then val1 else val2}
+        # Instead of using default, we'll use the ~{if defined($var) then val1 else val2}
         # as it progress through the rest properly
         # default=default,
         true=true,
@@ -808,7 +808,7 @@ def translate_string_formatter_for_output(
                     )
 
                 # use the wdl function: sub
-                sec_expression = '${sub({inp}, "\\\\{old_ext}$", "{new_ext}")}'.format(
+                sec_expression = '~{sub({inp}, "\\\\{old_ext}$", "{new_ext}")}'.format(
                     inp=expression,
                     old_ext=tool_in.input_type.extension,
                     new_ext=s.replace("^", ""),
@@ -1420,7 +1420,7 @@ def translate_input_selector(
     inp = inputsdict[selector.input_to_select]
     name = resolve_tool_input_value(inp, **debugkwargs)
     if string_environment:
-        return f"${{{name}}}"
+        return f"~{{{name}}}"
     else:
         return name
 
@@ -1530,27 +1530,6 @@ def apply_secondary_file_format_to_filename(
     return basepath + newfname
 
 
-# def prepare_move_statement_for_potential_secondaries(ti: ToolInput):
-#     it = ti.input_type
-#     if not issubclass(type(it), File) or not it.secondary_files():
-#         return []
-#
-#     commands = []
-#     for s in it.secondary_files():
-#         sectag = get_secondary_tag_from_original_tag(ti.id(), s)
-#
-#         if s in ti.secondaries_present_as:
-#             # different move statement
-#             continue
-#
-#         commands.append(
-#             wdl.Task.Command(
-#                 f'if [ $(dirname "${{{sectag}}}") != $(dirname "{ti.id()}") ]; then mv ${{{sectag}}} $(dirname ${{{ti.id()}}}); fi'
-#             )
-#         )
-#     return commands
-
-
 def prepare_env_var_setters(
     reqs: Dict[str, Any], inputsdict, **debugkwargs
 ) -> List[wdl.Task.Command]:
@@ -1609,7 +1588,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
         )
         return commands
 
-    base = f"${{{ti.id()}}}"
+    base = f"~{{{ti.id()}}}"
 
     if ti.localise_file or ti.presents_as:
         newlocation = None
@@ -1617,13 +1596,13 @@ def prepare_move_statements_for_input(ti: ToolInput):
         if ti.localise_file and not ti.presents_as:
             newlocation = "."
         elif not ti.localise_file and ti.presents_as:
-            newlocation = f'"`dirname ${{{ti.id()}}}`/{ti.presents_as}"'
+            newlocation = f'"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"'
             base = newlocation
         else:
             newlocation = ti.presents_as
             base = f'"{ti.presents_as}"'
 
-        commands.append(wdl.Task.Command(f"ln -f ${{{ti.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"ln -f ~{{{ti.id()}}} {newlocation}"))
 
     if it.secondary_files():
         for s in it.secondary_files():
@@ -1633,36 +1612,9 @@ def prepare_move_statements_for_input(ti: ToolInput):
                 ti.secondaries_present_as.get(s, s)
             )
             newpath = REMOVE_EXTENSION(base, iters) + newext
-            commands.append(wdl.Task.Command(f"ln -f ${{{sectag}}} {newpath}"))
+            commands.append(wdl.Task.Command(f"ln -f ~{{{sectag}}} {newpath}"))
 
     return commands
-
-    # if issubclass(type(it), File):
-    #     commands = [wdl.Task.Command(f"mv -n ${{{ti.id()}}} .")]
-    #     if it.secondary_files():
-    #         for s in it.secondary_files():
-    #             commands.append(
-    #                 wdl.Task.Command(
-    #                     f"mv -n ${{{get_secondary_tag_from_original_tag(ti.id(), s)}}} ."
-    #                 )
-    #             )
-    #     return commands
-    # if isinstance(it, Array) and issubclass(type(it.subtype()), File):
-    #     subtype = it.subtype()
-    #     commands = [wdl.Task.Command("mv -n ${{sep=' ' {s}}} .".format(s=ti.id()))]
-    #     if subtype.secondary_files():
-    #         for s in it.secondary_files():
-    #             commands.append(
-    #                 wdl.Task.Command(
-    #                     "mv -n ${{sep=' ' {s}}} .".format(
-    #                         s=get_secondary_tag_from_original_tag(ti.id(), s)
-    #                     )
-    #                 )
-    #             )
-    #
-    #     return commands
-
-    raise Exception(f"WDL is unable to localise type '{type(it)}'")
 
 
 def prepare_move_statements_for_output(
@@ -1693,13 +1645,13 @@ def prepare_move_statements_for_output(
         )
         return commands
 
-    base = f"${{{baseexpression}}}"
+    base = f"~{{{baseexpression}}}"
 
     if to.presents_as:
         newlocation = to.presents_as
         base = f'"{to.presents_as}"'
 
-        commands.append(wdl.Task.Command(f"ln -f ${{{to.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"ln -f ~{{{to.id()}}} {newlocation}"))
 
     if to.secondaries_present_as and ot.secondary_files():
         for s in ot.secondary_files():
