@@ -143,7 +143,7 @@ class NativeTypes:
 
 class DataType(ABC):
     def __init__(self, optional=False):
-        self.optional = optional
+        self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
 
     @staticmethod

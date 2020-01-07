@@ -473,7 +473,7 @@ class Stdout(File):
     def name():
         return "Stdout"
 
-    def __init__(self, subtype=None, stdoutname=None):
+    def __init__(self, subtype=None, stdoutname=None, optional=None):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
@@ -570,7 +570,7 @@ all_types = [
 ]
 
 
-def get_from_python_type(dt, optional: bool = False):
+def get_from_python_type(dt, optional: bool = None):
     if dt is None:
         return None
 
@@ -588,7 +588,7 @@ def get_from_python_type(dt, optional: bool = False):
     if is_qualified_generic(dt):
 
         if dt.__origin__ == list:
-            nt = get_from_python_type(dt.__args__[0])
+            nt = get_instantiated_type(dt.__args__[0])
             return Array(nt, optional=optional)
 
         args = dt.__args__
@@ -603,13 +603,13 @@ def get_from_python_type(dt, optional: bool = False):
             raise Exception("Janis cannot accept union ")
         idxofregtype = args[(len(args) - 1 - aridxofnonetype[0]) if optional else 0]
 
-        nt = get_from_python_type(idxofregtype, optional=optional)
+        nt = get_instantiated_type(idxofregtype, optional=optional)
         return nt
     elif is_generic(dt):
         raise Exception(f"Generic {dt} was generic typing, but unqualified")
 
 
-def get_instantiated_type(datatype: ParseableType):
+def get_instantiated_type(datatype: ParseableType, optional=None):
 
     if isinstance(datatype, list):
         if len(datatype) == 0:
@@ -620,9 +620,9 @@ def get_instantiated_type(datatype: ParseableType):
         return datatype
 
     if isclass(datatype) and issubclass(datatype, DataType):
-        return datatype()
+        return datatype(optional=optional)
 
-    dt = get_from_python_type(datatype)
+    dt = get_from_python_type(datatype, optional=optional)
     if dt:
         return dt
 

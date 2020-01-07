@@ -87,6 +87,11 @@ class TestParseTypes(unittest.TestCase):
         t = get_instantiated_type(Boolean())
         self.assertIsInstance(t, Boolean)
 
+    def test_parse_optional_file(self):
+        t = get_instantiated_type(Optional[File])
+        self.assertTrue(t.optional)
+        self.assertIsInstance(t, File)
+
 
 from typing import Optional, List
 
