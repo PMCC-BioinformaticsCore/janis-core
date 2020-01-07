@@ -223,6 +223,37 @@ class TranslatorBase(ABC):
 
         return tool_out
 
+    def translate_code_tool(
+        self,
+        codetool,
+        to_console=True,
+        to_disk=False,
+        export_path=None,
+        with_docker=True,
+        with_resource_overrides=False,
+    ):
+
+        tool_out = self.stringify_translated_tool(
+            self.translate_code_tool_internal(codetool, with_docker=with_docker)
+        )
+
+        if to_console:
+            print(tool_out)
+
+        if to_disk:
+            d = ExportPathKeywords.resolve(
+                export_path, workflow_spec=self.name, workflow_name=codetool.id()
+            )
+            if not os.path.exists(d):
+                os.makedirs(d)
+            fn_tool = self.tool_filename(codetool)
+            with open(os.path.join(d, fn_tool), "w+") as wf:
+                Logger.log(f"Writing {fn_tool} to disk")
+                wf.write(tool_out)
+                Logger.log(f"Wrote {fn_tool}  to disk")
+
+        return tool_out
+
     @classmethod
     def validate_inputs(cls, inputs, allow_null_if_optional):
         return True
@@ -267,6 +298,11 @@ class TranslatorBase(ABC):
     def translate_tool_internal(
         cls, tool, with_docker=True, with_resource_overrides=False
     ):
+        pass
+
+    @classmethod
+    @abstractmethod
+    def translate_code_tool_internal(cls, tool, with_docker=True):
         pass
 
     @classmethod
