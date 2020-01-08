@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from textwrap import dedent
 from typing import Dict, Any, Optional, Type
 
+from janis_core.types.data_types import NativeTypes
+
 from janis_core.utils.docparser_info import parse_docstring
 from janis_core.utils.metadata import ToolMetadata
 
@@ -13,15 +15,32 @@ from janis_core.types import (
     Int,
     Float,
     String,
-    get_from_python_type,
     DataType,
+    File,
+    Directory,
     get_instantiated_type,
+    all_types,
 )
 
 inspect_ignore_keys = {"self", "args", "kwargs", "cls", "template"}
 
 
+def get_instantiated_type_override(dt, optional=None, overrider=None):
+    if dt == PythonTool.File:
+        return File(optional=optional)
+    elif dt == PythonTool.Directory:
+        return Directory(optional=optional)
+
+    return get_instantiated_type(
+        datatype=dt, optional=optional, overrider=get_instantiated_type_override
+    )
+
+
 class PythonTool(CodeTool, ABC):
+
+    File = str
+    Directory = str
+
     @staticmethod
     @abstractmethod
     def code_block(**kwargs) -> Dict[str, Any]:
@@ -72,7 +91,7 @@ class PythonTool(CodeTool, ABC):
                     missing_annotations.add(inp.name)
                     continue
 
-                dt_type: Optional[DataType] = get_instantiated_type(
+                dt_type: Optional[DataType] = get_instantiated_type_override(
                     annotation, optional=optional
                 )
                 if not dt_type:
@@ -115,17 +134,41 @@ class PythonTool(CodeTool, ABC):
     def prepared_script(self):
         import inspect
 
+        nl = "\n"
         argkwargs = ", ".join(f"{t.id()}=args.{t.id()}" for t in self.inputs())
 
-        codeblock_without_static = PythonTool.remove_type_annotations(
-            "\n".join(dedent(inspect.getsource(self.code_block)).split("\n")[1:])
+        codeblock_without_static = nl.join(
+            dedent(inspect.getsource(self.code_block)).split(nl)[1:]
         )
-        nl = "\n"
+
+        ins = self.tool_inputs()
+
+        pt_decl = """\
+class PythonTool:
+    File = str
+    Directory = str
+"""
+
+        type_annotation_declarations = nl.join(
+            f"{k} = {v}"
+            for k, v in {
+                **{inp.intype.__class__.__name__: "str" for inp in ins},
+                **{
+                    t.__name__: NativeTypes.map_to_primitive(t.primitive()).__name__
+                    for t in all_types
+                },
+                "Array": "List",
+            }.items()
+        )
 
         return f"""
 import argparse, json
+from typing import Optional, List
 cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
-{nl.join(self.generate_cli_binding_for_input(inp) for inp in self.tool_inputs())}
+{nl.join(self.generate_cli_binding_for_input(inp) for inp in ins)}
+
+{type_annotation_declarations}
+{pt_decl}
 
 {codeblock_without_static}
 
@@ -134,35 +177,6 @@ result = code_block({argkwargs})
 
 print(json.dumps(result))
         """
-
-    @staticmethod
-    def remove_type_annotations(code):
-        import ast, astunparse
-
-        class TypeHintRemover(ast.NodeTransformer):
-            def visit_FunctionDef(self, node):
-                # remove the return type defintion
-                node.returns = None
-                # remove all argument annotations
-                if node.args.args:
-                    for arg in node.args.args:
-                        arg.annotation = None
-                return node
-
-            def visit_Import(self, node):
-                node.names = [n for n in node.names if n.name != "typing"]
-                return node if node.names else None
-
-            def visit_ImportFrom(self, node):
-                return node if node.module != "typing" else None
-
-        # parse the source code into an AST
-        parsed_source = ast.parse(code)
-        # remove all type annotations, function return type definitions
-        # and import statements from 'typing'
-        transformed = TypeHintRemover().visit(parsed_source)
-        # convert the AST back to source code
-        return str(astunparse.unparse(transformed))
 
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):
@@ -191,7 +205,7 @@ print(json.dumps(result))
             params.append("required=True")
 
         if inp.doc:
-            escaped = inp.doc.replace("'", "\\'")
+            escaped = inp.doc.replace("'", "\\'").replace("\n", "\\n")
             params.append(f"help='{escaped}'")
 
         joined = ", ".join(params)
