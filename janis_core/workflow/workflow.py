@@ -21,7 +21,7 @@ from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
-from janis_core.utils.scatter import ScatterDescription
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
 ConnectionSource = Union[Node, Tuple[Node, str]]
@@ -397,7 +397,7 @@ class Workflow(Tool):
         self,
         identifier: str,
         tool: Tool,
-        scatter: Union[str, ScatterDescription] = None,
+        scatter: Union[str, List[str], ScatterDescription] = None,
         ignore_missing=False,
     ):
         """
@@ -413,11 +413,19 @@ class Workflow(Tool):
 
         self.verify_identifier(identifier, tool.id())
 
-        if scatter is not None and isinstance(scatter, str):
+        if scatter is not None and not isinstance(scatter, ScatterDescription):
 
-            scatter = ScatterDescription(
-                [scatter] if isinstance(scatter, str) else scatter
-            )
+            fields = None
+            if isinstance(scatter, str):
+                fields = [scatter]
+            elif isinstance(scatter, list):
+                fields = scatter
+            else:
+                raise Exception(
+                    f"Couldn't scatter with field '{scatter}' ({type(scatter)}"
+                )
+
+            scatter = ScatterDescription(fields, method=ScatterMethods.dot)
 
         # verify scatter
         if scatter:
@@ -703,6 +711,11 @@ class Workflow(Tool):
                     writer.writerow(row)
 
         return data
+
+    def version(self):
+        meta: WorkflowMetadata = self.bind_metadata() or self.metadata
+        if meta:
+            return meta.version
 
 
 class WorkflowBuilder(Workflow):

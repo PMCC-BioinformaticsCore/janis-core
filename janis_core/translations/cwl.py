@@ -809,12 +809,6 @@ def translate_step(
 
     if step.scatter:
         if len(step.scatter.fields) > 1:
-            Logger.info(
-                "Discovered more than one scatterable field on cwlstep '{step_id}', "
-                "deciding scatterMethod to be '{method}".format(
-                    step_id=step.id(), method=step.scatter.method
-                )
-            )
             cwlstep.scatterMethod = step.scatter.method.cwl()
         cwlstep.scatter = step.scatter.fields
 
