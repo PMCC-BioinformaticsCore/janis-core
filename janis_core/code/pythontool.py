@@ -51,6 +51,7 @@ class PythonTool(CodeTool, ABC):
                 p["name"]: p.get("doc").strip() for p in paramlist if "name" in p
             }
 
+            missing_annotations = set()
             unsupported_types = {}
 
             ins = []
@@ -67,6 +68,9 @@ class PythonTool(CodeTool, ABC):
                     if inp.annotation is inspect.Parameter.empty
                     else inp.annotation
                 )
+                if not annotation:
+                    missing_annotations.add(inp.name)
+                    continue
 
                 dt_type: Optional[DataType] = get_instantiated_type(
                     annotation, optional=optional
@@ -82,6 +86,12 @@ class PythonTool(CodeTool, ABC):
                         default=default,
                         doc=paramdocs.get(inp.name),
                     )
+                )
+
+            if missing_annotations:
+                raise Exception(
+                    f"The following types on the PythonTool '{self.id()}' were missing type annotations (REQUIRED): "
+                    + ", ".join(missing_annotations)
                 )
 
             if unsupported_types:
@@ -107,24 +117,64 @@ class PythonTool(CodeTool, ABC):
 
         argkwargs = ", ".join(f"{t.id()}=args.{t.id()}" for t in self.inputs())
 
-        codeblock_without_static = dedent(inspect.getsource(self.code_block)).split(
-            "\n"
-        )[1:]
+        codeblock_without_static = PythonTool.remove_type_annotations(
+            "\n".join(dedent(inspect.getsource(self.code_block)).split("\n")[1:])
+        )
 
-        lines = [
-            "import argparse, json",
-            'cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")',
-            *[self.generate_cli_binding_for_input(inp) for inp in self.tool_inputs()],
-            "",
-            *codeblock_without_static,
-            "",
-            "args = cli.parse_args()",
-            "" f"result = code_block({argkwargs})",
-            "",
-            "print(json.dumps(result))",
-        ]
+        return f"""
+import argparse, json
+cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
+{','.join(self.generate_cli_binding_for_input(inp) for inp in self.tool_inputs())}
 
-        return "\n".join(lines)
+{codeblock_without_static}
+
+args = cli.parse_args()
+result = code_block({argkwargs})
+
+print(json.dumps(result))
+        """
+
+    @staticmethod
+    def remove_type_annotations(code):
+        from lib2to3 import fixer_base, refactor, fixer_util
+
+        class FixParameterAnnotations(fixer_base.BaseFix):
+            PATTERN = r"""
+                name=tname
+                |
+                func=funcdef< any+ '->' any+ >
+                |
+                simple_stmt<
+                    (
+                        import_name< 'import' 'typing' >
+                        |
+                        import_from< 'from' 'typing' 'import' any+ >
+                    ) '\n'
+                >
+            """
+
+            def transform(self, node, results):
+                if "name" in results:
+                    del node.children[1:]  # delete annotation to typed argument
+                elif "func" in results:
+                    del node.children[
+                        -4:-2
+                    ]  # delete annotation to function declaration
+                else:
+                    return (
+                        fixer_util.BlankLine()
+                    )  # delete statement that imports typing
+                return node
+
+        class Refactor(refactor.RefactoringTool):
+            def __init__(self, fixers):
+                self._fixers = [cls(None, None) for cls in fixers]
+                super().__init__(None)
+
+            def get_fixers(self):
+                return self._fixers, []
+
+        return str(Refactor([FixParameterAnnotations]).refactor_string(code, ""))
 
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):
