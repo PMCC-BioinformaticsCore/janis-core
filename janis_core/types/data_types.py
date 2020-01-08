@@ -58,6 +58,34 @@ class NativeTypes:
         return t in NativeTypes.all
 
     @staticmethod
+    def map_to_primitive(t: NativeType):
+        if t == NativeTypes.kBool:
+            return str
+        elif t == NativeTypes.kInt:
+            return int
+        elif t == NativeTypes.kLong:
+            return int
+        elif t == NativeTypes.kFloat:
+            return float
+        elif t == NativeTypes.kDouble:
+            return float
+        elif t == NativeTypes.kStr:
+            return str
+        elif t == NativeTypes.kFile:
+            return str
+        elif t == NativeTypes.kDirectory:
+            return str
+        elif t == NativeTypes.kArray:
+            return list
+        elif t == NativeTypes.kStdout:
+            return str
+        elif t == NativeTypes.kStderr:
+            return str
+        raise Exception(
+            f"Unhandled primitive type {t}, expected one of {', '.join(NativeTypes.all)}"
+        )
+
+    @staticmethod
     def map_to_cwl(t: NativeType):
         if t == NativeTypes.kBool:
             return cwl.CwlTypes.BOOLEAN
@@ -118,27 +146,6 @@ class NativeTypes:
         raise Exception(
             f"Unhandled primitive type {t}, expected one of {', '.join(NativeTypes.all)}"
         )
-
-    @staticmethod
-    def default_value(t: NativeType):
-        if t == NativeTypes.kBool:
-            return True
-        elif t == NativeTypes.kInt:
-            return 0
-        elif t == NativeTypes.kLong:
-            return 0.0
-        elif t == NativeTypes.kFloat:
-            return 0.0
-        elif t == NativeTypes.kDouble:
-            return 0.0
-        elif t == NativeTypes.kStr:
-            return "nothing"
-        elif t == NativeTypes.kFile:
-            return {"type": "File", "path": "path/to/file"}
-        elif t == NativeTypes.kDirectory:
-            return {"type": "Directory", "path": "path/to/file"}
-        elif t == NativeTypes.kArray:
-            return []
 
 
 class DataType(ABC):

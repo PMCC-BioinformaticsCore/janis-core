@@ -570,10 +570,11 @@ all_types = [
 ]
 
 
-def get_from_python_type(dt, optional: bool = None):
+def get_from_python_type(dt, optional: bool = None, overrider=None):
     if dt is None:
         return None
 
+    bc = overrider or get_instantiated_type
     typedt = type(dt)
 
     if dt == str or typedt == str:
@@ -588,7 +589,7 @@ def get_from_python_type(dt, optional: bool = None):
     if is_qualified_generic(dt):
 
         if dt.__origin__ == list:
-            nt = get_instantiated_type(dt.__args__[0])
+            nt = bc(dt.__args__[0])
             return Array(nt, optional=optional)
 
         args = dt.__args__
@@ -603,18 +604,20 @@ def get_from_python_type(dt, optional: bool = None):
             raise Exception("Janis cannot accept union ")
         idxofregtype = args[(len(args) - 1 - aridxofnonetype[0]) if optional else 0]
 
-        nt = get_instantiated_type(idxofregtype, optional=optional)
+        nt = bc(idxofregtype, optional=optional)
         return nt
     elif is_generic(dt):
         raise Exception(f"Generic {dt} was generic typing, but unqualified")
 
 
-def get_instantiated_type(datatype: ParseableType, optional=None):
+def get_instantiated_type(datatype: ParseableType, optional=None, overrider=None):
+
+    bc = overrider or get_instantiated_type
 
     if isinstance(datatype, list):
         if len(datatype) == 0:
             raise TypeError("Couldn't determine type of array with length 0")
-        return Array(get_instantiated_type(datatype[0]))
+        return Array(bc(datatype[0]))
 
     if isinstance(datatype, DataType):
         return datatype
@@ -622,7 +625,7 @@ def get_instantiated_type(datatype: ParseableType, optional=None):
     if isclass(datatype) and issubclass(datatype, DataType):
         return datatype(optional=optional)
 
-    dt = get_from_python_type(datatype, optional=optional)
+    dt = get_from_python_type(datatype, optional=optional, overrider=bc)
     if dt:
         return dt
 
