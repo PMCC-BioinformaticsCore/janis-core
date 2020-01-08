@@ -3,7 +3,7 @@ from os import getcwd
 import os.path
 
 from janis_core import String
-from janis_core.translations.exportpath import ExportPathKeywords
+from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translations.translationbase import TranslatorBase
 
 

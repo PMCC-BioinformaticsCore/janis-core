@@ -16,7 +16,7 @@ from janis_core.types import (
 
 from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
-from janis_core.enums.supportedtranslations import SupportedTranslation
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.utils.metadata import ToolMetadata, Metadata
 
 

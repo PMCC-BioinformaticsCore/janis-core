@@ -1,10 +1,5 @@
-import argparse
 from abc import ABC, abstractmethod
-from textwrap import dedent
 from typing import List
-
-from janis_core import translations
-from janis_core.types import Boolean, Array, Int, Float, String
 
 from janis_core.tool.tool import Tool, TOutput, TInput, ToolType, ToolTypes
 
@@ -75,6 +70,8 @@ class CodeTool(Tool, ABC):
         with_docker=True,
         with_resource_overrides=False,
     ):
+        from janis_core import translations
+
         return translations.translate_code_tool(
             self,
             translation=translation,

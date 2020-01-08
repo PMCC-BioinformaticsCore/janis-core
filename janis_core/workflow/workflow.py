@@ -1,16 +1,14 @@
-import os
 import copy
+import os
 from abc import abstractmethod
-from inspect import isclass
-from typing import List, Type, Union, Optional, Dict, Tuple, Any
+from typing import List, Union, Optional, Dict, Tuple, Any
 
-from janis_core import translations
-from janis_core.utils import first_value
-from janis_core.utils.metadata import WorkflowMetadata
-from janis_core.utils.logger import Logger
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.graph.steptaginput import StepTagInput
-from janis_core.translations import ExportPathKeywords
+from janis_core.tool.commandtool import CommandTool
+from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
+from janis_core.translationdeps.exportpath import ExportPathKeywords
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.types import (
     DataType,
     ParseableType,
@@ -19,9 +17,10 @@ from janis_core.types import (
     InputSelector,
     Filename,
 )
-from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
-from janis_core.tool.commandtool import CommandTool
 from janis_core.types.data_types import is_python_primitive
+from janis_core.utils import first_value
+from janis_core.utils.logger import Logger
+from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.scatter import ScatterDescription
 from janis_core.utils.validators import Validators
 
@@ -549,13 +548,9 @@ class Workflow(Tool):
             TOutput(o.id(), o.datatype, doc=o.doc) for o in self.output_nodes.values()
         ]
 
-    @staticmethod
-    def version():
-        return "v0.1.0"
-
     def translate(
         self,
-        translation: translations.SupportedTranslation,
+        translation: SupportedTranslation,
         to_console=True,
         tool_to_console=False,
         to_disk=False,
@@ -573,7 +568,9 @@ class Workflow(Tool):
         max_cores=None,
         max_mem=None,
     ):
-        return translations.translate_workflow(
+        from janis_core.translations import translate_workflow
+
+        return translate_workflow(
             self,
             translation=translation,
             to_console=to_console,
@@ -610,17 +607,21 @@ class Workflow(Tool):
         }
 
         if with_resource_overrides:
-            d.update(translations.CwlTranslator().build_resources_input(self, hints))
+            from janis_core.translations import CwlTranslator
+
+            d.update(CwlTranslator().build_resources_input(self, hints))
 
         return d
 
     def generate_resources_file(
         self,
-        translation: translations.SupportedTranslation,
+        translation: SupportedTranslation,
         hints: Dict[str, Any] = None,
         to_console=True,
     ):
-        tr = translations.build_resources_input(self, translation, hints)
+        from janis_core.translations import build_resources_input
+
+        tr = build_resources_input(self, translation, hints)
         if to_console:
             print(tr)
         return tr
@@ -705,9 +706,12 @@ class Workflow(Tool):
 
 
 class WorkflowBuilder(Workflow):
-    def __init__(self, identifier: str = None, friendly_name: str = None):
+    def __init__(
+        self, identifier: str = None, friendly_name: str = None, version: str = None
+    ):
         self._identifier = identifier
         self._name = friendly_name
+        self.version = version
 
         super().__init__()
 
@@ -727,6 +731,9 @@ class WorkflowBuilder(Workflow):
         :return:
         """
         return self
+
+    def version(self):
+        return self.version
 
 
 if __name__ == "__main__":

@@ -22,16 +22,14 @@ _Proudly made on Planet Earth._
 
 """
 
-import sys
-import pkg_resources
-
-
 # PEP396:  https://www.python.org/dev/peps/pep-0396/
 from janis_core.__meta__ import __version__
 from janis_core.registry.shed import JanisShed
 import janis_core.registry.entrypoints as entrypoints
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
-from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
+
+# Tools
+from janis_core.tool.tool import Tool, ToolTypes
+from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.tool.commandtool import (
     CommandTool,
     CommandToolBuilder,
@@ -39,15 +37,11 @@ from janis_core.tool.commandtool import (
     ToolInput,
     ToolOutput,
 )
-from janis_core.tool.tool import Tool, ToolTypes
-from janis_core.translations import SupportedTranslations
-from janis_core.types import (
-    InputSelector,
-    WildcardSelector,
-    MemorySelector,
-    CpuSelector,
-    StringFormatter,
-)
+from janis_core.code.pythontool import PythonTool
+
+# Types
+
+from janis_core.types.data_types import DataType
 from janis_core.types.common_data_types import (
     Boolean,
     String,
@@ -61,14 +55,19 @@ from janis_core.types.common_data_types import (
     Stdout,
     Stderr,
 )
-from janis_core.types.data_types import DataType
-from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
+from janis_core.types import (
+    InputSelector,
+    WildcardSelector,
+    MemorySelector,
+    CpuSelector,
+    StringFormatter,
+)
+
+# Misc
+
 from janis_core.utils.logger import Logger, LogLevel
+from janis_core.translations import SupportedTranslations
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
+from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
-
-from janis_core.workflow.workflow import Workflow, WorkflowBuilder
-
-# from janis_core.workflow.input import Input
-# from janis_core.workflow.output import Output
-# from janis_core.workflow.step import Step
-# from janis_core.workflow.workflow import Workflow

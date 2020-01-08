@@ -44,7 +44,7 @@ from janis_core.types.common_data_types import Stdout, Stderr, Array, File, File
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
-from janis_core.translations.exportpath import ExportPathKeywords
+from janis_core.translationdeps.exportpath import ExportPathKeywords
 
 # from janis_core.workflow.input import Input
 from janis_core.workflow.workflow import StepNode

@@ -1,8 +1,8 @@
 from typing import Dict
 
 from janis_core.__meta__ import GITHUB_URL
-from janis_core.translations.exportpath import ExportPathKeywords
-from janis_core.enums.supportedtranslations import (
+from janis_core.translationdeps.exportpath import ExportPathKeywords
+from janis_core.translationdeps.supportedtranslations import (
     SupportedTranslations,
     SupportedTranslation,
 )

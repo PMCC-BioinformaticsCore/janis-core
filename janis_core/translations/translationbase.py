@@ -5,7 +5,7 @@ from typing import Tuple, List, Dict, Optional, Any
 
 from janis_core.tool.commandtool import ToolInput
 from janis_core.types.common_data_types import Int
-from janis_core.translations.exportpath import ExportPathKeywords
+from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.utils.logger import Logger
 
 # from janis_core.workflow.input import Input, InputNode
