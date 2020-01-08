@@ -120,11 +120,12 @@ class PythonTool(CodeTool, ABC):
         codeblock_without_static = PythonTool.remove_type_annotations(
             "\n".join(dedent(inspect.getsource(self.code_block)).split("\n")[1:])
         )
+        nl = "\n"
 
         return f"""
 import argparse, json
 cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
-{','.join(self.generate_cli_binding_for_input(inp) for inp in self.tool_inputs())}
+{nl.join(self.generate_cli_binding_for_input(inp) for inp in self.tool_inputs())}
 
 {codeblock_without_static}
 
@@ -136,45 +137,32 @@ print(json.dumps(result))
 
     @staticmethod
     def remove_type_annotations(code):
-        from lib2to3 import fixer_base, refactor, fixer_util
+        import ast, astunparse
 
-        class FixParameterAnnotations(fixer_base.BaseFix):
-            PATTERN = r"""
-                name=tname
-                |
-                func=funcdef< any+ '->' any+ >
-                |
-                simple_stmt<
-                    (
-                        import_name< 'import' 'typing' >
-                        |
-                        import_from< 'from' 'typing' 'import' any+ >
-                    ) '\n'
-                >
-            """
-
-            def transform(self, node, results):
-                if "name" in results:
-                    del node.children[1:]  # delete annotation to typed argument
-                elif "func" in results:
-                    del node.children[
-                        -4:-2
-                    ]  # delete annotation to function declaration
-                else:
-                    return (
-                        fixer_util.BlankLine()
-                    )  # delete statement that imports typing
+        class TypeHintRemover(ast.NodeTransformer):
+            def visit_FunctionDef(self, node):
+                # remove the return type defintion
+                node.returns = None
+                # remove all argument annotations
+                if node.args.args:
+                    for arg in node.args.args:
+                        arg.annotation = None
                 return node
 
-        class Refactor(refactor.RefactoringTool):
-            def __init__(self, fixers):
-                self._fixers = [cls(None, None) for cls in fixers]
-                super().__init__(None)
+            def visit_Import(self, node):
+                node.names = [n for n in node.names if n.name != "typing"]
+                return node if node.names else None
 
-            def get_fixers(self):
-                return self._fixers, []
+            def visit_ImportFrom(self, node):
+                return node if node.module != "typing" else None
 
-        return str(Refactor([FixParameterAnnotations]).refactor_string(code, ""))
+        # parse the source code into an AST
+        parsed_source = ast.parse(code)
+        # remove all type annotations, function return type definitions
+        # and import statements from 'typing'
+        transformed = TypeHintRemover().visit(parsed_source)
+        # convert the AST back to source code
+        return str(astunparse.unparse(transformed))
 
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):

@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict, Any, Optional
+
+from janis_core.types import Filename, String
 
 from janis_core.tool.tool import Tool, TOutput, TInput, ToolType, ToolTypes
 
@@ -26,6 +28,33 @@ class CodeTool(Tool, ABC):
         :return:
         """
         pass
+
+    def memory(self, hints: Dict[str, Any]) -> Optional[float]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        This memory must be in GB!
+        :param hints: Dict[Key: value] of hints
+        :return: Optional[int]
+        """
+        return None
+
+    def cpus(self, hints: Dict[str, Any]) -> Optional[int]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The CPU must be a whole number. If your tool contains threads
+        :return:
+        """
+        return None
 
     # Janis developer should inherit these methods
 
@@ -80,3 +109,27 @@ class CodeTool(Tool, ABC):
             with_docker=with_docker,
             # export_path=export_path,
         )
+
+    def wrapped_in_wf(self):
+        from copy import copy
+        from janis_core.workflow.workflow import WorkflowBuilder
+
+        wf = WorkflowBuilder(self.id() + "Wf")
+        inpmap = {}
+        for i in self.inputs():
+
+            if isinstance(i.intype, Filename):
+                intp = String(optional=True)
+            else:
+                intp = copy(i.intype)
+                if i.default:
+                    intp.optional = True
+
+            inpmap[i.id()] = wf.input(i.id(), intp)
+
+        stp = wf.step(self.id().lower(), self(**inpmap))
+
+        for o in self.outputs():
+            wf.output(o.id(), source=stp[o.id()])
+
+        return wf

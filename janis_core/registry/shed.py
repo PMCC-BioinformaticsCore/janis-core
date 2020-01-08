@@ -57,6 +57,7 @@ class JanisShed:
             t = f"The tool {tool.id()} did not have a version and will not be registered"
             Logger.critical(t)
             return False
+        Logger.log("Adding tool: " + tool.id())
 
         JanisShed._byclassname.register(tool.__class__.__name__, tool)
         return JanisShed._toolshed.register(tool.id().lower(), v.lower(), tool)
@@ -79,7 +80,7 @@ class JanisShed:
 
         Logger.log("Setting CONSOLE_LEVEL to None while traversing modules")
         cl = Logger.CONSOLE_LEVEL
-        Logger.set_console_level(None)
+        # Logger.set_console_level(None)
         seen_modules = set()
         seen_classes = set()
         for m in modules:
@@ -166,6 +167,8 @@ class JanisShed:
             if cls.type() == ToolTypes.Workflow:
                 return JanisShed.add_tool(ic)
             elif cls.type() == ToolTypes.CommandTool:
+                return JanisShed.add_tool(ic)
+            elif cls.type() == ToolTypes.CodeTool:
                 return JanisShed.add_tool(ic)
 
         except Exception as e:

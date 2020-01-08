@@ -18,14 +18,11 @@ This file is logically structured similar to the cwl equiv:
 
 import json
 from inspect import isclass
-from uuid import uuid4
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
 
-from janis_core.code.pythontool import PythonTool
-from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
-
+from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
 from janis_core.tool.tool import Tool, TOutput
@@ -34,7 +31,6 @@ from janis_core.types import (
     InputSelector,
     WildcardSelector,
     CpuSelector,
-    MemorySelector,
     StringFormatter,
     String,
     Selector,
@@ -46,11 +42,11 @@ from janis_core.types.common_data_types import (
     Boolean,
     Filename,
     File,
-    Int,
 )
 from janis_core.utils import first_value, recursive_2param_wrap
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
 # from janis_core.workflow.step import StepNode
@@ -224,6 +220,12 @@ class WdlTranslator(TranslatorBase):
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
                     )
+                elif isinstance(t, CodeTool):
+                    wtools[t.id()] = cls.translate_code_tool_internal(
+                        t,
+                        with_docker=with_docker,
+                        with_resource_overrides=with_resource_overrides,
+                    )
 
             resource_overrides = {}
 
@@ -374,7 +376,9 @@ class WdlTranslator(TranslatorBase):
         return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
 
     @classmethod
-    def translate_code_tool_internal(cls, tool: PythonTool, with_docker=True):
+    def translate_code_tool_internal(
+        cls, tool: CodeTool, with_docker=True, with_resource_overrides=True
+    ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
                 f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
@@ -385,7 +389,8 @@ class WdlTranslator(TranslatorBase):
         ins = [
             ToolInput(t.id(), input_type=t.intype, prefix=f"--{t.id()}", doc=t.doc)
             for t in tool.tool_inputs()
-        ]
+        ] + cls.get_resource_override_inputs()
+
         tr_ins = cls.translate_tool_inputs(cls.get_resource_override_inputs() + ins)
 
         outs = []
@@ -406,7 +411,7 @@ class WdlTranslator(TranslatorBase):
 
         commands = []
 
-        scriptname = f"{tool.id()}-script.py"
+        scriptname = tool.script_name()
 
         commands.append(
             wdl.Task.Command(
@@ -418,11 +423,16 @@ EOT"""
         )
 
         command_ins = cls.build_command_from_inputs(ins)
-        commands.append(wdl.Task.Command(["python", scriptname], command_ins, []))
+        commands.append(wdl.Task.Command(tool.base_command(), command_ins, []))
 
         r = wdl.Task.Runtime()
         if with_docker:
             r.add_docker(tool.container())
+
+        if with_resource_overrides:
+            tr_ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
+            r.kwargs["disks"] = "runtime_disks"
+            r.kwargs["zones"] = '"australia-southeast1-b"'
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
         # r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
@@ -1193,7 +1203,7 @@ def generate_scatterable_details(
 def wrap_scatter_call(
     call, scatter: ScatterDescription, scatterable, scattered_old_to_new_identifier
 ):
-    from janis_core.workflow.workflow import StepNode, InputNode
+    from janis_core.workflow.workflow import InputNode
 
     # Let's start the difficult process of scattering, in WDL we'll:
     #
@@ -1677,7 +1687,7 @@ def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
     else:
         prefix += "_"
 
-    if isinstance(tool, CommandTool):
+    if isinstance(tool, (CommandTool, CodeTool)):
         inputs.extend(
             [
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_memory"),

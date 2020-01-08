@@ -149,6 +149,11 @@ class CwlTranslator(TranslatorBase):
                     with_resource_overrides=with_resource_overrides,
                 )
                 tools[tool.id()] = tool_cwl
+            elif isinstance(tool, CodeTool):
+                tool_cwl = cls.translate_code_tool_internal(
+                    tool, with_docker=with_docker
+                )
+                tools[tool.id()] = tool_cwl
             else:
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 

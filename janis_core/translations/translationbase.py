@@ -1,14 +1,13 @@
-from abc import ABC, abstractmethod
 import os
-from path import Path
+from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Optional, Any
 
-from janis_core.tool.commandtool import ToolInput
-from janis_core.types.common_data_types import Int
-from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.utils.logger import Logger
+from path import Path
 
-# from janis_core.workflow.input import Input, InputNode
+from janis_core.tool.commandtool import ToolInput
+from janis_core.translationdeps.exportpath import ExportPathKeywords
+from janis_core.types.common_data_types import Int
+from janis_core.utils.logger import Logger
 
 
 class TranslatorBase(ABC):
@@ -324,6 +323,7 @@ class TranslatorBase(ABC):
         cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
     ):
         from janis_core.workflow.workflow import Workflow, Tool, CommandTool
+        from janis_core.code.codetool import CodeTool
 
         # returns a list of key, value pairs
         steps: Dict[str, Optional[Any]] = {}
@@ -338,7 +338,7 @@ class TranslatorBase(ABC):
         for s in workflow.step_nodes.values():
             tool: Tool = s.tool
 
-            if isinstance(tool, CommandTool):
+            if isinstance(tool, (CommandTool, CodeTool)):
                 tool_pre = prefix + s.id() + "_"
                 cpus = inputs.get(f"{s.id()}_runtime_cpu", tool.cpus(hints) or 1)
                 mem = inputs.get(f"{s.id()}_runtime_memory", tool.memory(hints))
