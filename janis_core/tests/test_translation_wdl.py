@@ -921,21 +921,29 @@ workflow wb {
 class TestLinkStatements(unittest.TestCase):
     def test_1(self):
         import janis_core as j
-        from janis_bioinformatics.data_types import BamBai
+
+        class FileWithSec(j.File):
+            def __init__(self, optional=False):
+                super().__init__(optional=optional, extension=".txt")
+
+            def secondary_files(self):
+                return [".sec"]
 
         Tool = j.CommandToolBuilder(
             tool="ls",
             base_command=["ls"],
             inputs=[
-                j.ToolInput("bam", BamBai, secondaries_present_as={".bai": "^.bai"})
+                j.ToolInput(
+                    "inp", FileWithSec, secondaries_present_as={".sec": "^.sec"}
+                )
             ],
             outputs=[
                 j.ToolOutput("std", j.Stdout),
                 j.ToolOutput(
                     "out",
-                    BamBai,
-                    secondaries_present_as={".bai": "^.bai"},
-                    glob=j.InputSelector("bam"),
+                    FileWithSec,
+                    secondaries_present_as={".sec": "^.sec"},
+                    glob=j.InputSelector("inp"),
                 ),
             ],
             container="ubuntu:latest",
