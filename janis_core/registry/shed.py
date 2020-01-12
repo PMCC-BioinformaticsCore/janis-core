@@ -80,7 +80,7 @@ class JanisShed:
 
         Logger.log("Setting CONSOLE_LEVEL to None while traversing modules")
         cl = Logger.CONSOLE_LEVEL
-        # Logger.set_console_level(None)
+        Logger.set_console_level(None)
         seen_modules = set()
         seen_classes = set()
         for m in modules:
