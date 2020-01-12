@@ -28,7 +28,7 @@ from janis_core.registry.shed import JanisShed
 import janis_core.registry.entrypoints as entrypoints
 
 # Tools
-from janis_core.tool.tool import Tool, ToolTypes
+from janis_core.tool.tool import Tool, ToolTypes, TOutput, TInput
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.tool.commandtool import (
     CommandTool,
@@ -37,7 +37,7 @@ from janis_core.tool.commandtool import (
     ToolInput,
     ToolOutput,
 )
-from janis_core.code.pythontool import PythonTool
+from janis_core.code.pythontool import PythonTool, CodeTool
 
 # Types
 

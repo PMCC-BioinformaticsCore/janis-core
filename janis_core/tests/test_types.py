@@ -126,6 +126,7 @@ class TestPythonAnnotations(unittest.TestCase):
         self.assertIsInstance(sst, String)
 
     def test_4(self):
+        # Might be a fun python 3.6 thing here...
         t = get_from_python_type(List[Optional[str]])
         self.assertFalse(t.optional)
         self.assertIsInstance(t, Array)

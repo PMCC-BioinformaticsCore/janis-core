@@ -10,7 +10,7 @@ from janis_core.tool.tool import TOutput, TInput
 
 class PythonEchoTool(PythonTool):
     @staticmethod
-    def code_block(name: str, infile: Optional[PythonTool.File], flag2: bool):
+    def code_block(name: str, infile: Optional[File], flag2: bool):
         isset = "is set" if flag2 else str(type(flag2))
 
         with open(infile, "w+") as tf:
