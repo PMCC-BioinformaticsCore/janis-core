@@ -18,17 +18,6 @@ class CodeTool(Tool, ABC):
     def outputs(self) -> List[TOutput]:
         pass
 
-    @staticmethod
-    @abstractmethod
-    def code_block(**kwargs):
-        """
-        This code block must be 100% self contained. All libraries and functions must be
-        imported and declared from within this block.
-        :param kwargs:
-        :return:
-        """
-        pass
-
     def memory(self, hints: Dict[str, Any]) -> Optional[float]:
         """
         These values are used to generate a separate runtime.json / runtime.yaml input

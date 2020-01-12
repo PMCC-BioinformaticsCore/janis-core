@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from textwrap import dedent
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional, Type, List
 
+from janis_core import TOutput
 from janis_core.types.data_types import NativeTypes
 
 from janis_core.utils.docparser_info import parse_docstring
@@ -25,22 +26,7 @@ from janis_core.types import (
 inspect_ignore_keys = {"self", "args", "kwargs", "cls", "template"}
 
 
-def get_instantiated_type_override(dt, optional=None, overrider=None):
-    if dt == PythonTool.File:
-        return File(optional=optional)
-    elif dt == PythonTool.Directory:
-        return Directory(optional=optional)
-
-    return get_instantiated_type(
-        datatype=dt, optional=optional, overrider=get_instantiated_type_override
-    )
-
-
 class PythonTool(CodeTool, ABC):
-
-    File = str
-    Directory = str
-
     @staticmethod
     @abstractmethod
     def code_block(**kwargs) -> Dict[str, Any]:
@@ -91,7 +77,7 @@ class PythonTool(CodeTool, ABC):
                     missing_annotations.add(inp.name)
                     continue
 
-                dt_type: Optional[DataType] = get_instantiated_type_override(
+                dt_type: Optional[DataType] = get_instantiated_type(
                     annotation, optional=optional
                 )
                 if not dt_type:
@@ -138,7 +124,7 @@ class PythonTool(CodeTool, ABC):
         argkwargs = ", ".join(f"{t.id()}=args.{t.id()}" for t in self.inputs())
 
         codeblock_without_static = nl.join(
-            dedent(inspect.getsource(self.code_block)).split(nl)[1:]
+            "    " + l for l in dedent(inspect.getsource(self.code_block)).split(nl)[1:]
         )
 
         ins = self.tool_inputs()
@@ -162,15 +148,19 @@ class PythonTool:
         )
 
         return f"""
-import argparse, json
-from typing import Optional, List
+import argparse, json, sys
+from typing import Optional, List, Dict, Any
 cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
 {nl.join(self.generate_cli_binding_for_input(inp) for inp in ins)}
 
 {type_annotation_declarations}
 {pt_decl}
 
+try:
 {codeblock_without_static}
+except e:
+    print(str(e), file=sys.stderr)
+    raise
 
 args = cli.parse_args()
 result = code_block({argkwargs})
@@ -185,11 +175,15 @@ print(json.dumps(result))
 
         required = not inp.intype.optional
 
+        if isinstance(inp.intype, Array):
+            params.append("nargs='+'")
+            intype = inp.intype.fundamental_type()
+
         if isinstance(inp.intype, Int):
             intype = "int"
         elif isinstance(inp.intype, Float):
             intype = "float"
-        elif isinstance(inp.intype, String):
+        elif isinstance(inp.intype, (String, File, Directory)):
             intype = "str"
         elif isinstance(inp.intype, Boolean):
             params.append("action='store_true'")
@@ -197,9 +191,6 @@ print(json.dumps(result))
 
         if intype:
             params.append("type=" + intype)
-
-        if isinstance(inp.intype, Array):
-            params.append("nargs='+'")
 
         if required:
             params.append("required=True")
