@@ -25,7 +25,7 @@ class ToolTypes:
 class TInput(object):
     def __init__(self, tag: str, intype: DataType, default=None, doc: str = None):
         self.tag = tag
-        self.intype = intype
+        self.intype = get_instantiated_type(intype)
         self.default = default
         self.doc = doc
 
@@ -36,7 +36,7 @@ class TInput(object):
 class TOutput(object):
     def __init__(self, tag, outtype, doc: str = None):
         self.tag = tag
-        self.outtype = outtype
+        self.outtype = get_instantiated_type(outtype)
         self.doc = doc
 
     def id(self):
