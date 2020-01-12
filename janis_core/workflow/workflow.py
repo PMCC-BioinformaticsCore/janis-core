@@ -724,7 +724,7 @@ class WorkflowBuilder(Workflow):
     ):
         self._identifier = identifier
         self._name = friendly_name
-        self.version = version
+        self._version = version
 
         super().__init__()
 
