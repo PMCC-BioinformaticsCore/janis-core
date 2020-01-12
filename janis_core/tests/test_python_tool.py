@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from janis_core.types import String, Boolean, Float, Int, File, Array
 
-from janis_core.code.pythontool import PythonTool, get_instantiated_type_override
+from janis_core.code.pythontool import PythonTool
 
 from janis_core.tool.tool import TOutput, TInput
 
@@ -48,21 +48,3 @@ class PythonEchoTool(PythonTool):
 #     def test_translation(self):
 #         self.assertTrue(True)
 #         # PythonEchoTool().translate("cwl")
-
-
-class PythonToolTypeOverride(unittest.TestCase):
-    def test_file(self):
-        t = get_instantiated_type_override(PythonTool.File)
-        self.assertIsInstance(t, File)
-        self.assertFalse(t.optional)
-
-    def test_optional_file(self):
-        t = get_instantiated_type_override(Optional[PythonTool.File])
-        self.assertIsInstance(t, File)
-        self.assertTrue(t.optional)
-
-    def test_list_file(self):
-        t = get_instantiated_type_override(List[PythonTool.File])
-        self.assertIsInstance(t, Array)
-        self.assertIsInstance(t.subtype(), File)
-        self.assertFalse(t.optional)
