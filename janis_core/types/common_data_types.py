@@ -2,11 +2,10 @@
 # Implementations #
 ###################
 from inspect import isclass
-import typing
-from typing import Union, Type, Dict, List, Any
+from typing import Union, Type, Dict, Any
 
-import wdlgen
 import cwlgen
+import wdlgen
 
 from janis_core.types.data_types import (
     DataType,
@@ -14,12 +13,7 @@ from janis_core.types.data_types import (
     NativeType,
     PythonPrimitive,
 )
-from janis_core.utils.generics_util import (
-    is_generic,
-    is_qualified_generic,
-    is_py37_or_greater,
-    is_py36,
-)
+from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
 ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
 ParseableType = ParseableTypeBase
