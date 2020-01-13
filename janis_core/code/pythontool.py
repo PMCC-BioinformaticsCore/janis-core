@@ -171,21 +171,23 @@ print(json.dumps(result))
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):
         params = [f'"--{inp.id()}"']
+
         intype = None
 
+        bintype = inp.intype
         required = not inp.intype.optional
 
-        if isinstance(inp.intype, Array):
+        if isinstance(bintype, Array):
             params.append("nargs='+'")
-            intype = inp.intype.fundamental_type()
+            bintype = bintype.fundamental_type()
 
-        if isinstance(inp.intype, Int):
+        if isinstance(bintype, Int):
             intype = "int"
-        elif isinstance(inp.intype, Float):
+        elif isinstance(bintype, Float):
             intype = "float"
-        elif isinstance(inp.intype, (String, File, Directory)):
+        elif isinstance(bintype, (String, File, Directory)):
             intype = "str"
-        elif isinstance(inp.intype, Boolean):
+        elif isinstance(bintype, Boolean):
             params.append("action='store_true'")
             required = False
 
