@@ -14,7 +14,12 @@ from janis_core.types.data_types import (
     NativeType,
     PythonPrimitive,
 )
-
+from janis_core.utils.generics_util import (
+    is_generic,
+    is_qualified_generic,
+    is_py37_or_greater,
+    is_py36,
+)
 
 ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
 ParseableType = ParseableTypeBase
@@ -588,7 +593,7 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
 
     if is_qualified_generic(dt):
 
-        if dt.__origin__ == list:
+        if str(dt).startswith("typing.List"):
             nt = bc(dt.__args__[0])
             return Array(nt, optional=optional)
 
@@ -600,12 +605,16 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
             i for i, val in enumerate(a == type(None) for a in args) if val
         ]
         optional = len(aridxofnonetype) > 0
-        if len(aridxofnonetype) > 1 and optional == False:
-            raise Exception("Janis cannot accept union ")
-        idxofregtype = args[(len(args) - 1 - aridxofnonetype[0]) if optional else 0]
 
-        nt = bc(idxofregtype, optional=optional)
+        if len(aridxofnonetype) > 1 and optional is False:
+            raise Exception("Janis cannot accept union ")
+
+        idxofsubtype = (len(args) - 1 - aridxofnonetype[0]) if optional else 0
+        subtype = args[idxofsubtype]
+
+        nt = bc(subtype, optional=optional)
         return nt
+
     elif is_generic(dt):
         raise Exception(f"Generic {dt} was generic typing, but unqualified")
 
@@ -630,103 +639,3 @@ def get_instantiated_type(datatype: ParseableType, optional=None, overrider=None
         return dt
 
     raise TypeError(f"Unable to parse type '{str(datatype)}'")
-
-
-if hasattr(typing, "_GenericAlias"):
-    # python 3.7
-    def _is_generic(cls):
-        if isinstance(cls, typing._GenericAlias):
-            return True
-
-        if isinstance(cls, typing._SpecialForm):
-            return cls not in {typing.Any}
-
-        return False
-
-    def _is_base_generic(cls):
-        if isinstance(cls, typing._GenericAlias):
-            if cls.__origin__ in {typing.Generic, typing._Protocol}:
-                return False
-
-            if isinstance(cls, typing._VariadicGenericAlias):
-                return True
-
-            return len(cls.__parameters__) > 0
-
-        if isinstance(cls, typing._SpecialForm):
-            return cls._name in {"ClassVar", "Union", "Optional"}
-
-        return False
-
-
-else:
-    # python <3.7
-    if hasattr(typing, "_Union"):
-        # python 3.6
-        def _is_generic(cls):
-            return isinstance(
-                cls,
-                (typing.GenericMeta, typing._Union, typing._Optional, typing._ClassVar),
-            )
-
-        def _is_base_generic(cls):
-            if isinstance(cls, (typing.GenericMeta, typing._Union)):
-                return cls.__args__ in {None, ()}
-
-            return isinstance(cls, typing._Optional)
-
-    else:
-        # python 3.5
-        def _is_generic(cls):
-            return isinstance(
-                cls,
-                (
-                    typing.GenericMeta,
-                    typing.UnionMeta,
-                    typing.OptionalMeta,
-                    typing.CallableMeta,
-                    typing.TupleMeta,
-                ),
-            )
-
-        def _is_base_generic(cls):
-            if isinstance(cls, typing.GenericMeta):
-                return all(
-                    isinstance(arg, typing.TypeVar) for arg in cls.__parameters__
-                )
-
-            if isinstance(cls, typing.UnionMeta):
-                return cls.__union_params__ is None
-
-            if isinstance(cls, typing.TupleMeta):
-                return cls.__tuple_params__ is None
-
-            if isinstance(cls, typing.CallableMeta):
-                return cls.__args__ is None
-
-            if isinstance(cls, typing.OptionalMeta):
-                return True
-
-            return False
-
-
-def is_generic(cls):
-    """
-    Detects any kind of generic, for example `List` or `List[int]`. This includes "special" types like
-    Union and Tuple - anything that's subscriptable, basically.
-    """
-    return _is_generic(cls)
-
-
-def is_base_generic(cls):
-    """
-    Detects generic base classes, for example `List` (but not `List[int]`)
-    """
-    return _is_base_generic(cls)
-
-
-def is_qualified_generic(cls):
-    """
-    Detects generics with arguments, for example `List[int]` (but not `List`)
-    """
-    return is_generic(cls) and not is_base_generic(cls)
