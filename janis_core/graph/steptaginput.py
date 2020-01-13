@@ -83,7 +83,7 @@ class Edge:
         )
 
         if start_is_scattered:
-            Logger.debug(
+            Logger.log(
                 f"This edge merges the inputs from '{full_dot(self.start, self.stag)}' for "
                 f"'{full_dot(self.finish, self.ftag)}'"
             )

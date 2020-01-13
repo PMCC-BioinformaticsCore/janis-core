@@ -2,7 +2,9 @@ from typing import List, Type, Optional
 import pkg_resources, sys
 from inspect import isfunction, ismodule, isabstract, isclass
 
-from janis_core.tool.tool import Tool, ToolTypes
+from janis_core.tool.commandtool import Tool, ToolTypes, CommandTool, CommandToolBuilder
+from janis_core.code.pythontool import CodeTool, PythonTool
+from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger, LogLevel
 import janis_core.registry.entrypoints as EP
@@ -18,6 +20,9 @@ class JanisShed:
     _typeshed = Registry()
 
     _has_been_hydrated = False
+
+    should_trace = False
+    recognised_types = {ToolTypes.Workflow, ToolTypes.CommandTool, ToolTypes.CodeTool}
 
     # getters
 
@@ -78,9 +83,14 @@ class JanisShed:
             modules.extend(JanisShed._get_datatype_entrypoints())
             modules.extend(JanisShed._get_tool_entrypoints())
 
-        Logger.log("Setting CONSOLE_LEVEL to None while traversing modules")
+        level = None
+        if JanisShed.should_trace:
+            level = LogLevel.DEBUG
+        Logger.log(
+            f"Setting CONSOLE_LEVEL to {LogLevel.get_str(level) or 'None'} while traversing modules"
+        )
         cl = Logger.CONSOLE_LEVEL
-        Logger.set_console_level(None)
+        Logger.set_console_level(level)
         seen_modules = set()
         seen_classes = set()
         for m in modules:
@@ -135,7 +145,7 @@ class JanisShed:
             if not n.startswith("__")
             and type(cls) != type
             and not (ismodule(cls) and cls.__name__ in seen_modules)
-            and not (cls in seen_classes)
+            and (not isinstance(cls, list) and cls not in seen_classes)
         }
 
         for k in q:
@@ -153,7 +163,7 @@ class JanisShed:
                 return Logger.log(
                     f"Skip traversing module '{str(cls)}' as reached maximum depth ({JanisShed.MAX_RECURSION_DEPTH})"
                 )
-            elif isfunction(cls) or isabstract(cls):
+            elif isfunction(cls) or not isclass(cls):
                 return
 
             seen_classes.add(cls)
@@ -163,12 +173,28 @@ class JanisShed:
             elif not hasattr(cls, "type") or not callable(cls.type):
                 return
 
-            ic = cls() if isclass(cls) else cls
-            if cls.type() == ToolTypes.Workflow:
-                return JanisShed.add_tool(ic)
-            elif cls.type() == ToolTypes.CommandTool:
-                return JanisShed.add_tool(ic)
-            elif cls.type() == ToolTypes.CodeTool:
+            if (
+                cls == Tool
+                or cls == Workflow
+                or cls == CommandTool
+                or cls == CodeTool
+                or cls == PythonTool
+                or cls == WorkflowBuilder
+                or cls == CommandToolBuilder
+            ):
+                return
+
+            tp = cls.type()
+            if isinstance(tp, str) and tp in JanisShed.recognised_types:
+                if isabstract(cls):
+                    if issubclass(cls, Tool):
+                        abstractmethods = list(cls.__abstractmethods__)
+                        return Logger.warn(
+                            f"The tool '{cls.__name__}' had abstract methods: "
+                            + ", ".join(abstractmethods)
+                        )
+                    return
+                ic = cls() if isclass(cls) else cls
                 return JanisShed.add_tool(ic)
 
         except Exception as e:

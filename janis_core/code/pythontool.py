@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from textwrap import dedent
 from typing import Dict, Any, Optional, Type, List
 
-from janis_core import TOutput
 from janis_core.types.data_types import NativeTypes
 
 from janis_core.utils.docparser_info import parse_docstring
