@@ -8,14 +8,19 @@ from typing import Optional, TextIO
 
 
 class _bcolors:
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
+    """
+    Lookup table: https://en.wikipedia.org/wiki/ANSI_escape_code#3/4_bit
+    """
+
+    HEADER = "\033[95m"  # Bright magenta
+    OKBLUE = "\033[94m"  # Bright blue
+    OKGREEN = "\033[92m"  # Bright green
+    WARNING = "\033[93m"  # Bright yellow
+    FAIL = "\033[91m"  # Bright red
+    ENDC = "\033[0m"  # SGR (Reset / Normal)
+    BOLD = "\033[1m"  # SGR (Bold or increased intensity
+    ITALIC = "\033[3m"  # SGR (Italic)
+    UNDERLINE = "\033[4m"  # SGR (Underline)
 
 
 class LogLevel:
