@@ -1,11 +1,29 @@
 import typing
 
-is_py37_or_greater = hasattr(typing, "_GenericAlias")
-is_py36 = not is_py37_or_greater and hasattr(typing, "_Union")
-is_py35 = not (is_py37_or_greater or is_py36)
+
+is_py38 = hasattr(typing, "get_args")
+is_py37 = not (is_py38) and hasattr(typing, "_GenericAlias")
+is_py36 = not (is_py38 or is_py37) and hasattr(typing, "_Union")
+is_py35 = not (is_py38 or is_py37 or is_py36)
+
+if is_py38:
+
+    def _is_generic(cls):
+        if isinstance(cls, typing._GenericAlias):
+            return True
+
+        if isinstance(cls, typing._SpecialForm):
+            return cls not in {typing.Any}
+
+        return False
+
+    def _is_base_generic(cls):
+        args = typing.get_args(cls)
+        args_are_empty = len(list(a for a in args if a)) == 0
+        return args_are_empty or str(args[0]) == "~T"
 
 
-if is_py37_or_greater:
+elif is_py37:
     # python 3.7
     def _is_generic(cls):
         if isinstance(cls, typing._GenericAlias):
