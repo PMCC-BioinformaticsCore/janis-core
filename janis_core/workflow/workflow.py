@@ -520,7 +520,7 @@ class Workflow(Tool):
         if item in self.__dict__ or item == "nodes":
             return self.__dict__.get(item)
 
-        if item in self.nodes:
+        if self.nodes and item in self.nodes:
             return self.nodes[item]
 
         raise AttributeError(
