@@ -1,14 +1,14 @@
 from inspect import isclass
 from typing import Union, List, Type
 
-from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 
 from janis_core.types import Array
 
 from janis_core.workflow.workflow import Tool, Workflow
 
 
-class MultiTool(Workflow):
+class BatchRunTool(Workflow):
     def __init__(
         self,
         innertool: Union[Tool, Type[Tool]],
