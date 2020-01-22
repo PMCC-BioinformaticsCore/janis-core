@@ -16,6 +16,9 @@ from janis_core.types import (
     Array,
     InputSelector,
     Filename,
+    Operator,
+    StepOperator,
+    InputOperator,
 )
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
@@ -24,10 +27,15 @@ from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
-ConnectionSource = Union[Node, Tuple[Node, str]]
+ConnectionSource = Union[Node, StepOperator, Tuple[Node, str]]
 
 
-def verify_or_try_get_source(source: Union[ConnectionSource, List[ConnectionSource]]):
+def verify_or_try_get_source(
+    source: Union[ConnectionSource, List[ConnectionSource]]
+) -> Union[StepOperator, List[StepOperator]]:
+
+    if isinstance(source, StepOperator):
+        return source
     if isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
     node, tag = None, None
@@ -51,7 +59,7 @@ def verify_or_try_get_source(source: Union[ConnectionSource, List[ConnectionSour
             f"expected one of {tags}"
         )
 
-    return node, tag
+    return StepOperator(node, tag)
 
 
 class InputNode(Node):
@@ -70,7 +78,10 @@ class InputNode(Node):
         self.doc = doc
         self.value = value
 
-    def outputs(self) -> Dict[str, TOutput]:
+    def as_operator(self):
+        return InputOperator(self)
+
+    def outputs(self) -> Dict[Optional[str], TOutput]:
         # Program will just grab first value anyway
         return {None: TOutput(self.identifier, self.datatype)}
 
@@ -86,11 +97,13 @@ class StepNode(Node):
         tool: Tool,
         doc: str = None,
         scatter: ScatterDescription = None,
+        when: Operator = None,
     ):
         super().__init__(wf, NodeTypes.STEP, identifier)
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
+        self.when = when
 
     def inputs(self):
         return self.tool.inputs_map()
@@ -99,7 +112,8 @@ class StepNode(Node):
         return self.tool.outputs_map()
 
     def _add_edge(self, tag: str, source: ConnectionSource):
-        node, outtag = verify_or_try_get_source(source)
+        stepoperator = verify_or_try_get_source(source)
+        node, outtag = stepoperator.node, stepoperator.tag
 
         if tag not in self.sources:
             self.sources[tag] = StepTagInput(self, tag)
@@ -115,16 +129,16 @@ class StepNode(Node):
 
         return self.get_item(item)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> StepOperator:
         return self.get_item(item)
 
-    def get_item(self, item):
+    def get_item(self, item) -> StepOperator:
         ins = self.inputs()
         if item in ins:
-            return self, item
+            return StepOperator(self, item)
         outs = self.outputs()
         if item in outs:
-            return self, item
+            return StepOperator(self, item)
 
         tags = ", ".join(
             [f"in.{i}" for i in ins.keys()] + [f"out.{o}" for o in outs.keys()]
@@ -315,7 +329,9 @@ class Workflow(Tool):
         if source is None:
             raise Exception("Output source must not be 'None'")
 
-        node, tag = verify_or_try_get_source(source)
+        stepoperator = verify_or_try_get_source(source)
+        node, tag = stepoperator.node, stepoperator.tag
+
         if not datatype:
             datatype: DataType = node.outputs()[tag].outtype.received_type()
 
@@ -399,6 +415,7 @@ class Workflow(Tool):
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
         ignore_missing=False,
+        when: Optional[Operator] = None,
     ):
         """
         Construct a step on this workflow.
@@ -469,7 +486,9 @@ class Workflow(Tool):
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
-        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter)
+        stp = StepNode(
+            self, identifier=identifier, tool=tool, scatter=scatter, when=when
+        )
 
         added_edges = []
         for (k, v) in connections.items():
