@@ -53,7 +53,7 @@ setup(
     install_requires=[
         "cwlgen >= 0.4.0",
         "illusional.wdlgen >= 0.2.7",
-        "ruamel.yaml",
+        "ruamel.yaml >= 0.12.4, <= 0.16",
         "tabulate",
         "path.py",
     ],
