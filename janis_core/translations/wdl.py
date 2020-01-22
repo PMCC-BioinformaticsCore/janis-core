@@ -21,6 +21,7 @@ from inspect import isclass
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
+from janis_core.types.data_types import is_python_primitive
 
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -34,6 +35,11 @@ from janis_core.types import (
     StringFormatter,
     String,
     Selector,
+    Operator,
+    SingleValueOperator,
+    StepOperator,
+    InputOperator,
+    TwoValueOperator,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -160,7 +166,7 @@ class WdlTranslator(TranslatorBase):
 
         # Convert self._outputs -> wdl.Output
         for o in outputs:
-            sourcenode, sourcetag = o.source
+            sourcenode, sourcetag = o.source.node, o.source.tag
             w.outputs.append(
                 wdl.Output(
                     o.datatype.wdl(),
@@ -1139,7 +1145,38 @@ def translate_step_node(
             call, node.scatter, scatterable, scattered_old_to_new_identifier
         )
 
+    if node.when:
+        print(node.when)
+        condition = unwrap_when(node.when)
+        call = wdl.WorkflowConditional(condition, [call])
+        # determine how to unwrap when
+
     return call
+
+
+def unwrap_when(when: Operator) -> str:
+
+    if not when:
+        return "false"
+
+    if is_python_primitive(when):
+        if isinstance(when, str):
+            return f'"{when}"'
+        return when
+
+    if isinstance(when, InputOperator):
+        return when.input_node.id()
+
+    if isinstance(when, StepOperator):
+        return when.node.id() + "." + when.tag
+
+    if isinstance(when, SingleValueOperator):
+        return f"{when.wdl_symbol()}({unwrap_when(when.internal)})"
+
+    elif isinstance(when, TwoValueOperator):
+        return f"({unwrap_when(when.lhs)} {when.wdl_symbol()} {unwrap_when(when.rhs)})"
+
+    return str(when)
 
 
 def generate_scatterable_details(
