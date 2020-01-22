@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
-from janis_core.types import Selector
+from janis_core.types.selectors import Selector
 
 
 class Operator(Selector, ABC):
@@ -78,6 +78,32 @@ class Operator(Selector, ABC):
         return OrOperator(self, other)
 
 
+class InputOperator(Operator):
+    def __init__(self, input_node):
+        if input_node.node_type != 1:  # input
+            raise Exception(
+                f"Error when creating InputOperator, '{input_node.id()}' was not an input node"
+            )
+
+        self.input_node = input_node
+
+    def __repr__(self):
+        return "inputs." + self.input_node.id()
+
+
+class StepOperator(Operator):
+    def __init__(self, node, tag):
+        self.node = node
+        self.tag = tag
+
+    @staticmethod
+    def from_tuple(step_tuple):
+        return StepOperator(step_tuple[0], step_tuple[1])
+
+    def __repr__(self):
+        return self.node.id() + "." + self.tag
+
+
 OperatorOrValue = Union[Operator, Selector, int, str, float]
 
 
@@ -85,6 +111,16 @@ class SingleValueOperator(Operator, ABC):
     @staticmethod
     @abstractmethod
     def symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def wdl_symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def cwl_symbol():
         pass
 
     def __str__(self):
@@ -98,6 +134,16 @@ class TwoValueOperator(Operator, ABC):
     @staticmethod
     @abstractmethod
     def symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def wdl_symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def cwl_symbol():
         pass
 
     def __init__(self, lhs: OperatorOrValue, rhs: OperatorOrValue):
@@ -116,16 +162,40 @@ class AsStringOperator(SingleValueOperator):
     def symbol():
         return "str"
 
+    @staticmethod
+    def wdl_symbol():
+        return "str"
+
+    @staticmethod
+    def cwl_symbol():
+        return "str"
+
 
 class AsBoolOperator(SingleValueOperator):
     @staticmethod
     def symbol():
         return "bool"
 
+    @staticmethod
+    def wdl_symbol():
+        return "bool"
+
+    @staticmethod
+    def cwl_symbol():
+        return "bool"
+
 
 class AsIntOperator(SingleValueOperator):
     @staticmethod
     def symbol():
+        return "int"
+
+    @staticmethod
+    def wdl_symbol():
+        return "int"
+
+    @staticmethod
+    def cwl_symbol():
         return "int"
 
 
@@ -137,6 +207,14 @@ class NotOperator(SingleValueOperator):
     def symbol():
         return "!"
 
+    @staticmethod
+    def wdl_symbol():
+        return "!"
+
+    @staticmethod
+    def cwl_symbol():
+        return "!"
+
 
 # Two value operators
 
@@ -146,10 +224,26 @@ class AndOperator(TwoValueOperator):
     def symbol():
         return "&&"
 
+    @staticmethod
+    def wdl_symbol():
+        return "&&"
+
+    @staticmethod
+    def cwl_symbol():
+        return "&&"
+
 
 class OrOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return "||"
+
+    @staticmethod
+    def wdl_symbol():
+        return "||"
+
+    @staticmethod
+    def cwl_symbol():
         return "||"
 
 
@@ -158,10 +252,26 @@ class EqualityOperator(TwoValueOperator):
     def symbol():
         return "=="
 
+    @staticmethod
+    def wdl_symbol():
+        return "=="
+
+    @staticmethod
+    def cwl_symbol():
+        return "=="
+
 
 class InequalityOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return "!="
+
+    @staticmethod
+    def wdl_symbol():
+        return "!="
+
+    @staticmethod
+    def cwl_symbol():
         return "!="
 
 
@@ -170,10 +280,26 @@ class GtOperator(TwoValueOperator):
     def symbol():
         return ">"
 
+    @staticmethod
+    def wdl_symbol():
+        return ">"
+
+    @staticmethod
+    def cwl_symbol():
+        return ">"
+
 
 class GteOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return ">="
+
+    @staticmethod
+    def wdl_symbol():
+        return ">="
+
+    @staticmethod
+    def cwl_symbol():
         return ">="
 
 
@@ -182,10 +308,26 @@ class LtOperator(TwoValueOperator):
     def symbol():
         return "<"
 
+    @staticmethod
+    def wdl_symbol():
+        return "<"
+
+    @staticmethod
+    def cwl_symbol():
+        return "<"
+
 
 class LteOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return "<="
+
+    @staticmethod
+    def wdl_symbol():
+        return "<="
+
+    @staticmethod
+    def cwl_symbol():
         return "<="
 
 
@@ -194,10 +336,26 @@ class AddOperator(TwoValueOperator):
     def symbol():
         return "+"
 
+    @staticmethod
+    def wdl_symbol():
+        return "+"
+
+    @staticmethod
+    def cwl_symbol():
+        return "+"
+
 
 class SubtractOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return "-"
+
+    @staticmethod
+    def wdl_symbol():
+        return "-"
+
+    @staticmethod
+    def cwl_symbol():
         return "-"
 
 
@@ -206,8 +364,24 @@ class MultiplyOperator(TwoValueOperator):
     def symbol():
         return "*"
 
+    @staticmethod
+    def wdl_symbol():
+        return "*"
+
+    @staticmethod
+    def cwl_symbol():
+        return "*"
+
 
 class DivideOperator(TwoValueOperator):
     @staticmethod
     def symbol():
+        return "/"
+
+    @staticmethod
+    def wdl_symbol():
+        return "/"
+
+    @staticmethod
+    def cwl_symbol():
         return "/"
