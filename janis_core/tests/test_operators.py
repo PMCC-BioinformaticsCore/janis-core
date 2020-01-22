@@ -1,5 +1,5 @@
 import unittest
-from janis_core.utils.operator import *
+from janis_core.types.operator import *
 
 
 class TestOperators(unittest.TestCase):
