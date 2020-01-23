@@ -105,15 +105,46 @@ class StepNode(Node):
         self.scatter = scatter
         self.when = when
 
-    def inputs(self):
-        return self.tool.inputs_map()
+        self.parent_has_conditionals = False
+        self.has_conditionals = when is not None
 
-    def outputs(self):
-        return self.tool.outputs_map()
+    def inputs(self) -> Dict[str, TInput]:
+        ins = self.tool.inputs_map()
+
+        if self.parent_has_conditionals or self.has_conditionals:
+            q = {}
+            for iv in ins.values():
+                intype = copy.copy(iv.intype)
+                intype.optional = True
+                q[iv.id()] = TInput(
+                    iv.id(), intype=intype, doc=iv.doc, default=iv.default
+                )
+
+            ins = q
+
+        return ins
+
+    def outputs(self) -> Dict[str, TOutput]:
+        outs = self.tool.outputs_map()
+
+        if self.parent_has_conditionals or self.has_conditionals:
+            q = {}
+            for ov in outs.values():
+                outtype = copy.copy(ov.outtype)
+                outtype.optional = True
+                q[ov.id()] = TOutput(ov.id(), outtype=outtype, doc=ov.doc)
+
+            outs = q
+
+        return outs
 
     def _add_edge(self, tag: str, source: ConnectionSource):
         stepoperator = verify_or_try_get_source(source)
         node, outtag = stepoperator.node, stepoperator.tag
+
+        if isinstance(node, StepNode):
+            if node.has_conditionals or node.parent_has_conditionals:
+                self.parent_has_conditionals = True
 
         if tag not in self.sources:
             self.sources[tag] = StepTagInput(self, tag)
@@ -414,8 +445,8 @@ class Workflow(Tool):
         identifier: str,
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
-        ignore_missing=False,
         when: Optional[Operator] = None,
+        ignore_missing=False,
     ):
         """
         Construct a step on this workflow.
@@ -424,6 +455,8 @@ class Workflow(Tool):
         :param tool: The tool that should run for this step.
         :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
+        :param when: An operator / condition that determines whether the step should run
+        : type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
         """
