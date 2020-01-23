@@ -984,6 +984,4 @@ def wrap_steps_in_workflow(
             pick_value=PickValue.first_non_null,
         )
 
-    w.translate("wdl")
-
     return w(**workflow_connection_map)
