@@ -476,6 +476,8 @@ class Stdout(File):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
+        if self.optional is not None:
+            subtype.optional = optional
 
         if subtype and not isinstance(subtype, File):
             raise Exception(
@@ -499,7 +501,10 @@ class Stdout(File):
         return f"stdout<{self.subtype.id()}>"
 
     def received_type(self):
-        return self.subtype
+        st = self.subtype
+        if self.optional is not None:
+            st.optional = self.optional
+        return st
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         """
@@ -516,10 +521,12 @@ class Stderr(File):
     def name():
         return "Stderr"
 
-    def __init__(self, subtype=None, stderrname=None):
+    def __init__(self, subtype=None, stderrname=None, optional=None):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
+        if optional is not None:
+            subtype.optional = optional
 
         if subtype and not isinstance(subtype, File):
             raise Exception(
@@ -543,7 +550,10 @@ class Stderr(File):
         return f"stderr<{self.subtype.id()}>"
 
     def received_type(self):
-        return self.subtype
+        st = self.subtype
+        if self.optional is not None:
+            st.optional = self.optional
+        return st
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         """
@@ -565,6 +575,7 @@ all_types = [
     File,
     Directory,
     Stdout,
+    Stderr,
     Array,
 ]
 
