@@ -44,6 +44,8 @@ def verify_or_try_get_source(
 
     if isinstance(source, StepOperator):
         return source
+    if isinstance(source, InputOperator):
+        return verify_or_try_get_source(source.input_node)
     if isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
     node, tag = None, None
@@ -655,7 +657,10 @@ class Workflow(Tool):
             return self.__dict__.get(item)
 
         if self.nodes and item in self.nodes:
-            return self.nodes[item]
+            node = self.nodes[item]
+            if isinstance(node, InputNode):
+                return node.as_operator()
+            return node
 
         raise AttributeError(
             f"AttributeError: '{type(self).__name__}' object has no attribute '{item}'"

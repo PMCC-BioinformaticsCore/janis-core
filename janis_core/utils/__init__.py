@@ -60,3 +60,25 @@ def recursive_2param_wrap(methodname, items):
     if len(items) == 2:
         return f"{methodname}({items[0]}, {items[1]})"
     return f"{methodname}({items[0]}, {recursive_2param_wrap(methodname, items[1:])})"
+
+
+def is_module_available(module_name):
+    import sys
+
+    if sys.version_info < (3, 0):
+        # python 2
+        import importlib
+
+        torch_loader = importlib.find_loader(module_name)
+    elif sys.version_info <= (3, 3):
+        # python 3.0 to 3.3
+        import pkgutil
+
+        torch_loader = pkgutil.find_loader(module_name)
+    elif sys.version_info >= (3, 4):
+        # python 3.4 and above
+        import importlib
+
+        torch_loader = importlib.util.find_spec(module_name)
+
+    return torch_loader is not None

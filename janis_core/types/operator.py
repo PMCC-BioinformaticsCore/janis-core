@@ -113,6 +113,9 @@ class StepOperator(Operator):
     def __repr__(self):
         return self.node.id() + "." + self.tag
 
+    def as_operator(self):
+        return self
+
 
 OperatorOrValue = Union[Operator, Selector, int, str, float]
 
