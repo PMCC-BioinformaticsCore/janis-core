@@ -1156,13 +1156,16 @@ def translate_step_node(
 
 def unwrap_when(when: Operator) -> str:
 
-    if not when:
+    if when is None:
         return "false"
 
     if is_python_primitive(when):
         if isinstance(when, str):
             return f'"{when}"'
-        return when
+        if isinstance(when, bool):
+            return "true" if when else "false"
+
+        return str(when)
 
     if isinstance(when, InputOperator):
         return when.input_node.id()
