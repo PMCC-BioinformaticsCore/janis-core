@@ -52,6 +52,7 @@ from janis_core.types.common_data_types import (
 from janis_core.utils import first_value, recursive_2param_wrap
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
+from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
@@ -166,16 +167,27 @@ class WdlTranslator(TranslatorBase):
 
         # Convert self._outputs -> wdl.Output
         for o in outputs:
-            sourcenode, sourcetag = o.source.node, o.source.tag
-            w.outputs.append(
-                wdl.Output(
-                    o.datatype.wdl(),
-                    o.id(),
-                    "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                        a=sourcenode.id(), b=sourcetag
-                    ),
+            outtag = None
+            if isinstance(o.source, list):
+                pick_value = o.pick_value
+                vals = ", ".join(
+                    f"{source.node.id()}.{source.tag}" for source in o.source
                 )
-            )
+                if pick_value == PickValue.all_non_null:
+                    outtag = f"select_all([{vals}])"
+                elif pick_value == PickValue.first_non_null:
+                    outtag = f"select_first([{vals}])"
+                else:
+                    raise Exception(
+                        "WDL conversion is currently unable to handle single_non_null"
+                    )
+            else:
+                sourcenode, sourcetag = o.source.node, o.source.tag
+                outtag = "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
+                    a=sourcenode.id(), b=sourcetag
+                )
+
+            w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
             if o.datatype.secondary_files():
                 w.outputs.extend(
                     wdl.Output(

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List
 
 from janis_core.types.selectors import Selector
 
@@ -76,6 +76,16 @@ class Operator(Selector, ABC):
 
     def op_or(self, other):
         return OrOperator(self, other)
+
+
+def or_prev_conds(prevconditions: List[Operator]):
+    if len(prevconditions) == 0:
+        return None
+    elif len(prevconditions) == 1:
+        return prevconditions[0]
+    elif len(prevconditions) == 2:
+        return OrOperator(prevconditions[0], prevconditions[1])
+    return OrOperator(prevconditions[0], or_prev_conds(prevconditions[1:]))
 
 
 class InputOperator(Operator):

@@ -19,11 +19,19 @@ from janis_core.types import (
     Operator,
     StepOperator,
     InputOperator,
+    AndOperator,
+    OrOperator,
+    NotOperator,
+    or_prev_conds,
+    SingleValueOperator,
+    TwoValueOperator,
+    StringFormatter,
 )
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
+from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
@@ -197,29 +205,38 @@ class OutputNode(Node):
         wf,
         identifier: str,
         datatype: DataType,
-        source: ConnectionSource,
+        source: Union[List[ConnectionSource], ConnectionSource],
         doc: str = None,
         output_folder: Union[
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
         output_name: Union[str, InputSelector] = None,
+        pick_value: PickValue = None,
     ):
         super().__init__(wf, NodeTypes.OUTPUT, identifier)
         self.datatype = datatype
 
-        if source[0].node_type != NodeTypes.STEP:
+        sources = source if isinstance(source, list) else [source]
+        single_source = sources[0]
+
+        invalid_nodetypes = list(
+            s for s in sources if s.node.node_type != NodeTypes.STEP
+        )
+        if len(invalid_nodetypes) > 0:
             raise Exception(
-                f"Unsupported connection type: {NodeTypes.OUTPUT} → {source[0].node_type}"
+                f"Unsupported connection type: {NodeTypes.OUTPUT} → {', '.join(str(s[0].node_type) for s in sources)}"
             )
 
-        stype = source[0].outputs()[source[1]].outtype
-        snode = source[0]
+        snode = single_source.node
+        stype = snode.outputs()[single_source.tag].outtype
+
+        # todo: verify how a scatter on multiple input nodes should be handled, likely an error if they're different
         if isinstance(snode, StepNode) and snode.scatter:
             stype = Array(stype)
 
         if not datatype.can_receive_from(stype):
             Logger.critical(
-                f"Mismatch of types when joining to output node '{source[0].id()}.{source[1]}' to '{identifier}' "
+                f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
@@ -227,6 +244,7 @@ class OutputNode(Node):
         self.doc = doc
         self.output_folder = output_folder
         self.output_name = output_name
+        self.pick_value = pick_value
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -331,7 +349,9 @@ class Workflow(Tool):
         self,
         identifier: str,
         datatype: Optional[ParseableType] = None,
-        source: Union[StepNode, ConnectionSource] = None,
+        source: Union[
+            List[Union[StepNode, ConnectionSource]], Union[StepNode, ConnectionSource]
+        ] = None,
         output_folder: Union[
             str,
             InputSelector,
@@ -339,6 +359,7 @@ class Workflow(Tool):
             List[Union[str, InputSelector, ConnectionSource]],
         ] = None,
         output_name: Union[str, InputSelector, ConnectionSource] = None,
+        pick_value: PickValue = None,
     ):
         """
         Create an output on a workflow
@@ -353,6 +374,7 @@ class Workflow(Tool):
         :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
         resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
         may result in an unexpected termination.
+        :param pick_value: A pick value describes how to pick which value (if source is an array) should be used
         :return:
         """
         self.verify_identifier(identifier, repr(datatype))
@@ -360,13 +382,28 @@ class Workflow(Tool):
         if source is None:
             raise Exception("Output source must not be 'None'")
 
-        stepoperator = verify_or_try_get_source(source)
+        stepoperators = verify_or_try_get_source(source)
+        if isinstance(stepoperators, list):
+            # better be a pick_value
+            if not pick_value:
+                pick_value = PickValue.first_non_null
+                Logger.warn(
+                    "janis.output had source=List, but didn't provide a pick_value, defaulting to first_non_null"
+                )
+
+            stepoperator = stepoperators[0]
+        else:
+            stepoperator = stepoperators
+
         node, tag = stepoperator.node, stepoperator.tag
 
         if not datatype:
             datatype: DataType = node.outputs()[tag].outtype.received_type()
 
             if isinstance(node, StepNode) and node.scatter:
+                datatype = Array(datatype)
+
+            if pick_value and pick_value == PickValue.all_non_null:
                 datatype = Array(datatype)
 
         if output_name:
@@ -385,9 +422,10 @@ class Workflow(Tool):
             self,
             identifier=identifier,
             datatype=get_instantiated_type(datatype),
-            source=(node, tag),
+            source=stepoperators,
             output_folder=output_folder,
             output_name=output_name,
+            pick_value=pick_value,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
@@ -567,6 +605,50 @@ class Workflow(Tool):
         self.step_nodes[identifier] = stp
 
         return stp
+
+    def switch(self, stepid: str, conditions: List[Union[Tuple[Operator, Tool], Tool]]):
+        if len(conditions) <= 1:
+            raise Exception("A switch statement must include at least 2 conditions")
+        # validate tools
+        tools = []
+        for i in range(len(conditions)):
+            con = conditions[i]
+            if isinstance(con, tuple):
+                tools.append(con[1])
+            else:
+                if i < (len(conditions) - 1):
+                    raise Exception(
+                        "A default statement (no condition) must be the last element in the switch"
+                    )
+                tools.append(con)
+
+        # check output schema
+        compare_schema = tools[0].outputs_map()
+        in_keys = set(compare_schema.keys())
+        non_matching_tools = []
+        for i in range(1, len(tools)):
+            tool = tools[i]
+            outs = tool.outputs_map()
+            extra_params = set(outs.keys()) - in_keys
+            non_matching_els = list(
+                k
+                for k, v in compare_schema.items()
+                if k not in outs or not v.outtype.can_receive_from(outs[k].outtype)
+            )
+            if len(non_matching_els) > 0:
+                non_matching_tools.append(
+                    tool.id() + ": " + ", ".join(non_matching_els + list(extra_params))
+                )
+
+        if non_matching_tools:
+            raise Exception(
+                "Not all tools in the switch statement shared the output schema: "
+                + " || ".join(non_matching_tools)
+            )
+
+        # should be good to build the workflow:
+        w = wrap_steps_in_workflow(stepid, conditions)
+        self.step(stepid, w)
 
     def __getattr__(self, item):
         if item in self.__dict__ or item == "nodes":
@@ -799,3 +881,109 @@ class WorkflowBuilder(Workflow):
 
     def version(self):
         return self.version
+
+
+def wrap_steps_in_workflow(
+    stepId: str, steps: List[Union[Tuple[Operator, Tool], Tool]]
+):
+    # skip validation of steps
+
+    # need to resolve connections and try to map them to the same
+
+    w = WorkflowBuilder(stepId)
+    workflow_connection_map = {}
+
+    def rebuild_condition(operator: Operator):
+        if operator is None:
+            return None
+
+        if not isinstance(operator, Operator):
+            return operator
+
+        # traverse through the operator, rebuilding and swapping out InputOperator / StepOperator
+        # ensure traversal through StringFormatters to looking for the same thing
+
+        if isinstance(operator, StepOperator):
+            # pipe in the input of the step_operator
+            identifier = f"cond_{operator.node.id()}_{operator.tag}"
+            if identifier in w.input_nodes:
+                return w.input_nodes[identifier]
+            else:
+                workflow_connection_map[identifier] = operator
+                return w.input(
+                    identifier, operator.node.outputs()[operator.tag].outtype
+                )
+        if isinstance(operator, InputOperator):
+            identifier = f"cond_{operator.input_node.id()}"
+            if identifier in w.input_nodes:
+                return w.input_nodes[identifier]
+            else:
+                innode: InputNode = operator.input_node
+                workflow_connection_map[identifier] = innode
+                return w.input(
+                    identifier, first_value(innode.outputs()).outtype
+                ).as_operator()
+
+        if isinstance(operator, StringFormatter):
+            return StringFormatter(
+                operator._format,
+                **{k: rebuild_condition(v) for k, v in operator.kwargs.items()},
+            )
+
+        if isinstance(operator, SingleValueOperator):
+            return operator.__class__(rebuild_condition(operator.internal))
+
+        if isinstance(operator, TwoValueOperator):
+            return operator.__class__(
+                rebuild_condition(operator.lhs), rebuild_condition(operator.rhs)
+            )
+
+        return operator
+
+    prevconds: List[Operator] = []
+
+    for i in range(len(steps)):
+        step = steps[i]
+        stepid = "switch_case_" + str(i + 1)
+
+        if isinstance(step, tuple):
+            newcond = rebuild_condition(step[0])
+            tool = step[1]
+            prevcond = or_prev_conds(prevconds)
+            cond = AndOperator(newcond, NotOperator(prevcond)) if prevcond else newcond
+            prevconds.append(newcond)
+        else:
+            tool = step
+            cond = NotOperator(or_prev_conds(prevconds))
+
+        toolinputs = tool.inputs_map()
+        connection_map = {}
+        for (k, v) in tool.connections.items():
+
+            # unique
+            identifier = stepid + "_" + k
+
+            if is_python_primitive(v):
+                # the add step will create the literal for us
+                connection_map[k] = v
+            else:
+                # generate an input for this step, of whatever type our tool wants
+                toolin = toolinputs[k]
+                workflow_connection_map[identifier] = v
+                connection_map[k] = w.input(identifier, toolin.intype, doc=toolin.doc)
+
+        w.step(stepid, tool(**connection_map), when=cond)
+
+    steps = list(w.step_nodes.values())
+    # They should all have exact same contract
+    outputs = steps[0].tool.outputs_map().values()
+    for o in outputs:
+        w.output(
+            o.id(),
+            source=[stp[o.id()] for stp in steps],
+            pick_value=PickValue.first_non_null,
+        )
+
+    w.translate("wdl")
+
+    return w(**workflow_connection_map)
