@@ -32,7 +32,7 @@ class TestConditionals(unittest.TestCase):
         w.input("inp1", str, value="Hello")
         w.input("inp2", str, value="Hi there")
 
-        w.switch("echoswitch", [(w.inp > 1, Echo(inp=w.inp1)), Echo(inp=w.inp2)])
+        w.conditional("echoswitch", [(w.inp > 1, Echo(inp=w.inp1)), Echo(inp=w.inp2)])
 
         w.output("out", source=w.echoswitch)
 

@@ -121,23 +121,23 @@ class StepNode(Node):
     def inputs(self) -> Dict[str, TInput]:
         ins = self.tool.inputs_map()
 
-        if self.parent_has_conditionals or self.has_conditionals:
-            q = {}
-            for iv in ins.values():
-                intype = copy.copy(iv.intype)
-                intype.optional = True
-                q[iv.id()] = TInput(
-                    iv.id(), intype=intype, doc=iv.doc, default=iv.default
-                )
-
-            ins = q
+        # if self.parent_has_conditionals:
+        #     q = {}
+        #     for iv in ins.values():
+        #         intype = copy.copy(iv.intype)
+        #         intype.optional = True
+        #         q[iv.id()] = TInput(
+        #             iv.id(), intype=intype, doc=iv.doc, default=iv.default
+        #         )
+        #
+        #     ins = q
 
         return ins
 
     def outputs(self) -> Dict[str, TOutput]:
         outs = self.tool.outputs_map()
 
-        if self.parent_has_conditionals or self.has_conditionals:
+        if self.has_conditionals:
             q = {}
             for ov in outs.values():
                 outtype = copy.copy(ov.outtype)
@@ -608,7 +608,9 @@ class Workflow(Tool):
 
         return stp
 
-    def switch(self, stepid: str, conditions: List[Union[Tuple[Operator, Tool], Tool]]):
+    def conditional(
+        self, stepid: str, conditions: List[Union[Tuple[Operator, Tool], Tool]]
+    ):
         if len(conditions) <= 1:
             raise Exception("A switch statement must include at least 2 conditions")
         # validate tools
