@@ -85,6 +85,7 @@ class CodeTool(Tool, ABC):
         translation: str,
         to_console=True,
         to_disk=False,
+        export_path=None,
         with_docker=True,
         with_resource_overrides=False,
     ):
@@ -96,7 +97,7 @@ class CodeTool(Tool, ABC):
             to_console=to_console,
             to_disk=to_disk,
             with_docker=with_docker,
-            # export_path=export_path,
+            export_path=export_path,
         )
 
     def wrapped_in_wf(self):
