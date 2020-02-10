@@ -76,9 +76,31 @@ class CodeTool(Tool, ABC):
         return self.outputs()
 
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
     ):
-        return {}
+        d, ad = {}, additional_inputs or {}
+        for i in self.inputs():
+            if (
+                not i.intype.optional
+                or i.id() in ad
+                or (include_defaults and i.default)
+            ):
+                d[i] = ad.get(i.id(), i.default)
+
+        if with_resource_overrides:
+            cpus = self.cpus(hints) or 1
+            mem = self.memory(hints)
+            d.update(
+                {
+                    "runtime_memory": mem,
+                    "runtime_cpu": cpus,
+                    "runtime_disks": "local-disk 60 SSD",
+                }
+            )
 
     def translate(
         self,

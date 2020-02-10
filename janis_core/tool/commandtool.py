@@ -437,7 +437,11 @@ OUTPUTS:
 """
 
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -446,7 +450,11 @@ OUTPUTS:
         """
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
-            if not i.input_type.optional or i.default or i.id() in ad:
+            if (
+                not i.input_type.optional
+                or i.id() in ad
+                or (include_defaults and i.default)
+            ):
                 d[i] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:

@@ -599,7 +599,11 @@ class Workflow(Tool):
         )
 
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -611,7 +615,10 @@ class Workflow(Tool):
         d = {
             i.id(): ad.get(i.id(), i.value or i.default)
             for i in self.input_nodes.values()
-            if i.id() in ad or i.default or i.value or not i.datatype.optional
+            if i.id() in ad
+            or i.value
+            or not i.datatype.optional
+            or (i.default and include_defaults)
         }
 
         if with_resource_overrides:

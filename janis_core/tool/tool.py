@@ -104,7 +104,11 @@ class Tool(ABC, object):
 
     @abstractmethod
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
     ):
         pass
 
