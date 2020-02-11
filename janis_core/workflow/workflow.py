@@ -288,12 +288,9 @@ class Workflow(Tool):
         datatype: Optional[ParseableType] = None,
         source: Union[StepNode, ConnectionSource] = None,
         output_folder: Union[
-            str,
-            InputSelector,
-            ConnectionSource,
-            List[Union[str, InputSelector, ConnectionSource]],
+            str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
-        output_name: Union[str, InputSelector, ConnectionSource] = None,
+        output_name: Union[str, InputSelector, InputNode] = None,
     ):
         """
         Create an output on a workflow
