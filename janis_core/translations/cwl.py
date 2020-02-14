@@ -300,9 +300,11 @@ class CwlTranslator(TranslatorBase):
             for ti in tool.inputs()
             if ti.localise_file
             and (
-                issubclass(type(ti.input_type), File)
-                or (issubclass(type(ti.input_type), Array))
-                and issubclass(type(ti.input_type.subtype()), File)
+                isinstance(ti.input_type.received_type(), File)
+                or (
+                    issubclass(type(ti.input_type), Array)
+                    and issubclass(type(ti.input_type.subtype()), File)
+                )
             )
         ]
         if inputs_that_require_localisation:
