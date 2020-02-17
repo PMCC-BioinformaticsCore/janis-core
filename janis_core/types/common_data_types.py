@@ -128,7 +128,7 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         return super().can_receive_from(other, source_has_default=source_has_default)
 
     def wdl(self, has_default=True):
-        return wdlgen.WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()))
+        return super().wdl(has_default=has_default)
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool):
         return True

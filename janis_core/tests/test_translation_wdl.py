@@ -312,7 +312,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
         inp = CpuSelector()
         self.assertEqual(
-            "~{if defined(runtime_cpu) then runtime_cpu else 1}",
+            "~{select_first([runtime_cpu, 1])}",
             wdl.get_input_value_from_potential_selector_or_generator(
                 inp, ti, string_environment=True
             ),
@@ -326,7 +326,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
         inp = CpuSelector()
         self.assertEqual(
-            "if defined(runtime_cpu) then runtime_cpu else 1",
+            "select_first([runtime_cpu, 1])",
             wdl.get_input_value_from_potential_selector_or_generator(
                 inp, ti, string_environment=False
             ),
@@ -338,7 +338,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
         tr = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{"-t " + if defined(threads) then threads else if defined(runtime_cpu) then runtime_cpu else 1}',
+            "-t ~{select_first([threads, select_first([runtime_cpu, 1])])}",
             tr.get_string(),
         )
 
@@ -347,10 +347,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         tid = {"threads": ti}
 
         tr = wdl.translate_command_input(ti)
-        self.assertEqual(
-            '~{"-t " + if defined(threads) then threads else runtime_cpu}',
-            tr.get_string(),
-        )
+        self.assertEqual("-t ~{select_first([threads, runtime_cpu])}", tr.get_string())
 
     # def test_input_value_memselect_stringenv(self):
     #     inp = MemorySelector()
@@ -438,7 +435,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         ti = {"ti": ToolInput("ti", String(optional=True), default="hi")}
         b = StringFormatter("{place} michael", place=InputSelector("ti"))
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
-        self.assertEqual('~{if defined(ti) then ti else "hi"} michael', res)
+        self.assertEqual('~{select_first([ti, "hi"])} michael', res)
 
     def test_resolve_filename_in_inpselect(self):
         fn = Filename(extension=".ext")
@@ -446,7 +443,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         b = StringFormatter("fn: {place}", place=InputSelector("ti"))
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
         self.assertEqual(
-            f'fn: ~{{if defined(ti) then ti else "{fn.generated_filename()}"}}', res
+            f'fn: ~{{select_first([ti, "{fn.generated_filename()}"])}}', res
         )
 
 
@@ -594,7 +591,10 @@ class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_optional_prefix_sep(self):
         ti = ToolInput("tag", String(optional=True), prefix="--amazing")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{"--amazing " + tag}', resp.get_string())
+        self.assertEqual(
+            '~{if defined(tag) then ("--amazing " +  \'"\' + tag + \'"\') else ""}',
+            resp.get_string(),
+        )
 
     def test_nodefault_optional_prefix_nosep(self):
         ti = ToolInput(
@@ -604,18 +604,22 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             separate_value_from_prefix=False,
         )
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{"--amazing=" + tag}', resp.get_string())
+        self.assertEqual(
+            '~{if defined(tag) then (\'"\' + "--amazing=" + tag + \'"\') else ""}',
+            resp.get_string(),
+        )
 
     def test_default_nooptional_position(self):
+        # this will get turned into an optional
         ti = ToolInput("tag", String(), position=0, default="defval")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{if defined(tag) then tag else "defval"}', resp.get_string())
+        self.assertEqual('~{select_first([tag, "defval"])}', resp.get_string())
 
     def test_default_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing", default="defval")
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing ~{if defined(tag) then tag else "defval"}', resp.get_string()
+            '--amazing ~{select_first([tag, "defval"])}', resp.get_string()
         )
 
     def test_default_nooptional_prefix_nosep(self):
@@ -628,13 +632,13 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing=~{if defined(tag) then tag else "defval"}', resp.get_string()
+            '--amazing=~{select_first([tag, "defval"])}', resp.get_string()
         )
 
     def test_default_optional_position(self):
         ti = ToolInput("tag", String(optional=True), position=0, default="defval")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{if defined(tag) then tag else "defval"}', resp.get_string())
+        self.assertEqual('~{select_first([tag, "defval"])}', resp.get_string())
 
     def test_default_optional_prefix_sep(self):
         ti = ToolInput(
@@ -642,7 +646,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{"--amazing " + if defined(tag) then tag else "defval"}',
+            '~{if defined(select_first([tag, "defval"])) then ("--amazing " +  \'"\' + select_first([tag, "defval"]) + \'"\') else ""}',
             resp.get_string(),
         )
 
@@ -656,16 +660,14 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{"--amazing=" + if defined(tag) then tag else "defval"}',
+            '~{if defined(select_first([tag, "defval"])) then (\'"\' + "--amazing=" + select_first([tag, "defval"]) + \'"\') else ""}',
             resp.get_string(),
         )
 
     def test_bind_boolean_as_default(self):
         ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing", default=True)
         resp = wdl.translate_command_input(ti).get_string()
-        self.assertEqual(
-            '~{true="--amazing" false="" if defined(tag) then tag else true}', resp
-        )
+        self.assertEqual('~{true="--amazing" false="" select_first([tag, true])}', resp)
 
 
 class TestWdlInputTranslation(unittest.TestCase):

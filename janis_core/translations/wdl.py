@@ -362,9 +362,7 @@ class WdlTranslator(TranslatorBase):
         r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
             CpuSelector(), inmap, string_environment=False, id="runtimestats"
         )
-        r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
-        )
+        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
 
         if with_resource_overrides:
             ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
@@ -439,9 +437,7 @@ EOT"""
         #     CpuSelector(), {}, string_environment=False, id="runtimestats"
         # )
 
-        r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
-        )
+        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
@@ -545,9 +541,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     default = None
     if isinstance(indefault, CpuSelector):
         if indefault.default:
-            default = "if defined(runtime_cpu) then runtime_cpu else " + str(
-                indefault.default
-            )
+            default = f"select_first([runtime_cpu, {str(indefault.default)}])"
         else:
             default = "runtime_cpu"
 
@@ -563,7 +557,8 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
         )
 
     if default:
-        name = f"if defined({name}) then {name} else {default}"
+        # Default should imply optional input
+        name = f"select_first([{name}, {default}])"
 
     if tool_input.localise_file:
         if isinstance(tool_input.input_type, Array):
@@ -582,8 +577,8 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
         return None
 
     name = resolve_tool_input_value(tool_input, **debugkwargs)
-    optional = tool_input.input_type.optional or isinstance(
-        tool_input.default, CpuSelector
+    optional = tool_input.input_type.optional or (
+        isinstance(tool_input.default, CpuSelector) and not tool_input.default
     )
     position = tool_input.position
     separate_value_from_prefix = tool_input.separate_value_from_prefix
@@ -608,7 +603,8 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
             if separate_value_from_prefix is not None
             else True
         ),
-        # Instead of using default, we'll use the ~{if defined($var) then val1 else val2}
+        # Instead of using default, we'll use the ~{select_first([$var, default])}
+        #       (previously: ~{if defined($var) then val1 else val2})
         # as it progress through the rest properly
         # default=default,
         true=true,
