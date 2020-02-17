@@ -432,8 +432,8 @@ class Workflow(Tool):
                 # if there is a field not in the input map, we have a problem
                 extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
                 raise Exception(
-                    f"Couldn't scatter the field(s) for step '{identifier}' "
-                    f"(tool: '{tool}') {extra_keys} as they were not found in the input map"
+                    f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
+                    f"as they are not inputs to the tool '{tool.id()}'"
                 )
 
         tool.workflow = self
