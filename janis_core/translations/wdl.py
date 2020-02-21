@@ -385,7 +385,13 @@ class WdlTranslator(TranslatorBase):
             )
 
         ins = [
-            ToolInput(t.id(), input_type=t.intype, prefix=f"--{t.id()}", doc=t.doc)
+            ToolInput(
+                t.id(),
+                input_type=t.intype,
+                prefix=f"--{t.id()}",
+                default=t.default,
+                doc=t.doc,
+            )
             for t in tool.tool_inputs()
         ] + cls.get_resource_override_inputs()
 
@@ -556,7 +562,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
             indefault, None, string_environment=False, **debugkwargs
         )
 
-    if default:
+    if default is not None:
         # Default should imply optional input
         name = f"select_first([{name}, {default}])"
 
