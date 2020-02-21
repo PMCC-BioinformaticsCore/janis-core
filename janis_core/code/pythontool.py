@@ -123,7 +123,7 @@ class PythonTool(CodeTool, ABC):
         argkwargs = ", ".join(f"{t.id()}=args.{t.id()}" for t in self.inputs())
 
         codeblock_without_static = nl.join(
-            "    " + l for l in dedent(inspect.getsource(self.code_block)).split(nl)[1:]
+            dedent(inspect.getsource(self.code_block)).split(nl)[1:]
         )
 
         ins = self.tool_inputs()
@@ -155,17 +155,17 @@ cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
 {type_annotation_declarations}
 {pt_decl}
 
-try:
+
 {codeblock_without_static}
+
+try:
+    args = cli.parse_args()
+    result = code_block({argkwargs})
+    print(json.dumps(result))
 except e:
     print(str(e), file=sys.stderr)
     raise
-
-args = cli.parse_args()
-result = code_block({argkwargs})
-
-print(json.dumps(result))
-        """
+"""
 
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):
