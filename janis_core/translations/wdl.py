@@ -43,7 +43,7 @@ from janis_core.types.common_data_types import (
     Filename,
     File,
 )
-from janis_core.utils import first_value, recursive_2param_wrap
+from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
@@ -325,6 +325,18 @@ class WdlTranslator(TranslatorBase):
         inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
         toolouts = tool.outputs()
         inmap = {i.tag: i for i in inputs}
+
+        if len(inputs) != len(inmap):
+            dups = ", ".join(find_duplicates(list(inmap.keys())))
+            raise Exception(
+                f"There are {len(dups)} duplicate values in  {tool.id()}'s inputs: {dups}"
+            )
+
+        outdups = find_duplicates([o.id() for o in toolouts])
+        if len(outdups) > 0:
+            raise Exception(
+                f"There are {len(outdups)} duplicate values in  {tool.id()}'s outputs: {outdups}"
+            )
 
         ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
         outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool.id())
