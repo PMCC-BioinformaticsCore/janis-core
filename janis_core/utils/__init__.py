@@ -58,3 +58,11 @@ def recursive_2param_wrap(methodname, items):
     if len(items) == 2:
         return f"{methodname}({items[0]}, {items[1]})"
     return f"{methodname}({items[0]}, {recursive_2param_wrap(methodname, items[1:])})"
+
+
+def find_duplicates(ar) -> List:
+    counts = {}
+    for x in ar:
+        counts[x] = (counts[x] if x in counts else 0) + 1
+
+    return list(k for k, v in counts.items() if v > 1)

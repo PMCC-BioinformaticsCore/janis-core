@@ -1,17 +1,9 @@
-import re
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict
 
-from janis_core.types import (
-    ParseableType,
-    Selector,
-    Array,
-    get_instantiated_type,
-    DataType,
-)
-from janis_core.utils.logger import Logger
+from janis_core.types import get_instantiated_type, DataType
+from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
-from janis_core.utils.validators import Validators
 
 ToolType = str
 
@@ -85,10 +77,30 @@ class Tool(ABC, object):
         raise Exception("Must implement outputs() method")
 
     def inputs_map(self) -> Dict[str, TInput]:
-        return {inp.tag: inp for inp in self.tool_inputs()}
+        ins = self.tool_inputs()
+        indict = {inp.tag: inp for inp in ins}
+
+        if len(ins) != len(indict):
+            dups = find_duplicates([i.tag for i in ins])
+            dupstext = ", ".join(dups)
+            raise Exception(
+                f"There are {len(dups)} duplicate values in  {self.id()}'s inputs: {dupstext}"
+            )
+
+        return indict
 
     def outputs_map(self) -> Dict[str, TOutput]:
-        return {outp.tag: outp for outp in self.tool_outputs()}
+        outs = self.tool_outputs()
+        outdict = {outp.tag: outp for outp in outs}
+
+        if len(outs) != len(outdict):
+            dups = find_duplicates([o.tag for o in outs])
+            dupstext = ", ".join(dups)
+            raise Exception(
+                f"There are {len(dups)} duplicate values in {self.id()}'s outputs: {dupstext}"
+            )
+
+        return outdict
 
     def friendly_name(self) -> Optional[str]:
         """
