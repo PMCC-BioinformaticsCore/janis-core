@@ -724,11 +724,16 @@ class Workflow(Tool):
 
 class WorkflowBuilder(Workflow):
     def __init__(
-        self, identifier: str = None, friendly_name: str = None, version: str = None
+        self,
+        identifier: str = None,
+        friendly_name: str = None,
+        version: str = None,
+        metadata: WorkflowMetadata = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
         self._version = version
+        self._metadata = metadata
 
         super().__init__()
 
@@ -751,3 +756,6 @@ class WorkflowBuilder(Workflow):
 
     def version(self):
         return self.version
+
+    def bind_metadata(self):
+        return self._metadata
