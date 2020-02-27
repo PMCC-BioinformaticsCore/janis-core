@@ -50,6 +50,7 @@ from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.workflow.workflow import StepNode
 
 CWL_VERSION = "v1.0"
+SHEBANG = "#!/usr/bin/env cwl-runner"
 
 
 ## TRANSLATION
@@ -64,11 +65,15 @@ class CwlTranslator(TranslatorBase):
 
     @staticmethod
     def stringify_translated_workflow(wf):
-        return ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
+        return (
+            SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
+        )
 
     @staticmethod
     def stringify_translated_tool(tool):
-        return ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
+        return (
+            SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
+        )
 
     @staticmethod
     def stringify_translated_inputs(inputs):
