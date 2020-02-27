@@ -47,14 +47,14 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow("wid")
         self.assertEqual(
-            "class: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
+            "#!/usr/bin/env cwl-runner\nclass: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
             self.translator.stringify_translated_workflow(cwlobj),
         )
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
         self.assertEqual(
-            "class: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
+            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
             self.translator.stringify_translated_tool(cwlobj),
         )
 
@@ -505,6 +505,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
 
 
 cwl_testtool = """\
+#!/usr/bin/env cwl-runner
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters"
@@ -534,6 +535,7 @@ requirements:
 
 
 cwl_multiinput = """\
+#!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
 id: test_add_single_to_array_edge
