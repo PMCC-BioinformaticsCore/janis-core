@@ -85,7 +85,12 @@ class CwlTranslator(TranslatorBase):
 
     @classmethod
     def translate_workflow(
-        cls, wf, with_docker=True, with_resource_overrides=False, is_nested_tool=False
+        cls,
+        wf,
+        with_docker=True,
+        with_resource_overrides=False,
+        is_nested_tool=False,
+        is_packed=False,
     ) -> Tuple[any, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
@@ -197,12 +202,9 @@ class CwlTranslator(TranslatorBase):
     ) -> cwlgen.Workflow:
         from janis_core.workflow.workflow import Workflow
 
-        metadata = wf.metadata
+        metadata = wf.bind_metadata() or wf.metadata
         w = cwlgen.Workflow(
-            wf.identifier,
-            wf.friendly_name(),
-            metadata.documentation,
-            cwl_version=CWL_VERSION,
+            wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
@@ -233,9 +235,9 @@ class CwlTranslator(TranslatorBase):
                 )
             )
 
-        w.outputs = [translate_output_node(o) for o in wf._outputs]
+        w.outputs = [translate_output_node(o) for o in wf.output_nodes]
 
-        w.requirements.append(cwlgen.InlineJavascriptReq())
+        w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
 
         if wf.has_scatter:
