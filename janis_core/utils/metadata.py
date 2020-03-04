@@ -20,6 +20,7 @@ class Metadata(object):
         documentation=None,
         short_documentation=None,
         version=None,
+        sample_input_overrides: dict = None,
     ):
         """
 
@@ -61,6 +62,7 @@ class Metadata(object):
         self.short_documentation = short_documentation
         self.documentationUrl = documentationUrl
         self.version = version
+        self.sample_input_overrides = sample_input_overrides
 
     def update(self, **kwargs):
         for k in kwargs:
