@@ -291,6 +291,7 @@ class Workflow(Tool):
             str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
         output_name: Union[str, InputSelector, InputNode] = None,
+        doc: str = None,
     ):
         """
         Create an output on a workflow
@@ -338,6 +339,7 @@ class Workflow(Tool):
             source=(node, tag),
             output_folder=output_folder,
             output_name=output_name,
+            doc=doc,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
@@ -396,6 +398,7 @@ class Workflow(Tool):
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
         ignore_missing=False,
+        doc: str = None,
     ):
         """
         Construct a step on this workflow.
@@ -466,7 +469,7 @@ class Workflow(Tool):
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
-        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter)
+        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter, doc=doc)
 
         added_edges = []
         for (k, v) in connections.items():
