@@ -1,8 +1,14 @@
 import re
 from abc import ABC, abstractmethod
 from inspect import isclass
-from typing import List, Dict, Optional, Any, Union, Callable
+from typing import List, Dict, Optional, Any, Union, Callable, Set
 
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    DocumentationMeta,
+    OutputDocumentation,
+    InputQualityType,
+)
 from janis_core.utils.validators import Validators
 
 from janis_core.types import (
@@ -29,7 +35,7 @@ class ToolArgument:
         prefix: Optional[str] = None,
         position: Optional[int] = 0,
         separate_value_from_prefix=None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, DocumentationMeta]] = None,
         shell_quote: bool = None,
     ):
         """
@@ -56,7 +62,9 @@ class ToolArgument:
             else None
         )
         self.separate_value_from_prefix = separate_value_from_prefix
-        self.doc = doc
+        self.doc: DocumentationMeta = doc if isinstance(
+            doc, InputDocumentation
+        ) else InputDocumentation(doc)
         self.shell_quote = shell_quote
 
         if (
@@ -67,7 +75,7 @@ class ToolArgument:
         ):
             # I don't really know what this means.
             Logger.warn(
-                f"Argument ({self.prefix} {self.value}) is not separating and did not end with ='"
+                f"Argument ({self.prefix}{self.value}) is not separating and did not end with ='"
             )
 
 
@@ -87,7 +95,7 @@ class ToolInput(ToolArgument):
         shell_quote: bool = None,
         localise_file: bool = None,
         default: Any = None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, InputDocumentation]] = None,
     ):
         """
         A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.
@@ -112,9 +120,13 @@ class ToolInput(ToolArgument):
             prefix=prefix,
             position=position,
             separate_value_from_prefix=separate_value_from_prefix,
-            doc=doc,
+            doc=None,
             shell_quote=shell_quote,
         )
+
+        self.doc: InputDocumentation = doc if isinstance(
+            doc, DocumentationMeta
+        ) else InputDocumentation(doc=doc)
 
         # if default is not None:
         #     input_type.optional = True
@@ -150,7 +162,7 @@ class ToolOutput:
         glob: Optional[Union[Selector, str]] = None,
         presents_as: str = None,
         secondaries_present_as: Dict[str, str] = None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, OutputDocumentation]] = None,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -180,7 +192,11 @@ class ToolOutput:
         self.glob = glob
         self.presents_as = presents_as
         self.secondaries_present_as = secondaries_present_as
-        self.doc = doc
+        self.doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
 
     def id(self):
         return self.tag
@@ -455,7 +471,7 @@ OUTPUTS:
                 or i.id() in ad
                 or (include_defaults and i.default)
             ):
-                d[i] = ad.get(i.id(), i.default)
+                d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
             cpus = self.cpus(hints) or 1
