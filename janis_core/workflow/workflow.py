@@ -1,11 +1,17 @@
 import copy
 import os
 from abc import abstractmethod
-from typing import List, Union, Optional, Dict, Tuple, Any
+from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.tool.commandtool import CommandTool
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    OutputDocumentation,
+    InputQualityType,
+    DocumentationMeta,
+)
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
@@ -62,7 +68,7 @@ class InputNode(Node):
         datatype: DataType,
         default: any,
         value: any,
-        doc: str = None,
+        doc: InputDocumentation = None,
     ):
         super().__init__(wf, NodeTypes.INPUT, identifier)
         self.datatype = datatype
@@ -84,7 +90,7 @@ class StepNode(Node):
         wf,
         identifier,
         tool: Tool,
-        doc: str = None,
+        doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
     ):
         super().__init__(wf, NodeTypes.STEP, identifier)
@@ -153,7 +159,7 @@ class OutputNode(Node):
         identifier: str,
         datatype: DataType,
         source: ConnectionSource,
-        doc: str = None,
+        doc: OutputDocumentation = None,
         output_folder: Union[
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
@@ -179,7 +185,11 @@ class OutputNode(Node):
             )
 
         self.source = verify_or_try_get_source(source)
-        self.doc = doc
+        self.doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
         self.output_folder = output_folder
         self.output_name = output_name
 
@@ -257,7 +267,7 @@ class Workflow(Tool):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: str = None,
+        doc: Union[str, InputDocumentation] = None,
     ):
         """
         Create an input node on a workflow
@@ -269,6 +279,10 @@ class Workflow(Tool):
         datatype = get_instantiated_type(datatype)
         if default:
             datatype.optional = True
+
+        doc = (
+            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
+        )
 
         inp = InputNode(
             self,
@@ -291,7 +305,7 @@ class Workflow(Tool):
             str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
         output_name: Union[str, InputSelector, InputNode] = None,
-        doc: str = None,
+        doc: Union[str, OutputDocumentation] = None,
     ):
         """
         Create an output on a workflow
@@ -331,6 +345,12 @@ class Workflow(Tool):
             output_folder = self.verify_output_source_type(
                 identifier, ot, "output_folder"
             )
+
+        doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
 
         otp = OutputNode(
             self,
@@ -469,7 +489,9 @@ class Workflow(Tool):
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
-        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter, doc=doc)
+        d = doc if isinstance(doc, DocumentationMeta) else DocumentationMeta(doc=doc)
+
+        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter, doc=d)
 
         added_edges = []
         for (k, v) in connections.items():
@@ -488,14 +510,25 @@ class Workflow(Tool):
 
                 referencedtype.optional = True
 
+                indoc = inputs[k].doc
+                indoc.quality = InputQualityType.configuration
+
                 v = self.input(
                     inp_identifier,
                     referencedtype,
                     default=v.generated_filename() if isfilename else v,
+                    doc=indoc,
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(inp_identifier, inputs[k].intype, default=v)
+                v = self.input(
+                    inp_identifier,
+                    inputs[k].intype,
+                    default=v,
+                    doc=InputDocumentation(
+                        doc=None, quality=InputQualityType.configuration
+                    ),
+                )
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
