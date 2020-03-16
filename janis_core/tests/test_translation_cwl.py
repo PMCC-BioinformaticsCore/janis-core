@@ -1,5 +1,8 @@
 import unittest
 from typing import List, Dict, Any
+
+from janis_unix import Echo
+
 from janis_core.tests.testtools import (
     SingleTestTool,
     ArrayTestTool,
@@ -25,6 +28,7 @@ from janis_core import (
     StringFormatter,
     ToolArgument,
 )
+from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
 from janis_core.types import CpuSelector, MemorySelector
 from janis_core.workflow.workflow import InputNode
@@ -390,7 +394,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             identifier="testIdentifier",
             datatype=String(),
             default="defaultValue",
-            doc="docstring",
+            doc=InputDocumentation("docstring"),
             value=None,
         )
         tinp = cwl.translate_input(inp)
@@ -502,6 +506,14 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
 
         c, _, _ = CwlTranslator().translate(w, to_console=False)
         self.assertEqual(cwl_multiinput, c)
+
+
+class TestPackedWorkflow(unittest.TestCase):
+    def test_simple(self):
+        w = WorkflowBuilder("test_add_single_to_array_edge")
+        w.step("ech", Echo(inp="Hello"), doc="Print 'Hello'")
+        c = CwlTranslator.translate_workflow_to_all_in_one(w)
+        print(CwlTranslator.stringify_translated_workflow(c))
 
 
 cwl_testtool = """\
