@@ -1,7 +1,6 @@
 import unittest
 from typing import List, Dict, Any
 
-from janis_unix import Echo
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -511,7 +510,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
 class TestPackedWorkflow(unittest.TestCase):
     def test_simple(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
-        w.step("ech", Echo(inp="Hello"), doc="Print 'Hello'")
+        w.step("ech", SingleTestTool(inputs="Hello"), doc="Print 'Hello'")
         c = CwlTranslator.translate_workflow_to_all_in_one(w)
         print(CwlTranslator.stringify_translated_workflow(c))
 
