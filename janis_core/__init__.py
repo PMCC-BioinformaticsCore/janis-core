@@ -64,7 +64,7 @@ from janis_core.types import (
 )
 
 # Misc
-
+from janis_core.tool.documentation import *
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.translations import SupportedTranslations
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
