@@ -60,12 +60,18 @@ class String(DataType):
 
 class Filename(String):
     def __init__(
-        self, prefix="generated", suffix=None, extension: str = None, guid: str = None
+        self,
+        prefix="generated",
+        suffix=None,
+        extension: str = None,
+        guid: str = None,
+        optional=None,
     ):
         """
         :param suffix: suffix the guid
         :param extension: with no '.' (dot)
         :param guid: Use this guid instead of generating one
+        :param optional: IGNORED (legacy)
         """
         import uuid
 
