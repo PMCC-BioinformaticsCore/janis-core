@@ -406,7 +406,7 @@ class CwlTranslator(TranslatorBase):
                     input_type=t.intype,
                     prefix=f"--{t.id()}",
                     default=t.default,
-                    doc=t.doc,
+                    doc=t.doc.doc if t.doc else None,
                 )
             )
             for t in tool.inputs()
@@ -429,7 +429,7 @@ class CwlTranslator(TranslatorBase):
                     label=output.tag,
                     # param_format=None,
                     # streamable=None,
-                    doc=output.doc,
+                    doc=output.doc.doc if output.doc else None,
                     output_binding=cwlgen.CommandOutputBinding(
                         glob=stdout,
                         load_contents=True,
@@ -524,13 +524,16 @@ def translate_input(inp):
     :type inp: janis_core.workflow.workflow.InputNode
     :return:
     """
+
+    doc = inp.doc.doc if inp.doc else None
+
     return cwlgen.InputParameter(
         param_id=inp.id(),
         default=inp.default,
         secondary_files=inp.datatype.secondary_files(),
         param_format=None,
         streamable=None,
-        doc=inp.doc,
+        doc=doc,
         input_binding=None,
         param_type=inp.datatype.cwl_type(inp.default is not None),
     )
@@ -544,6 +547,7 @@ def translate_output(outp, source):
     ot = outp.datatype
     if isinstance(ot, Stdout):
         ot = ot.subtype or File()
+    doc = outp.doc.doc if outp.doc else None
 
     return cwlgen.WorkflowOutputParameter(
         param_id=outp.id(),
@@ -551,7 +555,7 @@ def translate_output(outp, source):
         secondary_files=outp.datatype.secondary_files(),
         param_format=None,
         streamable=None,
-        doc=outp.doc,
+        doc=doc,
         param_type=ot.cwl_type(),
         output_binding=None,
         linkMerge=None,
@@ -607,12 +611,13 @@ def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
             )
             non_optional_dt_component.inputBinding = nested_binding
 
+    doc = toolinput.doc.doc if toolinput.doc else None
     return cwlgen.CommandInputParameter(
         param_id=toolinput.tag,
         label=toolinput.tag,
         secondary_files=prepare_tool_input_secondaries(toolinput),
         # streamable=None,
-        doc=toolinput.doc,
+        doc=doc,
         input_binding=input_binding,
         default=default,
         param_type=data_type,
@@ -635,13 +640,15 @@ def translate_tool_argument(argument):
 
 def translate_tool_output(output, **debugkwargs):
 
+    doc = output.doc.doc if output.doc else None
+
     return cwlgen.CommandOutputParameter(
         param_id=output.tag,
         label=output.tag,
         secondary_files=prepare_tool_output_secondaries(output),
         # param_format=None,
         # streamable=None,
-        doc=output.doc,
+        doc=doc,
         output_binding=cwlgen.CommandOutputBinding(
             glob=translate_to_cwl_glob(
                 output.glob, outputtag=output.tag, **debugkwargs
@@ -757,7 +764,7 @@ def translate_step(
         step_id=step.id(),
         run=run_ref,
         # label=step.step.label,
-        doc=step.doc,
+        doc=step.doc.doc if step.doc else None,
         scatter=None,  # Filled by StepNode
         scatter_method=None,  # Filled by StepNode
     )
