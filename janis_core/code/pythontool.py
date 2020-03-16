@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from textwrap import dedent
 from typing import Dict, Any, Optional, Type, List
 
+from janis_core.tool.documentation import InputDocumentation
 from janis_core.types.data_types import NativeTypes
 
 from janis_core.utils.docparser_info import parse_docstring
@@ -88,7 +89,7 @@ class PythonTool(CodeTool, ABC):
                         tag=inp.name,
                         intype=dt_type,
                         default=default,
-                        doc=paramdocs.get(inp.name),
+                        doc=InputDocumentation(paramdocs.get(inp.name)),
                     )
                 )
 
@@ -196,8 +197,8 @@ except e:
         if required:
             params.append("required=True")
 
-        if inp.doc:
-            escaped = inp.doc.replace("'", "\\'").replace("\n", "\\n")
+        if inp.doc and inp.doc.doc:
+            escaped = inp.doc.doc.replace("'", "\\'").replace("\n", "\\n")
             params.append(f"help='{escaped}'")
 
         joined = ", ".join(params)

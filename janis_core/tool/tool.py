@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Set
 
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    OutputDocumentation,
+    InputQualityType,
+)
 from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
@@ -15,7 +20,9 @@ class ToolTypes:
 
 
 class TInput(object):
-    def __init__(self, tag: str, intype: DataType, default=None, doc: str = None):
+    def __init__(
+        self, tag: str, intype: DataType, default=None, doc: InputDocumentation = None
+    ):
         self.tag = tag
         self.intype = get_instantiated_type(intype)
         self.default = default
@@ -26,10 +33,10 @@ class TInput(object):
 
 
 class TOutput(object):
-    def __init__(self, tag, outtype, doc: str = None):
+    def __init__(self, tag, outtype, doc: OutputDocumentation = None):
         self.tag = tag
         self.outtype = get_instantiated_type(outtype)
-        self.doc = doc
+        self.doc: Optional[OutputDocumentation] = doc
 
     def id(self):
         return self.tag
@@ -121,6 +128,8 @@ class Tool(ABC, object):
         with_resource_overrides=False,
         hints=None,
         include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         pass
 

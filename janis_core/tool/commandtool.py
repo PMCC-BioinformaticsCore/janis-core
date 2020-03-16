@@ -458,6 +458,8 @@ OUTPUTS:
         with_resource_overrides=False,
         hints=None,
         include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -467,9 +469,13 @@ OUTPUTS:
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
             if (
-                not i.input_type.optional
-                or i.id() in ad
-                or (include_defaults and i.default)
+                (
+                    not i.input_type.optional
+                    or i.id() in ad
+                    or (include_defaults and i.default)
+                )
+                and not (values_to_ignore and i.id() in values_to_ignore)
+                and (not (i.doc and quality_type) or i.doc.quality in quality_type)
             ):
                 d[i.id()] = ad.get(i.id(), i.default)
 

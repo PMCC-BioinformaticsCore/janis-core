@@ -637,6 +637,8 @@ class Workflow(Tool):
         with_resource_overrides=False,
         hints=None,
         include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -648,10 +650,14 @@ class Workflow(Tool):
         d = {
             i.id(): ad.get(i.id(), i.value or i.default)
             for i in self.input_nodes.values()
-            if i.id() in ad
-            or i.value
-            or not i.datatype.optional
-            or (i.default and include_defaults)
+            if (
+                i.id() in ad
+                or i.value
+                or not i.datatype.optional
+                or (i.default and include_defaults)
+            )
+            and not (values_to_ignore and i.id() in values_to_ignore)
+            and (not (i.doc and quality_type) or i.doc.quality in quality_type)
         }
 
         if with_resource_overrides:
