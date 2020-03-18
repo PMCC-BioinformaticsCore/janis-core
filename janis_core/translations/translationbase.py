@@ -60,6 +60,7 @@ class TranslatorBase(ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        allow_empty_container=False,
     ):
 
         # self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
@@ -68,6 +69,7 @@ class TranslatorBase(ABC):
             workflow,
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
+            allow_empty_container=allow_empty_container,
         )
         tr_inp = self.build_inputs_file(
             workflow,
@@ -195,6 +197,7 @@ class TranslatorBase(ABC):
         with_resource_overrides=False,
         max_cores=None,
         max_mem=None,
+        allow_empty_container=False,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -230,10 +233,15 @@ class TranslatorBase(ABC):
         export_path=None,
         with_docker=True,
         with_resource_overrides=False,
+        allow_empty_container=False,
     ):
 
         tool_out = self.stringify_translated_tool(
-            self.translate_code_tool_internal(codetool, with_docker=with_docker)
+            self.translate_code_tool_internal(
+                codetool,
+                with_docker=with_docker,
+                allow_empty_container=allow_empty_container,
+            )
         )
 
         if to_console:
@@ -288,20 +296,30 @@ class TranslatorBase(ABC):
     @classmethod
     @abstractmethod
     def translate_workflow(
-        cls, workflow, with_docker=True, with_resource_overrides=False
+        cls,
+        workflow,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ) -> Tuple[any, Dict[str, any]]:
         pass
 
     @classmethod
     @abstractmethod
     def translate_tool_internal(
-        cls, tool, with_docker=True, with_resource_overrides=False
+        cls,
+        tool,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ):
         pass
 
     @classmethod
     @abstractmethod
-    def translate_code_tool_internal(cls, tool, with_docker=True):
+    def translate_code_tool_internal(
+        cls, tool, with_docker=True, allow_empty_container=False
+    ):
         pass
 
     @classmethod
