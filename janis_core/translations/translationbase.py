@@ -205,6 +205,7 @@ class TranslatorBase(ABC):
                 tool,
                 with_docker=with_docker,
                 with_resource_overrides=with_resource_overrides,
+                allow_empty_container=allow_empty_container,
             )
         )
 
