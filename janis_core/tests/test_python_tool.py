@@ -161,10 +161,10 @@ EOT
       ~{if defined(select_first([testvalue, "test"])) then ("--testvalue " +  '"' + select_first([testvalue, "test"]) + '"') else ""}
   >>>
   runtime {
-    docker: "python:3.8.1"
     disks: runtime_disks
-    zones: "australia-southeast1-b"
+    docker: "python:3.8.1"
     memory: "~{select_first([runtime_memory, 4])}G"
+    zones: "australia-southeast1-b"
   }
   output {
     String out = read_json(stdout())["out"]
