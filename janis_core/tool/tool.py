@@ -146,7 +146,11 @@ class Tool(ABC, object):
 
     @abstractmethod
     def translate(
-        self, translation: str, with_docker=True, with_resource_overrides=False
+        self,
+        translation: str,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 

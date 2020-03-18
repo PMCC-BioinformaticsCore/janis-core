@@ -53,7 +53,7 @@ setup(
     install_requires=[
         "importlib-metadata",
         "cwlgen >= 0.4.0",
-        "illusional.wdlgen >= 0.2.8",
+        "illusional.wdlgen >= 0.2.10",
         "ruamel.yaml >= 0.12.4, <= 0.16",
         "tabulate",
         "path.py",

@@ -145,14 +145,14 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
     def test_stringify_workflow(self):
         wdlobj = wdlgen.Workflow("wid", version="development")
         self.assertEqual(
-            "version development\n\n\n\nworkflow wid {\n\n\n\n}",
+            "version development\n\n\n\nworkflow wid {\n\n}",
             self.translator.stringify_translated_workflow(wdlobj),
         )
 
     def test_stringify_tool(self):
         wdlobj = wdlgen.Task("tid", version="development")
         self.assertEqual(
-            "version development\n\ntask tid {\n\n\n\n\n}",
+            "version development\n\ntask tid {\n\n}",
             self.translator.stringify_translated_tool(wdlobj),
         )
 
@@ -889,7 +889,12 @@ class TestRuntimeOverrideGenerator(unittest.TestCase):
         w.step("echo", SingleTestTool(inputs=w.inp))
         w.step("echo_2", SingleTestTool(inputs=w.inp))
 
-        wf, _, _ = w.translate("wdl", to_console=False, with_resource_overrides=True)
+        wf, _, _ = w.translate(
+            "wdl",
+            to_console=False,
+            with_resource_overrides=True,
+            allow_empty_container=True,
+        )
         _tooldef = """\
 workflow wb {
   input {
@@ -915,7 +920,6 @@ workflow wb {
       runtime_cpu=echo_2_runtime_cpu,
       runtime_disks=echo_2_runtime_disks
   }
-
 }"""
         self.assertEqual(_tooldef, "\n".join(wf.split("\n")[4:]))
 

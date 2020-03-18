@@ -334,6 +334,7 @@ class CommandTool(Tool, ABC):
         export_path=None,
         with_docker=True,
         with_resource_overrides=False,
+        allow_empty_container=False,
     ):
         import janis_core.translations
 
@@ -345,6 +346,7 @@ class CommandTool(Tool, ABC):
             export_path=export_path,
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
+            allow_empty_container=allow_empty_container,
         )
 
     def tool_inputs(self) -> List[TInput]:

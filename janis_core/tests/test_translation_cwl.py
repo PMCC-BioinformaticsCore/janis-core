@@ -497,13 +497,29 @@ class TestCwlMaxResources(unittest.TestCase):
         self.assertEqual(1, resources["testtranslationtool_runtime_memory"])
 
 
+class TestEmptyContainer(unittest.TestCase):
+    def test_empty_container_raises(self):
+
+        self.assertRaises(
+            Exception, CwlTranslator().translate_tool_internal, SingleTestTool()
+        )
+
+    def test_empty_container(self):
+        c = CwlTranslator().translate_tool_internal(
+            SingleTestTool(), allow_empty_container=True
+        )
+        self.assertNotIn("DockerRequirement", c.requirements)
+
+
 class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
         w.step("stp1", ArrayTestTool(inputs=w.inp1))
 
-        c, _, _ = CwlTranslator().translate(w, to_console=False)
+        c, _, _ = CwlTranslator().translate(
+            w, to_console=False, allow_empty_container=True
+        )
         self.assertEqual(cwl_multiinput, c)
 
 
@@ -511,7 +527,9 @@ class TestPackedWorkflow(unittest.TestCase):
     def test_simple(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.step("ech", SingleTestTool(inputs="Hello"), doc="Print 'Hello'")
-        c = CwlTranslator.translate_workflow_to_all_in_one(w)
+        c = CwlTranslator.translate_workflow_to_all_in_one(
+            w, allow_empty_container=True
+        )
         print(CwlTranslator.stringify_translated_workflow(c))
 
 
