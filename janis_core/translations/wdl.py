@@ -21,11 +21,12 @@ from inspect import isclass
 from typing import List, Dict, Optional, Any, Set, Tuple
 
 import wdlgen as wdl
+from janis_core.utils.metadata import ToolMetadata, Metadata
 
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
-from janis_core.tool.tool import Tool, TOutput
+from janis_core.tool.tool import Tool, TOutput, TInput
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -87,7 +88,12 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_workflow(
-        cls, wfi, with_docker=True, with_resource_overrides=False, is_nested_tool=False
+        cls,
+        wfi,
+        with_docker=True,
+        with_resource_overrides=False,
+        is_nested_tool=False,
+        allow_empty_container=False,
     ) -> Tuple[any, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
@@ -210,6 +216,7 @@ class WdlTranslator(TranslatorBase):
                         with_docker=with_docker,
                         is_nested_tool=True,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
                     wtools[t.id()] = wf_wdl
                     wtools.update(wf_tools)
@@ -219,12 +226,14 @@ class WdlTranslator(TranslatorBase):
                         t,
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
                 elif isinstance(t, CodeTool):
                     wtools[t.id()] = cls.translate_code_tool_internal(
                         t,
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
 
             resource_overrides = {}
@@ -312,7 +321,11 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_tool_internal(
-        cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
+        cls,
+        tool: CommandTool,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ):
 
         if not Validators.validate_identifier(tool.id()):
@@ -368,7 +381,15 @@ class WdlTranslator(TranslatorBase):
 
         r = wdl.Task.Runtime()
         if with_docker:
-            r.add_docker(tool.container())
+            container = tool.container()
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
         r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
@@ -387,7 +408,11 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_code_tool_internal(
-        cls, tool: CodeTool, with_docker=True, with_resource_overrides=True
+        cls,
+        tool: CodeTool,
+        with_docker=True,
+        with_resource_overrides=True,
+        allow_empty_container=False,
     ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
@@ -443,7 +468,15 @@ EOT"""
 
         r = wdl.Task.Runtime()
         if with_docker:
-            r.add_docker(tool.container())
+            container = tool.container()
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
 
         if with_resource_overrides:
             tr_ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
