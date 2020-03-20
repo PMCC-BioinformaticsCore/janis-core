@@ -6,8 +6,8 @@ from janis_core.code.pythontool import CodeTool, PythonTool
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger, LogLevel
-import janis_core.registry.entrypoints as EP
-from janis_core.registry.registry import TaggedRegistry, Registry
+import janis_core.toolbox.entrypoints as EP
+from janis_core.toolbox.register import TaggedRegistry, Registry
 
 
 class JanisShed:
