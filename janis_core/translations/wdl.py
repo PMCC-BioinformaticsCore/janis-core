@@ -18,15 +18,14 @@ This file is logically structured similar to the cwl equiv:
 
 import json
 from inspect import isclass
-from typing import List, Dict, Optional, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple
 
 import wdlgen as wdl
-from janis_core.utils.metadata import ToolMetadata, Metadata
 
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
-from janis_core.tool.tool import Tool, TOutput, TInput
+from janis_core.tool.tool import Tool, TOutput
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
     InputSelector,
@@ -49,6 +48,10 @@ from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
+from janis_core.utils.secondary import (
+    split_secondary_file_carats,
+    apply_secondary_file_format_to_filename,
+)
 
 # from janis_core.workflow.step import StepNode
 
@@ -1548,43 +1551,6 @@ def build_aliases(steps2):
 def get_secondary_tag_from_original_tag(original, secondary):
     secondary_without_punctuation = secondary.replace(".", "").replace("^", "")
     return original + "_" + secondary_without_punctuation
-
-
-def split_secondary_file_carats(secondary_annotation: str):
-    fixed_sec = secondary_annotation.lstrip("^")
-    leading = len(secondary_annotation) - len(fixed_sec)
-    return secondary_annotation[leading:], leading
-
-
-def apply_secondary_file_format_to_filename(
-    filepath: Optional[str], secondary_file: str
-):
-    """
-    This is actually clever, you can probably trust this to do what you want.
-    :param filepath: Filename to base
-    :param secondary_file: CWL secondary format (Remove 1 extension for each leading ^.
-    """
-    if not filepath:
-        return None
-
-    fixed_sec = secondary_file.lstrip("^")
-    leading = len(secondary_file) - len(fixed_sec)
-    if leading <= 0:
-        return filepath + fixed_sec
-
-    basepath = ""
-    filename = filepath
-    if "/" in filename:
-        idx = len(filepath) - filepath[::-1].index("/")
-        basepath = filepath[:idx]
-        filename = filepath[idx:]
-
-    split = filename.split(".")
-
-    newfname = filename + fixed_sec
-    if len(split) > 1:
-        newfname = ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
-    return basepath + newfname
 
 
 def prepare_env_var_setters(
