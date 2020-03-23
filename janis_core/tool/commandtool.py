@@ -1,8 +1,14 @@
 import re
 from abc import ABC, abstractmethod
 from inspect import isclass
-from typing import List, Dict, Optional, Any, Union, Callable
+from typing import List, Dict, Optional, Any, Union, Callable, Set
 
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    DocumentationMeta,
+    OutputDocumentation,
+    InputQualityType,
+)
 from janis_core.utils.validators import Validators
 
 from janis_core.types import (
@@ -29,7 +35,7 @@ class ToolArgument:
         prefix: Optional[str] = None,
         position: Optional[int] = 0,
         separate_value_from_prefix=None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, DocumentationMeta]] = None,
         shell_quote: bool = None,
     ):
         """
@@ -56,7 +62,9 @@ class ToolArgument:
             else None
         )
         self.separate_value_from_prefix = separate_value_from_prefix
-        self.doc = doc
+        self.doc: DocumentationMeta = doc if isinstance(
+            doc, InputDocumentation
+        ) else InputDocumentation(doc)
         self.shell_quote = shell_quote
 
         if (
@@ -67,7 +75,7 @@ class ToolArgument:
         ):
             # I don't really know what this means.
             Logger.warn(
-                f"Argument ({self.prefix} {self.value}) is not separating and did not end with ='"
+                f"Argument ({self.prefix}{self.value}) is not separating and did not end with ='"
             )
 
 
@@ -87,7 +95,7 @@ class ToolInput(ToolArgument):
         shell_quote: bool = None,
         localise_file: bool = None,
         default: Any = None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, InputDocumentation]] = None,
     ):
         """
         A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.
@@ -112,9 +120,13 @@ class ToolInput(ToolArgument):
             prefix=prefix,
             position=position,
             separate_value_from_prefix=separate_value_from_prefix,
-            doc=doc,
+            doc=None,
             shell_quote=shell_quote,
         )
+
+        self.doc: InputDocumentation = doc if isinstance(
+            doc, DocumentationMeta
+        ) else InputDocumentation(doc=doc)
 
         # if default is not None:
         #     input_type.optional = True
@@ -150,7 +162,7 @@ class ToolOutput:
         glob: Optional[Union[Selector, str]] = None,
         presents_as: str = None,
         secondaries_present_as: Dict[str, str] = None,
-        doc: Optional[str] = None,
+        doc: Optional[Union[str, OutputDocumentation]] = None,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -180,7 +192,11 @@ class ToolOutput:
         self.glob = glob
         self.presents_as = presents_as
         self.secondaries_present_as = secondaries_present_as
-        self.doc = doc
+        self.doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
 
     def id(self):
         return self.tag
@@ -318,6 +334,7 @@ class CommandTool(Tool, ABC):
         export_path=None,
         with_docker=True,
         with_resource_overrides=False,
+        allow_empty_container=False,
     ):
         import janis_core.translations
 
@@ -329,6 +346,7 @@ class CommandTool(Tool, ABC):
             export_path=export_path,
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
+            allow_empty_container=allow_empty_container,
         )
 
     def tool_inputs(self) -> List[TInput]:
@@ -437,7 +455,13 @@ OUTPUTS:
 """
 
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -446,8 +470,16 @@ OUTPUTS:
         """
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
-            if not i.input_type.optional or i.default or i.id() in ad:
-                d[i] = ad.get(i.id(), i.default)
+            if (
+                (
+                    not i.input_type.optional
+                    or i.id() in ad
+                    or (include_defaults and i.default)
+                )
+                and not (values_to_ignore and i.id() in values_to_ignore)
+                and (not (i.doc and quality_type) or i.doc.quality in quality_type)
+            ):
+                d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
             cpus = self.cpus(hints) or 1

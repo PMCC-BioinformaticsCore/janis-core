@@ -18,7 +18,7 @@ This file is logically structured similar to the cwl equiv:
 
 import json
 from inspect import isclass
-from typing import List, Dict, Optional, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple
 
 import wdlgen as wdl
 from janis_core.types.data_types import is_python_primitive
@@ -49,12 +49,16 @@ from janis_core.types.common_data_types import (
     Filename,
     File,
 )
-from janis_core.utils import first_value, recursive_2param_wrap
+from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
+from janis_core.utils.secondary import (
+    split_secondary_file_carats,
+    apply_secondary_file_format_to_filename,
+)
 
 # from janis_core.workflow.step import StepNode
 
@@ -94,7 +98,12 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_workflow(
-        cls, wfi, with_docker=True, with_resource_overrides=False, is_nested_tool=False
+        cls,
+        wfi,
+        with_docker=True,
+        with_resource_overrides=False,
+        is_nested_tool=False,
+        allow_empty_container=False,
     ) -> Tuple[any, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
@@ -228,6 +237,7 @@ class WdlTranslator(TranslatorBase):
                         with_docker=with_docker,
                         is_nested_tool=True,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
                     wtools[t.id()] = wf_wdl
                     wtools.update(wf_tools)
@@ -237,12 +247,14 @@ class WdlTranslator(TranslatorBase):
                         t,
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
                 elif isinstance(t, CodeTool):
                     wtools[t.id()] = cls.translate_code_tool_internal(
                         t,
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
+                        allow_empty_container=allow_empty_container,
                     )
 
             resource_overrides = {}
@@ -330,7 +342,11 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_tool_internal(
-        cls, tool: CommandTool, with_docker=True, with_resource_overrides=False
+        cls,
+        tool: CommandTool,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ):
 
         if not Validators.validate_identifier(tool.id()):
@@ -343,6 +359,18 @@ class WdlTranslator(TranslatorBase):
         inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
         toolouts = tool.outputs()
         inmap = {i.tag: i for i in inputs}
+
+        if len(inputs) != len(inmap):
+            dups = ", ".join(find_duplicates(list(inmap.keys())))
+            raise Exception(
+                f"There are {len(dups)} duplicate values in  {tool.id()}'s inputs: {dups}"
+            )
+
+        outdups = find_duplicates([o.id() for o in toolouts])
+        if len(outdups) > 0:
+            raise Exception(
+                f"There are {len(outdups)} duplicate values in  {tool.id()}'s outputs: {outdups}"
+            )
 
         ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
         outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool.id())
@@ -374,15 +402,21 @@ class WdlTranslator(TranslatorBase):
 
         r = wdl.Task.Runtime()
         if with_docker:
-            r.add_docker(tool.container())
+            container = tool.container()
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
         r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
             CpuSelector(), inmap, string_environment=False, id="runtimestats"
         )
-        r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
-        )
+        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
 
         if with_resource_overrides:
             ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
@@ -395,7 +429,11 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_code_tool_internal(
-        cls, tool: CodeTool, with_docker=True, with_resource_overrides=True
+        cls,
+        tool: CodeTool,
+        with_docker=True,
+        with_resource_overrides=True,
+        allow_empty_container=False,
     ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
@@ -405,7 +443,13 @@ class WdlTranslator(TranslatorBase):
             )
 
         ins = [
-            ToolInput(t.id(), input_type=t.intype, prefix=f"--{t.id()}", doc=t.doc)
+            ToolInput(
+                t.id(),
+                input_type=t.intype,
+                prefix=f"--{t.id()}",
+                default=t.default,
+                doc=t.doc,
+            )
             for t in tool.tool_inputs()
         ] + cls.get_resource_override_inputs()
 
@@ -445,7 +489,15 @@ EOT"""
 
         r = wdl.Task.Runtime()
         if with_docker:
-            r.add_docker(tool.container())
+            container = tool.container()
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
 
         if with_resource_overrides:
             tr_ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
@@ -457,9 +509,7 @@ EOT"""
         #     CpuSelector(), {}, string_environment=False, id="runtimestats"
         # )
 
-        r.kwargs["memory"] = wdl.IfThenElse(
-            "defined(runtime_memory)", '"~{runtime_memory}G"', '"4G"'
-        )
+        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
@@ -563,9 +613,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     default = None
     if isinstance(indefault, CpuSelector):
         if indefault.default:
-            default = "if defined(runtime_cpu) then runtime_cpu else " + str(
-                indefault.default
-            )
+            default = f"select_first([runtime_cpu, {str(indefault.default)}])"
         else:
             default = "runtime_cpu"
 
@@ -580,8 +628,9 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
             indefault, None, string_environment=False, **debugkwargs
         )
 
-    if default:
-        name = f"if defined({name}) then {name} else {default}"
+    if default is not None:
+        # Default should imply optional input
+        name = f"select_first([{name}, {default}])"
 
     if tool_input.localise_file:
         if isinstance(tool_input.input_type, Array):
@@ -600,8 +649,8 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
         return None
 
     name = resolve_tool_input_value(tool_input, **debugkwargs)
-    optional = tool_input.input_type.optional or isinstance(
-        tool_input.default, CpuSelector
+    optional = tool_input.input_type.optional or (
+        isinstance(tool_input.default, CpuSelector) and not tool_input.default
     )
     position = tool_input.position
     separate_value_from_prefix = tool_input.separate_value_from_prefix
@@ -626,7 +675,8 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
             if separate_value_from_prefix is not None
             else True
         ),
-        # Instead of using default, we'll use the ~{if defined($var) then val1 else val2}
+        # Instead of using default, we'll use the ~{select_first([$var, default])}
+        #       (previously: ~{if defined($var) then val1 else val2})
         # as it progress through the rest properly
         # default=default,
         true=true,
@@ -1553,43 +1603,6 @@ def build_aliases(steps2):
 def get_secondary_tag_from_original_tag(original, secondary):
     secondary_without_punctuation = secondary.replace(".", "").replace("^", "")
     return original + "_" + secondary_without_punctuation
-
-
-def split_secondary_file_carats(secondary_annotation: str):
-    fixed_sec = secondary_annotation.lstrip("^")
-    leading = len(secondary_annotation) - len(fixed_sec)
-    return secondary_annotation[leading:], leading
-
-
-def apply_secondary_file_format_to_filename(
-    filepath: Optional[str], secondary_file: str
-):
-    """
-    This is actually clever, you can probably trust this to do what you want.
-    :param filepath: Filename to base
-    :param secondary_file: CWL secondary format (Remove 1 extension for each leading ^.
-    """
-    if not filepath:
-        return None
-
-    fixed_sec = secondary_file.lstrip("^")
-    leading = len(secondary_file) - len(fixed_sec)
-    if leading <= 0:
-        return filepath + fixed_sec
-
-    basepath = ""
-    filename = filepath
-    if "/" in filename:
-        idx = len(filepath) - filepath[::-1].index("/")
-        basepath = filepath[:idx]
-        filename = filepath[idx:]
-
-    split = filename.split(".")
-
-    newfname = filename + fixed_sec
-    if len(split) > 1:
-        newfname = ".".join(split[: -min(leading, len(split) - 1)]) + fixed_sec
-    return basepath + newfname
 
 
 def prepare_env_var_setters(

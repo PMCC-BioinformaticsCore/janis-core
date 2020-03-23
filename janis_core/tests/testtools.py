@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Union
 from janis_core import (
     ToolOutput,
     ToolInput,
@@ -11,6 +11,8 @@ from janis_core import (
     WildcardSelector,
     StringFormatter,
     ToolArgument,
+    InputDocumentation,
+    InputQualityType,
 )
 
 
@@ -125,3 +127,38 @@ class TestTypeWithSecondary(File):
     @staticmethod
     def secondary_files():
         return [".txt"]
+
+
+class TestInputQualityTool(CommandTool):
+    def tool(self) -> str:
+        return "TESTONLY_inputQualityTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "echo"
+
+    def inputs(self) -> List[ToolInput]:
+        return [
+            ToolInput(
+                "user", str, doc=InputDocumentation(None, quality=InputQualityType.user)
+            ),
+            ToolInput(
+                "static",
+                str,
+                doc=InputDocumentation(None, quality=InputQualityType.static),
+            ),
+            ToolInput(
+                "configuration",
+                str,
+                doc=InputDocumentation(None, quality=InputQualityType.configuration),
+            ),
+            ToolInput("none", str, doc=InputDocumentation(None, quality=None)),
+        ]
+
+    def outputs(self) -> List[ToolOutput]:
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"

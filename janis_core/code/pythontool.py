@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from textwrap import dedent
 from typing import Dict, Any, Optional, Type, List
 
+from janis_core.tool.documentation import InputDocumentation
 from janis_core.types.data_types import NativeTypes
 
 from janis_core.utils.docparser_info import parse_docstring
@@ -88,7 +89,7 @@ class PythonTool(CodeTool, ABC):
                         tag=inp.name,
                         intype=dt_type,
                         default=default,
-                        doc=paramdocs.get(inp.name),
+                        doc=InputDocumentation(paramdocs.get(inp.name)),
                     )
                 )
 
@@ -123,7 +124,7 @@ class PythonTool(CodeTool, ABC):
         argkwargs = ", ".join(f"{t.id()}=args.{t.id()}" for t in self.inputs())
 
         codeblock_without_static = nl.join(
-            "    " + l for l in dedent(inspect.getsource(self.code_block)).split(nl)[1:]
+            dedent(inspect.getsource(self.code_block)).split(nl)[1:]
         )
 
         ins = self.tool_inputs()
@@ -155,17 +156,17 @@ cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
 {type_annotation_declarations}
 {pt_decl}
 
-try:
+
 {codeblock_without_static}
+
+try:
+    args = cli.parse_args()
+    result = code_block({argkwargs})
+    print(json.dumps(result))
 except e:
     print(str(e), file=sys.stderr)
     raise
-
-args = cli.parse_args()
-result = code_block({argkwargs})
-
-print(json.dumps(result))
-        """
+"""
 
     @staticmethod
     def generate_cli_binding_for_input(inp: TInput):
@@ -196,8 +197,8 @@ print(json.dumps(result))
         if required:
             params.append("required=True")
 
-        if inp.doc:
-            escaped = inp.doc.replace("'", "\\'").replace("\n", "\\n")
+        if inp.doc and inp.doc.doc:
+            escaped = inp.doc.doc.replace("'", "\\'").replace("\n", "\\n")
             params.append(f"help='{escaped}'")
 
         joined = ", ".join(params)

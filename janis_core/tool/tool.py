@@ -1,17 +1,14 @@
-import re
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Set
 
-from janis_core.types import (
-    ParseableType,
-    Selector,
-    Array,
-    get_instantiated_type,
-    DataType,
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    OutputDocumentation,
+    InputQualityType,
 )
-from janis_core.utils.logger import Logger
+from janis_core.types import get_instantiated_type, DataType
+from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
-from janis_core.utils.validators import Validators
 
 ToolType = str
 
@@ -23,7 +20,9 @@ class ToolTypes:
 
 
 class TInput(object):
-    def __init__(self, tag: str, intype: DataType, default=None, doc: str = None):
+    def __init__(
+        self, tag: str, intype: DataType, default=None, doc: InputDocumentation = None
+    ):
         self.tag = tag
         self.intype = get_instantiated_type(intype)
         self.default = default
@@ -34,10 +33,10 @@ class TInput(object):
 
 
 class TOutput(object):
-    def __init__(self, tag, outtype, doc: str = None):
+    def __init__(self, tag, outtype, doc: OutputDocumentation = None):
         self.tag = tag
         self.outtype = get_instantiated_type(outtype)
-        self.doc = doc
+        self.doc: Optional[OutputDocumentation] = doc
 
     def id(self):
         return self.tag
@@ -85,10 +84,30 @@ class Tool(ABC, object):
         raise Exception("Must implement outputs() method")
 
     def inputs_map(self) -> Dict[str, TInput]:
-        return {inp.tag: inp for inp in self.tool_inputs()}
+        ins = self.tool_inputs()
+        indict = {inp.tag: inp for inp in ins}
+
+        if len(ins) != len(indict):
+            dups = find_duplicates([i.tag for i in ins])
+            dupstext = ", ".join(dups)
+            raise Exception(
+                f"There are {len(dups)} duplicate values in {self.id()}'s inputs: {dupstext}"
+            )
+
+        return indict
 
     def outputs_map(self) -> Dict[str, TOutput]:
-        return {outp.tag: outp for outp in self.tool_outputs()}
+        outs = self.tool_outputs()
+        outdict = {outp.tag: outp for outp in outs}
+
+        if len(outs) != len(outdict):
+            dups = find_duplicates([o.tag for o in outs])
+            dupstext = ", ".join(dups)
+            raise Exception(
+                f"There are {len(dups)} duplicate values in {self.id()}'s outputs: {dupstext}"
+            )
+
+        return outdict
 
     def friendly_name(self) -> Optional[str]:
         """
@@ -104,7 +123,13 @@ class Tool(ABC, object):
 
     @abstractmethod
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         pass
 
@@ -121,7 +146,11 @@ class Tool(ABC, object):
 
     @abstractmethod
     def translate(
-        self, translation: str, with_docker=True, with_resource_overrides=False
+        self,
+        translation: str,
+        with_docker=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 

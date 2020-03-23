@@ -1,5 +1,4 @@
 from typing import List, Type, Optional
-import pkg_resources, sys
 from inspect import isfunction, ismodule, isabstract, isclass
 
 from janis_core.tool.commandtool import Tool, ToolTypes, CommandTool, CommandToolBuilder
@@ -7,8 +6,8 @@ from janis_core.code.pythontool import CodeTool, PythonTool
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger, LogLevel
-import janis_core.registry.entrypoints as EP
-from janis_core.registry.registry import TaggedRegistry, Registry
+import janis_core.toolbox.entrypoints as EP
+from janis_core.toolbox.register import TaggedRegistry, Registry
 
 
 class JanisShed:
@@ -106,8 +105,10 @@ class JanisShed:
 
     @staticmethod
     def _get_datatype_entrypoints():
+        import importlib_metadata
+
         ep = []
-        eps = pkg_resources.iter_entry_points(group=EP.DATATYPES)
+        eps = importlib_metadata.entry_points().get(EP.DATATYPES, [])
         for entrypoint in eps:
             try:
                 m = entrypoint.load()
@@ -120,8 +121,10 @@ class JanisShed:
 
     @staticmethod
     def _get_tool_entrypoints():
+        import importlib_metadata
+
         ep = []
-        eps = pkg_resources.iter_entry_points(group=EP.TOOLS)
+        eps = importlib_metadata.entry_points().get(EP.TOOLS, [])
         for entrypoint in eps:
             try:
                 m = entrypoint.load()

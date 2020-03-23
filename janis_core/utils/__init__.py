@@ -1,9 +1,7 @@
-from typing import Dict, Any, List, Tuple, TypeVar
-
-T = TypeVar("T")
+from typing import Dict, Any, List, Tuple
 
 
-def first_value(d: Dict[str, T]) -> T:
+def first_value(d: Dict):
     return next(iter(d.values()))
 
 
@@ -65,6 +63,7 @@ def recursive_2param_wrap(methodname, items):
 def is_module_available(module_name):
     import sys
 
+    torch_loader = None
     if sys.version_info < (3, 0):
         # python 2
         import importlib
@@ -82,3 +81,11 @@ def is_module_available(module_name):
         torch_loader = importlib.util.find_spec(module_name)
 
     return torch_loader is not None
+
+
+def find_duplicates(ar) -> List:
+    counts = {}
+    for x in ar:
+        counts[x] = (counts[x] if x in counts else 0) + 1
+
+    return list(k for k, v in counts.items() if v > 1)

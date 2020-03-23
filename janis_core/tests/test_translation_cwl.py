@@ -1,5 +1,7 @@
 import unittest
 from typing import List, Dict, Any
+
+
 from janis_core.tests.testtools import (
     SingleTestTool,
     ArrayTestTool,
@@ -25,6 +27,7 @@ from janis_core import (
     StringFormatter,
     ToolArgument,
 )
+from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
 from janis_core.types import CpuSelector, MemorySelector
 from janis_core.workflow.workflow import InputNode
@@ -47,14 +50,14 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow("wid")
         self.assertEqual(
-            "class: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
+            "#!/usr/bin/env cwl-runner\nclass: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
             self.translator.stringify_translated_workflow(cwlobj),
         )
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
         self.assertEqual(
-            "class: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
+            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
             self.translator.stringify_translated_tool(cwlobj),
         )
 
@@ -390,7 +393,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             identifier="testIdentifier",
             datatype=String(),
             default="defaultValue",
-            doc="docstring",
+            doc=InputDocumentation("docstring"),
             value=None,
         )
         tinp = cwl.translate_input(inp)
@@ -494,17 +497,44 @@ class TestCwlMaxResources(unittest.TestCase):
         self.assertEqual(1, resources["testtranslationtool_runtime_memory"])
 
 
+class TestEmptyContainer(unittest.TestCase):
+    def test_empty_container_raises(self):
+
+        self.assertRaises(
+            Exception, CwlTranslator().translate_tool_internal, SingleTestTool()
+        )
+
+    def test_empty_container(self):
+        c = CwlTranslator().translate_tool_internal(
+            SingleTestTool(), allow_empty_container=True
+        )
+        self.assertNotIn("DockerRequirement", c.requirements)
+
+
 class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
         w.step("stp1", ArrayTestTool(inputs=w.inp1))
 
-        c, _, _ = CwlTranslator().translate(w, to_console=False)
+        c, _, _ = CwlTranslator().translate(
+            w, to_console=False, allow_empty_container=True
+        )
         self.assertEqual(cwl_multiinput, c)
 
 
+class TestPackedWorkflow(unittest.TestCase):
+    def test_simple(self):
+        w = WorkflowBuilder("test_add_single_to_array_edge")
+        w.step("ech", SingleTestTool(inputs="Hello"), doc="Print 'Hello'")
+        c = CwlTranslator.translate_workflow_to_all_in_one(
+            w, allow_empty_container=True
+        )
+        print(CwlTranslator.stringify_translated_workflow(c))
+
+
 cwl_testtool = """\
+#!/usr/bin/env cwl-runner
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters"
@@ -534,6 +564,7 @@ requirements:
 
 
 cwl_multiinput = """\
+#!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
 id: test_add_single_to_array_edge

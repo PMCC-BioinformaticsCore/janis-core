@@ -1,11 +1,17 @@
 import copy
 import os
 from abc import abstractmethod
-from typing import List, Union, Optional, Dict, Tuple, Any
+from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.tool.commandtool import CommandTool
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    OutputDocumentation,
+    InputQualityType,
+    DocumentationMeta,
+)
 from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
@@ -80,7 +86,7 @@ class InputNode(Node):
         datatype: DataType,
         default: any,
         value: any,
-        doc: str = None,
+        doc: InputDocumentation = None,
     ):
         super().__init__(wf, NodeTypes.INPUT, identifier)
         self.datatype = datatype
@@ -105,7 +111,7 @@ class StepNode(Node):
         wf,
         identifier,
         tool: Tool,
-        doc: str = None,
+        doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
         when: Operator = None,
     ):
@@ -208,7 +214,7 @@ class OutputNode(Node):
         identifier: str,
         datatype: DataType,
         source: Union[List[ConnectionSource], ConnectionSource],
-        doc: str = None,
+        doc: OutputDocumentation = None,
         output_folder: Union[
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
@@ -243,7 +249,11 @@ class OutputNode(Node):
             )
 
         self.source = verify_or_try_get_source(source)
-        self.doc = doc
+        self.doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
         self.output_folder = output_folder
         self.output_name = output_name
         self.pick_value = pick_value
@@ -322,7 +332,7 @@ class Workflow(Tool):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: str = None,
+        doc: Union[str, InputDocumentation] = None,
     ):
         """
         Create an input node on a workflow
@@ -334,6 +344,10 @@ class Workflow(Tool):
         datatype = get_instantiated_type(datatype)
         if default:
             datatype.optional = True
+
+        doc = (
+            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
+        )
 
         inp = InputNode(
             self,
@@ -355,12 +369,10 @@ class Workflow(Tool):
             List[Union[StepNode, ConnectionSource]], Union[StepNode, ConnectionSource]
         ] = None,
         output_folder: Union[
-            str,
-            InputSelector,
-            ConnectionSource,
-            List[Union[str, InputSelector, ConnectionSource]],
+            str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
         output_name: Union[str, InputSelector, ConnectionSource] = None,
+        doc: Union[str, OutputDocumentation] = None,
         pick_value: PickValue = None,
     ):
         """
@@ -420,6 +432,12 @@ class Workflow(Tool):
                 identifier, ot, "output_folder"
             )
 
+        doc = (
+            doc
+            if isinstance(doc, OutputDocumentation)
+            else OutputDocumentation(doc=doc)
+        )
+
         otp = OutputNode(
             self,
             identifier=identifier,
@@ -427,6 +445,7 @@ class Workflow(Tool):
             source=stepoperators,
             output_folder=output_folder,
             output_name=output_name,
+            doc=doc,
             pick_value=pick_value,
         )
         self.nodes[identifier] = otp
@@ -487,6 +506,7 @@ class Workflow(Tool):
         scatter: Union[str, List[str], ScatterDescription] = None,
         when: Optional[Operator] = None,
         ignore_missing=False,
+        doc: str = None,
     ):
         """
         Construct a step on this workflow.
@@ -525,8 +545,8 @@ class Workflow(Tool):
                 # if there is a field not in the input map, we have a problem
                 extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
                 raise Exception(
-                    f"Couldn't scatter the field(s) for step '{identifier}' "
-                    f"(tool: '{tool}') {extra_keys} as they were not found in the input map"
+                    f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
+                    f"as they are not inputs to the tool '{tool.id()}'"
                 )
 
         tool.workflow = self
@@ -559,8 +579,9 @@ class Workflow(Tool):
                 f"Missing the parameters {missing} when creating '{identifier}' ({tool.id()})"
             )
 
+        d = doc if isinstance(doc, DocumentationMeta) else DocumentationMeta(doc=doc)
         stp = StepNode(
-            self, identifier=identifier, tool=tool, scatter=scatter, when=when
+            self, identifier=identifier, tool=tool, scatter=scatter, when=when, doc=d
         )
 
         added_edges = []
@@ -580,14 +601,25 @@ class Workflow(Tool):
 
                 referencedtype.optional = True
 
+                indoc = inputs[k].doc
+                indoc.quality = InputQualityType.configuration
+
                 v = self.input(
                     inp_identifier,
                     referencedtype,
                     default=v.generated_filename() if isfilename else v,
+                    doc=indoc,
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(inp_identifier, inputs[k].intype, default=v)
+                v = self.input(
+                    inp_identifier,
+                    inputs[k].intype,
+                    default=v,
+                    doc=InputDocumentation(
+                        doc=None, quality=InputQualityType.configuration
+                    ),
+                )
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
@@ -716,6 +748,7 @@ class Workflow(Tool):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        allow_empty_container=False,
     ):
         from janis_core.translations import translate_workflow
 
@@ -737,10 +770,17 @@ class Workflow(Tool):
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
+            allow_empty_container=allow_empty_container,
         )
 
     def generate_inputs_override(
-        self, additional_inputs=None, with_resource_overrides=False, hints=None
+        self,
+        additional_inputs=None,
+        with_resource_overrides=False,
+        hints=None,
+        include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List[InputQualityType] = None,
     ):
         """
         Generate the overrides to be used with Janis. Although it may work with
@@ -752,7 +792,14 @@ class Workflow(Tool):
         d = {
             i.id(): ad.get(i.id(), i.value or i.default)
             for i in self.input_nodes.values()
-            if i.id() in ad or i.default or i.value or not i.datatype.optional
+            if (
+                i.id() in ad
+                or i.value
+                or not i.datatype.optional
+                or (i.default and include_defaults)
+            )
+            and not (values_to_ignore and i.id() in values_to_ignore)
+            and (not (i.doc and quality_type) or i.doc.quality in quality_type)
         }
 
         if with_resource_overrides:
@@ -861,11 +908,16 @@ class Workflow(Tool):
 
 class WorkflowBuilder(Workflow):
     def __init__(
-        self, identifier: str = None, friendly_name: str = None, version: str = None
+        self,
+        identifier: str = None,
+        friendly_name: str = None,
+        version: str = None,
+        metadata: WorkflowMetadata = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
         self._version = version
+        self._metadata = metadata
 
         super().__init__()
 
@@ -888,6 +940,9 @@ class WorkflowBuilder(Workflow):
 
     def version(self):
         return self.version
+
+    def bind_metadata(self):
+        return self._metadata
 
 
 def wrap_steps_in_workflow(

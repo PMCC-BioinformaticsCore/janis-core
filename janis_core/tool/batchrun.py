@@ -31,7 +31,7 @@ class BatchRunTool(Workflow):
         invalid_keys = self.fields - inkeys
         if len(invalid_keys) > 0:
             raise Exception(
-                f"Couldn't create multitool from fields {', '.join(invalid_keys)} "
+                f"Couldn't create BatchRunTool from fields {', '.join(invalid_keys)} "
                 f"as they do not exist on '{self.inner.id()}'"
             )
 

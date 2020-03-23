@@ -24,8 +24,8 @@ _Proudly made on Planet Earth._
 
 # PEP396:  https://www.python.org/dev/peps/pep-0396/
 from janis_core.__meta__ import __version__
-from janis_core.registry.shed import JanisShed
-import janis_core.registry.entrypoints as entrypoints
+from janis_core.toolbox.toolbox import JanisShed
+import janis_core.toolbox.entrypoints as entrypoints
 
 # Tools
 from janis_core.tool.tool import Tool, ToolTypes, TOutput, TInput
@@ -64,10 +64,11 @@ from janis_core.types import (
 )
 
 # Misc
-
+from janis_core.tool.documentation import *
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.translations import SupportedTranslations
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
+from janis_core.utils.secondary import apply_secondary_file_format_to_filename

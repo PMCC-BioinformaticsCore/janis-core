@@ -1,6 +1,16 @@
 from unittest import TestCase
 
-from janis_core import File, Array, Logger, String, WorkflowBuilder
+from janis_core.types import Boolean
+
+from janis_core import (
+    File,
+    Array,
+    Logger,
+    String,
+    WorkflowBuilder,
+    InputDocumentation,
+    InputQualityType,
+)
 from janis_core.graph.steptaginput import StepTagInput, first_value, Edge
 from janis_core.tests.testtools import SingleTestTool, ArrayTestTool
 
@@ -277,3 +287,56 @@ class TestWorkflow(TestCase):
         e = first_value(w.stp1.sources["inputs"].source_map)
         self.assertTrue(w.has_multiple_inputs)
         self.assertTrue(e.compatible_types)
+
+
+class TestWorkflowInputCollection(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        wf = WorkflowBuilder("test_workflow_input_collection")
+
+        cls.inmap = {
+            "user": InputQualityType.user,
+            "static": InputQualityType.static,
+            "configuration": InputQualityType.configuration,
+            "none": None,
+        }
+
+        for i, itype in cls.inmap.items():
+            wf.input(i, str, doc=InputDocumentation(None, quality=itype))
+
+        cls.wf = wf
+
+    def test_regular(self):
+        expected_keys = set(self.inmap.keys())
+        inputs = self.wf.generate_inputs_override()
+        self.assertSetEqual(expected_keys, set(inputs.keys()))
+
+    def test_get_user_inputs(self):
+        qualtype = InputQualityType.user
+        expected_keys = set(i for i in self.inmap.keys() if self.inmap[i] == qualtype)
+        inputs = self.wf.generate_inputs_override(quality_type=[qualtype])
+        self.assertEqual(len(inputs), 1)
+        self.assertSetEqual(expected_keys, set(inputs.keys()))
+
+    def test_get_static_inputs(self):
+        qualtype = InputQualityType.static
+        expected_keys = set(i for i in self.inmap.keys() if self.inmap[i] == qualtype)
+        inputs = self.wf.generate_inputs_override(quality_type=[qualtype])
+        self.assertEqual(len(inputs), 1)
+        self.assertSetEqual(expected_keys, set(inputs.keys()))
+
+    def test_get_static_and_config_inputs(self):
+        qualtypes = [InputQualityType.static, InputQualityType.configuration]
+        expected_keys = set(i for i in self.inmap.keys() if self.inmap[i] in qualtypes)
+        inputs = self.wf.generate_inputs_override(quality_type=qualtypes)
+        self.assertEqual(len(inputs), 2)
+        self.assertSetEqual(expected_keys, set(inputs.keys()))
+
+    def test_ignore(self):
+        ignore_keys = {"none"}
+
+        expected_keys = set(
+            i.id() for i in self.wf.inputs_map().values() if i.id() not in ignore_keys
+        )
+        inputs = self.wf.generate_inputs_override(values_to_ignore=ignore_keys)
+        self.assertSetEqual(expected_keys, set(inputs.keys()))
