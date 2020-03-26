@@ -1,8 +1,8 @@
 from janis_core.types.common_data_types import String
-from janis_core.operators.operator import FunctionOperator
+from janis_core.operators.operator import Operator
 
 
-class BasenameOperator(FunctionOperator):
+class BasenameOperator(Operator):
     def to_wdl(self, unwrap_operator, *args):
         arg = args[0]
         return f"basename({unwrap_operator(arg)})"
