@@ -1,5 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
+from ..types.common_data_types import (
+    Boolean,
+    String,
+    Float,
+    DataType,
+    Int,
+    File,
+    Directory,
+    Double,
+    AnyType,
+    NumericType,
+)
 from .operator import Operator, OperatorOrValue, SingleValueOperator, TwoValueOperator
 
 
@@ -32,6 +44,12 @@ class NotOperator(SingleValueOperator):
     def cwl_symbol():
         return "!"
 
+    def argtypes(self):
+        return [Boolean]
+
+    def returntype(self):
+        return Boolean
+
 
 # Two value operators
 
@@ -49,6 +67,12 @@ class AndOperator(TwoValueOperator):
     def cwl_symbol():
         return "&&"
 
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Boolean, Boolean]
+
 
 class OrOperator(TwoValueOperator):
     @staticmethod
@@ -62,6 +86,12 @@ class OrOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "||"
+
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Boolean, Boolean]
 
 
 class EqualityOperator(TwoValueOperator):
@@ -77,6 +107,12 @@ class EqualityOperator(TwoValueOperator):
     def cwl_symbol():
         return "=="
 
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [AnyType, AnyType]
+
 
 class InequalityOperator(TwoValueOperator):
     @staticmethod
@@ -90,6 +126,12 @@ class InequalityOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "!="
+
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [AnyType, AnyType]
 
 
 class GtOperator(TwoValueOperator):
@@ -105,6 +147,12 @@ class GtOperator(TwoValueOperator):
     def cwl_symbol():
         return ">"
 
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Union[String, Int, Float, Double], Union[String, Int, Float, Double]]
+
 
 class GteOperator(TwoValueOperator):
     @staticmethod
@@ -118,6 +166,12 @@ class GteOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return ">="
+
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Union[String, Int, Float, Double], Union[String, Int, Float, Double]]
 
 
 class LtOperator(TwoValueOperator):
@@ -133,6 +187,12 @@ class LtOperator(TwoValueOperator):
     def cwl_symbol():
         return "<"
 
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Union[String, Int, Float, Double], Union[String, Int, Float, Double]]
+
 
 class LteOperator(TwoValueOperator):
     @staticmethod
@@ -146,6 +206,12 @@ class LteOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "<="
+
+    def returntype(self):
+        return Boolean
+
+    def argtypes(self):
+        return [Union[String, Int, Float, Double], Union[String, Int, Float, Double]]
 
 
 class AddOperator(TwoValueOperator):
@@ -161,6 +227,26 @@ class AddOperator(TwoValueOperator):
     def cwl_symbol():
         return "+"
 
+    def argtypes(self):
+        return [AnyType, AnyType]
+
+    def returntype(self):
+        lhs: DataType = self.args[0].returntype()
+        rhs: DataType = self.args[0].returntype()
+
+        if isinstance(lhs, (String, File, Directory)) or isinstance(
+            rhs, (String, File, Directory)
+        ):
+            return String
+        if isinstance(lhs, Float) or isinstance(rhs, Float):
+            return Double
+        if isinstance(lhs, Float) or isinstance(rhs, Float):
+            return Float
+        if isinstance(lhs, Int) and isinstance(rhs, Int):
+            return Int
+
+        raise TypeError(f"Unsure how to derive returntype from {lhs.id()} + {rhs.id()}")
+
 
 class SubtractOperator(TwoValueOperator):
     @staticmethod
@@ -174,6 +260,16 @@ class SubtractOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "-"
+
+    def argtypes(self):
+        return [Union[Int, Double, Float], Union[Int, Double, Float]]
+
+    def returntype(self):
+        if any(isinstance(t, Double) for t in self.args):
+            return Double
+        if any(isinstance(t, Float) for t in self.args):
+            return Float
+        return Int
 
 
 class MultiplyOperator(TwoValueOperator):
@@ -189,6 +285,16 @@ class MultiplyOperator(TwoValueOperator):
     def cwl_symbol():
         return "*"
 
+    def argtypes(self):
+        return [NumericType, NumericType]
+
+    def returntype(self):
+        if any(isinstance(t, Double) for t in self.args):
+            return Double
+        if any(isinstance(t, Float) for t in self.args):
+            return Float
+        return Int
+
 
 class DivideOperator(TwoValueOperator):
     @staticmethod
@@ -202,3 +308,11 @@ class DivideOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "/"
+
+    def argtypes(self):
+        return [NumericType, NumericType]
+
+    def returntype(self):
+        if any(isinstance(t, Double) for t in self.args):
+            return Double
+        return Float
