@@ -1,3 +1,4 @@
+from typing import Union
 from janis_core.utils.errors import (
     TooManyArgsException,
     IncorrectArgsException,
@@ -5,13 +6,16 @@ from janis_core.utils.errors import (
     ConflictingArgumentsException,
 )
 from janis_core.utils.logger import Logger
+from janis_core.types.common_data_types import Array, String, File, Directory, Int
 
 from janis_core.utils.bracketmatching import get_keywords_between_braces
-from abc import ABC
+from abc import ABC, abstractmethod
 
 
 class Selector(ABC):
-    pass
+    @abstractmethod
+    def returntype(self):
+        pass
 
 
 class InputSelector(Selector):
@@ -19,6 +23,10 @@ class InputSelector(Selector):
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
         self.use_basename = use_basename
+
+    def returntype(self):
+        # Todo: Work out how this can be achieved
+        return File
 
     def to_string_formatter(self):
         kwarg = {self.input_to_select: self}
@@ -35,10 +43,16 @@ class WildcardSelector(Selector):
     def __init__(self, wildcard):
         self.wildcard = wildcard
 
+    def returntype(self):
+        return Array(Union[File, Directory])
+
 
 class MemorySelector(InputSelector):
     def __init__(self):
         super().__init__("runtime_memory")
+
+    def returntype(self):
+        return Int(optional=True)
 
 
 class CpuSelector(InputSelector):
@@ -46,8 +60,14 @@ class CpuSelector(InputSelector):
         super().__init__("runtime_cpu")
         self.default = default
 
+    def returntype(self):
+        return Int(optional=bool(self.default is None))
+
 
 class StringFormatter(Selector):
+    def returntype(self):
+        return String()
+
     def __init__(self, format: str, **kwargs):
         self._format: str = format
 
