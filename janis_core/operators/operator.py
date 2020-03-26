@@ -1,65 +1,107 @@
 from abc import ABC, abstractmethod
 from typing import Union, List
 
-from janis_core.types.selectors import Selector
+from janis_core.types import DataType, get_instantiated_type
+
+from janis_core.utils import first_value
+
+from janis_core.operators.selectors import Selector
 
 
 class Operator(Selector, ABC):
     def __neg__(self):
+        from janis_core.operators.logical import NotOperator
+
         return NotOperator(self)
 
     def __and__(self, other):
+        from janis_core.operators.logical import AndOperator
+
         return AndOperator(self, other)
 
     def __rand__(self, other):
+        from janis_core.operators.logical import AndOperator
+
         return AndOperator(other, self)
 
     def __or__(self, other):
+        from janis_core.operators.logical import OrOperator
+
         return OrOperator(self, other)
 
     def __ror__(self, other):
+        from janis_core.operators.logical import OrOperator
+
         return OrOperator(other, self)
 
     def __add__(self, other):
+        from janis_core.operators.logical import AddOperator
+
         return AddOperator(self, other)
 
     def __radd__(self, other):
+        from janis_core.operators.logical import AddOperator
+
         return AddOperator(other, self)
 
     def __sub__(self, other):
+        from janis_core.operators.logical import SubtractOperator
+
         return SubtractOperator(self, other)
 
     def __rsub__(self, other):
+        from janis_core.operators.logical import SubtractOperator
+
         return SubtractOperator(other, self)
 
     def __mul__(self, other):
+        from janis_core.operators.logical import MultiplyOperator
+
         return MultiplyOperator(self, other)
 
     def __rmul__(self, other):
+        from janis_core.operators.logical import MultiplyOperator
+
         return MultiplyOperator(other, self)
 
     def __truediv__(self, other):
+        from janis_core.operators.logical import DivideOperator
+
         return DivideOperator(self, other)
 
     def __rtruediv__(self, other):
+        from janis_core.operators.logical import DivideOperator
+
         return DivideOperator(other, self)
 
     def __eq__(self, other):
+        from janis_core.operators.logical import EqualityOperator
+
         return EqualityOperator(self, other)
 
     def __ne__(self, other):
+        from janis_core.operators.logical import EqualityOperator
+
         return EqualityOperator(self, other)
 
     def __gt__(self, other):
+        from janis_core.operators.logical import GtOperator
+
         return GtOperator(self, other)
 
     def __ge__(self, other):
+        from janis_core.operators.logical import GteOperator
+
         return GteOperator(self, other)
 
     def __lt__(self, other):
+        from janis_core.operators.logical import LtOperator
+
         return LtOperator(self, other)
 
     def __le__(self, other):
+        from janis_core.operators.logical import LteOperator
+
         return LteOperator(self, other)
 
     def as_str(self):
@@ -72,20 +114,14 @@ class Operator(Selector, ABC):
         return AsIntOperator(self)
 
     def op_and(self, other):
+        from janis_core.operators.logical import AndOperator
+
         return AndOperator(self, other)
 
     def op_or(self, other):
+        from janis_core.operators.logical import OrOperator
+
         return OrOperator(self, other)
-
-
-def or_prev_conds(prevconditions: List[Operator]):
-    if len(prevconditions) == 0:
-        return None
-    elif len(prevconditions) == 1:
-        return prevconditions[0]
-    elif len(prevconditions) == 2:
-        return OrOperator(prevconditions[0], prevconditions[1])
-    return OrOperator(prevconditions[0], or_prev_conds(prevconditions[1:]))
 
 
 class InputOperator(Operator):
@@ -97,6 +133,9 @@ class InputOperator(Operator):
 
         self.input_node = input_node
 
+    def returntype(self):
+        return first_value(self.input_node.inputs()).intype
+
     def __repr__(self):
         return "inputs." + self.input_node.id()
 
@@ -105,6 +144,9 @@ class StepOperator(Operator):
     def __init__(self, node, tag):
         self.node = node
         self.tag = tag
+
+    def returntype(self):
+        return self.node.inputs()[self.tag].intype
 
     @staticmethod
     def from_tuple(step_tuple):
@@ -118,6 +160,56 @@ class StepOperator(Operator):
 
 
 OperatorOrValue = Union[Operator, Selector, int, str, float]
+
+
+class FunctionOperator(Operator, ABC):
+    def __init__(self, *args):
+        self.args: List[Selector] = args
+
+    @abstractmethod
+    def argtypes(self) -> List[DataType]:
+        pass
+
+    def validate(self):
+        args = self.args
+        argtypes = self.argtypes()
+
+        if len(args) < len(argtypes):
+            # missing params
+            nmissing = len(argtypes) - len(args)
+            raise TypeError(
+                f"{self.__class__.__name__} missing {nmissing} required positional argument"
+            )
+        elif len(args) > len(argtypes):
+            raise TypeError(
+                f"{self.__class__.__name__} expects {len(argtypes)} arguments, but {len(args)} were given"
+            )
+
+        errors = []
+        for i in range(len(args)):
+            expected = get_instantiated_type(argtypes[i])
+            received = get_instantiated_type(args[i])
+            if not expected.can_receive_from(received):
+                errors.append(
+                    f"argument {i+1} '{received.id()}' was incompatible with the expected {expected.id()}"
+                )
+
+        if errors:
+            singularprefix = "were errors" if len(errors) != 1 else "was an error"
+            raise TypeError(
+                f"There {singularprefix} in the arguments when validating '{self.__class__.__name__}', "
+                + ", ".join(errors)
+            )
+
+        return True
+
+    @abstractmethod
+    def to_wdl(self, unwrap_operator, *args):
+        pass
+
+    @abstractmethod
+    def to_cwl(self, unwrap_operator, *args):
+        pass
 
 
 class SingleValueOperator(Operator, ABC):
@@ -167,9 +259,6 @@ class TwoValueOperator(Operator, ABC):
         return f"({self.lhs} {self.symbol()} {self.rhs})"
 
 
-# As operators
-
-
 class AsStringOperator(SingleValueOperator):
     @staticmethod
     def symbol():
@@ -210,191 +299,3 @@ class AsIntOperator(SingleValueOperator):
     @staticmethod
     def cwl_symbol():
         return "int"
-
-
-# Other single value operators
-
-
-class NotOperator(SingleValueOperator):
-    @staticmethod
-    def symbol():
-        return "!"
-
-    @staticmethod
-    def wdl_symbol():
-        return "!"
-
-    @staticmethod
-    def cwl_symbol():
-        return "!"
-
-
-# Two value operators
-
-
-class AndOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "&&"
-
-    @staticmethod
-    def wdl_symbol():
-        return "&&"
-
-    @staticmethod
-    def cwl_symbol():
-        return "&&"
-
-
-class OrOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "||"
-
-    @staticmethod
-    def wdl_symbol():
-        return "||"
-
-    @staticmethod
-    def cwl_symbol():
-        return "||"
-
-
-class EqualityOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "=="
-
-    @staticmethod
-    def wdl_symbol():
-        return "=="
-
-    @staticmethod
-    def cwl_symbol():
-        return "=="
-
-
-class InequalityOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "!="
-
-    @staticmethod
-    def wdl_symbol():
-        return "!="
-
-    @staticmethod
-    def cwl_symbol():
-        return "!="
-
-
-class GtOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return ">"
-
-    @staticmethod
-    def wdl_symbol():
-        return ">"
-
-    @staticmethod
-    def cwl_symbol():
-        return ">"
-
-
-class GteOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return ">="
-
-    @staticmethod
-    def wdl_symbol():
-        return ">="
-
-    @staticmethod
-    def cwl_symbol():
-        return ">="
-
-
-class LtOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "<"
-
-    @staticmethod
-    def wdl_symbol():
-        return "<"
-
-    @staticmethod
-    def cwl_symbol():
-        return "<"
-
-
-class LteOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "<="
-
-    @staticmethod
-    def wdl_symbol():
-        return "<="
-
-    @staticmethod
-    def cwl_symbol():
-        return "<="
-
-
-class AddOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "+"
-
-    @staticmethod
-    def wdl_symbol():
-        return "+"
-
-    @staticmethod
-    def cwl_symbol():
-        return "+"
-
-
-class SubtractOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "-"
-
-    @staticmethod
-    def wdl_symbol():
-        return "-"
-
-    @staticmethod
-    def cwl_symbol():
-        return "-"
-
-
-class MultiplyOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "*"
-
-    @staticmethod
-    def wdl_symbol():
-        return "*"
-
-    @staticmethod
-    def cwl_symbol():
-        return "*"
-
-
-class DivideOperator(TwoValueOperator):
-    @staticmethod
-    def symbol():
-        return "/"
-
-    @staticmethod
-    def wdl_symbol():
-        return "/"
-
-    @staticmethod
-    def cwl_symbol():
-        return "/"
