@@ -325,6 +325,11 @@ class TranslatorBase(ABC):
 
     @classmethod
     @abstractmethod
+    def unwrap_expression(cls, expression):
+        pass
+
+    @classmethod
+    @abstractmethod
     def build_inputs_file(
         cls,
         workflow,
