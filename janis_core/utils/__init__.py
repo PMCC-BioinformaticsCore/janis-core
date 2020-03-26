@@ -1,7 +1,9 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, TypeVar
+
+T = TypeVar("T")
 
 
-def first_value(d: Dict):
+def first_value(d: Dict[Any, T]) -> T:
     return next(iter(d.values()))
 
 
