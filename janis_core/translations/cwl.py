@@ -315,7 +315,7 @@ class CwlTranslator(TranslatorBase):
             lls = [
                 cwlgen.EnvVarRequirement.EnvironmentDef(
                     k,
-                    get_input_value_from_potential_selector_or_generator(
+                    CwlTranslator.unwrap_expression(
                         value=v, code_environment=False, toolid=tool.id()
                     ),
                 )
@@ -538,6 +538,45 @@ return {out_capture}
 }}"""
 
     @staticmethod
+    def unwrap_expression(value, code_environment=True, **debugkwargs):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return f'"{value}"' if code_environment else value
+        elif isinstance(value, int) or isinstance(value, float):
+            return value
+        elif isinstance(value, Filename):
+            # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
+            return (
+                f'"{value.generated_filename()}"'
+                if code_environment
+                else value.generated_filename()
+            )
+        elif isinstance(value, StringFormatter):
+            return translate_string_formatter(
+                value, code_environment=code_environment, **debugkwargs
+            )
+        elif isinstance(value, InputSelector):
+            return translate_input_selector(
+                selector=value, code_environment=code_environment
+            )
+        elif isinstance(value, WildcardSelector):
+            raise Exception(
+                f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            )
+        elif isinstance(value, CpuSelector):
+            return translate_cpu_selector(value)
+        elif isinstance(value, MemorySelector):
+            return translate_memory_selector(value)
+        elif callable(getattr(value, "cwl", None)):
+            return value.cwl()
+        # elif isinstance(value, Operator):
+
+        raise Exception(
+            "Could not detect type %s to convert to input value" % type(value)
+        )
+
+    @staticmethod
     def workflow_filename(workflow):
         return workflow.id() + ".cwl"
 
@@ -608,7 +647,7 @@ def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
         # value_from = get_input_value_from_potential_selector_or_generator(toolinput.input_type, code_environment=False, toolid=toolinput.id())
     elif is_selector(default):
         default = None
-        value_from = get_input_value_from_potential_selector_or_generator(
+        value_from = CwlTranslator.unwrap_expression(
             toolinput.default, code_environment=False, toolid=toolinput.id()
         )
 
@@ -668,7 +707,7 @@ def translate_tool_argument(argument):
         prefix=argument.prefix,
         separate=argument.separate_value_from_prefix,
         # item_separator=None,
-        value_from=get_input_value_from_potential_selector_or_generator(
+        value_from=CwlTranslator.unwrap_expression(
             argument.value, code_environment=False
         ),
         shell_quote=argument.shell_quote,
@@ -885,45 +924,6 @@ def is_selector(selector):
     return issubclass(type(selector), Selector)
 
 
-def get_input_value_from_potential_selector_or_generator(
-    value, code_environment=True, **debugkwargs
-):
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return f'"{value}"' if code_environment else value
-    elif isinstance(value, int) or isinstance(value, float):
-        return value
-    elif isinstance(value, Filename):
-        # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
-        return (
-            f'"{value.generated_filename()}"'
-            if code_environment
-            else value.generated_filename()
-        )
-    elif isinstance(value, StringFormatter):
-        return translate_string_formatter(
-            value, code_environment=code_environment, **debugkwargs
-        )
-    elif isinstance(value, InputSelector):
-        return translate_input_selector(
-            selector=value, code_environment=code_environment
-        )
-    elif isinstance(value, WildcardSelector):
-        raise Exception(
-            f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
-        )
-    elif isinstance(value, CpuSelector):
-        return translate_cpu_selector(value)
-    elif isinstance(value, MemorySelector):
-        return translate_memory_selector(value)
-    elif callable(getattr(value, "cwl", None)):
-        return value.cwl()
-    # elif isinstance(value, Operator):
-
-    raise Exception("Could not detect type %s to convert to input value" % type(value))
-
-
 def translate_input_selector(selector: InputSelector, code_environment):
     if not selector.input_to_select:
         raise Exception("No input was selected for input selector: " + str(selector))
@@ -943,7 +943,7 @@ def translate_string_formatter(
         return escapedFormat
 
     kwargreplacements = [
-        f".replace(/{re.escape('{' +k + '}')}/g, {get_input_value_from_potential_selector_or_generator(v, code_environment=True, **debugkwargs)})"
+        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, code_environment=True, **debugkwargs)})"
         for k, v in selector.kwargs.items()
     ]
     return f'$("{escapedFormat}"' + "".join(kwargreplacements) + ")"
