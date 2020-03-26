@@ -55,7 +55,7 @@ from janis_core.types.common_data_types import (
     Stdout,
     Stderr,
 )
-from janis_core.types import (
+from janis_core.operators import (
     InputSelector,
     WildcardSelector,
     MemorySelector,

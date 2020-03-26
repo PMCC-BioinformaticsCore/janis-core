@@ -20,19 +20,25 @@ from janis_core.types import (
     ParseableType,
     get_instantiated_type,
     Array,
-    InputSelector,
     Filename,
+)
+
+from janis_core.operators import (
+    InputSelector,
     Operator,
+    StringFormatter,
     StepOperator,
     InputOperator,
+)
+from janis_core.operators.logical import (
     AndOperator,
     OrOperator,
     NotOperator,
     or_prev_conds,
     SingleValueOperator,
     TwoValueOperator,
-    StringFormatter,
 )
+
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
