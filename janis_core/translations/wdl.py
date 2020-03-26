@@ -28,18 +28,18 @@ from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
 from janis_core.tool.tool import Tool, TOutput
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core.types import (
+from janis_core.operators import (
     InputSelector,
     WildcardSelector,
     CpuSelector,
     StringFormatter,
-    String,
     Selector,
     Operator,
     SingleValueOperator,
     StepOperator,
     InputOperator,
     TwoValueOperator,
+    FunctionOperator,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -48,6 +48,7 @@ from janis_core.types.common_data_types import (
     Boolean,
     Filename,
     File,
+    String,
 )
 from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
 from janis_core.utils.generators import generate_new_id_from
@@ -275,6 +276,101 @@ class WdlTranslator(TranslatorBase):
 
         return w, wtools
 
+    @staticmethod
+    def wrap_if_string_environment(value, string_environment: bool):
+        return f'"{value}"' if string_environment else value
+
+    @classmethod
+    def unwrap_expression(
+        cls, expression, inputsdict=None, string_environment=False, **debugkwargs
+    ):
+        print("DETECTED EXPRESSION")
+        if expression is None:
+            return "false"
+
+        if isinstance(expression, list):
+            toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")
+            joined_values = ", ".join(
+                str(
+                    cls.unwrap_expression(
+                        expression[i],
+                        inputsdict,
+                        string_environment=False,
+                        tool_id=toolid + "." + str(i),
+                    )
+                )
+                for i in range(len(expression))
+            )
+            return f"[{joined_values}]"
+        if is_python_primitive(expression):
+            if isinstance(expression, str):
+                return cls.wrap_if_string_environment(expression, string_environment)
+            if isinstance(expression, bool):
+                return "true" if expression else "false"
+
+            return str(expression)
+        elif isinstance(expression, Filename):
+            return cls.wrap_if_string_environment(
+                expression.generated_filename(), string_environment
+            )
+        elif isinstance(expression, StringFormatter):
+            return translate_string_formatter(
+                selector=expression,
+                inputsdict=inputsdict,
+                string_environment=string_environment,
+                **debugkwargs,
+            )
+        elif isinstance(expression, WildcardSelector):
+            raise Exception(
+                f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            )
+
+        elif isinstance(expression, InputSelector):
+            return translate_input_selector(
+                selector=expression,
+                inputsdict=inputsdict,
+                string_environment=string_environment,
+                **debugkwargs,
+            )
+        elif callable(getattr(expression, "wdl", None)):
+            return expression.wdl()
+
+        wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
+        unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
+            exp, inputsdict, string_environment=False, **debugkwargs
+        )
+
+        if isinstance(expression, InputOperator):
+            return wrap_in_code_block(expression.input_node.id())
+
+        if isinstance(expression, StepOperator):
+            return wrap_in_code_block(expression.node.id() + "." + expression.tag)
+
+        if isinstance(expression, SingleValueOperator):
+            return wrap_in_code_block(
+                f"{expression.wdl_symbol()}({cls.unwrap_expression(expression.internal)})"
+            )
+
+        elif isinstance(expression, TwoValueOperator):
+            return wrap_in_code_block(
+                f"({cls.unwrap_expression(expression.lhs)} {expression.wdl_symbol()} {cls.unwrap_expression(expression.rhs)})"
+            )
+
+        elif isinstance(expression, FunctionOperator):
+            return wrap_in_code_block(
+                expression.to_wdl(unwrap_expression_wrap, *expression.args)
+            )
+
+        warning = ""
+        if isclass(expression):
+            stype = expression.__name__
+            warning = f", this is likely due to the '{stype}' not being initialised"
+        else:
+            stype = expression.__class__.__name__
+        raise Exception(
+            f"Could not detect type '{stype}' to convert to input value{warning}"
+        )
+
     @classmethod
     def translate_tool_inputs(cls, toolinputs: List[ToolInput]) -> List[wdl.Input]:
         ins = []
@@ -321,7 +417,7 @@ class WdlTranslator(TranslatorBase):
             return []
         commandargs = []
         for a in toolargs:
-            val = get_input_value_from_potential_selector_or_generator(a.value, inpmap)
+            val = cls.unwrap_expression(a.value, inpmap, string_environment=True)
             should_wrap_in_quotes = isinstance(val, str) and (
                 a.shell_quote is None or a.shell_quote
             )
@@ -413,9 +509,7 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
-            CpuSelector(), inmap, string_environment=False, id="runtimestats"
-        )
+        r.kwargs["cpu"] = cls.unwrap_expression(CpuSelector(), inmap, id="runtimestats")
         r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
 
         if with_resource_overrides:
@@ -623,10 +717,8 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
             f"value: '{indefault}' for tool_input '{tool_input.tag}'"
         )
 
-    else:
-        default = get_input_value_from_potential_selector_or_generator(
-            indefault, None, string_environment=False, **debugkwargs
-        )
+    elif indefault is not None:
+        default = WdlTranslator.unwrap_expression(indefault, **debugkwargs)
 
     if default is not None:
         # Default should imply optional input
@@ -822,7 +914,7 @@ def translate_string_formatter_for_output(
         resolved_kwargs = {
             **selector.kwargs,
             **{
-                k: get_input_value_from_potential_selector_or_generator(
+                k: WdlTranslator.unwrap_expression(
                     v, inputsdict=inp_map, string_environment=True, **debugkwargs
                 )
                 for k, v in inputs_to_retranslate.items()
@@ -847,7 +939,7 @@ def translate_string_formatter_for_output(
             # Handle input selector separately
             input_selectors_with_secondaries[k] = v
 
-        translated_inputs[k] = get_input_value_from_potential_selector_or_generator(
+        translated_inputs[k] = WdlTranslator.unwrap_expression(
             v, inputsdict=inp_map, string_environment=True, **debugkwargs
         )
 
@@ -1178,8 +1270,8 @@ def translate_step_node(
                         ] = get_secondary_tag_from_original_tag(ds, sec)
 
             if default:
-                defval = get_input_value_from_potential_selector_or_generator(
-                    default, inputsdict=None, string_environment=False, dottedsource=ds
+                defval = WdlTranslator.unwrap_expression(
+                    default, dottedsource=ds, string_environment=True
                 )
 
                 if isinstance(defval, bool):
@@ -1209,39 +1301,11 @@ def translate_step_node(
 
     if node.when:
         print(node.when)
-        condition = unwrap_when(node.when)
+        condition = node.when
         call = wdl.WorkflowConditional(condition, [call])
         # determine how to unwrap when
 
     return call
-
-
-def unwrap_when(when: Operator) -> str:
-
-    if when is None:
-        return "false"
-
-    if is_python_primitive(when):
-        if isinstance(when, str):
-            return f'"{when}"'
-        if isinstance(when, bool):
-            return "true" if when else "false"
-
-        return str(when)
-
-    if isinstance(when, InputOperator):
-        return when.input_node.id()
-
-    if isinstance(when, StepOperator):
-        return when.node.id() + "." + when.tag
-
-    if isinstance(when, SingleValueOperator):
-        return f"{when.wdl_symbol()}({unwrap_when(when.internal)})"
-
-    elif isinstance(when, TwoValueOperator):
-        return f"({unwrap_when(when.lhs)} {when.wdl_symbol()} {unwrap_when(when.rhs)})"
-
-    return str(when)
 
 
 def generate_scatterable_details(
@@ -1358,11 +1422,8 @@ def wrap_scatter_call(
             (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
             insource = s.dotted_source()
             if isinstance(startnode, InputNode) and startnode.default is not None:
-                resolved = get_input_value_from_potential_selector_or_generator(
-                    startnode.default,
-                    None,
-                    string_environment=False,
-                    scatterstep=insource,
+                resolved = WdlTranslator.unwrap_expression(
+                    startnode.default, scatterstep=insource
                 )
                 if isinstance(resolved, bool):
                     resolved = "true" if resolved else "false"
@@ -1385,87 +1446,6 @@ def wrap_scatter_call(
 
 
 ## SELECTOR HELPERS
-
-
-def get_input_value_from_potential_selector_or_generator(
-    value, inputsdict, string_environment=True, **debugkwargs
-):
-    """
-    We have a value which could be anything, and we want to convert it to a expressionable value.
-    If we have a string, it should be in quotes, etc. It should be "Type paramname = <expressionable>"
-    :param value:
-    :param tool_id:
-    :param string_environment:  Do we need to wrap string literals in quotes,
-                                or do we need to wrap variables in expr block.
-    :return:
-    """
-    if value is None:
-        return None
-
-    if isinstance(value, list):
-        toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")
-        joined_values = ", ".join(
-            str(
-                get_input_value_from_potential_selector_or_generator(
-                    value[i],
-                    inputsdict,
-                    string_environment=False,
-                    tool_id=toolid + "." + str(i),
-                )
-            )
-            for i in range(len(value))
-        )
-        return f"[{joined_values}]"
-    elif isinstance(value, str):
-        return value if string_environment else f'"{value}"'
-    elif isinstance(value, bool):
-        return "true" if value else "false"
-    elif isinstance(value, int) or isinstance(value, float):
-        return value
-    elif isinstance(value, Filename):
-        return (
-            value.generated_filename()
-            if string_environment
-            else f'"{value.generated_filename()}"'
-        )
-    elif isinstance(value, StringFormatter):
-        return translate_string_formatter(
-            selector=value,
-            inputsdict=inputsdict,
-            string_environment=string_environment,
-            **debugkwargs,
-        )
-    elif isinstance(value, WildcardSelector):
-        raise Exception(
-            f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
-        )
-    # elif isinstance(value, CpuSelector):
-    #     return translate_cpu_selector(
-    #         value, inputsdict, string_environment=string_environment
-    #     )
-    # elif isinstance(value, MemorySelector):
-    #     return translate_mem_selector(
-    #         value, inputsdict, string_environment=string_environment
-    #     )
-    elif isinstance(value, InputSelector):
-        return translate_input_selector(
-            selector=value,
-            inputsdict=inputsdict,
-            string_environment=string_environment,
-            **debugkwargs,
-        )
-    elif callable(getattr(value, "wdl", None)):
-        return value.wdl()
-
-    warning = ""
-    if isclass(value):
-        stype = value.__name__
-        warning = f", this is likely due to the '{stype}' not being initialised"
-    else:
-        stype = value.__class__.__name__
-    raise Exception(
-        f"Could not detect type '{stype}' to convert to input value{warning}"
-    )
 
 
 def translate_string_formatter(
@@ -1500,7 +1480,7 @@ def translate_string_formatter(
 
     value = selector.resolve_with_resolved_values(
         **{
-            k: get_input_value_from_potential_selector_or_generator(
+            k: WdlTranslator.unwrap_expression(
                 selector.kwargs[k],
                 inputsdict=inputsdict,
                 string_environment=True,
@@ -1613,7 +1593,7 @@ def prepare_env_var_setters(
 
     statements = []
     for k, v in reqs.items():
-        val = get_input_value_from_potential_selector_or_generator(
+        val = WdlTranslator.unwrap_expression(
             v, inputsdict=inputsdict, string_environment=True, **debugkwargs
         )
         statements.append(wdl.Task.Command(f"export {k}='{val}'"))
