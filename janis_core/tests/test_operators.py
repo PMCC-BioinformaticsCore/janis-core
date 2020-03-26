@@ -1,5 +1,15 @@
 import unittest
-from janis_core.types.operator import *
+from typing import List, Optional, Union
+
+from janis_core.operators.selectors import InputSelector
+from janis_core.operators.standard import BasenameOperator
+from janis_core.types import Stdout, File
+
+from janis_core import ToolOutput, ToolInput
+from janis_core.tool.commandtool import CommandToolBuilder, CommandTool, ToolArgument
+
+from janis_core.operators import *
+from janis_core.operators.logical import *
 
 
 class TestOperators(unittest.TestCase):
@@ -38,3 +48,30 @@ class TestAddOperator(unittest.TestCase):
     def test_add_to_number(self):
         op = AddOperator(1, 2) + 3
         self.assertEqual("((1 + 2) + 3)", str(op))
+
+
+class TestBasenameOperator(unittest.TestCase):
+    class TestBasenameTool(CommandTool):
+        def tool(self) -> str:
+            return "test_basename"
+
+        def base_command(self) -> Optional[Union[str, List[str]]]:
+            return "echo"
+
+        def arguments(self):
+            return [ToolArgument(BasenameOperator(InputSelector("inp")), position=1)]
+
+        def inputs(self) -> List[ToolInput]:
+            return [ToolInput("inp", File)]
+
+        def outputs(self) -> List[ToolOutput]:
+            return [ToolOutput("out", Stdout)]
+
+        def container(self) -> str:
+            return "ubuntu:latest"
+
+        def version(self) -> str:
+            return None
+
+    def test_cwl(self):
+        TestBasenameOperator.TestBasenameTool().translate("wdl")

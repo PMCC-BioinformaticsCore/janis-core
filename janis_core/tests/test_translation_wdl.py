@@ -23,7 +23,7 @@ from janis_core import (
 )
 from janis_core.tests.testtools import SingleTestTool
 from janis_core.translations import WdlTranslator
-from janis_core.types import CpuSelector, StringFormatter
+from janis_core.operators.selectors import CpuSelector, StringFormatter
 
 
 class MultipleEcho(CommandTool):
@@ -229,24 +229,19 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
     def test_input_value_none_stringenv(self):
         self.assertEqual(
-            None,
-            wdl.get_input_value_from_potential_selector_or_generator(
-                None, None, string_environment=True
-            ),
+            "", wdl.WdlTranslator.unwrap_expression(None, None, string_environment=True)
         )
 
     def test_input_value_none_nostringenv(self):
         self.assertEqual(
-            None,
-            wdl.get_input_value_from_potential_selector_or_generator(
-                None, None, string_environment=False
-            ),
+            "",
+            wdl.WdlTranslator.unwrap_expression(None, None, string_environment=False),
         )
 
     def test_input_value_string_stringenv(self):
         self.assertEqual(
             "TestString",
-            wdl.get_input_value_from_potential_selector_or_generator(
+            wdl.WdlTranslator.unwrap_expression(
                 "TestString", None, string_environment=True
             ),
         )
@@ -254,25 +249,21 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
     def test_input_value_string_nostringenv(self):
         self.assertEqual(
             '"TestString"',
-            wdl.get_input_value_from_potential_selector_or_generator(
+            wdl.WdlTranslator.unwrap_expression(
                 "TestString", None, string_environment=False
             ),
         )
 
     def test_input_value_int_stringenv(self):
         self.assertEqual(
-            42,
-            wdl.get_input_value_from_potential_selector_or_generator(
-                42, None, string_environment=True
-            ),
+            str(42),
+            wdl.WdlTranslator.unwrap_expression(42, None, string_environment=True),
         )
 
     def test_input_value_int_nostringenv(self):
         self.assertEqual(
-            42,
-            wdl.get_input_value_from_potential_selector_or_generator(
-                42, None, string_environment=False
-            ),
+            str(42),
+            wdl.WdlTranslator.unwrap_expression(42, None, string_environment=False),
         )
 
     def test_input_value_filename_stringenv(self):
@@ -281,9 +272,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         fn = Filename(guid=str(uuid.uuid4()))
         self.assertEqual(
             fn.generated_filename(),
-            wdl.get_input_value_from_potential_selector_or_generator(
-                fn, None, string_environment=True
-            ),
+            wdl.WdlTranslator.unwrap_expression(fn, None, string_environment=True),
         )
 
     def test_input_value_filename_nostringenv(self):
@@ -292,15 +281,13 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         fn = Filename(guid=str(uuid.uuid4()))
         self.assertEqual(
             '"%s"' % fn.generated_filename(),
-            wdl.get_input_value_from_potential_selector_or_generator(
-                fn, None, string_environment=False
-            ),
+            wdl.WdlTranslator.unwrap_expression(fn, None, string_environment=False),
         )
 
     def test_input_value_wildcard(self):
         self.assertRaises(
             Exception,
-            wdl.get_input_value_from_potential_selector_or_generator,
+            wdl.WdlTranslator.unwrap_expression,
             value=WildcardSelector("*"),
             tool_id=None,
         )
@@ -313,9 +300,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         inp = CpuSelector()
         self.assertEqual(
             "~{select_first([runtime_cpu, 1])}",
-            wdl.get_input_value_from_potential_selector_or_generator(
-                inp, ti, string_environment=True
-            ),
+            wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=True),
         )
 
     def test_input_value_cpuselect_nostringenv(self):
@@ -327,9 +312,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         inp = CpuSelector()
         self.assertEqual(
             "select_first([runtime_cpu, 1])",
-            wdl.get_input_value_from_potential_selector_or_generator(
-                inp, ti, string_environment=False
-            ),
+            wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=False),
         )
 
     def test_tool_input_value_default_cpuselect(self):
@@ -353,14 +336,14 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
     #     inp = MemorySelector()
     #     self.assertEqual(
     #         "~{floor(runtime_memory)}",
-    #         wdl.get_input_value_from_potential_selector_or_generator(inp, string_environment=True)
+    #         wdl.WdlTranslator.unwrap_expression(inp, string_environment=True)
     #     )
     #
     # def test_input_value_memselect_nostringenv(self):
     #     inp = MemorySelector()
     #     self.assertEqual(
     #         "floor(runtime_memory)",
-    #         wdl.get_input_value_from_potential_selector_or_generator(inp, string_environment=False)
+    #         wdl.WdlTranslator.unwrap_expression(inp, string_environment=False)
     #     )
 
     def test_input_value_wdl_callable(self):
@@ -369,10 +352,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
                 return "unbelievable"
 
         self.assertEqual(
-            "unbelievable",
-            wdl.get_input_value_from_potential_selector_or_generator(
-                CallableWdl(), None
-            ),
+            "unbelievable", wdl.WdlTranslator.unwrap_expression(CallableWdl(), None)
         )
 
     def test_input_value_wdl_noncallable(self):
@@ -382,25 +362,25 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
         self.assertRaises(
             Exception,
-            wdl.get_input_value_from_potential_selector_or_generator,
+            wdl.WdlTranslator.unwrap_expression,
             value=NonCallableWdl(),
             tool_id=None,
         )
 
     def test_string_formatter(self):
         b = StringFormatter("no format")
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, None)
+        res = wdl.WdlTranslator.unwrap_expression(b, None, string_environment=True)
         self.assertEqual("no format", res)
 
     def test_string_formatter_one_string_param(self):
         b = StringFormatter("there's {one} arg", one="a string")
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, None)
+        res = wdl.WdlTranslator.unwrap_expression(b, None, string_environment=True)
         self.assertEqual("there's a string arg", res)
 
     def test_string_formatter_one_input_selector_param(self):
         d = {"random_input": ToolInput("random_input", String())}
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
+        res = wdl.WdlTranslator.unwrap_expression(b, d, string_environment=True)
         self.assertEqual("an input ~{random_input}", res)
 
     def test_string_formatter_two_param(self):
@@ -414,7 +394,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, d)
+        res = wdl.WdlTranslator.unwrap_expression(b, d, string_environment=True)
         self.assertEqual("~{tumorInputName}:~{normalInputName}", res)
 
     def test_escaped_characters(self):
@@ -427,23 +407,21 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         # will throw
         ti = {"ti": ToolInput("ti", String(optional=True))}
         b = StringFormatter("{place} michael", place=InputSelector("ti"))
-        self.assertRaises(
-            Exception, wdl.get_input_value_from_potential_selector_or_generator, b, ti
-        )
+        self.assertRaises(Exception, wdl.WdlTranslator.unwrap_expression, b, ti)
 
     def test_string_formatter_optional_inpselect_with_default(self):
         ti = {"ti": ToolInput("ti", String(optional=True), default="hi")}
         b = StringFormatter("{place} michael", place=InputSelector("ti"))
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
+        res = wdl.WdlTranslator.unwrap_expression(b, ti, string_environment=True)
         self.assertEqual('~{select_first([ti, "hi"])} michael', res)
 
     def test_resolve_filename_in_inpselect(self):
         fn = Filename(extension=".ext")
         ti = {"ti": ToolInput("ti", fn)}
         b = StringFormatter("fn: {place}", place=InputSelector("ti"))
-        res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
+        res = wdl.WdlTranslator.unwrap_expression(b, ti)
         self.assertEqual(
-            f'fn: ~{{select_first([ti, "{fn.generated_filename()}"])}}', res
+            f'"fn: ~{{select_first([ti, "{fn.generated_filename()}"])}}"', res
         )
 
 

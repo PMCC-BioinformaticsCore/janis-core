@@ -191,50 +191,34 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_input_value_none_codeenv(self):
         self.assertEqual(
-            None,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                None, code_environment=True
-            ),
+            None, cwl.CwlTranslator.unwrap_expression(None, code_environment=True)
         )
 
     def test_input_value_none_nocodeenv(self):
         self.assertEqual(
-            None,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                None, code_environment=False
-            ),
+            None, cwl.CwlTranslator.unwrap_expression(None, code_environment=False)
         )
 
     def test_input_value_string_codeenv(self):
         self.assertEqual(
             '"TestString"',
-            cwl.get_input_value_from_potential_selector_or_generator(
-                "TestString", code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression("TestString", code_environment=True),
         )
 
     def test_input_value_string_nocodeenv(self):
         self.assertEqual(
             "TestString",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                "TestString", code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression("TestString", code_environment=False),
         )
 
     def test_input_value_int_codeenv(self):
         self.assertEqual(
-            42,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                42, code_environment=True
-            ),
+            42, cwl.CwlTranslator.unwrap_expression(42, code_environment=True)
         )
 
     def test_input_value_int_nocodeenv(self):
         self.assertEqual(
-            42,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                42, code_environment=False
-            ),
+            42, cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
         )
 
     # def test_input_value_filename_codeenv(self):
@@ -257,61 +241,47 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         inp = InputSelector("threads")
         self.assertEqual(
             "inputs.threads",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
         )
 
     def test_input_value_inpselect_nocodeenv(self):
         inp = InputSelector("threads")
         self.assertEqual(
             "$(inputs.threads)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
         )
 
     def test_input_value_wildcard(self):
         self.assertRaises(
-            Exception,
-            cwl.get_input_value_from_potential_selector_or_generator,
-            value=WildcardSelector("*"),
+            Exception, cwl.CwlTranslator.unwrap_expression, value=WildcardSelector("*")
         )
 
     def test_input_value_cpuselect_codeenv(self):
         inp = CpuSelector()
         self.assertEqual(
             "inputs.runtime_cpu" "",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
         )
 
     def test_input_value_cpuselect_nocodeenv(self):
         inp = CpuSelector()
         self.assertEqual(
             "$(inputs.runtime_cpu)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
         )
 
     def test_input_value_memselect_codeenv(self):
         inp = MemorySelector()
         self.assertEqual(
             "inputs.runtime_memory",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
         )
 
     def test_input_value_memselect_nocodeenv(self):
         inp = MemorySelector()
         self.assertEqual(
             "$(inputs.runtime_memory)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
         )
 
     def test_input_value_cwl_callable(self):
@@ -320,8 +290,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
                 return "unbelievable"
 
         self.assertEqual(
-            "unbelievable",
-            cwl.get_input_value_from_potential_selector_or_generator(NonCallableCwl()),
+            "unbelievable", cwl.CwlTranslator.unwrap_expression(NonCallableCwl())
         )
 
     def test_input_value_cwl_noncallable(self):
@@ -331,26 +300,24 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
         self.assertRaises(
             Exception,
-            cwl.get_input_value_from_potential_selector_or_generator,
+            cwl.CwlTranslator.unwrap_expression,
             value=NonCallableCwl(),
             tool_id=None,
         )
 
     def test_string_formatter(self):
         b = StringFormatter("no format")
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b)
         self.assertEqual("no format", res)
 
     def test_string_formatter_one_string_param(self):
         b = StringFormatter("there's {one} arg", one="a string")
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b)
         self.assertEqual('$("there\'s {one} arg".replace(/\{one\}/g, "a string"))', res)
 
     def test_string_formatter_one_input_selector_param(self):
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = cwl.get_input_value_from_potential_selector_or_generator(
-            b, code_environment=False
-        )
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual(
             '$("an input {arg}".replace(/\{arg\}/g, inputs.random_input))', res
         )
@@ -362,7 +329,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b)
         self.assertEqual(
             '$("{tumorName}:{normalName}".replace(/\{tumorName\}/g, inputs.tumorInputName).replace(/\{normalName\}/g, inputs.normalInputName))',
             res,
