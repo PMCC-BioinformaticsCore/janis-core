@@ -31,16 +31,23 @@ from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core.types import (
+from janis_core.operators import (
     InputSelector,
     Selector,
     WildcardSelector,
     MemorySelector,
     CpuSelector,
     StringFormatter,
+    Operator,
+)
+from janis_core.types.common_data_types import (
+    Stdout,
+    Stderr,
+    Array,
+    File,
+    Filename,
     DataType,
 )
-from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
@@ -912,6 +919,7 @@ def get_input_value_from_potential_selector_or_generator(
         return translate_memory_selector(value)
     elif callable(getattr(value, "cwl", None)):
         return value.cwl()
+    # elif isinstance(value, Operator):
 
     raise Exception("Could not detect type %s to convert to input value" % type(value))
 
