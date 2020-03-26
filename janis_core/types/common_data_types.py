@@ -12,7 +12,7 @@ from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
 
 class UnionType(DataType):
-    def __init__(self, *subtypes: List[ParseableType], optional=False):
+    def __init__(self, *subtypes: ParseableType, optional=False):
         self.subtypes = [t for t in subtypes]
 
         invalid_types = []
@@ -711,3 +711,7 @@ def get_instantiated_type(datatype: ParseableType, optional=None, overrider=None
         return dt
 
     raise TypeError(f"Unable to parse type '{str(datatype)}'")
+
+
+NumericType = UnionType(Int, Double, Float)
+AnyType = UnionType(String, Boolean, Int, Double, Float, File, Directory)
