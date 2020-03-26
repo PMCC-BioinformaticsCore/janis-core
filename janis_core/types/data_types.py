@@ -12,7 +12,7 @@
 
 """
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Type
 
 import cwlgen as cwl
 from wdlgen import WdlType
@@ -282,3 +282,7 @@ class DataType(ABC):
 
     # def default(self):
     #     return self.default_value
+
+
+ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
+ParseableType = ParseableTypeBase

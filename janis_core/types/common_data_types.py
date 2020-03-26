@@ -2,21 +2,60 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Union, Type, Dict, Any
+from typing import Dict, Any, List
 
 import cwlgen
 import wdlgen
 
-from janis_core.types.data_types import (
-    DataType,
-    NativeTypes,
-    NativeType,
-    PythonPrimitive,
-)
+from janis_core.types.data_types import DataType, NativeTypes, NativeType, ParseableType
 from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
-ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
-ParseableType = ParseableTypeBase
+
+class UnionType(DataType):
+    def __init__(self, *subtypes: List[ParseableType], optional=False):
+        self.subtypes = [t for t in subtypes]
+
+        invalid_types = []
+        valid_types = []
+        for subtype in subtypes:
+            resolvedtype = get_instantiated_type(subtype)
+            if not isinstance(subtype, DataType):
+                invalid_types.append(resolvedtype)
+            else:
+                valid_types.append(resolvedtype)
+
+        self._subtypes = valid_types
+        super().__init__(optional)
+
+    def id(self):
+        return "Union<" + ", ".join(s.id() for s in self._subtypes) + ">"
+
+    @staticmethod
+    def name() -> str:
+        return "Union"
+
+    @staticmethod
+    def primitive() -> NativeType:
+        return None
+
+    @staticmethod
+    def doc() -> str:
+        return "Union datatype"
+
+    def validate_value(self, *args, **kwargs) -> bool:
+        return any(t.validate_value(*args, **kwargs) for t in self._subtypes)
+
+    def invalid_value_hint(self, *args, **kwargs):
+        hints = [t.invalid_value_hint(*args, **kwargs) for t in self._subtypes]
+        return ", ".join(t for t in hints if t)
+
+    def can_receive_from(self, other, *args, **kwargs):
+        if isinstance(other, UnionType):
+            # we'll require all elements in the source to be received by this type-
+            return all(
+                self.can_receive_from(t, *args, **kwargs) for t in other._subtypes
+            )
+        return any(t.can_receive_from(other, *args, **kwargs) for t in self._subtypes)
 
 
 class String(DataType):
@@ -605,8 +644,30 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
     if is_qualified_generic(dt):
 
         if str(dt).startswith("typing.List"):
-            nt = bc(dt.__args__[0])
+            nt = bc(dt.__args__[0], overrider=bc)
             return Array(nt, optional=optional)
+
+        elif str(dt).startswith("typing.Union"):
+            subtypes = dt.__args__
+            new_subtypes = [
+                t
+                for t in subtypes
+                if (t is not None and not (isclass(t) and t() is None))
+            ]
+            optional = len(subtypes) != len(new_subtypes)
+
+            if len(new_subtypes) == 0:
+                raise TypeError(
+                    "Unsure how to parse generic: '{str(dt)}', please raise an issue if you think this is in error"
+                )
+
+            if len(new_subtypes) == 1:
+                return get_instantiated_type(
+                    new_subtypes[0], optional=optional, overrider=bc
+                )
+
+            nts = [bc(n, overrider=bc) for n in new_subtypes]
+            return UnionType(*nts, optional=optional)
 
         args = dt.__args__
         if len(args) > 2:
