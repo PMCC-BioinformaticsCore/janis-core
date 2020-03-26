@@ -27,8 +27,8 @@ from janis_core.operators import (
     InputSelector,
     Operator,
     StringFormatter,
-    StepOperator,
-    InputOperator,
+    StepOutputSelector,
+    InputNodeSelector,
 )
 from janis_core.operators.logical import (
     AndOperator,
@@ -47,16 +47,16 @@ from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
-ConnectionSource = Union[Node, StepOperator, Tuple[Node, str]]
+ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 
 def verify_or_try_get_source(
     source: Union[ConnectionSource, List[ConnectionSource]]
-) -> Union[StepOperator, List[StepOperator]]:
+) -> Union[StepOutputSelector, List[StepOutputSelector]]:
 
-    if isinstance(source, StepOperator):
+    if isinstance(source, StepOutputSelector):
         return source
-    if isinstance(source, InputOperator):
+    if isinstance(source, InputNodeSelector):
         return verify_or_try_get_source(source.input_node)
     if isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
@@ -81,7 +81,7 @@ def verify_or_try_get_source(
             f"expected one of {tags}"
         )
 
-    return StepOperator(node, tag)
+    return StepOutputSelector(node, tag)
 
 
 class InputNode(Node):
@@ -101,7 +101,7 @@ class InputNode(Node):
         self.value = value
 
     def as_operator(self):
-        return InputOperator(self)
+        return InputNodeSelector(self)
 
     def outputs(self) -> Dict[Optional[str], TOutput]:
         # Program will just grab first value anyway
@@ -182,16 +182,16 @@ class StepNode(Node):
 
         return self.get_item(item)
 
-    def __getitem__(self, item) -> StepOperator:
+    def __getitem__(self, item) -> StepOutputSelector:
         return self.get_item(item)
 
-    def get_item(self, item) -> StepOperator:
+    def get_item(self, item) -> StepOutputSelector:
         ins = self.inputs()
         if item in ins:
-            return StepOperator(self, item)
+            return StepOutputSelector(self, item)
         outs = self.outputs()
         if item in outs:
-            return StepOperator(self, item)
+            return StepOutputSelector(self, item)
 
         tags = ", ".join(
             [f"in.{i}" for i in ins.keys()] + [f"out.{o}" for o in outs.keys()]
@@ -971,7 +971,7 @@ def wrap_steps_in_workflow(
         # traverse through the operator, rebuilding and swapping out InputOperator / StepOperator
         # ensure traversal through StringFormatters to looking for the same thing
 
-        if isinstance(operator, StepOperator):
+        if isinstance(operator, StepOutputSelector):
             # pipe in the input of the step_operator
             identifier = f"cond_{operator.node.id()}_{operator.tag}"
             if identifier in w.input_nodes:
@@ -981,7 +981,7 @@ def wrap_steps_in_workflow(
                 return w.input(
                     identifier, operator.node.outputs()[operator.tag].outtype
                 )
-        if isinstance(operator, InputOperator):
+        if isinstance(operator, InputNodeSelector):
             identifier = f"cond_{operator.input_node.id()}"
             if identifier in w.input_nodes:
                 return w.input_nodes[identifier]
@@ -998,13 +998,16 @@ def wrap_steps_in_workflow(
                 **{k: rebuild_condition(v) for k, v in operator.kwargs.items()},
             )
 
-        if isinstance(operator, SingleValueOperator):
-            return operator.__class__(rebuild_condition(operator.internal))
+        if isinstance(operator, Operator):
+            return operator.__class__(*[rebuild_condition(t) for t in operator.args])
 
-        if isinstance(operator, TwoValueOperator):
-            return operator.__class__(
-                rebuild_condition(operator.lhs), rebuild_condition(operator.rhs)
-            )
+        # if isinstance(operator, SingleValueOperator):
+        #     return operator.__class__(rebuild_condition(operator.internal))
+        #
+        # if isinstance(operator, TwoValueOperator):
+        #     return operator.__class__(
+        #         rebuild_condition(operator.lhs), rebuild_condition(operator.rhs)
+        #     )
 
         return operator
 
