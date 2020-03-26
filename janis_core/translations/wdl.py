@@ -35,11 +35,8 @@ from janis_core.operators import (
     StringFormatter,
     Selector,
     Operator,
-    SingleValueOperator,
-    StepOperator,
-    InputOperator,
-    TwoValueOperator,
-    FunctionOperator,
+    StepOutputSelector,
+    InputNodeSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -75,6 +72,9 @@ REMOVE_EXTENSION = (
 class CustomGlob(Selector):
     def __init__(self, expression):
         self.expression = expression
+
+    def returntype(self):
+        return Array(File)
 
 
 class WdlTranslator(TranslatorBase):
@@ -278,7 +278,7 @@ class WdlTranslator(TranslatorBase):
 
     @staticmethod
     def wrap_if_string_environment(value, string_environment: bool):
-        return f'"{value}"' if string_environment else value
+        return f'"{value}"' if not string_environment else value
 
     @classmethod
     def unwrap_expression(
@@ -286,7 +286,7 @@ class WdlTranslator(TranslatorBase):
     ):
         print("DETECTED EXPRESSION")
         if expression is None:
-            return "false"
+            return ""
 
         if isinstance(expression, list):
             toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")
@@ -340,23 +340,23 @@ class WdlTranslator(TranslatorBase):
             exp, inputsdict, string_environment=False, **debugkwargs
         )
 
-        if isinstance(expression, InputOperator):
+        if isinstance(expression, InputNodeSelector):
             return wrap_in_code_block(expression.input_node.id())
 
-        if isinstance(expression, StepOperator):
+        if isinstance(expression, StepOutputSelector):
             return wrap_in_code_block(expression.node.id() + "." + expression.tag)
 
-        if isinstance(expression, SingleValueOperator):
-            return wrap_in_code_block(
-                f"{expression.wdl_symbol()}({cls.unwrap_expression(expression.internal)})"
-            )
+        # if isinstance(expression, SingleValueOperator):
+        #     return wrap_in_code_block(
+        #         f"{expression.wdl_symbol()}({cls.unwrap_expression(expression.internal)})"
+        #     )
+        #
+        # elif isinstance(expression, TwoValueOperator):
+        #     return wrap_in_code_block(
+        #         f"({cls.unwrap_expression(expression.lhs)} {expression.wdl_symbol()} {cls.unwrap_expression(expression.rhs)})"
+        #     )
 
-        elif isinstance(expression, TwoValueOperator):
-            return wrap_in_code_block(
-                f"({cls.unwrap_expression(expression.lhs)} {expression.wdl_symbol()} {cls.unwrap_expression(expression.rhs)})"
-            )
-
-        elif isinstance(expression, FunctionOperator):
+        elif isinstance(expression, Operator):
             return wrap_in_code_block(
                 expression.to_wdl(unwrap_expression_wrap, *expression.args)
             )
