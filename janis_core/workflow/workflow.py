@@ -57,9 +57,13 @@ def verify_or_try_get_source(
     if isinstance(source, StepOutputSelector):
         return source
     if isinstance(source, InputNodeSelector):
-        return verify_or_try_get_source(source.input_node)
+        return source
     if isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
+
+    if isinstance(source, Operator):
+        # return [verify_or_try_get_source(r) for r in rt] if len(rt) > 1 else rt
+        return source
     node, tag = None, None
     if isinstance(source, tuple):
         node, tag = source
@@ -162,11 +166,13 @@ class StepNode(Node):
 
     def _add_edge(self, tag: str, source: ConnectionSource):
         stepoperator = verify_or_try_get_source(source)
-        node, outtag = stepoperator.node, stepoperator.tag
+        # node, outtag = stepoperator.node, stepoperator.tag
 
-        if isinstance(node, StepNode):
-            if node.has_conditionals or node.parent_has_conditionals:
-                self.parent_has_conditionals = True
+        # Todo: readd this when dealing with conditionals, essentially,
+        #  need to determine whether an upstream is conditional (and hence this will have optional out)
+        # if isinstance(node, StepNode):
+        #     if node.has_conditionals or node.parent_has_conditionals:
+        #         self.parent_has_conditionals = True
 
         if tag not in self.sources:
             self.sources[tag] = StepTagInput(self, tag)
@@ -174,7 +180,7 @@ class StepNode(Node):
         # If tag is in scatter.fields, then we can
         scatter = self.scatter and tag in self.scatter.fields
 
-        return self.sources[tag].add_source(node, outtag, should_scatter=scatter)
+        return self.sources[tag].add_source(source, should_scatter=scatter)
 
     def __getattr__(self, item):
         if item in self.__dict__:
