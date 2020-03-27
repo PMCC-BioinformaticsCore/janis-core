@@ -172,7 +172,15 @@ class InputNodeSelector(Selector):
         self.input_node = input_node
 
     def returntype(self):
-        return first_value(self.input_node.inputs()).intype
+        out = first_value(self.input_node.outputs()).outtype
+
+        if self.input_node is not None:
+            import copy
+
+            out = copy.copy(out)
+            out.optional = False
+
+        return out
 
     def __repr__(self):
         return "inputs." + self.input_node.id()
@@ -192,7 +200,10 @@ class StepOutputSelector(Selector):
         self.tag = tag
 
     def returntype(self):
-        return self.node.outputs()[self.tag].intype
+        retval = self.node.outputs()[self.tag].outtype
+        if self.node.scatter:
+            retval = Array(retval)
+        return retval
 
     @staticmethod
     def from_tuple(step_tuple):
