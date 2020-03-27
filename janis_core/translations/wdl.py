@@ -1164,10 +1164,11 @@ def translate_step_node(
 
         elif source:
             it = source.finish.inputs()[source.ftag].intype
-            if source.stag:
-                ot = source.start.outputs()[source.stag].outtype
-            else:
-                ot = first_value(source.start.outputs()).outtype
+            ot = source.source.returntype()
+            # if source.stag:
+            #     ot = source.start.outputs()[source.stag].outtype
+            # else:
+            #     ot = first_value(source.start.outputs()).outtype
             if (
                 isinstance(it, Array)
                 and not isinstance(ot, Array)
