@@ -151,7 +151,7 @@ class PythonTool:
 import argparse, json, sys
 from typing import Optional, List, Dict, Any
 cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
-{nl.join(self.generate_cli_binding_for_input(inp) for inp in ins)}
+cli.add_argument("--json", help="JSON file to parse")
 
 {type_annotation_declarations}
 {pt_decl}
@@ -161,9 +161,11 @@ cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
 
 try:
     args = cli.parse_args()
-    result = code_block({argkwargs})
+    with open(args.json) as fp:
+        d = json.load(fp)
+    result = code_block(**d)
     print(json.dumps(result))
-except e:
+except Exception as e:
     print(str(e), file=sys.stderr)
     raise
 """
