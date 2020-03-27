@@ -140,6 +140,11 @@ class Selector(ABC):
 
         return OrOperator(self, other)
 
+    def __getitem__(self, item):
+        from janis_core.operators.operator import IndexOperator
+
+        return IndexOperator(self, item)
+
 
 class InputSelector(Selector):
     def __init__(self, input_to_select, use_basename=None):

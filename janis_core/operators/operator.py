@@ -3,7 +3,7 @@ from typing import List, Union
 
 from janis_core.operators.selectors import Selector
 from janis_core.types import DataType, get_instantiated_type
-from janis_core.types.common_data_types import String, Boolean, Int, AnyType
+from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
 class Operator(Selector, ABC):
@@ -57,6 +57,29 @@ class Operator(Selector, ABC):
 
 
 OperatorOrValue = Union[Selector, int, str, float]
+
+
+class IndexOperator(Operator, ABC):
+    def __init__(self, base, index):
+        super().__init__(base, index)
+
+    def argtypes(self):
+        return [Array(AnyType), Int]
+
+    def returntype(self):
+        return self.args[0].returntype()
+
+    def __str__(self):
+        base, index = self.args
+        return f"{base}[{index}]"
+
+    def to_wdl(self, unwrap_operator, *args):
+        base, index = self.args
+        return f"{base}[{index}]"
+
+    def to_cwl(self, unwrap_operator, *args):
+        base, index = self.args
+        return f"{base}[{index}]"
 
 
 class SingleValueOperator(Operator, ABC):
