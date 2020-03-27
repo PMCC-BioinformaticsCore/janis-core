@@ -433,7 +433,7 @@ class WdlTranslator(TranslatorBase):
                 doc=t.doc,
             )
             for t in tool.tool_inputs()
-        ] + cls.get_resource_override_inputs()
+        ]
 
         tr_ins = cls.translate_tool_inputs(cls.get_resource_override_inputs() + ins)
 
