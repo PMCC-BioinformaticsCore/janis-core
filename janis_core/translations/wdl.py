@@ -466,7 +466,13 @@ EOT"""
             )
         )
 
-        command_ins = cls.build_command_from_inputs(ins)
+        prepared_map = ", ".join(f'"{i.id()}": {i.id()}' for i in ins)
+
+        command_ins = [
+            wdl.Task.Command.CommandInput(
+                f"write_json({{{prepared_map}}})", prefix="--json"
+            )
+        ]
         commands.append(wdl.Task.Command(tool.base_command(), command_ins, []))
 
         r = wdl.Task.Runtime()
