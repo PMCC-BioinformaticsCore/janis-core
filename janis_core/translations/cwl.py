@@ -416,12 +416,16 @@ class CwlTranslator(TranslatorBase):
             stdout=stdout,
         )
 
+        tool_cwl.arguments.append(
+            cwlgen.CommandLineBinding(value_from="inputs.json", prefix="--json")
+        )
+
         tool_cwl.inputs.extend(
             translate_tool_input(
                 ToolInput(
                     t.id(),
                     input_type=t.intype,
-                    prefix=f"--{t.id()}",
+                    # prefix=f"--{t.id()}",
                     default=t.default,
                     doc=t.doc.doc if t.doc else None,
                 )
@@ -463,7 +467,20 @@ class CwlTranslator(TranslatorBase):
                 listing=[
                     cwlgen.InitialWorkDirRequirement.Dirent(
                         entryname=scriptname, entry=tool.prepared_script()
-                    )
+                    ),
+                    cwlgen.InitialWorkDirRequirement.Dirent(
+                        entryname="inputs.json",
+                        entry="""${
+var retval = {};
+for (var k of Object.keys(inputs)) { 
+    if (inputs[k].path) {
+        retval[k] = inputs[k].path;
+    } else {
+        retval[k] = inputs[k];
+    }
+}
+return JSON.stringify(retval);\n}""",
+                    ),
                 ]
             )
         )
