@@ -39,6 +39,7 @@ from janis_core.types import (
     CpuSelector,
     StringFormatter,
     DataType,
+    Directory,
 )
 from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
@@ -487,10 +488,12 @@ class CwlTranslator(TranslatorBase):
     @staticmethod
     def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
 
-        isfile = isinstance(outtype, File)
+        requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
-        if isinstance(outtype, Array) and isinstance(outtype.fundamental_type(), File):
-            isfile = True
+        if isinstance(outtype, Array) and isinstance(
+            outtype.fundamental_type(), (File, Directory)
+        ):
+            requires_obj_capture = True
             base = outtype
             arraylayers = 0
             while isinstance(base, Array):
@@ -498,9 +501,10 @@ class CwlTranslator(TranslatorBase):
                 base = outtype.subtype()
 
         out_capture = ""
-        if isfile:
+        if requires_obj_capture:
+            classtype = "File" if isinstance(outtype, File) else "Directory"
             fileout_generator = (
-                lambda c: f"{{ class: 'File', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
+                lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
             )
 
             if arraylayers:

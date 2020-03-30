@@ -467,7 +467,9 @@ EOT"""
         )
 
         command_ins = cls.build_command_from_inputs(ins)
-        commands.append(wdl.Task.Command(tool.base_command(), command_ins, []))
+        bc = tool.base_command()
+        bcs = " ".join(bc) if isinstance(bc, list) else bc
+        commands.append(wdl.Task.Command(bcs, command_ins, []))
 
         r = wdl.Task.Runtime()
         if with_docker:
