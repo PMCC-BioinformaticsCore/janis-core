@@ -259,8 +259,8 @@ class TestWorkflow(TestCase):
         w.step("scatteredStp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
         stp = w.step("mergeStp2", ArrayTestTool(inputs=w.scatteredStp1))
 
-        e1 = first_value(w.scatteredStp1.sources["inputs"].source_map)
-        e2 = first_value(w.mergeStp2.sources["inputs"].source_map)
+        e1 = w.scatteredStp1.sources["inputs"].source_map[0]
+        e2 = w.mergeStp2.sources["inputs"].source_map[0]
 
         self.assertTrue(e1.scatter)
         self.assertFalse(e2.scatter)

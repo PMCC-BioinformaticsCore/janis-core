@@ -4,8 +4,9 @@ from typing import List, Optional, Union
 from janis_core.operators.selectors import InputSelector
 from janis_core.operators.standard import BasenameOperator
 from janis_core.types import Stdout, File
+from janis_core.tests.testtools import SingleTestTool
 
-from janis_core import ToolOutput, ToolInput
+from janis_core import ToolOutput, ToolInput, WorkflowBuilder
 from janis_core.tool.commandtool import CommandToolBuilder, CommandTool, ToolArgument
 
 from janis_core.operators import *
@@ -75,3 +76,18 @@ class TestBasenameOperator(unittest.TestCase):
 
     def test_cwl(self):
         TestBasenameOperator.TestBasenameTool().translate("wdl")
+
+
+class TestIndexOperator(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+
+        w = WorkflowBuilder("test_operators")
+
+        w.input("inp", Array(String))
+        w.step("echo", SingleTestTool(inputs=w.inp[0]))
+        w.output("out", source=w.echo)
+        cls.wf = w
+
+    def test_wdl(self):
+        self.wf.translate("wdl", allow_empty_container=True)
