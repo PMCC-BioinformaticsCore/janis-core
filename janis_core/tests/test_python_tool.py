@@ -97,8 +97,6 @@ task echo_tool {
     String? infile = "generated"
     Boolean? flag
     String? testvalue
-    Int? runtime_cpu
-    Int? runtime_memory
     String runtime_disks
   }
   command <<<
