@@ -1240,16 +1240,16 @@ def translate_step_node(
                 ] = f"{identifier[0]}[{idx + 1}]"
 
         else:
-            ds = source.source_dotted()
+            ds = source.source
             default = None
-            if source.start and isinstance(source.start, InputNode):
-                default = source.start.default
+            if source and isinstance(source, InputNodeSelector):
+                default = source.input_node.default
 
             inpsourcevalue = None
-            if (
-                ds in scattered_old_to_new_identifier
-                and scattered_old_to_new_identifier[ds]
-            ):
+            if False:  # (
+                #     ds in scattered_old_to_new_identifier
+                #     and scattered_old_to_new_identifier[ds]
+                # ):
                 # can't get here with secondary
 
                 s = scattered_old_to_new_identifier[ds]
@@ -1281,7 +1281,7 @@ def translate_step_node(
                 inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
 
             if array_input_from_single_source and not (
-                isinstance(source.start, StepNode) and source.start.scatter
+                isinstance(source, StepOutputSelector) and source.node.scatter
             ):
                 inpsourcevalue = f"[{inpsourcevalue}]"
                 if secondary:
