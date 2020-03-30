@@ -67,11 +67,14 @@ class IndexOperator(Operator, ABC):
         return [Array(AnyType), Int]
 
     def returntype(self):
-        return self.args[0].returntype()
+        return self.args[0].returntype().subtype()
 
     def __str__(self):
         base, index = self.args
         return f"{base}[{index}]"
+
+    def __repr__(self):
+        return str(self)
 
     def to_wdl(self, unwrap_operator, *args):
         base, index = self.args

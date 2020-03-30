@@ -145,6 +145,18 @@ class Selector(ABC):
 
         return IndexOperator(self, item)
 
+    def basename(self):
+        from .standard import BasenameOperator
+
+        outtype = self.returntype()
+        if not isinstance(outtype, (File, Directory)):
+            raise Exception(
+                "Basename operator can only be applied to steps of File / Directory type, received: "
+                + str(outtype)
+            )
+
+        return BasenameOperator(self)
+
 
 class InputSelector(Selector):
     def __init__(self, input_to_select, use_basename=None):
@@ -216,9 +228,6 @@ class StepOutputSelector(Selector):
 
     def __repr__(self):
         return self.node.id() + "." + self.tag
-
-    def as_operator(self):
-        return self
 
 
 class WildcardSelector(Selector):

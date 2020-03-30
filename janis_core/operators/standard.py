@@ -14,4 +14,10 @@ class BasenameOperator(Operator):
         return [String]
 
     def returntype(self):
-        return String
+        return String()
+
+    def __str__(self):
+        return str(self.args[0]) + ".basename"
+
+    def __repr__(self):
+        return str(self)

@@ -84,10 +84,21 @@ class TestIndexOperator(unittest.TestCase):
 
         w = WorkflowBuilder("test_operators")
 
-        w.input("inp", Array(String))
-        w.step("echo", SingleTestTool(inputs=w.inp[0]))
+        w.input("inp", Array(File()))
+        inval = w.inp[0].basename()
+        w.step("echo", SingleTestTool(inputs=inval))
         w.output("out", source=w.echo)
         cls.wf = w
 
+        w2 = WorkflowBuilder("test_scattered_operator_with_alias")
+
+        w2.input("inp", Array(Array(String)))
+        w2.step("echo", SingleTestTool(inputs=w2.inp[0]), scatter="inputs")
+        w2.output("out", source=w.echo)
+        cls.wf2 = w2
+
     def test_wdl(self):
         self.wf.translate("wdl", allow_empty_container=True)
+
+    def test2_wdl(self):
+        self.wf2.translate("wdl", allow_empty_container=True)

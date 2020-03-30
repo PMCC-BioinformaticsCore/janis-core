@@ -341,20 +341,12 @@ class WdlTranslator(TranslatorBase):
         )
 
         if isinstance(expression, InputNodeSelector):
-            return wrap_in_code_block(expression.input_node.id())
+            value = expression.input_node.id()
+            return wrap_in_code_block(value)
 
         if isinstance(expression, StepOutputSelector):
-            return wrap_in_code_block(expression.node.id() + "." + expression.tag)
-
-        # if isinstance(expression, SingleValueOperator):
-        #     return wrap_in_code_block(
-        #         f"{expression.wdl_symbol()}({cls.unwrap_expression(expression.internal)})"
-        #     )
-        #
-        # elif isinstance(expression, TwoValueOperator):
-        #     return wrap_in_code_block(
-        #         f"({cls.unwrap_expression(expression.lhs)} {expression.wdl_symbol()} {cls.unwrap_expression(expression.rhs)})"
-        #     )
+            value = expression.node.id() + "." + expression.tag
+            return wrap_in_code_block(value)
 
         elif isinstance(expression, Operator):
             return wrap_in_code_block(
@@ -720,7 +712,9 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
         )
 
     elif indefault is not None:
-        default = WdlTranslator.unwrap_expression(indefault, **debugkwargs)
+        default = WdlTranslator.unwrap_expression(
+            indefault, string_environment=False, **debugkwargs
+        )
 
     if default is not None:
         # Default should imply optional input
@@ -1247,30 +1241,30 @@ def translate_step_node(
             if source and isinstance(source, InputNodeSelector):
                 default = source.input_node.default
 
-            inpsourcevalue = None
-            if False:  # (
-                #     ds in scattered_old_to_new_identifier
-                #     and scattered_old_to_new_identifier[ds]
-                # ):
-                # can't get here with secondary
+            has_operator = not isinstance(ds, (InputNodeSelector, StepOutputSelector))
 
-                s = scattered_old_to_new_identifier[ds]
-                inpsourcevalue = s[0]
-                default = None
-
-            else:
-                inpsourcevalue = ds
+            if has_operator:
                 if secondary:
-                    if default:
-                        Logger.critical(
-                            f"The default '{default}' will not be applied to the map '{ds}' as there are secondary files"
-                        )
-                        default = None
-                    for idx in range(len(secondary)):
-                        sec = secondary[idx]
-                        inputs_map[
-                            get_secondary_tag_from_original_tag(k, sec)
-                        ] = get_secondary_tag_from_original_tag(ds, sec)
+                    raise Exception(
+                        "An operation was performed on an input that expected a secondary file, this behaviour is currently undefined"
+                    )
+                if default:
+                    Logger.critical(
+                        f"The default '{default}' will not be applied to the map '{inpsourcevalue}' as there are secondary files"
+                    )
+                    default = None
+
+            inpsourcevalue = WdlTranslator.unwrap_expression(
+                ds, string_environment=False, stepid=step_identifier
+            )
+
+            if secondary:
+
+                for idx in range(len(secondary)):
+                    sec = secondary[idx]
+                    inputs_map[
+                        get_secondary_tag_from_original_tag(k, sec)
+                    ] = get_secondary_tag_from_original_tag(ds, sec)
 
             if default:
                 defval = WdlTranslator.unwrap_expression(
@@ -1359,11 +1353,18 @@ def generate_scatterable_details(
         for s in scatterable:
 
             # We asserted earlier that the source_map only has one value (through multipleInputs)
-            e: Edge = first_value(s.source_map)
-            newid = generate_new_id_from(
-                e.stag or e.source_dotted().replace(".", ""), forbiddenidentifierscopy
+            e: Edge = s.source_map[0]
+
+            if isinstance(e.source, Operator):
+                raise Exception(
+                    "Currently, Janis doesn't support operating on a value to be scattered"
+                )
+
+            newid = generate_new_id_from(s, forbiddenidentifierscopy)
+            evaluated_operator = WdlTranslator.unwrap_expression(
+                e.source, string_environment=False
             )
-            scattered_old_to_new_identifier[s.dotted_source()] = (newid, e.start)
+            scattered_old_to_new_identifier[evaluated_operator] = (newid, e)
             forbiddenidentifierscopy.add(newid)
 
     return scattered_old_to_new_identifier
@@ -1452,7 +1453,7 @@ def wrap_scatter_call(
 
 
 def translate_string_formatter(
-    selector: StringFormatter, inputsdict, string_environment=False, **debugkwargs
+    selector: StringFormatter, inputsdict, string_environment, **debugkwargs
 ):
     # we should raise an Exception if any of our inputs are optional without a default
 
@@ -1514,7 +1515,9 @@ def translate_input_selector(
 
     inp = inputsdict[selector.input_to_select]
     name = resolve_tool_input_value(inp, **debugkwargs)
+
     if string_environment:
+
         return f"~{{{name}}}"
     else:
         return name
