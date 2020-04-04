@@ -21,13 +21,14 @@ This file is logically structured similar to the WDL equiv:
 
 import os
 import re
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Union
 
 import cwlgen
 import ruamel.yaml
 
+from janis_core import ToolArgument
 from janis_core.code.codetool import CodeTool
-from janis_core.graph.steptaginput import full_lbl
+from janis_core.graph.steptaginput import full_lbl, Edge
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
@@ -55,7 +56,7 @@ from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 
 # from janis_core.workflow.input import Input
-from janis_core.workflow.workflow import StepNode
+from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
 CWL_VERSION = "v1.0"
 SHEBANG = "#!/usr/bin/env cwl-runner"
@@ -113,7 +114,7 @@ class CwlTranslator(TranslatorBase):
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
+            translate_workflow_input(i) for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -131,14 +132,14 @@ class CwlTranslator(TranslatorBase):
 
                 resource_overrides[r.id[(len(s.id()) + 1) :]] = r.id
             w.steps.append(
-                translate_step(
+                translate_step_node(
                     s,
                     is_nested_tool=is_nested_tool,
                     resource_overrides=resource_overrides,
                 )
             )
 
-        w.outputs = [translate_output_node(o) for o in wf.output_nodes.values()]
+        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -229,7 +230,7 @@ class CwlTranslator(TranslatorBase):
         )
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
+            translate_workflow_input(i) for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -248,7 +249,7 @@ class CwlTranslator(TranslatorBase):
                 resource_overrides[r.id[(len(s.id()) + 1) :]] = r.id
 
             w.steps.append(
-                translate_step(
+                translate_step_node(
                     s,
                     is_nested_tool=is_nested_tool,
                     resource_overrides=resource_overrides,
@@ -257,7 +258,7 @@ class CwlTranslator(TranslatorBase):
                 )
             )
 
-        w.outputs = [translate_output_node(o) for o in wf.output_nodes]
+        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes]
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -601,9 +602,9 @@ return {out_capture}
         return workflow.id() + "-resources.yml"
 
 
-def translate_input(inp):
+def translate_workflow_input(inp: InputNode) -> cwlgen.InputParameter:
     """
-
+    Translate a workflow InputNode into a cwlgen.InputParameter
     :param inp:
     :type inp: janis_core.workflow.workflow.InputNode
     :return:
@@ -623,20 +624,25 @@ def translate_input(inp):
     )
 
 
-def translate_output_node(node):
-    return translate_output(node, full_lbl(node.source[0], node.source[1]))
+def translate_workflow_output(node: OutputNode) -> cwlgen.WorkflowOutputParameter:
+    """
+    Translate a workflow output node to a cwlgen.WorkflowOutputParameter
+    :param node:
+    :type node: OutputNode
+    :return:
+    """
+    # we're going to need to transform this later to an operator
+    source = full_lbl(node.source[0], node.source[1])
 
-
-def translate_output(outp, source):
-    ot = outp.datatype
+    ot = node.datatype
     if isinstance(ot, Stdout):
         ot = ot.subtype or File()
-    doc = outp.doc.doc if outp.doc else None
+    doc = node.doc.doc if node.doc else None
 
     return cwlgen.WorkflowOutputParameter(
-        param_id=outp.id(),
+        param_id=node.id(),
         output_source=source,
-        secondary_files=outp.datatype.secondary_files(),
+        secondary_files=node.datatype.secondary_files(),
         param_format=None,
         streamable=None,
         doc=doc,
@@ -647,7 +653,12 @@ def translate_output(outp, source):
 
 
 def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
-
+    """
+    Translate a ToolInput (commandtool / codetool) to a cwlgen.CommandInputParamaeter
+    :param toolinput:
+    :type toolinput: ToolInput
+    :return:
+    """
     default, value_from = toolinput.default, None
 
     if isinstance(toolinput.input_type, Filename):
@@ -708,21 +719,34 @@ def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
     )
 
 
-def translate_tool_argument(argument):
+def translate_tool_argument(argument: ToolArgument) -> cwlgen.CommandLineBinding:
+    """
+    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandLineBinding
+
+    :param argument: Tool argument to build command line for
+    :return:
+    """
     return cwlgen.CommandLineBinding(
-        # load_contents=False,
         position=argument.position,
         prefix=argument.prefix,
         separate=argument.separate_value_from_prefix,
-        # item_separator=None,
         value_from=CwlTranslator.unwrap_expression(
             argument.value, code_environment=False
         ),
         shell_quote=argument.shell_quote,
+        # item_separator=None,
+        # load_contents=False,  # Janis doesn't support modifying the file in the ValueFrom (...yet)
     )
 
 
-def translate_tool_output(output, **debugkwargs):
+def translate_tool_output(output: ToolOutput) -> cwlgen.CommandOutputParameter:
+    """
+    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
+
+    :param output:
+    :type output: ToolOutput
+    :return:
+    """
 
     doc = output.doc.doc if output.doc else None
 
@@ -730,31 +754,70 @@ def translate_tool_output(output, **debugkwargs):
         param_id=output.tag,
         label=output.tag,
         secondary_files=prepare_tool_output_secondaries(output),
+        doc=doc,
+        output_binding=prepare_tool_output_eval(output),
+        param_type=output.output_type.cwl_type(),
         # param_format=None,
         # streamable=None,
-        doc=doc,
-        output_binding=cwlgen.CommandOutputBinding(
-            glob=translate_to_cwl_glob(
-                output.glob, outputtag=output.tag, **debugkwargs
-            ),
-            # load_contents=False,
-            output_eval=prepare_tool_output_eval(output),
-        ),
-        param_type=output.output_type.cwl_type(),
     )
 
 
-def prepare_tool_output_eval(output):
-    if not output.presents_as:
-        return None
-    return f"""${{
+def prepare_tool_output_binding(output: ToolOutput) -> cwlgen.CommandOutputBinding:
+
+    if isinstance(output.glob, Operator):
+        # It's not terribly hard to do this, we'd have to change the output_eval
+        # to use a combination of the presents_as AND
+        raise Exception(
+            "Janis does NOT currently support operations on the output glob in CWL"
+        )
+
+    return cwlgen.CommandOutputBinding(
+        glob=translate_to_cwl_glob(output.glob, outputtag=output.tag),
+        output_eval=prepare_tool_output_eval(output),
+    )
+
+
+def prepare_tool_output_eval(output: ToolOutput) -> Optional[str]:
+    """
+    Sometimes we want to rename it on the output, we do this by
+    generating an output_eval expression and rewriting the basename
+
+    :param output:
+    :return:
+    """
+
+    if isinstance(output.glob, Operator):
+        raise NotImplementedError(
+            "Still to implement output_eval for globs on ToolOutput"
+        )
+
+    if output.presents_as:
+        return f"""\
+${{
     self[0].basename="{output.presents_as}"
     return self
 $}}
 """
+    return None
 
 
-def prepare_tool_output_secondaries(output):
+def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
+    """
+    Prepares the expressions / list of sec for a TOOL OUTPUT
+
+    Secondary files CAN be pretty complicated.
+
+    - If we're NOT 'secondaries_present_as', we return a
+        simple list of secondary extension formats.
+
+    - If we are using secondaries_present_as, we generate CWL expressions
+        to write the basename with the correct format.
+
+    :param output:
+    :type output: ToolOutput
+    :return:
+    """
+
     if not output.secondaries_present_as:
         return output.output_type.secondary_files()
 
@@ -786,11 +849,26 @@ def prepare_tool_output_secondaries(output):
 }}"""
 
 
-def prepare_tool_input_secondaries(toolinp):
-    if not toolinp.secondaries_present_as:
-        return toolinp.input_type.secondary_files()
+def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[str, List[str]]:
+    """
+    Prepares the expressions / list of sec for a TOOL INPUT
 
-    secs = toolinp.secondaries_present_as
+    Secondary files CAN be pretty complicated.
+
+    - If we're NOT 'secondaries_present_as', we return a
+        simple list of secondary extension formats.
+
+    - If we are using secondaries_present_as, we generate CWL expressions
+        to write the basename with the correct format.
+
+    :param inp:
+    :type inp: ToolInput
+    :return:
+    """
+    if not inp.secondaries_present_as:
+        return inp.input_type.secondary_files()
+
+    secs = inp.secondaries_present_as
     tb = "    "
     formattedsecs = ",\n".join(
         f"""\
@@ -798,7 +876,7 @@ def prepare_tool_input_secondaries(toolinp):
 {5*tb}location: resolveSecondary(self.location, "{secs.get(s, s)}"),
 {5*tb}basename: resolveSecondary(self.basename, "{s}")
 {4*tb}}}"""
-        for s in toolinp.input_type.secondary_files()
+        for s in inp.input_type.secondary_files()
     )
 
     return f"""${{
@@ -819,58 +897,116 @@ def prepare_tool_input_secondaries(toolinp):
 }}"""
 
 
-def translate_step(
+def get_run_ref_from_subtool(
+    tool: Tool,
+    is_nested_tool,
+    use_run_ref,
+    resource_overrides=Dict[str, str],
+    allow_empty_container=False,
+):
+    if use_run_ref:
+        return ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
+            tool=tool.id()
+        )
+
+    from janis_core.workflow.workflow import Workflow
+
+    has_resources_overrides = len(resource_overrides) > 0
+    if isinstance(tool, Workflow):
+        return CwlTranslator.translate_workflow_to_all_in_one(
+            tool,
+            with_resource_overrides=has_resources_overrides,
+            allow_empty_container=allow_empty_container,
+        )
+    elif isinstance(tool, CodeTool):
+        return CwlTranslator.translate_code_tool_internal(
+            tool, allow_empty_container=allow_empty_container
+        )
+    else:
+        return CwlTranslator.translate_tool_internal(
+            tool,
+            True,
+            with_resource_overrides=has_resources_overrides,
+            allow_empty_container=allow_empty_container,
+        )
+
+
+def prepare_step_input(step: StepNode, inp: ToolInput, edge: Edge):
+    # inp = ins[k]
+    if inp.id() not in step.sources:
+        if inp.input_type.optional or inp.default:
+            # We don't have th
+            return
+        else:
+            raise Exception(
+                f"Error when building connections for cwlstep '{step.id()}', "
+                f"could not find required connection: '{k}'"
+            )
+
+    edge = step.sources[k]
+    ss = edge.slashed_source()
+    link_merge = None
+
+    if ss is not None and not isinstance(ss, list) and isinstance(inp.intype, Array):
+        start = edge.source().start
+        outssval = start.outputs()
+        source_type = (
+            first_value(outssval)
+            if len(outssval) == 1
+            else outssval[edge.source().stag]
+        ).outtype
+        # has scattered = isinstance(start, StepNode) and start.scatter
+        if not isinstance(source_type, Array) and not (
+            isinstance(start, StepNode) and start.scatter
+        ):
+            ss = [ss]
+            link_merge = "merge_nested"
+
+
+def translate_step_node(
     step: StepNode,
     is_nested_tool=False,
     resource_overrides=Dict[str, str],
     use_run_ref=True,
     allow_empty_container=False,
-):
+) -> cwlgen.WorkflowStep:
 
     tool = step.tool
-    if use_run_ref:
-        run_ref = ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
-            tool=tool.id()
-        )
-    else:
-        from janis_core.workflow.workflow import Workflow
 
-        has_resources_overrides = len(resource_overrides) > 0
-        if isinstance(tool, Workflow):
-            run_ref = CwlTranslator.translate_workflow_to_all_in_one(
-                tool,
-                with_resource_overrides=has_resources_overrides,
-                allow_empty_container=allow_empty_container,
-            )
-        elif isinstance(tool, CodeTool):
-            run_ref = CwlTranslator.translate_code_tool_internal(
-                tool, allow_empty_container=allow_empty_container
-            )
-        else:
-            run_ref = CwlTranslator.translate_tool_internal(
-                tool,
-                True,
-                with_resource_overrides=has_resources_overrides,
-                allow_empty_container=allow_empty_container,
-            )
+    # RUN REF
+    run_ref = get_run_ref_from_subtool(
+        tool,
+        is_nested_tool=is_nested_tool,
+        use_run_ref=use_run_ref,
+        resource_overrides=resource_overrides,
+        allow_empty_container=allow_empty_container,
+    )
+
+    # CONSTRUCTION
 
     cwlstep = cwlgen.WorkflowStep(
         step_id=step.id(),
         run=run_ref,
-        # label=step.step.label,
+        label=tool.friendly_name(),
         doc=step.doc.doc if step.doc else None,
-        scatter=None,  # Filled by StepNode
-        scatter_method=None,  # Filled by StepNode
     )
+
+    ## SCATTER
+
+    if step.scatter:
+        if len(step.scatter.fields) > 1:
+            cwlstep.scatterMethod = step.scatter.method.cwl()
+        cwlstep.scatter = step.scatter.fields
+
+    ## OUTPUTS
 
     cwlstep.out = [
         cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.tool.tool_outputs()
     ]
 
-    ins = step.inputs()
+    ## INPUTS
 
-    for k in ins:
-        inp = ins[k]
+    for k, inp in step.inputs().items():
         if k not in step.sources:
             if inp.intype.optional or inp.default:
                 continue
@@ -881,6 +1017,7 @@ def translate_step(
                 )
 
         edge = step.sources[k]
+
         ss = edge.slashed_source()
         link_merge = None
 
@@ -916,11 +1053,6 @@ def translate_step(
         cwlstep.inputs.append(
             cwlgen.WorkflowStepInput(input_id=r, source=resource_overrides[r])
         )
-
-    if step.scatter:
-        if len(step.scatter.fields) > 1:
-            cwlstep.scatterMethod = step.scatter.method.cwl()
-        cwlstep.scatter = step.scatter.fields
 
     return cwlstep
 

@@ -363,7 +363,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             doc=InputDocumentation("docstring"),
             value=None,
         )
-        tinp = cwl.translate_input(inp)
+        tinp = cwl.translate_workflow_input(inp)
 
         self.assertEqual("testIdentifier", tinp.id)
         self.assertIsNone(tinp.label)
@@ -381,7 +381,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             default=None,
             value=None,
         )
-        tinp = cwl.translate_input(inp)
+        tinp = cwl.translate_workflow_input(inp)
 
         self.assertEqual("File", tinp.type)
         self.assertListEqual([".txt"], tinp.secondaryFiles)

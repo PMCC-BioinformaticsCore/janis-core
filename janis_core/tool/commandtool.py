@@ -17,7 +17,7 @@ from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.utils.logger import Logger
-from janis_core.operators.selectors import Selector
+from janis_core.operators import Selector, Operator
 from janis_core.utils.metadata import ToolMetadata, Metadata
 
 
@@ -192,6 +192,23 @@ class ToolOutput:
             if isinstance(doc, OutputDocumentation)
             else OutputDocumentation(doc=doc)
         )
+
+        if isinstance(glob, Operator) and self.presents_as:
+            raise Exception(
+                f"Error when constructing output '{self.id()}', Janis does not support 'presents_as' AND "
+                "operators within a glob . Please raise an issue if you think this is in error."
+            )
+
+        if self.secondaries_present_as:
+            secs = set(self.output_type.secondary_files())
+            to_remap = set(self.secondaries_present_as.keys())
+            invalid = to_remap - secs
+            if len(invalid) > 0:
+                raise Exception(
+                    f"Error when constructing output '{self.id()}', the secondaries_present_as contained secondary "
+                    f"files ({', '.join(invalid)}) that were not found in the output "
+                    f"type '{self.output_type.id()}' ({', '.join(secs)})"
+                )
 
     def id(self):
         return self.tag
