@@ -42,6 +42,7 @@ def translate_workflow(
     max_cores=None,
     max_mem=None,
     allow_empty_container=False,
+    container_override: dict = None,
 ):
     translator = get_translator(translation)
     return translator.translate(
@@ -62,6 +63,7 @@ def translate_workflow(
         max_cores=max_cores,
         max_mem=max_mem,
         allow_empty_container=allow_empty_container,
+        container_override=container_override,
     )
 
 
@@ -73,6 +75,7 @@ def translate_code_tool(
     export_path=None,
     with_docker=True,
     allow_empty_container=False,
+    container_override: dict = None,
 ):
     translator = get_translator(translation)
     return translator.translate_code_tool(
@@ -82,6 +85,7 @@ def translate_code_tool(
         export_path=export_path,
         with_docker=with_docker,
         allow_empty_container=allow_empty_container,
+        container_override=container_override,
     )
 
 
@@ -96,6 +100,7 @@ def translate_tool(
     max_cores=None,
     max_mem=None,
     allow_empty_container=False,
+    container_override: dict = None,
 ) -> str:
     translator = get_translator(translation)
     return translator.translate_tool(
@@ -108,6 +113,7 @@ def translate_tool(
         max_cores=max_cores,
         max_mem=max_mem,
         allow_empty_container=allow_empty_container,
+        container_override=container_override,
     )
 
 

@@ -71,6 +71,7 @@ class TranslatorBase(ABC):
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
         tr_inp = self.build_inputs_file(
             workflow,
@@ -208,6 +209,7 @@ class TranslatorBase(ABC):
                 with_docker=with_docker,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
         )
 
@@ -317,6 +319,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 

@@ -151,6 +151,7 @@ class Tool(ABC, object):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 

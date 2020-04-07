@@ -111,6 +111,7 @@ class CodeTool(Tool, ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         from janis_core import translations
 
@@ -122,6 +123,7 @@ class CodeTool(Tool, ABC):
             with_docker=with_docker,
             export_path=export_path,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
 
     def wrapped_in_wf(self):
