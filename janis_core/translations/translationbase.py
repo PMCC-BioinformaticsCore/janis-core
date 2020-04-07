@@ -307,7 +307,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
-        container_override=None,
+        container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
         pass
 
