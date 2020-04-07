@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from janis_core.types import Filename, String
 
@@ -111,9 +111,12 @@ class CodeTool(Tool, ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
-        container_override: dict = None,
+        container_override: Union[str, dict] = None,
     ):
         from janis_core import translations
+
+        if isinstance(container_override, str):
+            container_override = {self.id(): container_override}
 
         return translations.translate_code_tool(
             self,
