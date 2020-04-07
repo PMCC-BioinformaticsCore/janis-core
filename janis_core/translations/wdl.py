@@ -487,8 +487,8 @@ EOT"""
         if with_docker:
             container = tool.container()
             if container_override:
-                if tool.id() in container_override:
-                    container = container_override[tool.id()]
+                if tool.id().lower() in container_override:
+                    container = container_override[tool.id().lower()]
                 elif "*" in container_override:
                     container = container_override["*"]
 

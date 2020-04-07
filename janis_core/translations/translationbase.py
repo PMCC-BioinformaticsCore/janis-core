@@ -7,6 +7,7 @@ from path import Path
 from janis_core.tool.commandtool import ToolInput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
+from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
 
 
@@ -71,7 +72,7 @@ class TranslatorBase(ABC):
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
             allow_empty_container=allow_empty_container,
-            container_override=container_override,
+            container_override=lowercase_dictkeys(container_override),
         )
         tr_inp = self.build_inputs_file(
             workflow,
@@ -209,7 +210,7 @@ class TranslatorBase(ABC):
                 with_docker=with_docker,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
-                container_override=container_override,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -247,6 +248,7 @@ class TranslatorBase(ABC):
                 codetool,
                 with_docker=with_docker,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -326,7 +328,11 @@ class TranslatorBase(ABC):
     @classmethod
     @abstractmethod
     def translate_code_tool_internal(
-        cls, tool, with_docker=True, allow_empty_container=False
+        cls,
+        tool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 
