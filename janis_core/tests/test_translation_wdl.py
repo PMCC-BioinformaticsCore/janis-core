@@ -957,3 +957,44 @@ class TestLinkStatements(unittest.TestCase):
         )
 
         Tool.translate("wdl")
+
+
+class TestWdlContainerOverride(unittest.TestCase):
+    def test_tool_dict_override(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        translated = tool.translate(
+            "wdl", to_console=False, container_override={tool.id(): expected_container}
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)
+
+    def test_tool_string_override(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        translated = tool.translate(
+            "wdl", to_console=False, container_override=expected_container
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)
+
+    def test_tool_override_casecheck(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+
+        # Assert that our tool id is not UPPER, so when we override with the
+        toolid_upper = tool.id().upper()
+        self.assertNotEqual(tool.id(), toolid_upper)
+        translated = tool.translate(
+            "wdl",
+            to_console=False,
+            container_override={toolid_upper: expected_container},
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)

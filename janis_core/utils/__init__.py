@@ -72,4 +72,4 @@ def lowercase_dictkeys(d: Optional[Dict]) -> Optional[Dict]:
     if not d:
         return None
 
-    return {k.lowercase(): v for k, v in d.items()}
+    return {k.lower(): v for k, v in d.items()}
