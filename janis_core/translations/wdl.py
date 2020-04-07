@@ -390,8 +390,12 @@ class WdlTranslator(TranslatorBase):
         r = wdl.Task.Runtime()
         if with_docker:
             container = tool.container()
-            if container_override and tool.id() in container_override:
-                container = container_override[tool.id()]
+            if container_override:
+                if tool.id() in container_override:
+                    container = container_override[tool.id()]
+                elif "*" in container_override:
+                    container = container_override["*"]
+
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:
@@ -482,8 +486,12 @@ EOT"""
         r = wdl.Task.Runtime()
         if with_docker:
             container = tool.container()
-            if container_override and tool.id() in container_override:
-                container = container_override[tool.id()]
+            if container_override:
+                if tool.id() in container_override:
+                    container = container_override[tool.id()]
+                elif "*" in container_override:
+                    container = container_override["*"]
+
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:

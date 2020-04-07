@@ -353,8 +353,12 @@ class CwlTranslator(TranslatorBase):
 
         if with_docker:
             container = tool.container()
-            if container_override and tool.id() in container_override:
-                container = container_override[tool.id()]
+            if container_override:
+                if tool.id() in container_override:
+                    container = container_override[tool.id()]
+                elif "*" in container_override:
+                    container = container_override["*"]
+
             if container is not None:
                 tool_cwl.requirements.append(
                     cwlgen.DockerRequirement(docker_pull=container)
@@ -488,8 +492,12 @@ class CwlTranslator(TranslatorBase):
 
         if with_docker:
             container = tool.container()
-            if container_override and tool.id() in container_override:
-                container = container_override[tool.id()]
+            if container_override:
+                if tool.id() in container_override:
+                    container = container_override[tool.id()]
+                elif "*" in container_override:
+                    container = container_override["*"]
+
             if container is not None:
                 tool_cwl.requirements.append(
                     cwlgen.DockerRequirement(docker_pull=tool.container())
