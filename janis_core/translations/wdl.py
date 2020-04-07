@@ -97,6 +97,7 @@ class WdlTranslator(TranslatorBase):
         with_resource_overrides=False,
         is_nested_tool=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> Tuple[any, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
@@ -220,6 +221,7 @@ class WdlTranslator(TranslatorBase):
                         is_nested_tool=True,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
                     wtools[t.id()] = wf_wdl
                     wtools.update(wf_tools)
@@ -230,6 +232,7 @@ class WdlTranslator(TranslatorBase):
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
                 elif isinstance(t, CodeTool):
                     wtools[t.id()] = cls.translate_code_tool_internal(
@@ -237,6 +240,7 @@ class WdlTranslator(TranslatorBase):
                         with_docker=with_docker,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
 
             resource_overrides = {}
@@ -329,6 +333,7 @@ class WdlTranslator(TranslatorBase):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         if not Validators.validate_identifier(tool.id()):
@@ -385,6 +390,8 @@ class WdlTranslator(TranslatorBase):
         r = wdl.Task.Runtime()
         if with_docker:
             container = tool.container()
+            if container_override and tool.id() in container_override:
+                container = container_override[tool.id()]
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:
@@ -416,6 +423,7 @@ class WdlTranslator(TranslatorBase):
         with_docker=True,
         with_resource_overrides=True,
         allow_empty_container=False,
+        container_override=None,
     ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
@@ -474,6 +482,8 @@ EOT"""
         r = wdl.Task.Runtime()
         if with_docker:
             container = tool.container()
+            if container_override and tool.id() in container_override:
+                container = container_override[tool.id()]
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:

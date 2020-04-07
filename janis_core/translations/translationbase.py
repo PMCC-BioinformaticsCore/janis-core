@@ -61,6 +61,7 @@ class TranslatorBase(ABC):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         # self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
@@ -198,6 +199,7 @@ class TranslatorBase(ABC):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -235,6 +237,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -302,6 +305,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> Tuple[any, Dict[str, any]]:
         pass
 

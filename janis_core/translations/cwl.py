@@ -100,6 +100,7 @@ class CwlTranslator(TranslatorBase):
         is_nested_tool=False,
         is_packed=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> Tuple[any, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
@@ -108,16 +109,14 @@ class CwlTranslator(TranslatorBase):
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
-        w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
-        ]
+        w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
 
         resource_inputs = []
         if with_resource_overrides:
             resource_inputs = build_resource_override_maps_for_workflow(wf)
             w.inputs.extend(resource_inputs)
 
-        w.steps: List[cwlgen.WorkflowStep] = []
+        w.steps = []
 
         for s in wf.step_nodes.values():
             resource_overrides = {}
@@ -159,6 +158,7 @@ class CwlTranslator(TranslatorBase):
                     with_docker=with_docker,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
                 tools[tool.id()] = wf_cwl
                 tools.update(subtools)
@@ -168,6 +168,7 @@ class CwlTranslator(TranslatorBase):
                     with_docker=with_docker,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
                 tools[tool.id()] = tool_cwl
             elif isinstance(tool, CodeTool):
@@ -175,6 +176,7 @@ class CwlTranslator(TranslatorBase):
                     tool,
                     with_docker=with_docker,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
                 tools[tool.id()] = tool_cwl
             else:
@@ -216,6 +218,7 @@ class CwlTranslator(TranslatorBase):
         with_resource_overrides=False,
         is_nested_tool=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> cwlgen.Workflow:
         from janis_core.workflow.workflow import Workflow
 
@@ -224,16 +227,14 @@ class CwlTranslator(TranslatorBase):
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
-        w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
-        ]
+        w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
 
         resource_inputs = []
         if with_resource_overrides:
             resource_inputs = build_resource_override_maps_for_workflow(wf)
             w.inputs.extend(resource_inputs)
 
-        w.steps: List[cwlgen.WorkflowStep] = []
+        w.steps = []
 
         for s in wf.step_nodes.values():
             resource_overrides = {}
@@ -250,6 +251,7 @@ class CwlTranslator(TranslatorBase):
                     resource_overrides=resource_overrides,
                     use_run_ref=False,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
             )
 
@@ -274,6 +276,7 @@ class CwlTranslator(TranslatorBase):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
@@ -350,15 +353,17 @@ class CwlTranslator(TranslatorBase):
 
         if with_docker:
             container = tool.container()
+            if container_override and tool.id() in container_override:
+                container = container_override[tool.id()]
             if container is not None:
                 tool_cwl.requirements.append(
-                    cwlgen.DockerRequirement(docker_pull=tool.container())
+                    cwlgen.DockerRequirement(docker_pull=container)
                 )
             elif not allow_empty_container:
                 raise Exception(
-                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
-                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
-                    f"or --allow-empty-container"
+                    f"The tool '{tool.id()}' did not have a container and no container override was specified. "
+                    f"Although not recommended, Janis can export empty docker containers with the parameter "
+                    f"'allow_empty_container=True' or --allow-empty-container"
                 )
 
         tool_cwl.inputs.extend(translate_tool_input(i) for i in tool.inputs())
@@ -393,7 +398,11 @@ class CwlTranslator(TranslatorBase):
 
     @classmethod
     def translate_code_tool_internal(
-        cls, tool: CodeTool, with_docker=True, allow_empty_container=False
+        cls,
+        tool: CodeTool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override=None,
     ):
 
         stdouts = [
@@ -479,6 +488,8 @@ class CwlTranslator(TranslatorBase):
 
         if with_docker:
             container = tool.container()
+            if container_override and tool.id() in container_override:
+                container = container_override[tool.id()]
             if container is not None:
                 tool_cwl.requirements.append(
                     cwlgen.DockerRequirement(docker_pull=tool.container())
@@ -782,6 +793,7 @@ def translate_step(
     resource_overrides=Dict[str, str],
     use_run_ref=True,
     allow_empty_container=False,
+    container_override=None,
 ):
 
     tool = step.tool
@@ -798,10 +810,13 @@ def translate_step(
                 tool,
                 with_resource_overrides=has_resources_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
         elif isinstance(tool, CodeTool):
             run_ref = CwlTranslator.translate_code_tool_internal(
-                tool, allow_empty_container=allow_empty_container
+                tool,
+                allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
         else:
             run_ref = CwlTranslator.translate_tool_internal(
@@ -809,6 +824,7 @@ def translate_step(
                 True,
                 with_resource_overrides=has_resources_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
 
     cwlstep = cwlgen.WorkflowStep(
