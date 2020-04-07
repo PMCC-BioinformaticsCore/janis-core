@@ -340,7 +340,7 @@ class CommandTool(Tool, ABC):
         import janis_core.translations
 
         if isinstance(container_override, str):
-            container_override = {self.id(): container_override}
+            container_override = {self.id().lower(): container_override}
 
         return janis_core.translations.translate_tool(
             self,

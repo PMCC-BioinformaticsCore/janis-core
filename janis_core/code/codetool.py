@@ -116,7 +116,7 @@ class CodeTool(Tool, ABC):
         from janis_core import translations
 
         if isinstance(container_override, str):
-            container_override = {self.id(): container_override}
+            container_override = {self.id().lower(): container_override}
 
         return translations.translate_code_tool(
             self,
