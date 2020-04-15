@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
+
+from ..types import UnionType
 from ..types.common_data_types import (
     Boolean,
     String,
@@ -26,6 +28,32 @@ def or_prev_conds(prevconditions: List[Operator]):
     elif len(prevconditions) == 2:
         return OrOperator(prevconditions[0], prevconditions[1])
     return OrOperator(prevconditions[0], or_prev_conds(prevconditions[1:]))
+
+
+class IfThisOrElse(Operator, ABC):
+    def __init__(self, condition, value_if_true, value_if_false):
+        super().__init__(condition, value_if_true, value_if_false)
+
+    def argtypes(self) -> List[DataType]:
+        return [Boolean, AnyType, AnyType]
+
+    def returntype(self):
+        return UnionType(*self.args[1:])
+
+    def __str__(self):
+        cond, v1, v2 = self.args
+        return f"{cond} ? {v1} : {v2}"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_wdl(self, unwrap_operator, *args):
+        cond, v1, v2 = self.args
+        return f"if ({cond}) then {v1} else {v2}"
+
+    def to_cwl(self, unwrap_operator, *args):
+        cond, v1, v2 = self.args
+        return f"{cond} ? {v1} : {v2}"
 
 
 # Other single value operators

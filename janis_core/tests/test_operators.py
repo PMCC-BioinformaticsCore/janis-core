@@ -78,6 +78,14 @@ class TestBasenameOperator(unittest.TestCase):
         TestBasenameOperator.TestBasenameTool().translate("wdl")
 
 
+class TestIfOrElseOperator(unittest.TestCase):
+    def test_if(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("inp", int)
+        op = IfThisOrElse(wf.inp > 5, wf.inp, -1)
+        self.assertEqual("(inputs.inp > 5) ? inputs.inp : -1", str(op))
+
+
 class TestIndexOperator(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

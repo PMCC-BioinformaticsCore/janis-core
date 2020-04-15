@@ -2,13 +2,13 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 
 from janis_core.operators.selectors import Selector
-from janis_core.types import DataType, get_instantiated_type
+from janis_core.types import DataType, get_instantiated_type, UnionType
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
 class Operator(Selector, ABC):
     def __init__(self, *args):
-        self.args: List[Selector] = args
+        self.args: List[Selector] = list(args)
 
     @abstractmethod
     def argtypes(self) -> List[DataType]:
