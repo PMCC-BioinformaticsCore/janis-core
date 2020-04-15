@@ -37,7 +37,7 @@ class TestValidateInputvalue(unittest.TestCase):
         )
 
     def test_array_invalid_int_string(self):
-        self.assertFalse(Array(String()).validate_value(["aa", 2], True))
+        self.assertTrue(Array(String()).validate_value(["aa", 2], True))
 
     def test_int_invalid_float(self):
         self.assertFalse(Array(Int()).validate_value(2.0, True))
