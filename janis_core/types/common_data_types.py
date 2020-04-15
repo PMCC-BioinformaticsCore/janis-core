@@ -86,7 +86,10 @@ class String(DataType):
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool):
         if meta is None:
             return self.optional or allow_null_if_not_optional
-        return isinstance(meta, str)
+        return isinstance(meta, (str, float, int))
+
+    def coerce_value_if_possible(self, value):
+        return str(value)
 
     def invalid_value_hint(self, meta):
         if meta is None:
@@ -206,6 +209,12 @@ class Int(DataType):
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, int)
 
+    def coerce_value_if_possible(self, value):
+        try:
+            return int(value)
+        except:
+            raise Exception(f"Value '{value}' cannot be coerced to an integer")
+
     def invalid_value_hint(self, meta):
         if meta is None:
             return "value was null"
@@ -226,10 +235,6 @@ class Float(DataType):
     def doc(self):
         return "A float"
 
-    @classmethod
-    def schema(cls) -> Dict:
-        return {"type": "number", "required": True}
-
     def input_field_from_input(self, meta: Dict):
         return next(iter(meta.values()))
 
@@ -237,6 +242,12 @@ class Float(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, float) or isinstance(meta, int)
+
+    def coerce_value_if_possible(self, value):
+        try:
+            return float(value)
+        except:
+            raise Exception(f"Value '{value}' cannot be coerced to a float")
 
     def invalid_value_hint(self, meta):
         if meta is None:
@@ -290,17 +301,29 @@ class Boolean(DataType):
     def doc(self):
         return "A boolean"
 
-    @classmethod
-    def schema(cls) -> Dict:
-        return {"type": "boolean", "required": True}
-
     def input_field_from_input(self, meta):
         return next(iter(meta.values()))
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
             return self.optional or allow_null_if_not_optional
+
+        if isinstance(meta, str):
+            return meta.lower() == "true" or meta.lower() == "false"
+        if isinstance(meta, int):
+            return meta == 0 or meta == 1
+
         return isinstance(meta, bool)
+
+    def coerce_value_if_possible(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() == "true"
+        if isinstance(value, int):
+            return value != 0
+
+        raise Exception(f"Value {value} could not be coerced to boolean type")
 
     def invalid_value_hint(self, meta):
         if meta is None:

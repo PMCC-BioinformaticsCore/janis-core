@@ -192,6 +192,9 @@ class DataType(ABC):
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         pass
 
+    def coerce_value_if_possible(self, value):
+        return value
+
     @abstractmethod
     def invalid_value_hint(self, meta):
         pass

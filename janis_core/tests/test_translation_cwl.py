@@ -49,9 +49,17 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow("wid")
+        expected = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+inputs: {}
+outputs: {}
+steps: {}
+id: wid
+"""
         self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
-            self.translator.stringify_translated_workflow(cwlobj),
+            expected, self.translator.stringify_translated_workflow(cwlobj)
         )
 
     def test_stringify_tool(self):
@@ -502,22 +510,9 @@ class TestPackedWorkflow(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-arguments:
-- position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
-baseCommand: echo
 class: CommandLineTool
 cwlVersion: v1.0
-id: TestTranslationtool
-inputs:
-- id: testtool
-  label: testtool
-  type: string
 label: TestTranslationtool
-outputs:
-- id: std
-  label: std
-  type: stdout
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
@@ -527,6 +522,19 @@ requirements:
       envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
+inputs:
+- id: testtool
+  label: testtool
+  type: string
+outputs:
+- id: std
+  label: std
+  type: stdout
+baseCommand: echo
+arguments:
+- position: 0
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
+id: TestTranslationtool
 """
 
 
@@ -534,25 +542,25 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: test_add_single_to_array_edge
+requirements:
+  InlineJavascriptRequirement: {}
+  MultipleInputFeatureRequirement: {}
+  StepInputExpressionRequirement: {}
 inputs:
   inp1:
     id: inp1
     type: string
 outputs: {}
-requirements:
-  InlineJavascriptRequirement: {}
-  MultipleInputFeatureRequirement: {}
-  StepInputExpressionRequirement: {}
 steps:
   stp1:
     in:
       inputs:
         id: inputs
-        linkMerge: merge_nested
         source:
         - inp1
+        linkMerge: merge_nested
+    run: tools/ArrayStepTool.cwl
     out:
     - outs
-    run: tools/ArrayStepTool.cwl
+id: test_add_single_to_array_edge
 """
