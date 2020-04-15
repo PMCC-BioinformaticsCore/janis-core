@@ -852,7 +852,7 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
 }}"""
 
 
-def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[str, List[str]]:
+def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL INPUT
 
