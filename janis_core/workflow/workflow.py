@@ -52,7 +52,7 @@ ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 def verify_or_try_get_source(
     source: Union[ConnectionSource, List[ConnectionSource]]
-) -> Union[StepOutputSelector, List[StepOutputSelector]]:
+) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector]]:
 
     if isinstance(source, StepOutputSelector):
         return source
@@ -371,7 +371,7 @@ class Workflow(Tool):
         )
         self.nodes[identifier] = inp
         self.input_nodes[identifier] = inp
-        return inp
+        return InputNodeSelector(inp)
 
     def output(
         self,
@@ -994,9 +994,7 @@ def wrap_steps_in_workflow(
             else:
                 innode: InputNode = operator.input_node
                 workflow_connection_map[identifier] = innode
-                return w.input(
-                    identifier, first_value(innode.outputs()).outtype
-                ).as_operator()
+                return w.input(identifier, first_value(innode.outputs()).outtype)
 
         if isinstance(operator, StringFormatter):
             return StringFormatter(
