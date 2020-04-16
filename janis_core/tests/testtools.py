@@ -16,6 +16,26 @@ from janis_core import (
 )
 
 
+class EchoTestTool(CommandTool):
+    def tool(self) -> str:
+        return "EchoTestTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "echo"
+
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", str, position=0)]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
 class SingleTestTool(CommandTool):
     @staticmethod
     def tool():
