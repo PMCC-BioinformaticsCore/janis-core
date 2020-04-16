@@ -16,7 +16,7 @@ from ..types.common_data_types import (
     AnyType,
     NumericType,
 )
-from .operator import Operator, OperatorOrValue, SingleValueOperator, TwoValueOperator
+from .operator import Selector, Operator, SingleValueOperator, TwoValueOperator
 
 
 # As operators
@@ -30,6 +30,30 @@ def or_prev_conds(prevconditions: List[Operator]):
     elif len(prevconditions) == 2:
         return OrOperator(prevconditions[0], prevconditions[1])
     return OrOperator(prevconditions[0], or_prev_conds(prevconditions[1:]))
+
+
+class IsDefined(Operator, ABC):
+    def argtypes(self) -> List[DataType]:
+        return [AnyType]
+
+    def returntype(self):
+        return Boolean
+
+    def __str__(self):
+        arg = self.args[0]
+        return f"isdefined({arg})"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        # 2 equals (!=) in javascript will coerce undefined to equal null
+        return f"({arg} != null)"
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"defined({arg})"
 
 
 class IfThisOrElse(Operator, ABC):
