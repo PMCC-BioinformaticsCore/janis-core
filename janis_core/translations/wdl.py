@@ -284,7 +284,6 @@ class WdlTranslator(TranslatorBase):
     def unwrap_expression(
         cls, expression, inputsdict=None, string_environment=False, **debugkwargs
     ):
-        print("DETECTED EXPRESSION")
         if expression is None:
             return ""
 
