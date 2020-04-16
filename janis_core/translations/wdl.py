@@ -363,6 +363,99 @@ class WdlTranslator(TranslatorBase):
         )
 
     @classmethod
+    def unwrap_expression_for_output(
+        cls,
+        output: ToolOutput,
+        expression,
+        inputsdict=None,
+        string_environment=False,
+        **debugkwargs,
+    ):
+        if isinstance(expression, CustomGlob):
+            return expression.expression
+        elif isinstance(output.output_type, Stdout) or isinstance(expression, Stdout):
+            return "stdout()"
+        elif isinstance(output.output_type, Stderr) or isinstance(expression, Stderr):
+            return "stderr()"
+
+        if isinstance(expression, list):
+            toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")
+            joined_values = ", ".join(
+                str(
+                    cls.unwrap_expression_for_output(
+                        expression[i],
+                        inputsdict,
+                        string_environment=False,
+                        tool_id=toolid + "." + str(i),
+                    )
+                )
+                for i in range(len(expression))
+            )
+            return f"[{joined_values}]"
+        if is_python_primitive(expression):
+            if isinstance(expression, str):
+                return cls.wrap_if_string_environment(expression, string_environment)
+            if isinstance(expression, bool):
+                return "true" if expression else "false"
+
+            return str(expression)
+        elif isinstance(expression, StringFormatter):
+            return translate_string_formatter_for_output(
+                selector=expression,
+                inputsdict=inputsdict,
+                string_environment=string_environment,
+                **debugkwargs,
+            )
+        elif isinstance(expression, WildcardSelector):
+            base_expression = translate_wildcard_selector(expression)
+            if not isinstance(output.output_type, Array):
+                Logger.info(
+                    f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
+                    f"but the return type was not an array. For WDL, the first element will be used, "
+                    f"ie: '{base_expression}[0]'"
+                )
+                base_expression += "[0]"
+            return base_expression
+
+        elif isinstance(expression, InputSelector):
+            return translate_input_selector_for_output(
+                selector=expression,
+                inputsdict=inputsdict,
+                string_environment=string_environment,
+                **debugkwargs,
+            )
+        elif callable(getattr(expression, "wdl", None)):
+            return expression.wdl()
+
+        wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
+        unwrap_expression_wrap = lambda exp: cls.unwrap_expression_for_output(
+            exp, inputsdict, string_environment=False, **debugkwargs
+        )
+
+        if isinstance(expression, (StepOutputSelector, InputNodeSelector)):
+            raise Exception(
+                "An InputnodeSelector or StepOutputSelector cannot be used to glob outputs"
+            )
+
+        elif isinstance(expression, Operator):
+            return wrap_in_code_block(
+                expression.to_wdl(unwrap_expression_wrap, *expression.args)
+            )
+
+        warning = ""
+        if isclass(expression):
+            stype = expression.__name__
+            warning = f", this is likely due to the '{stype}' not being initialised"
+        else:
+            stype = expression.__class__.__name__
+
+        raise Exception(
+            f"Tool ({debugkwargs}) has an unrecognised glob type: '{stype}' ({expression}), this is "
+            f"deprecated. Please use the a Selector to build the outputs for '{output.id()}'"
+            + warning
+        )
+
+    @classmethod
     def translate_tool_inputs(cls, toolinputs: List[ToolInput]) -> List[wdl.Input]:
         ins = []
         for i in toolinputs:
@@ -395,9 +488,13 @@ class WdlTranslator(TranslatorBase):
         outs: List[wdl.Output] = []
 
         for o in tooloutputs:
-            outs.extend(
-                translate_output_node_with_glob(o, o.glob, inputsmap, toolId=toolid)
+            expression = cls.unwrap_expression_for_output(
+                o, o.glob, inputsdict=inputsmap, toolid=toolid
             )
+            wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
+            outputs = [wdl.Output(wdl_type, o.id(), expression)]
+
+            outs.extend(outputs)
         return outs
 
     @classmethod
@@ -776,65 +873,14 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
     )
 
 
-def translate_output_node_with_glob(
-    o, glob, inputmap: Dict[str, ToolInput], **debugkwargs
-) -> List[wdl.Output]:
-    if isinstance(o.output_type, Stdout):
-        base_expression = "stdout()"
-        return [wdl.Output(o.output_type.wdl(), o.id(), base_expression)]
-
-    if isinstance(o.output_type, Stderr):
-        base_expression = "stderr()"
-        return [wdl.Output(o.output_type.wdl(), o.id(), base_expression)]
-
-    elif isinstance(glob, InputSelector):
-        return translate_input_selector_for_output(o, glob, inputmap, **debugkwargs)
-
-    elif isinstance(glob, StringFormatter):
-        return translate_string_formatter_for_output(o, glob, inputmap, **debugkwargs)
-
-    elif isinstance(glob, WildcardSelector):
-        base_expression = translate_wildcard_selector(glob)
-        if not isinstance(o.output_type, Array):
-            Logger.warn(
-                f"The command tool ({debugkwargs}).{o.tag}' used a star-bind (*) glob to find the output, "
-                f"but the return type was not an array. For WDL, the first element will be used, "
-                f"ie: '{base_expression}[0]'"
-            )
-            base_expression += "[0]"
-        wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
-        outputs = [wdl.Output(wdl_type, o.id(), base_expression)]
-
-        secondary = o.output_type.secondary_files()
-        if secondary:
-            outputs.extend(
-                wdl.Output(
-                    wdl_type,
-                    get_secondary_tag_from_original_tag(o.id(), s),
-                    base_expression,
-                )
-                for s in o.output_type.secondary_files()
-            )
-        return outputs
-
-    elif isinstance(glob, CustomGlob):
-        return [wdl.Output(o.output_type.wdl(), o.id(), glob.expression)]
-
-    else:
-        raise Exception(
-            f"Tool ({debugkwargs}) has the non-selector glob: '{glob}', this is deprecated. "
-            f"Please use the WildcardSelector to build output for '{o.id()}'"
-        )
-
-
 def translate_input_selector_for_output(
-    out, selector: InputSelector, inp_map: Dict[str, ToolInput], **debugkwargs
+    out, selector: InputSelector, inputsdict: Dict[str, ToolInput], **debugkwargs
 ) -> List[wdl.Output]:
     base_expression = translate_input_selector(
-        selector, inp_map, string_environment=False, **debugkwargs
+        selector, inputsdict, string_environment=False, **debugkwargs
     )
 
-    tool_in = inp_map.get(selector.input_to_select)
+    tool_in = inputsdict.get(selector.input_to_select)
     if not tool_in:
         raise Exception(
             f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
@@ -880,7 +926,7 @@ def translate_input_selector_for_output(
 
 
 def translate_string_formatter_for_output(
-    out, selector: StringFormatter, inp_map: Dict[str, ToolInput], **debugkwargs
+    out, selector: StringFormatter, inputsdict: Dict[str, ToolInput], **debugkwargs
 ) -> List[wdl.Output]:
     """
     The output glob was a string formatter, so we'll need to build the correct glob
@@ -892,7 +938,7 @@ def translate_string_formatter_for_output(
     respect to the secondary file extension. Or the File class also has a recommended
     "extension" property now that this should consider.
 
-    :param inp_map:
+    :param inputsdict:
     :param out:
     :param selector:
     :return:
@@ -910,7 +956,7 @@ def translate_string_formatter_for_output(
             **selector.kwargs,
             **{
                 k: WdlTranslator.unwrap_expression(
-                    v, inputsdict=inp_map, string_environment=True, **debugkwargs
+                    v, inputsdict=inputsdict, string_environment=True, **debugkwargs
                 )
                 for k, v in inputs_to_retranslate.items()
             },
@@ -935,7 +981,7 @@ def translate_string_formatter_for_output(
             input_selectors_with_secondaries[k] = v
 
         translated_inputs[k] = WdlTranslator.unwrap_expression(
-            v, inputsdict=inp_map, string_environment=True, **debugkwargs
+            v, inputsdict=inputsdict, string_environment=True, **debugkwargs
         )
 
     if len(input_selectors_with_secondaries) > 1:
@@ -950,7 +996,7 @@ def translate_string_formatter_for_output(
         inputsel_key = next(iter(input_selectors_with_secondaries.keys()))
         inputsel = input_selectors_with_secondaries[inputsel_key]
 
-        tool_in = inp_map.get(inputsel.input_to_select)
+        tool_in = inputsdict.get(inputsel.input_to_select)
 
     expression = selector.resolve_with_resolved_values(
         **{**selector.kwargs, **translated_inputs}
@@ -1344,7 +1390,7 @@ def generate_scatterable_details(
                 newid = standin + (n - 1) * ".right"
             scattered_old_to_new_identifier[s.dotted_source()] = (
                 newid,
-                first_value(s.source_map).start,
+                s.source_map[0].start,
             )
             forbiddenidentifierscopy.add(newid)
     else:
