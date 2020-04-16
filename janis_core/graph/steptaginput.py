@@ -1,5 +1,7 @@
 from typing import Optional, Dict, Any, List
 
+from janis_core.types import get_instantiated_type
+
 from janis_core.graph.node import Node, NodeTypes
 from janis_core.operators import Selector
 from janis_core.tool.tool import TInput, TOutput
@@ -63,8 +65,8 @@ class Edge:
             self.ftag
         ] if self.ftag is not None else first_value(self.finish.inputs())
 
-        stype = self.source.returntype()
-        ftype = ftoolin.intype
+        stype = get_instantiated_type(self.source.returntype())
+        ftype = get_instantiated_type(ftoolin.intype)
 
         if self.scatter:
             if not isinstance(stype, Array):
