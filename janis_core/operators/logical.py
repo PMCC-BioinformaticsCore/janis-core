@@ -48,11 +48,11 @@ class IfThisOrElse(Operator, ABC):
         return str(self)
 
     def to_wdl(self, unwrap_operator, *args):
-        cond, v1, v2 = self.args
+        cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"if ({cond}) then {v1} else {v2}"
 
     def to_cwl(self, unwrap_operator, *args):
-        cond, v1, v2 = self.args
+        cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"{cond} ? {v1} : {v2}"
 
 
