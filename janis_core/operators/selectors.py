@@ -1,5 +1,7 @@
 from typing import Union
 
+from janis_core.types import get_instantiated_type
+
 from janis_core.utils import first_value
 
 from janis_core.utils.errors import (
@@ -24,6 +26,10 @@ class Selector(ABC):
         from janis_core.operators.logical import NotOperator
 
         return NotOperator(self)
+
+    @abstractmethod
+    def to_string_formatter(self):
+        pass
 
     def __and__(self, other):
         from janis_core.operators.logical import AndOperator
@@ -158,6 +164,9 @@ class Selector(ABC):
         return BasenameOperator(self)
 
 
+SelectorOrValue = Union[Selector, int, str, float]
+
+
 class InputSelector(Selector):
     def __init__(self, input_to_select, use_basename=None):
         # maybe worth validating the input_to_select identifier
@@ -171,12 +180,6 @@ class InputSelector(Selector):
     def to_string_formatter(self):
         kwarg = {self.input_to_select: self}
         return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
-
-    def __radd__(self, other):
-        return StringFormatter(other) + self.to_string_formatter()
-
-    def __add__(self, other):
-        return self.to_string_formatter() + other
 
 
 class InputNodeSelector(Selector):
@@ -201,6 +204,11 @@ class InputNodeSelector(Selector):
 
     def __repr__(self):
         return "inputs." + self.input_node.id()
+
+    def to_string_formatter(self):
+        key = self.input_node.id()
+        kwarg = {key: self}
+        return StringFormatter(f"{{{key}}}", **kwarg)
 
 
 class StepOutputSelector(Selector):
@@ -229,6 +237,11 @@ class StepOutputSelector(Selector):
     def __repr__(self):
         return self.node.id() + "." + self.tag
 
+    def to_string_formatter(self):
+        key = self.node.id() + "_" + self.tag
+        kwarg = {key: self}
+        return StringFormatter(f"{{{key}}}", **kwarg)
+
 
 class WildcardSelector(Selector):
     def __init__(self, wildcard):
@@ -236,6 +249,9 @@ class WildcardSelector(Selector):
 
     def returntype(self):
         return Array(Union[File, Directory])
+
+    def to_string_formatter(self):
+        raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
 
 
 class MemorySelector(InputSelector):
@@ -385,3 +401,6 @@ class StringFormatter(Selector):
                 "Joining the input files (to '{new_format}') created the new params: "
                 + ", ".join(new_params)
             )
+
+    def to_string_formatter(self):
+        return self
