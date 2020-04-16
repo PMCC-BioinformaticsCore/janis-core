@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-from janis_core.operators.selectors import Selector
+from janis_core.operators.selectors import Selector, StringFormatter
 from janis_core.types import DataType, get_instantiated_type, UnionType
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
 class Operator(Selector, ABC):
     def __init__(self, *args):
-        self.args: List[Selector] = list(args)
+        self.args: List[Union[Selector, any]] = list(args)
 
     @abstractmethod
     def argtypes(self) -> List[DataType]:
@@ -32,7 +32,11 @@ class Operator(Selector, ABC):
         errors = []
         for i in range(len(args)):
             expected = get_instantiated_type(argtypes[i])
-            received = get_instantiated_type(args[i])
+            received_arg = args[i]
+            if isinstance(received_arg, Selector):
+                received = get_instantiated_type(args[i].returntype())
+            else:
+                received = get_instantiated_type(received_arg)
             if not expected.can_receive_from(received):
                 errors.append(
                     f"argument {i+1} '{received.id()}' was incompatible with the expected {expected.id()}"
@@ -55,8 +59,12 @@ class Operator(Selector, ABC):
     def to_cwl(self, unwrap_operator, *args):
         pass
 
+    def to_string_formatter(self):
+        import re
 
-OperatorOrValue = Union[Selector, int, str, float]
+        key = re.sub(r"\W+", "", str(self))
+        kwarg = {key: self}
+        return StringFormatter(f"{{{key}}}", **kwarg)
 
 
 class IndexOperator(Operator, ABC):
