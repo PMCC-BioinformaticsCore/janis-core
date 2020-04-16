@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
+from janis_core.types import get_instantiated_type
+
 from ..types import UnionType
 from ..types.common_data_types import (
     Boolean,
@@ -259,8 +261,18 @@ class AddOperator(TwoValueOperator):
         return [AnyType, AnyType]
 
     def returntype(self):
-        lhs: DataType = self.args[0].returntype()
-        rhs: DataType = self.args[0].returntype()
+        lhs_val: DataType = self.args[0]
+        rhs_val: DataType = self.args[0]
+
+        if isinstance(lhs_val, Selector):
+            lhs = get_instantiated_type(lhs_val.returntype())
+        else:
+            lhs = get_instantiated_type(lhs_val)
+
+        if isinstance(rhs_val, Selector):
+            rhs = get_instantiated_type(rhs_val.returntype())
+        else:
+            rhs = get_instantiated_type(rhs_val)
 
         if isinstance(lhs, (String, File, Directory)) or isinstance(
             rhs, (String, File, Directory)
