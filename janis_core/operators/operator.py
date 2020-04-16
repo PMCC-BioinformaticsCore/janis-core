@@ -137,10 +137,12 @@ class TwoValueOperator(Operator, ABC):
         pass
 
     def to_wdl(self, unwrap_operator, *args):
-        return f"{self.symbol()}({unwrap_operator(*args)})"
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+        return f"({arg1} {self.wdl_symbol()} {arg2})"
 
     def to_cwl(self, unwrap_operator, *args):
-        return f"{self.symbol()}({unwrap_operator(*args)})"
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+        return f"({arg1} {self.cwl_symbol()} {arg2})"
 
     def __str__(self):
         args = self.args
