@@ -370,9 +370,7 @@ class CwlTranslator(TranslatorBase):
                 )
 
         tool_cwl.inputs.extend(translate_tool_input(i) for i in tool.inputs())
-        tool_cwl.outputs.extend(
-            translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
-        )
+        tool_cwl.outputs.extend(translate_tool_output(o) for o in tool.outputs())
 
         args = tool.arguments()
         if args:

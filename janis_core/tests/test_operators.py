@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from janis_core.operators.selectors import InputSelector
 from janis_core.operators.standard import BasenameOperator
 from janis_core.types import Stdout, File
-from janis_core.tests.testtools import SingleTestTool
+from janis_core.tests.testtools import SingleTestTool, EchoTestTool
 
 from janis_core import ToolOutput, ToolInput, WorkflowBuilder
 from janis_core.tool.commandtool import CommandToolBuilder, CommandTool, ToolArgument
@@ -109,4 +109,24 @@ class TestIndexOperator(unittest.TestCase):
         self.wf.translate("wdl", allow_empty_container=True)
 
     def test2_wdl(self):
-        self.wf2.translate("wdl", allow_empty_container=True)
+        self.assertRaises(
+            Exception, self.wf2.translate, translation="wdl", allow_empty_container=True
+        )
+
+
+class TestMixedOperators(unittest.TestCase):
+    def test_expression_default(self):
+
+        wf = WorkflowBuilder("test_expression_defaults")
+        wf.input("inp", Optional[str])
+
+        wf.step(
+            "echo",
+            EchoTestTool(
+                inp="Hello, " + IfThisOrElse(IsDefined(wf.inp), wf.inp, ", Michael!")
+            ),
+        )
+
+        wf.output("out", source=wf.echo)
+
+        # wf.translate("wdl")
