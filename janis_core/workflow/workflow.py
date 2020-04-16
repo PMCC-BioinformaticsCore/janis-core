@@ -799,7 +799,10 @@ class WorkflowBuilder(Workflow):
         return self
 
     def version(self):
-        return self.version
+        return self._version
 
     def bind_metadata(self):
         return self._metadata
+
+    def __str__(self):
+        return f'WorkflowBuilder("{self._identifier}")'
