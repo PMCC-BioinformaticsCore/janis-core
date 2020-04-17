@@ -533,6 +533,8 @@ class WdlTranslator(TranslatorBase):
         ):
             return []
 
+        islist = isinstance(expression, list)
+
         if (
             isinstance(out.output_type, Array)
             and isinstance(out.output_type.subtype(), File)
@@ -549,9 +551,14 @@ class WdlTranslator(TranslatorBase):
                     )
                     for s in out.output_type.subtype().secondary_files()
                 ]
-            raise Exception(
-                "Janis isn't sure how to collect secondary files for an array yet"
-            )
+            elif islist:
+                Logger.info(
+                    "Special handling for an Array return type with a list expressions"
+                )
+            else:
+                raise Exception(
+                    "Janis isn't sure how to collect secondary files for an array yet"
+                )
 
         outs = []
         if isinstance(out.output_type, File) and out.output_type.secondary_files():
@@ -560,18 +567,16 @@ class WdlTranslator(TranslatorBase):
             ftype = ot.wdl()
             for s in ot.secondary_files():
                 tag = get_secondary_tag_from_original_tag(out.id(), s)
+                ar_exp = expression if islist else [expression]
                 if "^" not in s:
-                    sout = wdl.Output(ftype, tag, expression + f' + "{s}"')
+                    exp = [(ex + f' + "{s}"') for ex in ar_exp]
                 elif ot.extension:
-                    sout = wdl.Output(
-                        ftype,
-                        tag,
+                    exp = [
                         'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                            inp=expression,
-                            old_ext=ot.extension,
-                            new_ext=s.replace("^", ""),
-                        ),
-                    )
+                            inp=ex, old_ext=ot.extension, new_ext=s.replace("^", "")
+                        )
+                        for ex in ar_exp
+                    ]
                 else:
                     raise Exception(
                         f"Unsure how to handle secondary file '{s}' for the tool output '{out.id()}' (ToolId={toolid})"
@@ -579,7 +584,7 @@ class WdlTranslator(TranslatorBase):
                         f"This could be resolved by ensuring the definition for '{ot.__class__.__name__}' contains an extension."
                     )
 
-                outs.append(sout)
+                outs.append(wdl.Output(ftype, tag, exp if islist else exp[0]))
 
         return outs
 
