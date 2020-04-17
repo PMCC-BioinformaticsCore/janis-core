@@ -108,7 +108,6 @@ class StepTagInput:
         self.finish: Node = finish
         self.ftag: Optional[str] = finish_tag
 
-        self.default = None
         self.multiple_inputs = False
 
         self.source_map: List[Edge] = []
@@ -168,12 +167,6 @@ class StepTagInput:
         self.source_map.append(e)
         return e
 
-    def set_default(self, default: Any):
-        Logger.log(
-            f"Setting the default of '{self.finish.id()}.{self.ftag}' to be '{str(default)}'"
-        )
-        self.default = default
-
     def source(self):
         n = len(self.source_map)
         if n == 0:
@@ -182,22 +175,3 @@ class StepTagInput:
             return self.source_map[0]
         else:
             return list(self.source_map)
-
-    def dotted_source(self):
-        n = len(self.source_map)
-
-        if n == 0:
-            return None
-        elif n == 1:
-            return str(self.source_map[0].source)
-        else:
-            return [str(e.source) for e in self.source_map]
-
-    def slashed_source(self):
-        n = len(self.source_map)
-        if n == 0:
-            return None
-        elif n == 1:
-            return str(self.source_map[0].source)
-        else:
-            return [str(e.source) for e in self.source_map]
