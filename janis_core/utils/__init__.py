@@ -4,6 +4,8 @@ T = TypeVar("T")
 
 
 def first_value(d: Dict[Any, T]) -> T:
+    # if isinstance(d, list):
+    #     return d[0]
     return next(iter(d.values()))
 
 

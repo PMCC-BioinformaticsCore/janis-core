@@ -70,14 +70,13 @@ class TestWorkflow(TestCase):
 
     def test_add_qualified_edge(self):
         w = WorkflowBuilder("test_add_edge")
-        inp = w.input("inp", str)
+        inp = w.input("inp", str).input_node
         stp = w.step("stp", SingleTestTool(inputs=w.inp))
 
-        e = first_value(stp.sources["inputs"].source_map)
+        e = stp.sources["inputs"].source_map[0]
 
-        self.assertEqual(e.start.id(), inp.id())
+        self.assertEqual(e.source.input_node.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
-        self.assertIsNone(e.stag)
         self.assertEqual(e.ftag, first_value(stp.inputs()).id())
 
     def test_add_edge_later(self):
@@ -170,7 +169,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(str))
         stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
 
         self.assertTrue(e.compatible_types)
         self.assertListEqual(["inputs"], stp.scatter.fields)
@@ -189,7 +188,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(int))
         stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
 
         self.assertTrue(e.scatter)
         self.assertFalse(e.compatible_types)
@@ -199,7 +198,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(Array(str)))
         stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
 
         self.assertTrue(e.compatible_types)
         self.assertListEqual(["inputs"], stp.scatter.fields)
@@ -209,7 +208,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(Array(int)))
         stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
 
         self.assertFalse(e.compatible_types)
         self.assertListEqual(["inputs"], stp.scatter.fields)
@@ -226,7 +225,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(String()))
         w.step("stp", ArrayTestTool(inputs=w.inp))
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
         self.assertFalse(e.scatter)
 
     def test_invalid_scatter_field(self):
@@ -272,8 +271,8 @@ class TestWorkflow(TestCase):
         stp1 = w.step("stp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
         stp2 = w.step("stp2", SingleTestTool(inputs=stp1), scatter="inputs")
 
-        e1 = first_value(stp1.sources["inputs"].source_map)
-        e2 = first_value(stp2.sources["inputs"].source_map)
+        e1 = stp1.sources["inputs"].source_map[0]
+        e2 = stp2.sources["inputs"].source_map[0]
 
         self.assertTrue(e1.scatter)
         self.assertTrue(e2.scatter)
@@ -283,7 +282,7 @@ class TestWorkflow(TestCase):
         w.input("inp1", String())
         w.step("stp1", ArrayTestTool(inputs=w.inp1))
 
-        e = first_value(w.stp1.sources["inputs"].source_map)
+        e = w.stp1.sources["inputs"].source_map[0]
         self.assertTrue(w.has_multiple_inputs)
         self.assertTrue(e.compatible_types)
 
