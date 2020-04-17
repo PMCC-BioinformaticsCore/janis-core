@@ -1040,6 +1040,32 @@ def translate_string_formatter_for_output(
     return f'"{selector.resolve_with_resolved_values(**resolved_kwargs)}"'
 
 
+def validate_step_with_multiple_sources(node, edge, k, input_name_maps):
+    multiple_sources_failure_reasons = []
+
+    unique_types = set()
+    for x in edge.source():
+        t: TOutput = (
+            first_value(x.start.outputs()) if not x.stag else x.start.outputs()[x.stag]
+        )
+
+        unique_types.update(t.outtype.secondary_files() or [""])
+    if len(unique_types) > 1:
+        multiple_sources_failure_reasons.append(
+            f"has {len(unique_types)} different DataTypes with varying secondaries"
+        )
+    if node.scatter:
+        multiple_sources_failure_reasons.append(f"is scattered")
+
+    if len(multiple_sources_failure_reasons) > 0:
+        reasons = " and ".join(multiple_sources_failure_reasons)
+        Logger.critical(
+            f"Conversion to WDL for field '{node.id()}.{k}' does not fully support multiple sources."
+            f" This will only work if all of the inputs ({input_name_maps}) have the same secondaries "
+            f"AND this field ('{k}') is not scattered. However this connection {reasons}"
+        )
+
+
 def translate_step_node(
     node2,
     step_identifier: str,
@@ -1103,7 +1129,7 @@ def translate_step_node(
         ]
         if len(invalid_sources) > 0:
             invalid_sources_str = ", ".join(
-                si.dotted_source() for si in invalid_sources
+                WdlTranslator.unwrap_expression(si.source()) for si in invalid_sources
             )
             raise NotImplementedError(
                 f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
@@ -1111,6 +1137,12 @@ def translate_step_node(
             )
 
     # 1. Generate replacement of the scatterable key(s) with some random variable, eg: for i in iterable:
+    #
+    #       - Currently, Janis does not support operating on the object to scatter, and there's no mechanism from
+    #           operating on the scattered value. See the following GH comment for more information:
+    #           (https://github.com/PMCC-BioinformaticsCore/janis-core/pull/10#issuecomment-605807815)
+    #
+
     scattered_old_to_new_identifier = generate_scatterable_details(
         scatterable, forbiddenidentifiers=invalid_identifiers
     )
@@ -1123,95 +1155,58 @@ def translate_step_node(
         if k not in node.sources:
             continue
 
+        steptag_input: StepTagInput = node.sources[k]
+        intype = steptag_input.finish.inputs()[steptag_input.ftag].intype
+        src: Edge = steptag_input.source()  # potentially single item or array
+
+        ar_source = src if isinstance(src, list) else [src]
+        # these two are very closely tied, they'll determine whether our
+        # input to the step connection is single or an array
+        has_multiple_sources = isinstance(src, list) and len(src) > 1
         array_input_from_single_source = False
 
-        edge: StepTagInput = node.sources[k]
-        source: Edge = edge.source()  # potentially single item or array
+        if has_multiple_sources:
+            # let's do some checks, make sure we're okay
+            validate_step_with_multiple_sources(node, steptag_input, k, inputs_map)
 
-        # We have multiple sources going to the same entry
-        if isinstance(source, list):
-            if len(source) == 1:
-                source = source[0]
-            elif len(source) > 1:
+        elif ar_source:
+            source = ar_source[0]
 
-                # There are multiple sources, this is sometimes a little tricky
-                input_name_maps = ", ".join(edge.dotted_source())
-
-                multiple_sources_failure_reasons = []
-
-                unique_types = set()
-                for x in edge.source():
-                    t: TOutput = (
-                        first_value(x.start.outputs())
-                        if not x.stag
-                        else x.start.outputs()[x.stag]
-                    )
-
-                    unique_types.update(t.outtype.secondary_files() or [""])
-                if len(unique_types) > 1:
-                    multiple_sources_failure_reasons.append(
-                        f"has {len(unique_types)} different DataTypes with varying secondaries"
-                    )
-                if node.scatter:
-                    multiple_sources_failure_reasons.append(f"is scattered")
-
-                if len(multiple_sources_failure_reasons) > 0:
-                    reasons = " and ".join(multiple_sources_failure_reasons)
-                    Logger.critical(
-                        f"Conversion to WDL for field '{node.id()}.{k}' does not fully support multiple sources."
-                        f" This will only work if all of the inputs ({input_name_maps}) have the same secondaries "
-                        f"AND this field ('{k}') is not scattered. However this connection {reasons}"
-                    )
-
-                ds = edge.dotted_source()
-                if isinstance(ds, list):
-                    ds = "[" + ", ".join(ds) + "]"
-                inputs_map[k] = ds
-                f = edge.finish.inputs()[edge.ftag]
-                secs = (
-                    f.intype.subtype().secondary_files()
-                    if isinstance(f.intype, Array)
-                    else f.intype.secondary_files()
-                )
-                if secs:
-                    for sec in secs:
-                        inputs_map[get_secondary_tag_from_original_tag(k, sec)] = (
-                            "["
-                            + ", ".join(
-                                get_secondary_tag_from_original_tag(kk, sec)
-                                for kk in edge.dotted_source()
-                            )
-                            + "]"
-                        )
-                continue
-
-        elif source:
-            it = source.finish.inputs()[source.ftag].intype
             ot = source.source.returntype()
-            # if source.stag:
-            #     ot = source.start.outputs()[source.stag].outtype
-            # else:
-            #     ot = first_value(source.start.outputs()).outtype
             if (
-                isinstance(it, Array)
+                isinstance(intype, Array)
                 and not isinstance(ot, Array)
                 and not source.scatter
             ):
                 array_input_from_single_source = True
-        secondary = None
-        # We're connecting to another step
-        if source and isinstance(source.finish, StepNode) and source.ftag:
-
-            it = source.finish.inputs()[source.ftag].intype
-
-            secondary = (
-                it.subtype().secondary_files()
-                if isinstance(it, Array)
-                else it.secondary_files()
+        else:
+            Logger.critical(
+                f"Skipping connection to '{steptag_input.finish}.{steptag_input.ftag}' had no source or default, "
+                f"please raise an issue as investigation may be required"
             )
-            if secondary and isinstance(source.start, StepNode) and source.stag:
+            continue
 
-                ot = source.start.outputs()[source.stag].outtype
+        # Checks over, let's continue!
+
+        secondaries = intype.secondary_files() or []
+        # place to put the processed_sources:
+        #   Key=None is for the regular input
+        #   Key=$sec_tag is for each secondary file
+        unwrapped_sources = {k: [] for k in [None, *secondaries]}
+
+        unwrap_helper = lambda exprsn: WdlTranslator.unwrap_expression(
+            exprsn,
+            inputsdict=inputs_map,
+            string_environment=False,
+            stepid=step_identifier,
+        )
+
+        for edge in ar_source:
+            # we have an expression we need to unwrap,
+            # it's going to the step_input [k]
+
+            if secondaries:
+                ot = edge.source.returntype()
 
                 sec_out = set(
                     value_or_default(
@@ -1221,98 +1216,57 @@ def translate_step_node(
                         default=[],
                     )
                 )
-                sec_in = set(secondary)
+                sec_in = set(secondaries)
                 if not sec_out.issubset(sec_in):
                     raise Exception(
-                        f"An error occurred when connecting '{source.source_dotted()}' to "
-                        f"'{source.finish.id()}.{source.ftag}', there were secondary files in the final node "
+                        f"An error occurred when connecting '{edge.source}' to "
+                        f"'{edge.finish.id()}.{edge.ftag}', there were secondary files in the final node "
                         f"that weren't present in the source: {', '.join(sec_out.difference(sec_in))}"
                     )
 
-        # Edge defaults
-        if not source:
-            # edge but no source, probably a default
-            if not edge.default:
-                Logger.critical(
-                    f"Skipping connection to '{edge.finish}.{edge.ftag}' had no source or default, "
-                    f"please raise an issue as investigation may be required"
-                )
-                continue
+            unwrapped_exp = unwrap_helper(edge.source)
 
-            if isinstance(edge.default, bool):
-                inputs_map[k] = "true" if edge.default else "false"
-            elif isinstance(edge.default, str):
-                inputs_map[k] = f'"{edge.default}"'
-            else:
-                inputs_map[k] = edge.default
-
-        # Scattering on multiple secondary files
-        elif edge in scatterable and secondary:
-            # We're ensured through inheritance and .receiveBy that secondary files will match.
-            ds = source.source_dotted()
-            Logger.log(
-                f"Oh boii, we're gonna have some complicated scattering here with {len(secondary)} secondary file(s)"
-            )
-
-            identifier = scattered_old_to_new_identifier[ds]
-            inputs_map[k] = identifier[0] + "[0]"
-            for idx in range(len(secondary)):
-                sec = secondary[idx]
-                inputs_map[
-                    get_secondary_tag_from_original_tag(k, sec)
-                ] = f"{identifier[0]}[{idx + 1}]"
-
-        else:
-            ds = source.source
             default = None
-            if source and isinstance(source, InputNodeSelector):
-                default = source.input_node.default
+            if isinstance(edge.source, InputNodeSelector):
+                default = unwrap_helper(edge.source.input_node.default)
 
-            has_operator = not isinstance(ds, (InputNodeSelector, StepOutputSelector))
+            is_scattered = unwrapped_exp in scattered_old_to_new_identifier
 
-            if has_operator:
-                if secondary:
-                    raise Exception(
-                        "An operation was performed on an input that expected a secondary file, this behaviour is currently undefined"
+            if is_scattered:
+                unwrapped_exp = scattered_old_to_new_identifier[unwrapped_exp][0]
+
+                for idx in range(len(secondaries)):
+                    # we restrict that files with secondaries can't be operated on in the step input
+                    sec = secondaries[idx]
+                    unwrapped_sources[sec].append(f"{unwrapped_exp}[{idx + 1}]")
+
+                if secondaries:
+                    unwrapped_exp += "[0]"
+            else:
+                for sec in secondaries:
+                    unwrapped_sources[sec].append(
+                        get_secondary_tag_from_original_tag(unwrapped_exp, sec)
                     )
+
                 if default:
-                    Logger.critical(
-                        f"The default '{default}' will not be applied to the map '{inpsourcevalue}' as there are secondary files"
-                    )
-                    default = None
+                    unwrapped_exp = f"select_first([{unwrapped_exp}, {default}])"
 
-            inpsourcevalue = WdlTranslator.unwrap_expression(
-                ds, string_environment=False, stepid=step_identifier
+            unwrapped_sources[None].append(unwrapped_exp)
+
+        should_select_first_element = not (
+            array_input_from_single_source or has_multiple_sources
+        )
+        for tag, value in unwrapped_sources.items():
+            if tag is None:
+                tag = k
+            else:
+                tag = get_secondary_tag_from_original_tag(k, tag)
+
+            inputs_map[tag] = (
+                value[0]
+                if should_select_first_element
+                else "[" + ", ".join(value) + "]"
             )
-
-            if secondary:
-
-                for idx in range(len(secondary)):
-                    sec = secondary[idx]
-                    inputs_map[
-                        get_secondary_tag_from_original_tag(k, sec)
-                    ] = get_secondary_tag_from_original_tag(ds, sec)
-
-            if default:
-                defval = WdlTranslator.unwrap_expression(
-                    default, dottedsource=ds, string_environment=True
-                )
-
-                if isinstance(defval, bool):
-                    defval = "true" if defval else "false"
-
-                inpsourcevalue = f"select_first([{inpsourcevalue}, {defval}])"
-
-            if array_input_from_single_source and not (
-                isinstance(source, StepOutputSelector) and source.node.scatter
-            ):
-                inpsourcevalue = f"[{inpsourcevalue}]"
-                if secondary:
-                    for sec in secondary:
-                        tag = get_secondary_tag_from_original_tag(k, sec)
-                        inputs_map[tag] = f"[{inputs_map[tag]}]"
-
-            inputs_map[k] = inpsourcevalue
 
     inputs_map.update(resource_overrides)
 
@@ -1335,15 +1289,18 @@ def translate_step_node(
 def generate_scatterable_details(
     scatterable: List[StepTagInput], forbiddenidentifiers: Set[str]
 ):
+    # get the reference from a InputNodeSelector or StepOutputSelector
+    get_source = lambda e: WdlTranslator.unwrap_expression(e.source)
 
     # this dictionary is what we're going to use to map our current
     # identifier to the scattered identifier. This step is just the
     # setup, and in the next for loop, we'll
-    scattered_old_to_new_identifier = {
-        k.dotted_source(): (k.dotted_source(), k.source())
-        for k in scatterable
-        if not isinstance(k.dotted_source(), list)
-    }
+    scattered_old_to_new_identifier = {}
+    for k in scatterable:
+        srcs = k.source()
+        for edge in srcs if isinstance(srcs, list) else [srcs]:
+            src = get_source(edge)
+            scattered_old_to_new_identifier[src] = (src, edge.source)
 
     # Make a copy of the forbiddenIds and add the identifiers of the source
     forbiddenidentifierscopy = set(forbiddenidentifiers).union(
@@ -1370,7 +1327,7 @@ def generate_scatterable_details(
             newid = standin + (i) * ".right" + ".left"
             if i == n - 1:
                 newid = standin + (n - 1) * ".right"
-            scattered_old_to_new_identifier[s.dotted_source()] = (
+            scattered_old_to_new_identifier[get_source(s.source())] = (
                 newid,
                 s.source_map[0].source,
             )
@@ -1387,7 +1344,8 @@ def generate_scatterable_details(
                     "Currently, Janis doesn't support operating on a value to be scattered"
                 )
 
-            newid = generate_new_id_from(s, forbiddenidentifierscopy)
+            original_expr = WdlTranslator.unwrap_expression(s.source().source)
+            newid = generate_new_id_from(original_expr, forbiddenidentifierscopy)
             evaluated_operator = WdlTranslator.unwrap_expression(
                 e.source, string_environment=False
             )
@@ -1437,12 +1395,13 @@ def wrap_scatter_call(
         return call
 
     # generate the new source map
+    get_source = lambda e: WdlTranslator.unwrap_expression(e.source)
 
     insource_ar = []
     for s in scatterable:
         secondary = s.finish.tool.inputs_map()[s.ftag].intype.secondary_files()
         if secondary:
-            ds = s.dotted_source()
+            ds = get_source(s.source())
             joined_tags = ", ".join(
                 get_secondary_tag_from_original_tag(ds, sec) for sec in secondary
             )
@@ -1450,8 +1409,8 @@ def wrap_scatter_call(
             insource_ar.append(transformed)
 
         else:
-            (newid, startnode) = scattered_old_to_new_identifier[s.dotted_source()]
-            insource = s.dotted_source()
+            (newid, startnode) = scattered_old_to_new_identifier[get_source(s.source())]
+            insource = get_source(s.source())
             if isinstance(startnode, InputNode) and startnode.default is not None:
                 resolved = WdlTranslator.unwrap_expression(
                     startnode.default, scatterstep=insource
