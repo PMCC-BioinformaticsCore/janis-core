@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from janis_core.operators import InputNodeSelector
 from janis_core.types import Boolean
 
 from janis_core import (
@@ -86,11 +87,10 @@ class TestWorkflow(TestCase):
 
         stp["inputs"] = inp
 
-        e = first_value(stp.sources["inputs"].source_map)
-
-        self.assertEqual(e.start.id(), inp.id())
+        e: Edge = stp.sources["inputs"].source_map[0]
+        input_node: InputNodeSelector = e.source
+        self.assertEqual(input_node.input_node.id(), inp.input_node.id())
         self.assertEqual(e.finish.id(), stp.id())
-        self.assertIsNone(e.stag)
         self.assertEqual(e.ftag, first_value(stp.inputs()).id())
 
     # def test_pipe(self):
@@ -180,7 +180,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(str))
         stp = w.step("stp", SingleTestTool(inputs=w.inp))
 
-        e = first_value(w.stp.sources["inputs"].source_map)
+        e = w.stp.sources["inputs"].source_map[0]
 
         self.assertFalse(e.compatible_types)
 
@@ -219,7 +219,6 @@ class TestWorkflow(TestCase):
         inp = w.input("inp", str)
         stp = w.step("stp", SingleTestTool(inputs=inp))
 
-        e = first_value(w.stp.sources["inputs"].source_map)
         self.assertIsNone(stp.scatter)
 
     def test_add_non_scatter2(self):

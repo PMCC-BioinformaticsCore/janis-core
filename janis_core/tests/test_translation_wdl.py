@@ -532,15 +532,13 @@ class TestWdlGenerateInput(unittest.TestCase):
         tool = TestToolWithSecondaryOutput()
         toolout = tool.outputs()[0]
         inmap = {t.id(): t for t in tool.inputs()}
-        os = wdl.translate_output_node_with_glob(
-            toolout, toolout.glob, inmap, toolId=tool.id()
-        )
+        os = WdlTranslator.translate_tool_outputs([toolout], inmap, toolid=tool.id())
 
         self.assertEqual("out", os[0].name)
-        self.assertEqual('"~{testtool}/out"', os[0].expression)
+        self.assertEqual('(testtool + "/out")', os[0].expression)
 
         self.assertEqual("out_txt", os[1].name)
-        self.assertEqual('"~{testtool}/out.txt"', os[1].expression)
+        self.assertEqual('(testtool + "/out") + ".txt"', os[1].expression)
 
 
 class TestWdlToolInputGeneration(unittest.TestCase):
