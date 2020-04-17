@@ -191,6 +191,9 @@ class InputNodeSelector(Selector):
 
         self.input_node = input_node
 
+    def id(self):
+        return self.input_node.id()
+
     def returntype(self):
         out = first_value(self.input_node.outputs()).outtype
 
