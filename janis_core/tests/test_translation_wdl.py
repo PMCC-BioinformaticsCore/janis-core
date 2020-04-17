@@ -206,7 +206,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
 
         outp = wdl.translate_step_node(stp2, stp2.id(), {}, set())
         self.assertEqual(
-            outp.get_string().split("\n")[3].strip(), f"arrayInp=[{stp1.id()}.std]"
+            f"arrayInp=[{stp1.id()}.std]", outp.get_string().split("\n")[3].strip()
         )
 
 
