@@ -18,7 +18,7 @@ This file is logically structured similar to the cwl equiv:
 
 import json
 from inspect import isclass
-from typing import List, Dict, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple, Optional
 
 import wdlgen as wdl
 from janis_core.types.data_types import is_python_primitive
@@ -371,9 +371,18 @@ class WdlTranslator(TranslatorBase):
         string_environment=False,
         **debugkwargs,
     ):
+        """
+        :param output:
+        :param expression:
+        :param inputsdict:
+        :param string_environment:
+        :param debugkwargs:
+        :return:
+        """
         if isinstance(expression, CustomGlob):
             return expression.expression
         elif isinstance(output.output_type, Stdout) or isinstance(expression, Stdout):
+            # can't get here with secondary_format
             return "stdout()"
         elif isinstance(output.output_type, Stderr) or isinstance(expression, Stderr):
             return "stderr()"
@@ -401,6 +410,7 @@ class WdlTranslator(TranslatorBase):
             return str(expression)
         elif isinstance(expression, StringFormatter):
             return translate_string_formatter_for_output(
+                out=output,
                 selector=expression,
                 inputsdict=inputsdict,
                 string_environment=string_environment,
@@ -419,6 +429,7 @@ class WdlTranslator(TranslatorBase):
 
         elif isinstance(expression, InputSelector):
             return translate_input_selector_for_output(
+                out=output,
                 selector=expression,
                 inputsdict=inputsdict,
                 string_environment=string_environment,
@@ -429,7 +440,11 @@ class WdlTranslator(TranslatorBase):
 
         wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
         unwrap_expression_wrap = lambda exp: cls.unwrap_expression_for_output(
-            exp, inputsdict, string_environment=False, **debugkwargs
+            output=output,
+            expression=exp,
+            inputsdict=inputsdict,
+            string_environment=False,
+            **debugkwargs,
         )
 
         if isinstance(expression, (StepOutputSelector, InputNodeSelector)):
@@ -488,13 +503,69 @@ class WdlTranslator(TranslatorBase):
         outs: List[wdl.Output] = []
 
         for o in tooloutputs:
+            wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
             expression = cls.unwrap_expression_for_output(
                 o, o.glob, inputsdict=inputsmap, toolid=toolid
             )
-            wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
-            outputs = [wdl.Output(wdl_type, o.id(), expression)]
+            outs.append(wdl.Output(wdl_type, o.id(), expression))
+            outs.extend(
+                cls.prepare_secondary_tool_outputs(
+                    out=o, original_expression=o.glob, expression=expression
+                )
+            )
 
-            outs.extend(outputs)
+        return outs
+
+    @classmethod
+    def prepare_secondary_tool_outputs(
+        cls, out: ToolOutput, original_expression: any, expression: str
+    ) -> List[wdl.Output]:
+        if not (
+            isinstance(out.output_type, File) and out.output_type.secondary_files()
+        ):
+            return []
+
+        if (
+            isinstance(out.output_type, Array)
+            and isinstance(out.output_type.subtype(), File)
+            and out.output_type.subtype().secondary_files()
+        ):
+            if isinstance(original_expression, WildcardSelector):
+                # do custom override for wildcard selector
+                ftype = out.output_type.subtype().wdl()
+                return [
+                    wdl.Output(
+                        ftype,
+                        get_secondary_tag_from_original_tag(out.id(), s),
+                        translate_wildcard_selector(original_expression, s),
+                    )
+                    for s in out.output_type.subtype().secondary_files()
+                ]
+            raise Exception(
+                "Janis isn't sure how to collect secondary files for an array yet"
+            )
+
+        outs = []
+        if isinstance(out.output_type, File) and out.output_type.secondary_files():
+            # eep we have secondary files
+            ftype = out.output_type.wdl()
+            for s in out.output_type.secondary_files():
+                tag = get_secondary_tag_from_original_tag(out.id(), s)
+                if "^" not in s:
+                    sout = wdl.Output(ftype, tag, expression + f' + "{s}"')
+                else:
+                    sout = wdl.Output(
+                        ftype,
+                        tag,
+                        'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+                            inp=expression,
+                            old_ext=out.output_type.extension,
+                            new_ext=s.replace("^", ""),
+                        ),
+                    )
+
+                outs.append(sout)
+
         return outs
 
     @classmethod
@@ -874,9 +945,13 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
 
 
 def translate_input_selector_for_output(
-    out, selector: InputSelector, inputsdict: Dict[str, ToolInput], **debugkwargs
+    out: ToolOutput,
+    selector: InputSelector,
+    inputsdict: Dict[str, ToolInput],
+    string_environment=False,
+    **debugkwargs,
 ) -> List[wdl.Output]:
-    base_expression = translate_input_selector(
+    expression = translate_input_selector(
         selector, inputsdict, string_environment=False, **debugkwargs
     )
 
@@ -885,49 +960,65 @@ def translate_input_selector_for_output(
         raise Exception(
             f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
         )
-    use_basename = (
-        tool_in.localise_file
-        or isinstance(selector, InputSelector)
-        and selector.use_basename
+
+    return expression
+
+
+def translate_input_selector_for_secondary_output(
+    out: ToolOutput,
+    selector: InputSelector,
+    inputsdict: Dict[str, ToolInput],
+    **debugkwargs,
+) -> List[wdl.Output]:
+    expression = translate_input_selector(
+        selector, inputsdict, string_environment=False, **debugkwargs
     )
-    expression = base_expression if not use_basename else f"basename({base_expression})"
 
-    outputs = [wdl.Output(out.output_type.wdl(), out.id(), expression)]
-    for s in value_or_default(out.output_type.secondary_files(), []):
-        sec_expression = None
-        if "^" not in s:
-            # do stuff here
-            sec_expression = f'({expression}) + "{s.replace("^", "")}"'
-
-        elif isinstance(tool_in.input_type, Filename) and tool_in.input_type.extension:
-            # use the wdl function: sub
-            sec_expression = 'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                inp=expression,
-                old_ext=tool_in.input_type.extension,
-                new_ext=s.replace("^", ""),
-            )
-
-        elif (
-            File().can_receive_from(tool_in.input_type)
-            and isinstance(tool_in.input_type, File)
-            and tool_in.input_type.extension
-        ):
-            # use basename
-            sec_expression = f'basename({expression}, "{tool_in.input_type.extension}") + "{s.replace("^", "")}"'
-
-        outputs.append(
-            wdl.Output(
-                out.output_type.wdl(),
-                get_secondary_tag_from_original_tag(out.id(), s),
-                sec_expression,
-            )
+    tool_in = inputsdict.get(selector.input_to_select)
+    if not tool_in:
+        raise Exception(
+            f"The InputSelector for tool '{debugkwargs}.{out.id()}' did not select an input (tried: '{selector.input_to_select}')"
         )
-    return outputs
+
+    return expression
+
+    #
+    # outputs = [wdl.Output(out.output_type.wdl(), out.id(), expression)]
+    # for s in value_or_default(out.output_type.secondary_files(), []):
+    #     sec_expression = None
+    #     if "^" not in s:
+    #         # do stuff here
+    #         sec_expression = f'({expression}) + "{s.replace("^", "")}"'
+    #
+    #     elif isinstance(tool_in.input_type, Filename) and tool_in.input_type.extension:
+    #         # use the wdl function: sub
+    #         sec_expression = 'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+    #             inp=expression,
+    #             old_ext=tool_in.input_type.extension,
+    #             new_ext=s.replace("^", ""),
+    #         )
+    #
+    #     elif (
+    #         File().can_receive_from(tool_in.input_type)
+    #         and isinstance(tool_in.input_type, File)
+    #         and tool_in.input_type.extension
+    #     ):
+    #         # use basename
+    #         sec_expression = f'basename({expression}, "{tool_in.input_type.extension}") + "{s.replace("^", "")}"'
+    #
+    #     outputs.append(
+    #         wdl.Output(
+    #             out.output_type.wdl(),
+    #             get_secondary_tag_from_original_tag(out.id(), s),
+    #             sec_expression,
+    #         )
+    #     )
+    # return outputs
 
 
 def translate_string_formatter_for_output(
     out, selector: StringFormatter, inputsdict: Dict[str, ToolInput], **debugkwargs
-) -> List[wdl.Output]:
+) -> str:
     """
     The output glob was a string formatter, so we'll need to build the correct glob
     by resolving the string formatter. Some minor complications involve how an output
@@ -949,113 +1040,115 @@ def translate_string_formatter_for_output(
         if not any(isinstance(v, t) for t in StringFormatter.resolved_types)
     }
 
-    has_secondary_files = bool(out.output_type.secondary_files())
-
-    if not has_secondary_files:
-        resolved_kwargs = {
-            **selector.kwargs,
-            **{
-                k: WdlTranslator.unwrap_expression(
-                    v, inputsdict=inputsdict, string_environment=True, **debugkwargs
-                )
-                for k, v in inputs_to_retranslate.items()
-            },
-        }
-
-        resolved_exp = selector.resolve_with_resolved_values(**resolved_kwargs)
-        return [
-            wdl.Output(
-                data_type=out.output_type.wdl(),
-                name=out.id(),
-                expression=f'"{resolved_exp}"',
+    resolved_kwargs = {
+        **selector.kwargs,
+        **{
+            k: WdlTranslator.unwrap_expression(
+                v, inputsdict=inputsdict, string_environment=True, **debugkwargs
             )
-        ]
+            for k, v in inputs_to_retranslate.items()
+        },
+    }
 
-    translated_inputs = {}
-    input_selectors_with_secondaries = {}
+    return f'"{selector.resolve_with_resolved_values(**resolved_kwargs)}"'
 
-    for k, v in inputs_to_retranslate.items():
-
-        if has_secondary_files and isinstance(v, InputSelector):
-            # Handle input selector separately
-            input_selectors_with_secondaries[k] = v
-
-        translated_inputs[k] = WdlTranslator.unwrap_expression(
-            v, inputsdict=inputsdict, string_environment=True, **debugkwargs
-        )
-
-    if len(input_selectors_with_secondaries) > 1:
-        invalid_keys = ", ".join(input_selectors_with_secondaries.keys())
-        raise Exception(
-            f"There might be an error when building the string formatter for output '{out.id()}', the "
-            f"values to replace for the keys ({invalid_keys}) each which "
-            f"had secondary files. This behaviour is currently undefined."
-        )
-    else:
-
-        inputsel_key = next(iter(input_selectors_with_secondaries.keys()))
-        inputsel = input_selectors_with_secondaries[inputsel_key]
-
-        tool_in = inputsdict.get(inputsel.input_to_select)
-
-    expression = selector.resolve_with_resolved_values(
-        **{**selector.kwargs, **translated_inputs}
-    )
-
-    outputs = [wdl.Output(out.output_type.wdl(), out.id(), f'"{expression}"')]
-    for s in value_or_default(out.output_type.secondary_files(), []):
-        sec_expression = None
-        if "^" not in s:
-            # do stuff here
-            sec_expression = expression + s
-
-        elif tool_in:
-            if isinstance(tool_in.input_type, Filename):
-                if not tool_in.input_type.extension:
-                    raise Exception(
-                        f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
-                        f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
-                        f"WDL translation. You will to annotate the input with an extension Filename(extension=)"
-                    )
-
-                # use the wdl function: sub
-                sec_expression = '~{sub({inp}, "\\\\{old_ext}$", "{new_ext}")}'.format(
-                    inp=expression,
-                    old_ext=tool_in.input_type.extension,
-                    new_ext=s.replace("^", ""),
-                )
-
-            elif File().can_receive_from(tool_in.input_type):
-                if not tool_in.input_type.extension:
-                    raise Exception(
-                        f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
-                        f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
-                        f"WDL translation. When creating an instance of the {tool_in.input_type.__name__} class, "
-                        f"it's possible to annotate an extension. For example, the Zip filetype is going to "
-                        f'have the .zip extension, so could be initialised with Zip(extension=".zip"'
-                    )
-                # use basename
-                replaced_s = s.replace("^", "")
-                sec_expression = f'basename({tool_in.id()}, "{tool_in.input_type.extension}") + "{replaced_s}"'
-            else:
-                raise Exception(
-                    f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
-                    f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
-                    f"WDL translation. Extra handling in 'wdl.translate_string_formatter_for_output' may be"
-                    f"required for the '{tool_in.input_type.__name__}' type might be required."
-                )
-        else:
-            sec_expression = apply_secondary_file_format_to_filename(expression, s)
-
-        outputs.append(
-            wdl.Output(
-                out.output_type.wdl(),
-                get_secondary_tag_from_original_tag(out.id(), s),
-                f'"{sec_expression}"',
-            )
-        )
-
-    return outputs
+    # if not has_secondary_files:
+    #
+    #
+    #     resolved_exp =
+    #     return [
+    #         wdl.Output(
+    #             data_type=out.output_type.wdl(),
+    #             name=out.id(),
+    #             expression=f'"{resolved_exp}"',
+    #         )
+    #     ]
+    #
+    # translated_inputs = {}
+    # input_selectors_with_secondaries = {}
+    #
+    # for k, v in inputs_to_retranslate.items():
+    #
+    #     if has_secondary_files and isinstance(v, InputSelector):
+    #         # Handle input selector separately
+    #         input_selectors_with_secondaries[k] = v
+    #
+    #     translated_inputs[k] = WdlTranslator.unwrap_expression(
+    #         v, inputsdict=inputsdict, string_environment=True, **debugkwargs
+    #     )
+    #
+    # if len(input_selectors_with_secondaries) > 1:
+    #     invalid_keys = ", ".join(input_selectors_with_secondaries.keys())
+    #     raise Exception(
+    #         f"There might be an error when building the string formatter for output '{out.id()}', the "
+    #         f"values to replace for the keys ({invalid_keys}) each which "
+    #         f"had secondary files. This behaviour is currently undefined."
+    #     )
+    # else:
+    #
+    #     inputsel_key = next(iter(input_selectors_with_secondaries.keys()))
+    #     inputsel = input_selectors_with_secondaries[inputsel_key]
+    #
+    #     tool_in = inputsdict.get(inputsel.input_to_select)
+    #
+    # expression = selector.resolve_with_resolved_values(
+    #     **{**selector.kwargs, **translated_inputs}
+    # )
+    #
+    # outputs = [wdl.Output(out.output_type.wdl(), out.id(), f'"{expression}"')]
+    # for s in value_or_default(out.output_type.secondary_files(), []):
+    #     sec_expression = None
+    #     if "^" not in s:
+    #         # do stuff here
+    #         sec_expression = expression + s
+    #
+    #     elif tool_in:
+    #         if isinstance(tool_in.input_type, Filename):
+    #             if not tool_in.input_type.extension:
+    #                 raise Exception(
+    #                     f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
+    #                     f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
+    #                     f"WDL translation. You will to annotate the input with an extension Filename(extension=)"
+    #                 )
+    #
+    #             # use the wdl function: sub
+    #             sec_expression = '~{sub({inp}, "\\\\{old_ext}$", "{new_ext}")}'.format(
+    #                 inp=expression,
+    #                 old_ext=tool_in.input_type.extension,
+    #                 new_ext=s.replace("^", ""),
+    #             )
+    #
+    #         elif File().can_receive_from(tool_in.input_type):
+    #             if not tool_in.input_type.extension:
+    #                 raise Exception(
+    #                     f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
+    #                     f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
+    #                     f"WDL translation. When creating an instance of the {tool_in.input_type.__name__} class, "
+    #                     f"it's possible to annotate an extension. For example, the Zip filetype is going to "
+    #                     f'have the .zip extension, so could be initialised with Zip(extension=".zip"'
+    #                 )
+    #             # use basename
+    #             replaced_s = s.replace("^", "")
+    #             sec_expression = f'basename({tool_in.id()}, "{tool_in.input_type.extension}") + "{replaced_s}"'
+    #         else:
+    #             raise Exception(
+    #                 f"Unsure how to handle secondary file '{s}' as it uses the escape characater '^' but"
+    #                 f"Janis can't determine the extension of the input '{tool_in.id()} to replace in the "
+    #                 f"WDL translation. Extra handling in 'wdl.translate_string_formatter_for_output' may be"
+    #                 f"required for the '{tool_in.input_type.__name__}' type might be required."
+    #             )
+    #     else:
+    #         sec_expression = apply_secondary_file_format_to_filename(expression, s)
+    #
+    #     outputs.append(
+    #         wdl.Output(
+    #             out.output_type.wdl(),
+    #             get_secondary_tag_from_original_tag(out.id(), s),
+    #             f'"{sec_expression}"',
+    #         )
+    #     )
+    #
+    # return outputs
 
 
 def translate_step_node(
@@ -1576,12 +1669,19 @@ def translate_input_selector(
 #     return translate_input_selector(selector, inputsdict, string_environment=string_environment)
 
 
-def translate_wildcard_selector(selector: WildcardSelector):
+def translate_wildcard_selector(
+    selector: WildcardSelector, secondary_format: Optional[str] = None
+):
     if not selector.wildcard:
         raise Exception(
-            "No wildcard was selected for wildcard selector: " + str(selector)
+            "No wildcard was provided for wildcard selector: " + str(selector)
         )
-    return f'glob("{selector.wildcard}")'
+
+    wildcard = selector.wildcard
+    if secondary_format:
+        wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
+
+    return f'glob("{wildcard}")'
 
 
 ## HELPER METHODS
@@ -1631,7 +1731,7 @@ def build_aliases(steps2):
     return tool_name_to_alias, steps_to_alias
 
 
-def get_secondary_tag_from_original_tag(original, secondary):
+def get_secondary_tag_from_original_tag(original, secondary) -> str:
     secondary_without_punctuation = secondary.replace(".", "").replace("^", "")
     return original + "_" + secondary_without_punctuation
 
