@@ -10,6 +10,15 @@ class Operator(Selector, ABC):
     def __init__(self, *args):
         self.args: List[Union[Selector, any]] = list(args)
 
+    def get_leaves(self):
+        leaves = []
+        for a in self.args:
+            if isinstance(a, Operator):
+                leaves.extend(a.get_leaves())
+            else:
+                leaves.append(a)
+        return leaves
+
     @abstractmethod
     def argtypes(self) -> List[DataType]:
         pass
