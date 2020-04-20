@@ -184,12 +184,14 @@ class InputSelector(Selector):
 
 class InputNodeSelector(Selector):
     def __init__(self, input_node):
+        from janis_core.workflow.workflow import InputNode
+
         if input_node.node_type != 1:  # input
             raise Exception(
                 f"Error when creating InputOperator, '{input_node.id()}' was not an input node"
             )
 
-        self.input_node = input_node
+        self.input_node: InputNode = input_node
 
     def id(self):
         return self.input_node.id()
