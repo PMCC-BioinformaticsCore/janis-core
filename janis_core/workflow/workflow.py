@@ -500,6 +500,9 @@ class Workflow(Tool):
 
             return InputSelector(out.identifier)
 
+        if isinstance(out, InputNodeSelector):
+            return InputSelector(out.input_node.id())
+
         if isinstance(out, InputSelector):
             keys = set(self.input_nodes.keys())
             if out.input_to_select not in keys:
@@ -509,7 +512,7 @@ class Workflow(Tool):
                 )
             return out
 
-        raise Exception(f"Invalidate type for {outtype}: {out.__class__.__name__}")
+        raise Exception(f"Invalid type for {outtype}: {out.__class__.__name__}")
 
     def step(
         self,
