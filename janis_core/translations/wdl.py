@@ -1468,9 +1468,10 @@ def translate_string_formatter(
     if len(invalid_select_inputs) > 0:
         tags = ", ".join(f"'{k[0]}'" for k in invalid_select_inputs)
         inps = ", ".join(f"'{k[1]}'" for k in invalid_select_inputs)
-        raise Exception(
-            f'There was an error when resolving the format "{selector._format}", the tag(s) {tags} respectively '
-            f"selected input(s) {inps} that were optional and did NOT have a default value."
+        Logger.warn(
+            f'There might be an error when resolving the format "{selector._format}", the tag(s) {tags} respectively '
+            f"selected input(s) {inps} that were optional and did NOT have a default value. This might be okay if "
+            f"{tags} was wrapped in a IfDefined operator"
         )
 
     value = selector.resolve_with_resolved_values(
