@@ -1149,12 +1149,12 @@ def translate_step_node(
     #       fieldName: sourceCall.Output
 
     inputs_map = {}
-    for k in ins:
+    for k, inp in ins.items():
         if k not in node.sources:
             continue
 
         steptag_input: StepTagInput = node.sources[k]
-        intype = steptag_input.finish.inputs()[steptag_input.ftag].intype
+        intype = inp.intype
         src: Edge = steptag_input.source()  # potentially single item or array
 
         ar_source = src if isinstance(src, list) else [src]
