@@ -396,11 +396,12 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         arg = translated.command[-1].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 
-    def test_string_formatter_optional_inpselect_no_default(self):
-        # will throw
-        ti = {"ti": ToolInput("ti", String(optional=True))}
-        b = StringFormatter("{place} michael", place=InputSelector("ti"))
-        self.assertRaises(Exception, wdl.WdlTranslator.unwrap_expression, b, ti)
+    # test removed as optional placeholders don't throw errors anymore
+    # def test_string_formatter_optional_inpselect_no_default(self):
+    #     # will throw
+    #     ti = {"ti": ToolInput("ti", String(optional=True))}
+    #     b = StringFormatter("{place} michael", place=InputSelector("ti"))
+    #     self.assertRaises(Exception, wdl.WdlTranslator.unwrap_expression, b, ti)
 
     def test_string_formatter_optional_inpselect_with_default(self):
         ti = {"ti": ToolInput("ti", String(optional=True), default="hi")}
