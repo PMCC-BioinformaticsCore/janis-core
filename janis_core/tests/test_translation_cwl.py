@@ -392,7 +392,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         tinp = cwl.translate_workflow_input(inp)
 
         self.assertEqual("File", tinp.type)
-        self.assertListEqual([".txt"], tinp.secondaryFiles)
+        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
 
 
 # PUT RIGHT HERE
