@@ -21,7 +21,12 @@ from janis_core import (
     Boolean,
     Int,
 )
-from janis_core.tests.testtools import SingleTestTool
+from janis_core.tests.testtools import (
+    SingleTestTool,
+    TestToolWithSecondaryInput,
+    TestTypeWithSecondary,
+    TestTypeWithNonEscapedSecondary,
+)
 from janis_core.translations import WdlTranslator
 from janis_core.operators.selectors import CpuSelector, StringFormatter
 
@@ -115,18 +120,6 @@ class TestToolWithSecondaryOutput(TestTool):
                 glob=InputSelector("testtool") + "/out",
             )
         ]
-
-
-class TestTypeWithSecondary(File):
-    @staticmethod
-    def secondary_files():
-        return ["^.txt"]
-
-
-class TestTypeWithNonEscapedSecondary(File):
-    @staticmethod
-    def secondary_files():
-        return [".txt"]
 
 
 class TestWdl(unittest.TestCase):
@@ -933,3 +926,13 @@ class TestLinkStatements(unittest.TestCase):
         )
 
         Tool.translate("wdl")
+
+
+class TestWdlSecondaryTranslation(unittest.TestCase):
+    def test_secondary_connection(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("ref", TestTypeWithSecondary)
+
+        wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref))
+
+        trans = wf.translate("wdl")

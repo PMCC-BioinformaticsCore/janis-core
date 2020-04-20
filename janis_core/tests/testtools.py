@@ -36,6 +36,26 @@ class EchoTestTool(CommandTool):
         return "TEST"
 
 
+class CatTestTool(CommandTool):
+    def tool(self) -> str:
+        return "CatTestTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "cat"
+
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", File, position=0)]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
 class SingleTestTool(CommandTool):
     @staticmethod
     def tool():
@@ -143,7 +163,18 @@ class TestToolWithSecondaryOutput(TestTool):
         ]
 
 
+class TestToolWithSecondaryInput(CatTestTool):
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", TestTypeWithSecondary, position=0)]
+
+
 class TestTypeWithSecondary(File):
+    @staticmethod
+    def secondary_files():
+        return ["^.txt"]
+
+
+class TestTypeWithNonEscapedSecondary(File):
     @staticmethod
     def secondary_files():
         return [".txt"]
