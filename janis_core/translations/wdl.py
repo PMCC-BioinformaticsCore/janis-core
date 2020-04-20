@@ -21,7 +21,7 @@ from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
 import wdlgen as wdl
-from janis_core.types import get_instantiated_type
+from janis_core.types import get_instantiated_type, DataType
 
 from janis_core.types.data_types import is_python_primitive
 
@@ -1045,11 +1045,9 @@ def validate_step_with_multiple_sources(node, edge, k, input_name_maps):
 
     unique_types = set()
     for x in edge.source():
-        t: TOutput = (
-            first_value(x.start.outputs()) if not x.stag else x.start.outputs()[x.stag]
-        )
+        t: DataType = x.source.returntype()
+        unique_types.update(t.secondary_files() or [])
 
-        unique_types.update(t.outtype.secondary_files() or [""])
     if len(unique_types) > 1:
         multiple_sources_failure_reasons.append(
             f"has {len(unique_types)} different DataTypes with varying secondaries"
@@ -1188,7 +1186,11 @@ def translate_step_node(
 
         # Checks over, let's continue!
 
-        secondaries = intype.secondary_files() or []
+        secondaries = (
+            intype.secondary_files()
+            if not isinstance(intype, Array)
+            else intype.subtype().secondary_files()
+        ) or []
         # place to put the processed_sources:
         #   Key=None is for the regular input
         #   Key=$sec_tag is for each secondary file
@@ -1217,7 +1219,7 @@ def translate_step_node(
                     )
                 )
                 sec_in = set(secondaries)
-                if not sec_out.issubset(sec_in):
+                if not sec_in.issubset(sec_out):
                     raise Exception(
                         f"An error occurred when connecting '{edge.source}' to "
                         f"'{edge.finish.id()}.{edge.ftag}', there were secondary files in the final node "
@@ -1289,6 +1291,9 @@ def translate_step_node(
 def generate_scatterable_details(
     scatterable: List[StepTagInput], forbiddenidentifiers: Set[str]
 ):
+    if not scatterable:
+        return {}
+
     # get the reference from a InputNodeSelector or StepOutputSelector
     get_source = lambda e: WdlTranslator.unwrap_expression(e.source)
 
