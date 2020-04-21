@@ -650,7 +650,7 @@ all_types = [
 
 def get_from_python_type(dt, optional: bool = None, overrider=None):
     if dt is None:
-        return None
+        return Boolean(optional=True)
 
     bc = overrider or get_instantiated_type
     typedt = type(dt)

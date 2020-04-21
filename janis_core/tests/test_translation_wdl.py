@@ -2,7 +2,7 @@ import unittest
 from typing import List, Dict, Any, Optional
 
 import wdlgen
-from janis_core.operators.logical import IfThisOrElse, IsDefined
+from janis_core.operators.logical import If, IsDefined
 
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
@@ -978,8 +978,8 @@ workflow TestWorkflowWithStepInputExpression {
             "print",
             ArrayTestTool(
                 inputs=[
-                    IfThisOrElse(IsDefined(wf.inp1), wf.inp1, "default1"),
-                    IfThisOrElse(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
+                    If(IsDefined(wf.inp1), wf.inp1, "default1"),
+                    If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
             ),
         ),

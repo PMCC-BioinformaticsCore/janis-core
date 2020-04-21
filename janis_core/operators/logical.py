@@ -56,7 +56,7 @@ class IsDefined(Operator, ABC):
         return f"defined({arg})"
 
 
-class IfThisOrElse(Operator, ABC):
+class If(Operator, ABC):
     def __init__(self, condition, value_if_true, value_if_false):
         super().__init__(condition, value_if_true, value_if_false)
 

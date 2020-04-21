@@ -82,7 +82,7 @@ class TestIfOrElseOperator(unittest.TestCase):
     def test_if(self):
         wf = WorkflowBuilder("wf")
         wf.input("inp", int)
-        op = IfThisOrElse(wf.inp > 5, wf.inp, -1)
+        op = If(wf.inp > 5, wf.inp, -1)
         self.assertEqual("(inputs.inp > 5) ? inputs.inp : -1", str(op))
 
 
@@ -122,9 +122,7 @@ class TestMixedOperators(unittest.TestCase):
 
         wf.step(
             "echo",
-            EchoTestTool(
-                inp="Hello, " + IfThisOrElse(IsDefined(wf.inp), wf.inp, ", Michael!")
-            ),
+            EchoTestTool(inp="Hello, " + If(IsDefined(wf.inp), wf.inp, ", Michael!")),
         )
 
         wf.output("out", source=wf.echo)

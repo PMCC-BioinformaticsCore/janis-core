@@ -1,7 +1,7 @@
 import unittest
 from typing import List, Dict, Any, Optional
 
-from janis_core.operators.logical import IfThisOrElse, IsDefined
+from janis_core.operators.logical import If, IsDefined
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -201,7 +201,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_input_value_none_codeenv(self):
         self.assertEqual(
-            None, cwl.CwlTranslator.unwrap_expression(None, code_environment=True)
+            "null", cwl.CwlTranslator.unwrap_expression(None, code_environment=True)
         )
 
     def test_input_value_none_nocodeenv(self):
@@ -527,8 +527,8 @@ class TestCWLCompleteOperators(unittest.TestCase):
             "print",
             ArrayTestTool(
                 inputs=[
-                    IfThisOrElse(IsDefined(wf.inp1), wf.inp1, "default1"),
-                    IfThisOrElse(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
+                    If(IsDefined(wf.inp1), wf.inp1, "default1"),
+                    If(IsDefined(wf.inp2), wf.inp2 + "_suffix", None),
                 ]
             ),
         ),
@@ -536,7 +536,6 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.output("out", source=wf.print)
 
         ret, _, _ = wf.translate("cwl", allow_empty_container=True)
-
         self.assertEqual(cwl_arraystepinput, ret)
 
 
@@ -678,7 +677,7 @@ steps:
       inputs:
         id: inputs
         valueFrom: |-
-          $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
+          $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : null])
     run: tools/ArrayStepTool.cwl
     out:
     - outs

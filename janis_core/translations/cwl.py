@@ -578,6 +578,8 @@ return {out_capture}
         cls, value, code_environment=True, selector_override=None, **debugkwargs
     ):
         if value is None:
+            if code_environment:
+                return "null"
             return None
 
         if isinstance(value, list):

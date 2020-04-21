@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional, Union
 
-from janis_core.operators.logical import IfThisOrElse, IsDefined
+from janis_core.operators.logical import If, IsDefined
 
 from janis_core import (
     ToolOutput,
@@ -227,9 +227,7 @@ class TestWorkflowWithStepInputExpression(Workflow):
         self.step(
             "print",
             EchoTestTool(
-                inp=IfThisOrElse(
-                    IsDefined(self.mystring), self.mystring, self.mystring_backup
-                )
+                inp=If(IsDefined(self.mystring), self.mystring, self.mystring_backup)
             ),
         )
 
