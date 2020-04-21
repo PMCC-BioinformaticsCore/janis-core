@@ -105,7 +105,7 @@ class ArrayTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inputs", Array(String()))]
+        return [ToolInput("inputs", Array(String()), position=1)]
 
     def outputs(self):
         return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]

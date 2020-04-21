@@ -1,6 +1,7 @@
 import unittest
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
+from janis_core.operators.logical import IfThisOrElse, IsDefined
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -517,6 +518,27 @@ class TestCompleteOperators(unittest.TestCase):
         )
         self.assertEqual(cwl_stepinput, ret)
 
+    def test_array_step_input(self):
+        wf = WorkflowBuilder("cwl_test_array_step_input")
+        wf.input("inp1", Optional[str])
+        wf.input("inp2", Optional[str])
+
+        wf.step(
+            "print",
+            ArrayTestTool(
+                inputs=[
+                    IfThisOrElse(IsDefined(wf.inp1), wf.inp1, "default1"),
+                    IfThisOrElse(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
+                ]
+            ),
+        ),
+
+        wf.output("out", source=wf.print)
+
+        ret, _, _ = wf.translate("cwl", allow_empty_container=True)
+
+        self.assertEqual(cwl_arraystepinput, ret)
+
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
@@ -616,4 +638,49 @@ steps:
     out:
     - out
 id: TestWorkflowWithStepInputExpression
+"""
+
+cwl_arraystepinput = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+requirements:
+  InlineJavascriptRequirement: {}
+  MultipleInputFeatureRequirement: {}
+  StepInputExpressionRequirement: {}
+inputs:
+  inp1:
+    id: inp1
+    type:
+    - string
+    - 'null'
+  inp2:
+    id: inp2
+    type:
+    - string
+    - 'null'
+outputs:
+  out:
+    id: out
+    type:
+      type: array
+      items: File
+    outputSource: print/outs
+steps:
+  print:
+    in:
+      _print_inputs_inp1:
+        id: _print_inputs_inp1
+        source: inp1
+      _print_inputs_inp2:
+        id: _print_inputs_inp2
+        source: inp2
+      inputs:
+        id: inputs
+        valueFrom: |-
+          $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
+    run: tools/ArrayStepTool.cwl
+    out:
+    - outs
+id: cwl_test_array_step_input
 """

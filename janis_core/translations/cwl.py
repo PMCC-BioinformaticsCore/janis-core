@@ -584,7 +584,10 @@ return {out_capture}
             toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
             inner = ", ".join(
                 cls.unwrap_expression(
-                    value[i], code_environment=True, tool_id=toolid + "." + str(i)
+                    value[i],
+                    code_environment=True,
+                    selector_override=selector_override,
+                    tool_id=toolid + "." + str(i),
                 )
                 for i in range(len(value))
             )
