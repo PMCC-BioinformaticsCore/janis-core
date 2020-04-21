@@ -1,5 +1,25 @@
+from janis_core.types import UnionType
+
 from janis_core.types.common_data_types import String, Array, AnyType
 from janis_core.operators.operator import Operator
+
+
+class JoinOperator(Operator):
+    def argtypes(self):
+        return [Array(UnionType(AnyType)), String]
+
+    def returntype(self):
+        return String
+
+    def to_wdl(self, unwrap_operator, *args):
+        raise Exception("This functionality doesn't fully work yet")
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+
+        return f"'~{{sep={separator} {iterable}}}'"
+
+    def to_cwl(self, unwrap_operator, *args):
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+        return f"{iterable}.join({separator})"
 
 
 class BasenameOperator(Operator):
