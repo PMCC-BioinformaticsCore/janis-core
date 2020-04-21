@@ -10,6 +10,8 @@ class Operator(Selector, ABC):
     def __init__(self, *args):
         self.args: List[Union[Selector, any]] = list(args)
 
+        self.validate()
+
     def get_leaves(self):
         leaves = []
         for a in self.args:
@@ -23,7 +25,7 @@ class Operator(Selector, ABC):
     def argtypes(self) -> List[DataType]:
         pass
 
-    def validate(self):
+    def validate(self, perform_typecheck=False):
         args = self.args
         argtypes = self.argtypes()
 
@@ -39,17 +41,19 @@ class Operator(Selector, ABC):
             )
 
         errors = []
-        for i in range(len(args)):
-            expected = get_instantiated_type(argtypes[i])
-            received_arg = args[i]
-            if isinstance(received_arg, Selector):
-                received = get_instantiated_type(args[i].returntype())
-            else:
-                received = get_instantiated_type(received_arg)
-            if not expected.can_receive_from(received):
-                errors.append(
-                    f"argument {i+1} '{received.id()}' was incompatible with the expected {expected.id()}"
-                )
+
+        if perform_typecheck:
+            for i in range(len(args)):
+                expected = get_instantiated_type(argtypes[i])
+                received_arg = args[i]
+                if isinstance(received_arg, Selector):
+                    received = get_instantiated_type(args[i].returntype())
+                else:
+                    received = get_instantiated_type(received_arg)
+                if not expected.can_receive_from(received):
+                    errors.append(
+                        f"argument {i+1} '{received.id()}' was incompatible with the expected {expected.id()}"
+                    )
 
         if errors:
             singularprefix = "were errors" if len(errors) != 1 else "was an error"
