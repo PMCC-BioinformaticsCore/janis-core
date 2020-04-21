@@ -1,4 +1,6 @@
-from janis_core.types import String
+from typing import Optional
+
+from janis_core.types import String, AnyType
 from janis_core.operators.logical import Operator, AddOperator
 from janis_core.utils.bracketmatching import get_keywords_between_braces
 from janis_core.utils.errors import (
@@ -13,6 +15,9 @@ from janis_core.utils.logger import Logger
 class StringFormatter(Operator):
     def returntype(self):
         return String()
+
+    def argtypes(self):
+        return [String, Optional[AnyType]]
 
     def __init__(self, format: str, **kwargs):
         self._format: str = format
@@ -42,6 +47,12 @@ class StringFormatter(Operator):
         self.kwargs = kwargs
 
     resolved_types = [str, int, float]
+
+    def to_cwl(self, unwrap_operator, *args):
+        raise Exception("Don't use this method")
+
+    def to_wdl(self, unwrap_operator, *args):
+        raise Exception("Don't use this method")
 
     def resolve_with_resolved_values(self, **resolved_values):
 
