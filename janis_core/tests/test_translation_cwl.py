@@ -8,6 +8,7 @@ from janis_core.tests.testtools import (
     TestTool,
     TestToolWithSecondaryOutput,
     TestTypeWithSecondary,
+    TestWorkflowWithStepInputExpression,
 )
 
 import cwlgen
@@ -508,6 +509,15 @@ class TestPackedWorkflow(unittest.TestCase):
         print(CwlTranslator.stringify_translated_workflow(c))
 
 
+class TestCompleteOperators(unittest.TestCase):
+    def test_step_input(self):
+
+        ret, _, _ = TestWorkflowWithStepInputExpression().translate(
+            "cwl", to_console=False
+        )
+        self.assertEqual(cwl_stepinput, ret)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
@@ -563,4 +573,47 @@ steps:
     out:
     - outs
 id: test_add_single_to_array_edge
+"""
+
+cwl_stepinput = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+label: 'TEST: WorkflowWithStepInputExpression'
+requirements:
+  InlineJavascriptRequirement: {}
+  StepInputExpressionRequirement: {}
+inputs:
+  mystring:
+    id: mystring
+    type:
+    - string
+    - 'null'
+  mystring_backup:
+    id: mystring_backup
+    type:
+    - string
+    - 'null'
+outputs:
+  out:
+    id: out
+    type: File
+    outputSource: print/out
+steps:
+  print:
+    in:
+      _print_inp_mystring:
+        id: _print_inp_mystring
+        source: mystring
+      _print_inp_mystringbackup:
+        id: _print_inp_mystringbackup
+        source: mystring_backup
+      inp:
+        id: inp
+        valueFrom: |-
+          $((inputs._print_inp_mystring != null) ? inputs._print_inp_mystring : inputs._print_inp_mystringbackup)
+    run: tools/EchoTestTool.cwl
+    out:
+    - out
+id: TestWorkflowWithStepInputExpression
 """

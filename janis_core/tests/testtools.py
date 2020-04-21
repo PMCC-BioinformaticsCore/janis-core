@@ -1,4 +1,7 @@
 from typing import Dict, List, Any, Optional, Union
+
+from janis_core.operators.logical import IfThisOrElse, IsDefined
+
 from janis_core import (
     ToolOutput,
     ToolInput,
@@ -13,6 +16,7 @@ from janis_core import (
     ToolArgument,
     InputDocumentation,
     InputQualityType,
+    Workflow,
 )
 
 
@@ -213,3 +217,26 @@ class TestInputQualityTool(CommandTool):
 
     def version(self) -> str:
         return "TEST"
+
+
+class TestWorkflowWithStepInputExpression(Workflow):
+    def constructor(self):
+        self.input("mystring", Optional[str], value="")
+        self.input("mystring_backup", Optional[str])
+
+        self.step(
+            "print",
+            EchoTestTool(
+                inp=IfThisOrElse(
+                    IsDefined(self.mystring), self.mystring, self.mystring_backup
+                )
+            ),
+        )
+
+        self.output("out", source=self.print)
+
+    def friendly_name(self):
+        return "TEST: WorkflowWithStepInputExpression"
+
+    def id(self) -> str:
+        return self.__class__.__name__
