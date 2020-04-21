@@ -510,7 +510,7 @@ class TestPackedWorkflow(unittest.TestCase):
         print(CwlTranslator.stringify_translated_workflow(c))
 
 
-class TestCompleteOperators(unittest.TestCase):
+class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
 
         ret, _, _ = TestWorkflowWithStepInputExpression().translate(

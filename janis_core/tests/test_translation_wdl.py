@@ -1,7 +1,9 @@
 import unittest
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import wdlgen
+from janis_core.operators.logical import IfThisOrElse, IsDefined
+
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 import janis_core.translations.wdl as wdl
@@ -26,6 +28,8 @@ from janis_core.tests.testtools import (
     TestToolWithSecondaryInput,
     TestTypeWithSecondary,
     TestTypeWithNonEscapedSecondary,
+    TestWorkflowWithStepInputExpression,
+    ArrayTestTool,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.operators import CpuSelector, StringFormatter
@@ -937,3 +941,70 @@ class TestWdlSecondaryTranslation(unittest.TestCase):
         wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref))
 
         trans = wf.translate("wdl")
+
+
+class TestCompleteOperators(unittest.TestCase):
+    def test_step_input(self):
+
+        ret, _, _ = TestWorkflowWithStepInputExpression().translate(
+            "wdl", to_console=False
+        )
+        expected = """\
+version development
+
+import "tools/EchoTestTool.wdl" as E
+
+workflow TestWorkflowWithStepInputExpression {
+  input {
+    String? mystring
+    String? mystring_backup
+  }
+  call E.EchoTestTool as print {
+    input:
+      inp=if (defined(mystring)) then mystring else mystring_backup
+  }
+  output {
+    File out = print.out
+  }
+}"""
+        self.assertEqual(expected, ret)
+
+    def test_array_step_input(self):
+        wf = WorkflowBuilder("cwl_test_array_step_input")
+        wf.input("inp1", Optional[str])
+        wf.input("inp2", Optional[str])
+
+        wf.step(
+            "print",
+            ArrayTestTool(
+                inputs=[
+                    IfThisOrElse(IsDefined(wf.inp1), wf.inp1, "default1"),
+                    IfThisOrElse(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
+                ]
+            ),
+        ),
+
+        wf.output("out", source=wf.print)
+
+        ret, _, _ = wf.translate("wdl", to_console=False, allow_empty_container=True)
+
+        expected = """\
+version development
+
+import "tools/ArrayStepTool.wdl" as A
+
+workflow cwl_test_array_step_input {
+  input {
+    String? inp1
+    String? inp2
+  }
+  call A.ArrayStepTool as print {
+    input:
+      inputs=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
+  }
+  output {
+    Array[File] out = print.outs
+  }
+}"""
+
+        self.assertEqual(expected, ret)
