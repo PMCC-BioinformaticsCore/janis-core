@@ -28,7 +28,7 @@ from janis_core.tests.testtools import (
     TestTypeWithNonEscapedSecondary,
 )
 from janis_core.translations import WdlTranslator
-from janis_core.operators.selectors import CpuSelector, StringFormatter
+from janis_core.operators import CpuSelector, StringFormatter
 
 
 class MultipleEcho(CommandTool):

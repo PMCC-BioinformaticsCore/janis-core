@@ -1,7 +1,7 @@
 import unittest
 
 from janis_core import InputSelector
-from janis_core.types import StringFormatter
+from janis_core.operators.stringformatter import StringFormatter
 from janis_core.utils.bracketmatching import (
     get_keywords_between_braces,
     variable_name_validator,
