@@ -551,7 +551,7 @@ return {out_capture}
 
     @classmethod
     def wrap_in_codeblock_if_required(cls, value, is_code_environment):
-        return value if is_code_environment else f"${{{value}}}"
+        return value if is_code_environment else f"$({value})"
 
     @classmethod
     def quote_values_if_code_environment(cls, value, is_code_environment):
@@ -573,12 +573,25 @@ return {out_capture}
         elif isinstance(value, InputSelector):
             return value.input_to_select
 
-    @staticmethod
+    @classmethod
     def unwrap_expression(
-        value, code_environment=True, selector_override=None, **debugkwargs
+        cls, value, code_environment=True, selector_override=None, **debugkwargs
     ):
         if value is None:
             return None
+
+        if isinstance(value, list):
+            toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
+            inner = ", ".join(
+                cls.unwrap_expression(
+                    value[i], code_environment=True, tool_id=toolid + "." + str(i)
+                )
+                for i in range(len(value))
+            )
+            return cls.wrap_in_codeblock_if_required(
+                f"[{inner}]", is_code_environment=code_environment
+            )
+
         if isinstance(value, str):
             return CwlTranslator.quote_values_if_code_environment(
                 value, code_environment
@@ -596,16 +609,17 @@ return {out_capture}
                 value, code_environment=code_environment, **debugkwargs
             )
         elif isinstance(value, InputNodeSelector):
-            translate_input_selector(
+            return translate_input_selector(
                 InputSelector(value.id()),
                 code_environment=code_environment,
                 selector_override=selector_override,
             )
         elif isinstance(value, StepOutputSelector):
-            sel = f"{value.node.id()}/{value.tag}"
-            if sel in selector_override:
-                sel = selector_override[sel]
-            return CwlTranslator.wrap_in_codeblock_if_required(sel, code_environment)
+            raise Exception("Didn't expect to unwrap StepOutputSelector here")
+            # sel = f"{value.node.id()}/{value.tag}"
+            # if sel in selector_override:
+            #     sel = selector_override[sel]
+            # return CwlTranslator.wrap_in_codeblock_if_required(sel, code_environment)
         elif isinstance(value, InputSelector):
             return translate_input_selector(
                 selector=value,
@@ -615,6 +629,17 @@ return {out_capture}
         elif isinstance(value, WildcardSelector):
             raise Exception(
                 f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            )
+        elif isinstance(value, Operator):
+            unwrap_expression_wrap = lambda exp: CwlTranslator.unwrap_expression(
+                exp,
+                code_environment=True,
+                selector_override=selector_override,
+                **debugkwargs,
+            )
+            return CwlTranslator.wrap_in_codeblock_if_required(
+                value.to_cwl(unwrap_expression_wrap, *value.args),
+                is_code_environment=code_environment,
             )
         elif callable(getattr(value, "cwl", None)):
             return value.cwl()
@@ -1042,55 +1067,24 @@ def translate_step_node(
             ):
                 array_input_from_single_source = True
 
-        unwrapped_sources: List[str] = []
-        additional_inputs: List[cwlgen.WorkflowStepInput] = []
-        param_aliasing = {}
-        for stepinput in ar_source:
-            src = stepinput.source
-            if isinstance(src, Operator):
-                # we'll need to get the leaves and do extra mappings
-                for leaf in src.get_leaves():
-                    if not isinstance(leaf, Selector):
-                        continue
-                    prepare_alias = (
-                        lambda x: f"_{step.id()}_{re.sub('[^0-9a-zA-Z]+', '', sel)}"
-                    )
-
-                    sel = CwlTranslator.unwrap_selector_for_reference(leaf)
-                    alias = prepare_alias(sel)
-                    param_aliasing[sel] = alias
-                    additional_inputs.append(
-                        cwlgen.WorkflowStepInput(input_id=alias, source=sel)
-                    )
-            else:
-                # just a selector
-                unwrapped_sources.append(
-                    CwlTranslator.unwrap_selector_for_reference(src)
-                )
-
         should_select_first_element = not (
             array_input_from_single_source or has_multiple_sources
         )
+
+        has_operator = any(isinstance(src.source, Operator) for src in ar_source)
+
         source = None
         valuefrom = None
         link_merge = None
 
-        if len(param_aliasing) > 0:
-            valuefrom = CwlTranslator.unwrap_expression(
-                unwrapped_sources,
-                code_environment=False,
-                selector_override=param_aliasing,
-            )
-            if not should_select_first_element:
-                # we're going to need to generate a specific expression here for an array
-                # https://github.com/PMCC-BioinformaticsCore/janis-core/pull/10#issuecomment-616312139
-                val = ", ".join(valuefrom)
-                valuefrom = f"$([{val}])"
-                # raise NotImplementedError(
-                #     "Still requires work to implement a list source with an operator"
-                # )
+        if not has_operator:
+            unwrapped_sources: List[str] = []
+            for stepinput in ar_source:
+                src = stepinput.source
+                unwrapped_sources.append(
+                    CwlTranslator.unwrap_selector_for_reference(src)
+                )
 
-        elif len(unwrapped_sources) > 0:
             source = (
                 unwrapped_sources[0]
                 if should_select_first_element
@@ -1101,6 +1095,55 @@ def translate_step_node(
                 # https://www.commonwl.org/user_guide/misc/
                 link_merge = "merge_nested"
 
+        else:
+            prepare_alias = (
+                lambda x: f"_{step.id()}_{k}_{re.sub('[^0-9a-zA-Z]+', '', x)}"
+            )
+
+            # two step process
+            #   1. Look through and find ALL sources includng an operator's leaves
+            #           Ensure these are connected using the alias
+            #   2. Go through sources again, build up the expression
+
+            param_aliasing = {}
+            # Use a dict to ensure we don't double add inputs
+            ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
+
+            for stepinput in ar_source:
+                src = stepinput.source
+                if isinstance(src, Operator):
+                    # we'll need to get the leaves and do extra mappings
+                    for leaf in src.get_leaves():
+                        if not isinstance(leaf, Selector):
+                            # probably a python literal
+                            continue
+                        sel = CwlTranslator.unwrap_selector_for_reference(leaf)
+                        alias = prepare_alias(sel)
+                        param_aliasing[sel] = alias
+                        ins_to_connect[alias] = cwlgen.WorkflowStepInput(
+                            input_id=alias, source=sel
+                        )
+                else:
+                    sel = CwlTranslator.unwrap_selector_for_reference(src)
+                    alias = prepare_alias(sel)
+                    param_aliasing[sel] = alias
+                    ins_to_connect[alias] = cwlgen.WorkflowStepInput(
+                        input_id=alias, source=sel
+                    )
+
+            cwlstep.inputs.extend(ins_to_connect.values())
+
+            # 2. Again
+
+            src = (
+                ar_source[0].source
+                if should_select_first_element
+                else [si.source for si in ar_source]
+            )
+            valuefrom = CwlTranslator.unwrap_expression(
+                src, code_environment=False, selector_override=param_aliasing
+            )
+
         d = cwlgen.WorkflowStepInput(
             input_id=inp.tag,
             source=source,
@@ -1109,7 +1152,6 @@ def translate_step_node(
         )
 
         cwlstep.inputs.append(d)
-        cwlstep.inputs.extend(additional_inputs)
 
     for r in resource_overrides:
         cwlstep.inputs.append(
@@ -1129,6 +1171,8 @@ def is_selector(selector):
 def translate_input_selector(
     selector: InputSelector, code_environment, selector_override=None
 ):
+    # TODO: Consider grabbing "path" of File
+
     sel = selector.input_to_select
     if not sel:
         raise Exception("No input was selected for input selector: " + str(selector))
