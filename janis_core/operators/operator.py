@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-from janis_core.operators.selectors import Selector, StringFormatter
-from janis_core.types import DataType, get_instantiated_type, UnionType
+from janis_core.operators.selectors import Selector
+from janis_core.types import DataType, get_instantiated_type
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
@@ -70,6 +70,7 @@ class Operator(Selector, ABC):
 
     def to_string_formatter(self):
         import re
+        from janis_core.operators.stringformatter import StringFormatter
 
         key = re.sub(r"\W+", "", str(self))
         kwarg = {key: self}

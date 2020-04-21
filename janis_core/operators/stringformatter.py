@@ -1,5 +1,5 @@
-from janis_core.types import Selector
-from janis_core.types.operator import Operator, AddOperator
+from janis_core.types import String
+from janis_core.operators.logical import Operator, AddOperator
 from janis_core.utils.bracketmatching import get_keywords_between_braces
 from janis_core.utils.errors import (
     TooManyArgsException,
@@ -10,45 +10,10 @@ from janis_core.utils.errors import (
 from janis_core.utils.logger import Logger
 
 
-class InputSelector(Operator):
-    def __init__(self, input_to_select, use_basename=None):
-        # maybe worth validating the input_to_select identifier
-        self.input_to_select = input_to_select
-        self.use_basename = use_basename
+class StringFormatter(Operator):
+    def returntype(self):
+        return String()
 
-    def __repr__(self):
-        return f"inputs.{self.input_to_select}"
-
-    def to_string_formatter(self):
-        kwarg = {self.input_to_select: self}
-        return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
-
-    def __radd__(self, other):
-        if not isinstance(other, InputSelector) and isinstance(other, Operator):
-            return AddOperator(other, self)
-
-        return StringFormatter(other) + self.to_string_formatter()
-
-    def __add__(self, other):
-
-        if not isinstance(other, InputSelector) and isinstance(other, Operator):
-            return AddOperator(self, other)
-
-        return self.to_string_formatter() + other
-
-
-class MemorySelector(InputSelector):
-    def __init__(self):
-        super().__init__("runtime_memory")
-
-
-class CpuSelector(InputSelector):
-    def __init__(self, default=1):
-        super().__init__("runtime_cpu")
-        self.default = default
-
-
-class StringFormatter(Selector):
     def __init__(self, format: str, **kwargs):
         self._format: str = format
 
@@ -120,18 +85,10 @@ class StringFormatter(Selector):
         return retval
 
     def __radd__(self, other):
-        if not isinstance(other, InputSelector) and isinstance(other, Operator):
-            return AddOperator(other, self)
-
         return StringFormatter(other) + self
 
     def __add__(self, other):
-
-        if isinstance(other, InputSelector):
-            return self + other.to_string_formatter()
-
-        elif isinstance(other, Operator):
-            return AddOperator(self, other)
+        from janis_core.operators.selectors import InputSelector
 
         if isinstance(other, str):
             # check if it has args in it
@@ -146,6 +103,9 @@ class StringFormatter(Selector):
             return self._create_new_formatter_from_strings_and_args(
                 [self._format, other], **self.kwargs
             )
+
+        elif isinstance(other, InputSelector):
+            return self + other.to_string_formatter()
 
         elif isinstance(other, StringFormatter):
             # check if args overlap and they're different
@@ -182,3 +142,6 @@ class StringFormatter(Selector):
                 "Joining the input files (to '{new_format}') created the new params: "
                 + ", ".join(new_params)
             )
+
+    def to_string_formatter(self):
+        return self
