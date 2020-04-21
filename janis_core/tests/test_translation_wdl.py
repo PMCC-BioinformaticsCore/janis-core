@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 
 import wdlgen
 from janis_core.operators.logical import If, IsDefined
+from janis_core.operators.standard import JoinOperator
 
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
@@ -22,6 +23,7 @@ from janis_core import (
     ToolArgument,
     Boolean,
     Int,
+    CommandToolBuilder,
 )
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -968,6 +970,21 @@ workflow TestWorkflowWithStepInputExpression {
   }
 }"""
         self.assertEqual(expected, ret)
+
+    def test_separator(self):
+        tf = CommandToolBuilder(
+            tool="test_sep_operator",
+            base_command="echo",
+            inputs=[ToolInput("inp", Array(String))],
+            arguments=[
+                ToolArgument(JoinOperator(InputSelector("inp"), ","), position=0)
+            ],
+            outputs=[ToolOutput("out", Stdout)],
+            container="ubuntu:latest",
+            version="v",
+        )
+
+        tf.translate("cwl", to_disk=True, export_path="~/Desktop/tmp/wdltests/")
 
     def test_array_step_input(self):
         wf = WorkflowBuilder("cwl_test_array_step_input")
