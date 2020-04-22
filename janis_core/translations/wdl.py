@@ -1,7 +1,7 @@
 """
 WDL
 
-This is one of the more complicated classes, it takes the janis in-memory representation of a workflow,
+This is one of the more complicated classes, it takes the janis in-memory representation of a tool,
 and converts it into the equivalent WDL objects. Python-wdlgen distances us from the memory representation
 and the actual string-specification.
 
@@ -53,7 +53,7 @@ from janis_core.utils.secondary import (
     apply_secondary_file_format_to_filename,
 )
 
-# from janis_core.workflow.step import StepNode
+# from janis_core.tool.step import StepNode
 
 
 ## PRIMARY TRANSLATION METHODS
@@ -93,7 +93,7 @@ class WdlTranslator(TranslatorBase):
     def translate_workflow(
         cls,
         wfi,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         is_nested_tool=False,
         allow_empty_container=False,
@@ -103,7 +103,7 @@ class WdlTranslator(TranslatorBase):
 
 
         :param with_resource_overrides:
-        :param with_docker:
+        :param with_container:
         :param is_nested_tool:
         :return:
         """
@@ -216,7 +216,7 @@ class WdlTranslator(TranslatorBase):
                 if isinstance(t, Workflow):
                     wf_wdl, wf_tools = cls.translate_workflow(
                         t,
-                        with_docker=with_docker,
+                        with_container=with_container,
                         is_nested_tool=True,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
@@ -227,14 +227,14 @@ class WdlTranslator(TranslatorBase):
                 elif isinstance(t, CommandTool):
                     wtools[t.id()] = cls.translate_tool_internal(
                         t,
-                        with_docker=with_docker,
+                        with_container=with_container,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
                     )
                 elif isinstance(t, CodeTool):
                     wtools[t.id()] = cls.translate_code_tool_internal(
                         t,
-                        with_docker=with_docker,
+                        with_docker=with_container,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
                     )
@@ -326,7 +326,7 @@ class WdlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls,
         tool: CommandTool,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
     ):
@@ -383,7 +383,7 @@ class WdlTranslator(TranslatorBase):
             )
 
         r = wdl.Task.Runtime()
-        if with_docker:
+        if with_container:
             container = tool.container()
             if container is not None:
                 r.add_docker(container)
@@ -500,7 +500,7 @@ EOT"""
     @classmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool,
         recursive=False,
         merge_resources=False,
         hints=None,
@@ -513,31 +513,42 @@ EOT"""
         a call chain, including subworkflows: https://github.com/openwdl/wdl/issues/217
         :param merge_resources:
         :param recursive:
-        :param workflow:
+        :param tool:
         :return:
         """
-        inp = {}
-        ad = additional_inputs or {}
+        from janis_core.workflow.workflow import Workflow
 
-        for i in workflow.input_nodes.values():
-            inp_key = f"{workflow.id()}.{i.id()}"
-            value = ad.get(i.id()) or i.value or i.default
+        inp = {}
+        values_provided_from_tool = {}
+        is_workflow = isinstance(tool, Workflow)
+
+        if is_workflow:
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or i.default
+            }
+
+        ad = {**values_provided_from_tool, **(additional_inputs or {})}
+
+        for i in tool.tool_inputs():
+
+            inp_key = f"{tool.id()}.{i.id()}" if is_workflow else i.id()
+            value = ad.get(i.id())
             if cls.inp_can_be_skipped(i, value):
                 continue
 
             inp_val = value
 
             inp[inp_key] = inp_val
-            if i.datatype.secondary_files():
-                for sec in i.datatype.secondary_files():
+            if i.intype.secondary_files():
+                for sec in i.intype.secondary_files():
                     inp[
                         get_secondary_tag_from_original_tag(inp_key, sec)
                     ] = apply_secondary_file_format_to_filename(inp_val, sec)
-            elif (
-                isinstance(i.datatype, Array) and i.datatype.subtype().secondary_files()
-            ):
+            elif isinstance(i.intype, Array) and i.intype.subtype().secondary_files():
                 # handle array of secondary files
-                for sec in i.datatype.subtype().secondary_files():
+                for sec in i.intype.subtype().secondary_files():
                     inp[get_secondary_tag_from_original_tag(inp_key, sec)] = (
                         [
                             apply_secondary_file_format_to_filename(iinp_val, sec)
@@ -549,23 +560,21 @@ EOT"""
 
         if merge_resources:
             inp.update(
-                cls.build_resources_input(
-                    workflow, hints, max_cores, max_mem, inputs=ad
-                )
+                cls.build_resources_input(tool, hints, max_cores, max_mem, inputs=ad)
             )
 
         return inp
 
     @classmethod
     def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
+        cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
     ):
         return super().build_resources_input(
-            workflow=workflow,
+            tool=tool,
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
-            prefix=prefix or f"{workflow.id()}.",
+            prefix=prefix or f"{tool.id()}.",
             inputs=inputs,
         )
 
