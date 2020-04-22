@@ -569,12 +569,15 @@ EOT"""
     def build_resources_input(
         cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
     ):
+        from janis_core.workflow.workflow import Workflow
+
+        is_workflow = isinstance(tool, Workflow)
         return super().build_resources_input(
             tool=tool,
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
-            prefix=prefix or f"{tool.id()}.",
+            prefix=prefix or (f"{tool.id()}." if is_workflow else ""),
             inputs=inputs,
         )
 
