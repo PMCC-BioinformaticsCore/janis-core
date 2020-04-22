@@ -369,7 +369,7 @@ class Workflow(Tool):
         from janis_core.translations.translationbase import TranslatorBase
 
         return super().all_input_keys() + list(
-            TranslatorBase.build_resources_input(workflow=self, hints={}).keys()
+            TranslatorBase.build_resources_input(tool=self, hints={}).keys()
         )
 
     def verify_output_source_type(
