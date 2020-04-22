@@ -1,7 +1,7 @@
 """
 CWL
 
-This is one of the more complicated classes, it takes the janis in-memory representation of a workflow,
+This is one of the more complicated classes, it takes the janis in-memory representation of a tool,
 and converts it into the equivalent CWL objects. Janis was built alongside testing for CWL, so a lot of
 the concepts directly or pretty closely match. There are a few extra things that Janis has that need to
 be mapped back.
@@ -57,7 +57,7 @@ from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 
-# from janis_core.workflow.input import Input
+# from janis_core.tool.input import Input
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
 CWL_VERSION = "v1.0"
@@ -105,7 +105,7 @@ class CwlTranslator(TranslatorBase):
     def translate_workflow(
         cls,
         wf,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         is_nested_tool=False,
         is_packed=False,
@@ -166,7 +166,7 @@ class CwlTranslator(TranslatorBase):
                 wf_cwl, subtools = cls.translate_workflow(
                     tool,
                     is_nested_tool=True,
-                    with_docker=with_docker,
+                    with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
                 )
@@ -175,7 +175,7 @@ class CwlTranslator(TranslatorBase):
             elif isinstance(tool, CommandTool):
                 tool_cwl = cls.translate_tool_internal(
                     tool,
-                    with_docker=with_docker,
+                    with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
                 )
@@ -183,7 +183,7 @@ class CwlTranslator(TranslatorBase):
             elif isinstance(tool, CodeTool):
                 tool_cwl = cls.translate_code_tool_internal(
                     tool,
-                    with_docker=with_docker,
+                    with_docker=with_container,
                     allow_empty_container=allow_empty_container,
                 )
                 tools[tool.id()] = tool_cwl
@@ -195,7 +195,7 @@ class CwlTranslator(TranslatorBase):
     @classmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool: Tool,
         recursive=False,
         merge_resources=False,
         hints=None,
@@ -203,17 +203,31 @@ class CwlTranslator(TranslatorBase):
         max_cores=None,
         max_mem=None,
     ) -> Dict[str, any]:
+        from janis_core.workflow.workflow import Workflow
 
         ad = additional_inputs or {}
+        values_provided_from_tool = {}
+        if isinstance(tool, Workflow):
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or i.default
+            }
+
         inp = {
-            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.value or i.default)
-            for i in workflow.input_nodes.values()
-            if i.value or i.default or i.id() in ad
+            i.id(): i.intype.cwl_input(
+                ad.get(i.id(), values_provided_from_tool.get(i.id()))
+            )
+            for i in tool.tool_inputs()
+            if i.default
+            or not i.intype.optional
+            or i.id() in ad
+            or i.id() in values_provided_from_tool
         }
 
         if merge_resources:
             for k, v in cls.build_resources_input(
-                workflow, hints, max_cores, max_mem
+                tool, hints, max_cores, max_mem
             ).items():
                 inp[k] = ad.get(k, v)
 
@@ -281,7 +295,7 @@ class CwlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls,
         tool: CommandTool,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
     ):
@@ -358,7 +372,7 @@ class CwlTranslator(TranslatorBase):
                 )
             )
 
-        if with_docker:
+        if with_container:
             container = tool.container()
             if container is not None:
                 tool_cwl.requirements.append(
