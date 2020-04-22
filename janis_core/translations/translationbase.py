@@ -7,6 +7,7 @@ from path import Path
 from janis_core.tool.commandtool import ToolInput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
+from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
 
 
@@ -61,6 +62,7 @@ class TranslatorBase(ABC):
         max_mem=None,
         with_container=True,
         allow_empty_container=False,
+        container_override=None,
     ):
         from janis_core.workflow.workflow import Workflow
 
@@ -72,6 +74,7 @@ class TranslatorBase(ABC):
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
             str_tool = self.stringify_translated_workflow(tr_tool)
         else:
@@ -80,6 +83,7 @@ class TranslatorBase(ABC):
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
             str_tool = self.stringify_translated_tool(tr_tool)
 
@@ -209,6 +213,7 @@ class TranslatorBase(ABC):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -217,6 +222,7 @@ class TranslatorBase(ABC):
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -246,6 +252,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -253,6 +260,7 @@ class TranslatorBase(ABC):
                 codetool,
                 with_docker=with_docker,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -313,6 +321,7 @@ class TranslatorBase(ABC):
         with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
         pass
 
@@ -324,13 +333,18 @@ class TranslatorBase(ABC):
         with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 
     @classmethod
     @abstractmethod
     def translate_code_tool_internal(
-        cls, tool, with_docker=True, allow_empty_container=False
+        cls,
+        tool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 

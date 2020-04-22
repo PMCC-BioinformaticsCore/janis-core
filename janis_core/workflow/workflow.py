@@ -609,6 +609,7 @@ class Workflow(Tool):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         from janis_core.translations import translate_workflow
 
@@ -631,6 +632,7 @@ class Workflow(Tool):
             max_cores=max_cores,
             max_mem=max_mem,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
 
     def generate_inputs_override(

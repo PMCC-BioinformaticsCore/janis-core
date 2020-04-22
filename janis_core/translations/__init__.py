@@ -1,5 +1,7 @@
 from typing import Dict
 
+from janis_core.utils import lowercase_dictkeys
+
 from janis_core.__meta__ import GITHUB_URL
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translationdeps.supportedtranslations import (
@@ -42,6 +44,7 @@ def translate_workflow(
     max_cores=None,
     max_mem=None,
     allow_empty_container=False,
+    container_override: dict = None,
 ):
     translator = get_translator(translation)
     return translator.translate(
@@ -62,6 +65,7 @@ def translate_workflow(
         max_cores=max_cores,
         max_mem=max_mem,
         allow_empty_container=allow_empty_container,
+        container_override=lowercase_dictkeys(container_override),
     )
 
 
@@ -73,6 +77,7 @@ def translate_code_tool(
     export_path=None,
     with_docker=True,
     allow_empty_container=False,
+    container_override: dict = None,
 ):
     translator = get_translator(translation)
     return translator.translate_code_tool(
@@ -82,6 +87,7 @@ def translate_code_tool(
         export_path=export_path,
         with_docker=with_docker,
         allow_empty_container=allow_empty_container,
+        container_override=lowercase_dictkeys(container_override),
     )
 
 
@@ -96,6 +102,7 @@ def translate_tool(
     max_cores=None,
     max_mem=None,
     allow_empty_container=False,
+    container_override: dict = None,
 ) -> str:
     translator = get_translator(translation)
     return translator.translate_tool(
@@ -108,6 +115,7 @@ def translate_tool(
         max_cores=max_cores,
         max_mem=max_mem,
         allow_empty_container=allow_empty_container,
+        container_override=lowercase_dictkeys(container_override),
     )
 
 

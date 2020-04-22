@@ -540,6 +540,46 @@ class TestPackedWorkflow(unittest.TestCase):
         print(CwlTranslator.stringify_translated_workflow(c))
 
 
+class TestContainerOverride(unittest.TestCase):
+    def test_tool_dict_override(self):
+        import ruamel.yaml
+
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        d = ruamel.yaml.load(
+            tool.translate(
+                "cwl",
+                to_console=False,
+                container_override={tool.id(): expected_container},
+            ),
+            Loader=ruamel.yaml.Loader,
+        )
+
+        received_container = (
+            d.get("requirements").get("DockerRequirement").get("dockerPull")
+        )
+        self.assertEqual(expected_container, received_container)
+
+    def test_tool_string_override(self):
+        import ruamel.yaml
+
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        d = ruamel.yaml.load(
+            tool.translate(
+                "cwl", to_console=False, container_override=expected_container
+            ),
+            Loader=ruamel.yaml.Loader,
+        )
+
+        received_container = (
+            d.get("requirements").get("DockerRequirement").get("dockerPull")
+        )
+        self.assertEqual(expected_container, received_container)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
