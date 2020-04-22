@@ -553,7 +553,8 @@ class TestContainerOverride(unittest.TestCase):
                 "cwl",
                 to_console=False,
                 container_override={tool.id(): expected_container},
-            )
+            ),
+            Loader=ruamel.yaml.Loader,
         )
 
         received_container = (
@@ -570,7 +571,8 @@ class TestContainerOverride(unittest.TestCase):
         d = ruamel.yaml.load(
             tool.translate(
                 "cwl", to_console=False, container_override=expected_container
-            )
+            ),
+            Loader=ruamel.yaml.Loader,
         )
 
         received_container = (
