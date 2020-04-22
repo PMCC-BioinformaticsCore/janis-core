@@ -429,7 +429,7 @@ class TestCwlGenerateInput(unittest.TestCase):
         wf.input("inpId", String())
         # included because no value, no default, and not optional
         # self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
-        self.assertDictEqual({}, self.translator.build_inputs_file(wf))
+        self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_nooptional_default(self):
         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_default")
