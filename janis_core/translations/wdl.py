@@ -140,6 +140,8 @@ class WdlTranslator(TranslatorBase):
         steps = list(wf.step_nodes.values())
         outputs = list(wf.output_nodes.values())
 
+        inputsdict = {t.id(): ToolInput(t.id(), t.intype) for t in wf.tool_inputs()}
+
         wtools = {}  # Store all the tools by their name in this dictionary
         tool_aliases, step_aliases = build_aliases(
             wf.step_nodes.values()
@@ -152,6 +154,9 @@ class WdlTranslator(TranslatorBase):
             if isinstance(i.datatype, Filename):
                 # expr = f'"{i.datatype.generated_filename()}"'
                 dt = String(optional=True)
+
+            if i.default:
+                expr = WdlTranslator.unwrap_expression(i.default, inputsdict=inputsdict)
 
             wd = dt.wdl(has_default=i.default is not None)
 
@@ -275,10 +280,11 @@ class WdlTranslator(TranslatorBase):
                     resource_overrides[r.name] = s.id() + "_" + r.name
 
             call = translate_step_node(
-                s,
-                tool_aliases[t.id().lower()].upper() + "." + t.id(),
-                resource_overrides,
-                forbiddenidentifiers,
+                node2=s,
+                step_identifier=tool_aliases[t.id().lower()].upper() + "." + t.id(),
+                resource_overrides=resource_overrides,
+                invalid_identifiers=forbiddenidentifiers,
+                inputsdict=inputsdict,
             )
 
             w.calls.append(call)
@@ -835,7 +841,7 @@ EOT"""
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value or i.default
+                if i.value or (i.default and not isinstance(i.default, Selector))
             }
 
         ad = {**values_provided_from_tool, **(additional_inputs or {})}
@@ -1099,6 +1105,7 @@ def translate_step_node(
     step_identifier: str,
     resource_overrides: Dict[str, str],
     invalid_identifiers: Set[str],
+    inputsdict: Dict[str, any],
 ) -> wdl.WorkflowCallBase:
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
@@ -1157,7 +1164,8 @@ def translate_step_node(
         ]
         if len(invalid_sources) > 0:
             invalid_sources_str = ", ".join(
-                WdlTranslator.unwrap_expression(si.source()) for si in invalid_sources
+                WdlTranslator.unwrap_expression(si.source(), inputsdict=inputsdict)
+                for si in invalid_sources
             )
             raise NotImplementedError(
                 f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
@@ -1228,7 +1236,7 @@ def translate_step_node(
 
         unwrap_helper = lambda exprsn: WdlTranslator.unwrap_expression(
             exprsn,
-            inputsdict=inputs_map,
+            inputsdict=inputsdict,
             string_environment=False,
             stepid=step_identifier,
         )

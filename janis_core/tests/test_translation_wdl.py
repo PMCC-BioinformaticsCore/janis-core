@@ -32,6 +32,7 @@ from janis_core.tests.testtools import (
     TestTypeWithNonEscapedSecondary,
     TestWorkflowWithStepInputExpression,
     ArrayTestTool,
+    EchoTestTool,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.operators import CpuSelector, StringFormatter
@@ -933,6 +934,46 @@ class TestLinkStatements(unittest.TestCase):
         )
 
         Tool.translate("wdl")
+
+
+class WorkflowWdlInputDefaultOperator(unittest.TestCase):
+    def test_string_formatter(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("sampleName", str)
+        wf.input("platform", str)
+
+        wf.input(
+            "readGroupHeaderLine",
+            String(),
+            default=StringFormatter(
+                "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+                name=InputSelector("sampleName"),
+                pl=InputSelector("platform"),
+            ),
+        )
+        wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
+        wf.output("out", source=wf.print)
+        derived, _, _ = wf.translate("wdl", to_console=False)
+        expected = """\
+version development
+
+import "tools/EchoTestTool.wdl" as E
+
+workflow wf {
+  input {
+    String sampleName
+    String platform
+    String? readGroupHeaderLine = "@RG\\tID:~{sampleName}\\tSM:~{sampleName}\\tLB:~{sampleName}\\tPL:~{platform}"
+  }
+  call E.EchoTestTool as print {
+    input:
+      inp=select_first([readGroupHeaderLine, "@RG\\tID:~{sampleName}\\tSM:~{sampleName}\\tLB:~{sampleName}\\tPL:~{platform}"])
+  }
+  output {
+    File out = print.out
+  }
+}"""
+        self.assertEqual(expected, derived)
 
 
 class TestWdlContainerOverride(unittest.TestCase):
