@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple, TypeVar
+from typing import Dict, Any, List, Tuple, TypeVar, Optional
 
 T = TypeVar("T")
 
@@ -93,3 +93,10 @@ def find_duplicates(ar) -> List:
         counts[x] = (counts[x] if x in counts else 0) + 1
 
     return list(k for k, v in counts.items() if v > 1)
+
+
+def lowercase_dictkeys(d: Optional[Dict]) -> Optional[Dict]:
+    if not d:
+        return None
+
+    return {k.lower(): v for k, v in d.items()}

@@ -468,7 +468,7 @@ class Workflow(Tool):
         from janis_core.translations.translationbase import TranslatorBase
 
         return super().all_input_keys() + list(
-            TranslatorBase.build_resources_input(workflow=self, hints={}).keys()
+            TranslatorBase.build_resources_input(tool=self, hints={}).keys()
         )
 
     def verify_output_source_type(
@@ -764,6 +764,7 @@ class Workflow(Tool):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         from janis_core.translations import translate_workflow
 
@@ -786,6 +787,7 @@ class Workflow(Tool):
             max_cores=max_cores,
             max_mem=max_mem,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
 
     def generate_inputs_override(
