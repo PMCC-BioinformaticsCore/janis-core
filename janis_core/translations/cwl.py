@@ -117,9 +117,11 @@ class CwlTranslator(TranslatorBase):
         w = cwlgen.Workflow(
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
+        inputsdict = wf.inputs_map()
 
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_workflow_input(i) for i in wf.input_nodes.values()
+            translate_workflow_input(i, inputsdict=inputsdict)
+            for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -214,7 +216,7 @@ class CwlTranslator(TranslatorBase):
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value or i.default
+                if i.value or (i.default and not isinstance(i.default, Selector))
             }
 
         inp = {
@@ -252,8 +254,11 @@ class CwlTranslator(TranslatorBase):
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
+        inputsdict = wf.inputs_map()
+
         w.inputs: List[cwlgen.InputParameter] = [
-            translate_workflow_input(i) for i in wf.input_nodes.values()
+            translate_workflow_input(i, inputsdict=inputsdict)
+            for i in wf.input_nodes.values()
         ]
 
         resource_inputs = []
@@ -707,7 +712,7 @@ return {out_capture}
         return workflow.id() + "-resources.yml"
 
 
-def translate_workflow_input(inp: InputNode) -> cwlgen.InputParameter:
+def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParameter:
     """
     Translate a workflow InputNode into a cwlgen.InputParameter
     :param inp:
@@ -717,9 +722,17 @@ def translate_workflow_input(inp: InputNode) -> cwlgen.InputParameter:
 
     doc = inp.doc.doc if inp.doc else None
 
+    default = None
+    if inp.default:
+        if isinstance(inp.default, Selector):
+            raise Exception(
+                "No implementation for translating a Selector for a worklfow input default"
+            )
+        default = inp.default
+
     return cwlgen.InputParameter(
         param_id=inp.id(),
-        default=inp.default,
+        default=default,
         secondary_files=inp.datatype.secondary_files(),
         param_format=None,
         streamable=None,

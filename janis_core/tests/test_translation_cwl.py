@@ -10,6 +10,7 @@ from janis_core.tests.testtools import (
     TestToolWithSecondaryOutput,
     TestTypeWithSecondary,
     TestWorkflowWithStepInputExpression,
+    EchoTestTool,
 )
 
 import cwlgen
@@ -373,7 +374,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             doc=InputDocumentation("docstring"),
             value=None,
         )
-        tinp = cwl.translate_workflow_input(inp)
+        tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("testIdentifier", tinp.id)
         self.assertIsNone(tinp.label)
@@ -391,7 +392,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             default=None,
             value=None,
         )
-        tinp = cwl.translate_workflow_input(inp)
+        tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("File", tinp.type)
         self.assertListEqual(["^.txt"], tinp.secondaryFiles)
@@ -576,6 +577,28 @@ class TestCWLCompleteOperators(unittest.TestCase):
 
         ret, _, _ = wf.translate("cwl", allow_empty_container=True)
         self.assertEqual(cwl_arraystepinput, ret)
+
+
+# class WorkflowCwlInputDefaultOperator(unittest.TestCase):
+#     def test_string_formatter(self):
+#         wf = WorkflowBuilder("wf")
+#         wf.input("sampleName", str)
+#         wf.input("platform", str)
+#
+#         wf.input(
+#             "readGroupHeaderLine",
+#             String(),
+#             default=StringFormatter(
+#                 "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+#                 name=InputSelector("sampleName"),
+#                 pl=InputSelector("platform"),
+#             ),
+#         )
+#         wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
+#         wf.output("out", source=wf.print)
+#         derived, _, _ = wf.translate("cwl", to_console=False)
+#         expected = """"""
+#         self.assertEqual(expected, derived)
 
 
 cwl_testtool = """\

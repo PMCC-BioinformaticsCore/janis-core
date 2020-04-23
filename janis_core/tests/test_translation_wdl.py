@@ -204,7 +204,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
             "stp2", TestTool(arrayInp=stp1.std, testtool=w.inp), ignore_missing=True
         )
 
-        outp = wdl.translate_step_node(stp2, stp2.id(), {}, set())
+        outp = wdl.translate_step_node(stp2, stp2.id(), {}, set(), None)
         self.assertEqual(
             f"arrayInp=[{stp1.id()}.std]", outp.get_string().split("\n")[3].strip()
         )
@@ -719,7 +719,9 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
             scatter=ScatterDescription(fields=["inputs"], method=ScatterMethods.dot),
         )
 
-        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
+        )
         expected = """\
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
@@ -739,7 +741,9 @@ scatter (i in inp) {
             "dotTool", SingleTestTool(inputs=w.inp, input2=w.inp2), scatter="inputs"
         )
 
-        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
+        )
         expected = """\
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
@@ -763,7 +767,9 @@ scatter (i in inp) {
             ),
         )
 
-        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
+        )
         expected = """\
 scatter (Q in zip(inp, inp2)) {
    call A.SingleTestTool as dotTool {
@@ -789,7 +795,7 @@ scatter (Q in zip(inp, inp2)) {
         )
 
         outp = wdl.translate_step_node(
-            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3"}
+            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3"}, None
         )
         expected = """\
 scatter (Q in zip(inp, zip(inp2, inp3))) {
@@ -819,7 +825,7 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
         )
 
         outp = wdl.translate_step_node(
-            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3", "inp4"}
+            step, "A.SingleTestTool", {}, {"inp", "inp2", "inp3", "inp4"}, None
         )
         expected = """\
 scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
@@ -846,7 +852,9 @@ scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
             ),
         )
 
-        outp = wdl.translate_step_node(step, "A.SingleTestTool", {}, {"inp", "inp2"})
+        outp = wdl.translate_step_node(
+            step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
+        )
         expected = """\
 scatter (Q in zip(transpose([inp, inp_qt]), inp2)) {
    call A.SingleTestTool as dotTool {
