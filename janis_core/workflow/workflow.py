@@ -931,12 +931,14 @@ class WorkflowBuilder(Workflow):
         version: str = None,
         metadata: WorkflowMetadata = None,
         tool_provider: str = None,
+        tool_module: str = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
         self._version = version
         self._metadata = metadata
         self._tool_provider = tool_provider
+        self._tool_module = tool_module
 
         super().__init__()
 
@@ -962,6 +964,9 @@ class WorkflowBuilder(Workflow):
 
     def tool_provider(self):
         return self._tool_provider
+
+    def tool_module(self):
+        return self._tool_module
 
     def bind_metadata(self):
         return self._metadata
