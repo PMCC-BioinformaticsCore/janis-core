@@ -13,7 +13,7 @@ class JoinOperator(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
-        return f"sep({separator}, {iterable})"
+        return f"sep({separator}, select_first([{iterable}, []]))"
 
     def to_cwl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
