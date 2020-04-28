@@ -13,9 +13,7 @@ class JoinOperator(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
-        # return f"sep({iterable}, {separator})"
-        # return f"'~{{sep={separator} {iterable}}}'"
-        raise Exception("This functionality doesn't fully work yet")
+        return f"sep({separator}, {iterable})"
 
     def to_cwl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
