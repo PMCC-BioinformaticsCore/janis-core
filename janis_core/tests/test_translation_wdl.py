@@ -21,7 +21,7 @@ from janis_core import (
     Boolean,
     Int,
 )
-from janis_core.tests.testtools import SingleTestTool
+from janis_core.tests.testtools import SingleTestTool, FilenameGeneratedTool
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
 
@@ -444,6 +444,29 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
         self.assertEqual(
             f'fn: ~{{select_first([ti, "{fn.generated_filename()}"])}}', res
+        )
+
+
+class TestFilenameGeneration(unittest.TestCase):
+    def test_1(self):
+        tool = FilenameGeneratedTool()
+        mapped = [
+            a.get_string()
+            for a in WdlTranslator.build_command_from_inputs(tool.inputs())
+        ]
+
+        self.assertEqual('~{select_first([generatedInp, "~{inp}"])}', mapped[0])
+        self.assertEqual(
+            '~{select_first([generatedInpOptional, "~{if defined(inpOptional) then inpOptional else "generated"}"])}',
+            mapped[1],
+        )
+        self.assertEqual(
+            '~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}',
+            mapped[2],
+        )
+        self.assertEqual(
+            '~{select_first([generatedFileInpOptional, "~{if defined(fileInpOptional) then basename(fileInpOptional, ".txt") else "generated"}.optional.txt"])}',
+            mapped[3],
         )
 
 
