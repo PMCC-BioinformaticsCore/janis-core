@@ -753,7 +753,8 @@ def prepare_tool_output_secondaries(output):
         f"""\
 {4*tb}{{
 {5*tb}path: resolveSecondary(self.path, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in output.output_type.secondary_files()
     )
@@ -785,7 +786,8 @@ def prepare_tool_input_secondaries(toolinp):
         f"""\
 {4*tb}{{
 {5*tb}location: resolveSecondary(self.location, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in toolinp.input_type.secondary_files()
     )
