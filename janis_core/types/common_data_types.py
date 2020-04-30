@@ -101,10 +101,7 @@ class Filename(String):
         return NativeTypes.kStr
 
     def cwl_type(self, has_default=False):
-        self.optional = False
-        t = super().cwl_type()
-        self.optional = True
-        return t
+        return super().cwl_type()
 
     @staticmethod
     def doc() -> str:

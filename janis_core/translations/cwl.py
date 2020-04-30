@@ -383,7 +383,10 @@ class CwlTranslator(TranslatorBase):
                     f"'allow_empty_container=True' or --allow-empty-container"
                 )
 
-        tool_cwl.inputs.extend(translate_tool_input(i) for i in tool.inputs())
+        inputsdict = {t.id(): t for t in tool.inputs()}
+        tool_cwl.inputs.extend(
+            translate_tool_input(i, inputsdict) for i in tool.inputs()
+        )
         tool_cwl.outputs.extend(
             translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
         )
@@ -635,18 +638,58 @@ def translate_output(outp, source):
     )
 
 
-def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
+def translate_tool_input(
+    toolinput: ToolInput, inputsdict
+) -> cwlgen.CommandInputParameter:
 
     default, value_from = toolinput.default, None
+    intype = toolinput.input_type
 
-    if isinstance(toolinput.input_type, Filename):
-        default = toolinput.input_type.generated_filename()
-        # value_from = get_input_value_from_potential_selector_or_generator(toolinput.input_type, code_environment=False, toolid=toolinput.id())
-    elif is_selector(default):
-        default = None
-        value_from = get_input_value_from_potential_selector_or_generator(
-            toolinput.default, code_environment=False, toolid=toolinput.id()
-        )
+    if isinstance(intype, Filename):
+
+        def prepare_filename_replacements_for(
+            inp: Optional[str], inputsdict: Optional[Dict[str, ToolInput]]
+        ) -> Optional[Dict[str, str]]:
+            if not inp:
+                return None
+
+            if not inputsdict:
+                raise Exception(
+                    f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp})"
+                )
+
+            if inp not in inputsdict:
+                raise Exception
+
+            tinp = inputsdict.get(inp)
+            intype = tinp.input_type
+
+            if isinstance(intype, (File, Directory)):
+                if isinstance(intype, File) and intype.extension:
+                    base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+                else:
+                    base = f"inputs.{tinp.id()}.basename"
+            else:
+                base = "inputs." + tinp.id()
+
+            if intype.optional:
+                replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
+            else:
+                replacement = f"$({base})"
+
+            return {inp: replacement}
+
+        if intype.input_to_select:
+            default = intype.generated_filename(
+                inputs={intype.input_to_select: "generated"}
+            )
+            value_from = intype.generated_filename(
+                inputs=prepare_filename_replacements_for(
+                    intype.input_to_select, inputsdict=inputsdict
+                )
+            )
+        else:
+            default = intype.generated_filename()
 
     data_type = toolinput.input_type.cwl_type(default is not None)
 

@@ -447,7 +447,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
 
-class TestFilenameGeneration(unittest.TestCase):
+class TestWDLFilenameGeneration(unittest.TestCase):
     def test_1(self):
         tool = FilenameGeneratedTool()
         mapped = [
