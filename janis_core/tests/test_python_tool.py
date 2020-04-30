@@ -154,10 +154,10 @@ except e:
 
 EOT
     python echo_tool-script.py \\
-      --name ~{name} \\
-      ~{if defined(select_first([infile, "generated"])) then ("--infile " +  '"' + select_first([infile, "generated"]) + '"') else ""} \\
-      ~{true="--flag" false="" select_first([flag, true])} \\
-      ~{if defined(select_first([testvalue, "test"])) then ("--testvalue " +  '"' + select_first([testvalue, "test"]) + '"') else ""}
+      --name '~{name}' \\
+      ~{if defined(select_first([infile, "generated"])) then ("--infile '" + select_first([infile, "generated"]) + "'") else "")} \\
+      ~{if defined(select_first([flag, true])) then "--flag" else ""} \\
+      ~{if defined(select_first([testvalue, "test"])) then ("--testvalue '" + select_first([testvalue, "test"]) + "'") else "")}
   >>>
   runtime {
     disks: runtime_disks

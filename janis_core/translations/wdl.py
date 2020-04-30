@@ -47,6 +47,10 @@ from janis_core.types.common_data_types import (
     Boolean,
     Filename,
     File,
+    Directory,
+    Int,
+    Float,
+    Double,
     String,
 )
 from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
@@ -612,7 +616,9 @@ class WdlTranslator(TranslatorBase):
             )
             wrapped_val = f"'{val}'" if should_wrap_in_quotes else val
             commandargs.append(
-                wdl.Task.Command.CommandArgument(a.prefix, wrapped_val, a.position)
+                wdl.Task.Command.CommandArgument.from_fields(
+                    a.prefix, wrapped_val, a.position
+                )
             )
         return commandargs
 
@@ -964,40 +970,74 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
         isinstance(tool_input.default, CpuSelector) and not tool_input.default
     )
     position = tool_input.position
-    separate_value_from_prefix = tool_input.separate_value_from_prefix
-    prefix = tool_input.prefix
-    true = None
-    sep = tool_input.separator
 
-    is_array = isinstance(tool_input.input_type, Array)
-    separate_arrays = is_array and tool_input.prefix_applies_to_all_elements
+    separate_value_from_prefix = tool_input.separate_value_from_prefix is not False
+    prefix = tool_input.prefix if tool_input.prefix else ""
+    tprefix = prefix
 
-    if isinstance(tool_input.input_type, Boolean):
-        true = tool_input.prefix
-        prefix = None
+    intype = tool_input.input_type
 
-    return wdl.Task.Command.CommandInput(
-        name=name,
-        optional=optional,
-        prefix=prefix,
-        position=position,
-        separate_value_from_prefix=(
-            separate_value_from_prefix
-            if separate_value_from_prefix is not None
-            else True
-        ),
-        # Instead of using default, we'll use the ~{select_first([$var, default])}
-        #       (previously: ~{if defined($var) then val1 else val2})
-        # as it progress through the rest properly
-        # default=default,
-        true=true,
-        separator=(
-            None
-            if not is_array or separate_arrays
-            else (sep if sep is not None else " ")
-        ),
-        separate_arrays=separate_arrays,
-    )
+    is_flag = isinstance(intype, Boolean)
+
+    if prefix and separate_value_from_prefix and not is_flag:
+        tprefix += " "
+
+    if isinstance(intype, Boolean):
+        if tool_input.prefix:
+            name = f'~{{if defined({name}) then "{tprefix}" else ""}}'
+
+    elif isinstance(intype, (String, File, Directory)):
+        if tprefix:
+            if optional:
+                name = f'~{{if defined({name}) then ("{tprefix}\'" + {name} + "\'") else "")}}'
+            else:
+                name = f"{tprefix}'~{{{name}}}'"
+        else:
+            if not optional:
+                name = f"~{{{name}}}"
+            else:
+                name = f'~{{if defined({name}) then ("\'" + {name} + "\'") else ""}}'
+
+    elif isinstance(intype, (Int, Float, Double)):
+        if prefix:
+            if optional:
+                name = f'~{{if defined({name}) then ("{tprefix}" + {name} + "\'") else \'\'}})'
+            else:
+                name = f"{tprefix}~{{{name}}}"
+        else:
+            name = f"~{{{name}}}"
+
+    elif isinstance(intype, Array):
+        condition_for_binding = f"defined({name}) and length({name})"
+
+        expr = name
+
+        separator = tool_input.separator if tool_input.separator is not None else " "
+        should_quote = isinstance(intype.subtype(), (String, File, Directory))
+        if should_quote:
+            if tool_input.prefix_applies_to_all_elements:
+                separator = f"'{separator}{prefix}'"
+            else:
+                separator = f"'{separator}'"
+
+            if prefix:
+                expr = f'"{prefix}\'" + sep("{separator}", {expr}) + "\'"'
+            else:
+                expr = f'"\'" + sep({expr}) + "\'"'
+
+        else:
+            if prefix:
+                expr = f'"{prefix}" + sep("{separator}", {expr})'
+            else:
+                expr = f"sep({expr})"
+
+        name = f'~{{if {condition_for_binding} then {expr} else ""}}'
+
+    else:
+        raise Exception("Unrecognised command input type: " + str())
+
+    # there used to be a whole lot of login in the wdl.Task.Command.CommandInput but it's been moved to here now
+    return wdl.Task.Command.CommandInput(value=name, position=tool_input.position)
 
 
 def translate_input_selector_for_output(

@@ -551,25 +551,27 @@ class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual("--amazing ~{tag}", resp.get_string())
+        self.assertEqual("--amazing '~{tag}'", resp.get_string())
 
     def test_nodefault_nooptional_prefix_nosep(self):
         ti = ToolInput(
             "tag", String(), prefix="--amazing=", separate_value_from_prefix=False
         )
         resp = wdl.translate_command_input(ti)
-        self.assertEqual("--amazing=~{tag}", resp.get_string())
+        self.assertEqual("--amazing='~{tag}'", resp.get_string())
 
     def test_nodefault_optional_position(self):
         ti = ToolInput("tag", String(optional=True), position=0)
         resp = wdl.translate_command_input(ti)
-        self.assertEqual("~{tag}", resp.get_string())
+        self.assertEqual(
+            '~{if defined(tag) then ("\'" + tag + "\'") else ""}', resp.get_string()
+        )
 
     def test_nodefault_optional_prefix_sep(self):
         ti = ToolInput("tag", String(optional=True), prefix="--amazing")
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(tag) then ("--amazing " +  \'"\' + tag + \'"\') else ""}',
+            '~{if defined(tag) then ("--amazing \'" + tag + "\'") else "")}',
             resp.get_string(),
         )
 
@@ -582,7 +584,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(tag) then (\'"\' + "--amazing=" + tag + \'"\') else ""}',
+            '~{if defined(tag) then ("--amazing=\'" + tag + "\'") else "")}',
             resp.get_string(),
         )
 
@@ -596,7 +598,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         ti = ToolInput("tag", String(), prefix="--amazing", default="defval")
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing ~{select_first([tag, "defval"])}', resp.get_string()
+            "--amazing '~{select_first([tag, \"defval\"])}'", resp.get_string()
         )
 
     def test_default_nooptional_prefix_nosep(self):
@@ -609,13 +611,16 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '--amazing=~{select_first([tag, "defval"])}', resp.get_string()
+            "--amazing='~{select_first([tag, \"defval\"])}'", resp.get_string()
         )
 
     def test_default_optional_position(self):
         ti = ToolInput("tag", String(optional=True), position=0, default="defval")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{select_first([tag, "defval"])}', resp.get_string())
+        self.assertEqual(
+            '~{if defined(select_first([tag, "defval"])) then ("\'" + select_first([tag, "defval"]) + "\'") else ""}',
+            resp.get_string(),
+        )
 
     def test_default_optional_prefix_sep(self):
         ti = ToolInput(
@@ -623,7 +628,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(select_first([tag, "defval"])) then ("--amazing " +  \'"\' + select_first([tag, "defval"]) + \'"\') else ""}',
+            '~{if defined(select_first([tag, "defval"])) then ("--amazing \'" + select_first([tag, "defval"]) + "\'") else "")}',
             resp.get_string(),
         )
 
@@ -637,14 +642,16 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(select_first([tag, "defval"])) then (\'"\' + "--amazing=" + select_first([tag, "defval"]) + \'"\') else ""}',
+            '~{if defined(select_first([tag, "defval"])) then ("--amazing=\'" + select_first([tag, "defval"]) + "\'") else "")}',
             resp.get_string(),
         )
 
     def test_bind_boolean_as_default(self):
         ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing", default=True)
         resp = wdl.translate_command_input(ti).get_string()
-        self.assertEqual('~{true="--amazing" false="" select_first([tag, true])}', resp)
+        self.assertEqual(
+            '~{if defined(select_first([tag, true])) then "--amazing" else ""}', resp
+        )
 
 
 class TestWdlInputTranslation(unittest.TestCase):
