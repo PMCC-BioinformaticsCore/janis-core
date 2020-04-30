@@ -439,6 +439,7 @@ class CwlTranslator(TranslatorBase):
         stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
         scriptname = tool.script_name()
+        inputsdict = {t.id(): t for t in tool.inputs()}
 
         if isinstance(stderr, InputSelector):
             stderr = translate_input_selector(stderr, code_environment=False)
@@ -461,7 +462,8 @@ class CwlTranslator(TranslatorBase):
                     prefix=f"--{t.id()}",
                     default=t.default,
                     doc=t.doc.doc if t.doc else None,
-                )
+                ),
+                inputsdict=inputsdict,
             )
             for t in tool.inputs()
         )
@@ -690,6 +692,11 @@ def translate_tool_input(
             )
         else:
             default = intype.generated_filename()
+    elif is_selector(default):
+        default = None
+        value_from = get_input_value_from_potential_selector_or_generator(
+            toolinput.default, code_environment=False, toolid=toolinput.id()
+        )
 
     data_type = toolinput.input_type.cwl_type(default is not None)
 
