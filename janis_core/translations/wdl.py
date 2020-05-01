@@ -1012,7 +1012,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
     elif isinstance(intype, Array):
         condition_for_binding = (
-            f"(defined({name}) && length(select_first([{name}, []])))"
+            f"(defined({name}) && length(select_first([{name}, []])) > 0)"
         )
 
         expr = name
