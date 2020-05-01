@@ -992,7 +992,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     elif isinstance(intype, (String, File, Directory)):
         if tprefix:
             if optional:
-                name = f'~{{if defined({name}) then ("{tprefix}\'" + {name} + "\'") else "")}}'
+                name = f'~{{if defined({name}) then ("{tprefix}\'" + {name} + "\'") else ""}}'
             else:
                 name = f"{tprefix}'~{{{name}}}'"
         else:

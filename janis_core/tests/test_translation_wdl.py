@@ -595,7 +595,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         ti = ToolInput("tag", String(optional=True), prefix="--amazing")
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(tag) then ("--amazing \'" + tag + "\'") else "")}',
+            '~{if defined(tag) then ("--amazing \'" + tag + "\'") else ""}',
             resp.get_string(),
         )
 
@@ -608,7 +608,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(tag) then ("--amazing=\'" + tag + "\'") else "")}',
+            '~{if defined(tag) then ("--amazing=\'" + tag + "\'") else ""}',
             resp.get_string(),
         )
 
@@ -652,7 +652,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(select_first([tag, "defval"])) then ("--amazing \'" + select_first([tag, "defval"]) + "\'") else "")}',
+            '~{if defined(select_first([tag, "defval"])) then ("--amazing \'" + select_first([tag, "defval"]) + "\'") else ""}',
             resp.get_string(),
         )
 
@@ -666,7 +666,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         )
         resp = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if defined(select_first([tag, "defval"])) then ("--amazing=\'" + select_first([tag, "defval"]) + "\'") else "")}',
+            '~{if defined(select_first([tag, "defval"])) then ("--amazing=\'" + select_first([tag, "defval"]) + "\'") else ""}',
             resp.get_string(),
         )
 

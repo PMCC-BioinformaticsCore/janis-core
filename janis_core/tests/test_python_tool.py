@@ -157,7 +157,7 @@ EOT
       --name '~{name}' \\
       --infile '~{select_first([infile, "generated"])}' \\
       ~{if defined(select_first([flag, true])) then "--flag" else ""} \\
-      ~{if defined(select_first([testvalue, "test"])) then ("--testvalue '" + select_first([testvalue, "test"]) + "'") else "")}
+      ~{if defined(select_first([testvalue, "test"])) then ("--testvalue '" + select_first([testvalue, "test"]) + "'") else ""}
   >>>
   runtime {
     disks: runtime_disks
