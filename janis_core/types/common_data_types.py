@@ -2,7 +2,7 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Dict, Any, List
+from typing import Union, Type, Dict, Any, Optional, List
 
 import cwlgen
 import wdlgen
@@ -107,6 +107,7 @@ class Filename(String):
         suffix=None,
         extension: str = None,
         guid: str = None,
+        input_to_select: str = None,
         optional=None,
     ):
         """
@@ -121,6 +122,13 @@ class Filename(String):
         self.extension = extension
         self.suffix = suffix
         self.guid = guid if guid is not None else str(uuid.uuid1())
+
+        from janis_core.operators.selectors import InputSelector
+
+        self.input_to_select: str = input_to_select.input_to_select if isinstance(
+            input_to_select, InputSelector
+        ) else input_to_select
+
         super().__init__(optional=True)
 
     @staticmethod
@@ -132,15 +140,12 @@ class Filename(String):
         return NativeTypes.kStr
 
     def cwl_type(self, has_default=False):
-        self.optional = False
-        t = super().cwl_type()
-        self.optional = True
-        return t
+        return super().cwl_type()
 
     @staticmethod
     def doc() -> str:
         return """
-This class is a placeholder for generated filenames, by default it is optional and CAN be overrided, 
+This class is a placeholder for generated filenames, by default it is optional and CAN be overridden, 
 however the program has been structured in a way such that these names will be generated based on the step label. 
 These should only be used when the tool _requires_ a filename to output and you aren't 
 concerned what the filename should be. The Filename DataType should NOT be used as an output.
@@ -154,12 +159,24 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         super().map_cwl_type(parameter)
         parameter.default = self.generated_filenamecwl()
 
-    def generated_filename(self) -> str:
+    def generated_filename(self, inputs: Optional[Dict] = None) -> str:
 
-        pre = self.prefix
-        suf = ("-" + str(self.suffix)) if self.suffix else ""
+        base = self.prefix
+        if self.input_to_select:
+            if not inputs or self.input_to_select not in inputs:
+                raise Exception(
+                    f"The filename generator required the input {self.input_to_select} but was not provided"
+                )
+            base = inputs[self.input_to_select]
+
+        suf = ""
+        if self.suffix:
+            if str(self.suffix).startswith("."):
+                suf = str(self.suffix)
+            else:
+                suf = "-" + str(self.suffix)
         ex = "" if self.extension is None else self.extension
-        return pre + suf + ex
+        return base + suf + ex
 
     def generated_filenamecwl(self) -> str:
         return f'"{self.generated_filename()}"'

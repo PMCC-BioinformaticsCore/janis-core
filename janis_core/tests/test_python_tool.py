@@ -94,7 +94,7 @@ task echo_tool {
     Int? runtime_cpu
     Int? runtime_memory
     String name
-    String? infile = "generated"
+    String? infile
     Boolean? flag
     String? testvalue
     String runtime_disks
@@ -155,7 +155,7 @@ except e:
 EOT
     python echo_tool-script.py \\
       --name '~{name}' \\
-      ~{if defined(select_first([infile, "generated"])) then ("--infile '" + select_first([infile, "generated"]) + "'") else "")} \\
+      --infile '~{select_first([infile, "generated"])}' \\
       ~{if defined(select_first([flag, true])) then "--flag" else ""} \\
       ~{if defined(select_first([testvalue, "test"])) then ("--testvalue '" + select_first([testvalue, "test"]) + "'") else "")}
   >>>

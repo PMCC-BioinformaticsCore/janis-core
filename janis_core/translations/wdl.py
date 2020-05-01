@@ -328,9 +328,12 @@ class WdlTranslator(TranslatorBase):
 
             return str(expression)
         elif isinstance(expression, Filename):
-            return cls.wrap_if_string_environment(
-                expression.generated_filename(), string_environment
+            gen_filename = expression.generated_filename(
+                inputs=prepare_filename_replacements_for(
+                    expression.input_to_select, inputsdict
+                )
             )
+            return cls.wrap_if_string_environment(gen_filename, string_environment)
         elif isinstance(expression, StringFormatter):
             return translate_string_formatter(
                 selector=expression,
@@ -496,7 +499,7 @@ class WdlTranslator(TranslatorBase):
             wd = i.input_type.wdl(has_default=i.default is not None)
             expr = None
             if isinstance(i.input_type, Filename):
-                expr = f'"{i.input_type.generated_filename()}"'
+                expr = None
             if isinstance(wd, list):
                 ins.extend(wdl.Input(w, i.id()) for w in wd)
             else:
@@ -624,9 +627,10 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def build_command_from_inputs(cls, toolinputs: List[ToolInput]):
+        inputsdict = {t.id(): t for t in toolinputs}
         command_ins = []
         for i in toolinputs:
-            cmd = translate_command_input(i)
+            cmd = translate_command_input(i, inputsdict=inputsdict)
             if cmd:
                 command_ins.append(cmd)
         return command_ins
@@ -919,7 +923,7 @@ EOT"""
         return workflow.id() + "-resources.json"
 
 
-def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
+def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
     name = tool_input.id()
     indefault = (
         tool_input.input_type
@@ -942,7 +946,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
 
     elif indefault is not None:
         default = WdlTranslator.unwrap_expression(
-            indefault, string_environment=False, **debugkwargs
+            indefault, inputsdict=inputsdict, string_environment=False, **debugkwargs
         )
 
     if default is not None:
@@ -959,14 +963,15 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     return name
 
 
-def translate_command_input(tool_input: ToolInput, **debugkwargs):
+def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
     # make sure it has some essence of a command line binding, else we'll skip it
-    # TODO: make a property on ToolInput (.bind_to_commandline) and set default to true
     if not (tool_input.position is not None or tool_input.prefix):
         return None
 
-    name = resolve_tool_input_value(tool_input, **debugkwargs)
-    optional = tool_input.input_type.optional or (
+    name = resolve_tool_input_value(tool_input, inputsdict=inputsdict, **debugkwargs)
+    intype = tool_input.input_type
+
+    optional = (not isinstance(intype, Filename) and intype.optional) or (
         isinstance(tool_input.default, CpuSelector) and not tool_input.default
     )
     position = tool_input.position
@@ -974,8 +979,6 @@ def translate_command_input(tool_input: ToolInput, **debugkwargs):
     separate_value_from_prefix = tool_input.separate_value_from_prefix is not False
     prefix = tool_input.prefix if tool_input.prefix else ""
     tprefix = prefix
-
-    intype = tool_input.input_type
 
     is_flag = isinstance(intype, Boolean)
 
@@ -1584,8 +1587,7 @@ def translate_input_selector(
         )
 
     inp = inputsdict[selector.input_to_select]
-    name = resolve_tool_input_value(inp, **debugkwargs)
-
+    name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
     if string_environment:
 
         return f"~{{{name}}}"
@@ -1841,3 +1843,36 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
         inputs.extend(build_resource_override_maps_for_tool(tool, prefix=tool_pre))
 
     return inputs
+
+
+def prepare_filename_replacements_for(
+    inp: Optional[str], inputsdict: Optional[Dict[str, ToolInput]]
+) -> Optional[Dict[str, str]]:
+    if not inp:
+        return None
+
+    if not inputsdict:
+        raise Exception(
+            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp})"
+        )
+
+    if inp not in inputsdict:
+        raise Exception
+
+    tinp = inputsdict.get(inp)
+    intype = tinp.input_type
+
+    if isinstance(intype, (File, Directory)):
+        if isinstance(intype, File) and intype.extension:
+            base = f'basename({tinp.id()}, "{intype.extension}")'
+        else:
+            base = f"basename({tinp.id()})"
+    else:
+        base = tinp.id()
+
+    if intype.optional:
+        replacement = f'~{{if defined({tinp.id()}) then {base} else "generated"}}'
+    else:
+        replacement = f"~{{{base}}}"
+
+    return {inp: replacement}

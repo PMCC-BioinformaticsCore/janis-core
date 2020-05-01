@@ -11,6 +11,7 @@ from janis_core.tests.testtools import (
     TestTypeWithSecondary,
     TestWorkflowWithStepInputExpression,
     EchoTestTool,
+    FilenameGeneratedTool,
 )
 
 import cwlgen
@@ -99,7 +100,7 @@ class TestCwlArraySeparators(unittest.TestCase):
 
     def test_regular_input_bindingin(self):
         t = ToolInput("filesA", Array(String()), prefix="-A", position=1)
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesA",
@@ -119,7 +120,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=2,
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesB",
@@ -143,7 +144,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=4,
             separator=",",
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesC",
@@ -166,7 +167,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             prefix="-D",
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
 
         self.assertDictEqual(
             {
@@ -599,6 +600,29 @@ class TestCWLCompleteOperators(unittest.TestCase):
 #         derived, _, _ = wf.translate("cwl", to_console=False)
 #         expected = """"""
 #         self.assertEqual(expected, derived)
+
+
+class TestCWLFilenameGeneration(unittest.TestCase):
+    def test_1(self):
+        tool = FilenameGeneratedTool()
+        inputsdict = {t.id(): t for t in tool.inputs()}
+        mapped = [cwl.translate_tool_input(i, inputsdict) for i in tool.inputs()]
+        expressions = [
+            mapped[i].get_dict()["inputBinding"]["valueFrom"]
+            for i in range(4, len(mapped))
+        ]
+        self.assertEqual("$(inputs.inp)", expressions[0])
+        self.assertEqual(
+            '$(inputs.inpOptional ? inputs.inpOptional : "generated")', expressions[1]
+        )
+        self.assertEqual(
+            '$(inputs.fileInp.basename.replace(/.txt$/, "")).transformed.fnp',
+            expressions[2],
+        )
+        self.assertEqual(
+            '$(inputs.fileInpOptional ? inputs.fileInpOptional.basename.replace(/.txt$/, "") : "generated").optional.txt',
+            expressions[3],
+        )
 
 
 cwl_testtool = """\

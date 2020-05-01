@@ -402,8 +402,13 @@ class CwlTranslator(TranslatorBase):
                     f"'allow_empty_container=True' or --allow-empty-container"
                 )
 
-        tool_cwl.inputs.extend(translate_tool_input(i) for i in tool.inputs())
-        tool_cwl.outputs.extend(translate_tool_output(o) for o in tool.outputs())
+        inputsdict = {t.id(): t for t in tool.inputs()}
+        tool_cwl.inputs.extend(
+            translate_tool_input(i, inputsdict) for i in tool.inputs()
+        )
+        tool_cwl.outputs.extend(
+            translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
+        )
 
         args = tool.arguments()
         if args:
@@ -453,6 +458,7 @@ class CwlTranslator(TranslatorBase):
         stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
         scriptname = tool.script_name()
+        inputsdict = {t.id(): t for t in tool.inputs()}
 
         if isinstance(stderr, InputSelector):
             stderr = translate_input_selector(stderr, code_environment=False)
@@ -475,7 +481,8 @@ class CwlTranslator(TranslatorBase):
                     prefix=f"--{t.id()}",
                     default=t.default,
                     doc=t.doc.doc if t.doc else None,
-                )
+                ),
+                inputsdict=inputsdict,
             )
             for t in tool.inputs()
         )
@@ -770,18 +777,64 @@ def translate_workflow_output(node: OutputNode) -> cwlgen.WorkflowOutputParamete
     )
 
 
-def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
+def translate_tool_input(
+    toolinput: ToolInput, inputsdict
+) -> cwlgen.CommandInputParameter:
     """
     Translate a ToolInput (commandtool / codetool) to a cwlgen.CommandInputParamaeter
     :param toolinput:
     :type toolinput: ToolInput
     :return:
     """
-    default, value_from = toolinput.default, None
 
-    if isinstance(toolinput.input_type, Filename):
-        default = toolinput.input_type.generated_filename()
-        # value_from = get_input_value_from_potential_selector_or_generator(toolinput.input_type, code_environment=False, toolid=toolinput.id())
+    default, value_from = toolinput.default, None
+    intype = toolinput.input_type
+
+    if isinstance(intype, Filename):
+
+        def prepare_filename_replacements_for(
+            inp: Optional[str], inputsdict: Optional[Dict[str, ToolInput]]
+        ) -> Optional[Dict[str, str]]:
+            if not inp:
+                return None
+
+            if not inputsdict:
+                raise Exception(
+                    f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp})"
+                )
+
+            if inp not in inputsdict:
+                raise Exception
+
+            tinp = inputsdict.get(inp)
+            intype = tinp.input_type
+
+            if isinstance(intype, (File, Directory)):
+                if isinstance(intype, File) and intype.extension:
+                    base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+                else:
+                    base = f"inputs.{tinp.id()}.basename"
+            else:
+                base = "inputs." + tinp.id()
+
+            if intype.optional:
+                replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
+            else:
+                replacement = f"$({base})"
+
+            return {inp: replacement}
+
+        if intype.input_to_select:
+            default = intype.generated_filename(
+                inputs={intype.input_to_select: "generated"}
+            )
+            value_from = intype.generated_filename(
+                inputs=prepare_filename_replacements_for(
+                    intype.input_to_select, inputsdict=inputsdict
+                )
+            )
+        else:
+            default = intype.generated_filename()
     elif is_selector(default):
         default = None
         value_from = CwlTranslator.unwrap_expression(
@@ -857,7 +910,9 @@ def translate_tool_argument(argument: ToolArgument) -> cwlgen.CommandLineBinding
     )
 
 
-def translate_tool_output(output: ToolOutput) -> cwlgen.CommandOutputParameter:
+def translate_tool_output(
+    output: ToolOutput, **debugkwargs
+) -> cwlgen.CommandOutputParameter:
     """
     https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
 
@@ -873,14 +928,16 @@ def translate_tool_output(output: ToolOutput) -> cwlgen.CommandOutputParameter:
         label=output.tag,
         secondary_files=prepare_tool_output_secondaries(output),
         doc=doc,
-        output_binding=prepare_tool_output_binding(output),
+        output_binding=prepare_tool_output_binding(output, **debugkwargs),
         param_type=output.output_type.cwl_type(),
         # param_format=None,
         # streamable=None,
     )
 
 
-def prepare_tool_output_binding(output: ToolOutput) -> cwlgen.CommandOutputBinding:
+def prepare_tool_output_binding(
+    output: ToolOutput, **debugkwargs
+) -> cwlgen.CommandOutputBinding:
 
     if isinstance(output.glob, Operator):
         # It's not terribly hard to do this, we'd have to change the output_eval
@@ -890,7 +947,7 @@ def prepare_tool_output_binding(output: ToolOutput) -> cwlgen.CommandOutputBindi
         )
 
     return cwlgen.CommandOutputBinding(
-        glob=translate_to_cwl_glob(output.glob, outputtag=output.tag),
+        glob=translate_to_cwl_glob(output.glob, outputtag=output.tag, **debugkwargs),
         output_eval=prepare_tool_output_eval(output),
     )
 
@@ -945,7 +1002,8 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
         f"""\
 {4*tb}{{
 {5*tb}path: resolveSecondary(self.path, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in output.output_type.secondary_files()
     )
@@ -992,7 +1050,8 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
         f"""\
 {4*tb}{{
 {5*tb}location: resolveSecondary(self.location, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in inp.input_type.secondary_files()
     )

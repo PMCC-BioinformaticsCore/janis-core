@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Optional, Union
 
 from janis_core.operators.logical import If, IsDefined
+from janis_core.types import Filename
 
 from janis_core import (
     ToolOutput,
@@ -90,6 +91,45 @@ class SingleTestTool(CommandTool):
     @staticmethod
     def version():
         return None
+
+
+class FilenameGeneratedTool(SingleTestTool):
+    def id(self):
+        return "filenamegeneratedtool"
+
+    def inputs(self):
+        return [
+            ToolInput("inp", str),
+            ToolInput("inpOptional", Optional[str]),
+            ToolInput("fileInp", File(extension=".txt")),
+            ToolInput("fileInpOptional", File(extension=".txt", optional=True)),
+            ToolInput(
+                "generatedInp",
+                Filename(input_to_select="inp", extension=""),
+                position=0,
+            ),
+            ToolInput(
+                "generatedInpOptional",
+                Filename(input_to_select="inpOptional"),
+                position=0,
+            ),
+            ToolInput(
+                "generatedFileInp",
+                Filename(
+                    input_to_select="fileInp", suffix=".transformed", extension=".fnp"
+                ),
+                position=0,
+            ),
+            ToolInput(
+                "generatedFileInpOptional",
+                Filename(
+                    input_to_select="fileInpOptional",
+                    suffix=".optional",
+                    extension=".txt",
+                ),
+                position=0,
+            ),
+        ]
 
 
 class ArrayTestTool(CommandTool):
