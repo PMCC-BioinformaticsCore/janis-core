@@ -1019,20 +1019,20 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
         should_quote = isinstance(intype.subtype(), (String, File, Directory))
         if should_quote:
             if tool_input.prefix_applies_to_all_elements:
-                separator = f"'{separator}{prefix}'"
+                separator = f"{separator}{prefix}"
             else:
-                separator = f"'{separator}'"
+                separator = f"{separator}"
 
             if prefix:
-                expr = f'"{prefix}\'" + sep("{separator}", {expr}) + "\'"'
+                expr = f'"{prefix}\'" + sep("{separator}", select_first({expr}, [])) + "\'"'
             else:
-                expr = f'"\'" + sep({expr}) + "\'"'
+                expr = f'"\'" + sep("{separator}", select_first({expr}, [])) + "\'"'
 
         else:
             if prefix:
-                expr = f'"{prefix}" + sep("{separator}", {expr})'
+                expr = f'"{prefix}" + sep("{separator}", select_first({expr}, []))'
             else:
-                expr = f"sep({expr})"
+                expr = f'sep("{separator}", select_first({expr}, []))'
 
         name = f'~{{if {condition_for_binding} then {expr} else ""}}'
 
