@@ -1024,15 +1024,15 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
                 separator = f"{separator}"
 
             if prefix:
-                expr = f'"{prefix}\'" + sep("{separator}", select_first({expr}, [])) + "\'"'
+                expr = f'"{prefix}\'" + sep("{separator}", select_first([{expr}, []])) + "\'"'
             else:
-                expr = f'"\'" + sep("{separator}", select_first({expr}, [])) + "\'"'
+                expr = f'"\'" + sep("{separator}", select_first([{expr}, []])) + "\'"'
 
         else:
             if prefix:
-                expr = f'"{prefix}" + sep("{separator}", select_first({expr}, []))'
+                expr = f'"{prefix}" + sep("{separator}", select_first([{expr}, []]))'
             else:
-                expr = f'sep("{separator}", select_first({expr}, []))'
+                expr = f'sep("{separator}", select_first([{expr}, []]))'
 
         name = f'~{{if {condition_for_binding} then {expr} else ""}}'
 
