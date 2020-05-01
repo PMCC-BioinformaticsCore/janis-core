@@ -580,26 +580,38 @@ EOT"""
 
         if merge_resources:
             inp.update(
-                cls.build_resources_input(tool, hints, max_cores, max_mem, inputs=ad)
+                cls.build_resources_input(
+                    tool, hints, max_cores, max_mem, inputs=ad, is_root=True
+                )
             )
 
         return inp
 
     @classmethod
     def build_resources_input(
-        cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
+        cls,
+        tool,
+        hints,
+        max_cores=None,
+        max_mem=None,
+        inputs=None,
+        prefix=None,
+        is_root=False,
     ):
         from janis_core.workflow.workflow import Workflow
 
         is_workflow = isinstance(tool, Workflow)
-        return super().build_resources_input(
+        d = super().build_resources_input(
             tool=tool,
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
-            prefix=prefix or (f"{tool.id()}." if is_workflow else ""),
+            prefix=prefix or "",
             inputs=inputs,
         )
+        if is_workflow and is_root:
+            return {f"{tool.id()}.{k}": v for k, v in d.items()}
+        return d
 
     @staticmethod
     def workflow_filename(workflow):
