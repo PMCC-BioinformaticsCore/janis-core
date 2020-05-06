@@ -1417,7 +1417,7 @@ def get_input_value_from_potential_selector_or_generator(
         return value
     elif isinstance(value, Filename):
         gen_filename = value.generated_filename(
-            inputs=prepare_filename_replacements_for(value.input_to_select, inputsdict)
+            inputs=prepare_filename_replacements_for(value.prefix, inputsdict)
         )
         return gen_filename if string_environment else f'"{gen_filename}"'
     elif isinstance(value, StringFormatter):
@@ -1773,20 +1773,20 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
 
 
 def prepare_filename_replacements_for(
-    inp: Optional[str], inputsdict: Optional[Dict[str, ToolInput]]
+    inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
 ) -> Optional[Dict[str, str]]:
-    if not inp:
+    if not (inp and isinstance(inp, InputSelector)):
         return None
 
     if not inputsdict:
         raise Exception(
-            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp})"
+            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
         )
 
-    if inp not in inputsdict:
+    if inp.input_to_select not in inputsdict:
         raise Exception
 
-    tinp = inputsdict.get(inp)
+    tinp = inputsdict.get(inp.input_to_select)
     intype = tinp.input_type
 
     if isinstance(intype, (File, Directory)):
@@ -1802,4 +1802,4 @@ def prepare_filename_replacements_for(
     else:
         replacement = f"~{{{base}}}"
 
-    return {inp: replacement}
+    return {inp.input_to_select: replacement}
