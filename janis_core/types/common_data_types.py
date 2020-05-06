@@ -123,12 +123,6 @@ class Filename(String):
         self.suffix = suffix
         self.guid = guid if guid is not None else str(uuid.uuid1())
 
-        from janis_core.operators.selectors import InputSelector
-
-        self.input_to_select: str = input_to_select.input_to_select if isinstance(
-            input_to_select, InputSelector
-        ) else input_to_select
-
         super().__init__(optional=True)
 
     @staticmethod
@@ -160,14 +154,16 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         parameter.default = self.generated_filenamecwl()
 
     def generated_filename(self, inputs: Optional[Dict] = None) -> str:
+        from janis_core.operators.selectors import InputSelector
 
         base = self.prefix
-        if self.input_to_select:
-            if not inputs or self.input_to_select not in inputs:
+        if isinstance(base, InputSelector):
+            inp = base.input_to_select
+            if not inputs or inp not in inputs:
                 raise Exception(
-                    f"The filename generator required the input {self.input_to_select} but was not provided"
+                    f"The filename generator required the input '{inp}' but was not provided"
                 )
-            base = inputs[self.input_to_select]
+            base = inputs[inp]
 
         suf = ""
         if self.suffix:

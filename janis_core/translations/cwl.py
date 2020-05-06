@@ -792,45 +792,13 @@ def translate_tool_input(
 
     if isinstance(intype, Filename):
 
-        def prepare_filename_replacements_for(
-            inp: Optional[str], inputsdict: Optional[Dict[str, ToolInput]]
-        ) -> Optional[Dict[str, str]]:
-            if not inp:
-                return None
-
-            if not inputsdict:
-                raise Exception(
-                    f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp})"
-                )
-
-            if inp not in inputsdict:
-                raise Exception
-
-            tinp = inputsdict.get(inp)
-            intype = tinp.input_type
-
-            if isinstance(intype, (File, Directory)):
-                if isinstance(intype, File) and intype.extension:
-                    base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
-                else:
-                    base = f"inputs.{tinp.id()}.basename"
-            else:
-                base = "inputs." + tinp.id()
-
-            if intype.optional:
-                replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
-            else:
-                replacement = f"$({base})"
-
-            return {inp: replacement}
-
-        if intype.input_to_select:
+        if isinstance(intype.prefix, InputSelector):
             default = intype.generated_filename(
-                inputs={intype.input_to_select: "generated"}
+                inputs={intype.prefix.input_to_select: "generated"}
             )
             value_from = intype.generated_filename(
                 inputs=prepare_filename_replacements_for(
-                    intype.input_to_select, inputsdict=inputsdict
+                    intype.prefix, inputsdict=inputsdict
                 )
             )
         else:
@@ -1384,3 +1352,36 @@ def build_resource_override_maps_for_workflow(
             inputs.extend(build_resource_override_maps_for_workflow(tool, tool_pre))
 
     return inputs
+
+
+def prepare_filename_replacements_for(
+    inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
+) -> Optional[Dict[str, str]]:
+    if not (inp and isinstance(inp, InputSelector)):
+        return None
+
+    if not inputsdict:
+        raise Exception(
+            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+        )
+
+    if inp.input_to_select not in inputsdict:
+        raise Exception
+
+    tinp = inputsdict.get(inp.input_to_select)
+    intype = tinp.input_type
+
+    if isinstance(intype, (File, Directory)):
+        if isinstance(intype, File) and intype.extension:
+            base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+        else:
+            base = f"inputs.{tinp.id()}.basename"
+    else:
+        base = "inputs." + tinp.id()
+
+    if intype.optional:
+        replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
+    else:
+        replacement = f"$({base})"
+
+    return {inp.input_to_select: replacement}
