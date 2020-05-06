@@ -707,7 +707,9 @@ class TestWdlEnvVar(unittest.TestCase):
 class TestWdlMaxResources(unittest.TestCase):
     def test_cores(self):
         tool = TestTool()
-        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, is_root=True
+        )
         self.assertEqual(
             2, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
         )
@@ -715,7 +717,7 @@ class TestWdlMaxResources(unittest.TestCase):
     def test_max_cores(self):
         tool = TestTool()
         resources = WdlTranslator.build_resources_input(
-            tool.wrapped_in_wf(), {}, max_cores=1
+            tool.wrapped_in_wf(), {}, max_cores=1, is_root=True
         )
         self.assertEqual(
             1, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
@@ -723,7 +725,9 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_memory(self):
         tool = TestTool()
-        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, is_root=True
+        )
         self.assertEqual(
             2, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
         )
@@ -731,7 +735,7 @@ class TestWdlMaxResources(unittest.TestCase):
     def test_max_memory(self):
         tool = TestTool()
         resources = WdlTranslator.build_resources_input(
-            tool.wrapped_in_wf(), {}, max_mem=1
+            tool.wrapped_in_wf(), {}, max_mem=1, is_root=True
         )
         self.assertEqual(
             1, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
