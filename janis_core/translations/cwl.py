@@ -29,6 +29,7 @@ import ruamel.yaml
 from janis_core import ToolArgument
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
+from janis_core.operators.logical import IsDefined, If
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
@@ -659,7 +660,10 @@ return {out_capture}
 
         elif isinstance(value, StringFormatter):
             return translate_string_formatter(
-                value, code_environment=code_environment, **debugkwargs
+                value,
+                selector_override=selector_override,
+                code_environment=code_environment,
+                **debugkwargs,
             )
         elif isinstance(value, InputNodeSelector):
             return translate_input_selector(
@@ -730,12 +734,14 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     doc = inp.doc.doc if inp.doc else None
 
     default = None
-    value_from = None
+    dt = inp.datatype
     if inp.default:
         if isinstance(inp.default, Selector):
-            raise Exception(
-                "No implementation for translating a Selector for a worklfow input default"
-            )
+            # CWL doesn't actually let us evaluate an expression here, even though it's
+            # an inputBinding, we in fact will provide this as a default for the StepInput
+            default = None
+            dt = dt.copy()
+            dt.optional = True
         else:
             default = inp.default
 
@@ -747,7 +753,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
         streamable=None,
         doc=doc,
         input_binding=None,
-        param_type=inp.datatype.cwl_type(inp.default is not None),
+        param_type=dt.cwl_type(default is not None),
     )
 
 
@@ -1159,11 +1165,20 @@ def translate_step_node(
             array_input_from_single_source or has_multiple_sources
         )
 
-        has_operator = any(isinstance(src.source, Operator) for src in ar_source)
+        has_operator = any(
+            isinstance(src.source, Operator) for src in ar_source
+        ) or any(
+            (
+                isinstance(src.source, InputNodeSelector)
+                and isinstance(src.source.input_node.default, Selector)
+            )
+            for src in ar_source
+        )
 
         source = None
         valuefrom = None
         link_merge = None
+        default = None
 
         if not has_operator:
             unwrapped_sources: List[str] = []
@@ -1197,8 +1212,17 @@ def translate_step_node(
             # Use a dict to ensure we don't double add inputs
             ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
 
-            for stepinput in ar_source:
+            processed_sources = []
+            for i in range(len(ar_source)):
+                stepinput = ar_source[i]
                 src = stepinput.source
+                if isinstance(src, InputNodeSelector) and isinstance(
+                    src.input_node.default, Selector
+                ):
+                    src = If(IsDefined(src), src, src.input_node.default)
+
+                processed_sources.append(src)
+
                 if isinstance(src, Operator):
                     # we'll need to get the leaves and do extra mappings
                     for leaf in src.get_leaves():
@@ -1224,9 +1248,9 @@ def translate_step_node(
             # 2. Again
 
             src = (
-                ar_source[0].source
+                processed_sources[0]
                 if should_select_first_element
-                else [si.source for si in ar_source]
+                else [si for si in processed_sources]
             )
             valuefrom = CwlTranslator.unwrap_expression(
                 src, code_environment=False, selector_override=param_aliasing
@@ -1237,6 +1261,7 @@ def translate_step_node(
             source=source,
             link_merge=link_merge,  # this will need to change when edges have multiple source_map
             value_from=valuefrom,
+            default=default,
         )
 
         cwlstep.inputs.append(d)
@@ -1274,7 +1299,7 @@ def translate_input_selector(
 
 
 def translate_string_formatter(
-    selector: StringFormatter, code_environment=True, **debugkwargs
+    selector: StringFormatter, selector_override, code_environment=True, **debugkwargs
 ):
 
     escapedFormat = selector._format.replace("\\", "\\\\")
@@ -1283,10 +1308,13 @@ def translate_string_formatter(
         return escapedFormat
 
     kwargreplacements = [
-        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, code_environment=True, **debugkwargs)})"
+        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, selector_override=selector_override, code_environment=True, **debugkwargs)})"
         for k, v in selector.kwargs.items()
     ]
-    return f'$("{escapedFormat}"' + "".join(kwargreplacements) + ")"
+    expr = f'"{escapedFormat}"' + "".join(kwargreplacements)
+    if not code_environment:
+        expr = f"$({expr})"
+    return expr
 
 
 def translate_to_cwl_glob(glob, **debugkwargs):

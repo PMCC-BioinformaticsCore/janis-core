@@ -54,6 +54,15 @@ class StringFormatter(Operator):
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
 
+    def get_leaves(self):
+        leaves = []
+        for a in self.kwargs.values():
+            if isinstance(a, Operator):
+                leaves.extend(a.get_leaves())
+            else:
+                leaves.append(a)
+        return leaves
+
     def resolve_with_resolved_values(self, **resolved_values):
 
         s1 = set(self.kwargs.keys())

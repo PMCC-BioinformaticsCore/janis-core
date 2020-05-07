@@ -324,7 +324,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_string_formatter_one_string_param(self):
         b = StringFormatter("there's {one} arg", one="a string")
-        res = cwl.CwlTranslator.unwrap_expression(b)
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual('$("there\'s {one} arg".replace(/\{one\}/g, "a string"))', res)
 
     def test_string_formatter_one_input_selector_param(self):
@@ -341,7 +341,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = cwl.CwlTranslator.unwrap_expression(b)
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual(
             '$("{tumorName}:{normalName}".replace(/\{tumorName\}/g, inputs.tumorInputName).replace(/\{normalName\}/g, inputs.normalInputName))',
             res,
@@ -588,7 +588,7 @@ class WorkflowCwlInputDefaultOperator(unittest.TestCase):
 
         wf.input(
             "readGroupHeaderLine",
-            String(),
+            String(optional=True),
             default=StringFormatter(
                 "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
                 name=InputSelector("sampleName"),
@@ -597,9 +597,22 @@ class WorkflowCwlInputDefaultOperator(unittest.TestCase):
         )
         wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
         wf.output("out", source=wf.print)
-        derived, _, _ = wf.translate("cwl", to_console=False)
-        expected = """"""
-        self.assertEqual(expected, derived)
+        d, _ = cwl.CwlTranslator.translate_workflow(
+            wf, with_container=False, allow_empty_container=True
+        )
+        stepinputs = d.get_dict()["steps"]["print"]["in"]
+        self.assertEqual(4, len(stepinputs))
+        expression = stepinputs["inp"]["valueFrom"]
+        expected = (
+            "$((inputs._print_inp_readGroupHeaderLine != null) "
+            "? inputs._print_inp_readGroupHeaderLine "
+            ': "@RG\\\\tID:{name}\\\\tSM:{name}\\\\tLB:{name}\\\\tPL:{pl}".replace(/\\{name\\}/g, inputs._print_inp_sampleName).replace(/\\{pl\\}/g, inputs._print_inp_platform))'
+        )
+        self.assertEqual(expected, expression)
+
+        w, _, _ = wf.translate(
+            "cwl", export_path="~/Desktop/tmp/cwltests/readgrouptest/", to_disk=True
+        )
 
 
 class TestCWLFilenameGeneration(unittest.TestCase):

@@ -283,6 +283,11 @@ class DataType(ABC):
         """
         return valuetoparse
 
+    def copy(self):
+        from copy import deepcopy
+
+        return deepcopy(self)
+
     # def default(self):
     #     return self.default_value
 
