@@ -30,6 +30,7 @@ from janis_core import ToolArgument
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.logical import IsDefined, If
+from janis_core.operators.standard import BasenameOperator
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
@@ -408,7 +409,8 @@ class CwlTranslator(TranslatorBase):
             translate_tool_input(i, inputsdict) for i in tool.inputs()
         )
         tool_cwl.outputs.extend(
-            translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
+            translate_tool_output(o, inputsdict=inputsdict, tool=tool.id())
+            for o in tool.outputs()
         )
 
         args = tool.arguments()
@@ -887,7 +889,7 @@ def translate_tool_argument(argument: ToolArgument) -> cwlgen.CommandLineBinding
 
 
 def translate_tool_output(
-    output: ToolOutput, **debugkwargs
+    output: ToolOutput, inputsdict, **debugkwargs
 ) -> cwlgen.CommandOutputParameter:
     """
     https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
@@ -904,7 +906,7 @@ def translate_tool_output(
         label=output.tag,
         secondary_files=prepare_tool_output_secondaries(output),
         doc=doc,
-        output_binding=prepare_tool_output_binding(output, **debugkwargs),
+        output_binding=prepare_tool_output_binding(output, inputsdict, **debugkwargs),
         param_type=output.output_type.cwl_type(),
         # param_format=None,
         # streamable=None,
@@ -912,7 +914,7 @@ def translate_tool_output(
 
 
 def prepare_tool_output_binding(
-    output: ToolOutput, **debugkwargs
+    output: ToolOutput, inputsdict, **debugkwargs
 ) -> cwlgen.CommandOutputBinding:
 
     if isinstance(output.glob, Operator):
@@ -923,7 +925,9 @@ def prepare_tool_output_binding(
         )
 
     return cwlgen.CommandOutputBinding(
-        glob=translate_to_cwl_glob(output.glob, outputtag=output.tag, **debugkwargs),
+        glob=translate_to_cwl_glob(
+            output.glob, inputsdict, outputtag=output.tag, **debugkwargs
+        ),
         output_eval=prepare_tool_output_eval(output),
     )
 
@@ -1317,7 +1321,7 @@ def translate_string_formatter(
     return expr
 
 
-def translate_to_cwl_glob(glob, **debugkwargs):
+def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
     if not glob:
         return None
 
@@ -1329,10 +1333,36 @@ def translate_to_cwl_glob(glob, **debugkwargs):
         return glob
 
     if isinstance(glob, InputSelector):
-        return translate_input_selector(glob, code_environment=False)
+
+        if glob.input_to_select:
+            if inputsdict is None or glob.input_to_select not in inputsdict:
+                raise Exception(
+                    "An internal error has occurred when generating the output glob for "
+                    + glob.input_to_select
+                )
+
+            tinp: ToolInput = inputsdict[glob.input_to_select]
+            intype = tinp.input_type
+            if isinstance(intype, Filename):
+                if isinstance(intype.prefix, InputSelector):
+                    return intype.generated_filename(
+                        inputs=prepare_filename_replacements_for(
+                            intype.prefix, inputsdict=inputsdict
+                        )
+                    )
+                else:
+                    return intype.generated_filename()
+
+            expr = glob
+            if tinp.default:
+                expr = If(IsDefined(glob), expr, tinp.default)
+
+            return CwlTranslator.unwrap_expression(
+                expr, code_environment=False, **debugkwargs
+            )
 
     elif isinstance(glob, StringFormatter):
-        return translate_string_formatter(glob)
+        return translate_string_formatter(glob, None)
 
     elif isinstance(glob, WildcardSelector):
         return glob.wildcard
