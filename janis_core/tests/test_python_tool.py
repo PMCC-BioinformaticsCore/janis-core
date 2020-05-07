@@ -148,7 +148,7 @@ try:
     args = cli.parse_args()
     result = code_block(name=args.name, infile=args.infile, flag=args.flag, testvalue=args.testvalue)
     print(json.dumps(result))
-except e:
+except Exception as e:
     print(str(e), file=sys.stderr)
     raise
 
