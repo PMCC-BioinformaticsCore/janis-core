@@ -388,7 +388,8 @@ class CwlTranslator(TranslatorBase):
             translate_tool_input(i, inputsdict) for i in tool.inputs()
         )
         tool_cwl.outputs.extend(
-            translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
+            translate_tool_output(o, inputsdict=inputsdict, tool=tool.id())
+            for o in tool.outputs()
         )
 
         args = tool.arguments()
@@ -729,7 +730,7 @@ def translate_tool_argument(argument):
     )
 
 
-def translate_tool_output(output, **debugkwargs):
+def translate_tool_output(output, inputsdict, **debugkwargs):
 
     doc = output.doc.doc if output.doc else None
 
@@ -742,7 +743,7 @@ def translate_tool_output(output, **debugkwargs):
         doc=doc,
         output_binding=cwlgen.CommandOutputBinding(
             glob=translate_to_cwl_glob(
-                output.glob, outputtag=output.tag, **debugkwargs
+                output.glob, inputsdict=inputsdict, outputtag=output.tag, **debugkwargs
             ),
             # load_contents=False,
             output_eval=prepare_tool_output_eval(output),
@@ -1009,7 +1010,7 @@ def translate_string_formatter(
     return f'$("{escapedFormat}"' + "".join(kwargreplacements) + ")"
 
 
-def translate_to_cwl_glob(glob, **debugkwargs):
+def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
     if not glob:
         return None
 
@@ -1021,6 +1022,34 @@ def translate_to_cwl_glob(glob, **debugkwargs):
         return glob
 
     if isinstance(glob, InputSelector):
+
+        if glob.input_to_select:
+            if inputsdict is None or glob.input_to_select not in inputsdict:
+                raise Exception(
+                    "An internal error has occurred when generating the output glob for "
+                    + glob.input_to_select
+                )
+
+            tinp: ToolInput = inputsdict[glob.input_to_select]
+            intype = tinp.input_type
+            if isinstance(intype, Filename):
+                if isinstance(intype.prefix, InputSelector):
+                    return intype.generated_filename(
+                        inputs=prepare_filename_replacements_for(
+                            intype.prefix, inputsdict=inputsdict
+                        )
+                    )
+                else:
+                    return intype.generated_filename()
+            else:
+                expr = f"inputs.{glob.input_to_select}"
+                if isinstance(intype, (File, Directory)):
+                    expr = expr + ".basename"
+                if tinp.default:
+                    expr = f"(inputs.{glob.input_to_select} != null) ? {expr} : {tinp.default}"
+
+                return f"$({expr})"
+
         return translate_input_selector(glob, code_environment=False)
 
     elif isinstance(glob, StringFormatter):
