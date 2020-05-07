@@ -127,4 +127,4 @@ class TestMixedOperators(unittest.TestCase):
 
         wf.output("out", source=wf.echo)
 
-        # wf.translate("wdl")
+        wf.translate("cwl")

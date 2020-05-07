@@ -580,26 +580,26 @@ class TestCWLCompleteOperators(unittest.TestCase):
         self.assertEqual(cwl_arraystepinput, ret)
 
 
-# class WorkflowCwlInputDefaultOperator(unittest.TestCase):
-#     def test_string_formatter(self):
-#         wf = WorkflowBuilder("wf")
-#         wf.input("sampleName", str)
-#         wf.input("platform", str)
-#
-#         wf.input(
-#             "readGroupHeaderLine",
-#             String(),
-#             default=StringFormatter(
-#                 "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
-#                 name=InputSelector("sampleName"),
-#                 pl=InputSelector("platform"),
-#             ),
-#         )
-#         wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
-#         wf.output("out", source=wf.print)
-#         derived, _, _ = wf.translate("cwl", to_console=False)
-#         expected = """"""
-#         self.assertEqual(expected, derived)
+class WorkflowCwlInputDefaultOperator(unittest.TestCase):
+    def test_string_formatter(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("sampleName", str)
+        wf.input("platform", str)
+
+        wf.input(
+            "readGroupHeaderLine",
+            String(),
+            default=StringFormatter(
+                "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+                name=InputSelector("sampleName"),
+                pl=InputSelector("platform"),
+            ),
+        )
+        wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
+        wf.output("out", source=wf.print)
+        derived, _, _ = wf.translate("cwl", to_console=False)
+        expected = """"""
+        self.assertEqual(expected, derived)
 
 
 class TestCWLFilenameGeneration(unittest.TestCase):

@@ -730,12 +730,14 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     doc = inp.doc.doc if inp.doc else None
 
     default = None
+    value_from = None
     if inp.default:
         if isinstance(inp.default, Selector):
             raise Exception(
                 "No implementation for translating a Selector for a worklfow input default"
             )
-        default = inp.default
+        else:
+            default = inp.default
 
     return cwlgen.InputParameter(
         param_id=inp.id(),
