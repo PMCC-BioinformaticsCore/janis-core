@@ -1000,7 +1000,44 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     if isinstance(intype, Boolean):
         if tool_input.prefix:
             name = f'~{{if defined({name}) then "{tprefix}" else ""}}'
+    elif isinstance(intype, Array):
 
+        expr = name
+
+        separator = tool_input.separator if tool_input.separator is not None else " "
+        should_quote = isinstance(intype.subtype(), (String, File, Directory))
+        condition_for_binding = None
+
+        if intype.optional:
+            expr = f"select_first([{expr}, []])"
+            condition_for_binding = (
+                f"(defined({name}) && length(select_first([{name}, []])) > 0)"
+            )
+
+        if intype.subtype().optional:
+            expr = f"select_all({expr})"
+
+        if should_quote:
+            if tool_input.prefix_applies_to_all_elements:
+                separator = f"'{separator}{tprefix} '"
+            else:
+                separator = f"'{separator}'"
+
+            if tprefix:
+                expr = f'"{tprefix}\'" + sep("{separator}", {expr}) + "\'"'
+            else:
+                expr = f'"\'" + sep("{separator}", {expr}) + "\'"'
+
+        else:
+            if tprefix:
+                expr = f'"{tprefix}" + sep("{separator}", {expr})'
+            else:
+                expr = f'sep("{separator}", {expr})'
+
+        if condition_for_binding is not None:
+            name = f'~{{if {condition_for_binding} then {expr} else ""}}'
+        else:
+            name = f"~{{{expr}}}"
     elif (
         isinstance(intype, (String, File, Directory))
         and tool_input.shell_quote is not False
@@ -1016,46 +1053,14 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
             else:
                 name = f'~{{if defined({name}) then ("\'" + {name} + "\'") else ""}}'
 
-    elif isinstance(intype, (Int, Float, Double)):
+    else:
         if prefix:
             if optional:
-                name = f'~{{if defined({name}) then ("{tprefix}" + {name} + "\'") else \'\'}})'
+                name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
             else:
                 name = f"{tprefix}~{{{name}}}"
         else:
             name = f"~{{{name}}}"
-
-    elif isinstance(intype, Array):
-        condition_for_binding = f"defined({name}) and length({name})"
-
-        expr = name
-
-        separator = tool_input.separator if tool_input.separator is not None else " "
-        should_quote = (
-            isinstance(intype.subtype(), (String, File, Directory))
-            and tool_input.shell_quote is not False
-        )
-        if should_quote:
-            if tool_input.prefix_applies_to_all_elements:
-                separator = f"'{separator}{prefix}'"
-            else:
-                separator = f"'{separator}'"
-
-            if prefix:
-                expr = f'"{prefix}\'" + sep("{separator}", {expr}) + "\'"'
-            else:
-                expr = f'"\'" + sep({expr}) + "\'"'
-
-        else:
-            if prefix:
-                expr = f'"{prefix}" + sep("{separator}", {expr})'
-            else:
-                expr = f"sep({expr})"
-
-        name = f'~{{if {condition_for_binding} then {expr} else ""}}'
-
-    else:
-        raise Exception("Unrecognised command input type: " + str())
 
     # there used to be a whole lot of login in the wdl.Task.Command.CommandInput but it's been moved to here now
     return wdl.Task.Command.CommandInput(value=name, position=tool_input.position)
