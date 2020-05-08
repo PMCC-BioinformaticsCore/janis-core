@@ -7,4 +7,4 @@ ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
 path.py
 #cwlformat
-git://github.com/illusional/cwl-format@importlib-fallback#egg=cwlformat
+git+ssh://git@github.com/illusional/cwl-format@importlib-fallback#egg=cwlformat
