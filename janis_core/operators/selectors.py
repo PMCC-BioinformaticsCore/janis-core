@@ -121,6 +121,11 @@ class Selector(ABC):
 
         return LteOperator(self, other)
 
+    def __len__(self):
+        from janis_core.operators.standard import LengthOperator
+
+        return LengthOperator(self)
+
     def as_str(self):
         from janis_core.operators.operator import AsStringOperator
 

@@ -128,10 +128,10 @@ class SingleValueOperator(Operator, ABC):
         return f"{self.symbol()}({internal})"
 
     def to_wdl(self, unwrap_operator, *args):
-        return f"{self.symbol()}({unwrap_operator(*args)})"
+        return f"{self.wdl_symbol()}({unwrap_operator(*args)})"
 
     def to_cwl(self, unwrap_operator, *args):
-        return f"{self.symbol()}({unwrap_operator(*args)})"
+        return f"{self.cwl_symbol()}({unwrap_operator(*args)})"
 
 
 class TwoValueOperator(Operator, ABC):
@@ -170,11 +170,11 @@ class AsStringOperator(SingleValueOperator):
 
     @staticmethod
     def wdl_symbol():
-        return "str"
+        return ""
 
     @staticmethod
     def cwl_symbol():
-        return "str"
+        return "String"
 
     def argtypes(self):
         return [AnyType]
@@ -190,11 +190,11 @@ class AsBoolOperator(SingleValueOperator):
 
     @staticmethod
     def wdl_symbol():
-        return "bool"
+        return ""
 
     @staticmethod
     def cwl_symbol():
-        return "bool"
+        return "Boolean"
 
     def argtypes(self):
         return [AnyType]
@@ -210,11 +210,11 @@ class AsIntOperator(SingleValueOperator):
 
     @staticmethod
     def wdl_symbol():
-        return "int"
+        return ""
 
     @staticmethod
     def cwl_symbol():
-        return "int"
+        return "Number"
 
     def argtypes(self):
         return [AnyType]

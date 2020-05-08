@@ -380,3 +380,72 @@ class DivideOperator(TwoValueOperator):
         if any(isinstance(t, Double) for t in self.args):
             return Double
         return Float
+
+
+class FloorOperator(Operator):
+    def argtypes(self) -> List[DataType]:
+        return [Union[Double, Float]]
+
+    def returntype(self):
+        return Int
+
+    def __str__(self):
+        arg = self.args[0]
+        return f"floor({arg})"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"floor({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"Math.floor({arg})"
+
+
+class CeilOperator(Operator):
+    def argtypes(self) -> List[DataType]:
+        return [Union[Double, Float]]
+
+    def returntype(self):
+        return Int
+
+    def __str__(self):
+        arg = self.args[0]
+        return f"ceil({arg})"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"ceil({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"Math.ceil({arg})"
+
+
+class RoundOperator(Operator):
+    def argtypes(self) -> List[DataType]:
+        return [Union[Double, Float]]
+
+    def returntype(self):
+        return Int
+
+    def __str__(self):
+        arg = self.args[0]
+        return f"round({arg})"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"round({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"Math.round({arg})"
