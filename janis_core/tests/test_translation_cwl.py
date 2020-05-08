@@ -54,11 +54,8 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-
 inputs: {}
-
 outputs: {}
-
 steps: {}
 id: wid
 """
@@ -612,7 +609,6 @@ cwl_testtool = """\
 class: CommandLineTool
 cwlVersion: v1.0
 label: TestTranslationtool
-
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
@@ -622,17 +618,14 @@ requirements:
       envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
-
 inputs:
 - id: testtool
   label: testtool
   type: string
-
 outputs:
 - id: std
   label: std
   type: stdout
-
 baseCommand: echo
 arguments:
 - position: 0
@@ -645,19 +638,15 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-
 requirements:
   InlineJavascriptRequirement: {}
   MultipleInputFeatureRequirement: {}
   StepInputExpressionRequirement: {}
-
 inputs:
   inp1:
     id: inp1
     type: string
-
 outputs: {}
-
 steps:
   stp1:
     in:

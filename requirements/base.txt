@@ -6,4 +6,4 @@ networkx>=2.1
 ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
 path.py
-cwlformat
+cwlformat==2020.3.26.1
