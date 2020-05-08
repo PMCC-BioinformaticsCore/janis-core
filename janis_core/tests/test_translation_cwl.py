@@ -610,9 +610,30 @@ class WorkflowCwlInputDefaultOperator(unittest.TestCase):
         )
         self.assertEqual(expected, expression)
 
-        w, _, _ = wf.translate(
-            "cwl", export_path="~/Desktop/tmp/cwltests/readgrouptest/", to_disk=True
+    def test_string_formatter_stepinput(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("sampleName", str)
+        wf.input("platform", str)
+
+        wf.step(
+            "print",
+            EchoTestTool(
+                inp=StringFormatter(
+                    "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+                    name=wf.sampleName,
+                    pl=wf.platform,
+                )
+            ),
         )
+        wf.output("out", source=wf.print)
+        d, _ = cwl.CwlTranslator.translate_workflow(
+            wf, with_container=False, allow_empty_container=True
+        )
+        stepinputs = d.get_dict()["steps"]["print"]["in"]
+        self.assertEqual(3, len(stepinputs))
+        expression = stepinputs["inp"]["valueFrom"]
+        expected = '$("@RG\\\\tID:{name}\\\\tSM:{name}\\\\tLB:{name}\\\\tPL:{pl}".replace(/\\{name\\}/g, inputs._print_inp_sampleName).replace(/\\{pl\\}/g, inputs._print_inp_platform))'
+        self.assertEqual(expected, expression)
 
 
 class TestCWLFilenameGeneration(unittest.TestCase):
