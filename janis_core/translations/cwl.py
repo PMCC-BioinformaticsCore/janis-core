@@ -64,23 +64,30 @@ class CwlTranslator(TranslatorBase):
         )
 
     @staticmethod
-    def stringify_translated_workflow(wf):
-        from cwlformat.formatter import cwl_format
+    def stringify_translated_workflow(wf, format=False):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
         )
+        if format:
+            from cwlformat.formatter import cwl_format
 
-        return cwl_format(formatted)
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool):
-        from cwlformat.formatter import cwl_format
+    def stringify_translated_tool(tool, format=False):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
         )
-        return cwl_format(formatted)
+        if format:
+            from cwlformat.formatter import cwl_format
+
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
     def stringify_translated_inputs(inputs):

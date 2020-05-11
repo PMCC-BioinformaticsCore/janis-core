@@ -41,7 +41,9 @@ class TestCwlTypesConversion(unittest.TestCase):
 class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
-        self.assertEqual(cwl_testtool, t.translate("cwl", to_console=False))
+        self.maxDiff = 10000
+        actual = t.translate("cwl", to_console=False)
+        self.assertEqual(cwl_testtool, actual)
 
 
 class TestCwlTranslatorOverrides(unittest.TestCase):
@@ -54,13 +56,10 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-
-inputs: {}
-
-outputs: {}
-
-steps: {}
 id: wid
+inputs: {}
+outputs: {}
+steps: {}
 """
         self.assertEqual(
             expected, self.translator.stringify_translated_workflow(cwlobj)
@@ -609,10 +608,22 @@ class TestCWLFilenameGeneration(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
+arguments:
+- position: 0
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
+baseCommand: echo
 class: CommandLineTool
 cwlVersion: v1.0
+id: TestTranslationtool
+inputs:
+- id: testtool
+  label: testtool
+  type: string
 label: TestTranslationtool
-
+outputs:
+- id: std
+  label: std
+  type: stdout
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
@@ -622,22 +633,6 @@ requirements:
       envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
-
-inputs:
-- id: testtool
-  label: testtool
-  type: string
-
-outputs:
-- id: std
-  label: std
-  type: stdout
-
-baseCommand: echo
-arguments:
-- position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
-id: TestTranslationtool
 """
 
 
@@ -645,29 +640,25 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-
-requirements:
-  InlineJavascriptRequirement: {}
-  MultipleInputFeatureRequirement: {}
-  StepInputExpressionRequirement: {}
-
+id: test_add_single_to_array_edge
 inputs:
   inp1:
     id: inp1
     type: string
-
 outputs: {}
-
+requirements:
+  InlineJavascriptRequirement: {}
+  MultipleInputFeatureRequirement: {}
+  StepInputExpressionRequirement: {}
 steps:
   stp1:
     in:
       inputs:
         id: inputs
+        linkMerge: merge_nested
         source:
         - inp1
-        linkMerge: merge_nested
-    run: tools/ArrayStepTool.cwl
     out:
     - outs
-id: test_add_single_to_array_edge
+    run: tools/ArrayStepTool.cwl
 """
