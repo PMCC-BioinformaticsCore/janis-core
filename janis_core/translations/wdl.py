@@ -159,7 +159,7 @@ class WdlTranslator(TranslatorBase):
                 # expr = f'"{i.datatype.generated_filename()}"'
                 dt = String(optional=True)
 
-            if i.default:
+            if i.default is not None:
                 expr = WdlTranslator.unwrap_expression(i.default, inputsdict=inputsdict)
 
             wd = dt.wdl(has_default=i.default is not None)
@@ -849,7 +849,8 @@ EOT"""
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value or (i.default and not isinstance(i.default, Selector))
+                if i.value is not None
+                or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         ad = {**values_provided_from_tool, **(additional_inputs or {})}
@@ -982,7 +983,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     intype = tool_input.input_type
 
     optional = (not isinstance(intype, Filename) and intype.optional) or (
-        isinstance(tool_input.default, CpuSelector) and not tool_input.default
+        isinstance(tool_input.default, CpuSelector) and tool_input.default is None
     )
     position = tool_input.position
 
@@ -1383,7 +1384,7 @@ def translate_step_node(
             call, node.scatter, scatterable, scattered_old_to_new_identifier
         )
 
-    if node.when:
+    if node.when is not None:
         print(node.when)
         condition = node.when
         call = wdl.WorkflowConditional(condition, [call])
@@ -1871,7 +1872,7 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
 def prepare_filename_replacements_for(
     inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
 ) -> Optional[Dict[str, str]]:
-    if not (inp and isinstance(inp, InputSelector)):
+    if not (inp is not None and isinstance(inp, InputSelector)):
         return None
 
     if not inputsdict:

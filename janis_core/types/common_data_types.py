@@ -13,22 +13,28 @@ from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
 class UnionType(DataType):
     def __init__(self, *subtypes: ParseableType, optional=False):
-        self.subtypes = [t for t in subtypes]
+        self._initial_subtypes = [t for t in subtypes]
 
         invalid_types = []
         valid_types = []
         for subtype in subtypes:
             resolvedtype = get_instantiated_type(subtype)
-            if not isinstance(subtype, DataType):
+            if not isinstance(resolvedtype, DataType):
                 invalid_types.append(resolvedtype)
             else:
                 valid_types.append(resolvedtype)
 
-        self._subtypes = valid_types
+        if len(invalid_types) > 0:
+            raise Exception(
+                "UnionType contained invalid types "
+                + ", ".join(str(t) for t in invalid_types)
+            )
+
+        self.subtypes = valid_types
         super().__init__(optional)
 
     def id(self):
-        return "Union<" + ", ".join(s.id() for s in self._subtypes) + ">"
+        return "Union<" + ", ".join(s.id() for s in self.subtypes) + ">"
 
     @staticmethod
     def name() -> str:
@@ -43,19 +49,19 @@ class UnionType(DataType):
         return "Union datatype"
 
     def validate_value(self, *args, **kwargs) -> bool:
-        return any(t.validate_value(*args, **kwargs) for t in self._subtypes)
+        return any(t.validate_value(*args, **kwargs) for t in self.subtypes)
 
     def invalid_value_hint(self, *args, **kwargs):
-        hints = [t.invalid_value_hint(*args, **kwargs) for t in self._subtypes]
+        hints = [t.invalid_value_hint(*args, **kwargs) for t in self.subtypes]
         return ", ".join(t for t in hints if t)
 
     def can_receive_from(self, other, *args, **kwargs):
         if isinstance(other, UnionType):
             # we'll require all elements in the source to be received by this type-
             return all(
-                self.can_receive_from(t, *args, **kwargs) for t in other._subtypes
+                self.can_receive_from(t, *args, **kwargs) for t in other.subtypes
             )
-        return any(t.can_receive_from(other, *args, **kwargs) for t in self._subtypes)
+        return any(t.can_receive_from(other, *args, **kwargs) for t in self.subtypes)
 
 
 class String(DataType):
@@ -666,15 +672,19 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
         return Boolean(optional=True)
 
     bc = overrider or get_instantiated_type
+    dtt = dt if type(dt) == type else None
     typedt = type(dt)
 
-    if dt == str or typedt == str:
-        return String(optional=optional)
-    if dt == bool or typedt == bool:
+    try:
+        if dtt == str or typedt == str:
+            return String(optional=optional)
+    except Exception as e:
+        print(e)
+    if dtt == bool or typedt == bool:
         return Boolean(optional=optional)
-    if dt == int or typedt == int:
+    if dtt == int or typedt == int:
         return Int(optional=optional)
-    if dt == float or typedt == float:
+    if dtt == float or typedt == float:
         return Float(optional=optional)
 
     if is_qualified_generic(dt):

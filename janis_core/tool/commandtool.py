@@ -52,8 +52,11 @@ class ToolArgument:
         self.position: Optional[int] = position
         self.is_expression = (
             isinstance(self.value, Selector)
-            or (re.match(self.expr_pattern, self.value) is not None)
-            if self.value
+            or (
+                isinstance(self.value, str)
+                and re.match(self.expr_pattern, self.value) is not None
+            )
+            if self.value is not None
             else None
         )
         self.separate_value_from_prefix = separate_value_from_prefix
@@ -190,7 +193,7 @@ class ToolOutput:
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
 
-        if not glob and not (
+        if glob is None and not (
             isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
         ):
             raise Exception(

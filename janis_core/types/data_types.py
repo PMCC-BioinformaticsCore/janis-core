@@ -218,6 +218,12 @@ class DataType(ABC):
         #
         # Although these are the same definition, they won't actually compare to the same value
 
+        if other.name().lower() == "union":
+            return all(
+                self.can_receive_from(t, source_has_default=source_has_default)
+                for t in other.subtypes
+            )
+
         receive_from = list(
             reversed([x.__name__ for x in type(other.received_type()).mro()])
         )

@@ -354,7 +354,7 @@ class Workflow(Tool):
         self.verify_identifier(identifier, repr(datatype))
 
         datatype = get_instantiated_type(datatype)
-        if default:
+        if default is not None:
             datatype.optional = True
 
         doc = (

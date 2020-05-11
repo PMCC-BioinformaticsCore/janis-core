@@ -29,7 +29,7 @@ class BasenameOperator(Operator):
         return unwrap_operator(args[0]) + ".basename"
 
     def argtypes(self):
-        return [File, Directory]
+        return [UnionType(File, Directory)]
 
     def returntype(self):
         return String()

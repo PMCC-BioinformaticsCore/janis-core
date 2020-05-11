@@ -5,6 +5,7 @@ import sys
 import os
 from datetime import datetime
 from typing import Optional, TextIO
+import traceback
 
 
 class _bcolors:
@@ -151,6 +152,10 @@ class Logger:
         m = f"{Logger.get_prefix(level)}: {message}"
         if Logger.CONSOLE_LEVEL is not None and level <= Logger.CONSOLE_LEVEL:
             print(LogLevel.get_color(level) + m + _bcolors.ENDC, file=sys.stderr)
+
+        if level <= LogLevel.CRITICAL:
+            traceback.print_stack(limit=12)
+            # raise Exception(traceback.extract_stack(limit=5))
 
         if (
             Logger.WRITE_LEVEL is not None

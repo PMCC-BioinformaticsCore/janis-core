@@ -64,7 +64,13 @@ class If(Operator, ABC):
         return [Boolean, AnyType, AnyType]
 
     def returntype(self):
-        return UnionType(*self.args[1:])
+        args = []
+        for a in self.args[1:]:
+            if isinstance(a, Selector):
+                args.append(get_instantiated_type(a.returntype()))
+            else:
+                args.append(get_instantiated_type(a))
+        return UnionType(*args)
 
     def __str__(self):
         cond, v1, v2 = self.args

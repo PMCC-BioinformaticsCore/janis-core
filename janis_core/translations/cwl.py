@@ -737,7 +737,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
 
     default = None
     dt = inp.datatype
-    if inp.default:
+    if inp.default is not None:
         if isinstance(inp.default, Selector):
             # CWL doesn't actually let us evaluate an expression here, even though it's
             # an inputBinding, we in fact will provide this as a default for the StepInput
@@ -1322,7 +1322,7 @@ def translate_string_formatter(
 
 
 def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
-    if not glob:
+    if glob is None:
         return None
 
     if not isinstance(glob, Selector):
@@ -1417,7 +1417,7 @@ def build_resource_override_maps_for_workflow(
 def prepare_filename_replacements_for(
     inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
 ) -> Optional[Dict[str, str]]:
-    if not (inp and isinstance(inp, InputSelector)):
+    if inp is None or not isinstance(inp, InputSelector):
         return None
 
     if not inputsdict:

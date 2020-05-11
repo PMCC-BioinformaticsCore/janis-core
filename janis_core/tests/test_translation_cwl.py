@@ -569,7 +569,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
             ArrayTestTool(
                 inputs=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
-                    If(IsDefined(wf.inp2), wf.inp2 + "_suffix", None),
+                    If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
             ),
         ),

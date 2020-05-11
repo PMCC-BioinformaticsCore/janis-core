@@ -95,15 +95,15 @@ class TestParseTypes(unittest.TestCase):
 
     def test_parse_union_type(self):
         t = get_instantiated_type(Union[str, int])
-        self.assertIsInstance(t._subtypes[0], String)
-        self.assertIsInstance(t._subtypes[1], Int)
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
         self.assertEqual("Union<String, Integer>", t.id())
 
     def test_parse_union_optional_types(self):
         t = get_instantiated_type(Union[Optional[str], int])
         self.assertTrue(t.optional)
-        self.assertIsInstance(t._subtypes[0], String)
-        self.assertIsInstance(t._subtypes[1], Int)
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
         self.assertEqual("Union<String, Integer>", t.id())
 
 

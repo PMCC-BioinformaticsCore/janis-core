@@ -18,6 +18,10 @@ from abc import ABC, abstractmethod
 
 
 class Selector(ABC):
+    @staticmethod
+    def is_selector():
+        return True
+
     @abstractmethod
     def returntype(self):
         pass
@@ -91,7 +95,8 @@ class Selector(ABC):
 
         return DivideOperator(other, self)
 
-    def __eq__(self, other):
+    # def __eq__(self, other):
+    def equals(self, other):
         from janis_core.operators.logical import EqualityOperator
 
         return EqualityOperator(self, other)
