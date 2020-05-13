@@ -3,7 +3,7 @@ from unittest import TestCase
 from janis_core.workflow.workflow import WorkflowBuilder
 from janis_core.types.common_data_types import Array, String
 
-from janis_core.tests.testtools import TestTool, ArrayTestTool
+from janis_core.tests.testtools import TestTool, ArrayTestTool, TestToolV2
 
 
 class TestContainers(TestCase):
@@ -19,10 +19,15 @@ class TestContainers(TestCase):
         w.input("aInp", Array(String))
 
         w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp1_v2", TestToolV2(testtool=w.inp))
         w.step("stp2", ArrayTestTool(inputs=w.aInp))
 
         cons = w.containers()
-        self.assertSetEqual({"ArrayStepTool", "TestTranslationtool"}, set(cons.keys()))
+        self.assertSetEqual(
+            {"ArrayStepTool", "TestTranslationtool", "TestTranslationtool_v0_0_2"},
+            set(cons.keys()),
+        )
 
-        self.assertIsNone(None, cons["ArrayStepTool"])
-        self.assertIsNone(None, cons["TestTranslationtool"])
+        self.assertIsNone(cons["ArrayStepTool"])
+        self.assertEqual("ubuntu:latest", cons["TestTranslationtool"])
+        self.assertEqual("ubuntu:latest", cons["TestTranslationtool_v0_0_2"])

@@ -6,6 +6,7 @@ from janis_core.tests.testtools import (
     SingleTestTool,
     ArrayTestTool,
     TestTool,
+    TestToolV2,
     TestToolWithSecondaryOutput,
     TestTypeWithSecondary,
     FilenameGeneratedTool,
@@ -606,6 +607,21 @@ class TestCWLFilenameGeneration(unittest.TestCase):
         )
 
 
+class TestCWLRunRefs(unittest.TestCase):
+    def test_two_similar_tools(self):
+        w = WorkflowBuilder("testTwoToolsWithSameId")
+
+        w.input("inp", str)
+        w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp2", TestToolV2(testtool=w.inp))
+
+        wf_cwl, _ = CwlTranslator.translate_workflow(w)
+        stps = {stp.id: stp for stp in wf_cwl.steps}
+
+        self.assertEqual("tools/TestTranslationtool.cwl", stps["stp1"].run)
+        self.assertEqual("tools/TestTranslationtool_v0_0_2.cwl", stps["stp2"].run)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 arguments:
@@ -619,7 +635,13 @@ inputs:
 - id: testtool
   label: testtool
   type: string
-label: TestTranslationtool
+- id: arrayInp
+  label: arrayInp
+  type:
+  - items: string
+    type: array
+  - 'null'
+label: Tool for testing translation
 outputs:
 - id: std
   label: std

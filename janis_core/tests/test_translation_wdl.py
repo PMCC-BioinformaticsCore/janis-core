@@ -21,7 +21,12 @@ from janis_core import (
     Boolean,
     Int,
 )
-from janis_core.tests.testtools import SingleTestTool, FilenameGeneratedTool
+from janis_core.tests.testtools import (
+    SingleTestTool,
+    FilenameGeneratedTool,
+    TestToolV2,
+    TestTool,
+)
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
 
@@ -65,45 +70,6 @@ class TxtSecondary(File):
     @staticmethod
     def secondary_files():
         return [".qt"]
-
-
-class TestTool(CommandTool):
-    @staticmethod
-    def tool():
-        return "TestTranslationtool"
-
-    @staticmethod
-    def base_command():
-        return "echo"
-
-    def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String()), ToolInput("arrayInp", Array(File()))]
-
-    def arguments(self) -> List[ToolArgument]:
-        return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
-
-    def outputs(self) -> List[ToolOutput]:
-        return [ToolOutput("std", Stdout())]
-
-    def cpus(self, hints: Dict[str, Any]):
-        return 2
-
-    def memory(self, hints: Dict[str, Any]):
-        return 2
-
-    def friendly_name(self) -> str:
-        return "Tool for testing translation"
-
-    @staticmethod
-    def container():
-        return "ubuntu:latest"
-
-    @staticmethod
-    def version():
-        return None
-
-    def env_vars(self):
-        return {"test1": InputSelector("testtool")}
 
 
 class TestToolWithSecondaryOutput(TestTool):
@@ -1025,3 +991,36 @@ class TestWdlContainerOverride(unittest.TestCase):
 
         line = translated.splitlines()[20].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
+
+
+class TestCWLRunRefs(unittest.TestCase):
+    def test_two_similar_tools(self):
+        w = WorkflowBuilder("testTwoToolsWithSameId")
+
+        w.input("inp", str)
+        w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp2", TestToolV2(testtool=w.inp))
+
+        wf_wdl, _ = WdlTranslator.translate_workflow(w)
+
+        expected = """\
+version development
+
+import "tools/TestTranslationtool.wdl" as T
+import "tools/TestTranslationtool_v0_0_2.wdl" as T2
+
+workflow testTwoToolsWithSameId {
+  input {
+    String inp
+  }
+  call T.TestTranslationtool as stp1 {
+    input:
+      testtool=inp
+  }
+  call T2.TestTranslationtool as stp2 {
+    input:
+      testtool=inp
+  }
+}"""
+
+        self.assertEqual(expected, wf_wdl.get_string())

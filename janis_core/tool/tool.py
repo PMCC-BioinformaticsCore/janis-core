@@ -9,6 +9,7 @@ from janis_core.tool.documentation import (
 from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
+from janis_core.utils.validators import Validators
 
 ToolType = str
 
@@ -75,7 +76,9 @@ class Tool(ABC, object):
 
     def versioned_id(self):
         if self.version() is not None:
-            return f"{self.id()}/{self.version()}"
+            return Validators.transform_identifier_to_be_valid(
+                f"{self.id()}/{self.version()}", "_"
+            )
         return self.id()
 
     def tool_module(self):

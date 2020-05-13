@@ -107,7 +107,7 @@ class CwlTranslator(TranslatorBase):
         is_packed=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[any, Dict[str, any]]:
+    ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
         metadata = wf.metadata
@@ -166,7 +166,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = wf_cwl
+                tools[tool.versioned_id()] = wf_cwl
                 tools.update(subtools)
             elif isinstance(tool, CommandTool):
                 tool_cwl = cls.translate_tool_internal(
@@ -176,7 +176,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             elif isinstance(tool, CodeTool):
                 tool_cwl = cls.translate_code_tool_internal(
                     tool,
@@ -184,7 +184,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             else:
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 
@@ -321,7 +321,7 @@ class CwlTranslator(TranslatorBase):
         tool_cwl = cwlgen.CommandLineTool(
             tool_id=tool.id(),
             base_command=tool.base_command(),
-            label=tool.id(),
+            label=tool.friendly_name() or tool.id(),
             doc=metadata.documentation,
             cwl_version=CWL_VERSION,
             stdin=None,
@@ -596,7 +596,7 @@ return {out_capture}
 
     @staticmethod
     def tool_filename(tool):
-        return (tool.id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
+        return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
 
     @staticmethod
     def resources_filename(workflow):
@@ -847,9 +847,8 @@ def translate_step(
 
     tool = step.tool
     if use_run_ref:
-        run_ref = ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
-            tool=tool.id()
-        )
+        prefix = "" if is_nested_tool else "tools/"
+        run_ref = prefix + CwlTranslator.tool_filename(tool)
     else:
         from janis_core.workflow.workflow import Workflow
 

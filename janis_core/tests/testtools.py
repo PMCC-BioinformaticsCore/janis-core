@@ -127,7 +127,10 @@ class TestTool(CommandTool):
         return "echo"
 
     def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String())]
+        return [
+            ToolInput("testtool", String()),
+            ToolInput("arrayInp", Array(String, optional=True)),
+        ]
 
     def arguments(self) -> List[ToolArgument]:
         return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
@@ -152,6 +155,11 @@ class TestTool(CommandTool):
 
     def env_vars(self):
         return {"test1": InputSelector("testtool")}
+
+
+class TestToolV2(TestTool):
+    def version(self):
+        return "v0.0.2"
 
 
 class TestToolWithSecondaryOutput(TestTool):
