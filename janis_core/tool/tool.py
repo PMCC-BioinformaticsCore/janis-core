@@ -66,8 +66,17 @@ class Tool(ABC, object):
         raise Exception(f"'{cls}' must implement type() method")
 
     @abstractmethod
+    def containers(self) -> Dict[str, str]:
+        pass
+
+    @abstractmethod
     def id(self) -> str:
         raise Exception("Must implement id() method")
+
+    def versioned_id(self):
+        if self.version() is not None:
+            return f"{self.id()}/{self.version()}"
+        return self.id()
 
     def tool_module(self):
         return None

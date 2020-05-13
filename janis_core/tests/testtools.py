@@ -120,12 +120,10 @@ class ArrayTestTool(CommandTool):
 
 
 class TestTool(CommandTool):
-    @staticmethod
-    def tool():
+    def tool(self):
         return "TestTranslationtool"
 
-    @staticmethod
-    def base_command():
+    def base_command(self):
         return "echo"
 
     def inputs(self) -> List[ToolInput]:
@@ -146,12 +144,10 @@ class TestTool(CommandTool):
     def friendly_name(self) -> str:
         return "Tool for testing translation"
 
-    @staticmethod
-    def container():
+    def container(self):
         return "ubuntu:latest"
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
     def env_vars(self):

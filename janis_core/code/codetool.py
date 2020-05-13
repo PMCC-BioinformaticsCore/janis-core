@@ -69,6 +69,9 @@ class CodeTool(Tool, ABC):
     def type(cls) -> ToolType:
         return ToolTypes.CodeTool
 
+    def containers(self) -> Dict[str, str]:
+        return {self.versioned_id(): self.container()}
+
     def tool_inputs(self) -> List[TInput]:
         return self.inputs()
 
