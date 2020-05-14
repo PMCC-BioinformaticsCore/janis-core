@@ -372,12 +372,10 @@ class CwlTranslator(TranslatorBase):
             )
 
         if with_container:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
 
             if container is not None:
                 tool_cwl.requirements.append(
@@ -517,12 +515,10 @@ class CwlTranslator(TranslatorBase):
         tool_cwl.requirements.append(cwlgen.InlineJavascriptRequirement())
 
         if with_docker:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
 
             if container is not None:
                 tool_cwl.requirements.append(

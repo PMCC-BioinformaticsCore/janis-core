@@ -482,3 +482,15 @@ class TranslatorBase(ABC):
     @abstractmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         pass
+
+    @staticmethod
+    def get_container_override_for_tool(tool, container_override):
+        if not container_override:
+            return None
+
+        if tool.id().lower() in container_override:
+            return container_override.get(tool.id().lower())
+        elif tool.versioned_id().lower() in container_override:
+            return container_override.get(tool.versioned_id().lower())
+        elif "*" in container_override:
+            return container_override["*"]

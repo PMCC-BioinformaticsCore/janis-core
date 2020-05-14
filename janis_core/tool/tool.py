@@ -74,7 +74,7 @@ class Tool(ABC, object):
     def id(self) -> str:
         raise Exception("Must implement id() method")
 
-    def versioned_id(self):
+    def versioned_id(self) -> str:
         if self.version() is not None:
             return Validators.transform_identifier_to_be_valid(
                 f"{self.id()}/{self.version()}", "_"
