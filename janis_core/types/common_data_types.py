@@ -63,13 +63,7 @@ class String(DataType):
 
 class Filename(String):
     def __init__(
-        self,
-        prefix="generated",
-        suffix=None,
-        extension: str = None,
-        guid: str = None,
-        input_to_select: str = None,
-        optional=None,
+        self, prefix="generated", suffix=None, extension: str = None, optional=None
     ):
         """
         :param suffix: suffix the guid
@@ -82,7 +76,6 @@ class Filename(String):
         self.prefix = prefix
         self.extension = extension
         self.suffix = suffix
-        self.guid = guid if guid is not None else str(uuid.uuid1())
 
         super().__init__(optional=True)
 

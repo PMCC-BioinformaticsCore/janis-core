@@ -244,7 +244,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
     def test_input_value_filename_stringenv(self):
         import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             fn.generated_filename(),
             wdl.get_input_value_from_potential_selector_or_generator(
@@ -255,7 +255,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
     def test_input_value_filename_nostringenv(self):
         import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             '"%s"' % fn.generated_filename(),
             wdl.get_input_value_from_potential_selector_or_generator(
