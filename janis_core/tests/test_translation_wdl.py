@@ -242,7 +242,6 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_filename_stringenv(self):
-        import uuid
 
         fn = Filename()
         self.assertEqual(
@@ -253,7 +252,6 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_filename_nostringenv(self):
-        import uuid
 
         fn = Filename()
         self.assertEqual(
