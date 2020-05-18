@@ -37,5 +37,5 @@ class Validators:
         return "Undefined"
 
     @staticmethod
-    def transform_identifier_to_be_valid(identifier: str) -> str:
-        return re.sub(Validators.nonidentifier_regex, "", identifier)
+    def transform_identifier_to_be_valid(identifier: str, replacement_char="") -> str:
+        return re.sub(Validators.nonidentifier_regex, replacement_char, identifier)

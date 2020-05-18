@@ -227,11 +227,11 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # Generate import statements (relative tool dir is later?)
-        uniquetoolmap: Dict[str, Tool] = {t.id(): t for t in tools}
+        uniquetoolmap: Dict[str, Tool] = {t.versioned_id(): t for t in tools}
         w.imports = [
             wdl.Workflow.WorkflowImport(
-                t.id(),
-                tool_aliases[t.id().lower()].upper(),
+                t.versioned_id(),
+                tool_aliases[t.versioned_id().lower()].upper(),
                 None if is_nested_tool else "tools/",
             )
             for t in uniquetoolmap.values()
@@ -246,7 +246,7 @@ class WdlTranslator(TranslatorBase):
         for s in steps:
             t = s.tool
 
-            if t.id() not in wtools:
+            if t.versioned_id() not in wtools:
                 if isinstance(t, Workflow):
                     wf_wdl, wf_tools = cls.translate_workflow(
                         t,
@@ -256,11 +256,11 @@ class WdlTranslator(TranslatorBase):
                         allow_empty_container=allow_empty_container,
                         container_override=container_override,
                     )
-                    wtools[t.id()] = wf_wdl
+                    wtools[t.versioned_id()] = wf_wdl
                     wtools.update(wf_tools)
 
                 elif isinstance(t, CommandTool):
-                    wtools[t.id()] = cls.translate_tool_internal(
+                    wtools[t.versioned_id()] = cls.translate_tool_internal(
                         t,
                         with_container=with_container,
                         with_resource_overrides=with_resource_overrides,
@@ -268,7 +268,7 @@ class WdlTranslator(TranslatorBase):
                         container_override=container_override,
                     )
                 elif isinstance(t, CodeTool):
-                    wtools[t.id()] = cls.translate_code_tool_internal(
+                    wtools[t.versioned_id()] = cls.translate_code_tool_internal(
                         t,
                         with_docker=with_container,
                         with_resource_overrides=with_resource_overrides,
@@ -285,7 +285,9 @@ class WdlTranslator(TranslatorBase):
 
             call = translate_step_node(
                 node2=s,
-                step_identifier=tool_aliases[t.id().lower()].upper() + "." + t.id(),
+                step_identifier=tool_aliases[t.versioned_id().lower()].upper()
+                + "."
+                + t.id(),
                 resource_overrides=resource_overrides,
                 invalid_identifiers=forbiddenidentifiers,
                 inputsdict=inputsdict,
@@ -696,13 +698,10 @@ class WdlTranslator(TranslatorBase):
 
         r = wdl.Task.Runtime()
         if with_container:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
-
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:
@@ -790,12 +789,10 @@ EOT"""
 
         r = wdl.Task.Runtime()
         if with_docker:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
 
             if container is not None:
                 r.add_docker(container)
@@ -927,7 +924,7 @@ EOT"""
 
     @staticmethod
     def tool_filename(tool):
-        return (tool.id() if isinstance(tool, Tool) else str(tool)) + ".wdl"
+        return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".wdl"
 
     @staticmethod
     def resources_filename(workflow):
@@ -1670,7 +1667,7 @@ def build_aliases(steps2):
     aliases: Set[str] = set()
 
     tools: List[Tool] = [s.tool for s in steps]
-    tool_name_to_tool: Dict[str, Tool] = {t.id().lower(): t for t in tools}
+    tool_name_to_tool: Dict[str, Tool] = {t.versioned_id().lower(): t for t in tools}
     tool_name_to_alias = {}
     steps_to_alias: Dict[str, str] = {
         s.id().lower(): get_alias(s.id()).lower() for s in steps

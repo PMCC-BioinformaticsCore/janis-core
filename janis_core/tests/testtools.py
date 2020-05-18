@@ -162,16 +162,17 @@ class ArrayTestTool(CommandTool):
 
 
 class TestTool(CommandTool):
-    @staticmethod
-    def tool():
+    def tool(self):
         return "TestTranslationtool"
 
-    @staticmethod
-    def base_command():
+    def base_command(self):
         return "echo"
 
     def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String())]
+        return [
+            ToolInput("testtool", String()),
+            ToolInput("arrayInp", Array(String, optional=True)),
+        ]
 
     def arguments(self) -> List[ToolArgument]:
         return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
@@ -188,16 +189,19 @@ class TestTool(CommandTool):
     def friendly_name(self) -> str:
         return "Tool for testing translation"
 
-    @staticmethod
-    def container():
+    def container(self):
         return "ubuntu:latest"
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
     def env_vars(self):
         return {"test1": InputSelector("testtool")}
+
+
+class TestToolV2(TestTool):
+    def version(self):
+        return "v0.0.2"
 
 
 class TestToolWithSecondaryOutput(TestTool):

@@ -57,7 +57,7 @@ setup(
         "ruamel.yaml >= 0.12.4, <= 0.16",
         "tabulate",
         "path.py",
-        "cwlformat",
+        # "cwlformat==2020.3.26",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,

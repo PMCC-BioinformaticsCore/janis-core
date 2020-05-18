@@ -76,23 +76,30 @@ class CwlTranslator(TranslatorBase):
         )
 
     @staticmethod
-    def stringify_translated_workflow(wf):
-        from cwlformat.formatter import cwl_format
+    def stringify_translated_workflow(wf, format=False):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
         )
+        if format:
+            from cwlformat.formatter import cwl_format
 
-        return cwl_format(formatted)
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool):
-        from cwlformat.formatter import cwl_format
+    def stringify_translated_tool(tool, format=False):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
         )
-        return cwl_format(formatted)
+        if format:
+            from cwlformat.formatter import cwl_format
+
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
     def stringify_translated_inputs(inputs):
@@ -112,7 +119,7 @@ class CwlTranslator(TranslatorBase):
         is_packed=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[any, Dict[str, any]]:
+    ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
         metadata = wf.metadata
@@ -121,7 +128,7 @@ class CwlTranslator(TranslatorBase):
         )
         inputsdict = wf.inputs_map()
 
-        w.inputs: List[cwlgen.InputParameter] = [
+        w.inputs = [
             translate_workflow_input(i, inputsdict=inputsdict)
             for i in wf.input_nodes.values()
         ]
@@ -145,6 +152,7 @@ class CwlTranslator(TranslatorBase):
                     s,
                     is_nested_tool=is_nested_tool,
                     resource_overrides=resource_overrides,
+                    allow_empty_container=allow_empty_container,
                 )
             )
 
@@ -175,7 +183,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = wf_cwl
+                tools[tool.versioned_id()] = wf_cwl
                 tools.update(subtools)
             elif isinstance(tool, CommandTool):
                 tool_cwl = cls.translate_tool_internal(
@@ -185,7 +193,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             elif isinstance(tool, CodeTool):
                 tool_cwl = cls.translate_code_tool_internal(
                     tool,
@@ -193,7 +201,7 @@ class CwlTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             else:
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 
@@ -335,7 +343,7 @@ class CwlTranslator(TranslatorBase):
         tool_cwl = cwlgen.CommandLineTool(
             tool_id=tool.id(),
             base_command=tool.base_command(),
-            label=tool.id(),
+            label=tool.friendly_name() or tool.id(),
             doc=metadata.documentation,
             cwl_version=CWL_VERSION,
             stdin=None,
@@ -386,12 +394,10 @@ class CwlTranslator(TranslatorBase):
             )
 
         if with_container:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
 
             if container is not None:
                 tool_cwl.requirements.append(
@@ -531,12 +537,10 @@ class CwlTranslator(TranslatorBase):
         tool_cwl.requirements.append(cwlgen.InlineJavascriptRequirement())
 
         if with_docker:
-            container = tool.container()
-            if container_override:
-                if tool.id().lower() in container_override:
-                    container = container_override[tool.id().lower()]
-                elif "*" in container_override:
-                    container = container_override["*"]
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
 
             if container is not None:
                 tool_cwl.requirements.append(
@@ -718,7 +722,7 @@ return {out_capture}
 
     @staticmethod
     def tool_filename(tool):
-        return (tool.id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
+        return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
 
     @staticmethod
     def resources_filename(workflow):
@@ -1062,33 +1066,33 @@ def get_run_ref_from_subtool(
     allow_empty_container=False,
     container_override=None,
 ):
+
     if use_run_ref:
-        return ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
-            tool=tool.id()
-        )
-
-    from janis_core.workflow.workflow import Workflow
-
-    has_resources_overrides = len(resource_overrides) > 0
-    if isinstance(tool, Workflow):
-        return CwlTranslator.translate_workflow_to_all_in_one(
-            tool,
-            with_resource_overrides=has_resources_overrides,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-        )
-    elif isinstance(tool, CodeTool):
-        return CwlTranslator.translate_code_tool_internal(
-            tool, allow_empty_container=allow_empty_container
-        )
+        prefix = "" if is_nested_tool else "tools/"
+        return prefix + CwlTranslator.tool_filename(tool)
     else:
-        return CwlTranslator.translate_tool_internal(
-            tool,
-            True,
-            with_resource_overrides=has_resources_overrides,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-        )
+        from janis_core.workflow.workflow import Workflow
+
+        has_resources_overrides = len(resource_overrides) > 0
+        if isinstance(tool, Workflow):
+            return CwlTranslator.translate_workflow_to_all_in_one(
+                tool,
+                with_resource_overrides=has_resources_overrides,
+                allow_empty_container=allow_empty_container,
+                container_override=container_override,
+            )
+        elif isinstance(tool, CodeTool):
+            return CwlTranslator.translate_code_tool_internal(
+                tool, allow_empty_container=allow_empty_container
+            )
+        else:
+            return CwlTranslator.translate_tool_internal(
+                tool,
+                True,
+                with_resource_overrides=has_resources_overrides,
+                allow_empty_container=allow_empty_container,
+                container_override=container_override,
+            )
 
 
 def translate_step_node(

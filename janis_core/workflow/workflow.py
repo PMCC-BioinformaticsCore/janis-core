@@ -841,12 +841,18 @@ class Workflow(Tool):
 
     def get_tools(self) -> Dict[str, CommandTool]:
         tools: Dict[str, CommandTool] = {}
-        for t in self._steps:
-            tl = t.step.tool()
+        for t in self.step_nodes.values():
+            tl = t.tool
             if isinstance(tl, Workflow):
                 tools.update(tl.get_tools())
             elif t.id() not in tools:
                 tools[tl.id()] = tl
+        return tools
+
+    def containers(self) -> Dict[str, str]:
+        tools: Dict[str, str] = {}
+        for t in self.step_nodes.values():
+            tools.update(t.tool.containers())
         return tools
 
     def report(self, to_console=True, tabulate_tablefmt=None):

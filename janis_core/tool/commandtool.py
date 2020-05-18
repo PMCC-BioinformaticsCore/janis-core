@@ -317,6 +317,9 @@ class CommandTool(Tool, ABC):
 
     ## Other studd
 
+    def containers(self) -> Dict[str, str]:
+        return {self.versioned_id(): self.container()}
+
     def id(self):
         return self.tool()
 

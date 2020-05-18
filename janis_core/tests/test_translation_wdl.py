@@ -1,17 +1,14 @@
 import unittest
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
 import wdlgen
-from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import JoinOperator
-
-from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 
 import janis_core.translations.wdl as wdl
 from janis_core import (
     WorkflowBuilder,
     ToolOutput,
     ToolInput,
+    ToolArgument,
     String,
     CommandTool,
     Stdout,
@@ -20,23 +17,27 @@ from janis_core import (
     File,
     Filename,
     WildcardSelector,
-    ToolArgument,
     Boolean,
     Int,
     CommandToolBuilder,
 )
+from janis_core.operators import CpuSelector, StringFormatter
+from janis_core.operators.logical import If, IsDefined
+from janis_core.operators.standard import JoinOperator
 from janis_core.tests.testtools import (
-    SingleTestTool,
-    TestToolWithSecondaryInput,
     TestTypeWithSecondary,
     TestTypeWithNonEscapedSecondary,
+    EchoTestTool,
+    SingleTestTool,
+    FilenameGeneratedTool,
+    TestTool,
+    TestToolV2,
+    TestToolWithSecondaryInput,
     TestWorkflowWithStepInputExpression,
     ArrayTestTool,
-    EchoTestTool,
-    FilenameGeneratedTool,
 )
 from janis_core.translations import WdlTranslator
-from janis_core.operators import CpuSelector, StringFormatter
+from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 
 
 class MultipleEcho(CommandTool):
@@ -78,45 +79,6 @@ class TxtSecondary(File):
     @staticmethod
     def secondary_files():
         return [".qt"]
-
-
-class TestTool(CommandTool):
-    @staticmethod
-    def tool():
-        return "TestTranslationtool"
-
-    @staticmethod
-    def base_command():
-        return "echo"
-
-    def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String()), ToolInput("arrayInp", Array(File()))]
-
-    def arguments(self) -> List[ToolArgument]:
-        return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
-
-    def outputs(self) -> List[ToolOutput]:
-        return [ToolOutput("std", Stdout())]
-
-    def cpus(self, hints: Dict[str, Any]):
-        return 2
-
-    def memory(self, hints: Dict[str, Any]):
-        return 2
-
-    def friendly_name(self) -> str:
-        return "Tool for testing translation"
-
-    @staticmethod
-    def container():
-        return "ubuntu:latest"
-
-    @staticmethod
-    def version():
-        return None
-
-    def env_vars(self):
-        return {"test1": InputSelector("testtool")}
 
 
 class TestToolWithSecondaryOutput(TestTool):
@@ -268,18 +230,16 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_filename_stringenv(self):
-        import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             fn.generated_filename(),
             wdl.WdlTranslator.unwrap_expression(fn, None, string_environment=True),
         )
 
     def test_input_value_filename_nostringenv(self):
-        import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             '"%s"' % fn.generated_filename(),
             wdl.WdlTranslator.unwrap_expression(fn, None, string_environment=False),
@@ -1000,7 +960,7 @@ class WorkflowWdlInputDefaultOperator(unittest.TestCase):
         expected = """\
 version development
 
-import "tools/EchoTestTool.wdl" as E
+import "tools/EchoTestTool_TEST.wdl" as E
 
 workflow wf {
   input {
@@ -1060,6 +1020,39 @@ class TestWdlContainerOverride(unittest.TestCase):
         self.assertEqual(f'docker: "{expected_container}"', line)
 
 
+class TestWDLRunRefs(unittest.TestCase):
+    def test_two_similar_tools(self):
+        w = WorkflowBuilder("testTwoToolsWithSameId")
+
+        w.input("inp", str)
+        w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp2", TestToolV2(testtool=w.inp))
+
+        wf_wdl, _ = WdlTranslator.translate_workflow(w)
+
+        expected = """\
+version development
+
+import "tools/TestTranslationtool.wdl" as T
+import "tools/TestTranslationtool_v0_0_2.wdl" as T2
+
+workflow testTwoToolsWithSameId {
+  input {
+    String inp
+  }
+  call T.TestTranslationtool as stp1 {
+    input:
+      testtool=inp
+  }
+  call T2.TestTranslationtool as stp2 {
+    input:
+      testtool=inp
+  }
+}"""
+
+        self.assertEqual(expected, wf_wdl.get_string())
+
+
 class TestWdlSecondaryTranslation(unittest.TestCase):
     def test_secondary_connection(self):
         wf = WorkflowBuilder("wf")
@@ -1079,7 +1072,7 @@ class TestCompleteOperators(unittest.TestCase):
         expected = """\
 version development
 
-import "tools/EchoTestTool.wdl" as E
+import "tools/EchoTestTool_TEST.wdl" as E
 
 workflow TestWorkflowWithStepInputExpression {
   input {
