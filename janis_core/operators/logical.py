@@ -33,6 +33,10 @@ def or_prev_conds(prevconditions: List[Operator]):
 
 
 class IsDefined(Operator, ABC):
+    @staticmethod
+    def friendly_signature():
+        return "Any? -> Boolean"
+
     def argtypes(self) -> List[DataType]:
         return [AnyType]
 
@@ -59,6 +63,10 @@ class IsDefined(Operator, ABC):
 class If(Operator, ABC):
     def __init__(self, condition, value_if_true, value_if_false):
         super().__init__(condition, value_if_true, value_if_false)
+
+    @staticmethod
+    def friendly_signature():
+        return "(condition: Boolean, value_if_true: X, value_if_false: Y) -> Union[X,Y]"
 
     def argtypes(self) -> List[DataType]:
         return [Boolean, AnyType, AnyType]
@@ -93,6 +101,10 @@ class If(Operator, ABC):
 
 class NotOperator(SingleValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Boolean -> Boolean"
+
+    @staticmethod
     def symbol():
         return "!"
 
@@ -116,6 +128,10 @@ class NotOperator(SingleValueOperator):
 
 class AndOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Boolean, Boolean -> Boolean"
+
+    @staticmethod
     def symbol():
         return "&&"
 
@@ -135,6 +151,10 @@ class AndOperator(TwoValueOperator):
 
 
 class OrOperator(TwoValueOperator):
+    @staticmethod
+    def friendly_signature():
+        return "Boolean, Boolean -> Boolean"
+
     @staticmethod
     def symbol():
         return "||"
@@ -156,6 +176,10 @@ class OrOperator(TwoValueOperator):
 
 class EqualityOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Any, Any -> Boolean"
+
+    @staticmethod
     def symbol():
         return "=="
 
@@ -175,6 +199,10 @@ class EqualityOperator(TwoValueOperator):
 
 
 class InequalityOperator(TwoValueOperator):
+    @staticmethod
+    def friendly_signature():
+        return "Any, Any -> Boolean"
+
     @staticmethod
     def symbol():
         return "!="
@@ -196,6 +224,10 @@ class InequalityOperator(TwoValueOperator):
 
 class GtOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Comparable, Comparable -> Boolean"
+
+    @staticmethod
     def symbol():
         return ">"
 
@@ -215,6 +247,10 @@ class GtOperator(TwoValueOperator):
 
 
 class GteOperator(TwoValueOperator):
+    @staticmethod
+    def friendly_signature():
+        return "Comparable, Comparable -> Boolean"
+
     @staticmethod
     def symbol():
         return ">="
@@ -236,6 +272,10 @@ class GteOperator(TwoValueOperator):
 
 class LtOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Comparable, Comparable -> Boolean"
+
+    @staticmethod
     def symbol():
         return "<"
 
@@ -256,6 +296,10 @@ class LtOperator(TwoValueOperator):
 
 class LteOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Comparable, Comparable -> Boolean"
+
+    @staticmethod
     def symbol():
         return "<="
 
@@ -275,6 +319,10 @@ class LteOperator(TwoValueOperator):
 
 
 class AddOperator(TwoValueOperator):
+    @staticmethod
+    def friendly_signature():
+        return "Any, Any -> Any"
+
     @staticmethod
     def symbol():
         return "+"
@@ -320,6 +368,10 @@ class AddOperator(TwoValueOperator):
 
 class SubtractOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "NumericType, NumericType -> NumericType"
+
+    @staticmethod
     def symbol():
         return "-"
 
@@ -343,6 +395,10 @@ class SubtractOperator(TwoValueOperator):
 
 
 class MultiplyOperator(TwoValueOperator):
+    @staticmethod
+    def friendly_signature():
+        return "Numeric, NumericType -> NumericType"
+
     @staticmethod
     def symbol():
         return "*"
@@ -368,6 +424,10 @@ class MultiplyOperator(TwoValueOperator):
 
 class DivideOperator(TwoValueOperator):
     @staticmethod
+    def friendly_signature():
+        return "Numeric, NumericType -> NumericType"
+
+    @staticmethod
     def symbol():
         return "/"
 
@@ -389,8 +449,12 @@ class DivideOperator(TwoValueOperator):
 
 
 class FloorOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Numeric, NumericType -> Int"
+
     def argtypes(self) -> List[DataType]:
-        return [Union[Double, Float]]
+        return [NumericType]
 
     def returntype(self):
         return Int
@@ -412,8 +476,12 @@ class FloorOperator(Operator):
 
 
 class CeilOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Numeric, NumericType -> Int"
+
     def argtypes(self) -> List[DataType]:
-        return [Union[Double, Float]]
+        return [NumericType]
 
     def returntype(self):
         return Int
@@ -435,8 +503,12 @@ class CeilOperator(Operator):
 
 
 class RoundOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Numeric, NumericType -> Int"
+
     def argtypes(self) -> List[DataType]:
-        return [Union[Double, Float]]
+        return [NumericType]
 
     def returntype(self):
         return Int

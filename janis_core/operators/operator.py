@@ -12,6 +12,11 @@ class Operator(Selector, ABC):
 
         self.validate()
 
+    @staticmethod
+    @abstractmethod
+    def friendly_signature():
+        pass
+
     def get_leaves(self):
         leaves = []
         for a in self.args:
@@ -84,6 +89,10 @@ class Operator(Selector, ABC):
 class IndexOperator(Operator, ABC):
     def __init__(self, base, index):
         super().__init__(base, index)
+
+    @staticmethod
+    def friendly_signature():
+        return "Array[X], Int -> X"
 
     def argtypes(self):
         return [Array(AnyType), Int]
@@ -169,6 +178,10 @@ class AsStringOperator(SingleValueOperator):
         return "str"
 
     @staticmethod
+    def friendly_signature():
+        return "X -> String"
+
+    @staticmethod
     def wdl_symbol():
         return ""
 
@@ -189,6 +202,10 @@ class AsBoolOperator(SingleValueOperator):
         return "bool"
 
     @staticmethod
+    def friendly_signature():
+        return "X -> Boolean"
+
+    @staticmethod
     def wdl_symbol():
         return ""
 
@@ -207,6 +224,10 @@ class AsIntOperator(SingleValueOperator):
     @staticmethod
     def symbol():
         return "int"
+
+    @staticmethod
+    def friendly_signature():
+        return "X -> Int"
 
     @staticmethod
     def wdl_symbol():

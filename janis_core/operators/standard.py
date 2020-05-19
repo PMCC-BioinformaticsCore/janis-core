@@ -5,6 +5,10 @@ from janis_core.operators.operator import Operator
 
 
 class JoinOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[X], String -> String"
+
     def argtypes(self):
         return [Array(UnionType(AnyType)), String]
 
@@ -21,6 +25,10 @@ class JoinOperator(Operator):
 
 
 class BasenameOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Union[File, Directory] -> String"
+
     def to_wdl(self, unwrap_operator, *args):
         arg = args[0]
         return f"basename({unwrap_operator(arg)})"
@@ -42,6 +50,10 @@ class BasenameOperator(Operator):
 
 
 class TransformOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[Array[X]] -> Array[Array[x]]"
+
     def argtypes(self):
         return [Array(Array(AnyType))]
 
@@ -65,6 +77,10 @@ class TransformOperator(Operator):
 
 
 class LengthOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[X] -> Int"
+
     def argtypes(self):
         return [Array(AnyType)]
 
@@ -87,6 +103,10 @@ class LengthOperator(Operator):
 
 
 class FlattenOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[Array[X]] -> Array[x]"
+
     def argtypes(self):
         return [Array(Array(AnyType))]
 
@@ -109,6 +129,10 @@ class FlattenOperator(Operator):
 
 
 class ApplyPrefixOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "String, Array[String] -> String"
+
     def argtypes(self):
         return [String, Array(AnyType)]
 
@@ -136,6 +160,10 @@ class FileSizeOperator(Operator):
     Returned in MB: Note that this does NOT include the reference files (yet)
     """
 
+    @staticmethod
+    def friendly_signature():
+        return "File -> Float"
+
     def argtypes(self):
         return [File()]
 
@@ -159,6 +187,10 @@ class FileSizeOperator(Operator):
 
 
 class FirstOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[X?] -> X"
+
     def argtypes(self):
         return [Array(AnyType)]
 
@@ -182,6 +214,10 @@ class FirstOperator(Operator):
 
 
 class FilterNullOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Array[X?] -> Array[X]"
+
     def argtypes(self):
         return [Array(AnyType)]
 
