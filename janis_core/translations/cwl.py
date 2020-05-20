@@ -19,16 +19,17 @@ This file is logically structured similar to the WDL equiv:
 
 ## IMPORTS
 
-import os
 import re
-from typing import List, Dict, Optional, Any, Tuple
+from io import StringIO
 
-import cwlgen
+from typing import List, Dict, Optional, Tuple
+
+import janis_core.utils.cwl_v1_1 as cwlgen
 import ruamel.yaml
 
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import full_lbl
-from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
+from janis_core.tool.commandtool import CommandTool, ToolInput
 from janis_core.tool.tool import Tool
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.types import (
@@ -44,13 +45,13 @@ from janis_core.types import (
 from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
-from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
-from janis_core.translationdeps.exportpath import ExportPathKeywords
+from janis_core.utils.metadata import ToolMetadata
 
 from janis_core.workflow.workflow import StepNode
 
 CWL_VERSION = "v1.0"
 SHEBANG = "#!/usr/bin/env cwl-runner"
+yaml = ruamel.yaml.YAML()
 
 
 ## TRANSLATION
@@ -59,16 +60,40 @@ SHEBANG = "#!/usr/bin/env cwl-runner"
 class CwlTranslator(TranslatorBase):
     def __init__(self):
         super().__init__(name="cwl")
-        ruamel.yaml.add_representer(
-            cwlgen.utils.literal, cwlgen.utils.literal_presenter
-        )
+
+        # class literal(str):
+        #     pass
+        #
+        # def literal_presenter(dumper, data):
+        #     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        #
+        # ruamel.yaml.add_representer(literal, literal_presenter)
+
+    @staticmethod
+    def walk_and_check_cwldict(c):
+        return c.save()
+        # primitives = (str, int, bool, float)
+        # if isinstance(c, primitives):
+        #     return c
+        #
+        # if isinstance(c, list):
+        #     return [CwlTranslator.walk_and_check_cwldict(cc) for cc in c]
+        #
+        # elif isinstance(c, dict):
+        #     return {k: CwlTranslator.walk_and_check_cwldict(v) for k, v in c.items()}
+        # else:
+        #     return CwlTranslator.walk_and_check_cwldict(c.save())
+
+    @staticmethod
+    def stringify_commentedmap(m):
+        io = StringIO()
+        yaml.dump(m, io)
+        return io.getvalue()
 
     @staticmethod
     def stringify_translated_workflow(wf, format=False):
-
-        formatted = (
-            SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
-        )
+        saved = CwlTranslator.walk_and_check_cwldict(wf)
+        formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
         if format:
             from cwlformat.formatter import cwl_format
 
@@ -78,10 +103,9 @@ class CwlTranslator(TranslatorBase):
 
     @staticmethod
     def stringify_translated_tool(tool, format=False):
+        saved = CwlTranslator.walk_and_check_cwldict(tool)
 
-        formatted = (
-            SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
-        )
+        formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
         if format:
             from cwlformat.formatter import cwl_format
 
@@ -112,7 +136,11 @@ class CwlTranslator(TranslatorBase):
 
         metadata = wf.metadata
         w = cwlgen.Workflow(
-            wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
+            wf.id(),
+            wf.friendly_name(),
+            metadata.documentation,
+            cwlVersion=CWL_VERSION,
+            requirements=[],
         )
 
         w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
@@ -240,11 +268,14 @@ class CwlTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override=None,
     ) -> cwlgen.Workflow:
-        from janis_core.workflow.workflow import Workflow
 
         metadata = wf.bind_metadata() or wf.metadata
         w = cwlgen.Workflow(
-            wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
+            wf.id(),
+            wf.friendly_name(),
+            metadata.documentation,
+            cwlVersion=CWL_VERSION,
+            requirements=[],
         )
 
         w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
@@ -319,14 +350,18 @@ class CwlTranslator(TranslatorBase):
             stderr = translate_input_selector(stderr, code_environment=False)
 
         tool_cwl = cwlgen.CommandLineTool(
-            tool_id=tool.id(),
-            base_command=tool.base_command(),
+            id=tool.id(),
+            baseCommand=tool.base_command(),
             label=tool.friendly_name() or tool.id(),
             doc=metadata.documentation,
-            cwl_version=CWL_VERSION,
+            cwlVersion=CWL_VERSION,
             stdin=None,
             stderr=stderr,
             stdout=stdout,
+            inputs=[],
+            outputs=[],
+            arguments=[],
+            requirements=[],
         )
 
         # if any(not i.shell_quote for i in tool.inputs()):
@@ -337,7 +372,7 @@ class CwlTranslator(TranslatorBase):
         envs = tool.env_vars()
         if envs:
             lls = [
-                cwlgen.EnvVarRequirement.EnvironmentDef(
+                cwlgen.EnvironmentDef(
                     k,
                     get_input_value_from_potential_selector_or_generator(
                         value=v, code_environment=False, toolid=tool.id()
@@ -363,7 +398,7 @@ class CwlTranslator(TranslatorBase):
             tool_cwl.requirements.append(
                 cwlgen.InitialWorkDirRequirement(
                     [
-                        cwlgen.InitialWorkDirRequirement.Dirent(
+                        cwlgen.Dirent(
                             entry="$(inputs.%s)" % ti.id(), entryname=ti.presents_as
                         )
                         for ti in inputs_that_require_localisation
@@ -379,7 +414,7 @@ class CwlTranslator(TranslatorBase):
 
             if container is not None:
                 tool_cwl.requirements.append(
-                    cwlgen.DockerRequirement(docker_pull=container)
+                    cwlgen.DockerRequirement(dockerPull=container)
                 )
             elif not allow_empty_container:
                 raise Exception(
@@ -407,16 +442,16 @@ class CwlTranslator(TranslatorBase):
             # work out whether (the tool of) s is a workflow or tool
             tool_cwl.inputs.extend(
                 [
-                    cwlgen.CommandInputParameter("runtime_memory", param_type="float?"),
-                    cwlgen.CommandInputParameter("runtime_cpu", param_type="int?"),
-                    # cwlgen.CommandInputParameter("runtime_disks", param_type="string?"),
+                    cwlgen.CommandInputParameter(id="runtime_memory", type="float?"),
+                    cwlgen.CommandInputParameter(id="runtime_cpu", type="int?"),
+                    # cwlgen.CommandInputParameter("runtime_disks", type="string?"),
                 ]
             )
 
             tool_cwl.requirements.append(
                 cwlgen.ResourceRequirement(
-                    cores_min="$(inputs.runtime_cpu ? inputs.runtime_cpu : 1)",
-                    ram_min="$(inputs.runtime_memory ? Math.floor(1024 * inputs.runtime_memory) : 4096)",
+                    coresMin="$(inputs.runtime_cpu ? inputs.runtime_cpu : 1)",
+                    ramMin="$(inputs.runtime_memory ? Math.floor(1024 * inputs.runtime_memory) : 4096)",
                 )
             )
 
@@ -451,11 +486,11 @@ class CwlTranslator(TranslatorBase):
             stderr = translate_input_selector(stderr, code_environment=False)
 
         tool_cwl = cwlgen.CommandLineTool(
-            tool_id=tool.id(),
-            base_command=tool.base_command(),
+            id=tool.id(),
+            baseCommand=tool.base_command(),
             label=tool.id(),
             doc="",  # metadata.documentation,
-            cwl_version=CWL_VERSION,
+            cwlVersion=CWL_VERSION,
             stderr=stderr,
             stdout=stdout,
         )
@@ -478,37 +513,33 @@ class CwlTranslator(TranslatorBase):
             if isinstance(output.outtype, Stdout):
                 tool_cwl.outputs.append(
                     cwlgen.CommandOutputParameter(
-                        param_id=output.tag,
-                        label=output.tag,
-                        param_type=output.outtype.cwl_type(),
+                        id=output.tag, label=output.tag, type=output.outtype.cwl_type(),
                     )
                 )
                 continue
 
             tool_cwl.outputs.append(
                 cwlgen.CommandOutputParameter(
-                    param_id=output.tag,
+                    id=output.tag,
                     label=output.tag,
                     # param_format=None,
                     # streamable=None,
                     doc=output.doc.doc if output.doc else None,
-                    output_binding=cwlgen.CommandOutputBinding(
+                    outputBinding=cwlgen.CommandOutputBinding(
                         glob=stdout,
-                        load_contents=True,
-                        output_eval=cls.prepare_output_eval_for_python_codetool(
+                        loadContents=True,
+                        outputEval=cls.prepare_output_eval_for_python_codetool(
                             tag=output.tag, outtype=output.outtype
                         ),
                     ),
-                    param_type=output.outtype.cwl_type(),
+                    type=output.outtype.cwl_type(),
                 )
             )
 
         tool_cwl.requirements.append(
             cwlgen.InitialWorkDirRequirement(
                 listing=[
-                    cwlgen.InitialWorkDirRequirement.Dirent(
-                        entryname=scriptname, entry=tool.prepared_script()
-                    )
+                    cwlgen.Dirent(entryname=scriptname, entry=tool.prepared_script())
                 ]
             )
         )
@@ -522,7 +553,7 @@ class CwlTranslator(TranslatorBase):
 
             if container is not None:
                 tool_cwl.requirements.append(
-                    cwlgen.DockerRequirement(docker_pull=tool.container())
+                    cwlgen.DockerRequirement(dockerPull=tool.container())
                 )
             elif not allow_empty_container:
                 raise Exception(
@@ -609,16 +640,17 @@ def translate_input(inp):
 
     doc = inp.doc.doc if inp.doc else None
 
-    return cwlgen.InputParameter(
-        param_id=inp.id(),
-        default=inp.default,
-        secondary_files=inp.datatype.secondary_files(),
-        param_format=None,
-        streamable=None,
-        doc=doc,
-        input_binding=None,
-        param_type=inp.datatype.cwl_type(inp.default is not None),
-    )
+    ip = cwlgen.InputParameter()
+    ip.id = inp.id()
+    ip.default = inp.default
+    ip.secondaryFiles = inp.datatype.secondary_files()
+    ip.format = None
+    ip.streamable = None
+    ip.doc = doc
+    ip.inputBinding = None
+    ip.label = None
+    ip.type = inp.datatype.cwl_type(inp.default is not None)
+    return ip
 
 
 def translate_output_node(node):
@@ -632,14 +664,12 @@ def translate_output(outp, source):
     doc = outp.doc.doc if outp.doc else None
 
     return cwlgen.WorkflowOutputParameter(
-        param_id=outp.id(),
-        output_source=source,
-        secondary_files=outp.datatype.secondary_files(),
-        param_format=None,
+        id=outp.id(),
+        outputSource=source,
+        secondaryFiles=outp.datatype.secondary_files(),
         streamable=None,
         doc=doc,
-        param_type=ot.cwl_type(),
-        output_binding=None,
+        type=ot.cwl_type(),
         linkMerge=None,
     )
 
@@ -677,9 +707,9 @@ def translate_tool_input(
         position=toolinput.position,
         prefix=toolinput.prefix,
         separate=toolinput.separate_value_from_prefix,
-        item_separator=toolinput.separator,
-        value_from=value_from,
-        shell_quote=toolinput.shell_quote,
+        itemSeparator=toolinput.separator,
+        valueFrom=value_from,
+        shellQuote=toolinput.shell_quote,
     )
 
     non_optional_dt_component = (
@@ -702,20 +732,20 @@ def translate_tool_input(
                 separate=toolinput.separate_value_from_prefix,
                 # item_separator=toolinput.item_separator,
                 # value_from=toolinput.value_from,
-                shell_quote=toolinput.shell_quote,
+                shellQuote=toolinput.shell_quote,
             )
             non_optional_dt_component.inputBinding = nested_binding
 
     doc = toolinput.doc.doc if toolinput.doc else None
     return cwlgen.CommandInputParameter(
-        param_id=toolinput.tag,
+        id=toolinput.tag,
         label=toolinput.tag,
-        secondary_files=prepare_tool_input_secondaries(toolinput),
+        secondaryFiles=prepare_tool_input_secondaries(toolinput),
         # streamable=None,
         doc=doc,
-        input_binding=input_binding,
+        inputBinding=input_binding,
         default=default,
-        param_type=data_type,
+        type=data_type,
     )
 
 
@@ -726,10 +756,10 @@ def translate_tool_argument(argument):
         prefix=argument.prefix,
         separate=argument.separate_value_from_prefix,
         # item_separator=None,
-        value_from=get_input_value_from_potential_selector_or_generator(
+        valueFrom=get_input_value_from_potential_selector_or_generator(
             argument.value, code_environment=False
         ),
-        shell_quote=argument.shell_quote,
+        shellQuote=argument.shell_quote,
     )
 
 
@@ -738,20 +768,20 @@ def translate_tool_output(output, inputsdict, **debugkwargs):
     doc = output.doc.doc if output.doc else None
 
     return cwlgen.CommandOutputParameter(
-        param_id=output.tag,
+        id=output.tag,
         label=output.tag,
-        secondary_files=prepare_tool_output_secondaries(output),
+        secondaryFiles=prepare_tool_output_secondaries(output),
         # param_format=None,
         # streamable=None,
         doc=doc,
-        output_binding=cwlgen.CommandOutputBinding(
+        outputBinding=cwlgen.CommandOutputBinding(
             glob=translate_to_cwl_glob(
                 output.glob, inputsdict=inputsdict, outputtag=output.tag, **debugkwargs
             ),
             # load_contents=False,
-            output_eval=prepare_tool_output_eval(output),
+            outputEval=prepare_tool_output_eval(output),
         ),
-        param_type=output.output_type.cwl_type(),
+        type=output.output_type.cwl_type(),
     )
 
 
@@ -872,16 +902,18 @@ def translate_step(
             )
 
     cwlstep = cwlgen.WorkflowStep(
-        step_id=step.id(),
+        id=step.id(),
         run=run_ref,
         # label=step.step.label,
         doc=step.doc.doc if step.doc else None,
         scatter=None,  # Filled by StepNode
-        scatter_method=None,  # Filled by StepNode
+        scatterMethod=None,  # Filled by StepNode
+        in_=[],
+        out=[],
     )
 
     cwlstep.out = [
-        cwlgen.WorkflowStepOutput(output_id=o.tag) for o in step.tool.tool_outputs()
+        cwlgen.WorkflowStepOutput(id=o.tag) for o in step.tool.tool_outputs()
     ]
 
     ins = step.inputs()
@@ -921,18 +953,16 @@ def translate_step(
                 link_merge = "merge_nested"
 
         d = cwlgen.WorkflowStepInput(
-            input_id=inp.tag,
+            id=inp.tag,
             source=ss,
-            link_merge=link_merge,  # this will need to change when edges have multiple source_map
-            value_from=None,
+            linkMerge=link_merge,  # this will need to change when edges have multiple source_map
+            valueFrom=None,
         )
 
-        cwlstep.inputs.append(d)
+        cwlstep.in_.append(d)
 
     for r in resource_overrides:
-        cwlstep.inputs.append(
-            cwlgen.WorkflowStepInput(input_id=r, source=resource_overrides[r])
-        )
+        cwlstep.in_.append(cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r]))
 
     if step.scatter:
         if len(step.scatter.fields) > 1:
@@ -1093,11 +1123,9 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.InputParameter(
-                        tool_pre + "runtime_memory", param_type="float?"
-                    ),
-                    cwlgen.InputParameter(tool_pre + "runtime_cpu", param_type="int?"),
-                    # cwlgen.InputParameter(tool_pre + "runtime_disks", param_type="string?"),
+                    cwlgen.InputParameter(tool_pre + "runtime_memory", type="float?"),
+                    cwlgen.InputParameter(tool_pre + "runtime_cpu", type="int?"),
+                    # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
                 ]
             )
         elif isinstance(tool, Workflow):

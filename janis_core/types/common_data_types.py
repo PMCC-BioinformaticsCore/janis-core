@@ -4,7 +4,7 @@
 from inspect import isclass
 from typing import Union, Type, Dict, Any, Optional
 
-import cwlgen
+import janis_core.utils.cwl_v1_1 as cwlgen
 import wdlgen
 
 from janis_core.types.data_types import (
@@ -71,7 +71,6 @@ class Filename(String):
         :param guid: Use this guid instead of generating one
         :param optional: IGNORED (legacy)
         """
-        import uuid
 
         self.prefix = prefix
         self.extension = extension
@@ -428,15 +427,14 @@ class Array(DataType):
     def cwl_type(self, has_default=False):
         inp = cwlgen.CommandInputArraySchema(
             items=self._t.cwl_type(),
+            type="array"
             # label=None,
             # input_binding=None
         )
         return [inp, "null"] if self.optional and not has_default else inp
 
     def map_cwl_type(self, parameter: cwlgen.Parameter) -> cwlgen.Parameter:
-        parameter.type = cwlgen.CommandInputArraySchema(
-            items=None, label=None, input_binding=None
-        )
+        parameter.type = cwlgen.CommandInputArraySchema(items=None, type="array")
         return parameter
 
     def cwl_input(self, value: Any):

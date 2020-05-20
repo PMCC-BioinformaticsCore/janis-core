@@ -1,33 +1,25 @@
 import unittest
-from typing import List, Dict, Any
-
 
 from janis_core.tests.testtools import (
     SingleTestTool,
     ArrayTestTool,
     TestTool,
     TestToolV2,
-    TestToolWithSecondaryOutput,
     TestTypeWithSecondary,
     FilenameGeneratedTool,
 )
 
-import cwlgen
+import janis_core.utils.cwl_v1_1 as cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (
     WorkflowBuilder,
-    ToolOutput,
     ToolInput,
     String,
-    CommandTool,
-    Stdout,
     InputSelector,
     Array,
-    File,
     WildcardSelector,
     StringFormatter,
-    ToolArgument,
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
@@ -42,7 +34,6 @@ class TestCwlTypesConversion(unittest.TestCase):
 class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
-        self.maxDiff = 10000
         actual = t.translate("cwl", to_console=False)
         self.assertEqual(cwl_testtool, actual)
 
@@ -52,14 +43,16 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         self.translator = CwlTranslator()
 
     def test_stringify_WorkflowBuilder(self):
-        cwlobj = cwlgen.Workflow("wid")
+        cwlobj = cwlgen.Workflow(
+            id="wid", cwlVersion="v1.0", inputs={}, outputs={}, steps={}
+        )
         expected = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
 id: wid
 inputs: {}
 outputs: {}
+cwlVersion: v1.0
 steps: {}
 """
         self.assertEqual(
@@ -67,9 +60,11 @@ steps: {}
         )
 
     def test_stringify_tool(self):
-        cwlobj = cwlgen.CommandLineTool("tid")
+        cwlobj = cwlgen.CommandLineTool(
+            id="tid", inputs={}, outputs={}, cwlVersion="v1.0"
+        )
         self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\ninputs: {}\noutputs: {}\n",
+            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\nid: tid\ninputs: {}\noutputs: {}\ncwlVersion: v1.0\n",
             self.translator.stringify_translated_tool(cwlobj),
         )
 
@@ -108,7 +103,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                 "type": {"items": "string", "type": "array"},
                 "inputBinding": {"prefix": "-A", "position": 1},
             },
-            cwltoolinput.get_dict(),
+            CwlTranslator.walk_and_check_cwldict(cwltoolinput),
         )
 
     def test_nested_input_binding(self):
@@ -132,7 +127,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                 },
                 "inputBinding": {"position": 2},
             },
-            cwltoolinput.get_dict(),
+            cwltoolinput.save(),
         )
 
     def test_separated_input_bindingin(self):
@@ -157,7 +152,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                     "position": 4,
                 },
             },
-            cwltoolinput.get_dict(),
+            cwltoolinput.save(),
         )
 
     def test_optional_array_prefixes(self):
@@ -173,6 +168,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             {
                 "id": "filesD",
                 "label": "filesD",
+                "inputBinding": {},
                 "type": [
                     {
                         "inputBinding": {"prefix": "-D"},
@@ -182,7 +178,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                     "null",
                 ],
             },
-            cwltoolinput.get_dict(),
+            dict(cwltoolinput.save()),
         )
 
 
@@ -391,9 +387,9 @@ class TestCwlEnvVar(unittest.TestCase):
     def test_environment1(self):
         t = CwlTranslator().translate_tool_internal(tool=TestTool())
         envvar: cwlgen.EnvVarRequirement = [
-            t for t in t.requirements if t._req_class == "EnvVarRequirement"
+            t for t in t.requirements if t.class_ == "EnvVarRequirement"
         ][0]
-        envdef: cwlgen.EnvVarRequirement.EnvironmentDef = envvar.envDef[0]
+        envdef: cwlgen.EnvironmentDef = envvar.envDef[0]
         self.assertEqual("test1", envdef.envName)
         self.assertEqual("$(inputs.testtool)", envdef.envValue)
 
@@ -560,9 +556,12 @@ class TestContainerOverride(unittest.TestCase):
             Loader=ruamel.yaml.Loader,
         )
 
-        received_container = (
-            d.get("requirements").get("DockerRequirement").get("dockerPull")
-        )
+        received_container = [
+            req.get("dockerPull")
+            for req in d.get("requirements")
+            if req["class"] == "DockerRequirement"
+        ][0]
+
         self.assertEqual(expected_container, received_container)
 
     def test_tool_string_override(self):
@@ -577,10 +576,12 @@ class TestContainerOverride(unittest.TestCase):
             ),
             Loader=ruamel.yaml.Loader,
         )
+        received_container = [
+            req.get("dockerPull")
+            for req in d.get("requirements")
+            if req["class"] == "DockerRequirement"
+        ][0]
 
-        received_container = (
-            d.get("requirements").get("DockerRequirement").get("dockerPull")
-        )
         self.assertEqual(expected_container, received_container)
 
 
@@ -590,8 +591,7 @@ class TestCWLFilenameGeneration(unittest.TestCase):
         inputsdict = {t.id(): t for t in tool.inputs()}
         mapped = [cwl.translate_tool_input(i, inputsdict) for i in tool.inputs()]
         expressions = [
-            mapped[i].get_dict()["inputBinding"]["valueFrom"]
-            for i in range(4, len(mapped))
+            mapped[i].save()["inputBinding"]["valueFrom"] for i in range(4, len(mapped))
         ]
         self.assertEqual("$(inputs.inp)", expressions[0])
         self.assertEqual(
@@ -624,63 +624,62 @@ class TestCWLRunRefs(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-arguments:
-- position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
-baseCommand: echo
 class: CommandLineTool
-cwlVersion: v1.0
 id: TestTranslationtool
+label: Tool for testing translation
 inputs:
 - id: testtool
   label: testtool
   type: string
+  inputBinding: {}
 - id: arrayInp
   label: arrayInp
   type:
   - items: string
     type: array
   - 'null'
-label: Tool for testing translation
+  inputBinding: {}
 outputs:
 - id: std
   label: std
   type: stdout
+  outputBinding: {}
 requirements:
-  DockerRequirement:
-    dockerPull: ubuntu:latest
-  EnvVarRequirement:
-    envDef:
-    - envName: test1
-      envValue: $(inputs.testtool)
-  InlineJavascriptRequirement: {}
-  ShellCommandRequirement: {}
+- class: ShellCommandRequirement
+- class: InlineJavascriptRequirement
+- class: EnvVarRequirement
+  envDef:
+  - envName: test1
+    envValue: $(inputs.testtool)
+- class: DockerRequirement
+  dockerPull: ubuntu:latest
+cwlVersion: v1.0
+baseCommand: echo
+arguments:
+- position: 0
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
 """
 
 
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
-id: test_add_single_to_array_edge
 inputs:
-  inp1:
-    id: inp1
-    type: string
-outputs: {}
+- 
+outputs: []
 requirements:
-  InlineJavascriptRequirement: {}
-  MultipleInputFeatureRequirement: {}
-  StepInputExpressionRequirement: {}
+- class: InlineJavascriptRequirement
+- class: StepInputExpressionRequirement
+- class: MultipleInputFeatureRequirement
+cwlVersion: v1.0
 steps:
-  stp1:
-    in:
-      inputs:
-        id: inputs
-        linkMerge: merge_nested
-        source:
-        - inp1
-    out:
-    - outs
-    run: tools/ArrayStepTool.cwl
+- id: stp1
+  in:
+  - id: inputs
+    source:
+    - inp1
+    linkMerge: merge_nested
+  out:
+  - id: outs
+  run: tools/ArrayStepTool.cwl
 """
