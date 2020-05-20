@@ -19,14 +19,13 @@ class TestTypes(unittest.TestCase):
 
         ar = Array(String())
         d = ar.cwl_type()
-        self.assertEqual(d.get_dict(), {"type": "array", "items": "string"})
+        self.assertEqual({"type": "array", "items": "string"}, d.save())
 
     def test_array_of_array_of_strings(self):
         ar = Array(Array(String()))
         d = ar.cwl_type()
-        self.assertEqual(
-            d.get_dict(),
-            {"type": "array", "items": {"type": "array", "items": "string"}},
+        self.assertDictEqual(
+            {"type": "array", "items": {"type": "array", "items": "string"}}, d.save()
         )
 
     def test_stdout_normal(self):

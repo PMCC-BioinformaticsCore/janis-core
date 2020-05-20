@@ -513,7 +513,7 @@ class CwlTranslator(TranslatorBase):
             if isinstance(output.outtype, Stdout):
                 tool_cwl.outputs.append(
                     cwlgen.CommandOutputParameter(
-                        id=output.tag, label=output.tag, type=output.outtype.cwl_type(),
+                        id=output.tag, label=output.tag, type=output.outtype.cwl_type()
                     )
                 )
                 continue
@@ -640,17 +640,17 @@ def translate_input(inp):
 
     doc = inp.doc.doc if inp.doc else None
 
-    ip = cwlgen.InputParameter()
-    ip.id = inp.id()
-    ip.default = inp.default
-    ip.secondaryFiles = inp.datatype.secondary_files()
-    ip.format = None
-    ip.streamable = None
-    ip.doc = doc
-    ip.inputBinding = None
-    ip.label = None
-    ip.type = inp.datatype.cwl_type(inp.default is not None)
-    return ip
+    return cwlgen.WorkflowInputParameter(
+        id=inp.id(),
+        default=inp.default,
+        secondaryFiles=inp.datatype.secondary_files(),
+        format=None,
+        streamable=None,
+        doc=doc,
+        inputBinding=None,
+        label=None,
+        type=inp.datatype.cwl_type(inp.default is not None),
+    )
 
 
 def translate_output_node(node):
@@ -767,6 +767,8 @@ def translate_tool_output(output, inputsdict, **debugkwargs):
 
     doc = output.doc.doc if output.doc else None
 
+    required_binding = not isinstance(output.output_type, (Stdout, Stderr))
+
     return cwlgen.CommandOutputParameter(
         id=output.tag,
         label=output.tag,
@@ -780,7 +782,9 @@ def translate_tool_output(output, inputsdict, **debugkwargs):
             ),
             # load_contents=False,
             outputEval=prepare_tool_output_eval(output),
-        ),
+        )
+        if required_binding
+        else None,
         type=output.output_type.cwl_type(),
     )
 
@@ -1123,8 +1127,12 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.InputParameter(tool_pre + "runtime_memory", type="float?"),
-                    cwlgen.InputParameter(tool_pre + "runtime_cpu", type="int?"),
+                    cwlgen.WorkflowInputParameter(
+                        id=tool_pre + "runtime_memory", type="float?"
+                    ),
+                    cwlgen.WorkflowInputParameter(
+                        id=tool_pre + "runtime_cpu", type="int?"
+                    ),
                     # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
                 ]
             )

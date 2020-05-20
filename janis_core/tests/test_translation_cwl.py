@@ -20,10 +20,12 @@ from janis_core import (
     Array,
     WildcardSelector,
     StringFormatter,
+    CommandToolBuilder,
+    ToolOutput,
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
-from janis_core.types import CpuSelector, MemorySelector
+from janis_core.types import CpuSelector, MemorySelector, Stdout
 from janis_core.workflow.workflow import InputNode
 
 
@@ -428,7 +430,10 @@ class TestCwlTranslateInput(unittest.TestCase):
         self.assertListEqual([".txt"], tinp.secondaryFiles)
 
 
-# PUT RIGHT HERE
+class TestCwlOutputGeneration(unittest.TestCase):
+    def test_stdout_no_outputbinding(self):
+        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}).save()
+        self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 
 
 class TestCwlGenerateInput(unittest.TestCase):
@@ -643,7 +648,6 @@ outputs:
 - id: std
   label: std
   type: stdout
-  outputBinding: {}
 requirements:
 - class: ShellCommandRequirement
 - class: InlineJavascriptRequirement
@@ -665,7 +669,8 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 inputs:
-- 
+- id: inp1
+  type: string
 outputs: []
 requirements:
 - class: InlineJavascriptRequirement
