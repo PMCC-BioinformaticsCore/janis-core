@@ -69,7 +69,7 @@ steps: {}
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
         self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
+            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\ninputs: {}\noutputs: {}\n",
             self.translator.stringify_translated_tool(cwlobj),
         )
 
