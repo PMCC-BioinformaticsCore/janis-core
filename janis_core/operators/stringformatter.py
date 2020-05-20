@@ -19,6 +19,10 @@ class StringFormatter(Operator):
     def argtypes(self):
         return [String, Optional[AnyType]]
 
+    @staticmethod
+    def friendly_signature():
+        return "String, **kwargs -> String"
+
     def __init__(self, format: str, **kwargs):
         self._format: str = format
 
