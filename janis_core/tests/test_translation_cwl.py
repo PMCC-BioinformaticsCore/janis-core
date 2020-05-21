@@ -57,10 +57,13 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: wid
+
 inputs: {}
+
 outputs: {}
+
 steps: {}
+id: wid
 """
         self.assertEqual(
             expected, self.translator.stringify_translated_workflow(cwlobj)
@@ -68,10 +71,19 @@ steps: {}
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
-        self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\ninputs: {}\noutputs: {}\n",
-            self.translator.stringify_translated_tool(cwlobj),
-        )
+
+        expected = """\
+#!/usr/bin/env cwl-runner
+class: CommandLineTool
+cwlVersion: v1.0
+
+inputs: {}
+
+outputs: {}
+id: tid
+"""
+
+        self.assertEqual(expected, self.translator.stringify_translated_tool(cwlobj))
 
     def test_stringify_inputs(self):
         d = {"inp1": 1}
@@ -624,28 +636,10 @@ class TestCWLRunRefs(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-arguments:
-- position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
-baseCommand: echo
 class: CommandLineTool
 cwlVersion: v1.0
-id: TestTranslationtool
-inputs:
-- id: testtool
-  label: testtool
-  type: string
-- id: arrayInp
-  label: arrayInp
-  type:
-  - items: string
-    type: array
-  - 'null'
 label: Tool for testing translation
-outputs:
-- id: std
-  label: std
-  type: stdout
+
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
@@ -655,6 +649,28 @@ requirements:
       envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
+
+inputs:
+- id: testtool
+  label: testtool
+  type: string
+- id: arrayInp
+  label: arrayInp
+  type:
+  - type: array
+    items: string
+  - 'null'
+
+outputs:
+- id: std
+  label: std
+  type: stdout
+
+baseCommand: echo
+arguments:
+- position: 0
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
+id: TestTranslationtool
 """
 
 
@@ -662,25 +678,29 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: test_add_single_to_array_edge
-inputs:
-  inp1:
-    id: inp1
-    type: string
-outputs: {}
+
 requirements:
   InlineJavascriptRequirement: {}
   MultipleInputFeatureRequirement: {}
   StepInputExpressionRequirement: {}
+
+inputs:
+  inp1:
+    id: inp1
+    type: string
+
+outputs: {}
+
 steps:
   stp1:
     in:
       inputs:
         id: inputs
-        linkMerge: merge_nested
         source:
         - inp1
+        linkMerge: merge_nested
+    run: tools/ArrayStepTool.cwl
     out:
     - outs
-    run: tools/ArrayStepTool.cwl
+id: test_add_single_to_array_edge
 """
