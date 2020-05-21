@@ -6,4 +6,4 @@ networkx>=2.1
 ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
 path
-#cwlformat
+cwlformat >= 2020.5.19
