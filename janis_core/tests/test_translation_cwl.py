@@ -60,10 +60,13 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: wid
+
 inputs: {}
+
 outputs: {}
+
 steps: {}
+id: wid
 """
         self.assertEqual(
             expected, self.translator.stringify_translated_workflow(cwlobj)
@@ -71,10 +74,19 @@ steps: {}
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
-        self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\ninputs: {}\noutputs: {}\n",
-            self.translator.stringify_translated_tool(cwlobj),
-        )
+
+        expected = """\
+#!/usr/bin/env cwl-runner
+class: CommandLineTool
+cwlVersion: v1.0
+
+inputs: {}
+
+outputs: {}
+id: tid
+"""
+
+        self.assertEqual(expected, self.translator.stringify_translated_tool(cwlobj))
 
     def test_stringify_inputs(self):
         d = {"inp1": 1}
@@ -554,7 +566,6 @@ class TestContainerOverride(unittest.TestCase):
         self.assertEqual(expected_container, received_container)
 
 
-@unittest.skipUnless(False, reason="No CWLFormat is causing this to break")
 class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
 
@@ -582,7 +593,6 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.output("out", source=wf.print)
 
         ret, _, _ = wf.translate("cwl", allow_empty_container=True, to_console=False)
-        self.maxDiff = None
         self.assertEqual(cwl_arraystepinput, ret)
 
 
@@ -682,28 +692,10 @@ class TestCWLRunRefs(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-arguments:
-- position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
-baseCommand: echo
 class: CommandLineTool
 cwlVersion: v1.0
-id: TestTranslationtool
-inputs:
-- id: testtool
-  label: testtool
-  type: string
-- id: arrayInp
-  label: arrayInp
-  type:
-  - items: string
-    type: array
-  - 'null'
 label: Tool for testing translation
-outputs:
-- id: std
-  label: std
-  type: stdout
+
 requirements:
   DockerRequirement:
     dockerPull: ubuntu:latest
@@ -713,6 +705,28 @@ requirements:
       envValue: $(inputs.testtool)
   InlineJavascriptRequirement: {}
   ShellCommandRequirement: {}
+
+inputs:
+- id: testtool
+  label: testtool
+  type: string
+- id: arrayInp
+  label: arrayInp
+  type:
+  - type: array
+    items: string
+  - 'null'
+
+outputs:
+- id: std
+  label: std
+  type: stdout
+
+baseCommand: echo
+arguments:
+- position: 0
+  valueFrom: test:\\\\t:escaped:\\\\n:characters"
+id: TestTranslationtool
 """
 
 
@@ -720,34 +734,43 @@ cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: test_add_single_to_array_edge
-inputs:
-  inp1:
-    id: inp1
-    type: string
-outputs: {}
+
 requirements:
   InlineJavascriptRequirement: {}
   MultipleInputFeatureRequirement: {}
   StepInputExpressionRequirement: {}
+
+inputs:
+  inp1:
+    id: inp1
+    type: string
+
+outputs: {}
+
 steps:
   stp1:
     in:
       inputs:
         id: inputs
-        linkMerge: merge_nested
         source:
         - inp1
+        linkMerge: merge_nested
+    run: tools/ArrayStepTool.cwl
     out:
     - outs
-    run: tools/ArrayStepTool.cwl
+id: test_add_single_to_array_edge
 """
 
 cwl_stepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: TestWorkflowWithStepInputExpression
+label: 'TEST: WorkflowWithStepInputExpression'
+
+requirements:
+  InlineJavascriptRequirement: {}
+  StepInputExpressionRequirement: {}
+
 inputs:
   mystring:
     id: mystring
@@ -759,15 +782,13 @@ inputs:
     type:
     - string
     - 'null'
-label: 'TEST: WorkflowWithStepInputExpression'
+
 outputs:
   out:
     id: out
-    outputSource: print/out
     type: File
-requirements:
-  InlineJavascriptRequirement: {}
-  StepInputExpressionRequirement: {}
+    outputSource: print/out
+
 steps:
   print:
     in:
@@ -779,17 +800,24 @@ steps:
         source: mystring_backup
       inp:
         id: inp
-        valueFrom: $((inputs._print_inp_mystring != null) ? inputs._print_inp_mystring : inputs._print_inp_mystringbackup)
-    run: tools/EchoTestTool.cwl
+        valueFrom: |-
+          $((inputs._print_inp_mystring != null) ? inputs._print_inp_mystring : inputs._print_inp_mystringbackup)
+    run: tools/EchoTestTool_TEST.cwl
     out:
     - out
+id: TestWorkflowWithStepInputExpression
 """
 
 cwl_arraystepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.0
-id: cwl_test_array_step_input
+
+requirements:
+  InlineJavascriptRequirement: {}
+  MultipleInputFeatureRequirement: {}
+  StepInputExpressionRequirement: {}
+
 inputs:
   inp1:
     id: inp1
@@ -801,13 +829,15 @@ inputs:
     type:
     - string
     - 'null'
+
 outputs:
   out:
     id: out
-    outputSource: print/outs
     type:
       type: array
       items: File
+    outputSource: print/outs
+
 steps:
   print:
     in:
@@ -820,12 +850,9 @@ steps:
       inputs:
         id: inputs
         valueFrom: |-
-          $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : null])
+          $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
     run: tools/ArrayStepTool.cwl
     out:
     - outs
-requirements:
-  InlineJavascriptRequirement: {}
-  MultipleInputFeatureRequirement: {}
-  StepInputExpressionRequirement: {}
+id: cwl_test_array_step_input
 """

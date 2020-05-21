@@ -76,7 +76,7 @@ class CwlTranslator(TranslatorBase):
         )
 
     @staticmethod
-    def stringify_translated_workflow(wf, format=False):
+    def stringify_translated_workflow(wf, format=True):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
@@ -89,7 +89,7 @@ class CwlTranslator(TranslatorBase):
         return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool, format=False):
+    def stringify_translated_tool(tool, format=True):
 
         formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
