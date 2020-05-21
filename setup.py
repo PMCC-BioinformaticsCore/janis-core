@@ -56,7 +56,7 @@ setup(
         "illusional.wdlgen <= 0.3.0",
         "ruamel.yaml >= 0.12.4, <= 0.16",
         "tabulate",
-        "path.py",
+        "path",
         # "cwlformat==2020.3.26",
     ],
     # entry_points={"janis.extension": ["core=core"]},
