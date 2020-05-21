@@ -21,7 +21,12 @@ from janis_core import (
     Boolean,
     Int,
 )
-from janis_core.tests.testtools import SingleTestTool
+from janis_core.tests.testtools import (
+    SingleTestTool,
+    FilenameGeneratedTool,
+    TestToolV2,
+    TestTool,
+)
 from janis_core.translations import WdlTranslator
 from janis_core.types import CpuSelector, StringFormatter
 
@@ -65,45 +70,6 @@ class TxtSecondary(File):
     @staticmethod
     def secondary_files():
         return [".qt"]
-
-
-class TestTool(CommandTool):
-    @staticmethod
-    def tool():
-        return "TestTranslationtool"
-
-    @staticmethod
-    def base_command():
-        return "echo"
-
-    def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String()), ToolInput("arrayInp", Array(File()))]
-
-    def arguments(self) -> List[ToolArgument]:
-        return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
-
-    def outputs(self) -> List[ToolOutput]:
-        return [ToolOutput("std", Stdout())]
-
-    def cpus(self, hints: Dict[str, Any]):
-        return 2
-
-    def memory(self, hints: Dict[str, Any]):
-        return 2
-
-    def friendly_name(self) -> str:
-        return "Tool for testing translation"
-
-    @staticmethod
-    def container():
-        return "ubuntu:latest"
-
-    @staticmethod
-    def version():
-        return None
-
-    def env_vars(self):
-        return {"test1": InputSelector("testtool")}
 
 
 class TestToolWithSecondaryOutput(TestTool):
@@ -276,9 +242,8 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_filename_stringenv(self):
-        import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             fn.generated_filename(),
             wdl.get_input_value_from_potential_selector_or_generator(
@@ -287,9 +252,8 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
 
     def test_input_value_filename_nostringenv(self):
-        import uuid
 
-        fn = Filename(guid=str(uuid.uuid4()))
+        fn = Filename()
         self.assertEqual(
             '"%s"' % fn.generated_filename(),
             wdl.get_input_value_from_potential_selector_or_generator(
@@ -444,6 +408,29 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         res = wdl.get_input_value_from_potential_selector_or_generator(b, ti)
         self.assertEqual(
             f'fn: ~{{select_first([ti, "{fn.generated_filename()}"])}}', res
+        )
+
+
+class TestWDLFilenameGeneration(unittest.TestCase):
+    def test_1(self):
+        tool = FilenameGeneratedTool()
+        mapped = [
+            a.get_string()
+            for a in WdlTranslator.build_command_from_inputs(tool.inputs())
+        ]
+
+        self.assertEqual('~{select_first([generatedInp, "~{inp}"])}', mapped[0])
+        self.assertEqual(
+            '~{select_first([generatedInpOptional, "~{if defined(inpOptional) then inpOptional else "generated"}"])}',
+            mapped[1],
+        )
+        self.assertEqual(
+            '~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}',
+            mapped[2],
+        )
+        self.assertEqual(
+            '~{select_first([generatedFileInpOptional, "~{if defined(fileInpOptional) then basename(fileInpOptional, ".txt") else "generated"}.optional.txt"])}',
+            mapped[3],
         )
 
 
@@ -699,7 +686,9 @@ class TestWdlEnvVar(unittest.TestCase):
 class TestWdlMaxResources(unittest.TestCase):
     def test_cores(self):
         tool = TestTool()
-        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, is_root=True
+        )
         self.assertEqual(
             2, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
         )
@@ -707,7 +696,7 @@ class TestWdlMaxResources(unittest.TestCase):
     def test_max_cores(self):
         tool = TestTool()
         resources = WdlTranslator.build_resources_input(
-            tool.wrapped_in_wf(), {}, max_cores=1
+            tool.wrapped_in_wf(), {}, max_cores=1, is_root=True
         )
         self.assertEqual(
             1, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
@@ -715,7 +704,9 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_memory(self):
         tool = TestTool()
-        resources = WdlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
+        resources = WdlTranslator.build_resources_input(
+            tool.wrapped_in_wf(), {}, is_root=True
+        )
         self.assertEqual(
             2, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
         )
@@ -723,7 +714,7 @@ class TestWdlMaxResources(unittest.TestCase):
     def test_max_memory(self):
         tool = TestTool()
         resources = WdlTranslator.build_resources_input(
-            tool.wrapped_in_wf(), {}, max_mem=1
+            tool.wrapped_in_wf(), {}, max_mem=1, is_root=True
         )
         self.assertEqual(
             1, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
@@ -957,3 +948,77 @@ class TestLinkStatements(unittest.TestCase):
         )
 
         Tool.translate("wdl")
+
+
+class TestWdlContainerOverride(unittest.TestCase):
+    def test_tool_dict_override(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        translated = tool.translate(
+            "wdl", to_console=False, container_override={tool.id(): expected_container}
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)
+
+    def test_tool_string_override(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        translated = tool.translate(
+            "wdl", to_console=False, container_override=expected_container
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)
+
+    def test_tool_override_casecheck(self):
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+
+        # Assert that our tool id is not UPPER, so when we override with the
+        toolid_upper = tool.id().upper()
+        self.assertNotEqual(tool.id(), toolid_upper)
+        translated = tool.translate(
+            "wdl",
+            to_console=False,
+            container_override={toolid_upper: expected_container},
+        )
+
+        line = translated.splitlines()[20].strip()
+        self.assertEqual(f'docker: "{expected_container}"', line)
+
+
+class TestCWLRunRefs(unittest.TestCase):
+    def test_two_similar_tools(self):
+        w = WorkflowBuilder("testTwoToolsWithSameId")
+
+        w.input("inp", str)
+        w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp2", TestToolV2(testtool=w.inp))
+
+        wf_wdl, _ = WdlTranslator.translate_workflow(w)
+
+        expected = """\
+version development
+
+import "tools/TestTranslationtool.wdl" as T
+import "tools/TestTranslationtool_v0_0_2.wdl" as T2
+
+workflow testTwoToolsWithSameId {
+  input {
+    String inp
+  }
+  call T.TestTranslationtool as stp1 {
+    input:
+      testtool=inp
+  }
+  call T2.TestTranslationtool as stp2 {
+    input:
+      testtool=inp
+  }
+}"""
+
+        self.assertEqual(expected, wf_wdl.get_string())

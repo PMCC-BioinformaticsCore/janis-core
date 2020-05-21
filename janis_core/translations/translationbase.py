@@ -1,12 +1,13 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Optional, Any
+from typing import Tuple, List, Dict
 
 from path import Path
 
 from janis_core.tool.commandtool import ToolInput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
+from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
 
 
@@ -19,7 +20,7 @@ class TranslatorBase(ABC):
     can't fully talk about are all the concepts.
 
     To add a new translation, you should understand at least these
-    workflow and janis concepts:
+    tool and janis concepts:
         - inputs
         - outputs
         - steps + tools
@@ -44,10 +45,9 @@ class TranslatorBase(ABC):
 
     def translate(
         self,
-        workflow,
+        tool,
         to_console=True,
         tool_to_console=False,
-        with_docker=True,
         with_resource_overrides=False,
         to_disk=False,
         write_inputs_file=True,
@@ -60,19 +60,35 @@ class TranslatorBase(ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        with_container=True,
         allow_empty_container=False,
+        container_override=None,
     ):
+        from janis_core.workflow.workflow import Workflow
 
-        # self.validate_inputs(workflow._inputs, allow_null_if_not_optional)
+        str_tool, tr_tools = None, []
 
-        tr_wf, tr_tools = self.translate_workflow(
-            workflow,
-            with_docker=with_docker,
-            with_resource_overrides=with_resource_overrides,
-            allow_empty_container=allow_empty_container,
-        )
+        if isinstance(tool, Workflow):
+            tr_tool, tr_tools = self.translate_workflow(
+                tool,
+                with_container=with_container,
+                with_resource_overrides=with_resource_overrides,
+                allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
+            )
+            str_tool = self.stringify_translated_workflow(tr_tool)
+        else:
+            tr_tool = self.translate_tool_internal(
+                tool,
+                with_container=with_container,
+                with_resource_overrides=with_resource_overrides,
+                allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
+            )
+            str_tool = self.stringify_translated_tool(tr_tool)
+
         tr_inp = self.build_inputs_file(
-            workflow,
+            tool,
             recursive=False,
             merge_resources=merge_resources,
             hints=hints,
@@ -80,9 +96,8 @@ class TranslatorBase(ABC):
             max_cores=max_cores,
             max_mem=max_mem,
         )
-        tr_res = self.build_resources_input(workflow, hints)
+        tr_res = self.build_resources_input(tool, hints)
 
-        str_wf = self.stringify_translated_workflow(tr_wf)
         str_inp = self.stringify_translated_inputs(tr_inp)
         str_tools = [
             (
@@ -95,7 +110,7 @@ class TranslatorBase(ABC):
 
         if to_console:
             print("=== WORKFLOW ===")
-            print(str_wf)
+            print(str_tool)
             if tool_to_console:
                 print("\n=== TOOLS ===")
                 [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
@@ -106,12 +121,12 @@ class TranslatorBase(ABC):
                 print(str_resources)
 
         d = ExportPathKeywords.resolve(
-            export_path, workflow_spec=self.name, workflow_name=workflow.id()
+            export_path, workflow_spec=self.name, workflow_name=tool.id()
         )
 
-        fn_workflow = self.workflow_filename(workflow)
-        fn_inputs = self.inputs_filename(workflow)
-        fn_resources = self.resources_filename(workflow)
+        fn_workflow = self.workflow_filename(tool)
+        fn_inputs = self.inputs_filename(tool)
+        fn_resources = self.resources_filename(tool)
 
         if to_disk and write_inputs_file:
             if not os.path.isdir(d):
@@ -130,11 +145,11 @@ class TranslatorBase(ABC):
             if not os.path.isdir(toolsdir):
                 os.makedirs(toolsdir)
 
-            Logger.info(f"Exporting workflow files to '{d}'")
+            Logger.info(f"Exporting tool files to '{d}'")
 
             with open(os.path.join(d, fn_workflow), "w+") as wf:
                 Logger.log(f"Writing {fn_workflow} to disk")
-                wf.write(str_wf)
+                wf.write(str_tool)
                 Logger.log(f"Wrote {fn_workflow}  to disk")
 
             for (fn_tool, str_tool) in str_tools:
@@ -147,7 +162,7 @@ class TranslatorBase(ABC):
                 print("\n=== RESOURCES ===")
                 with open(os.path.join(d, fn_resources), "w+") as wf:
                     Logger.log(f"Writing {fn_resources} to disk")
-                    wf.write(str_wf)
+                    wf.write(str_inp)
                     Logger.log(f"Wrote {fn_resources}  to disk")
                 print(str_resources)
 
@@ -163,7 +178,7 @@ class TranslatorBase(ABC):
                     if zip_result.returncode == 0:
                         Logger.info("Zipped tools")
                     else:
-                        Logger.critical(zip_result.stderr)
+                        Logger.critical(str(zip_result.stderr.decode()))
 
             if should_validate:
                 with Path(d):
@@ -180,12 +195,12 @@ class TranslatorBase(ABC):
                     cwltool_result = subprocess.run(enved_vcs)
                     if cwltool_result.returncode == 0:
                         Logger.info(
-                            "Exported workflow was validated by: " + " ".join(enved_vcs)
+                            "Exported tool was validated by: " + " ".join(enved_vcs)
                         )
                     else:
-                        Logger.critical(cwltool_result.stderr)
+                        Logger.critical(str(cwltool_result.stderr))
 
-        return str_wf, str_inp, str_tools
+        return str_tool, str_inp, str_tools
 
     def translate_tool(
         self,
@@ -193,19 +208,21 @@ class TranslatorBase(ABC):
         to_console=True,
         to_disk=False,
         export_path=None,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
             self.translate_tool_internal(
                 tool,
-                with_docker=with_docker,
+                with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -235,6 +252,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -242,6 +260,7 @@ class TranslatorBase(ABC):
                 codetool,
                 with_docker=with_docker,
                 allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
             )
         )
 
@@ -299,9 +318,10 @@ class TranslatorBase(ABC):
     def translate_workflow(
         cls,
         workflow,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
         pass
 
@@ -310,16 +330,21 @@ class TranslatorBase(ABC):
     def translate_tool_internal(
         cls,
         tool,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 
     @classmethod
     @abstractmethod
     def translate_code_tool_internal(
-        cls, tool, with_docker=True, allow_empty_container=False
+        cls,
+        tool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override: dict = None,
     ):
         pass
 
@@ -339,67 +364,49 @@ class TranslatorBase(ABC):
 
     @classmethod
     def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
+        cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
     ):
-        from janis_core.workflow.workflow import Workflow, Tool, CommandTool
-        from janis_core.code.codetool import CodeTool
+        from janis_core.workflow.workflow import Workflow
 
-        # returns a list of key, value pairs
-        steps: Dict[str, Optional[Any]] = {}
         inputs = inputs or {}
 
-        # prefix = ""
-        # if not prefix:
-        #     prefix = ""
-        # else:
-        #     prefix += ""
+        if not isinstance(tool, Workflow):
+            cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
+            mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
+            disk = inputs.get(f"{prefix}runtime_disks", "local-disk 60 SSD")
 
-        for s in workflow.step_nodes.values():
-            tool: Tool = s.tool
-
-            if isinstance(tool, (CommandTool, CodeTool)):
-                tool_pre = prefix + s.id() + "_"
-                cpus = inputs.get(f"{s.id()}_runtime_cpu", tool.cpus(hints) or 1)
-                mem = inputs.get(f"{s.id()}_runtime_memory", tool.memory(hints))
-                disk = inputs.get(f"{s.id()}_runtime_disks", "local-disk 60 SSD")
-
-                if max_cores and cpus > max_cores:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
-                        "this was dropped to the new maximum"
-                    )
-                    cpus = max_cores
-                if mem and max_mem and mem > max_mem:
-                    Logger.info(
-                        f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
-                        "this was dropped to the new maximum"
-                    )
-                    mem = max_mem
-                steps.update(
-                    {
-                        tool_pre + "runtime_memory": mem,
-                        tool_pre + "runtime_cpu": cpus,
-                        tool_pre + "runtime_disks": disk,
-                    }
+            if max_cores and cpus > max_cores:
+                Logger.info(
+                    f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
+                    "this was dropped to the new maximum"
                 )
-            elif isinstance(tool, Workflow):
-                tool_pre = prefix + s.id() + "_"
-                steps.update(
-                    cls.build_resources_input(
-                        tool,
-                        hints,
-                        max_cores=max_cores,
-                        max_mem=max_mem,
-                        prefix=tool_pre,
-                        inputs={
-                            k[len(s.id()) + 1 :]: v
-                            for k, v in inputs.items()
-                            if k.startswith(s.id())
-                        },
-                    )
+                cpus = max_cores
+            if mem and max_mem and mem > max_mem:
+                Logger.info(
+                    f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
+                    "this was dropped to the new maximum"
                 )
+                mem = max_mem
+            return {
+                prefix + "runtime_memory": mem,
+                prefix + "runtime_cpu": cpus,
+                prefix + "runtime_disks": disk,
+            }
 
-        return steps
+        new_inputs = {}
+        for s in tool.step_nodes.values():
+            new_inputs.update(
+                cls.build_resources_input(
+                    s.tool,
+                    hints=hints,
+                    max_cores=max_cores,
+                    max_mem=max_mem,
+                    prefix=prefix + s.id() + "_",
+                    inputs=inputs,
+                )
+            )
+
+        return new_inputs
 
     @staticmethod
     def inp_can_be_skipped(inp, override_value=None):
@@ -407,7 +414,7 @@ class TranslatorBase(ABC):
             inp.default is None
             and override_value is None
             # and not inp.include_in_inputs_file_if_none
-            and (inp.datatype.optional and inp.default is None)
+            and (inp.intype.optional and inp.default is None)
         )
 
     # Resource overrides
@@ -436,6 +443,14 @@ class TranslatorBase(ABC):
         pass
 
     # OUTPUTS
+
+    @classmethod
+    def filename(cls, tool):
+        from janis_core.workflow.workflow import Workflow
+
+        if isinstance(tool, Workflow):
+            return cls.workflow_filename(tool)
+        return cls.tool_filename(tool)
 
     @staticmethod
     @abstractmethod
@@ -467,3 +482,15 @@ class TranslatorBase(ABC):
     @abstractmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         pass
+
+    @staticmethod
+    def get_container_override_for_tool(tool, container_override):
+        if not container_override:
+            return None
+
+        if tool.id().lower() in container_override:
+            return container_override.get(tool.id().lower())
+        elif tool.versioned_id().lower() in container_override:
+            return container_override.get(tool.versioned_id().lower())
+        elif "*" in container_override:
+            return container_override["*"]

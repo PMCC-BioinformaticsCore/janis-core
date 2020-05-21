@@ -1,4 +1,7 @@
 from typing import Dict, List, Any, Optional, Union
+
+from janis_core.types import Filename
+
 from janis_core import (
     ToolOutput,
     ToolInput,
@@ -48,6 +51,47 @@ class SingleTestTool(CommandTool):
         return None
 
 
+class FilenameGeneratedTool(SingleTestTool):
+    def id(self):
+        return "filenamegeneratedtool"
+
+    def inputs(self):
+        return [
+            ToolInput("inp", str),
+            ToolInput("inpOptional", Optional[str]),
+            ToolInput("fileInp", File(extension=".txt")),
+            ToolInput("fileInpOptional", File(extension=".txt", optional=True)),
+            ToolInput(
+                "generatedInp",
+                Filename(prefix=InputSelector("inp"), extension=""),
+                position=0,
+            ),
+            ToolInput(
+                "generatedInpOptional",
+                Filename(prefix=InputSelector("inpOptional")),
+                position=0,
+            ),
+            ToolInput(
+                "generatedFileInp",
+                Filename(
+                    prefix=InputSelector("fileInp"),
+                    suffix=".transformed",
+                    extension=".fnp",
+                ),
+                position=0,
+            ),
+            ToolInput(
+                "generatedFileInpOptional",
+                Filename(
+                    prefix=InputSelector("fileInpOptional"),
+                    suffix=".optional",
+                    extension=".txt",
+                ),
+                position=0,
+            ),
+        ]
+
+
 class ArrayTestTool(CommandTool):
     @staticmethod
     def tool():
@@ -76,16 +120,17 @@ class ArrayTestTool(CommandTool):
 
 
 class TestTool(CommandTool):
-    @staticmethod
-    def tool():
+    def tool(self):
         return "TestTranslationtool"
 
-    @staticmethod
-    def base_command():
+    def base_command(self):
         return "echo"
 
     def inputs(self) -> List[ToolInput]:
-        return [ToolInput("testtool", String())]
+        return [
+            ToolInput("testtool", String()),
+            ToolInput("arrayInp", Array(String, optional=True)),
+        ]
 
     def arguments(self) -> List[ToolArgument]:
         return [ToolArgument(StringFormatter('test:\\t:escaped:\\n:characters"'))]
@@ -102,16 +147,19 @@ class TestTool(CommandTool):
     def friendly_name(self) -> str:
         return "Tool for testing translation"
 
-    @staticmethod
-    def container():
+    def container(self):
         return "ubuntu:latest"
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
     def env_vars(self):
         return {"test1": InputSelector("testtool")}
+
+
+class TestToolV2(TestTool):
+    def version(self):
+        return "v0.0.2"
 
 
 class TestToolWithSecondaryOutput(TestTool):

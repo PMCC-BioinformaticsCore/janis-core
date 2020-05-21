@@ -2,7 +2,7 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Union, Type, Dict, Any
+from typing import Union, Type, Dict, Any, Optional
 
 import cwlgen
 import wdlgen
@@ -47,7 +47,10 @@ class String(DataType):
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool):
         if meta is None:
             return self.optional or allow_null_if_not_optional
-        return isinstance(meta, str)
+        return isinstance(meta, (str, float, int))
+
+    def coerce_value_if_possible(self, value):
+        return str(value)
 
     def invalid_value_hint(self, meta):
         if meta is None:
@@ -60,12 +63,7 @@ class String(DataType):
 
 class Filename(String):
     def __init__(
-        self,
-        prefix="generated",
-        suffix=None,
-        extension: str = None,
-        guid: str = None,
-        optional=None,
+        self, prefix="generated", suffix=None, extension: str = None, optional=None
     ):
         """
         :param suffix: suffix the guid
@@ -78,7 +76,7 @@ class Filename(String):
         self.prefix = prefix
         self.extension = extension
         self.suffix = suffix
-        self.guid = guid if guid is not None else str(uuid.uuid1())
+
         super().__init__(optional=True)
 
     @staticmethod
@@ -90,15 +88,12 @@ class Filename(String):
         return NativeTypes.kStr
 
     def cwl_type(self, has_default=False):
-        self.optional = False
-        t = super().cwl_type()
-        self.optional = True
-        return t
+        return super().cwl_type()
 
     @staticmethod
     def doc() -> str:
         return """
-This class is a placeholder for generated filenames, by default it is optional and CAN be overrided, 
+This class is a placeholder for generated filenames, by default it is optional and CAN be overridden, 
 however the program has been structured in a way such that these names will be generated based on the step label. 
 These should only be used when the tool _requires_ a filename to output and you aren't 
 concerned what the filename should be. The Filename DataType should NOT be used as an output.
@@ -112,12 +107,26 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         super().map_cwl_type(parameter)
         parameter.default = self.generated_filenamecwl()
 
-    def generated_filename(self) -> str:
+    def generated_filename(self, inputs: Optional[Dict] = None) -> str:
+        from janis_core.types.selectors import InputSelector
 
-        pre = self.prefix
-        suf = ("-" + str(self.suffix)) if self.suffix else ""
+        base = self.prefix
+        if isinstance(base, InputSelector):
+            inp = base.input_to_select
+            if not inputs or inp not in inputs:
+                raise Exception(
+                    f"The filename generator required the input '{inp}' but was not provided"
+                )
+            base = inputs[inp]
+
+        suf = ""
+        if self.suffix:
+            if str(self.suffix).startswith("."):
+                suf = str(self.suffix)
+            else:
+                suf = "-" + str(self.suffix)
         ex = "" if self.extension is None else self.extension
-        return pre + suf + ex
+        return base + suf + ex
 
     def generated_filenamecwl(self) -> str:
         return f'"{self.generated_filename()}"'
@@ -167,6 +176,12 @@ class Int(DataType):
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, int)
 
+    def coerce_value_if_possible(self, value):
+        try:
+            return int(value)
+        except:
+            raise Exception(f"Value '{value}' cannot be coerced to an integer")
+
     def invalid_value_hint(self, meta):
         if meta is None:
             return "value was null"
@@ -187,10 +202,6 @@ class Float(DataType):
     def doc(self):
         return "A float"
 
-    @classmethod
-    def schema(cls) -> Dict:
-        return {"type": "number", "required": True}
-
     def input_field_from_input(self, meta: Dict):
         return next(iter(meta.values()))
 
@@ -198,6 +209,12 @@ class Float(DataType):
         if meta is None:
             return self.optional or allow_null_if_not_optional
         return isinstance(meta, float) or isinstance(meta, int)
+
+    def coerce_value_if_possible(self, value):
+        try:
+            return float(value)
+        except:
+            raise Exception(f"Value '{value}' cannot be coerced to a float")
 
     def invalid_value_hint(self, meta):
         if meta is None:
@@ -251,17 +268,29 @@ class Boolean(DataType):
     def doc(self):
         return "A boolean"
 
-    @classmethod
-    def schema(cls) -> Dict:
-        return {"type": "boolean", "required": True}
-
     def input_field_from_input(self, meta):
         return next(iter(meta.values()))
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
             return self.optional or allow_null_if_not_optional
+
+        if isinstance(meta, str):
+            return meta.lower() == "true" or meta.lower() == "false"
+        if isinstance(meta, int):
+            return meta == 0 or meta == 1
+
         return isinstance(meta, bool)
+
+    def coerce_value_if_possible(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() == "true"
+        if isinstance(value, int):
+            return value != 0
+
+        raise Exception(f"Value {value} could not be coerced to boolean type")
 
     def invalid_value_hint(self, meta):
         if meta is None:

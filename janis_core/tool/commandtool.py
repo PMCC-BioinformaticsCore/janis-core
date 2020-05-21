@@ -145,9 +145,22 @@ class ToolInput(ToolArgument):
         self.localise_file = localise_file
         self.presents_as = presents_as
         self.secondaries_present_as = secondaries_present_as
-        # if isinstance(input_type, Array):
-        #     if self.prefix_applies_to_all_elements is None and self.separator is None:
-        # self.separator = " "
+
+        if self.secondaries_present_as:
+            if not self.input_type.secondary_files():
+                raise Exception(
+                    f"The ToolOutput '{self.id()}' requested a rewrite of secondary file extension through "
+                    f"'secondaries_present_as', but the type {self.input_type.id()} not have any secondary files."
+                )
+            secs = set(self.input_type.secondary_files())
+            to_remap = set(self.secondaries_present_as.keys())
+            invalid = to_remap - secs
+            if len(invalid) > 0:
+                raise Exception(
+                    f"Error when constructing output '{self.id()}', the secondaries_present_as contained secondary "
+                    f"files ({', '.join(invalid)}) that were not found in the output "
+                    f"type '{self.input_type.id()}' ({', '.join(secs)})"
+                )
 
     def id(self):
         return self.tag
@@ -197,6 +210,22 @@ class ToolOutput:
             if isinstance(doc, OutputDocumentation)
             else OutputDocumentation(doc=doc)
         )
+
+        if self.secondaries_present_as:
+            if not self.output_type.secondary_files():
+                raise Exception(
+                    f"The ToolOutput '{self.id()}' requested a rewrite of secondary file extension through "
+                    f"'secondaries_present_as', but the type {self.output_type.id()} not have any secondary files."
+                )
+            secs = set(self.output_type.secondary_files())
+            to_remap = set(self.secondaries_present_as.keys())
+            invalid = to_remap - secs
+            if len(invalid) > 0:
+                raise Exception(
+                    f"Error when constructing output '{self.id()}', the secondaries_present_as contained secondary "
+                    f"files ({', '.join(invalid)}) that were not found in the output "
+                    f"type '{self.output_type.id()}' ({', '.join(secs)})"
+                )
 
     def id(self):
         return self.tag
@@ -284,6 +313,9 @@ class CommandTool(Tool, ABC):
 
     ## Other studd
 
+    def containers(self) -> Dict[str, str]:
+        return {self.versioned_id(): self.container()}
+
     def id(self):
         return self.tool()
 
@@ -335,8 +367,12 @@ class CommandTool(Tool, ABC):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
         import janis_core.translations
+
+        if isinstance(container_override, str):
+            container_override = {self.id().lower(): container_override}
 
         return janis_core.translations.translate_tool(
             self,
@@ -347,6 +383,7 @@ class CommandTool(Tool, ABC):
             with_docker=with_docker,
             with_resource_overrides=with_resource_overrides,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
 
     def tool_inputs(self) -> List[TInput]:

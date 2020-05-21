@@ -23,7 +23,7 @@ from janis_core.types import (
     all_types,
 )
 
-inspect_ignore_keys = {"self", "args", "kwargs", "cls", "template"}
+inspect_ignore_keys = {"self", "args", "kwargs", "cls"}
 
 
 class PythonTool(CodeTool, ABC):

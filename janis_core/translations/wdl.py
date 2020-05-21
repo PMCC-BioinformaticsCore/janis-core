@@ -1,7 +1,7 @@
 """
 WDL
 
-This is one of the more complicated classes, it takes the janis in-memory representation of a workflow,
+This is one of the more complicated classes, it takes the janis in-memory representation of a tool,
 and converts it into the equivalent WDL objects. Python-wdlgen distances us from the memory representation
 and the actual string-specification.
 
@@ -18,7 +18,7 @@ This file is logically structured similar to the cwl equiv:
 
 import json
 from inspect import isclass
-from typing import List, Dict, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple, Optional
 
 import wdlgen as wdl
 
@@ -34,6 +34,7 @@ from janis_core.types import (
     StringFormatter,
     String,
     Selector,
+    Directory,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -53,7 +54,7 @@ from janis_core.utils.secondary import (
     apply_secondary_file_format_to_filename,
 )
 
-# from janis_core.workflow.step import StepNode
+# from janis_core.tool.step import StepNode
 
 
 ## PRIMARY TRANSLATION METHODS
@@ -93,17 +94,18 @@ class WdlTranslator(TranslatorBase):
     def translate_workflow(
         cls,
         wfi,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         is_nested_tool=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> Tuple[any, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
 
 
         :param with_resource_overrides:
-        :param with_docker:
+        :param with_container:
         :param is_nested_tool:
         :return:
         """
@@ -193,11 +195,11 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # Generate import statements (relative tool dir is later?)
-        uniquetoolmap: Dict[str, Tool] = {t.id(): t for t in tools}
+        uniquetoolmap: Dict[str, Tool] = {t.versioned_id(): t for t in tools}
         w.imports = [
             wdl.Workflow.WorkflowImport(
-                t.id(),
-                tool_aliases[t.id().lower()].upper(),
+                t.versioned_id(),
+                tool_aliases[t.versioned_id().lower()].upper(),
                 None if is_nested_tool else "tools/",
             )
             for t in uniquetoolmap.values()
@@ -212,31 +214,34 @@ class WdlTranslator(TranslatorBase):
         for s in steps:
             t = s.tool
 
-            if t.id() not in wtools:
+            if t.versioned_id() not in wtools:
                 if isinstance(t, Workflow):
                     wf_wdl, wf_tools = cls.translate_workflow(
                         t,
-                        with_docker=with_docker,
+                        with_container=with_container,
                         is_nested_tool=True,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
-                    wtools[t.id()] = wf_wdl
+                    wtools[t.versioned_id()] = wf_wdl
                     wtools.update(wf_tools)
 
                 elif isinstance(t, CommandTool):
-                    wtools[t.id()] = cls.translate_tool_internal(
+                    wtools[t.versioned_id()] = cls.translate_tool_internal(
                         t,
-                        with_docker=with_docker,
+                        with_container=with_container,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
                 elif isinstance(t, CodeTool):
-                    wtools[t.id()] = cls.translate_code_tool_internal(
+                    wtools[t.versioned_id()] = cls.translate_code_tool_internal(
                         t,
-                        with_docker=with_docker,
+                        with_docker=with_container,
                         with_resource_overrides=with_resource_overrides,
                         allow_empty_container=allow_empty_container,
+                        container_override=container_override,
                     )
 
             resource_overrides = {}
@@ -248,7 +253,7 @@ class WdlTranslator(TranslatorBase):
 
             call = translate_step_node(
                 s,
-                tool_aliases[t.id().lower()].upper() + "." + t.id(),
+                tool_aliases[t.versioned_id().lower()].upper() + "." + t.id(),
                 resource_overrides,
                 forbiddenidentifiers,
             )
@@ -264,7 +269,7 @@ class WdlTranslator(TranslatorBase):
             wd = i.input_type.wdl(has_default=i.default is not None)
             expr = None
             if isinstance(i.input_type, Filename):
-                expr = f'"{i.input_type.generated_filename()}"'
+                expr = None
             if isinstance(wd, list):
                 ins.extend(wdl.Input(w, i.id()) for w in wd)
             else:
@@ -315,9 +320,10 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def build_command_from_inputs(cls, toolinputs: List[ToolInput]):
+        inputsdict = {t.id(): t for t in toolinputs}
         command_ins = []
         for i in toolinputs:
-            cmd = translate_command_input(i)
+            cmd = translate_command_input(i, inputsdict=inputsdict)
             if cmd:
                 command_ins.append(cmd)
         return command_ins
@@ -326,9 +332,10 @@ class WdlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls,
         tool: CommandTool,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
 
         if not Validators.validate_identifier(tool.id()):
@@ -383,8 +390,11 @@ class WdlTranslator(TranslatorBase):
             )
 
         r = wdl.Task.Runtime()
-        if with_docker:
-            container = tool.container()
+        if with_container:
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:
@@ -416,6 +426,7 @@ class WdlTranslator(TranslatorBase):
         with_docker=True,
         with_resource_overrides=True,
         allow_empty_container=False,
+        container_override=None,
     ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
@@ -477,7 +488,11 @@ EOT"""
 
         r = wdl.Task.Runtime()
         if with_docker:
-            container = tool.container()
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
+
             if container is not None:
                 r.add_docker(container)
             elif not allow_empty_container:
@@ -504,7 +519,7 @@ EOT"""
     @classmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool,
         recursive=False,
         merge_resources=False,
         hints=None,
@@ -517,31 +532,42 @@ EOT"""
         a call chain, including subworkflows: https://github.com/openwdl/wdl/issues/217
         :param merge_resources:
         :param recursive:
-        :param workflow:
+        :param tool:
         :return:
         """
-        inp = {}
-        ad = additional_inputs or {}
+        from janis_core.workflow.workflow import Workflow
 
-        for i in workflow.input_nodes.values():
-            inp_key = f"{workflow.id()}.{i.id()}"
-            value = ad.get(i.id()) or i.value or i.default
+        inp = {}
+        values_provided_from_tool = {}
+        is_workflow = isinstance(tool, Workflow)
+
+        if is_workflow:
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or i.default
+            }
+
+        ad = {**values_provided_from_tool, **(additional_inputs or {})}
+
+        for i in tool.tool_inputs():
+
+            inp_key = f"{tool.id()}.{i.id()}" if is_workflow else i.id()
+            value = ad.get(i.id())
             if cls.inp_can_be_skipped(i, value):
                 continue
 
             inp_val = value
 
             inp[inp_key] = inp_val
-            if i.datatype.secondary_files():
-                for sec in i.datatype.secondary_files():
+            if i.intype.secondary_files():
+                for sec in i.intype.secondary_files():
                     inp[
                         get_secondary_tag_from_original_tag(inp_key, sec)
                     ] = apply_secondary_file_format_to_filename(inp_val, sec)
-            elif (
-                isinstance(i.datatype, Array) and i.datatype.subtype().secondary_files()
-            ):
+            elif isinstance(i.intype, Array) and i.intype.subtype().secondary_files():
                 # handle array of secondary files
-                for sec in i.datatype.subtype().secondary_files():
+                for sec in i.intype.subtype().secondary_files():
                     inp[get_secondary_tag_from_original_tag(inp_key, sec)] = (
                         [
                             apply_secondary_file_format_to_filename(iinp_val, sec)
@@ -554,7 +580,7 @@ EOT"""
         if merge_resources:
             inp.update(
                 cls.build_resources_input(
-                    workflow, hints, max_cores, max_mem, inputs=ad
+                    tool, hints, max_cores, max_mem, inputs=ad, is_root=True
                 )
             )
 
@@ -562,16 +588,29 @@ EOT"""
 
     @classmethod
     def build_resources_input(
-        cls, workflow, hints, max_cores=None, max_mem=None, inputs=None, prefix=None
+        cls,
+        tool,
+        hints,
+        max_cores=None,
+        max_mem=None,
+        inputs=None,
+        prefix=None,
+        is_root=False,
     ):
-        return super().build_resources_input(
-            workflow=workflow,
+        from janis_core.workflow.workflow import Workflow
+
+        is_workflow = isinstance(tool, Workflow)
+        d = super().build_resources_input(
+            tool=tool,
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
-            prefix=prefix or f"{workflow.id()}.",
+            prefix=prefix or "",
             inputs=inputs,
         )
+        if is_workflow and is_root:
+            return {f"{tool.id()}.{k}": v for k, v in d.items()}
+        return d
 
     @staticmethod
     def workflow_filename(workflow):
@@ -583,14 +622,14 @@ EOT"""
 
     @staticmethod
     def tool_filename(tool):
-        return (tool.id() if isinstance(tool, Tool) else str(tool)) + ".wdl"
+        return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".wdl"
 
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.json"
 
 
-def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
+def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
     name = tool_input.id()
     indefault = (
         tool_input.input_type
@@ -613,7 +652,7 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
 
     else:
         default = get_input_value_from_potential_selector_or_generator(
-            indefault, None, string_environment=False, **debugkwargs
+            indefault, inputsdict=inputsdict, string_environment=False, **debugkwargs
         )
 
     if default is not None:
@@ -630,13 +669,12 @@ def resolve_tool_input_value(tool_input: ToolInput, **debugkwargs):
     return name
 
 
-def translate_command_input(tool_input: ToolInput, **debugkwargs):
+def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
     # make sure it has some essence of a command line binding, else we'll skip it
-    # TODO: make a property on ToolInput (.bind_to_commandline) and set default to true
     if not (tool_input.position is not None or tool_input.prefix):
         return None
 
-    name = resolve_tool_input_value(tool_input, **debugkwargs)
+    name = resolve_tool_input_value(tool_input, inputsdict=inputsdict, **debugkwargs)
     optional = tool_input.input_type.optional or (
         isinstance(tool_input.default, CpuSelector) and not tool_input.default
     )
@@ -1377,11 +1415,10 @@ def get_input_value_from_potential_selector_or_generator(
     elif isinstance(value, int) or isinstance(value, float):
         return value
     elif isinstance(value, Filename):
-        return (
-            value.generated_filename()
-            if string_environment
-            else f'"{value.generated_filename()}"'
+        gen_filename = value.generated_filename(
+            inputs=prepare_filename_replacements_for(value.prefix, inputsdict)
         )
+        return gen_filename if string_environment else f'"{gen_filename}"'
     elif isinstance(value, StringFormatter):
         return translate_string_formatter(
             selector=value,
@@ -1484,7 +1521,7 @@ def translate_input_selector(
         )
 
     inp = inputsdict[selector.input_to_select]
-    name = resolve_tool_input_value(inp, **debugkwargs)
+    name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
     if string_environment:
         return f"~{{{name}}}"
     else:
@@ -1535,7 +1572,7 @@ def build_aliases(steps2):
     aliases: Set[str] = set()
 
     tools: List[Tool] = [s.tool for s in steps]
-    tool_name_to_tool: Dict[str, Tool] = {t.id().lower(): t for t in tools}
+    tool_name_to_tool: Dict[str, Tool] = {t.versioned_id().lower(): t for t in tools}
     tool_name_to_alias = {}
     steps_to_alias: Dict[str, str] = {
         s.id().lower(): get_alias(s.id()).lower() for s in steps
@@ -1732,3 +1769,36 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
         inputs.extend(build_resource_override_maps_for_tool(tool, prefix=tool_pre))
 
     return inputs
+
+
+def prepare_filename_replacements_for(
+    inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
+) -> Optional[Dict[str, str]]:
+    if not (inp and isinstance(inp, InputSelector)):
+        return None
+
+    if not inputsdict:
+        raise Exception(
+            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+        )
+
+    if inp.input_to_select not in inputsdict:
+        raise Exception
+
+    tinp = inputsdict.get(inp.input_to_select)
+    intype = tinp.input_type
+
+    if isinstance(intype, (File, Directory)):
+        if isinstance(intype, File) and intype.extension:
+            base = f'basename({tinp.id()}, "{intype.extension}")'
+        else:
+            base = f"basename({tinp.id()})"
+    else:
+        base = tinp.id()
+
+    if intype.optional:
+        replacement = f'~{{if defined({tinp.id()}) then {base} else "generated"}}'
+    else:
+        replacement = f"~{{{base}}}"
+
+    return {inp.input_to_select: replacement}

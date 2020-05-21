@@ -9,6 +9,7 @@ from janis_core.tool.documentation import (
 from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
+from janis_core.utils.validators import Validators
 
 ToolType = str
 
@@ -66,8 +67,19 @@ class Tool(ABC, object):
         raise Exception(f"'{cls}' must implement type() method")
 
     @abstractmethod
+    def containers(self) -> Dict[str, str]:
+        pass
+
+    @abstractmethod
     def id(self) -> str:
         raise Exception("Must implement id() method")
+
+    def versioned_id(self) -> str:
+        if self.version() is not None:
+            return Validators.transform_identifier_to_be_valid(
+                f"{self.id()}/{self.version()}", "_"
+            )
+        return self.id()
 
     def tool_module(self):
         return None
@@ -151,6 +163,7 @@ class Tool(ABC, object):
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 

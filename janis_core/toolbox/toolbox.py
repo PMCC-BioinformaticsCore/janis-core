@@ -83,12 +83,12 @@ class JanisShed:
             modules.extend(JanisShed._get_tool_entrypoints())
 
         level = None
+        cl = Logger.CONSOLE_LEVEL
         if JanisShed.should_trace:
-            level = LogLevel.DEBUG
+            level = cl if cl >= LogLevel.DEBUG else LogLevel.DEBUG
         Logger.log(
             f"Setting CONSOLE_LEVEL to {LogLevel.get_str(level) or 'None'} while traversing modules"
         )
-        cl = Logger.CONSOLE_LEVEL
         Logger.set_console_level(level)
         seen_modules = set()
         seen_classes = set()
@@ -139,7 +139,7 @@ class JanisShed:
     def traverse_module(module, seen_modules: set, seen_classes: set, current_layer=1):
         if module.__name__ in seen_modules:
             return
-
+        Logger.log("Traversing module " + str(module.__name__))
         seen_modules.add(module.__name__)
 
         q = {
@@ -166,12 +166,11 @@ class JanisShed:
                 return Logger.log(
                     f"Skip traversing module '{str(cls)}' as reached maximum depth ({JanisShed.MAX_RECURSION_DEPTH})"
                 )
-            elif isfunction(cls) or not isclass(cls):
+            elif isfunction(cls):
                 return
 
             seen_classes.add(cls)
-
-            if issubclass(cls, DataType):
+            if isclass(cls) and issubclass(cls, DataType):
                 return JanisShed.add_type(cls)
             elif not hasattr(cls, "type") or not callable(cls.type):
                 return
@@ -201,4 +200,4 @@ class JanisShed:
                 return JanisShed.add_tool(ic)
 
         except Exception as e:
-            Logger.log(f"{str(e)} for type {type(cls)}")
+            Logger.log(f"{str(e)} for type {str(cls)}")

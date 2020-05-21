@@ -369,7 +369,7 @@ class Workflow(Tool):
         from janis_core.translations.translationbase import TranslatorBase
 
         return super().all_input_keys() + list(
-            TranslatorBase.build_resources_input(workflow=self, hints={}).keys()
+            TranslatorBase.build_resources_input(tool=self, hints={}).keys()
         )
 
     def verify_output_source_type(
@@ -609,6 +609,7 @@ class Workflow(Tool):
         max_cores=None,
         max_mem=None,
         allow_empty_container=False,
+        container_override: dict = None,
     ):
         from janis_core.translations import translate_workflow
 
@@ -631,6 +632,7 @@ class Workflow(Tool):
             max_cores=max_cores,
             max_mem=max_mem,
             allow_empty_container=allow_empty_container,
+            container_override=container_override,
         )
 
     def generate_inputs_override(
@@ -684,12 +686,18 @@ class Workflow(Tool):
 
     def get_tools(self) -> Dict[str, CommandTool]:
         tools: Dict[str, CommandTool] = {}
-        for t in self._steps:
-            tl = t.step.tool()
+        for t in self.step_nodes.values():
+            tl = t.tool
             if isinstance(tl, Workflow):
                 tools.update(tl.get_tools())
             elif t.id() not in tools:
                 tools[tl.id()] = tl
+        return tools
+
+    def containers(self) -> Dict[str, str]:
+        tools: Dict[str, str] = {}
+        for t in self.step_nodes.values():
+            tools.update(t.tool.containers())
         return tools
 
     def report(self, to_console=True, tabulate_tablefmt=None):
@@ -773,11 +781,15 @@ class WorkflowBuilder(Workflow):
         friendly_name: str = None,
         version: str = None,
         metadata: WorkflowMetadata = None,
+        tool_provider: str = None,
+        tool_module: str = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
         self._version = version
         self._metadata = metadata
+        self._tool_provider = tool_provider
+        self._tool_module = tool_module
 
         super().__init__()
 
@@ -799,7 +811,16 @@ class WorkflowBuilder(Workflow):
         return self
 
     def version(self):
-        return self.version
+        return self._version
+
+    def tool_provider(self):
+        return self._tool_provider
+
+    def tool_module(self):
+        return self._tool_module
 
     def bind_metadata(self):
         return self._metadata
+
+    def __str__(self):
+        return f'WorkflowBuilder("{self._identifier}")'

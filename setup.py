@@ -53,10 +53,11 @@ setup(
     install_requires=[
         "importlib-metadata",
         "cwlgen >= 0.4.0",
-        "illusional.wdlgen >= 0.2.10",
+        "illusional.wdlgen <= 0.3.0",
         "ruamel.yaml >= 0.12.4, <= 0.16",
         "tabulate",
-        "path.py",
+        "path",
+        # "cwlformat==2020.3.26",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,

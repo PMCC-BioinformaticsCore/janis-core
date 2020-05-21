@@ -25,7 +25,7 @@ class ExportPathKeywords:
         if ExportPathKeywords.workflow_name in path and workflow_name is None:
             raise Exception(
                 f"path ('{path}') contained parameter {ExportPathKeywords.workflow_name} "
-                "but caller of .resolve did not pass workflow name"
+                "but caller of .resolve did not pass tool name"
             )
 
         path = p.expanduser(path)

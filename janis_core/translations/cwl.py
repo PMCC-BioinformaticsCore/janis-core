@@ -1,7 +1,7 @@
 """
 CWL
 
-This is one of the more complicated classes, it takes the janis in-memory representation of a workflow,
+This is one of the more complicated classes, it takes the janis in-memory representation of a tool,
 and converts it into the equivalent CWL objects. Janis was built alongside testing for CWL, so a lot of
 the concepts directly or pretty closely match. There are a few extra things that Janis has that need to
 be mapped back.
@@ -39,6 +39,7 @@ from janis_core.types import (
     CpuSelector,
     StringFormatter,
     DataType,
+    Directory,
 )
 from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
@@ -46,7 +47,6 @@ from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata, ToolMetadata
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 
-# from janis_core.workflow.input import Input
 from janis_core.workflow.workflow import StepNode
 
 CWL_VERSION = "v1.0"
@@ -64,16 +64,30 @@ class CwlTranslator(TranslatorBase):
         )
 
     @staticmethod
-    def stringify_translated_workflow(wf):
-        return (
+    def stringify_translated_workflow(wf, format=False):
+
+        formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(wf.get_dict(), default_flow_style=False)
         )
+        if format:
+            from cwlformat.formatter import cwl_format
+
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool):
-        return (
+    def stringify_translated_tool(tool, format=False):
+
+        formatted = (
             SHEBANG + "\n" + ruamel.yaml.dump(tool.get_dict(), default_flow_style=False)
         )
+        if format:
+            from cwlformat.formatter import cwl_format
+
+            formatted = cwl_format(formatted)
+
+        return formatted
 
     @staticmethod
     def stringify_translated_inputs(inputs):
@@ -87,12 +101,13 @@ class CwlTranslator(TranslatorBase):
     def translate_workflow(
         cls,
         wf,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         is_nested_tool=False,
         is_packed=False,
         allow_empty_container=False,
-    ) -> Tuple[any, Dict[str, any]]:
+        container_override=None,
+    ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
         from janis_core.workflow.workflow import Workflow
 
         metadata = wf.metadata
@@ -100,16 +115,14 @@ class CwlTranslator(TranslatorBase):
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
-        w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
-        ]
+        w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
 
         resource_inputs = []
         if with_resource_overrides:
             resource_inputs = build_resource_override_maps_for_workflow(wf)
             w.inputs.extend(resource_inputs)
 
-        w.steps: List[cwlgen.WorkflowStep] = []
+        w.steps = []
 
         for s in wf.step_nodes.values():
             resource_overrides = {}
@@ -148,27 +161,30 @@ class CwlTranslator(TranslatorBase):
                 wf_cwl, subtools = cls.translate_workflow(
                     tool,
                     is_nested_tool=True,
-                    with_docker=with_docker,
+                    with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
-                tools[tool.id()] = wf_cwl
+                tools[tool.versioned_id()] = wf_cwl
                 tools.update(subtools)
             elif isinstance(tool, CommandTool):
                 tool_cwl = cls.translate_tool_internal(
                     tool,
-                    with_docker=with_docker,
+                    with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             elif isinstance(tool, CodeTool):
                 tool_cwl = cls.translate_code_tool_internal(
                     tool,
-                    with_docker=with_docker,
+                    with_docker=with_container,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
-                tools[tool.id()] = tool_cwl
+                tools[tool.versioned_id()] = tool_cwl
             else:
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 
@@ -177,7 +193,7 @@ class CwlTranslator(TranslatorBase):
     @classmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool: Tool,
         recursive=False,
         merge_resources=False,
         hints=None,
@@ -185,17 +201,31 @@ class CwlTranslator(TranslatorBase):
         max_cores=None,
         max_mem=None,
     ) -> Dict[str, any]:
+        from janis_core.workflow.workflow import Workflow
 
         ad = additional_inputs or {}
+        values_provided_from_tool = {}
+        if isinstance(tool, Workflow):
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or i.default
+            }
+
         inp = {
-            i.id(): i.datatype.cwl_input(ad.get(i.id()) or i.value or i.default)
-            for i in workflow.input_nodes.values()
-            if i.value or i.default or i.id() in ad
+            i.id(): i.intype.cwl_input(
+                ad.get(i.id(), values_provided_from_tool.get(i.id()))
+            )
+            for i in tool.tool_inputs()
+            if i.default
+            or not i.intype.optional
+            or i.id() in ad
+            or i.id() in values_provided_from_tool
         }
 
         if merge_resources:
             for k, v in cls.build_resources_input(
-                workflow, hints, max_cores, max_mem
+                tool, hints, max_cores, max_mem
             ).items():
                 inp[k] = ad.get(k, v)
 
@@ -208,6 +238,7 @@ class CwlTranslator(TranslatorBase):
         with_resource_overrides=False,
         is_nested_tool=False,
         allow_empty_container=False,
+        container_override=None,
     ) -> cwlgen.Workflow:
         from janis_core.workflow.workflow import Workflow
 
@@ -216,16 +247,14 @@ class CwlTranslator(TranslatorBase):
             wf.id(), wf.friendly_name(), metadata.documentation, cwl_version=CWL_VERSION
         )
 
-        w.inputs: List[cwlgen.InputParameter] = [
-            translate_input(i) for i in wf.input_nodes.values()
-        ]
+        w.inputs = [translate_input(i) for i in wf.input_nodes.values()]
 
         resource_inputs = []
         if with_resource_overrides:
             resource_inputs = build_resource_override_maps_for_workflow(wf)
             w.inputs.extend(resource_inputs)
 
-        w.steps: List[cwlgen.WorkflowStep] = []
+        w.steps = []
 
         for s in wf.step_nodes.values():
             resource_overrides = {}
@@ -242,6 +271,7 @@ class CwlTranslator(TranslatorBase):
                     resource_overrides=resource_overrides,
                     use_run_ref=False,
                     allow_empty_container=allow_empty_container,
+                    container_override=container_override,
                 )
             )
 
@@ -263,9 +293,10 @@ class CwlTranslator(TranslatorBase):
     def translate_tool_internal(
         cls,
         tool: CommandTool,
-        with_docker=True,
+        with_container=True,
         with_resource_overrides=False,
         allow_empty_container=False,
+        container_override=None,
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
         stdouts = [
@@ -290,7 +321,7 @@ class CwlTranslator(TranslatorBase):
         tool_cwl = cwlgen.CommandLineTool(
             tool_id=tool.id(),
             base_command=tool.base_command(),
-            label=tool.id(),
+            label=tool.friendly_name() or tool.id(),
             doc=metadata.documentation,
             cwl_version=CWL_VERSION,
             stdin=None,
@@ -340,22 +371,30 @@ class CwlTranslator(TranslatorBase):
                 )
             )
 
-        if with_docker:
-            container = tool.container()
+        if with_container:
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
+
             if container is not None:
                 tool_cwl.requirements.append(
-                    cwlgen.DockerRequirement(docker_pull=tool.container())
+                    cwlgen.DockerRequirement(docker_pull=container)
                 )
             elif not allow_empty_container:
                 raise Exception(
-                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
-                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
-                    f"or --allow-empty-container"
+                    f"The tool '{tool.id()}' did not have a container and no container override was specified. "
+                    f"Although not recommended, Janis can export empty docker containers with the parameter "
+                    f"'allow_empty_container=True' or --allow-empty-container"
                 )
 
-        tool_cwl.inputs.extend(translate_tool_input(i) for i in tool.inputs())
+        inputsdict = {t.id(): t for t in tool.inputs()}
+        tool_cwl.inputs.extend(
+            translate_tool_input(i, inputsdict) for i in tool.inputs()
+        )
         tool_cwl.outputs.extend(
-            translate_tool_output(o, tool=tool.id()) for o in tool.outputs()
+            translate_tool_output(o, inputsdict=inputsdict, tool=tool.id())
+            for o in tool.outputs()
         )
 
         args = tool.arguments()
@@ -385,7 +424,11 @@ class CwlTranslator(TranslatorBase):
 
     @classmethod
     def translate_code_tool_internal(
-        cls, tool: CodeTool, with_docker=True, allow_empty_container=False
+        cls,
+        tool: CodeTool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override=None,
     ):
 
         stdouts = [
@@ -402,6 +445,7 @@ class CwlTranslator(TranslatorBase):
         stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
         scriptname = tool.script_name()
+        inputsdict = {t.id(): t for t in tool.inputs()}
 
         if isinstance(stderr, InputSelector):
             stderr = translate_input_selector(stderr, code_environment=False)
@@ -428,7 +472,8 @@ class CwlTranslator(TranslatorBase):
                     # prefix=f"--{t.id()}",
                     default=t.default,
                     doc=t.doc.doc if t.doc else None,
-                )
+                ),
+                inputsdict=inputsdict,
             )
             for t in tool.inputs()
         )
@@ -487,7 +532,11 @@ return JSON.stringify(retval);\n}""",
         tool_cwl.requirements.append(cwlgen.InlineJavascriptRequirement())
 
         if with_docker:
-            container = tool.container()
+            container = (
+                CwlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
+
             if container is not None:
                 tool_cwl.requirements.append(
                     cwlgen.DockerRequirement(docker_pull=tool.container())
@@ -504,10 +553,12 @@ return JSON.stringify(retval);\n}""",
     @staticmethod
     def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
 
-        isfile = isinstance(outtype, File)
+        requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
-        if isinstance(outtype, Array) and isinstance(outtype.fundamental_type(), File):
-            isfile = True
+        if isinstance(outtype, Array) and isinstance(
+            outtype.fundamental_type(), (File, Directory)
+        ):
+            requires_obj_capture = True
             base = outtype
             arraylayers = 0
             while isinstance(base, Array):
@@ -515,9 +566,10 @@ return JSON.stringify(retval);\n}""",
                 base = outtype.subtype()
 
         out_capture = ""
-        if isfile:
+        if requires_obj_capture:
+            classtype = "File" if isinstance(outtype, File) else "Directory"
             fileout_generator = (
-                lambda c: f"{{ class: 'File', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
+                lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
             )
 
             if arraylayers:
@@ -557,7 +609,7 @@ return {out_capture}
 
     @staticmethod
     def tool_filename(tool):
-        return (tool.id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
+        return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
 
     @staticmethod
     def resources_filename(workflow):
@@ -609,13 +661,26 @@ def translate_output(outp, source):
     )
 
 
-def translate_tool_input(toolinput: ToolInput) -> cwlgen.CommandInputParameter:
+def translate_tool_input(
+    toolinput: ToolInput, inputsdict
+) -> cwlgen.CommandInputParameter:
 
     default, value_from = toolinput.default, None
+    intype = toolinput.input_type
 
-    if isinstance(toolinput.input_type, Filename):
-        default = toolinput.input_type.generated_filename()
-        # value_from = get_input_value_from_potential_selector_or_generator(toolinput.input_type, code_environment=False, toolid=toolinput.id())
+    if isinstance(intype, Filename):
+
+        if isinstance(intype.prefix, InputSelector):
+            default = intype.generated_filename(
+                inputs={intype.prefix.input_to_select: "generated"}
+            )
+            value_from = intype.generated_filename(
+                inputs=prepare_filename_replacements_for(
+                    intype.prefix, inputsdict=inputsdict
+                )
+            )
+        else:
+            default = intype.generated_filename()
     elif is_selector(default):
         default = None
         value_from = get_input_value_from_potential_selector_or_generator(
@@ -685,7 +750,7 @@ def translate_tool_argument(argument):
     )
 
 
-def translate_tool_output(output, **debugkwargs):
+def translate_tool_output(output, inputsdict, **debugkwargs):
 
     doc = output.doc.doc if output.doc else None
 
@@ -698,7 +763,7 @@ def translate_tool_output(output, **debugkwargs):
         doc=doc,
         output_binding=cwlgen.CommandOutputBinding(
             glob=translate_to_cwl_glob(
-                output.glob, outputtag=output.tag, **debugkwargs
+                output.glob, inputsdict=inputsdict, outputtag=output.tag, **debugkwargs
             ),
             # load_contents=False,
             output_eval=prepare_tool_output_eval(output),
@@ -727,7 +792,8 @@ def prepare_tool_output_secondaries(output):
         f"""\
 {4*tb}{{
 {5*tb}path: resolveSecondary(self.path, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in output.output_type.secondary_files()
     )
@@ -759,7 +825,8 @@ def prepare_tool_input_secondaries(toolinp):
         f"""\
 {4*tb}{{
 {5*tb}location: resolveSecondary(self.location, "{secs.get(s, s)}"),
-{5*tb}basename: resolveSecondary(self.basename, "{s}")
+{5*tb}basename: resolveSecondary(self.basename, "{s}"),
+{5*tb}class: "File",
 {4*tb}}}"""
         for s in toolinp.input_type.secondary_files()
     )
@@ -788,13 +855,13 @@ def translate_step(
     resource_overrides=Dict[str, str],
     use_run_ref=True,
     allow_empty_container=False,
+    container_override=None,
 ):
 
     tool = step.tool
     if use_run_ref:
-        run_ref = ("{tool}.cwl" if is_nested_tool else "tools/{tool}.cwl").format(
-            tool=tool.id()
-        )
+        prefix = "" if is_nested_tool else "tools/"
+        run_ref = prefix + CwlTranslator.tool_filename(tool)
     else:
         from janis_core.workflow.workflow import Workflow
 
@@ -804,10 +871,13 @@ def translate_step(
                 tool,
                 with_resource_overrides=has_resources_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
         elif isinstance(tool, CodeTool):
             run_ref = CwlTranslator.translate_code_tool_internal(
-                tool, allow_empty_container=allow_empty_container
+                tool,
+                allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
         else:
             run_ref = CwlTranslator.translate_tool_internal(
@@ -815,6 +885,7 @@ def translate_step(
                 True,
                 with_resource_overrides=has_resources_overrides,
                 allow_empty_container=allow_empty_container,
+                container_override=container_override,
             )
 
     cwlstep = cwlgen.WorkflowStep(
@@ -958,7 +1029,7 @@ def translate_string_formatter(
     return f'$("{escapedFormat}"' + "".join(kwargreplacements) + ")"
 
 
-def translate_to_cwl_glob(glob, **debugkwargs):
+def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
     if not glob:
         return None
 
@@ -970,6 +1041,34 @@ def translate_to_cwl_glob(glob, **debugkwargs):
         return glob
 
     if isinstance(glob, InputSelector):
+
+        if glob.input_to_select:
+            if inputsdict is None or glob.input_to_select not in inputsdict:
+                raise Exception(
+                    "An internal error has occurred when generating the output glob for "
+                    + glob.input_to_select
+                )
+
+            tinp: ToolInput = inputsdict[glob.input_to_select]
+            intype = tinp.input_type
+            if isinstance(intype, Filename):
+                if isinstance(intype.prefix, InputSelector):
+                    return intype.generated_filename(
+                        inputs=prepare_filename_replacements_for(
+                            intype.prefix, inputsdict=inputsdict
+                        )
+                    )
+                else:
+                    return intype.generated_filename()
+            else:
+                expr = f"inputs.{glob.input_to_select}"
+                if isinstance(intype, (File, Directory)):
+                    expr = expr + ".basename"
+                if tinp.default:
+                    expr = f"(inputs.{glob.input_to_select} != null) ? {expr} : {tinp.default}"
+
+                return f"$({expr})"
+
         return translate_input_selector(glob, code_environment=False)
 
     elif isinstance(glob, StringFormatter):
@@ -1023,3 +1122,36 @@ def build_resource_override_maps_for_workflow(
             inputs.extend(build_resource_override_maps_for_workflow(tool, tool_pre))
 
     return inputs
+
+
+def prepare_filename_replacements_for(
+    inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
+) -> Optional[Dict[str, str]]:
+    if not (inp and isinstance(inp, InputSelector)):
+        return None
+
+    if not inputsdict:
+        raise Exception(
+            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+        )
+
+    if inp.input_to_select not in inputsdict:
+        raise Exception
+
+    tinp = inputsdict.get(inp.input_to_select)
+    intype = tinp.input_type
+
+    if isinstance(intype, (File, Directory)):
+        if isinstance(intype, File) and intype.extension:
+            base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+        else:
+            base = f"inputs.{tinp.id()}.basename"
+    else:
+        base = "inputs." + tinp.id()
+
+    if intype.optional:
+        replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
+    else:
+        replacement = f"$({base})"
+
+    return {inp.input_to_select: replacement}

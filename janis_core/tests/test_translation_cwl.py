@@ -6,8 +6,10 @@ from janis_core.tests.testtools import (
     SingleTestTool,
     ArrayTestTool,
     TestTool,
+    TestToolV2,
     TestToolWithSecondaryOutput,
     TestTypeWithSecondary,
+    FilenameGeneratedTool,
 )
 
 import cwlgen
@@ -40,7 +42,9 @@ class TestCwlTypesConversion(unittest.TestCase):
 class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
-        self.assertEqual(cwl_testtool, t.translate("cwl", to_console=False))
+        self.maxDiff = 10000
+        actual = t.translate("cwl", to_console=False)
+        self.assertEqual(cwl_testtool, actual)
 
 
 class TestCwlTranslatorOverrides(unittest.TestCase):
@@ -49,15 +53,23 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow("wid")
+        expected = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+id: wid
+inputs: {}
+outputs: {}
+steps: {}
+"""
         self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: Workflow\ncwlVersion: v1.0\nid: wid\ninputs: {}\noutputs: {}\nsteps: {}\n",
-            self.translator.stringify_translated_workflow(cwlobj),
+            expected, self.translator.stringify_translated_workflow(cwlobj)
         )
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool("tid")
         self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\n",
+            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\ncwlVersion: v1.0\nid: tid\ninputs: {}\noutputs: {}\n",
             self.translator.stringify_translated_tool(cwlobj),
         )
 
@@ -88,7 +100,7 @@ class TestCwlArraySeparators(unittest.TestCase):
 
     def test_regular_input_bindingin(self):
         t = ToolInput("filesA", Array(String()), prefix="-A", position=1)
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesA",
@@ -108,7 +120,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=2,
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesB",
@@ -132,7 +144,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=4,
             separator=",",
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
         self.assertDictEqual(
             {
                 "id": "filesC",
@@ -155,7 +167,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             prefix="-D",
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t)
+        cwltoolinput = cwl.translate_tool_input(t, None)
 
         self.assertDictEqual(
             {
@@ -451,8 +463,7 @@ class TestCwlGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_nodefault")
         wf.input("inpId", String())
         # included because no value, no default, and not optional
-        # self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
-        self.assertDictEqual({}, self.translator.build_inputs_file(wf))
+        self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_nooptional_default(self):
         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_default")
@@ -533,6 +544,84 @@ class TestPackedWorkflow(unittest.TestCase):
         print(CwlTranslator.stringify_translated_workflow(c))
 
 
+class TestContainerOverride(unittest.TestCase):
+    def test_tool_dict_override(self):
+        import ruamel.yaml
+
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        d = ruamel.yaml.load(
+            tool.translate(
+                "cwl",
+                to_console=False,
+                container_override={tool.id(): expected_container},
+            ),
+            Loader=ruamel.yaml.Loader,
+        )
+
+        received_container = (
+            d.get("requirements").get("DockerRequirement").get("dockerPull")
+        )
+        self.assertEqual(expected_container, received_container)
+
+    def test_tool_string_override(self):
+        import ruamel.yaml
+
+        expected_container = "container/override"
+
+        tool = SingleTestTool()
+        d = ruamel.yaml.load(
+            tool.translate(
+                "cwl", to_console=False, container_override=expected_container
+            ),
+            Loader=ruamel.yaml.Loader,
+        )
+
+        received_container = (
+            d.get("requirements").get("DockerRequirement").get("dockerPull")
+        )
+        self.assertEqual(expected_container, received_container)
+
+
+class TestCWLFilenameGeneration(unittest.TestCase):
+    def test_1(self):
+        tool = FilenameGeneratedTool()
+        inputsdict = {t.id(): t for t in tool.inputs()}
+        mapped = [cwl.translate_tool_input(i, inputsdict) for i in tool.inputs()]
+        expressions = [
+            mapped[i].get_dict()["inputBinding"]["valueFrom"]
+            for i in range(4, len(mapped))
+        ]
+        self.assertEqual("$(inputs.inp)", expressions[0])
+        self.assertEqual(
+            '$(inputs.inpOptional ? inputs.inpOptional : "generated")', expressions[1]
+        )
+        self.assertEqual(
+            '$(inputs.fileInp.basename.replace(/.txt$/, "")).transformed.fnp',
+            expressions[2],
+        )
+        self.assertEqual(
+            '$(inputs.fileInpOptional ? inputs.fileInpOptional.basename.replace(/.txt$/, "") : "generated").optional.txt',
+            expressions[3],
+        )
+
+
+class TestCWLRunRefs(unittest.TestCase):
+    def test_two_similar_tools(self):
+        w = WorkflowBuilder("testTwoToolsWithSameId")
+
+        w.input("inp", str)
+        w.step("stp1", TestTool(testtool=w.inp))
+        w.step("stp2", TestToolV2(testtool=w.inp))
+
+        wf_cwl, _ = CwlTranslator.translate_workflow(w)
+        stps = {stp.id: stp for stp in wf_cwl.steps}
+
+        self.assertEqual("tools/TestTranslationtool.cwl", stps["stp1"].run)
+        self.assertEqual("tools/TestTranslationtool_v0_0_2.cwl", stps["stp2"].run)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 arguments:
@@ -546,7 +635,13 @@ inputs:
 - id: testtool
   label: testtool
   type: string
-label: TestTranslationtool
+- id: arrayInp
+  label: arrayInp
+  type:
+  - items: string
+    type: array
+  - 'null'
+label: Tool for testing translation
 outputs:
 - id: std
   label: std

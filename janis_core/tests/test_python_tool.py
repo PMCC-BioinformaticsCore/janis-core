@@ -66,7 +66,12 @@ class PythonToolCodeBuilderTests(unittest.TestCase):
         self.assertEqual("test", in4_testvalue.default)
 
     def test_whole_wdl(self):
-        out = PythonEchoTool().translate("wdl", to_console=False)
+        out = PythonEchoTool().translate(
+            "wdl",
+            to_console=False,
+            to_disk=True,
+            export_path="~/Desktop/tmp/wdltests/code/",
+        )
         self.assertEqual(wdl, out)
 
     def test_whole_cwl(self):
@@ -98,7 +103,7 @@ task echo_tool {
     Int? runtime_cpu
     Int? runtime_memory
     String name
-    String? infile = "generated"
+    String? infile
     Boolean? flag
     String? testvalue
     String runtime_disks
