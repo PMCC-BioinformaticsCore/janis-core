@@ -5,5 +5,5 @@ illusional.wdlgen>=0.2.7
 networkx>=2.1
 ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
-path.py
+path
 #cwlformat
