@@ -584,7 +584,7 @@ return {out_capture}
 
     @staticmethod
     def workflow_filename(workflow):
-        return workflow.id() + ".cwl"
+        return workflow.versioned_id() + ".cwl"
 
     @staticmethod
     def inputs_filename(workflow):

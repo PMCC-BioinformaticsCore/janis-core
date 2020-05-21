@@ -610,7 +610,7 @@ EOT"""
 
     @staticmethod
     def workflow_filename(workflow):
-        return workflow.id() + ".wdl"
+        return workflow.versioned_id() + ".wdl"
 
     @staticmethod
     def inputs_filename(workflow):
