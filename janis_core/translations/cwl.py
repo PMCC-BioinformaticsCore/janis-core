@@ -493,6 +493,9 @@ class CwlTranslator(TranslatorBase):
             cwlVersion=CWL_VERSION,
             stderr=stderr,
             stdout=stdout,
+            inputs=[],
+            outputs=[],
+            requirements=[],
         )
 
         tool_cwl.inputs.extend(

@@ -327,7 +327,7 @@ class File(DataType):
         return meta.get("path")
 
     def cwl_input(self, value: Any):
-        return {"class": cwlgen.CwlTypes.FILE, "path": value}
+        return {"class": "File", "path": value}
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
@@ -373,7 +373,7 @@ class Directory(DataType):
 
     def cwl_input(self, value: Any):
         # WDL: "{workflowName}.label" = meta["path"}
-        return {"class": cwlgen.CwlTypes.DIRECTORY, "path": value}
+        return {"class": "Directory", "path": value}
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
