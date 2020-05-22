@@ -2,6 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
 
+from janis_core.code.codetool import CodeTool
 from path import Path
 
 from janis_core.tool.commandtool import ToolInput
@@ -77,6 +78,13 @@ class TranslatorBase(ABC):
                 container_override=lowercase_dictkeys(container_override),
             )
             str_tool = self.stringify_translated_workflow(tr_tool)
+        elif isinstance(tool, CodeTool):
+            tr_tool = self.translate_code_tool_internal(
+                tool,
+                allow_empty_container=allow_empty_container,
+                container_override=lowercase_dictkeys(container_override),
+            )
+            str_tool = self.stringify_translated_tool(tr_tool)
         else:
             tr_tool = self.translate_tool_internal(
                 tool,
