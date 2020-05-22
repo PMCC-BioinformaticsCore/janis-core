@@ -573,11 +573,7 @@ def save_relative_uri(uri, base_url, scoped_id, ref_scope, relative_uris):
         return save(uri, top=False, base_url=base_url)
 
 
-class Documented(Savable):
-    pass
-
-
-class RecordField(Documented):
+class RecordField(Savable):
     """
 A field of a record.
     """
@@ -599,8 +595,8 @@ A field of a record.
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
         self.name = name
+        self.doc = doc
         self.type = type
 
     @classmethod
@@ -641,7 +637,7 @@ A field of a record.
             try:
                 doc = load_field(
                     _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -682,7 +678,7 @@ A field of a record.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`"
+                            "invalid field `%s`, expected one of: `name`, `doc`, `type`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -694,8 +690,8 @@ A field of a record.
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type=type,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -727,7 +723,7 @@ A field of a record.
 
         return r
 
-    attrs = frozenset(["doc", "name", "type"])
+    attrs = frozenset(["name", "doc", "type"])
 
 
 class RecordSchema(Savable):
@@ -779,10 +775,7 @@ class RecordSchema(Savable):
             fields = None
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Record_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -897,10 +890,7 @@ Define an enumerated type.
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Enum_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -1010,10 +1000,7 @@ class ArraySchema(Savable):
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Array_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -1750,31 +1737,11 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
     attrs = frozenset(["class", "location", "path", "basename", "listing"])
 
 
-class Labeled(Savable):
+class SchemaBase(Savable):
     pass
 
 
-class Identified(Savable):
-    pass
-
-
-class LoadContents(Savable):
-    pass
-
-
-class FieldBase(Labeled):
-    pass
-
-
-class InputFormat(Savable):
-    pass
-
-
-class OutputFormat(Savable):
-    pass
-
-
-class Parameter(FieldBase, Documented, Identified):
+class Parameter(SchemaBase):
     """
 Define an input or output parameter to a process.
 
@@ -1784,124 +1751,29 @@ Define an input or output parameter to a process.
 
 
 class InputBinding(Savable):
-    def __init__(
-        self,
-        loadContents=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.loadContents = loadContents
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> InputBinding
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `loadContents`" % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'InputBinding'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            loadContents=loadContents,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["loadContents"])
-
-
-class IOSchema(Labeled, Documented):
     pass
 
 
-class InputSchema(IOSchema):
+class OutputBinding(Savable):
     pass
 
 
-class OutputSchema(IOSchema):
+class InputSchema(SchemaBase):
     pass
 
 
-class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
+class OutputSchema(SchemaBase):
+    pass
+
+
+class InputRecordField(RecordField):
     def __init__(
         self,
         name,  # type: Any
         type,  # type: Any
         doc=None,  # type: Any
+        inputBinding=None,  # type: Any
         label=None,  # type: Any
-        secondaryFiles=None,  # type: Any
-        streamable=None,  # type: Any
-        format=None,  # type: Any
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -1914,15 +1786,11 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
         self.name = name
+        self.doc = doc
         self.type = type
+        self.inputBinding = inputBinding
         self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -1962,7 +1830,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             try:
                 doc = load_field(
                     _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -1991,6 +1859,24 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                     [e],
                 )
             )
+        if "inputBinding" in _doc:
+            try:
+                inputBinding = load_field(
+                    _doc.get("inputBinding"),
+                    union_of_None_type_or_CommandLineBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `inputBinding` field is not valid because:",
+                        SourceLine(_doc, "inputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            inputBinding = None
         if "label" in _doc:
             try:
                 label = load_field(
@@ -2009,96 +1895,6 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                 )
         else:
             label = None
-        if "secondaryFiles" in _doc:
-            try:
-                secondaryFiles = load_field(
-                    _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
-                    )
-                )
-        else:
-            secondaryFiles = None
-        if "streamable" in _doc:
-            try:
-                streamable = load_field(
-                    _doc.get("streamable"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `streamable` field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
-                    )
-                )
-        else:
-            streamable = None
-        if "format" in _doc:
-            try:
-                format = load_field(
-                    _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `format` field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
-                    )
-                )
-        else:
-            format = None
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -2111,7 +1907,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`"
+                            "invalid field `%s`, expected one of: `name`, `doc`, `type`, `inputBinding`, `label`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -2123,15 +1919,11 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type=type,
+            inputBinding=inputBinding,
             label=label,
-            secondaryFiles=secondaryFiles,
-            streamable=streamable,
-            format=format,
-            loadContents=loadContents,
-            loadListing=loadListing,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -2157,46 +1949,17 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
+        if self.inputBinding is not None:
+            r["inputBinding"] = save(
+                self.inputBinding,
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris,
+            )
+
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.secondaryFiles is not None:
-            r["secondaryFiles"] = save(
-                self.secondaryFiles,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.streamable is not None:
-            r["streamable"] = save(
-                self.streamable,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.format is not None:
-            u = save_relative_uri(self.format, self.name, True, None, relative_uris)
-            if u:
-                r["format"] = u
-
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -2204,19 +1967,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
 
         return r
 
-    attrs = frozenset(
-        [
-            "doc",
-            "name",
-            "type",
-            "label",
-            "secondaryFiles",
-            "streamable",
-            "format",
-            "loadContents",
-            "loadListing",
-        ]
-    )
+    attrs = frozenset(["name", "doc", "type", "inputBinding", "label"])
 
 
 class InputRecordSchema(RecordSchema, InputSchema):
@@ -2225,7 +1976,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
         type,  # type: Any
         fields=None,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
         name=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -2242,7 +1992,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
         self.fields = fields
         self.type = type
         self.label = label
-        self.doc = doc
         self.name = name
 
     @classmethod
@@ -2299,10 +2048,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
             fields = None
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Record_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -2330,24 +2076,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -2360,7 +2088,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `name`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -2375,7 +2103,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
             fields=fields,
             type=type,
             label=label,
-            doc=doc,
             name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -2407,17 +2134,12 @@ class InputRecordSchema(RecordSchema, InputSchema):
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
 
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
+    attrs = frozenset(["fields", "type", "label", "name"])
 
 
 class InputEnumSchema(EnumSchema, InputSchema):
@@ -2426,8 +2148,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
         symbols,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
         name=None,  # type: Any
+        inputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -2443,8 +2165,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
         self.symbols = symbols
         self.type = type
         self.label = label
-        self.doc = doc
         self.name = name
+        self.inputBinding = inputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -2497,10 +2219,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Enum_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -2528,24 +2247,24 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
+        if "inputBinding" in _doc:
             try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                inputBinding = load_field(
+                    _doc.get("inputBinding"),
+                    union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
                 )
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
+                        "the `inputBinding` field is not valid because:",
+                        SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
                 )
         else:
-            doc = None
+            inputBinding = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -2558,7 +2277,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `name`, `inputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -2573,8 +2292,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
             symbols=symbols,
             type=type,
             label=label,
-            doc=doc,
             name=name,
+            inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -2605,9 +2324,12 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+        if self.inputBinding is not None:
+            r["inputBinding"] = save(
+                self.inputBinding,
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -2615,7 +2337,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
         return r
 
-    attrs = frozenset(["symbols", "type", "label", "doc", "name"])
+    attrs = frozenset(["symbols", "type", "label", "name", "inputBinding"])
 
 
 class InputArraySchema(ArraySchema, InputSchema):
@@ -2624,8 +2346,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         items,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
+        inputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -2641,8 +2362,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         self.items = items
         self.type = type
         self.label = label
-        self.doc = doc
-        self.name = name
+        self.inputBinding = inputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -2653,31 +2373,6 @@ class InputArraySchema(ArraySchema, InputSchema):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
         try:
             items = load_field(
                 _doc.get("items"),
@@ -2695,10 +2390,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Array_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -2726,24 +2418,24 @@ class InputArraySchema(ArraySchema, InputSchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
+        if "inputBinding" in _doc:
             try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                inputBinding = load_field(
+                    _doc.get("inputBinding"),
+                    union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
                 )
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
+                        "the `inputBinding` field is not valid because:",
+                        SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
                 )
         else:
-            doc = None
+            inputBinding = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -2756,7 +2448,7 @@ class InputArraySchema(ArraySchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `inputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -2771,8 +2463,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             items=items,
             type=type,
             label=label,
-            doc=doc,
-            name=name,
+            inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -2783,29 +2474,27 @@ class InputArraySchema(ArraySchema, InputSchema):
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
+            u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
             if u:
                 r["items"] = u
 
         if self.type is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.label is not None:
             r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+        if self.inputBinding is not None:
+            r["inputBinding"] = save(
+                self.inputBinding,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -2813,19 +2502,16 @@ class InputArraySchema(ArraySchema, InputSchema):
 
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
+    attrs = frozenset(["items", "type", "label", "inputBinding"])
 
 
-class OutputRecordField(RecordField, FieldBase, OutputFormat):
+class OutputRecordField(RecordField):
     def __init__(
         self,
         name,  # type: Any
         type,  # type: Any
         doc=None,  # type: Any
-        label=None,  # type: Any
-        secondaryFiles=None,  # type: Any
-        streamable=None,  # type: Any
-        format=None,  # type: Any
+        outputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -2838,13 +2524,10 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
         self.name = name
+        self.doc = doc
         self.type = type
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
+        self.outputBinding = outputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -2884,7 +2567,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             try:
                 doc = load_field(
                     _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -2913,6 +2596,627 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                     [e],
                 )
             )
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
+
+        extension_fields = yaml.comments.CommentedMap()
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `%s`, expected one of: `name`, `doc`, `type`, `outputBinding`"
+                            % (k),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+                    break
+
+        if _errors__:
+            raise ValidationException("Trying 'OutputRecordField'", None, _errors__)
+        loadingOptions = copy.deepcopy(loadingOptions)
+        loadingOptions.original_doc = _doc
+        return cls(
+            name=name,
+            doc=doc,
+            type=type,
+            outputBinding=outputBinding,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+
+    def save(self, top=False, base_url="", relative_uris=True):
+        # type: (bool, str, bool) -> Dict[str, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
+        for ef in self.extension_fields:
+            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if self.name is not None:
+            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            if u:
+                r["name"] = u
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+            )
+
+        if self.type is not None:
+            r["type"] = save(
+                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+            )
+
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris,
+            )
+
+        if top and self.loadingOptions.namespaces:
+            r["$namespaces"] = self.loadingOptions.namespaces
+
+        return r
+
+    attrs = frozenset(["name", "doc", "type", "outputBinding"])
+
+
+class OutputRecordSchema(RecordSchema, OutputSchema):
+    def __init__(
+        self,
+        type,  # type: Any
+        fields=None,  # type: Any
+        label=None,  # type: Any
+        extension_fields=None,  # type: Optional[Dict[str, Any]]
+        loadingOptions=None,  # type: Optional[LoadingOptions]
+    ):  # type: (...) -> None
+
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = yaml.comments.CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.fields = fields
+        self.type = type
+        self.label = label
+
+    @classmethod
+    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputRecordSchema
+
+        _doc = copy.copy(doc)
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        if "fields" in _doc:
+            try:
+                fields = load_field(
+                    _doc.get("fields"),
+                    idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `fields` field is not valid because:",
+                        SourceLine(_doc, "fields", str),
+                        [e],
+                    )
+                )
+        else:
+            fields = None
+        try:
+            type = load_field(
+                _doc.get("type"), typedsl_Record_symbolLoader_2, baseuri, loadingOptions
+            )
+        except ValidationException as e:
+            _errors__.append(
+                ValidationException(
+                    "the `type` field is not valid because:",
+                    SourceLine(_doc, "type", str),
+                    [e],
+                )
+            )
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+
+        extension_fields = yaml.comments.CommentedMap()
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `%s`, expected one of: `fields`, `type`, `label`"
+                            % (k),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+                    break
+
+        if _errors__:
+            raise ValidationException("Trying 'OutputRecordSchema'", None, _errors__)
+        loadingOptions = copy.deepcopy(loadingOptions)
+        loadingOptions.original_doc = _doc
+        return cls(
+            fields=fields,
+            type=type,
+            label=label,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+
+    def save(self, top=False, base_url="", relative_uris=True):
+        # type: (bool, str, bool) -> Dict[str, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
+        for ef in self.extension_fields:
+            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if self.fields is not None:
+            r["fields"] = save(
+                self.fields, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.type is not None:
+            r["type"] = save(
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if top and self.loadingOptions.namespaces:
+            r["$namespaces"] = self.loadingOptions.namespaces
+
+        return r
+
+    attrs = frozenset(["fields", "type", "label"])
+
+
+class OutputEnumSchema(EnumSchema, OutputSchema):
+    def __init__(
+        self,
+        symbols,  # type: Any
+        type,  # type: Any
+        label=None,  # type: Any
+        outputBinding=None,  # type: Any
+        extension_fields=None,  # type: Optional[Dict[str, Any]]
+        loadingOptions=None,  # type: Optional[LoadingOptions]
+    ):  # type: (...) -> None
+
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = yaml.comments.CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.symbols = symbols
+        self.type = type
+        self.label = label
+        self.outputBinding = outputBinding
+
+    @classmethod
+    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputEnumSchema
+
+        _doc = copy.copy(doc)
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            symbols = load_field(
+                _doc.get("symbols"),
+                uri_array_of_strtype_True_False_None,
+                baseuri,
+                loadingOptions,
+            )
+        except ValidationException as e:
+            _errors__.append(
+                ValidationException(
+                    "the `symbols` field is not valid because:",
+                    SourceLine(_doc, "symbols", str),
+                    [e],
+                )
+            )
+        try:
+            type = load_field(
+                _doc.get("type"), typedsl_Enum_symbolLoader_2, baseuri, loadingOptions
+            )
+        except ValidationException as e:
+            _errors__.append(
+                ValidationException(
+                    "the `type` field is not valid because:",
+                    SourceLine(_doc, "type", str),
+                    [e],
+                )
+            )
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
+
+        extension_fields = yaml.comments.CommentedMap()
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `outputBinding`"
+                            % (k),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+                    break
+
+        if _errors__:
+            raise ValidationException("Trying 'OutputEnumSchema'", None, _errors__)
+        loadingOptions = copy.deepcopy(loadingOptions)
+        loadingOptions.original_doc = _doc
+        return cls(
+            symbols=symbols,
+            type=type,
+            label=label,
+            outputBinding=outputBinding,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+
+    def save(self, top=False, base_url="", relative_uris=True):
+        # type: (bool, str, bool) -> Dict[str, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
+        for ef in self.extension_fields:
+            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if self.symbols is not None:
+            u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
+            if u:
+                r["symbols"] = u
+
+        if self.type is not None:
+            r["type"] = save(
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        if top and self.loadingOptions.namespaces:
+            r["$namespaces"] = self.loadingOptions.namespaces
+
+        return r
+
+    attrs = frozenset(["symbols", "type", "label", "outputBinding"])
+
+
+class OutputArraySchema(ArraySchema, OutputSchema):
+    def __init__(
+        self,
+        items,  # type: Any
+        type,  # type: Any
+        label=None,  # type: Any
+        outputBinding=None,  # type: Any
+        extension_fields=None,  # type: Optional[Dict[str, Any]]
+        loadingOptions=None,  # type: Optional[LoadingOptions]
+    ):  # type: (...) -> None
+
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = yaml.comments.CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.items = items
+        self.type = type
+        self.label = label
+        self.outputBinding = outputBinding
+
+    @classmethod
+    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputArraySchema
+
+        _doc = copy.copy(doc)
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            items = load_field(
+                _doc.get("items"),
+                uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2,
+                baseuri,
+                loadingOptions,
+            )
+        except ValidationException as e:
+            _errors__.append(
+                ValidationException(
+                    "the `items` field is not valid because:",
+                    SourceLine(_doc, "items", str),
+                    [e],
+                )
+            )
+        try:
+            type = load_field(
+                _doc.get("type"), typedsl_Array_symbolLoader_2, baseuri, loadingOptions
+            )
+        except ValidationException as e:
+            _errors__.append(
+                ValidationException(
+                    "the `type` field is not valid because:",
+                    SourceLine(_doc, "type", str),
+                    [e],
+                )
+            )
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
+
+        extension_fields = yaml.comments.CommentedMap()
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `outputBinding`"
+                            % (k),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+                    break
+
+        if _errors__:
+            raise ValidationException("Trying 'OutputArraySchema'", None, _errors__)
+        loadingOptions = copy.deepcopy(loadingOptions)
+        loadingOptions.original_doc = _doc
+        return cls(
+            items=items,
+            type=type,
+            label=label,
+            outputBinding=outputBinding,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+
+    def save(self, top=False, base_url="", relative_uris=True):
+        # type: (bool, str, bool) -> Dict[str, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
+        for ef in self.extension_fields:
+            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if self.items is not None:
+            u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
+            if u:
+                r["items"] = u
+
+        if self.type is not None:
+            r["type"] = save(
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        if top and self.loadingOptions.namespaces:
+            r["$namespaces"] = self.loadingOptions.namespaces
+
+        return r
+
+    attrs = frozenset(["items", "type", "label", "outputBinding"])
+
+
+class InputParameter(Parameter):
+    def __init__(
+        self,
+        id,  # type: Any
+        label=None,  # type: Any
+        secondaryFiles=None,  # type: Any
+        streamable=None,  # type: Any
+        doc=None,  # type: Any
+        format=None,  # type: Any
+        inputBinding=None,  # type: Any
+        default=None,  # type: Any
+        type=None,  # type: Any
+        extension_fields=None,  # type: Optional[Dict[str, Any]]
+        loadingOptions=None,  # type: Optional[LoadingOptions]
+    ):  # type: (...) -> None
+
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = yaml.comments.CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.inputBinding = inputBinding
+        self.default = default
+        self.type = type
+
+    @classmethod
+    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> InputParameter
+
+        _doc = copy.copy(doc)
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        if "id" in _doc:
+            try:
+                id = load_field(
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `id` field is not valid because:",
+                        SourceLine(_doc, "id", str),
+                        [e],
+                    )
+                )
+        else:
+            id = None
+
+        if id is None:
+            if docRoot is not None:
+                id = docRoot
+            else:
+                raise ValidationException("Missing id")
+        baseuri = id
         if "label" in _doc:
             try:
                 label = load_field(
@@ -2935,7 +3239,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             try:
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -2967,6 +3271,364 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                 )
         else:
             streamable = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
+        if "format" in _doc:
+            try:
+                format = load_field(
+                    _doc.get("format"),
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `format` field is not valid because:",
+                        SourceLine(_doc, "format", str),
+                        [e],
+                    )
+                )
+        else:
+            format = None
+        if "inputBinding" in _doc:
+            try:
+                inputBinding = load_field(
+                    _doc.get("inputBinding"),
+                    union_of_None_type_or_CommandLineBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `inputBinding` field is not valid because:",
+                        SourceLine(_doc, "inputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            inputBinding = None
+        if "default" in _doc:
+            try:
+                default = load_field(
+                    _doc.get("default"),
+                    union_of_None_type_or_Any_type,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `default` field is not valid because:",
+                        SourceLine(_doc, "default", str),
+                        [e],
+                    )
+                )
+        else:
+            default = None
+        if "type" in _doc:
+            try:
+                type = load_field(
+                    _doc.get("type"),
+                    typedsl_union_of_None_type_or_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `type` field is not valid because:",
+                        SourceLine(_doc, "type", str),
+                        [e],
+                    )
+                )
+        else:
+            type = None
+
+        extension_fields = yaml.comments.CommentedMap()
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `inputBinding`, `default`, `type`"
+                            % (k),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+                    break
+
+        if _errors__:
+            raise ValidationException("Trying 'InputParameter'", None, _errors__)
+        loadingOptions = copy.deepcopy(loadingOptions)
+        loadingOptions.original_doc = _doc
+        return cls(
+            label=label,
+            secondaryFiles=secondaryFiles,
+            streamable=streamable,
+            doc=doc,
+            id=id,
+            format=format,
+            inputBinding=inputBinding,
+            default=default,
+            type=type,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+
+    def save(self, top=False, base_url="", relative_uris=True):
+        # type: (bool, str, bool) -> Dict[str, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
+        for ef in self.extension_fields:
+            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if self.id is not None:
+            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            if u:
+                r["id"] = u
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.secondaryFiles is not None:
+            r["secondaryFiles"] = save(
+                self.secondaryFiles,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
+        if self.streamable is not None:
+            r["streamable"] = save(
+                self.streamable,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.format is not None:
+            u = save_relative_uri(self.format, self.id, True, None, relative_uris)
+            if u:
+                r["format"] = u
+
+        if self.inputBinding is not None:
+            r["inputBinding"] = save(
+                self.inputBinding,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
+        if self.default is not None:
+            r["default"] = save(
+                self.default, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.type is not None:
+            r["type"] = save(
+                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if top and self.loadingOptions.namespaces:
+            r["$namespaces"] = self.loadingOptions.namespaces
+
+        return r
+
+    attrs = frozenset(
+        [
+            "label",
+            "secondaryFiles",
+            "streamable",
+            "doc",
+            "id",
+            "format",
+            "inputBinding",
+            "default",
+            "type",
+        ]
+    )
+
+
+class OutputParameter(Parameter):
+    def __init__(
+        self,
+        id,  # type: Any
+        label=None,  # type: Any
+        secondaryFiles=None,  # type: Any
+        streamable=None,  # type: Any
+        doc=None,  # type: Any
+        outputBinding=None,  # type: Any
+        format=None,  # type: Any
+        extension_fields=None,  # type: Optional[Dict[str, Any]]
+        loadingOptions=None,  # type: Optional[LoadingOptions]
+    ):  # type: (...) -> None
+
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = yaml.comments.CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.outputBinding = outputBinding
+        self.format = format
+
+    @classmethod
+    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputParameter
+
+        _doc = copy.copy(doc)
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        if "id" in _doc:
+            try:
+                id = load_field(
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `id` field is not valid because:",
+                        SourceLine(_doc, "id", str),
+                        [e],
+                    )
+                )
+        else:
+            id = None
+
+        if id is None:
+            if docRoot is not None:
+                id = docRoot
+            else:
+                raise ValidationException("Missing id")
+        baseuri = id
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "secondaryFiles" in _doc:
+            try:
+                secondaryFiles = load_field(
+                    _doc.get("secondaryFiles"),
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `secondaryFiles` field is not valid because:",
+                        SourceLine(_doc, "secondaryFiles", str),
+                        [e],
+                    )
+                )
+        else:
+            secondaryFiles = None
+        if "streamable" in _doc:
+            try:
+                streamable = load_field(
+                    _doc.get("streamable"),
+                    union_of_None_type_or_booltype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `streamable` field is not valid because:",
+                        SourceLine(_doc, "streamable", str),
+                        [e],
+                    )
+                )
+        else:
+            streamable = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
         if "format" in _doc:
             try:
                 format = load_field(
@@ -2997,7 +3659,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`"
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `outputBinding`, `format`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -3005,16 +3667,16 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                     break
 
         if _errors__:
-            raise ValidationException("Trying 'OutputRecordField'", None, _errors__)
+            raise ValidationException("Trying 'OutputParameter'", None, _errors__)
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            doc=doc,
-            name=name,
-            type=type,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
+            doc=doc,
+            id=id,
+            outputBinding=outputBinding,
             format=format,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -3026,31 +3688,21 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+        if self.id is not None:
+            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             if u:
-                r["name"] = u
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.type is not None:
-            r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
-            )
+                r["id"] = u
 
         if self.label is not None:
             r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
         if self.secondaryFiles is not None:
             r["secondaryFiles"] = save(
                 self.secondaryFiles,
                 top=False,
-                base_url=self.name,
+                base_url=self.id,
                 relative_uris=relative_uris,
             )
 
@@ -3058,12 +3710,25 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             r["streamable"] = save(
                 self.streamable,
                 top=False,
-                base_url=self.name,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=self.id,
                 relative_uris=relative_uris,
             )
 
         if self.format is not None:
-            u = save_relative_uri(self.format, self.name, True, None, relative_uris)
+            u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             if u:
                 r["format"] = u
 
@@ -3073,613 +3738,16 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         return r
 
     attrs = frozenset(
-        ["doc", "name", "type", "label", "secondaryFiles", "streamable", "format"]
+        [
+            "label",
+            "secondaryFiles",
+            "streamable",
+            "doc",
+            "id",
+            "outputBinding",
+            "format",
+        ]
     )
-
-
-class OutputRecordSchema(RecordSchema, OutputSchema):
-    def __init__(
-        self,
-        type,  # type: Any
-        fields=None,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.fields = fields
-        self.type = type
-        self.label = label
-        self.doc = doc
-        self.name = name
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputRecordSchema
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
-        if "fields" in _doc:
-            try:
-                fields = load_field(
-                    _doc.get("fields"),
-                    idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `fields` field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
-                    )
-                )
-        else:
-            fields = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'OutputRecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            fields=fields,
-            type=type,
-            label=label,
-            doc=doc,
-            name=name,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
-        if self.fields is not None:
-            r["fields"] = save(
-                self.fields, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.type is not None:
-            r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
-
-
-class OutputEnumSchema(EnumSchema, OutputSchema):
-    def __init__(
-        self,
-        symbols,  # type: Any
-        type,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.symbols = symbols
-        self.type = type
-        self.label = label
-        self.doc = doc
-        self.name = name
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputEnumSchema
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
-        try:
-            symbols = load_field(
-                _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `symbols` field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
-                )
-            )
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'OutputEnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            symbols=symbols,
-            type=type,
-            label=label,
-            doc=doc,
-            name=name,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
-        if self.symbols is not None:
-            u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
-
-        if self.type is not None:
-            r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["symbols", "type", "label", "doc", "name"])
-
-
-class OutputArraySchema(ArraySchema, OutputSchema):
-    def __init__(
-        self,
-        items,  # type: Any
-        type,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.items = items
-        self.type = type
-        self.label = label
-        self.doc = doc
-        self.name = name
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> OutputArraySchema
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
-        try:
-            items = load_field(
-                _doc.get("items"),
-                uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `items` field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
-                )
-            )
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'OutputArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            items=items,
-            type=type,
-            label=label,
-            doc=doc,
-            name=name,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
-        if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
-            if u:
-                r["items"] = u
-
-        if self.type is not None:
-            r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
-
-
-class InputParameter(Parameter, InputFormat, LoadContents):
-    pass
-
-
-class OutputParameter(Parameter, OutputFormat):
-    pass
 
 
 class ProcessRequirement(Savable):
@@ -3696,7 +3764,7 @@ the CWL core specification.
     pass
 
 
-class Process(Identified, Labeled, Documented):
+class Process(Savable):
     """
 
 The base executable type in CWL is the `Process` object defined by the
@@ -3820,10 +3888,6 @@ interpolatation.
     attrs = frozenset(["class", "expressionLib"])
 
 
-class CommandInputSchema(Savable):
-    pass
-
-
 class SchemaDefRequirement(ProcessRequirement):
     """
 This field consists of an array of type definitions which must be used when
@@ -3870,7 +3934,7 @@ to earlier schema definitions.
         try:
             types = load_field(
                 _doc.get("types"),
-                array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader,
+                array_of_union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader,
                 baseuri,
                 loadingOptions,
             )
@@ -3930,233 +3994,6 @@ to earlier schema definitions.
         return r
 
     attrs = frozenset(["class", "types"])
-
-
-class SecondaryFileSchema(Savable):
-    def __init__(
-        self,
-        pattern,  # type: Any
-        required=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.pattern = pattern
-        self.required = required
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> SecondaryFileSchema
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        try:
-            pattern = load_field(
-                _doc.get("pattern"),
-                union_of_strtype_or_ExpressionLoader,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `pattern` field is not valid because:",
-                    SourceLine(_doc, "pattern", str),
-                    [e],
-                )
-            )
-        if "required" in _doc:
-            try:
-                required = load_field(
-                    _doc.get("required"),
-                    union_of_None_type_or_booltype_or_ExpressionLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `required` field is not valid because:",
-                        SourceLine(_doc, "required", str),
-                        [e],
-                    )
-                )
-        else:
-            required = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `pattern`, `required`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'SecondaryFileSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            pattern=pattern,
-            required=required,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.pattern is not None:
-            r["pattern"] = save(
-                self.pattern, top=False, base_url=base_url, relative_uris=relative_uris
-            )
-
-        if self.required is not None:
-            r["required"] = save(
-                self.required, top=False, base_url=base_url, relative_uris=relative_uris
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["pattern", "required"])
-
-
-class LoadListingRequirement(ProcessRequirement):
-    """
-Specify the desired behavior for loading the `listing` field of
-a Directory object for use by expressions.
-
-    """
-
-    def __init__(
-        self,
-        loadListing=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "LoadListingRequirement"
-        self.loadListing = loadListing
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> LoadListingRequirement
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-
-        if _doc.get("class") != "LoadListingRequirement":
-            raise ValidationException("Not a LoadListingRequirement")
-
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `loadListing`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException(
-                "Trying 'LoadListingRequirement'", None, _errors__
-            )
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            loadListing=loadListing,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        r["class"] = "LoadListingRequirement"
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["class", "loadListing"])
 
 
 class EnvironmentDef(Savable):
@@ -4374,7 +4211,7 @@ effective value.
             try:
                 position = load_field(
                     _doc.get("position"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype,
                     baseuri,
                     loadingOptions,
                 )
@@ -4584,7 +4421,7 @@ effective value.
     )
 
 
-class CommandOutputBinding(LoadContents):
+class CommandOutputBinding(OutputBinding):
     """
 Describes how to generate an output parameter based on the files produced
 by a CommandLineTool.
@@ -4601,9 +4438,8 @@ following order:
 
     def __init__(
         self,
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
         glob=None,  # type: Any
+        loadContents=None,  # type: Any
         outputEval=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -4617,9 +4453,8 @@ following order:
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.loadContents = loadContents
-        self.loadListing = loadListing
         self.glob = glob
+        self.loadContents = loadContents
         self.outputEval = outputEval
 
     @classmethod
@@ -4631,42 +4466,6 @@ following order:
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
         if "glob" in _doc:
             try:
                 glob = load_field(
@@ -4685,11 +4484,29 @@ following order:
                 )
         else:
             glob = None
+        if "loadContents" in _doc:
+            try:
+                loadContents = load_field(
+                    _doc.get("loadContents"),
+                    union_of_None_type_or_booltype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `loadContents` field is not valid because:",
+                        SourceLine(_doc, "loadContents", str),
+                        [e],
+                    )
+                )
+        else:
+            loadContents = None
         if "outputEval" in _doc:
             try:
                 outputEval = load_field(
                     _doc.get("outputEval"),
-                    union_of_None_type_or_ExpressionLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -4715,7 +4532,7 @@ following order:
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `loadContents`, `loadListing`, `glob`, `outputEval`"
+                            "invalid field `%s`, expected one of: `glob`, `loadContents`, `outputEval`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -4727,9 +4544,8 @@ following order:
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            loadContents=loadContents,
-            loadListing=loadListing,
             glob=glob,
+            loadContents=loadContents,
             outputEval=outputEval,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -4741,25 +4557,17 @@ following order:
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
+        if self.glob is not None:
+            r["glob"] = save(
+                self.glob, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
         if self.loadContents is not None:
             r["loadContents"] = save(
                 self.loadContents,
                 top=False,
                 base_url=base_url,
                 relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if self.glob is not None:
-            r["glob"] = save(
-                self.glob, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.outputEval is not None:
@@ -4775,117 +4583,17 @@ following order:
 
         return r
 
-    attrs = frozenset(["loadContents", "loadListing", "glob", "outputEval"])
+    attrs = frozenset(["glob", "loadContents", "outputEval"])
 
 
-class CommandLineBindable(Savable):
-    def __init__(
-        self,
-        inputBinding=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.inputBinding = inputBinding
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> CommandLineBindable
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "inputBinding" in _doc:
-            try:
-                inputBinding = load_field(
-                    _doc.get("inputBinding"),
-                    union_of_None_type_or_CommandLineBindingLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `inputBinding` field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
-                    )
-                )
-        else:
-            inputBinding = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `inputBinding`" % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'CommandLineBindable'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            inputBinding=inputBinding,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.inputBinding is not None:
-            r["inputBinding"] = save(
-                self.inputBinding,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["inputBinding"])
-
-
-class CommandInputRecordField(InputRecordField, CommandLineBindable):
+class CommandInputRecordField(InputRecordField):
     def __init__(
         self,
         name,  # type: Any
         type,  # type: Any
         doc=None,  # type: Any
-        label=None,  # type: Any
-        secondaryFiles=None,  # type: Any
-        streamable=None,  # type: Any
-        format=None,  # type: Any
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
         inputBinding=None,  # type: Any
+        label=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -4898,16 +4606,11 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
         self.name = name
+        self.doc = doc
         self.type = type
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
         self.inputBinding = inputBinding
+        self.label = label
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -4947,7 +4650,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             try:
                 doc = load_field(
                     _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -4976,114 +4679,6 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                     [e],
                 )
             )
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "secondaryFiles" in _doc:
-            try:
-                secondaryFiles = load_field(
-                    _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
-                    )
-                )
-        else:
-            secondaryFiles = None
-        if "streamable" in _doc:
-            try:
-                streamable = load_field(
-                    _doc.get("streamable"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `streamable` field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
-                    )
-                )
-        else:
-            streamable = None
-        if "format" in _doc:
-            try:
-                format = load_field(
-                    _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `format` field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
-                    )
-                )
-        else:
-            format = None
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
         if "inputBinding" in _doc:
             try:
                 inputBinding = load_field(
@@ -5102,6 +4697,24 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 )
         else:
             inputBinding = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -5114,7 +4727,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`, `inputBinding`"
+                            "invalid field `%s`, expected one of: `name`, `doc`, `type`, `inputBinding`, `label`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -5128,16 +4741,11 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type=type,
-            label=label,
-            secondaryFiles=secondaryFiles,
-            streamable=streamable,
-            format=format,
-            loadContents=loadContents,
-            loadListing=loadListing,
             inputBinding=inputBinding,
+            label=label,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -5163,48 +4771,6 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.secondaryFiles is not None:
-            r["secondaryFiles"] = save(
-                self.secondaryFiles,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.streamable is not None:
-            r["streamable"] = save(
-                self.streamable,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.format is not None:
-            u = save_relative_uri(self.format, self.name, True, None, relative_uris)
-            if u:
-                r["format"] = u
-
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
         if self.inputBinding is not None:
             r["inputBinding"] = save(
                 self.inputBinding,
@@ -5213,38 +4779,26 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 relative_uris=relative_uris,
             )
 
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.name, relative_uris=relative_uris
+            )
+
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
 
         return r
 
-    attrs = frozenset(
-        [
-            "doc",
-            "name",
-            "type",
-            "label",
-            "secondaryFiles",
-            "streamable",
-            "format",
-            "loadContents",
-            "loadListing",
-            "inputBinding",
-        ]
-    )
+    attrs = frozenset(["name", "doc", "type", "inputBinding", "label"])
 
 
-class CommandInputRecordSchema(
-    InputRecordSchema, CommandInputSchema, CommandLineBindable
-):
+class CommandInputRecordSchema(InputRecordSchema):
     def __init__(
         self,
         type,  # type: Any
         fields=None,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
         name=None,  # type: Any
-        inputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -5260,9 +4814,7 @@ class CommandInputRecordSchema(
         self.fields = fields
         self.type = type
         self.label = label
-        self.doc = doc
         self.name = name
-        self.inputBinding = inputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -5318,10 +4870,7 @@ class CommandInputRecordSchema(
             fields = None
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Record_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -5349,42 +4898,6 @@ class CommandInputRecordSchema(
                 )
         else:
             label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
-        if "inputBinding" in _doc:
-            try:
-                inputBinding = load_field(
-                    _doc.get("inputBinding"),
-                    union_of_None_type_or_CommandLineBindingLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `inputBinding` field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
-                    )
-                )
-        else:
-            inputBinding = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -5397,7 +4910,7 @@ class CommandInputRecordSchema(
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`, `inputBinding`"
+                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `name`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -5414,9 +4927,7 @@ class CommandInputRecordSchema(
             fields=fields,
             type=type,
             label=label,
-            doc=doc,
             name=name,
-            inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -5447,34 +4958,20 @@ class CommandInputRecordSchema(
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.inputBinding is not None:
-            r["inputBinding"] = save(
-                self.inputBinding,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
 
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name", "inputBinding"])
+    attrs = frozenset(["fields", "type", "label", "name"])
 
 
-class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBindable):
+class CommandInputEnumSchema(InputEnumSchema):
     def __init__(
         self,
         symbols,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
         name=None,  # type: Any
         inputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
@@ -5492,7 +4989,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         self.symbols = symbols
         self.type = type
         self.label = label
-        self.doc = doc
         self.name = name
         self.inputBinding = inputBinding
 
@@ -5547,10 +5043,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Enum_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -5578,24 +5071,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 )
         else:
             label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         if "inputBinding" in _doc:
             try:
                 inputBinding = load_field(
@@ -5626,7 +5101,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`, `inputBinding`"
+                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `name`, `inputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -5643,7 +5118,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             symbols=symbols,
             type=type,
             label=label,
-            doc=doc,
             name=name,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
@@ -5676,11 +5150,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
         if self.inputBinding is not None:
             r["inputBinding"] = save(
                 self.inputBinding,
@@ -5694,19 +5163,15 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
 
         return r
 
-    attrs = frozenset(["symbols", "type", "label", "doc", "name", "inputBinding"])
+    attrs = frozenset(["symbols", "type", "label", "name", "inputBinding"])
 
 
-class CommandInputArraySchema(
-    InputArraySchema, CommandInputSchema, CommandLineBindable
-):
+class CommandInputArraySchema(InputArraySchema):
     def __init__(
         self,
         items,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
         inputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -5723,8 +5188,6 @@ class CommandInputArraySchema(
         self.items = items
         self.type = type
         self.label = label
-        self.doc = doc
-        self.name = name
         self.inputBinding = inputBinding
 
     @classmethod
@@ -5736,31 +5199,6 @@ class CommandInputArraySchema(
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
         try:
             items = load_field(
                 _doc.get("items"),
@@ -5778,10 +5216,7 @@ class CommandInputArraySchema(
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Array_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -5809,24 +5244,6 @@ class CommandInputArraySchema(
                 )
         else:
             label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         if "inputBinding" in _doc:
             try:
                 inputBinding = load_field(
@@ -5857,7 +5274,7 @@ class CommandInputArraySchema(
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`, `inputBinding`"
+                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `inputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -5874,8 +5291,6 @@ class CommandInputArraySchema(
             items=items,
             type=type,
             label=label,
-            doc=doc,
-            name=name,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -5887,36 +5302,26 @@ class CommandInputArraySchema(
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
+            u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
             if u:
                 r["items"] = u
 
         if self.type is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.label is not None:
             r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.inputBinding is not None:
             r["inputBinding"] = save(
                 self.inputBinding,
                 top=False,
-                base_url=self.name,
+                base_url=base_url,
                 relative_uris=relative_uris,
             )
 
@@ -5925,7 +5330,7 @@ class CommandInputArraySchema(
 
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name", "inputBinding"])
+    attrs = frozenset(["items", "type", "label", "inputBinding"])
 
 
 class CommandOutputRecordField(OutputRecordField):
@@ -5934,10 +5339,6 @@ class CommandOutputRecordField(OutputRecordField):
         name,  # type: Any
         type,  # type: Any
         doc=None,  # type: Any
-        label=None,  # type: Any
-        secondaryFiles=None,  # type: Any
-        streamable=None,  # type: Any
-        format=None,  # type: Any
         outputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -5951,13 +5352,9 @@ class CommandOutputRecordField(OutputRecordField):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
         self.name = name
+        self.doc = doc
         self.type = type
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
         self.outputBinding = outputBinding
 
     @classmethod
@@ -5998,7 +5395,7 @@ class CommandOutputRecordField(OutputRecordField):
             try:
                 doc = load_field(
                     _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                    union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -6027,78 +5424,6 @@ class CommandOutputRecordField(OutputRecordField):
                     [e],
                 )
             )
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "secondaryFiles" in _doc:
-            try:
-                secondaryFiles = load_field(
-                    _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
-                    )
-                )
-        else:
-            secondaryFiles = None
-        if "streamable" in _doc:
-            try:
-                streamable = load_field(
-                    _doc.get("streamable"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `streamable` field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
-                    )
-                )
-        else:
-            streamable = None
-        if "format" in _doc:
-            try:
-                format = load_field(
-                    _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `format` field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
-                    )
-                )
-        else:
-            format = None
         if "outputBinding" in _doc:
             try:
                 outputBinding = load_field(
@@ -6129,7 +5454,7 @@ class CommandOutputRecordField(OutputRecordField):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `outputBinding`"
+                            "invalid field `%s`, expected one of: `name`, `doc`, `type`, `outputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -6143,13 +5468,9 @@ class CommandOutputRecordField(OutputRecordField):
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type=type,
-            label=label,
-            secondaryFiles=secondaryFiles,
-            streamable=streamable,
-            format=format,
             outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -6176,32 +5497,6 @@ class CommandOutputRecordField(OutputRecordField):
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
-        if self.secondaryFiles is not None:
-            r["secondaryFiles"] = save(
-                self.secondaryFiles,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.streamable is not None:
-            r["streamable"] = save(
-                self.streamable,
-                top=False,
-                base_url=self.name,
-                relative_uris=relative_uris,
-            )
-
-        if self.format is not None:
-            u = save_relative_uri(self.format, self.name, True, None, relative_uris)
-            if u:
-                r["format"] = u
-
         if self.outputBinding is not None:
             r["outputBinding"] = save(
                 self.outputBinding,
@@ -6215,18 +5510,7 @@ class CommandOutputRecordField(OutputRecordField):
 
         return r
 
-    attrs = frozenset(
-        [
-            "doc",
-            "name",
-            "type",
-            "label",
-            "secondaryFiles",
-            "streamable",
-            "format",
-            "outputBinding",
-        ]
-    )
+    attrs = frozenset(["name", "doc", "type", "outputBinding"])
 
 
 class CommandOutputRecordSchema(OutputRecordSchema):
@@ -6235,7 +5519,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         type,  # type: Any
         fields=None,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
         name=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -6252,7 +5535,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         self.fields = fields
         self.type = type
         self.label = label
-        self.doc = doc
         self.name = name
 
     @classmethod
@@ -6309,10 +5591,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             fields = None
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Record_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -6340,24 +5619,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -6370,7 +5631,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `name`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -6387,7 +5648,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             fields=fields,
             type=type,
             label=label,
-            doc=doc,
             name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -6419,17 +5679,12 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 self.label, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
-            )
-
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
 
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
+    attrs = frozenset(["fields", "type", "label", "name"])
 
 
 class CommandOutputEnumSchema(OutputEnumSchema):
@@ -6438,8 +5693,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         symbols,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
+        outputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -6455,8 +5709,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         self.symbols = symbols
         self.type = type
         self.label = label
-        self.doc = doc
-        self.name = name
+        self.outputBinding = outputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -6467,31 +5720,6 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
         try:
             symbols = load_field(
                 _doc.get("symbols"),
@@ -6509,10 +5737,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Enum_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -6540,24 +5765,24 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
+        if "outputBinding" in _doc:
             try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
                     loadingOptions,
                 )
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
                 )
         else:
-            doc = None
+            outputBinding = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -6570,7 +5795,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `outputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -6587,8 +5812,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             symbols=symbols,
             type=type,
             label=label,
-            doc=doc,
-            name=name,
+            outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -6599,29 +5823,27 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
         if self.symbols is not None:
-            u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
+            u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
             if u:
                 r["symbols"] = u
 
         if self.type is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.label is not None:
             r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -6629,7 +5851,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
         return r
 
-    attrs = frozenset(["symbols", "type", "label", "doc", "name"])
+    attrs = frozenset(["symbols", "type", "label", "outputBinding"])
 
 
 class CommandOutputArraySchema(OutputArraySchema):
@@ -6638,8 +5860,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         items,  # type: Any
         type,  # type: Any
         label=None,  # type: Any
-        doc=None,  # type: Any
-        name=None,  # type: Any
+        outputBinding=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -6655,8 +5876,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         self.items = items
         self.type = type
         self.label = label
-        self.doc = doc
-        self.name = name
+        self.outputBinding = outputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -6667,31 +5887,6 @@ class CommandOutputArraySchema(OutputArraySchema):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "name" in _doc:
-            try:
-                name = load_field(
-                    _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `name` field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
-                    )
-                )
-        else:
-            name = None
-
-        if name is None:
-            if docRoot is not None:
-                name = docRoot
-            else:
-                name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
         try:
             items = load_field(
                 _doc.get("items"),
@@ -6709,10 +5904,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             )
         try:
             type = load_field(
-                _doc.get("type"),
-                typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
-                baseuri,
-                loadingOptions,
+                _doc.get("type"), typedsl_Array_symbolLoader_2, baseuri, loadingOptions
             )
         except ValidationException as e:
             _errors__.append(
@@ -6740,24 +5932,24 @@ class CommandOutputArraySchema(OutputArraySchema):
                 )
         else:
             label = None
-        if "doc" in _doc:
+        if "outputBinding" in _doc:
             try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
                     loadingOptions,
                 )
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
                 )
         else:
-            doc = None
+            outputBinding = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -6770,7 +5962,7 @@ class CommandOutputArraySchema(OutputArraySchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`"
+                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `outputBinding`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -6787,8 +5979,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             items=items,
             type=type,
             label=label,
-            doc=doc,
-            name=name,
+            outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -6799,29 +5990,27 @@ class CommandOutputArraySchema(OutputArraySchema):
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
-        if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
-
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
+            u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
             if u:
                 r["items"] = u
 
         if self.type is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         if self.label is not None:
             r["label"] = save(
-                self.label, top=False, base_url=self.name, relative_uris=relative_uris
+                self.label, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.name, relative_uris=relative_uris
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -6829,7 +6018,7 @@ class CommandOutputArraySchema(OutputArraySchema):
 
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
+    attrs = frozenset(["items", "type", "label", "outputBinding"])
 
 
 class CommandInputParameter(InputParameter):
@@ -6839,17 +6028,15 @@ An input parameter for a CommandLineTool.
 
     def __init__(
         self,
-        type,  # type: Any
+        id,  # type: Any
         label=None,  # type: Any
         secondaryFiles=None,  # type: Any
         streamable=None,  # type: Any
         doc=None,  # type: Any
-        id=None,  # type: Any
         format=None,  # type: Any
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
-        default=None,  # type: Any
         inputBinding=None,  # type: Any
+        default=None,  # type: Any
+        type=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -6868,11 +6055,9 @@ An input parameter for a CommandLineTool.
         self.doc = doc
         self.id = id
         self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
+        self.inputBinding = inputBinding
         self.default = default
         self.type = type
-        self.inputBinding = inputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -6886,10 +6071,7 @@ An input parameter for a CommandLineTool.
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -6906,7 +6088,7 @@ An input parameter for a CommandLineTool.
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
         if "label" in _doc:
             try:
@@ -6930,7 +6112,7 @@ An input parameter for a CommandLineTool.
             try:
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -6998,75 +6180,6 @@ An input parameter for a CommandLineTool.
                 )
         else:
             format = None
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
-        if "default" in _doc:
-            try:
-                default = load_field(
-                    _doc.get("default"),
-                    union_of_None_type_or_Any_type,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `default` field is not valid because:",
-                        SourceLine(_doc, "default", str),
-                        [e],
-                    )
-                )
-        else:
-            default = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
         if "inputBinding" in _doc:
             try:
                 inputBinding = load_field(
@@ -7085,6 +6198,42 @@ An input parameter for a CommandLineTool.
                 )
         else:
             inputBinding = None
+        if "default" in _doc:
+            try:
+                default = load_field(
+                    _doc.get("default"),
+                    union_of_None_type_or_Any_type,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `default` field is not valid because:",
+                        SourceLine(_doc, "default", str),
+                        [e],
+                    )
+                )
+        else:
+            default = None
+        if "type" in _doc:
+            try:
+                type = load_field(
+                    _doc.get("type"),
+                    typedsl_union_of_None_type_or_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `type` field is not valid because:",
+                        SourceLine(_doc, "type", str),
+                        [e],
+                    )
+                )
+        else:
+            type = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -7097,7 +6246,7 @@ An input parameter for a CommandLineTool.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`"
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `inputBinding`, `default`, `type`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -7115,11 +6264,9 @@ An input parameter for a CommandLineTool.
             doc=doc,
             id=id,
             format=format,
-            loadContents=loadContents,
-            loadListing=loadListing,
+            inputBinding=inputBinding,
             default=default,
             type=type,
-            inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -7166,17 +6313,9 @@ An input parameter for a CommandLineTool.
             if u:
                 r["format"] = u
 
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
+        if self.inputBinding is not None:
+            r["inputBinding"] = save(
+                self.inputBinding,
                 top=False,
                 base_url=self.id,
                 relative_uris=relative_uris,
@@ -7192,14 +6331,6 @@ An input parameter for a CommandLineTool.
                 self.type, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
-        if self.inputBinding is not None:
-            r["inputBinding"] = save(
-                self.inputBinding,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
 
@@ -7213,11 +6344,9 @@ An input parameter for a CommandLineTool.
             "doc",
             "id",
             "format",
-            "loadContents",
-            "loadListing",
+            "inputBinding",
             "default",
             "type",
-            "inputBinding",
         ]
     )
 
@@ -7229,14 +6358,14 @@ An output parameter for a CommandLineTool.
 
     def __init__(
         self,
-        type,  # type: Any
+        id,  # type: Any
         label=None,  # type: Any
         secondaryFiles=None,  # type: Any
         streamable=None,  # type: Any
         doc=None,  # type: Any
-        id=None,  # type: Any
-        format=None,  # type: Any
         outputBinding=None,  # type: Any
+        format=None,  # type: Any
+        type=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -7254,9 +6383,9 @@ An output parameter for a CommandLineTool.
         self.streamable = streamable
         self.doc = doc
         self.id = id
+        self.outputBinding = outputBinding
         self.format = format
         self.type = type
-        self.outputBinding = outputBinding
 
     @classmethod
     def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
@@ -7270,10 +6399,7 @@ An output parameter for a CommandLineTool.
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -7290,7 +6416,7 @@ An output parameter for a CommandLineTool.
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
         if "label" in _doc:
             try:
@@ -7314,7 +6440,7 @@ An output parameter for a CommandLineTool.
             try:
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -7364,39 +6490,6 @@ An output parameter for a CommandLineTool.
                 )
         else:
             doc = None
-        if "format" in _doc:
-            try:
-                format = load_field(
-                    _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `format` field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
-                    )
-                )
-        else:
-            format = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
         if "outputBinding" in _doc:
             try:
                 outputBinding = load_field(
@@ -7415,6 +6508,42 @@ An output parameter for a CommandLineTool.
                 )
         else:
             outputBinding = None
+        if "format" in _doc:
+            try:
+                format = load_field(
+                    _doc.get("format"),
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `format` field is not valid because:",
+                        SourceLine(_doc, "format", str),
+                        [e],
+                    )
+                )
+        else:
+            format = None
+        if "type" in _doc:
+            try:
+                type = load_field(
+                    _doc.get("type"),
+                    typedsl_union_of_None_type_or_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `type` field is not valid because:",
+                        SourceLine(_doc, "type", str),
+                        [e],
+                    )
+                )
+        else:
+            type = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -7427,7 +6556,7 @@ An output parameter for a CommandLineTool.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`, `outputBinding`"
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `outputBinding`, `format`, `type`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -7446,9 +6575,9 @@ An output parameter for a CommandLineTool.
             streamable=streamable,
             doc=doc,
             id=id,
+            outputBinding=outputBinding,
             format=format,
             type=type,
-            outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -7490,6 +6619,14 @@ An output parameter for a CommandLineTool.
                 self.doc, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             if u:
@@ -7498,14 +6635,6 @@ An output parameter for a CommandLineTool.
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.outputBinding is not None:
-            r["outputBinding"] = save(
-                self.outputBinding,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -7520,9 +6649,9 @@ An output parameter for a CommandLineTool.
             "streamable",
             "doc",
             "id",
+            "outputBinding",
             "format",
             "type",
-            "outputBinding",
         ]
     )
 
@@ -7538,10 +6667,10 @@ This defines the schema of the CWL Command Line Tool Description document.
         inputs,  # type: Any
         outputs,  # type: Any
         id=None,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
         requirements=None,  # type: Any
         hints=None,  # type: Any
+        label=None,  # type: Any
+        doc=None,  # type: Any
         cwlVersion=None,  # type: Any
         baseCommand=None,  # type: Any
         arguments=None,  # type: Any
@@ -7564,12 +6693,12 @@ This defines the schema of the CWL Command Line Tool Description document.
         else:
             self.loadingOptions = LoadingOptions()
         self.id = id
-        self.label = label
-        self.doc = doc
         self.inputs = inputs
         self.outputs = outputs
         self.requirements = requirements
         self.hints = hints
+        self.label = label
+        self.doc = doc
         self.cwlVersion = cwlVersion
         self.class_ = "CommandLineTool"
         self.baseCommand = baseCommand
@@ -7619,42 +6748,6 @@ This defines the schema of the CWL Command Line Tool Description document.
             else:
                 id = "_:" + str(_uuid__.uuid4())
         baseuri = id
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         try:
             inputs = load_field(
                 _doc.get("inputs"),
@@ -7689,7 +6782,7 @@ This defines the schema of the CWL Command Line Tool Description document.
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -7721,6 +6814,42 @@ This defines the schema of the CWL Command Line Tool Description document.
                 )
         else:
             hints = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
         if "cwlVersion" in _doc:
             try:
                 cwlVersion = load_field(
@@ -7895,7 +7024,7 @@ This defines the schema of the CWL Command Line Tool Description document.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `baseCommand`, `arguments`, `stdin`, `stderr`, `stdout`, `successCodes`, `temporaryFailCodes`, `permanentFailCodes`"
+                            "invalid field `%s`, expected one of: `id`, `inputs`, `outputs`, `requirements`, `hints`, `label`, `doc`, `cwlVersion`, `class`, `baseCommand`, `arguments`, `stdin`, `stderr`, `stdout`, `successCodes`, `temporaryFailCodes`, `permanentFailCodes`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -7908,12 +7037,12 @@ This defines the schema of the CWL Command Line Tool Description document.
         loadingOptions.original_doc = _doc
         return cls(
             id=id,
-            label=label,
-            doc=doc,
             inputs=inputs,
             outputs=outputs,
             requirements=requirements,
             hints=hints,
+            label=label,
+            doc=doc,
             cwlVersion=cwlVersion,
             baseCommand=baseCommand,
             arguments=arguments,
@@ -7940,16 +7069,6 @@ This defines the schema of the CWL Command Line Tool Description document.
             if u:
                 r["id"] = u
 
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -7971,6 +7090,16 @@ This defines the schema of the CWL Command Line Tool Description document.
         if self.hints is not None:
             r["hints"] = save(
                 self.hints, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
         if self.cwlVersion is not None:
@@ -8038,12 +7167,12 @@ This defines the schema of the CWL Command Line Tool Description document.
     attrs = frozenset(
         [
             "id",
-            "label",
-            "doc",
             "inputs",
             "outputs",
             "requirements",
             "hints",
+            "label",
+            "doc",
             "cwlVersion",
             "class",
             "baseCommand",
@@ -8061,9 +7190,8 @@ This defines the schema of the CWL Command Line Tool Description document.
 class DockerRequirement(ProcessRequirement):
     """
 Indicates that a workflow component should be run in a
-[Docker](http://docker.com) or Docker-compatible (such as
-[Singularity](https://www.sylabs.io/) and [udocker](https://github.com/indigo-dc/udocker)) container environment and
-specifies how to fetch or build the image.
+[Docker](http://docker.com) container, and specifies how to fetch or build
+the image.
 
 If a CommandLineTool lists `DockerRequirement` under
 `hints` (or `requirements`), it may (or must) be run in the specified Docker
@@ -8080,30 +7208,13 @@ directory through the use of volume bind mounts.  The platform should rewrite
 file paths in the input object to correspond to the Docker bind mounted
 locations. That is, the platform should rewrite values in the parameter context
 such as `runtime.outdir`, `runtime.tmpdir` and others to be valid paths
-within the container. The platform must ensure that `runtime.outdir` and
-`runtime.tmpdir` are distinct directories.
+within the container.
 
 When running a tool contained in Docker, the workflow platform must not
 assume anything about the contents of the Docker container, such as the
 presence or absence of specific software, except to assume that the
 generated command line represents a valid command within the runtime
 environment of the container.
-
-A container image may specify an
-[ENTRYPOINT](https://docs.docker.com/engine/reference/builder/#entrypoint)
-and/or
-[CMD](https://docs.docker.com/engine/reference/builder/#cmd).
-Command line arguments will be appended after all elements of
-ENTRYPOINT, and will override all elements specified using CMD (in
-other words, CMD is only used when the CommandLineTool definition
-produces an empty command line).
-
-Use of implicit ENTRYPOINT or CMD are discouraged due to reproducibility
-concerns of the implicit hidden execution point (For further discussion, see
-[https://doi.org/10.12688/f1000research.15140.1](https://doi.org/10.12688/f1000research.15140.1)). Portable
-CommandLineTool wrappers in which use of a container is optional must not rely on ENTRYPOINT or CMD.
-CommandLineTools which do rely on ENTRYPOINT or CMD must list `DockerRequirement` in the
-`requirements` section.
 
 ## Interaction with other requirements
 
@@ -8537,7 +7648,7 @@ class SoftwarePackage(Savable):
             try:
                 specs = load_field(
                     _doc.get("specs"),
-                    uri_union_of_None_type_or_array_of_strtype_False_False_None,
+                    union_of_None_type_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
                 )
@@ -8599,9 +7710,9 @@ class SoftwarePackage(Savable):
             )
 
         if self.specs is not None:
-            u = save_relative_uri(self.specs, base_url, False, None, relative_uris)
-            if u:
-                r["specs"] = u
+            r["specs"] = save(
+                self.specs, top=False, base_url=base_url, relative_uris=relative_uris
+            )
 
         if top and self.loadingOptions.namespaces:
             r["$namespaces"] = self.loadingOptions.namespaces
@@ -8803,7 +7914,7 @@ Define a list of files and subdirectories that must be created by the workflow p
         try:
             listing = load_field(
                 _doc.get("listing"),
-                union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader,
+                union_of_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader_or_strtype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
             )
@@ -9073,7 +8184,7 @@ It is an error if max < min.
 
 It is an error if the value of any of these fields is negative.
 
-If neither "min" nor "max" is specified for a resource, use the default values below.
+If neither "min" nor "max" is specified for a resource, an implementation may provide a default.
 
     """
 
@@ -9126,7 +8237,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 coresMin = load_field(
                     _doc.get("coresMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9144,7 +8255,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 coresMax = load_field(
                     _doc.get("coresMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9162,7 +8273,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 ramMin = load_field(
                     _doc.get("ramMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9180,7 +8291,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 ramMax = load_field(
                     _doc.get("ramMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9198,7 +8309,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 tmpdirMin = load_field(
                     _doc.get("tmpdirMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9216,7 +8327,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 tmpdirMax = load_field(
                     _doc.get("tmpdirMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9234,7 +8345,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 outdirMin = load_field(
                     _doc.get("outdirMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9252,7 +8363,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
             try:
                 outdirMax = load_field(
                     _doc.get("outdirMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9382,492 +8493,17 @@ If neither "min" nor "max" is specified for a resource, use the default values b
     )
 
 
-class WorkReuse(ProcessRequirement):
-    """
-For implementations that support reusing output from past work (on
-the assumption that same code and same input produce same
-results), control whether to enable or disable the reuse behavior
-for a particular tool or step (to accomodate situations where that
-assumption is incorrect).  A reused step is not executed but
-instead returns the same output as the original execution.
-
-If `enableReuse` is not specified, correct tools should assume it
-is enabled by default.
-
-    """
-
-    def __init__(
-        self,
-        enableReuse,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "WorkReuse"
-        self.enableReuse = enableReuse
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> WorkReuse
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-
-        if _doc.get("class") != "WorkReuse":
-            raise ValidationException("Not a WorkReuse")
-
-        try:
-            enableReuse = load_field(
-                _doc.get("enableReuse"),
-                union_of_booltype_or_ExpressionLoader,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `enableReuse` field is not valid because:",
-                    SourceLine(_doc, "enableReuse", str),
-                    [e],
-                )
-            )
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `enableReuse`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'WorkReuse'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            enableReuse=enableReuse,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        r["class"] = "WorkReuse"
-
-        if self.enableReuse is not None:
-            r["enableReuse"] = save(
-                self.enableReuse,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["class", "enableReuse"])
-
-
-class NetworkAccess(ProcessRequirement):
-    """
-Indicate whether a process requires outgoing IPv4/IPv6 network
-access.  Choice of IPv4 or IPv6 is implementation and site
-specific, correct tools must support both.
-
-If `networkAccess` is false or not specified, tools must not
-assume network access, except for localhost (the loopback device).
-
-If `networkAccess` is true, the tool must be able to make outgoing
-connections to network resources.  Resources may be on a private
-subnet or the public Internet.  However, implementations and sites
-may apply their own security policies to restrict what is
-accessible by the tool.
-
-Enabling network access does not imply a publically routable IP
-address or the ability to accept inbound connections.
-
-    """
-
-    def __init__(
-        self,
-        networkAccess,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "NetworkAccess"
-        self.networkAccess = networkAccess
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> NetworkAccess
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-
-        if _doc.get("class") != "NetworkAccess":
-            raise ValidationException("Not a NetworkAccess")
-
-        try:
-            networkAccess = load_field(
-                _doc.get("networkAccess"),
-                union_of_booltype_or_ExpressionLoader,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `networkAccess` field is not valid because:",
-                    SourceLine(_doc, "networkAccess", str),
-                    [e],
-                )
-            )
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `networkAccess`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'NetworkAccess'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            networkAccess=networkAccess,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        r["class"] = "NetworkAccess"
-
-        if self.networkAccess is not None:
-            r["networkAccess"] = save(
-                self.networkAccess,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["class", "networkAccess"])
-
-
-class InplaceUpdateRequirement(ProcessRequirement):
-    """
-
-If `inplaceUpdate` is true, then an implementation supporting this
-feature may permit tools to directly update files with `writable:
-true` in InitialWorkDirRequirement.  That is, as an optimization,
-files may be destructively modified in place as opposed to copied
-and updated.
-
-An implementation must ensure that only one workflow step may
-access a writable file at a time.  It is an error if a file which
-is writable by one workflow step file is accessed (for reading or
-writing) by any other workflow step running independently.
-However, a file which has been updated in a previous completed
-step may be used as input to multiple steps, provided it is
-read-only in every step.
-
-Workflow steps which modify a file must produce the modified file
-as output.  Downstream steps which futher process the file must
-use the output of previous steps, and not refer to a common input
-(this is necessary for both ordering and correctness).
-
-Workflow authors should provide this in the `hints` section.  The
-intent of this feature is that workflows produce the same results
-whether or not InplaceUpdateRequirement is supported by the
-implementation, and this feature is primarily available as an
-optimization for particular environments.
-
-Users and implementers should be aware that workflows that
-destructively modify inputs may not be repeatable or reproducible.
-In particular, enabling this feature implies that WorkReuse should
-not be enabled.
-
-    """
-
-    def __init__(
-        self,
-        inplaceUpdate,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "InplaceUpdateRequirement"
-        self.inplaceUpdate = inplaceUpdate
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> InplaceUpdateRequirement
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-
-        if _doc.get("class") != "InplaceUpdateRequirement":
-            raise ValidationException("Not a InplaceUpdateRequirement")
-
-        try:
-            inplaceUpdate = load_field(
-                _doc.get("inplaceUpdate"), booltype, baseuri, loadingOptions
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `inplaceUpdate` field is not valid because:",
-                    SourceLine(_doc, "inplaceUpdate", str),
-                    [e],
-                )
-            )
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `inplaceUpdate`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException(
-                "Trying 'InplaceUpdateRequirement'", None, _errors__
-            )
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            inplaceUpdate=inplaceUpdate,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        r["class"] = "InplaceUpdateRequirement"
-
-        if self.inplaceUpdate is not None:
-            r["inplaceUpdate"] = save(
-                self.inplaceUpdate,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["class", "inplaceUpdate"])
-
-
-class ToolTimeLimit(ProcessRequirement):
-    """
-Set an upper limit on the execution time of a CommandLineTool.
-A CommandLineTool whose execution duration exceeds the time
-limit may be preemptively terminated and considered failed.
-May also be used by batch systems to make scheduling decisions.
-The execution duration excludes external operations, such as
-staging of files, pulling a docker image etc, and only counts
-wall-time for the execution of the command line itself.
-
-    """
-
-    def __init__(
-        self,
-        timelimit,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "ToolTimeLimit"
-        self.timelimit = timelimit
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> ToolTimeLimit
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-
-        if _doc.get("class") != "ToolTimeLimit":
-            raise ValidationException("Not a ToolTimeLimit")
-
-        try:
-            timelimit = load_field(
-                _doc.get("timelimit"),
-                union_of_inttype_or_ExpressionLoader,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `timelimit` field is not valid because:",
-                    SourceLine(_doc, "timelimit", str),
-                    [e],
-                )
-            )
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `timelimit`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException("Trying 'ToolTimeLimit'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            timelimit=timelimit,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        r["class"] = "ToolTimeLimit"
-
-        if self.timelimit is not None:
-            r["timelimit"] = save(
-                self.timelimit,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(["class", "timelimit"])
-
-
 class ExpressionToolOutputParameter(OutputParameter):
     def __init__(
         self,
-        type,  # type: Any
+        id,  # type: Any
         label=None,  # type: Any
         secondaryFiles=None,  # type: Any
         streamable=None,  # type: Any
         doc=None,  # type: Any
-        id=None,  # type: Any
+        outputBinding=None,  # type: Any
         format=None,  # type: Any
+        type=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -9885,6 +8521,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         self.streamable = streamable
         self.doc = doc
         self.id = id
+        self.outputBinding = outputBinding
         self.format = format
         self.type = type
 
@@ -9900,10 +8537,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -9920,7 +8554,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
         if "label" in _doc:
             try:
@@ -9944,7 +8578,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             try:
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -9994,6 +8628,24 @@ class ExpressionToolOutputParameter(OutputParameter):
                 )
         else:
             doc = None
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
         if "format" in _doc:
             try:
                 format = load_field(
@@ -10012,21 +8664,24 @@ class ExpressionToolOutputParameter(OutputParameter):
                 )
         else:
             format = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+        if "type" in _doc:
+            try:
+                type = load_field(
+                    _doc.get("type"),
+                    typedsl_union_of_None_type_or_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
+                    baseuri,
+                    loadingOptions,
                 )
-            )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `type` field is not valid because:",
+                        SourceLine(_doc, "type", str),
+                        [e],
+                    )
+                )
+        else:
+            type = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -10039,7 +8694,7 @@ class ExpressionToolOutputParameter(OutputParameter):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`"
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `outputBinding`, `format`, `type`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -10058,6 +8713,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             streamable=streamable,
             doc=doc,
             id=id,
+            outputBinding=outputBinding,
             format=format,
             type=type,
             extension_fields=extension_fields,
@@ -10101,6 +8757,14 @@ class ExpressionToolOutputParameter(OutputParameter):
                 self.doc, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             if u:
@@ -10109,382 +8773,6 @@ class ExpressionToolOutputParameter(OutputParameter):
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
-        return r
-
-    attrs = frozenset(
-        ["label", "secondaryFiles", "streamable", "doc", "id", "format", "type"]
-    )
-
-
-class WorkflowInputParameter(InputParameter):
-    def __init__(
-        self,
-        type,  # type: Any
-        label=None,  # type: Any
-        secondaryFiles=None,  # type: Any
-        streamable=None,  # type: Any
-        doc=None,  # type: Any
-        id=None,  # type: Any
-        format=None,  # type: Any
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
-        default=None,  # type: Any
-        inputBinding=None,  # type: Any
-        extension_fields=None,  # type: Optional[Dict[str, Any]]
-        loadingOptions=None,  # type: Optional[LoadingOptions]
-    ):  # type: (...) -> None
-
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = yaml.comments.CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.doc = doc
-        self.id = id
-        self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.default = default
-        self.type = type
-        self.inputBinding = inputBinding
-
-    @classmethod
-    def fromDoc(cls, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> WorkflowInputParameter
-
-        _doc = copy.copy(doc)
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        if "id" in _doc:
-            try:
-                id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `id` field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
-                    )
-                )
-        else:
-            id = None
-
-        if id is None:
-            if docRoot is not None:
-                id = docRoot
-            else:
-                id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "secondaryFiles" in _doc:
-            try:
-                secondaryFiles = load_field(
-                    _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
-                    )
-                )
-        else:
-            secondaryFiles = None
-        if "streamable" in _doc:
-            try:
-                streamable = load_field(
-                    _doc.get("streamable"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `streamable` field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
-                    )
-                )
-        else:
-            streamable = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
-        if "format" in _doc:
-            try:
-                format = load_field(
-                    _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `format` field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
-                    )
-                )
-        else:
-            format = None
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
-        if "default" in _doc:
-            try:
-                default = load_field(
-                    _doc.get("default"),
-                    union_of_None_type_or_Any_type,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `default` field is not valid because:",
-                        SourceLine(_doc, "default", str),
-                        [e],
-                    )
-                )
-        else:
-            default = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
-                )
-            )
-        if "inputBinding" in _doc:
-            try:
-                inputBinding = load_field(
-                    _doc.get("inputBinding"),
-                    union_of_None_type_or_InputBindingLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `inputBinding` field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
-                    )
-                )
-        else:
-            inputBinding = None
-
-        extension_fields = yaml.comments.CommentedMap()
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if ":" in k:
-                    ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`"
-                            % (k),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-                    break
-
-        if _errors__:
-            raise ValidationException(
-                "Trying 'WorkflowInputParameter'", None, _errors__
-            )
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
-        return cls(
-            label=label,
-            secondaryFiles=secondaryFiles,
-            streamable=streamable,
-            doc=doc,
-            id=id,
-            format=format,
-            loadContents=loadContents,
-            loadListing=loadListing,
-            default=default,
-            type=type,
-            inputBinding=inputBinding,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-
-    def save(self, top=False, base_url="", relative_uris=True):
-        # type: (bool, str, bool) -> Dict[str, Any]
-        r = yaml.comments.CommentedMap()  # type: Dict[str, Any]
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-
-        if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.secondaryFiles is not None:
-            r["secondaryFiles"] = save(
-                self.secondaryFiles,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.streamable is not None:
-            r["streamable"] = save(
-                self.streamable,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.format is not None:
-            u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
-
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.default is not None:
-            r["default"] = save(
-                self.default, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.type is not None:
-            r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.inputBinding is not None:
-            r["inputBinding"] = save(
-                self.inputBinding,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
             )
 
         if top and self.loadingOptions.namespaces:
@@ -10499,25 +8787,16 @@ class WorkflowInputParameter(InputParameter):
             "streamable",
             "doc",
             "id",
+            "outputBinding",
             "format",
-            "loadContents",
-            "loadListing",
-            "default",
             "type",
-            "inputBinding",
         ]
     )
 
 
 class ExpressionTool(Process):
     """
-An ExpressionTool is a type of Process object that can be run by itself
-or as a Workflow step. It executes a pure Javascript expression that has
-access to the same input parameters as a workflow. It is meant to be used
-sparingly as a way to isolate complex Javascript expressions that need to
-operate on input data and produce some result; perhaps just a
-rearrangement of the inputs. No Docker software container is required
-or allowed.
+Execute an expression as a Workflow step.
 
     """
 
@@ -10527,10 +8806,10 @@ or allowed.
         outputs,  # type: Any
         expression,  # type: Any
         id=None,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
         requirements=None,  # type: Any
         hints=None,  # type: Any
+        label=None,  # type: Any
+        doc=None,  # type: Any
         cwlVersion=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -10545,12 +8824,12 @@ or allowed.
         else:
             self.loadingOptions = LoadingOptions()
         self.id = id
-        self.label = label
-        self.doc = doc
         self.inputs = inputs
         self.outputs = outputs
         self.requirements = requirements
         self.hints = hints
+        self.label = label
+        self.doc = doc
         self.cwlVersion = cwlVersion
         self.class_ = "ExpressionTool"
         self.expression = expression
@@ -10593,46 +8872,10 @@ or allowed.
             else:
                 id = "_:" + str(_uuid__.uuid4())
         baseuri = id
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         try:
             inputs = load_field(
                 _doc.get("inputs"),
-                idmap_inputs_array_of_WorkflowInputParameterLoader,
+                idmap_inputs_array_of_InputParameterLoader,
                 baseuri,
                 loadingOptions,
             )
@@ -10663,7 +8906,7 @@ or allowed.
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -10695,6 +8938,42 @@ or allowed.
                 )
         else:
             hints = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
         if "cwlVersion" in _doc:
             try:
                 cwlVersion = load_field(
@@ -10715,7 +8994,10 @@ or allowed.
             cwlVersion = None
         try:
             expression = load_field(
-                _doc.get("expression"), ExpressionLoader, baseuri, loadingOptions
+                _doc.get("expression"),
+                union_of_strtype_or_ExpressionLoader,
+                baseuri,
+                loadingOptions,
             )
         except ValidationException as e:
             _errors__.append(
@@ -10737,7 +9019,7 @@ or allowed.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `expression`"
+                            "invalid field `%s`, expected one of: `id`, `inputs`, `outputs`, `requirements`, `hints`, `label`, `doc`, `cwlVersion`, `class`, `expression`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -10750,12 +9032,12 @@ or allowed.
         loadingOptions.original_doc = _doc
         return cls(
             id=id,
-            label=label,
-            doc=doc,
             inputs=inputs,
             outputs=outputs,
             requirements=requirements,
             hints=hints,
+            label=label,
+            doc=doc,
             cwlVersion=cwlVersion,
             expression=expression,
             extension_fields=extension_fields,
@@ -10774,16 +9056,6 @@ or allowed.
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             if u:
                 r["id"] = u
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
 
         if self.inputs is not None:
             r["inputs"] = save(
@@ -10808,6 +9080,16 @@ or allowed.
                 self.hints, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
         if self.cwlVersion is not None:
             u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
             if u:
@@ -10829,12 +9111,12 @@ or allowed.
     attrs = frozenset(
         [
             "id",
-            "label",
-            "doc",
             "inputs",
             "outputs",
             "requirements",
             "hints",
+            "label",
+            "doc",
             "cwlVersion",
             "class",
             "expression",
@@ -10845,23 +9127,23 @@ or allowed.
 class WorkflowOutputParameter(OutputParameter):
     """
 Describe an output parameter of a workflow.  The parameter must be
-connected to one or more parameters defined in the workflow that
-will provide the value of the output parameter. It is legal to
-connect a WorkflowInputParameter to a WorkflowOutputParameter.
+connected to one or more parameters defined in the workflow that will
+provide the value of the output parameter.
 
     """
 
     def __init__(
         self,
-        type,  # type: Any
+        id,  # type: Any
         label=None,  # type: Any
         secondaryFiles=None,  # type: Any
         streamable=None,  # type: Any
         doc=None,  # type: Any
-        id=None,  # type: Any
+        outputBinding=None,  # type: Any
         format=None,  # type: Any
         outputSource=None,  # type: Any
         linkMerge=None,  # type: Any
+        type=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -10879,6 +9161,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
         self.streamable = streamable
         self.doc = doc
         self.id = id
+        self.outputBinding = outputBinding
         self.format = format
         self.outputSource = outputSource
         self.linkMerge = linkMerge
@@ -10896,10 +9179,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -10916,7 +9196,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
         if "label" in _doc:
             try:
@@ -10940,7 +9220,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
             try:
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
-                    union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
+                    union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -10990,6 +9270,24 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
                 )
         else:
             doc = None
+        if "outputBinding" in _doc:
+            try:
+                outputBinding = load_field(
+                    _doc.get("outputBinding"),
+                    union_of_None_type_or_CommandOutputBindingLoader,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `outputBinding` field is not valid because:",
+                        SourceLine(_doc, "outputBinding", str),
+                        [e],
+                    )
+                )
+        else:
+            outputBinding = None
         if "format" in _doc:
             try:
                 format = load_field(
@@ -11044,21 +9342,24 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
                 )
         else:
             linkMerge = None
-        try:
-            type = load_field(
-                _doc.get("type"),
-                typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
-                baseuri,
-                loadingOptions,
-            )
-        except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the `type` field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+        if "type" in _doc:
+            try:
+                type = load_field(
+                    _doc.get("type"),
+                    typedsl_union_of_None_type_or_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
+                    baseuri,
+                    loadingOptions,
                 )
-            )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `type` field is not valid because:",
+                        SourceLine(_doc, "type", str),
+                        [e],
+                    )
+                )
+        else:
+            type = None
 
         extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
@@ -11071,7 +9372,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `outputSource`, `linkMerge`, `type`"
+                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `outputBinding`, `format`, `outputSource`, `linkMerge`, `type`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -11090,6 +9391,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
             streamable=streamable,
             doc=doc,
             id=id,
+            outputBinding=outputBinding,
             format=format,
             outputSource=outputSource,
             linkMerge=linkMerge,
@@ -11135,6 +9437,14 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
                 self.doc, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
+        if self.outputBinding is not None:
+            r["outputBinding"] = save(
+                self.outputBinding,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             if u:
@@ -11167,6 +9477,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
             "streamable",
             "doc",
             "id",
+            "outputBinding",
             "format",
             "outputSource",
             "linkMerge",
@@ -11179,15 +9490,11 @@ class Sink(Savable):
     pass
 
 
-class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
+class WorkflowStepInput(Sink):
     """
 The input of a workflow step connects an upstream parameter (from the
 workflow inputs, or the outputs of other workflows steps) with the input
-parameters of the process specified by the `run` field. Only input parameters
-declared by the target process will be passed through at runtime to the process
-though additonal parameters may be specified (for use within `valueFrom`
-expressions for instance) - unconnected or unused parameters do not represent an
-error condition.
+parameters of the underlying step.
 
 ## Input object
 
@@ -11229,12 +9536,9 @@ specified, the default method is "merge_nested".
 
     def __init__(
         self,
-        id=None,  # type: Any
+        id,  # type: Any
         source=None,  # type: Any
         linkMerge=None,  # type: Any
-        loadContents=None,  # type: Any
-        loadListing=None,  # type: Any
-        label=None,  # type: Any
         default=None,  # type: Any
         valueFrom=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
@@ -11249,12 +9553,9 @@ specified, the default method is "merge_nested".
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
         self.source = source
         self.linkMerge = linkMerge
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.label = label
+        self.id = id
         self.default = default
         self.valueFrom = valueFrom
 
@@ -11270,10 +9571,7 @@ specified, the default method is "merge_nested".
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -11290,7 +9588,7 @@ specified, the default method is "merge_nested".
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
         if "source" in _doc:
             try:
@@ -11328,60 +9626,6 @@ specified, the default method is "merge_nested".
                 )
         else:
             linkMerge = None
-        if "loadContents" in _doc:
-            try:
-                loadContents = load_field(
-                    _doc.get("loadContents"),
-                    union_of_None_type_or_booltype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadContents` field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
-                    )
-                )
-        else:
-            loadContents = None
-        if "loadListing" in _doc:
-            try:
-                loadListing = load_field(
-                    _doc.get("loadListing"),
-                    union_of_None_type_or_LoadListingEnumLoader,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `loadListing` field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
-                    )
-                )
-        else:
-            loadListing = None
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
         if "default" in _doc:
             try:
                 default = load_field(
@@ -11430,7 +9674,7 @@ specified, the default method is "merge_nested".
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `source`, `linkMerge`, `loadContents`, `loadListing`, `label`, `default`, `valueFrom`"
+                            "invalid field `%s`, expected one of: `source`, `linkMerge`, `id`, `default`, `valueFrom`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -11442,12 +9686,9 @@ specified, the default method is "merge_nested".
         loadingOptions = copy.deepcopy(loadingOptions)
         loadingOptions.original_doc = _doc
         return cls(
-            id=id,
             source=source,
             linkMerge=linkMerge,
-            loadContents=loadContents,
-            loadListing=loadListing,
-            label=label,
+            id=id,
             default=default,
             valueFrom=valueFrom,
             extension_fields=extension_fields,
@@ -11475,27 +9716,6 @@ specified, the default method is "merge_nested".
                 self.linkMerge, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
-        if self.loadContents is not None:
-            r["loadContents"] = save(
-                self.loadContents,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.loadListing is not None:
-            r["loadListing"] = save(
-                self.loadListing,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
         if self.default is not None:
             r["default"] = save(
                 self.default, top=False, base_url=self.id, relative_uris=relative_uris
@@ -11511,36 +9731,21 @@ specified, the default method is "merge_nested".
 
         return r
 
-    attrs = frozenset(
-        [
-            "id",
-            "source",
-            "linkMerge",
-            "loadContents",
-            "loadListing",
-            "label",
-            "default",
-            "valueFrom",
-        ]
-    )
+    attrs = frozenset(["source", "linkMerge", "id", "default", "valueFrom"])
 
 
-class WorkflowStepOutput(Identified):
+class WorkflowStepOutput(Savable):
     """
 Associate an output parameter of the underlying process with a workflow
 parameter.  The workflow parameter (given in the `id` field) be may be used
 as a `source` to connect with input parameters of other workflow steps, or
 with an output parameter of the process.
 
-A unique identifier for this workflow output parameter.  This is
-the identifier to use in the `source` field of `WorkflowStepInput`
-to connect the output value to downstream parameters.
-
     """
 
     def __init__(
         self,
-        id=None,  # type: Any
+        id,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
     ):  # type: (...) -> None
@@ -11567,10 +9772,7 @@ to connect the output value to downstream parameters.
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -11587,7 +9789,7 @@ to connect the output value to downstream parameters.
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
 
         extension_fields = yaml.comments.CommentedMap()
@@ -11634,7 +9836,7 @@ to connect the output value to downstream parameters.
     attrs = frozenset(["id"])
 
 
-class WorkflowStep(Identified, Labeled, Documented):
+class WorkflowStep(Savable):
     """
 A workflow step is an executable element of a workflow.  It specifies the
 underlying process implementation (such as `CommandLineTool` or another
@@ -11696,14 +9898,14 @@ a subworkflow (recursive workflows are not allowed).
 
     def __init__(
         self,
+        id,  # type: Any
         in_,  # type: Any
         out,  # type: Any
         run,  # type: Any
-        id=None,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
         requirements=None,  # type: Any
         hints=None,  # type: Any
+        label=None,  # type: Any
+        doc=None,  # type: Any
         scatter=None,  # type: Any
         scatterMethod=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
@@ -11719,12 +9921,12 @@ a subworkflow (recursive workflows are not allowed).
         else:
             self.loadingOptions = LoadingOptions()
         self.id = id
-        self.label = label
-        self.doc = doc
         self.in_ = in_
         self.out = out
         self.requirements = requirements
         self.hints = hints
+        self.label = label
+        self.doc = doc
         self.run = run
         self.scatter = scatter
         self.scatterMethod = scatterMethod
@@ -11741,10 +9943,7 @@ a subworkflow (recursive workflows are not allowed).
         if "id" in _doc:
             try:
                 id = load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
-                    baseuri,
-                    loadingOptions,
+                    _doc.get("id"), uri_strtype_True_False_None, baseuri, loadingOptions
                 )
             except ValidationException as e:
                 _errors__.append(
@@ -11761,44 +9960,8 @@ a subworkflow (recursive workflows are not allowed).
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                raise ValidationException("Missing id")
         baseuri = id
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         try:
             in_ = load_field(
                 _doc.get("in"),
@@ -11833,7 +9996,7 @@ a subworkflow (recursive workflows are not allowed).
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -11865,6 +10028,42 @@ a subworkflow (recursive workflows are not allowed).
                 )
         else:
             hints = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
         try:
             run = load_field(
                 _doc.get("run"),
@@ -11928,7 +10127,7 @@ a subworkflow (recursive workflows are not allowed).
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `in`, `out`, `requirements`, `hints`, `run`, `scatter`, `scatterMethod`"
+                            "invalid field `%s`, expected one of: `id`, `in`, `out`, `requirements`, `hints`, `label`, `doc`, `run`, `scatter`, `scatterMethod`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -11941,12 +10140,12 @@ a subworkflow (recursive workflows are not allowed).
         loadingOptions.original_doc = _doc
         return cls(
             id=id,
-            label=label,
-            doc=doc,
             in_=in_,
             out=out,
             requirements=requirements,
             hints=hints,
+            label=label,
+            doc=doc,
             run=run,
             scatter=scatter,
             scatterMethod=scatterMethod,
@@ -11964,16 +10163,6 @@ a subworkflow (recursive workflows are not allowed).
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             if u:
                 r["id"] = u
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
 
         if self.in_ is not None:
             r["in"] = save(
@@ -11996,6 +10185,16 @@ a subworkflow (recursive workflows are not allowed).
         if self.hints is not None:
             r["hints"] = save(
                 self.hints, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
         if self.run is not None:
@@ -12023,12 +10222,12 @@ a subworkflow (recursive workflows are not allowed).
     attrs = frozenset(
         [
             "id",
-            "label",
-            "doc",
             "in",
             "out",
             "requirements",
             "hints",
+            "label",
+            "doc",
             "run",
             "scatter",
             "scatterMethod",
@@ -12092,10 +10291,10 @@ workflow semantics.
         outputs,  # type: Any
         steps,  # type: Any
         id=None,  # type: Any
-        label=None,  # type: Any
-        doc=None,  # type: Any
         requirements=None,  # type: Any
         hints=None,  # type: Any
+        label=None,  # type: Any
+        doc=None,  # type: Any
         cwlVersion=None,  # type: Any
         extension_fields=None,  # type: Optional[Dict[str, Any]]
         loadingOptions=None,  # type: Optional[LoadingOptions]
@@ -12110,12 +10309,12 @@ workflow semantics.
         else:
             self.loadingOptions = LoadingOptions()
         self.id = id
-        self.label = label
-        self.doc = doc
         self.inputs = inputs
         self.outputs = outputs
         self.requirements = requirements
         self.hints = hints
+        self.label = label
+        self.doc = doc
         self.cwlVersion = cwlVersion
         self.class_ = "Workflow"
         self.steps = steps
@@ -12158,46 +10357,10 @@ workflow semantics.
             else:
                 id = "_:" + str(_uuid__.uuid4())
         baseuri = id
-        if "label" in _doc:
-            try:
-                label = load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `label` field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
-                    )
-                )
-        else:
-            label = None
-        if "doc" in _doc:
-            try:
-                doc = load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                )
-            except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the `doc` field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
-                    )
-                )
-        else:
-            doc = None
         try:
             inputs = load_field(
                 _doc.get("inputs"),
-                idmap_inputs_array_of_WorkflowInputParameterLoader,
+                idmap_inputs_array_of_InputParameterLoader,
                 baseuri,
                 loadingOptions,
             )
@@ -12228,7 +10391,7 @@ workflow semantics.
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
                 )
@@ -12260,6 +10423,42 @@ workflow semantics.
                 )
         else:
             hints = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `label` field is not valid because:",
+                        SourceLine(_doc, "label", str),
+                        [e],
+                    )
+                )
+        else:
+            label = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                )
+            except ValidationException as e:
+                _errors__.append(
+                    ValidationException(
+                        "the `doc` field is not valid because:",
+                        SourceLine(_doc, "doc", str),
+                        [e],
+                    )
+                )
+        else:
+            doc = None
         if "cwlVersion" in _doc:
             try:
                 cwlVersion = load_field(
@@ -12305,7 +10504,7 @@ workflow semantics.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `steps`"
+                            "invalid field `%s`, expected one of: `id`, `inputs`, `outputs`, `requirements`, `hints`, `label`, `doc`, `cwlVersion`, `class`, `steps`"
                             % (k),
                             SourceLine(_doc, k, str),
                         )
@@ -12318,12 +10517,12 @@ workflow semantics.
         loadingOptions.original_doc = _doc
         return cls(
             id=id,
-            label=label,
-            doc=doc,
             inputs=inputs,
             outputs=outputs,
             requirements=requirements,
             hints=hints,
+            label=label,
+            doc=doc,
             cwlVersion=cwlVersion,
             steps=steps,
             extension_fields=extension_fields,
@@ -12342,16 +10541,6 @@ workflow semantics.
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             if u:
                 r["id"] = u
-
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
 
         if self.inputs is not None:
             r["inputs"] = save(
@@ -12376,6 +10565,16 @@ workflow semantics.
                 self.hints, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+
         if self.cwlVersion is not None:
             u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
             if u:
@@ -12394,12 +10593,12 @@ workflow semantics.
     attrs = frozenset(
         [
             "id",
-            "label",
-            "doc",
             "inputs",
             "outputs",
             "requirements",
             "hints",
+            "label",
+            "doc",
             "cwlVersion",
             "class",
             "steps",
@@ -12725,8 +10924,6 @@ _vocab = {
     "CommandInputParameter": "https://w3id.org/cwl/cwl#CommandInputParameter",
     "CommandInputRecordField": "https://w3id.org/cwl/cwl#CommandInputRecordField",
     "CommandInputRecordSchema": "https://w3id.org/cwl/cwl#CommandInputRecordSchema",
-    "CommandInputSchema": "https://w3id.org/cwl/cwl#CommandInputSchema",
-    "CommandLineBindable": "https://w3id.org/cwl/cwl#CommandLineBindable",
     "CommandLineBinding": "https://w3id.org/cwl/cwl#CommandLineBinding",
     "CommandLineTool": "https://w3id.org/cwl/cwl#CommandLineTool",
     "CommandOutputArraySchema": "https://w3id.org/cwl/cwl#CommandOutputArraySchema",
@@ -12738,7 +10935,6 @@ _vocab = {
     "Directory": "https://w3id.org/cwl/cwl#Directory",
     "Dirent": "https://w3id.org/cwl/cwl#Dirent",
     "DockerRequirement": "https://w3id.org/cwl/cwl#DockerRequirement",
-    "Documented": "https://w3id.org/cwl/salad#Documented",
     "EnumSchema": "https://w3id.org/cwl/salad#EnumSchema",
     "EnvVarRequirement": "https://w3id.org/cwl/cwl#EnvVarRequirement",
     "EnvironmentDef": "https://w3id.org/cwl/cwl#EnvironmentDef",
@@ -12746,31 +10942,21 @@ _vocab = {
     "ExpressionPlaceholder": "https://w3id.org/cwl/cwl#ExpressionPlaceholder",
     "ExpressionTool": "https://w3id.org/cwl/cwl#ExpressionTool",
     "ExpressionToolOutputParameter": "https://w3id.org/cwl/cwl#ExpressionToolOutputParameter",
-    "FieldBase": "https://w3id.org/cwl/cwl#FieldBase",
     "File": "https://w3id.org/cwl/cwl#File",
-    "IOSchema": "https://w3id.org/cwl/cwl#IOSchema",
-    "Identified": "https://w3id.org/cwl/cwl#Identified",
     "InitialWorkDirRequirement": "https://w3id.org/cwl/cwl#InitialWorkDirRequirement",
     "InlineJavascriptRequirement": "https://w3id.org/cwl/cwl#InlineJavascriptRequirement",
-    "InplaceUpdateRequirement": "https://w3id.org/cwl/cwl#InplaceUpdateRequirement",
     "InputArraySchema": "https://w3id.org/cwl/cwl#InputArraySchema",
     "InputBinding": "https://w3id.org/cwl/cwl#InputBinding",
     "InputEnumSchema": "https://w3id.org/cwl/cwl#InputEnumSchema",
-    "InputFormat": "https://w3id.org/cwl/cwl#InputFormat",
     "InputParameter": "https://w3id.org/cwl/cwl#InputParameter",
     "InputRecordField": "https://w3id.org/cwl/cwl#InputRecordField",
     "InputRecordSchema": "https://w3id.org/cwl/cwl#InputRecordSchema",
     "InputSchema": "https://w3id.org/cwl/cwl#InputSchema",
-    "Labeled": "https://w3id.org/cwl/cwl#Labeled",
     "LinkMergeMethod": "https://w3id.org/cwl/cwl#LinkMergeMethod",
-    "LoadContents": "https://w3id.org/cwl/cwl#LoadContents",
-    "LoadListingEnum": "https://w3id.org/cwl/cwl#LoadListingEnum",
-    "LoadListingRequirement": "https://w3id.org/cwl/cwl#LoadListingRequirement",
     "MultipleInputFeatureRequirement": "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement",
-    "NetworkAccess": "https://w3id.org/cwl/cwl#NetworkAccess",
     "OutputArraySchema": "https://w3id.org/cwl/cwl#OutputArraySchema",
+    "OutputBinding": "https://w3id.org/cwl/cwl#OutputBinding",
     "OutputEnumSchema": "https://w3id.org/cwl/cwl#OutputEnumSchema",
-    "OutputFormat": "https://w3id.org/cwl/cwl#OutputFormat",
     "OutputParameter": "https://w3id.org/cwl/cwl#OutputParameter",
     "OutputRecordField": "https://w3id.org/cwl/cwl#OutputRecordField",
     "OutputRecordSchema": "https://w3id.org/cwl/cwl#OutputRecordSchema",
@@ -12784,25 +10970,21 @@ _vocab = {
     "ResourceRequirement": "https://w3id.org/cwl/cwl#ResourceRequirement",
     "ScatterFeatureRequirement": "https://w3id.org/cwl/cwl#ScatterFeatureRequirement",
     "ScatterMethod": "https://w3id.org/cwl/cwl#ScatterMethod",
+    "SchemaBase": "https://w3id.org/cwl/cwl#SchemaBase",
     "SchemaDefRequirement": "https://w3id.org/cwl/cwl#SchemaDefRequirement",
-    "SecondaryFileSchema": "https://w3id.org/cwl/cwl#SecondaryFileSchema",
     "ShellCommandRequirement": "https://w3id.org/cwl/cwl#ShellCommandRequirement",
     "Sink": "https://w3id.org/cwl/cwl#Sink",
     "SoftwarePackage": "https://w3id.org/cwl/cwl#SoftwarePackage",
     "SoftwareRequirement": "https://w3id.org/cwl/cwl#SoftwareRequirement",
     "StepInputExpressionRequirement": "https://w3id.org/cwl/cwl#StepInputExpressionRequirement",
     "SubworkflowFeatureRequirement": "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement",
-    "ToolTimeLimit": "https://w3id.org/cwl/cwl#ToolTimeLimit",
-    "WorkReuse": "https://w3id.org/cwl/cwl#WorkReuse",
     "Workflow": "https://w3id.org/cwl/cwl#Workflow",
-    "WorkflowInputParameter": "https://w3id.org/cwl/cwl#WorkflowInputParameter",
     "WorkflowOutputParameter": "https://w3id.org/cwl/cwl#WorkflowOutputParameter",
     "WorkflowStep": "https://w3id.org/cwl/cwl#WorkflowStep",
     "WorkflowStepInput": "https://w3id.org/cwl/cwl#WorkflowStepInput",
     "WorkflowStepOutput": "https://w3id.org/cwl/cwl#WorkflowStepOutput",
     "array": "https://w3id.org/cwl/salad#array",
     "boolean": "http://www.w3.org/2001/XMLSchema#boolean",
-    "deep_listing": "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing",
     "dotproduct": "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct",
     "double": "http://www.w3.org/2001/XMLSchema#double",
     "draft-2": "https://w3id.org/cwl/cwl#draft-2",
@@ -12823,18 +11005,13 @@ _vocab = {
     "merge_flattened": "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_flattened",
     "merge_nested": "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_nested",
     "nested_crossproduct": "https://w3id.org/cwl/cwl#ScatterMethod/nested_crossproduct",
-    "no_listing": "https://w3id.org/cwl/cwl#LoadListingEnum/no_listing",
     "null": "https://w3id.org/cwl/salad#null",
     "record": "https://w3id.org/cwl/salad#record",
-    "shallow_listing": "https://w3id.org/cwl/cwl#LoadListingEnum/shallow_listing",
     "stderr": "https://w3id.org/cwl/cwl#stderr",
-    "stdin": "https://w3id.org/cwl/cwl#stdin",
     "stdout": "https://w3id.org/cwl/cwl#stdout",
     "string": "http://www.w3.org/2001/XMLSchema#string",
     "v1.0": "https://w3id.org/cwl/cwl#v1.0",
     "v1.0.dev4": "https://w3id.org/cwl/cwl#v1.0.dev4",
-    "v1.1": "https://w3id.org/cwl/cwl#v1.1",
-    "v1.1.0-dev1": "https://w3id.org/cwl/cwl#v1.1.0-dev1",
 }
 _rvocab = {
     "https://w3id.org/cwl/salad#Any": "Any",
@@ -12846,8 +11023,6 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#CommandInputParameter": "CommandInputParameter",
     "https://w3id.org/cwl/cwl#CommandInputRecordField": "CommandInputRecordField",
     "https://w3id.org/cwl/cwl#CommandInputRecordSchema": "CommandInputRecordSchema",
-    "https://w3id.org/cwl/cwl#CommandInputSchema": "CommandInputSchema",
-    "https://w3id.org/cwl/cwl#CommandLineBindable": "CommandLineBindable",
     "https://w3id.org/cwl/cwl#CommandLineBinding": "CommandLineBinding",
     "https://w3id.org/cwl/cwl#CommandLineTool": "CommandLineTool",
     "https://w3id.org/cwl/cwl#CommandOutputArraySchema": "CommandOutputArraySchema",
@@ -12859,7 +11034,6 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#Directory": "Directory",
     "https://w3id.org/cwl/cwl#Dirent": "Dirent",
     "https://w3id.org/cwl/cwl#DockerRequirement": "DockerRequirement",
-    "https://w3id.org/cwl/salad#Documented": "Documented",
     "https://w3id.org/cwl/salad#EnumSchema": "EnumSchema",
     "https://w3id.org/cwl/cwl#EnvVarRequirement": "EnvVarRequirement",
     "https://w3id.org/cwl/cwl#EnvironmentDef": "EnvironmentDef",
@@ -12867,31 +11041,21 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#ExpressionPlaceholder": "ExpressionPlaceholder",
     "https://w3id.org/cwl/cwl#ExpressionTool": "ExpressionTool",
     "https://w3id.org/cwl/cwl#ExpressionToolOutputParameter": "ExpressionToolOutputParameter",
-    "https://w3id.org/cwl/cwl#FieldBase": "FieldBase",
     "https://w3id.org/cwl/cwl#File": "File",
-    "https://w3id.org/cwl/cwl#IOSchema": "IOSchema",
-    "https://w3id.org/cwl/cwl#Identified": "Identified",
     "https://w3id.org/cwl/cwl#InitialWorkDirRequirement": "InitialWorkDirRequirement",
     "https://w3id.org/cwl/cwl#InlineJavascriptRequirement": "InlineJavascriptRequirement",
-    "https://w3id.org/cwl/cwl#InplaceUpdateRequirement": "InplaceUpdateRequirement",
     "https://w3id.org/cwl/cwl#InputArraySchema": "InputArraySchema",
     "https://w3id.org/cwl/cwl#InputBinding": "InputBinding",
     "https://w3id.org/cwl/cwl#InputEnumSchema": "InputEnumSchema",
-    "https://w3id.org/cwl/cwl#InputFormat": "InputFormat",
     "https://w3id.org/cwl/cwl#InputParameter": "InputParameter",
     "https://w3id.org/cwl/cwl#InputRecordField": "InputRecordField",
     "https://w3id.org/cwl/cwl#InputRecordSchema": "InputRecordSchema",
     "https://w3id.org/cwl/cwl#InputSchema": "InputSchema",
-    "https://w3id.org/cwl/cwl#Labeled": "Labeled",
     "https://w3id.org/cwl/cwl#LinkMergeMethod": "LinkMergeMethod",
-    "https://w3id.org/cwl/cwl#LoadContents": "LoadContents",
-    "https://w3id.org/cwl/cwl#LoadListingEnum": "LoadListingEnum",
-    "https://w3id.org/cwl/cwl#LoadListingRequirement": "LoadListingRequirement",
     "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement": "MultipleInputFeatureRequirement",
-    "https://w3id.org/cwl/cwl#NetworkAccess": "NetworkAccess",
     "https://w3id.org/cwl/cwl#OutputArraySchema": "OutputArraySchema",
+    "https://w3id.org/cwl/cwl#OutputBinding": "OutputBinding",
     "https://w3id.org/cwl/cwl#OutputEnumSchema": "OutputEnumSchema",
-    "https://w3id.org/cwl/cwl#OutputFormat": "OutputFormat",
     "https://w3id.org/cwl/cwl#OutputParameter": "OutputParameter",
     "https://w3id.org/cwl/cwl#OutputRecordField": "OutputRecordField",
     "https://w3id.org/cwl/cwl#OutputRecordSchema": "OutputRecordSchema",
@@ -12905,25 +11069,21 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#ResourceRequirement": "ResourceRequirement",
     "https://w3id.org/cwl/cwl#ScatterFeatureRequirement": "ScatterFeatureRequirement",
     "https://w3id.org/cwl/cwl#ScatterMethod": "ScatterMethod",
+    "https://w3id.org/cwl/cwl#SchemaBase": "SchemaBase",
     "https://w3id.org/cwl/cwl#SchemaDefRequirement": "SchemaDefRequirement",
-    "https://w3id.org/cwl/cwl#SecondaryFileSchema": "SecondaryFileSchema",
     "https://w3id.org/cwl/cwl#ShellCommandRequirement": "ShellCommandRequirement",
     "https://w3id.org/cwl/cwl#Sink": "Sink",
     "https://w3id.org/cwl/cwl#SoftwarePackage": "SoftwarePackage",
     "https://w3id.org/cwl/cwl#SoftwareRequirement": "SoftwareRequirement",
     "https://w3id.org/cwl/cwl#StepInputExpressionRequirement": "StepInputExpressionRequirement",
     "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement": "SubworkflowFeatureRequirement",
-    "https://w3id.org/cwl/cwl#ToolTimeLimit": "ToolTimeLimit",
-    "https://w3id.org/cwl/cwl#WorkReuse": "WorkReuse",
     "https://w3id.org/cwl/cwl#Workflow": "Workflow",
-    "https://w3id.org/cwl/cwl#WorkflowInputParameter": "WorkflowInputParameter",
     "https://w3id.org/cwl/cwl#WorkflowOutputParameter": "WorkflowOutputParameter",
     "https://w3id.org/cwl/cwl#WorkflowStep": "WorkflowStep",
     "https://w3id.org/cwl/cwl#WorkflowStepInput": "WorkflowStepInput",
     "https://w3id.org/cwl/cwl#WorkflowStepOutput": "WorkflowStepOutput",
     "https://w3id.org/cwl/salad#array": "array",
     "http://www.w3.org/2001/XMLSchema#boolean": "boolean",
-    "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing": "deep_listing",
     "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct": "dotproduct",
     "http://www.w3.org/2001/XMLSchema#double": "double",
     "https://w3id.org/cwl/cwl#draft-2": "draft-2",
@@ -12944,18 +11104,13 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_flattened": "merge_flattened",
     "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_nested": "merge_nested",
     "https://w3id.org/cwl/cwl#ScatterMethod/nested_crossproduct": "nested_crossproduct",
-    "https://w3id.org/cwl/cwl#LoadListingEnum/no_listing": "no_listing",
     "https://w3id.org/cwl/salad#null": "null",
     "https://w3id.org/cwl/salad#record": "record",
-    "https://w3id.org/cwl/cwl#LoadListingEnum/shallow_listing": "shallow_listing",
     "https://w3id.org/cwl/cwl#stderr": "stderr",
-    "https://w3id.org/cwl/cwl#stdin": "stdin",
     "https://w3id.org/cwl/cwl#stdout": "stdout",
     "http://www.w3.org/2001/XMLSchema#string": "string",
     "https://w3id.org/cwl/cwl#v1.0": "v1.0",
     "https://w3id.org/cwl/cwl#v1.0.dev4": "v1.0.dev4",
-    "https://w3id.org/cwl/cwl#v1.1": "v1.1",
-    "https://w3id.org/cwl/cwl#v1.1.0-dev1": "v1.1.0-dev1",
 }
 
 strtype = _PrimitiveLoader((str, str))
@@ -12964,7 +11119,6 @@ floattype = _PrimitiveLoader(float)
 booltype = _PrimitiveLoader(bool)
 None_type = _PrimitiveLoader(type(None))
 Any_type = _AnyLoader()
-DocumentedLoader = _RecordLoader(Documented)
 PrimitiveTypeLoader = _EnumLoader(
     ("null", "boolean", "int", "long", "float", "double", "string")
 )
@@ -12987,24 +11141,16 @@ CWLVersionLoader = _EnumLoader(
         "draft-4.dev3",
         "v1.0.dev4",
         "v1.0",
-        "v1.1.0-dev1",
-        "v1.1",
     )
 )
 CWLTypeLoader = _EnumLoader(("File", "Directory"))
 FileLoader = _RecordLoader(File)
 DirectoryLoader = _RecordLoader(Directory)
-LabeledLoader = _RecordLoader(Labeled)
-IdentifiedLoader = _RecordLoader(Identified)
-LoadListingEnumLoader = _EnumLoader(("no_listing", "shallow_listing", "deep_listing"))
-LoadContentsLoader = _RecordLoader(LoadContents)
-FieldBaseLoader = _RecordLoader(FieldBase)
-InputFormatLoader = _RecordLoader(InputFormat)
-OutputFormatLoader = _RecordLoader(OutputFormat)
+SchemaBaseLoader = _RecordLoader(SchemaBase)
 ParameterLoader = _RecordLoader(Parameter)
 ExpressionLoader = _EnumLoader(("ExpressionPlaceholder",))
 InputBindingLoader = _RecordLoader(InputBinding)
-IOSchemaLoader = _RecordLoader(IOSchema)
+OutputBindingLoader = _RecordLoader(OutputBinding)
 InputSchemaLoader = _RecordLoader(InputSchema)
 OutputSchemaLoader = _RecordLoader(OutputSchema)
 InputRecordFieldLoader = _RecordLoader(InputRecordField)
@@ -13020,14 +11166,10 @@ OutputParameterLoader = _RecordLoader(OutputParameter)
 ProcessRequirementLoader = _RecordLoader(ProcessRequirement)
 ProcessLoader = _RecordLoader(Process)
 InlineJavascriptRequirementLoader = _RecordLoader(InlineJavascriptRequirement)
-CommandInputSchemaLoader = _RecordLoader(CommandInputSchema)
 SchemaDefRequirementLoader = _RecordLoader(SchemaDefRequirement)
-SecondaryFileSchemaLoader = _RecordLoader(SecondaryFileSchema)
-LoadListingRequirementLoader = _RecordLoader(LoadListingRequirement)
 EnvironmentDefLoader = _RecordLoader(EnvironmentDef)
 CommandLineBindingLoader = _RecordLoader(CommandLineBinding)
 CommandOutputBindingLoader = _RecordLoader(CommandOutputBinding)
-CommandLineBindableLoader = _RecordLoader(CommandLineBindable)
 CommandInputRecordFieldLoader = _RecordLoader(CommandInputRecordField)
 CommandInputRecordSchemaLoader = _RecordLoader(CommandInputRecordSchema)
 CommandInputEnumSchemaLoader = _RecordLoader(CommandInputEnumSchema)
@@ -13038,7 +11180,6 @@ CommandOutputEnumSchemaLoader = _RecordLoader(CommandOutputEnumSchema)
 CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema)
 CommandInputParameterLoader = _RecordLoader(CommandInputParameter)
 CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter)
-stdinLoader = _EnumLoader(("stdin",))
 stdoutLoader = _EnumLoader(("stdout",))
 stderrLoader = _EnumLoader(("stderr",))
 CommandLineToolLoader = _RecordLoader(CommandLineTool)
@@ -13050,12 +11191,7 @@ InitialWorkDirRequirementLoader = _RecordLoader(InitialWorkDirRequirement)
 EnvVarRequirementLoader = _RecordLoader(EnvVarRequirement)
 ShellCommandRequirementLoader = _RecordLoader(ShellCommandRequirement)
 ResourceRequirementLoader = _RecordLoader(ResourceRequirement)
-WorkReuseLoader = _RecordLoader(WorkReuse)
-NetworkAccessLoader = _RecordLoader(NetworkAccess)
-InplaceUpdateRequirementLoader = _RecordLoader(InplaceUpdateRequirement)
-ToolTimeLimitLoader = _RecordLoader(ToolTimeLimit)
 ExpressionToolOutputParameterLoader = _RecordLoader(ExpressionToolOutputParameter)
-WorkflowInputParameterLoader = _RecordLoader(WorkflowInputParameter)
 ExpressionToolLoader = _RecordLoader(ExpressionTool)
 LinkMergeMethodLoader = _EnumLoader(("merge_nested", "merge_flattened"))
 WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter)
@@ -13071,11 +11207,8 @@ SubworkflowFeatureRequirementLoader = _RecordLoader(SubworkflowFeatureRequiremen
 ScatterFeatureRequirementLoader = _RecordLoader(ScatterFeatureRequirement)
 MultipleInputFeatureRequirementLoader = _RecordLoader(MultipleInputFeatureRequirement)
 StepInputExpressionRequirementLoader = _RecordLoader(StepInputExpressionRequirement)
-array_of_strtype = _ArrayLoader(strtype)
-union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
-    (None_type, strtype, array_of_strtype)
-)
 uri_strtype_True_False_None = _URILoader(strtype, True, False, None)
+union_of_None_type_or_strtype = _UnionLoader((None_type, strtype))
 union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype = _UnionLoader(
     (
         PrimitiveTypeLoader,
@@ -13109,28 +11242,22 @@ union_of_None_type_or_array_of_RecordFieldLoader = _UnionLoader(
 idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader = _IdMapLoader(
     union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
 )
-enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader = _EnumLoader(("record",))
-typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2 = _TypeDSLLoader(
-    enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader, 2
-)
+Record_symbolLoader = _EnumLoader(("record",))
+typedsl_Record_symbolLoader_2 = _TypeDSLLoader(Record_symbolLoader, 2)
+array_of_strtype = _ArrayLoader(strtype)
 uri_array_of_strtype_True_False_None = _URILoader(array_of_strtype, True, False, None)
-enum_d961d79c225752b9fadb617367615ab176b47d77Loader = _EnumLoader(("enum",))
-typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2 = _TypeDSLLoader(
-    enum_d961d79c225752b9fadb617367615ab176b47d77Loader, 2
-)
+Enum_symbolLoader = _EnumLoader(("enum",))
+typedsl_Enum_symbolLoader_2 = _TypeDSLLoader(Enum_symbolLoader, 2)
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype,
     False,
     True,
     2,
 )
-enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader = _EnumLoader(("array",))
-typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2 = _TypeDSLLoader(
-    enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader, 2
-)
+Array_symbolLoader = _EnumLoader(("array",))
+typedsl_Array_symbolLoader_2 = _TypeDSLLoader(Array_symbolLoader, 2)
 File_classLoader = _EnumLoader(("File",))
 uri_File_classLoader_False_True_None = _URILoader(File_classLoader, False, True, None)
-union_of_None_type_or_strtype = _UnionLoader((None_type, strtype))
 uri_union_of_None_type_or_strtype_False_False_None = _URILoader(
     union_of_None_type_or_strtype, False, False, None
 )
@@ -13149,28 +11276,21 @@ Directory_classLoader = _EnumLoader(("Directory",))
 uri_Directory_classLoader_False_True_None = _URILoader(
     Directory_classLoader, False, True, None
 )
+union_of_strtype_or_ExpressionLoader = _UnionLoader((strtype, ExpressionLoader))
+array_of_union_of_strtype_or_ExpressionLoader = _ArrayLoader(
+    union_of_strtype_or_ExpressionLoader
+)
+union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_union_of_strtype_or_ExpressionLoader = _UnionLoader(
+    (
+        None_type,
+        strtype,
+        ExpressionLoader,
+        array_of_union_of_strtype_or_ExpressionLoader,
+    )
+)
 union_of_None_type_or_booltype = _UnionLoader((None_type, booltype))
-union_of_None_type_or_LoadListingEnumLoader = _UnionLoader(
-    (None_type, LoadListingEnumLoader)
-)
-array_of_SecondaryFileSchemaLoader = _ArrayLoader(SecondaryFileSchemaLoader)
-union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _UnionLoader(
-    (None_type, SecondaryFileSchemaLoader, array_of_SecondaryFileSchemaLoader)
-)
-union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLoader(
-    (None_type, strtype, array_of_strtype, ExpressionLoader)
-)
-uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader,
-    True,
-    False,
-    None,
-)
-union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader(
-    (None_type, strtype, ExpressionLoader)
-)
-uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None = _URILoader(
-    union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None
+union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
+    (None_type, strtype, array_of_strtype)
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -13197,6 +11317,9 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
+)
+union_of_None_type_or_CommandLineBindingLoader = _UnionLoader(
+    (None_type, CommandLineBindingLoader)
 )
 array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader(
@@ -13237,6 +11360,9 @@ typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLo
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
 )
+union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader(
+    (None_type, CommandOutputBindingLoader)
+)
 array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader(
     (None_type, array_of_OutputRecordFieldLoader)
@@ -13250,65 +11376,72 @@ uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader
     True,
     2,
 )
+union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLoader(
+    (None_type, strtype, array_of_strtype, ExpressionLoader)
+)
+uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader,
+    True,
+    False,
+    None,
+)
 union_of_None_type_or_Any_type = _UnionLoader((None_type, Any_type))
-union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _UnionLoader(
-    (CommandInputParameterLoader, WorkflowInputParameterLoader)
-)
-array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _ArrayLoader(
-    union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader
-)
-idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _IdMapLoader(
-    array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
-    "id",
-    "type",
-)
-union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _UnionLoader(
+union_of_None_type_or_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
     (
-        CommandOutputParameterLoader,
-        ExpressionToolOutputParameterLoader,
-        WorkflowOutputParameterLoader,
+        None_type,
+        CWLTypeLoader,
+        InputRecordSchemaLoader,
+        InputEnumSchemaLoader,
+        InputArraySchemaLoader,
+        strtype,
+        array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     )
 )
-array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _ArrayLoader(
-    union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader
+typedsl_union_of_None_type_or_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+    union_of_None_type_or_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
+    2,
 )
-idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _IdMapLoader(
-    array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
-    "id",
-    "type",
+union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader(
+    (None_type, strtype, ExpressionLoader)
 )
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
+uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None = _URILoader(
+    union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None
+)
+array_of_InputParameterLoader = _ArrayLoader(InputParameterLoader)
+idmap_inputs_array_of_InputParameterLoader = _IdMapLoader(
+    array_of_InputParameterLoader, "id", "type"
+)
+array_of_OutputParameterLoader = _ArrayLoader(OutputParameterLoader)
+idmap_outputs_array_of_OutputParameterLoader = _IdMapLoader(
+    array_of_OutputParameterLoader, "id", "type"
+)
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
-        LoadListingRequirementLoader,
         DockerRequirementLoader,
         SoftwareRequirementLoader,
         InitialWorkDirRequirementLoader,
         EnvVarRequirementLoader,
         ShellCommandRequirementLoader,
         ResourceRequirementLoader,
-        WorkReuseLoader,
-        NetworkAccessLoader,
-        InplaceUpdateRequirementLoader,
-        ToolTimeLimitLoader,
         SubworkflowFeatureRequirementLoader,
         ScatterFeatureRequirementLoader,
         MultipleInputFeatureRequirementLoader,
         StepInputExpressionRequirementLoader,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _ArrayLoader(
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
     (
         None_type,
-        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
     )
 )
-idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _IdMapLoader(
+    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
     "class",
     "None",
 )
@@ -13323,29 +11456,14 @@ uri_union_of_None_type_or_CWLVersionLoader_False_True_None = _URILoader(
 )
 uri_strtype_False_True_None = _URILoader(strtype, False, True, None)
 union_of_None_type_or_array_of_strtype = _UnionLoader((None_type, array_of_strtype))
-union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _UnionLoader(
-    (
-        CommandInputRecordSchemaLoader,
-        CommandInputEnumSchemaLoader,
-        CommandInputArraySchemaLoader,
-    )
+union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader = _UnionLoader(
+    (InputRecordSchemaLoader, InputEnumSchemaLoader, InputArraySchemaLoader)
 )
-array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _ArrayLoader(
-    union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader
-)
-union_of_strtype_or_ExpressionLoader = _UnionLoader((strtype, ExpressionLoader))
-union_of_None_type_or_booltype_or_ExpressionLoader = _UnionLoader(
-    (None_type, booltype, ExpressionLoader)
-)
-union_of_None_type_or_inttype_or_ExpressionLoader = _UnionLoader(
-    (None_type, inttype, ExpressionLoader)
+array_of_union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader = _ArrayLoader(
+    union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader
 )
 union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype = _UnionLoader(
     (None_type, strtype, ExpressionLoader, array_of_strtype)
-)
-union_of_None_type_or_ExpressionLoader = _UnionLoader((None_type, ExpressionLoader))
-union_of_None_type_or_CommandLineBindingLoader = _UnionLoader(
-    (None_type, CommandLineBindingLoader)
 )
 union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -13412,9 +11530,6 @@ typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutp
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
 )
-union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader(
-    (None_type, CommandOutputBindingLoader)
-)
 array_of_CommandOutputRecordFieldLoader = _ArrayLoader(CommandOutputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = _UnionLoader(
     (None_type, array_of_CommandOutputRecordFieldLoader)
@@ -13428,10 +11543,10 @@ uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEn
     True,
     2,
 )
-union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_None_type_or_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
     (
+        None_type,
         CWLTypeLoader,
-        stdinLoader,
         CommandInputRecordSchemaLoader,
         CommandInputEnumSchemaLoader,
         CommandInputArraySchemaLoader,
@@ -13439,12 +11554,13 @@ union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_Comma
         array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
-    union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
+typedsl_union_of_None_type_or_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+    union_of_None_type_or_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
 )
-union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_None_type_or_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
+        None_type,
         CWLTypeLoader,
         stdoutLoader,
         stderrLoader,
@@ -13455,8 +11571,8 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
         array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
-    union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
+typedsl_union_of_None_type_or_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+    union_of_None_type_or_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
 )
 array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader)
@@ -13485,25 +11601,16 @@ array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
-uri_union_of_None_type_or_array_of_strtype_False_False_None = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None
+union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader = _UnionLoader(
+    (FileLoader, DirectoryLoader, DirentLoader, strtype, ExpressionLoader)
 )
-union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _UnionLoader(
+array_of_union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader = _ArrayLoader(
+    union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader
+)
+union_of_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader_or_strtype_or_ExpressionLoader = _UnionLoader(
     (
-        None_type,
-        FileLoader,
-        array_of_union_of_FileLoader_or_DirectoryLoader,
-        DirectoryLoader,
-        DirentLoader,
-        ExpressionLoader,
-    )
-)
-array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _ArrayLoader(
-    union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader
-)
-union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader = _UnionLoader(
-    (
-        array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader,
+        array_of_union_of_FileLoader_or_DirectoryLoader_or_DirentLoader_or_strtype_or_ExpressionLoader,
+        strtype,
         ExpressionLoader,
     )
 )
@@ -13511,12 +11618,23 @@ array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
     array_of_EnvironmentDefLoader, "envName", "envValue"
 )
-union_of_booltype_or_ExpressionLoader = _UnionLoader((booltype, ExpressionLoader))
-union_of_inttype_or_ExpressionLoader = _UnionLoader((inttype, ExpressionLoader))
-union_of_None_type_or_InputBindingLoader = _UnionLoader((None_type, InputBindingLoader))
-array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader)
-idmap_inputs_array_of_WorkflowInputParameterLoader = _IdMapLoader(
-    array_of_WorkflowInputParameterLoader, "id", "type"
+union_of_None_type_or_inttype_or_strtype_or_ExpressionLoader = _UnionLoader(
+    (None_type, inttype, strtype, ExpressionLoader)
+)
+union_of_None_type_or_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader(
+    (
+        None_type,
+        CWLTypeLoader,
+        OutputRecordSchemaLoader,
+        OutputEnumSchemaLoader,
+        OutputArraySchemaLoader,
+        strtype,
+        array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
+    )
+)
+typedsl_union_of_None_type_or_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+    union_of_None_type_or_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
+    2,
 )
 array_of_ExpressionToolOutputParameterLoader = _ArrayLoader(
     ExpressionToolOutputParameterLoader
