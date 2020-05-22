@@ -91,7 +91,7 @@ class CwlTranslator(TranslatorBase):
         return io.getvalue()
 
     @staticmethod
-    def stringify_translated_workflow(wf, format=False):
+    def stringify_translated_workflow(wf, format=True):
         saved = CwlTranslator.walk_and_check_cwldict(wf)
         formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
         if format:
@@ -102,7 +102,7 @@ class CwlTranslator(TranslatorBase):
         return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool, format=False):
+    def stringify_translated_tool(tool, format=True):
         saved = CwlTranslator.walk_and_check_cwldict(tool)
 
         formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
@@ -615,7 +615,7 @@ return {out_capture}
 
     @staticmethod
     def workflow_filename(workflow):
-        return workflow.id() + ".cwl"
+        return workflow.versioned_id() + ".cwl"
 
     @staticmethod
     def inputs_filename(workflow):

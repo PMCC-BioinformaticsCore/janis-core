@@ -121,7 +121,7 @@ class TranslatorBase(ABC):
                 print(str_resources)
 
         d = ExportPathKeywords.resolve(
-            export_path, workflow_spec=self.name, workflow_name=tool.id()
+            export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
         )
 
         fn_workflow = self.workflow_filename(tool)

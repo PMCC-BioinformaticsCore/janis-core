@@ -51,11 +51,14 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         expected = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-id: wid
-inputs: {}
-outputs: {}
 cwlVersion: v1.0
+
+inputs: {}
+
+outputs: {}
+
 steps: {}
+id: wid
 """
         self.assertEqual(
             expected, self.translator.stringify_translated_workflow(cwlobj)
@@ -65,10 +68,18 @@ steps: {}
         cwlobj = cwlgen.CommandLineTool(
             id="tid", inputs={}, outputs={}, cwlVersion="v1.0"
         )
-        self.assertEqual(
-            "#!/usr/bin/env cwl-runner\nclass: CommandLineTool\nid: tid\ninputs: {}\noutputs: {}\ncwlVersion: v1.0\n",
-            self.translator.stringify_translated_tool(cwlobj),
-        )
+        expected = """\
+#!/usr/bin/env cwl-runner
+class: CommandLineTool
+cwlVersion: v1.0
+
+inputs: {}
+
+outputs: {}
+id: tid
+"""
+
+        self.assertEqual(expected, self.translator.stringify_translated_tool(cwlobj))
 
     def test_stringify_inputs(self):
         d = {"inp1": 1}
@@ -630,24 +641,9 @@ class TestCWLRunRefs(unittest.TestCase):
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-id: TestTranslationtool
+cwlVersion: v1.0
 label: Tool for testing translation
-inputs:
-- id: testtool
-  label: testtool
-  type: string
-  inputBinding: {}
-- id: arrayInp
-  label: arrayInp
-  type:
-  - items: string
-    type: array
-  - 'null'
-  inputBinding: {}
-outputs:
-- id: std
-  label: std
-  type: stdout
+
 requirements:
 - class: ShellCommandRequirement
 - class: InlineJavascriptRequirement
@@ -657,26 +653,49 @@ requirements:
     envValue: $(inputs.testtool)
 - class: DockerRequirement
   dockerPull: ubuntu:latest
-cwlVersion: v1.0
+
+inputs:
+- id: testtool
+  label: testtool
+  type: string
+  inputBinding: {}
+- id: arrayInp
+  label: arrayInp
+  type:
+  - type: array
+    items: string
+  - 'null'
+  inputBinding: {}
+
+outputs:
+- id: std
+  label: std
+  type: stdout
+
 baseCommand: echo
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters"
+id: TestTranslationtool
 """
 
 
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-inputs:
-- id: inp1
-  type: string
-outputs: []
+cwlVersion: v1.0
+
 requirements:
 - class: InlineJavascriptRequirement
 - class: StepInputExpressionRequirement
 - class: MultipleInputFeatureRequirement
-cwlVersion: v1.0
+
+inputs:
+- id: inp1
+  type: string
+
+outputs: []
+
 steps:
 - id: stp1
   in:
@@ -684,7 +703,7 @@ steps:
     source:
     - inp1
     linkMerge: merge_nested
+  run: tools/ArrayStepTool.cwl
   out:
   - id: outs
-  run: tools/ArrayStepTool.cwl
 """
