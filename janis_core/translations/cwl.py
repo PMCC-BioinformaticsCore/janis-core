@@ -24,7 +24,7 @@ from io import StringIO
 
 from typing import List, Dict, Optional, Tuple
 
-import janis_core.utils.cwl_v1_1 as cwlgen
+import janis_core.utils.cwl_v1_0 as cwlgen
 import ruamel.yaml
 
 from janis_core.code.codetool import CodeTool
@@ -640,7 +640,7 @@ def translate_input(inp):
 
     doc = inp.doc.doc if inp.doc else None
 
-    return cwlgen.WorkflowInputParameter(
+    return cwlgen.InputParameter(
         id=inp.id(),
         default=inp.default,
         secondaryFiles=inp.datatype.secondary_files(),
@@ -1127,12 +1127,10 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.WorkflowInputParameter(
+                    cwlgen.InputParameter(
                         id=tool_pre + "runtime_memory", type="float?"
                     ),
-                    cwlgen.WorkflowInputParameter(
-                        id=tool_pre + "runtime_cpu", type="int?"
-                    ),
+                    cwlgen.InputParameter(id=tool_pre + "runtime_cpu", type="int?"),
                     # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
                 ]
             )

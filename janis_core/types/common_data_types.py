@@ -4,7 +4,7 @@
 from inspect import isclass
 from typing import Union, Type, Dict, Any, Optional
 
-import janis_core.utils.cwl_v1_1 as cwlgen
+import janis_core.utils.cwl_v1_0 as cwlgen
 import wdlgen
 
 from janis_core.types.data_types import (
