@@ -85,6 +85,8 @@ class CodeTool(Tool, ABC):
         hints=None,
         include_defaults=True,
     ):
+        from janis_core.operators.selectors import Selector
+
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
             if (
@@ -95,8 +97,13 @@ class CodeTool(Tool, ABC):
                 d[i] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
-            cpus = self.cpus(hints) or 1
+            cpus = self.cpus(hints)
             mem = self.memory(hints)
+
+            if isinstance(cpus, Selector):
+                cpus = None
+            if isinstance(mem, Selector):
+                mem = None
             d.update(
                 {
                     "runtime_memory": mem,

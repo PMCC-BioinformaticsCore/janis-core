@@ -114,7 +114,7 @@ class TestCwlArraySeparators(unittest.TestCase):
 
     def test_regular_input_bindingin(self):
         t = ToolInput("filesA", Array(String()), prefix="-A", position=1)
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesA",
@@ -134,7 +134,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=2,
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesB",
@@ -158,7 +158,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=4,
             separator=",",
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesC",
@@ -181,7 +181,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             prefix="-D",
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
 
         self.assertDictEqual(
             {
@@ -416,7 +416,7 @@ class TestCwlTranslateInput(unittest.TestCase):
 
 class TestCwlOutputGeneration(unittest.TestCase):
     def test_stdout_no_outputbinding(self):
-        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}).save()
+        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 
 
@@ -663,7 +663,7 @@ class TestCWLFilenameGeneration(unittest.TestCase):
     def test_1(self):
         tool = FilenameGeneratedTool()
         inputsdict = {t.id(): t for t in tool.inputs()}
-        mapped = [cwl.translate_tool_input(i, inputsdict) for i in tool.inputs()]
+        mapped = [cwl.translate_tool_input(i, inputsdict, tool) for i in tool.inputs()]
         expressions = [
             mapped[i].save()["inputBinding"]["valueFrom"] for i in range(4, len(mapped))
         ]

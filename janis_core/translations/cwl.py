@@ -453,17 +453,17 @@ class CwlTranslator(TranslatorBase):
 
         inputsdict = {t.id(): t for t in tool.inputs()}
         tool_cwl.inputs.extend(
-            translate_tool_input(i, inputsdict) for i in tool.inputs()
+            translate_tool_input(i, inputsdict, tool) for i in tool.inputs()
         )
         tool_cwl.outputs.extend(
-            translate_tool_output(o, inputsdict=inputsdict, tool=tool.id())
+            translate_tool_output(o, inputsdict=inputsdict, tool=tool, toolid=tool.id())
             for o in tool.outputs()
         )
 
         args = tool.arguments()
         if args:
             tool_cwl.arguments.extend(
-                translate_tool_argument(a) for a in tool.arguments()
+                translate_tool_argument(a, tool) for a in tool.arguments()
             )
 
         if with_resource_overrides:
@@ -540,6 +540,7 @@ class CwlTranslator(TranslatorBase):
                     doc=t.doc.doc if t.doc else None,
                 ),
                 inputsdict=inputsdict,
+                tool=tool,
             )
             for t in tool.inputs()
         )
@@ -693,6 +694,7 @@ return {out_capture}
                     value[i],
                     code_environment=True,
                     selector_override=selector_override,
+                    tool=tool,
                     tool_id=toolid + "." + str(i),
                 )
                 for i in range(len(value))
@@ -718,6 +720,7 @@ return {out_capture}
                 value,
                 selector_override=selector_override,
                 code_environment=code_environment,
+                tool=tool,
                 **debugkwargs,
             )
         elif isinstance(value, InputNodeSelector):
@@ -793,6 +796,7 @@ return {out_capture}
                 exp,
                 code_environment=True,
                 selector_override=selector_override,
+                tool=tool,
                 **debugkwargs,
             )
             return CwlTranslator.wrap_in_codeblock_if_required(
@@ -885,7 +889,7 @@ def translate_workflow_output(node: OutputNode) -> cwlgen.WorkflowOutputParamete
 
 
 def translate_tool_input(
-    toolinput: ToolInput, inputsdict
+    toolinput: ToolInput, inputsdict, tool
 ) -> cwlgen.CommandInputParameter:
     """
     Translate a ToolInput (commandtool / codetool) to a cwlgen.CommandInputParamaeter
@@ -913,7 +917,7 @@ def translate_tool_input(
     elif is_selector(default):
         default = None
         value_from = CwlTranslator.unwrap_expression(
-            toolinput.default, code_environment=False, toolid=toolinput.id()
+            toolinput.default, code_environment=False, tool=tool, toolId=tool.id()
         )
 
     data_type = toolinput.input_type.cwl_type(default is not None)
@@ -965,7 +969,7 @@ def translate_tool_input(
     )
 
 
-def translate_tool_argument(argument: ToolArgument) -> cwlgen.CommandLineBinding:
+def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineBinding:
     """
     https://www.commonwl.org/v1.0/CommandLineTool.html#CommandLineBinding
 
@@ -977,14 +981,14 @@ def translate_tool_argument(argument: ToolArgument) -> cwlgen.CommandLineBinding
         prefix=argument.prefix,
         separate=argument.separate_value_from_prefix,
         valueFrom=CwlTranslator.unwrap_expression(
-            argument.value, code_environment=False
+            argument.value, code_environment=False, tool=tool
         ),
         shellQuote=argument.shell_quote,
     )
 
 
 def translate_tool_output(
-    output: ToolOutput, inputsdict, **debugkwargs
+    output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputParameter:
     """
     https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
@@ -1003,7 +1007,9 @@ def translate_tool_output(
         label=output.tag,
         secondaryFiles=prepare_tool_output_secondaries(output),
         doc=doc,
-        outputBinding=prepare_tool_output_binding(output, inputsdict, **debugkwargs)
+        outputBinding=prepare_tool_output_binding(
+            output, inputsdict=inputsdict, tool=tool, **debugkwargs
+        )
         if required_binding
         else None,
         type=output.output_type.cwl_type(),
@@ -1011,7 +1017,7 @@ def translate_tool_output(
 
 
 def prepare_tool_output_binding(
-    output: ToolOutput, inputsdict, **debugkwargs
+    output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputBinding:
 
     if isinstance(output.glob, Operator):
@@ -1023,7 +1029,7 @@ def prepare_tool_output_binding(
 
     return cwlgen.CommandOutputBinding(
         glob=translate_to_cwl_glob(
-            output.glob, inputsdict, outputtag=output.tag, **debugkwargs
+            output.glob, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
         ),
         outputEval=prepare_tool_output_eval(output),
     )
@@ -1358,7 +1364,7 @@ def translate_step_node(
                 else [si for si in processed_sources]
             )
             valuefrom = CwlTranslator.unwrap_expression(
-                src, code_environment=False, selector_override=param_aliasing
+                src, code_environment=False, selector_override=param_aliasing, tool=tool
             )
 
         d = cwlgen.WorkflowStepInput(
@@ -1402,7 +1408,11 @@ def translate_input_selector(
 
 
 def translate_string_formatter(
-    selector: StringFormatter, selector_override, code_environment=True, **debugkwargs
+    selector: StringFormatter,
+    selector_override,
+    tool,
+    code_environment=True,
+    **debugkwargs,
 ):
 
     escapedFormat = selector._format.replace("\\", "\\\\")
@@ -1411,7 +1421,7 @@ def translate_string_formatter(
         return escapedFormat
 
     kwargreplacements = [
-        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, selector_override=selector_override, code_environment=True, **debugkwargs)})"
+        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, selector_override=selector_override, code_environment=True, tool=tool, **debugkwargs)})"
         for k, v in selector.kwargs.items()
     ]
     expr = f'"{escapedFormat}"' + "".join(kwargreplacements)
@@ -1420,7 +1430,7 @@ def translate_string_formatter(
     return expr
 
 
-def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
+def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
     if glob is None:
         return None
 
@@ -1461,7 +1471,7 @@ def translate_to_cwl_glob(glob, inputsdict, **debugkwargs):
             )
 
     elif isinstance(glob, StringFormatter):
-        return translate_string_formatter(glob, None)
+        return translate_string_formatter(glob, None, tool=tool)
 
     elif isinstance(glob, WildcardSelector):
         return glob.wildcard

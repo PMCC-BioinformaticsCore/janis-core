@@ -228,23 +228,30 @@ class WdlTranslator(TranslatorBase):
                     outputid=o.id(),
                 )
 
-            w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
-            if o.datatype.secondary_files():
-                w.outputs.extend(
-                    wdl.Output(
-                        o.datatype.wdl(),
-                        get_secondary_tag_from_original_tag(o.id(), s),
-                        ".".join(
-                            [
-                                *output_source[:-1],
-                                get_secondary_tag_from_original_tag(
-                                    output_source[-1], s
-                                ),
-                            ]
-                        ),
+                w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
+
+                if o.datatype.secondary_files():
+                    if isinstance(o.source, InputNodeSelector):
+                        src = [o.source.id()]
+                    elif isinstance(o.source, StepOutputSelector):
+                        src = [o.source.node.id(), o.source.tag]
+                    else:
+                        raise Exception(
+                            f"Unsupported type for output with secondary files: {type(o.source)}"
+                        )
+                    w.outputs.extend(
+                        wdl.Output(
+                            o.datatype.wdl(),
+                            get_secondary_tag_from_original_tag(o.id(), s),
+                            ".".join(
+                                [
+                                    *src[:-1],
+                                    get_secondary_tag_from_original_tag(src[-1], s),
+                                ]
+                            ),
+                        )
+                        for s in o.datatype.secondary_files()
                     )
-                    for s in o.datatype.secondary_files()
-                )
 
         # Generate import statements (relative tool dir is later?)
         uniquetoolmap: Dict[str, Tool] = {t.versioned_id(): t for t in tools}
@@ -599,14 +606,14 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_tool_outputs(
-        cls, tooloutputs: List[ToolOutput], inputsmap: Dict[str, ToolInput], toolid
+        cls, tooloutputs: List[ToolOutput], inputsmap: Dict[str, ToolInput], tool
     ):
         outs: List[wdl.Output] = []
 
         for o in tooloutputs:
             wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
             expression = cls.unwrap_expression_for_output(
-                o, o.glob, inputsdict=inputsmap, toolid=toolid
+                o, o.glob, inputsdict=inputsmap, tool=tool, toolid=tool.id()
             )
             outs.append(wdl.Output(wdl_type, o.id(), expression))
             outs.extend(
@@ -614,7 +621,7 @@ class WdlTranslator(TranslatorBase):
                     out=o,
                     original_expression=o.glob,
                     expression=expression,
-                    toolid=toolid,
+                    toolid=tool.id(),
                 )
             )
 
@@ -686,13 +693,19 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def translate_tool_args(
-        cls, toolargs: List[ToolArgument], inpmap: Dict[str, ToolInput], **debugkwargs
+        cls,
+        toolargs: List[ToolArgument],
+        inpmap: Dict[str, ToolInput],
+        tool,
+        **debugkwargs,
     ):
         if not toolargs:
             return []
         commandargs = []
         for a in toolargs:
-            val = cls.unwrap_expression(a.value, inpmap, string_environment=True)
+            val = cls.unwrap_expression(
+                a.value, inpmap, tool=tool, string_environment=True
+            )
             should_wrap_in_quotes = isinstance(val, str) and (
                 a.shell_quote is None or a.shell_quote
             )
@@ -748,9 +761,9 @@ class WdlTranslator(TranslatorBase):
             )
 
         ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
-        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool.id())
+        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool=tool)
         command_args = cls.translate_tool_args(
-            tool.arguments(), inmap, toolId=tool.id()
+            tool.arguments(), inmap, tool=tool, toolId=tool.id()
         )
         command_ins = cls.build_command_from_inputs(tool.inputs())
 
@@ -854,7 +867,7 @@ class WdlTranslator(TranslatorBase):
                 )
             )
 
-        tr_outs = cls.translate_tool_outputs(outs, {}, tool.id())
+        tr_outs = cls.translate_tool_outputs(outs, {}, tool=tool)
 
         commands = []
 

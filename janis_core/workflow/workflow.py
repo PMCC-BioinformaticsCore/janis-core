@@ -442,13 +442,13 @@ class Workflow(Tool):
 
             skip_typecheck = True
 
-        if output_name:
+        if output_name is not None:
             if isinstance(output_name, list):
                 raise Exception("An output_name cannot be of type 'list'")
             output_name = self.verify_output_source_type(
                 identifier, output_name, "output_name"
             )
-        if output_folder:
+        if output_folder is not None:
             ot = output_folder if isinstance(output_folder, list) else [output_folder]
             output_folder = self.verify_output_source_type(
                 identifier, ot, "output_folder"

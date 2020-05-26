@@ -526,6 +526,10 @@ OUTPUTS:
         if with_resource_overrides:
             cpus = self.cpus(hints) or 1
             mem = self.memory(hints)
+            if isinstance(cpus, Selector):
+                cpus = None
+            if isinstance(mem, Selector):
+                mem = None
             d.update(
                 {
                     "runtime_memory": mem,
