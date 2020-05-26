@@ -3,7 +3,7 @@ import os
 from abc import abstractmethod
 from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
-from janis_core.graph.node import Node, NodeTypes
+from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.documentation import (
@@ -70,7 +70,7 @@ class InputNode(Node):
         value: any,
         doc: InputDocumentation = None,
     ):
-        super().__init__(wf, NodeTypes.INPUT, identifier)
+        super().__init__(wf, NodeType.INPUT, identifier)
         self.datatype = datatype
         self.default = default
         self.doc = doc
@@ -93,7 +93,7 @@ class StepNode(Node):
         doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
     ):
-        super().__init__(wf, NodeTypes.STEP, identifier)
+        super().__init__(wf, NodeType.STEP, identifier)
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
@@ -164,21 +164,22 @@ class OutputNode(Node):
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
         output_name: Union[str, InputSelector] = None,
+        skip_typecheck=False,
     ):
-        super().__init__(wf, NodeTypes.OUTPUT, identifier)
+        super().__init__(wf, NodeType.OUTPUT, identifier)
         self.datatype = datatype
 
-        if source[0].node_type != NodeTypes.STEP:
-            raise Exception(
-                f"Unsupported connection type: {NodeTypes.OUTPUT} → {source[0].node_type}"
-            )
+        # if source[0].node_type != NodeType.STEP:
+        #     raise Exception(
+        #         f"Unsupported connection type: {"Output"} → {source[0].node_type}"
+        #     )
 
         stype = source[0].outputs()[source[1]].outtype
         snode = source[0]
         if isinstance(snode, StepNode) and snode.scatter:
             stype = Array(stype)
 
-        if not datatype.can_receive_from(stype):
+        if not skip_typecheck and not datatype.can_receive_from(stype):
             Logger.critical(
                 f"Mismatch of types when joining to output node '{source[0].id()}.{source[1]}' to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
@@ -277,7 +278,7 @@ class Workflow(Tool):
         self.verify_identifier(identifier, repr(datatype))
 
         datatype = get_instantiated_type(datatype)
-        if default:
+        if default is not None:
             datatype.optional = True
 
         doc = (
@@ -328,11 +329,16 @@ class Workflow(Tool):
             raise Exception("Output source must not be 'None'")
 
         node, tag = verify_or_try_get_source(source)
+        skip_typecheck = False
         if not datatype:
-            datatype: DataType = node.outputs()[tag].outtype.received_type()
+            datatype: DataType = copy.copy(node.outputs()[tag].outtype.received_type())
+            if isinstance(node, InputNode) and node.default is not None:
+                datatype.optional = False
 
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
+
+            skip_typecheck = True
 
         if output_name:
             if isinstance(output_name, list):
@@ -360,6 +366,7 @@ class Workflow(Tool):
             output_folder=output_folder,
             output_name=output_name,
             doc=doc,
+            skip_typecheck=skip_typecheck,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp

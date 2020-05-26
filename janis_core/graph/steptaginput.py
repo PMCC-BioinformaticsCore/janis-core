@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 
-from janis_core.graph.node import Node, NodeTypes
+from janis_core.graph.node import Node, NodeType
 from janis_core.tool.tool import TInput, TOutput
 from janis_core.types.common_data_types import Array
 from janis_core.utils import first_value
@@ -29,8 +29,8 @@ class Edge:
         should_scatter,
     ):
         Logger.log(
-            f"Creating edge: ({NodeTypes.to_str(start.node_type)}) '{start.id()}.{stag}' → "
-            f"({NodeTypes.to_str(finish.node_type)}) '{finish.id()}.{ftag}'"
+            f"Creating edge: ({NodeType.to_str(start.node_type)}) '{start.id()}.{stag}' → "
+            f"({NodeType.to_str(finish.node_type)}) '{finish.id()}.{ftag}'"
         )
 
         self.start: Node = start
@@ -51,14 +51,14 @@ class Edge:
 
     def validate_tags(self):
         if (
-            self.start.node_type == NodeTypes.STEP
+            self.start.node_type == NodeType.STEP
             and self.stag not in self.start.outputs()
         ):
             raise Exception(
                 f"Could not find the tag '{self.stag}' in the inputs of '{self.start.id()}'"
             )
         if (
-            self.finish.node_type == NodeTypes.STEP
+            self.finish.node_type == NodeType.STEP
             and self.ftag not in self.finish.inputs()
         ):
             raise Exception(

@@ -58,6 +58,7 @@ from janis_core.utils.secondary import (
 
 
 ## PRIMARY TRANSLATION METHODS
+from janis_core.workflow.workflow import InputNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -172,23 +173,33 @@ class WdlTranslator(TranslatorBase):
         # Convert self._outputs -> wdl.Output
         for o in outputs:
             sourcenode, sourcetag = o.source
-            w.outputs.append(
-                wdl.Output(
-                    o.datatype.wdl(),
-                    o.id(),
-                    "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                        a=sourcenode.id(), b=sourcetag
-                    ),
-                )
-            )
+            output_source = [x for x in [sourcenode.id(), sourcetag] if x is not None]
+            os = ".".join(output_source)
+
+            if isinstance(sourcenode, InputNode):
+                if sourcenode.default is not None:
+                    val = get_input_value_from_potential_selector_or_generator(
+                        sourcenode.default,
+                        inputsdict=None,
+                        string_environment=False,
+                        wfid=wf.id(),
+                        outputid=o.id(),
+                    )
+                    os = f"select_first([{sourcenode.id()}, {val}])"
+
+            w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), os))
             if o.datatype.secondary_files():
                 w.outputs.extend(
                     wdl.Output(
                         o.datatype.wdl(),
                         get_secondary_tag_from_original_tag(o.id(), s),
-                        "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                            a=sourcenode.id(),
-                            b=get_secondary_tag_from_original_tag(sourcetag, s),
+                        ".".join(
+                            [
+                                *output_source[:-1],
+                                get_secondary_tag_from_original_tag(
+                                    output_source[-1], s
+                                ),
+                            ]
                         ),
                     )
                     for s in o.datatype.secondary_files()
