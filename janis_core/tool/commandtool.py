@@ -340,8 +340,6 @@ class CommandTool(Tool, ABC):
         truly portable.
 
         This memory must be in GB!
-        :param hints: Dict[Key: value] of hints
-        :return: Optional[int]
         """
         return None
 
@@ -353,7 +351,33 @@ class CommandTool(Tool, ABC):
         These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
         truly portable.
 
-        The CPU must be a whole number. If your tool contains threads
+        The CPU must be a whole number or a Selector that resolves to a whole number.
+        :return:
+        """
+        return None
+
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in SECONDS and must be a whole number.
+        :return:
+        """
+        return 86400
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in GB.
         :return:
         """
         return None
@@ -404,6 +428,7 @@ class CommandTool(Tool, ABC):
             "runtime_memory",
             "runtime_cpu",
             "runtime_disks",
+            "runtime_seconds",
         ]
 
     def help(self):
@@ -524,17 +549,29 @@ OUTPUTS:
                 d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
-            cpus = self.cpus(hints) or 1
+            cpus = self.cpus(hints)
             mem = self.memory(hints)
-            if isinstance(cpus, Selector):
+            disk = self.disk(hints)
+            secs = self.time(hints)
+            if cpus is None:
+                cpus = 1
+            elif isinstance(cpus, Selector):
                 cpus = None
+
             if isinstance(mem, Selector):
                 mem = None
+
+            if isinstance(secs, Selector):
+                secs = None
+
+            if isinstance(disk, Selector):
+                disk = None
             d.update(
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": "local-disk 60 SSD",
+                    "runtime_disks": disk,
+                    "runtime_seconds": secs,
                 }
             )
 

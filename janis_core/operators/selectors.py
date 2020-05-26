@@ -315,3 +315,36 @@ class CpuSelector(InputSelector):
 
     def __repr__(self):
         return str(self)
+
+
+class DiskSelector(InputSelector):
+    def __init__(self):
+        super().__init__("runtime_disks")
+
+    def returntype(self):
+        return Int(optional=True)
+
+    def __str__(self):
+        return "runtime_disks"
+
+    def __repr__(self):
+        return str(self)
+
+
+class TimeSelector(InputSelector):
+    def __init__(self, default=86400):
+        """
+        Specified in seconds
+        :param default:
+        """
+        super().__init__("runtime_seconds")
+        self.default = default
+
+    def returntype(self):
+        return Int(optional=bool(self.default is None))
+
+    def __str__(self):
+        return "runtime_seconds"
+
+    def __repr__(self):
+        return str(self)

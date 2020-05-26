@@ -43,6 +43,8 @@ from janis_core.operators import (
     Operator,
     StepOutputSelector,
     InputNodeSelector,
+    TimeSelector,
+    DiskSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -421,6 +423,54 @@ class WdlTranslator(TranslatorBase):
             ops.append(1)
             return cls.unwrap_expression(
                 FirstOperator(ops),
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(expression, TimeSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping TimeSelector")
+            tooltime = tool.time({})
+
+            if isinstance(tooltime, Operator) and any(
+                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
+            ):
+                raise Exception(
+                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
+                )
+
+            ops = [InputSelector("runtime_seconds")]
+            if tooltime is not None:
+                ops.append(tooltime)
+            ops.append(86400)
+            return cls.unwrap_expression(
+                FirstOperator(ops),
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(expression, DiskSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping DiskSelector")
+            tooldisk = tool.disk({})
+
+            if isinstance(tooldisk, Operator) and any(
+                isinstance(l, DiskSelector) for l in tooldisk.get_leaves()
+            ):
+                raise Exception(
+                    f"DiskSelector() should not be use used in tool.time() for '{tool.id()}'"
+                )
+
+            ops = [InputSelector("runtime_disks")]
+            if tooldisk is not None:
+                ops.append(tooldisk)
+            ops.append(20)
+            return cls.unwrap_expression(
+                StringFormatter("local-disk {value} SSD", value=FirstOperator(ops)),
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
@@ -814,10 +864,22 @@ class WdlTranslator(TranslatorBase):
             tool=tool,
             id="runtimestats",
         )
+        r.kwargs["duration"] = cls.unwrap_expression(
+            TimeSelector(),
+            inmap,
+            string_environment=False,
+            tool=tool,
+            id="runtimestats",
+        )
+        r.kwargs["disks"] = cls.unwrap_expression(
+            DiskSelector(),
+            inmap,
+            string_environment=False,
+            tool=tool,
+            id="runtimestats",
+        )
 
         if with_resource_overrides:
-            ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
-            r.kwargs["disks"] = "runtime_disks"
             r.kwargs["zones"] = '"australia-southeast1-b"'
 
         r.kwargs["preemptible"] = 2

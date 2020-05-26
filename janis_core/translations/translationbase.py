@@ -386,7 +386,8 @@ class TranslatorBase(ABC):
         if not isinstance(tool, Workflow):
             cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
-            disk = inputs.get(f"{prefix}runtime_disks", "local-disk 60 SSD")
+            disk = inputs.get(f"{prefix}runtime_disks", "20")
+            seconds = inputs.get(f"{prefix}runtime_seconds", "86400")
 
             if max_cores and cpus > max_cores:
                 Logger.info(
@@ -404,6 +405,7 @@ class TranslatorBase(ABC):
                 prefix + "runtime_memory": mem,
                 prefix + "runtime_cpu": cpus,
                 prefix + "runtime_disks": disk,
+                prefix + "runtime_seconds": seconds,
             }
 
         new_inputs = {}
@@ -434,8 +436,10 @@ class TranslatorBase(ABC):
     @staticmethod
     def get_resource_override_inputs() -> List[ToolInput]:
         return [
-            ToolInput("runtime_cpu", Int(optional=True)),
-            ToolInput("runtime_memory", Int(optional=True)),
+            ToolInput("runtime_cpu", Int(optional=True)),  # number of CPUs
+            ToolInput("runtime_memory", Int(optional=True)),  # GB of memory
+            ToolInput("runtime_seconds", Int(optional=True)),  # seconds of running time
+            ToolInput("runtime_disks", Int(optional=True)),  # GB of storage required
         ]
 
     # STRINGIFY

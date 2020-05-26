@@ -48,6 +48,8 @@ from janis_core.operators import (
     Operator,
     InputNodeSelector,
     StepOutputSelector,
+    TimeSelector,
+    DiskSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -484,8 +486,13 @@ class CwlTranslator(TranslatorBase):
                     ramMin=CwlTranslator.unwrap_expression(
                         MemorySelector(), code_environment=False, tool=tool
                     ),
+                    outdirMin=CwlTranslator.unwrap_expression(
+                        DiskSelector(), code_environment=False, tool=tool
+                    ),
                 )
             )
+
+            # Add ToolTimeLimit here
 
         return tool_cwl
 
@@ -775,7 +782,51 @@ return {out_capture}
                 ops.append(toolcpu)
             ops.append(1)
             return cls.unwrap_expression(
-                FirstOperator([InputSelector("runtime_cpu"), toolcpu, 1]),
+                FirstOperator(ops),
+                code_environment=code_environment,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(value, TimeSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping TimeSelector")
+            tooltime = tool.time({})
+
+            if isinstance(tooltime, Operator) and any(
+                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
+            ):
+                raise Exception(
+                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
+                )
+            ops = [InputSelector("runtime_seconds")]
+            if tooltime is not None:
+                ops.append(tooltime)
+            ops.append(86400)
+            return cls.unwrap_expression(
+                FirstOperator(ops),
+                code_environment=code_environment,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(value, DiskSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping DiskSelector")
+            tooltime = tool.disk({})
+
+            if isinstance(tooltime, Operator) and any(
+                isinstance(l, DiskSelector) for l in tooltime.get_leaves()
+            ):
+                raise Exception(
+                    f"DiskSelector() should not be use used in tool.disk() for '{tool.id()}'"
+                )
+            ops = [InputSelector("runtime_disks")]
+            if tooltime is not None:
+                ops.append(tooltime)
+            ops.append(20)
+            return cls.unwrap_expression(
+                FirstOperator(ops),
                 code_environment=code_environment,
                 tool=tool,
                 **debugkwargs,

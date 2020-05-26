@@ -989,7 +989,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override={tool.id(): expected_container}
         )
 
-        line = translated.splitlines()[20].strip()
+        line = translated.splitlines()[23].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_string_override(self):
@@ -1000,7 +1000,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override=expected_container
         )
 
-        line = translated.splitlines()[20].strip()
+        line = translated.splitlines()[23].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_override_casecheck(self):
@@ -1017,7 +1017,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             container_override={toolid_upper: expected_container},
         )
 
-        line = translated.splitlines()[20].strip()
+        line = translated.splitlines()[23].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
 
@@ -1215,8 +1215,8 @@ class TestWdlResourceOperators(unittest.TestCase):
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)
         print(tool_wdl)
-        cpus = lines[15].strip()
-        memory = lines[18].strip()
+        cpus = lines[16].strip()
+        memory = lines[20].strip()
 
         self.assertEqual("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", cpus)
         self.assertEqual(
