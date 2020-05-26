@@ -68,6 +68,7 @@ from janis_core.utils.secondary import (
 
 
 ## PRIMARY TRANSLATION METHODS
+from janis_core.workflow.workflow import InputNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -193,10 +194,18 @@ class WdlTranslator(TranslatorBase):
         # Convert self._outputs -> wdl.Output
         for o in outputs:
             outtag = None
+
             if isinstance(o.source, list):
                 pick_value = o.pick_value
                 vals = ", ".join(
-                    f"{source.node.id()}.{source.tag}" for source in o.source
+                    WdlTranslator.unwrap_expression(
+                        expression=source,
+                        inputsdict=None,
+                        string_environment=False,
+                        wfid=wf.id(),
+                        outputid=o.id(),
+                    )
+                    for source in o.source
                 )
                 if pick_value == PickValue.all_non_null:
                     outtag = f"select_all([{vals}])"
@@ -207,9 +216,12 @@ class WdlTranslator(TranslatorBase):
                         "WDL conversion is currently unable to handle single_non_null"
                     )
             else:
-                sourcenode, sourcetag = o.source.node, o.source.tag
-                outtag = "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                    a=sourcenode.id(), b=sourcetag
+                outtag = WdlTranslator.unwrap_expression(
+                    expression=o.source,
+                    inputsdict=None,
+                    string_environment=False,
+                    wfid=wf.id(),
+                    outputid=o.id(),
                 )
 
             w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
@@ -218,9 +230,13 @@ class WdlTranslator(TranslatorBase):
                     wdl.Output(
                         o.datatype.wdl(),
                         get_secondary_tag_from_original_tag(o.id(), s),
-                        "{a}.{b}".format(  # Generate fully qualified stepid.tag identifier (MUST be step node)
-                            a=sourcenode.id(),
-                            b=get_secondary_tag_from_original_tag(sourcetag, s),
+                        ".".join(
+                            [
+                                *output_source[:-1],
+                                get_secondary_tag_from_original_tag(
+                                    output_source[-1], s
+                                ),
+                            ]
                         ),
                     )
                     for s in o.datatype.secondary_files()
@@ -363,6 +379,11 @@ class WdlTranslator(TranslatorBase):
 
         if isinstance(expression, InputNodeSelector):
             value = expression.input_node.id()
+            if expression.input_node.default is not None:
+                unwrapped_default = unwrap_expression_wrap(
+                    expression.input_node.default
+                )
+                value = f"select_first([{value}, {unwrapped_default}])"
             return wrap_in_code_block(value)
 
         if isinstance(expression, StepOutputSelector):
@@ -916,7 +937,7 @@ EOT"""
 
     @staticmethod
     def workflow_filename(workflow):
-        return workflow.id() + ".wdl"
+        return workflow.versioned_id() + ".wdl"
 
     @staticmethod
     def inputs_filename(workflow):
@@ -1351,9 +1372,6 @@ def translate_step_node(
                     unwrapped_sources[sec].append(
                         get_secondary_tag_from_original_tag(unwrapped_exp, sec)
                     )
-
-                if default:
-                    unwrapped_exp = f"select_first([{unwrapped_exp}, {default}])"
 
             unwrapped_sources[None].append(unwrapped_exp)
 

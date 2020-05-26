@@ -1143,3 +1143,65 @@ workflow cwl_test_array_step_input {
 }"""
 
         self.assertEqual(expected, ret)
+
+
+class TestWdlWorkflowInputToOutputConnection(unittest.TestCase):
+    def test_simple(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str)
+        w.output("out", source=w.inp)
+        out, _, _ = w.translate("wdl", to_console=False)
+        expected = """\
+version development
+
+
+
+workflow wf {
+  input {
+    String inp
+  }
+  output {
+    String out = inp
+  }
+}"""
+        self.assertEqual(expected, out)
+
+    def test_with_int_default(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", int, default=0)
+        w.output("out", source=w.inp)
+        out, _, _ = w.translate("wdl", to_console=False)
+        expected = """\
+version development
+
+
+
+workflow wf {
+  input {
+    Int? inp = 0
+  }
+  output {
+    Int out = select_first([inp, 0])
+  }
+}"""
+        self.assertEqual(expected, out)
+
+    def test_with_str_default(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str, default="hello")
+        w.output("out", source=w.inp)
+        out, _, _ = w.translate("wdl", to_console=False)
+        expected = """\
+version development
+
+
+
+workflow wf {
+  input {
+    String? inp = "hello"
+  }
+  output {
+    String out = select_first([inp, "hello"])
+  }
+}"""
+        self.assertEqual(expected, out)

@@ -3,7 +3,7 @@ import os
 from abc import abstractmethod
 from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
-from janis_core.graph.node import Node, NodeTypes
+from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.documentation import (
@@ -98,7 +98,7 @@ class InputNode(Node):
         value: any,
         doc: InputDocumentation = None,
     ):
-        super().__init__(wf, NodeTypes.INPUT, identifier)
+        super().__init__(wf, NodeType.INPUT, identifier)
         self.datatype = datatype
         self.default = default
         self.doc = doc
@@ -125,7 +125,7 @@ class StepNode(Node):
         scatter: ScatterDescription = None,
         when: Operator = None,
     ):
-        super().__init__(wf, NodeTypes.STEP, identifier)
+        super().__init__(wf, NodeType.STEP, identifier)
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
@@ -232,29 +232,28 @@ class OutputNode(Node):
         ] = None,
         output_name: Union[str, InputSelector] = None,
         pick_value: PickValue = None,
+        skip_typecheck=False,
     ):
-        super().__init__(wf, NodeTypes.OUTPUT, identifier)
+        super().__init__(wf, NodeType.OUTPUT, identifier)
         self.datatype = datatype
 
         sources = source if isinstance(source, list) else [source]
         single_source = sources[0]
 
-        invalid_nodetypes = list(
-            s for s in sources if s.node.node_type != NodeTypes.STEP
-        )
-        if len(invalid_nodetypes) > 0:
-            raise Exception(
-                f"Unsupported connection type: {NodeTypes.OUTPUT} → {', '.join(str(s[0].node_type) for s in sources)}"
-            )
-
-        snode = single_source.node
-        stype = snode.outputs()[single_source.tag].outtype
+        if isinstance(single_source, StepOutputSelector):
+            snode = single_source.node
+            stype = snode.outputs()[single_source.tag].outtype
+        elif isinstance(single_source, InputNodeSelector):
+            snode = single_source.input_node
+            stype = snode.outputs()[None].outtype
+        else:
+            raise Exception("Unsupported output source type " + str(single_source))
 
         # todo: verify how a scatter on multiple input nodes should be handled, likely an error if they're different
         if isinstance(snode, StepNode) and snode.scatter:
             stype = Array(stype)
 
-        if not datatype.can_receive_from(stype):
+        if not skip_typecheck and not datatype.can_receive_from(stype):
             Logger.critical(
                 f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
@@ -408,8 +407,9 @@ class Workflow(Tool):
         if source is None:
             raise Exception("Output source must not be 'None'")
 
-        stepoperators = verify_or_try_get_source(source)
-        if isinstance(stepoperators, list):
+        sourceoperator = verify_or_try_get_source(source)
+        skip_typecheck = False
+        if isinstance(sourceoperator, list):
             # better be a pick_value
             if not pick_value:
                 pick_value = PickValue.first_non_null
@@ -417,20 +417,30 @@ class Workflow(Tool):
                     "janis.output had source=List, but didn't provide a pick_value, defaulting to first_non_null"
                 )
 
-            stepoperator = stepoperators[0]
+            sourceoperator = sourceoperator[0]
         else:
-            stepoperator = stepoperators
+            sourceoperator = sourceoperator
 
-        node, tag = stepoperator.node, stepoperator.tag
+        if isinstance(sourceoperator, StepOutputSelector):
+            node, tag = sourceoperator.node, sourceoperator.tag
+        elif isinstance(sourceoperator, InputNodeSelector):
+            node = sourceoperator.input_node
+            tag = None
+        else:
+            raise Exception("Unsupported output source type: " + str(sourceoperator))
 
         if not datatype:
-            datatype: DataType = node.outputs()[tag].outtype.received_type()
+            datatype: DataType = copy.copy(node.outputs()[tag].outtype.received_type())
+            if isinstance(node, InputNode) and node.default is not None:
+                datatype.optional = False
 
             if isinstance(node, StepNode) and node.scatter:
                 datatype = Array(datatype)
 
             if pick_value and pick_value == PickValue.all_non_null:
                 datatype = Array(datatype)
+
+            skip_typecheck = True
 
         if output_name:
             if isinstance(output_name, list):
@@ -454,10 +464,11 @@ class Workflow(Tool):
             self,
             identifier=identifier,
             datatype=get_instantiated_type(datatype),
-            source=stepoperators,
+            source=sourceoperator,
             output_folder=output_folder,
             output_name=output_name,
             doc=doc,
+            skip_typecheck=skip_typecheck,
             pick_value=pick_value,
         )
         self.nodes[identifier] = otp

@@ -14,7 +14,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
-import cwlgen as cwl
+import janis_core.utils.cwl_v1_0 as cwl
 from wdlgen import WdlType
 
 from janis_core.utils import is_array_prefix
@@ -88,27 +88,27 @@ class NativeTypes:
     @staticmethod
     def map_to_cwl(t: NativeType):
         if t == NativeTypes.kBool:
-            return cwl.CwlTypes.BOOLEAN
+            return "boolean"
         elif t == NativeTypes.kInt:
-            return cwl.CwlTypes.INT
+            return "int"
         elif t == NativeTypes.kLong:
-            return cwl.CwlTypes.LONG
+            return "long"
         elif t == NativeTypes.kFloat:
-            return cwl.CwlTypes.FLOAT
+            return "float"
         elif t == NativeTypes.kDouble:
-            return cwl.CwlTypes.DOUBLE
+            return "double"
         elif t == NativeTypes.kStr:
-            return cwl.CwlTypes.STRING
+            return "string"
         elif t == NativeTypes.kFile:
-            return cwl.CwlTypes.FILE
+            return "File"
         elif t == NativeTypes.kDirectory:
-            return cwl.CwlTypes.DIRECTORY
+            return "Directory"
         elif t == NativeTypes.kArray:
-            return cwl.CwlTypes.ARRAY
+            return "array"
         elif t == NativeTypes.kStdout:
-            return cwl.CwlTypes.STDOUT
+            return "stdout"
         elif t == NativeTypes.kStderr:
-            return cwl.CwlTypes.STDERR
+            return "stderr"
         raise Exception(
             f"Unhandled primitive type {t}, expected one of {', '.join(NativeTypes.all)}"
         )

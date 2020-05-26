@@ -1,9 +1,9 @@
 importlib-metadata
 importlib-resources
-cwlgen>=0.4.0
 illusional.wdlgen>=0.2.7
 networkx>=2.1
 ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
 path
 cwlformat >= 2020.5.19
+schema_salad

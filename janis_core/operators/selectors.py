@@ -1,5 +1,7 @@
 from typing import Union
 
+from janis_core.graph.node import NodeType
+
 from janis_core.types import get_instantiated_type
 
 from janis_core.utils import first_value
@@ -198,7 +200,7 @@ class InputNodeSelector(Selector):
     def __init__(self, input_node):
         from janis_core.workflow.workflow import InputNode
 
-        if input_node.node_type != 1:  # input
+        if input_node.node_type != NodeType.INPUT:  # input
             raise Exception(
                 f"Error when creating InputOperator, '{input_node.id()}' was not an input node"
             )

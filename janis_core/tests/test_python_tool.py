@@ -1,6 +1,7 @@
 import unittest
 from typing import List, Optional
 
+from janis_core.translations import CwlTranslator
 from janis_core.types import String, Boolean, Float, Int, File, Array, Filename
 
 from janis_core.code.pythontool import PythonTool
@@ -68,6 +69,9 @@ class PythonToolCodeBuilderTests(unittest.TestCase):
     def test_whole(self):
         out = PythonEchoTool().translate("wdl", to_console=False)
         self.assertEqual(wdl, out)
+
+    def test_whole(self):
+        test = CwlTranslator.translate_code_tool_internal(PythonEchoTool())
 
     # def test_build_code_block(self):
     #     script = PythonEchoTool().prepared_script()
