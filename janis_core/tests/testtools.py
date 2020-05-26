@@ -41,6 +41,17 @@ class EchoTestTool(CommandTool):
         return "TEST"
 
 
+class OperatorResourcesTestTool(EchoTestTool):
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inputFile", File, position=1), ToolInput("outputFiles", int)]
+
+    def memory(self, hints: Dict[str, Any]):
+        return If(InputSelector("inputFile").file_size() > 1024, 4, 2)
+
+    def cpus(self, hints: Dict[str, Any]):
+        return 2 * InputSelector("outputFiles")
+
+
 class CatTestTool(CommandTool):
     def tool(self) -> str:
         return "CatTestTool"

@@ -12,6 +12,7 @@ from janis_core.tests.testtools import (
     TestWorkflowWithStepInputExpression,
     EchoTestTool,
     FilenameGeneratedTool,
+    OperatorResourcesTestTool,
 )
 
 import janis_core.utils.cwl_v1_0 as cwlgen
@@ -239,12 +240,12 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_input_value_int_codeenv(self):
         self.assertEqual(
-            42, cwl.CwlTranslator.unwrap_expression(42, code_environment=True)
+            "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=True)
         )
 
     def test_input_value_int_nocodeenv(self):
         self.assertEqual(
-            42, cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
+            "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
         )
 
     # def test_input_value_filename_codeenv(self):
@@ -282,33 +283,33 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             Exception, cwl.CwlTranslator.unwrap_expression, value=WildcardSelector("*")
         )
 
-    def test_input_value_cpuselect_codeenv(self):
-        inp = CpuSelector()
-        self.assertEqual(
-            "inputs.runtime_cpu" "",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
-        )
+    # def test_input_value_cpuselect_codeenv(self):
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "inputs.runtime_cpu",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+    #     )
+    #
+    # def test_input_value_cpuselect_nocodeenv(self):
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "$(inputs.runtime_cpu)",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+    #     )
 
-    def test_input_value_cpuselect_nocodeenv(self):
-        inp = CpuSelector()
-        self.assertEqual(
-            "$(inputs.runtime_cpu)",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
-        )
-
-    def test_input_value_memselect_codeenv(self):
-        inp = MemorySelector()
-        self.assertEqual(
-            "inputs.runtime_memory",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
-        )
-
-    def test_input_value_memselect_nocodeenv(self):
-        inp = MemorySelector()
-        self.assertEqual(
-            "$(inputs.runtime_memory)",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
-        )
+    # def test_input_value_memselect_codeenv(self):
+    #     inp = MemorySelector()
+    #     self.assertEqual(
+    #         "inputs.runtime_memory",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+    #     )
+    #
+    # def test_input_value_memselect_nocodeenv(self):
+    #     inp = MemorySelector()
+    #     self.assertEqual(
+    #         "$(inputs.runtime_memory)",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+    #     )
 
     def test_input_value_cwl_callable(self):
         class NonCallableCwl:
@@ -693,6 +694,24 @@ class TestCWLRunRefs(unittest.TestCase):
 
         self.assertEqual("tools/TestTranslationtool.cwl", stps["stp1"].run)
         self.assertEqual("tools/TestTranslationtool_v0_0_2.cwl", stps["stp2"].run)
+
+
+class TestCwlResourceOperators(unittest.TestCase):
+    def test_1(self):
+        tool_cwl = CwlTranslator.translate_tool_internal(
+            OperatorResourcesTestTool(), with_resource_overrides=True
+        )
+        resourcereq = [
+            r for r in tool_cwl.requirements if r.class_ == "ResourceRequirement"
+        ][0]
+        self.assertEqual(
+            "$([inputs.runtime_cpu, (2 * inputs.outputFiles), 1].filter(function (inner) { return inner != null })[0])",
+            resourcereq.coresMin,
+        )
+        self.assertEqual(
+            "$(Math.round((953.674 * [inputs.runtime_memory, ((inputs.inputFile.size / 1048576) > 1024) ? 4 : 2, 4].filter(function (inner) { return inner != null })[0])))",
+            resourcereq.ramMin,
+        )
 
 
 cwl_testtool = """\

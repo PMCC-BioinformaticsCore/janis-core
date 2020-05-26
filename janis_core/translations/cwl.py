@@ -31,8 +31,8 @@ import ruamel.yaml
 from janis_core import ToolArgument
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
-from janis_core.operators.logical import IsDefined, If
-from janis_core.operators.standard import BasenameOperator
+from janis_core.operators.logical import IsDefined, If, RoundOperator
+from janis_core.operators.standard import BasenameOperator, FirstOperator
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool, ToolInput
@@ -478,8 +478,12 @@ class CwlTranslator(TranslatorBase):
 
             tool_cwl.requirements.append(
                 cwlgen.ResourceRequirement(
-                    coresMin="$(inputs.runtime_cpu ? inputs.runtime_cpu : 1)",
-                    ramMin="$(inputs.runtime_memory ? Math.floor(1024 * inputs.runtime_memory) : 4096)",
+                    coresMin=CwlTranslator.unwrap_expression(
+                        CpuSelector(), code_environment=False, tool=tool
+                    ),
+                    ramMin=CwlTranslator.unwrap_expression(
+                        MemorySelector(), code_environment=False, tool=tool
+                    ),
                 )
             )
 
@@ -670,7 +674,12 @@ return {out_capture}
 
     @classmethod
     def unwrap_expression(
-        cls, value, code_environment=True, selector_override=None, **debugkwargs
+        cls,
+        value,
+        code_environment=True,
+        selector_override=None,
+        tool=None,
+        **debugkwargs,
     ):
         if value is None:
             if code_environment:
@@ -697,7 +706,7 @@ return {out_capture}
                 value, code_environment
             )
         elif isinstance(value, int) or isinstance(value, float):
-            return value
+            return str(value)
         elif isinstance(value, Filename):
             # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
             return CwlTranslator.quote_values_if_code_environment(
@@ -723,6 +732,52 @@ return {out_capture}
             # if sel in selector_override:
             #     sel = selector_override[sel]
             # return CwlTranslator.wrap_in_codeblock_if_required(sel, code_environment)
+
+        elif isinstance(value, MemorySelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping MemorySelector")
+            toolmem = tool.memory({})
+
+            if isinstance(toolmem, Operator) and any(
+                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
+            ):
+                raise Exception(
+                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                )
+            ops = [InputSelector("runtime_memory")]
+            if toolmem is not None:
+                ops.append(toolmem)
+            ops.append(4)
+            # Note that 1GB = 953.674 MiB
+            return cls.unwrap_expression(
+                RoundOperator(953.674 * FirstOperator(ops)),
+                code_environment=code_environment,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(value, CpuSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping MemorySelector")
+            toolcpu = tool.cpus({})
+
+            if isinstance(toolcpu, Operator) and any(
+                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
+            ):
+                raise Exception(
+                    f"CpuSelector() should not be use used in tool.cpus() for '{tool.id()}'"
+                )
+            ops = [InputSelector("runtime_cpu")]
+            if toolcpu is not None:
+                ops.append(toolcpu)
+            ops.append(1)
+            return cls.unwrap_expression(
+                FirstOperator([InputSelector("runtime_cpu"), toolcpu, 1]),
+                code_environment=code_environment,
+                tool=tool,
+                **debugkwargs,
+            )
+
         elif isinstance(value, InputSelector):
             return translate_input_selector(
                 selector=value,

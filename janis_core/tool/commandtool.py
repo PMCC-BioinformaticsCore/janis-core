@@ -331,7 +331,7 @@ class CommandTool(Tool, ABC):
             return f"{self.tool()}/{self.version()}"
         return self.tool()
 
-    def memory(self, hints: Dict[str, Any]) -> Optional[float]:
+    def memory(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
         """
         These values are used to generate a separate runtime.json / runtime.yaml input
         that can be passed to the execution engine to fill in for the specified hints.
@@ -345,7 +345,7 @@ class CommandTool(Tool, ABC):
         """
         return None
 
-    def cpus(self, hints: Dict[str, Any]) -> Optional[int]:
+    def cpus(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
         """
         These values are used to generate a separate runtime.json / runtime.yaml input
         that can be passed to the execution engine to fill in for the specified hints.
@@ -598,7 +598,7 @@ class CommandToolBuilder(CommandTool):
     def cpus(self, hints: Dict[str, Any]):
         if self._cpu is None:
             return None
-        if isinstance(self._cpu, int) or isinstance(self._cpu, float):
+        if isinstance(self._cpu, (int, float, Selector)):
             return self._cpu
 
         if callable(self._cpu):
@@ -611,7 +611,7 @@ class CommandToolBuilder(CommandTool):
     def memory(self, hints: Dict[str, Any]):
         if self._memory is None:
             return None
-        if isinstance(self._memory, int) or isinstance(self._memory, float):
+        if isinstance(self._memory, (int, float, Selector)):
             return self._memory
 
         if callable(self._memory):

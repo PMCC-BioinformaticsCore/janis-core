@@ -434,8 +434,8 @@ class TranslatorBase(ABC):
     @staticmethod
     def get_resource_override_inputs() -> List[ToolInput]:
         return [
-            ToolInput("runtime_cpu", Int(optional=True), default=1),
-            ToolInput("runtime_memory", Int(optional=True), default=4),
+            ToolInput("runtime_cpu", Int(optional=True)),
+            ToolInput("runtime_memory", Int(optional=True)),
         ]
 
     # STRINGIFY

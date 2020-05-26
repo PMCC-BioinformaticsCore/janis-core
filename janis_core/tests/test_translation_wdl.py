@@ -35,6 +35,7 @@ from janis_core.tests.testtools import (
     TestToolWithSecondaryInput,
     TestWorkflowWithStepInputExpression,
     ArrayTestTool,
+    OperatorResourcesTestTool,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
@@ -253,28 +254,28 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
             tool_id=None,
         )
 
-    def test_input_value_cpuselect_stringenv(self):
-        # CpuSelector relies on their being a runtime_cpu attribute,
-        # this test will assume it's present, and '' will test ensure
-        # that it is actually present
-        ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
-        inp = CpuSelector()
-        self.assertEqual(
-            "~{select_first([runtime_cpu, 1])}",
-            wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=True),
-        )
+    # def test_input_value_cpuselect_stringenv(self):
+    #     # CpuSelector relies on their being a runtime_cpu attribute,
+    #     # this test will assume it's present, and '' will test ensure
+    #     # that it is actually present
+    #     ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "~{select_first([runtime_cpu, 1])}",
+    #         wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=True),
+    #     )
 
-    def test_input_value_cpuselect_nostringenv(self):
-        # CpuSelector relies on their being a runtime_cpu attribute,
-        # this test will assume it's present, and '' will test ensure
-        # that it is actually present
-
-        ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
-        inp = CpuSelector()
-        self.assertEqual(
-            "select_first([runtime_cpu, 1])",
-            wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=False),
-        )
+    # def test_input_value_cpuselect_nostringenv(self):
+    #     # CpuSelector relies on their being a runtime_cpu attribute,
+    #     # this test will assume it's present, and '' will test ensure
+    #     # that it is actually present
+    #
+    #     ti = {"runtime_cpu": ToolInput("runtime_cpu", Int(), default=1)}
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "select_first([runtime_cpu, 1])",
+    #         wdl.WdlTranslator.unwrap_expression(inp, ti, string_environment=False),
+    #     )
 
     def test_tool_input_value_default_cpuselect(self):
         ti = ToolInput("threads", Int(), default=CpuSelector(), prefix="-t")
@@ -1205,3 +1206,20 @@ workflow wf {
   }
 }"""
         self.assertEqual(expected, out)
+
+
+class TestWdlResourceOperators(unittest.TestCase):
+    def test_1(self):
+        tool_wdl = WdlTranslator.translate_tool_internal(
+            OperatorResourcesTestTool(), with_resource_overrides=True
+        ).get_string()
+        lines = tool_wdl.splitlines(keepends=False)
+        print(tool_wdl)
+        cpus = lines[15].strip()
+        memory = lines[18].strip()
+
+        self.assertEqual("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", cpus)
+        self.assertEqual(
+            'memory: "~{select_first([runtime_memory, if ((size(inputFile, "MB") > 1024)) then 4 else 2, 4])}G"',
+            memory,
+        )

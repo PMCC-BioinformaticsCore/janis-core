@@ -175,6 +175,11 @@ class Selector(ABC):
 
         return BasenameOperator(self)
 
+    def file_size(self):
+        from .standard import FileSizeOperator
+
+        return FileSizeOperator(self)
+
 
 SelectorOrValue = Union[Selector, int, str, float]
 
@@ -194,6 +199,12 @@ class InputSelector(Selector):
         from janis_core.operators.stringformatter import StringFormatter
 
         return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
+
+    def __str__(self):
+        return "inputs." + self.input_to_select
+
+    def __repr__(self):
+        return str(self)
 
 
 class InputNodeSelector(Selector):
@@ -284,6 +295,12 @@ class MemorySelector(InputSelector):
     def returntype(self):
         return Int(optional=True)
 
+    def __str__(self):
+        return "runtime_memory"
+
+    def __repr__(self):
+        return str(self)
+
 
 class CpuSelector(InputSelector):
     def __init__(self, default=1):
@@ -292,3 +309,9 @@ class CpuSelector(InputSelector):
 
     def returntype(self):
         return Int(optional=bool(self.default is None))
+
+    def __str__(self):
+        return "runtime_cpu"
+
+    def __repr__(self):
+        return str(self)

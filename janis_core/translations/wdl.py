@@ -21,6 +21,9 @@ from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
 import wdlgen as wdl
+
+from janis_core.operators.logical import If, IsDefined
+from janis_core.operators.standard import FirstOperator
 from janis_core.types import get_instantiated_type, DataType
 
 from janis_core.types.data_types import is_python_primitive
@@ -34,6 +37,7 @@ from janis_core.operators import (
     InputSelector,
     WildcardSelector,
     CpuSelector,
+    MemorySelector,
     StringFormatter,
     Selector,
     Operator,
@@ -319,7 +323,12 @@ class WdlTranslator(TranslatorBase):
 
     @classmethod
     def unwrap_expression(
-        cls, expression, inputsdict=None, string_environment=False, **debugkwargs
+        cls,
+        expression,
+        inputsdict=None,
+        string_environment=False,
+        tool=None,
+        **debugkwargs,
     ):
         if expression is None:
             return ""
@@ -362,6 +371,55 @@ class WdlTranslator(TranslatorBase):
                 f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
             )
 
+        elif isinstance(expression, MemorySelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping MemorySelector")
+            toolmem = tool.memory({})
+
+            if isinstance(toolmem, Operator) and any(
+                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
+            ):
+                raise Exception(
+                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                )
+
+            ops = [InputSelector("runtime_memory")]
+            if toolmem is not None:
+                ops.append(toolmem)
+            ops.append(4)
+
+            return cls.unwrap_expression(
+                StringFormatter("{value}G", value=FirstOperator(ops)),
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                **debugkwargs,
+            )
+
+        elif isinstance(expression, CpuSelector):
+            if not tool:
+                raise Exception("Tool must be provided when unwrapping MemorySelector")
+            toolcpu = tool.cpus({})
+
+            if isinstance(toolcpu, Operator) and any(
+                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
+            ):
+                raise Exception(
+                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                )
+
+            ops = [InputSelector("runtime_cpu")]
+            if toolcpu is not None:
+                ops.append(toolcpu)
+            ops.append(1)
+            return cls.unwrap_expression(
+                FirstOperator(ops),
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                **debugkwargs,
+            )
+
         elif isinstance(expression, InputSelector):
             return translate_input_selector(
                 selector=expression,
@@ -374,7 +432,7 @@ class WdlTranslator(TranslatorBase):
 
         wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
         unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
-            exp, inputsdict, string_environment=False, **debugkwargs
+            exp, inputsdict, string_environment=False, tool=tool, **debugkwargs
         )
 
         if isinstance(expression, InputNodeSelector):
@@ -733,8 +791,16 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        r.kwargs["cpu"] = cls.unwrap_expression(CpuSelector(), inmap, id="runtimestats")
-        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
+        r.kwargs["cpu"] = cls.unwrap_expression(
+            CpuSelector(), inmap, string_environment=False, tool=tool, id="runtimestats"
+        )
+        r.kwargs["memory"] = cls.unwrap_expression(
+            MemorySelector(),
+            inmap,
+            string_environment=False,
+            tool=tool,
+            id="runtimestats",
+        )
 
         if with_resource_overrides:
             ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))

@@ -58,6 +58,12 @@ class StringFormatter(Operator):
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
 
+    def __repr__(self):
+        val = self._format
+        for k, v in self.kwargs.items():
+            val = val.replace(f"{{{k}}}", f"{{{str(v)}}}")
+        return val
+
     def get_leaves(self):
         leaves = []
         for a in self.kwargs.values():
