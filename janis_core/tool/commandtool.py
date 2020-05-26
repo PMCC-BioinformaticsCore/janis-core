@@ -411,18 +411,19 @@ class CommandTool(Tool, ABC):
         ins = sorted(
             self.inputs(), key=lambda i: i.position if i.position is not None else 0
         )
-        args = ""
-        if self.arguments():
-            args = " " + " ".join(
-                f"{(a.prefix if a.prefix is not None else '') + ' ' if (a.prefix is not None and a.separate_value_from_prefix) else ''}{a.value}"
-                for a in self.arguments()
-            )
+        # args = ""
+        # if self.arguments():
+        #     args = " " + " ".join(
+        #         f"{(a.prefix if a.prefix is not None else '') + ' ' if (a.prefix is not None and a.separate_value_from_prefix) else ''}{a.value}"
+        #         for a in self.arguments()
+        #     ):x
 
-        prefixes = " -" + "".join(
-            i.prefix.replace("-", "").replace(" ", "")
-            for i in ins
-            if i.prefix is not None
-        )
+        #
+        # prefixes = " -" + "".join(
+        #     i.prefix.replace("-", "").replace(" ", "")
+        #     for i in ins
+        #     if i.prefix is not None
+        # )
 
         metadata = self.metadata
         docker = self.container()
@@ -436,7 +437,7 @@ class CommandTool(Tool, ABC):
             if self.base_command()
             else ""
         )
-        command = base + args + prefixes
+        command = base + " [parameters]"
 
         def input_format(t: ToolInput):
             prefix_with_space = ""
