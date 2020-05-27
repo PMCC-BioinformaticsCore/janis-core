@@ -1214,12 +1214,35 @@ class TestWdlResourceOperators(unittest.TestCase):
             OperatorResourcesTestTool(), with_resource_overrides=True
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)
-        print(tool_wdl)
+        # print(tool_wdl)
         cpus = lines[16].strip()
+        time = lines[19].strip()
         memory = lines[20].strip()
 
         self.assertEqual("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", cpus)
         self.assertEqual(
             'memory: "~{select_first([runtime_memory, if ((size(inputFile, "MB") > 1024)) then 4 else 2, 4])}G"',
             memory,
+        )
+        self.assertEqual("duration: select_first([runtime_seconds, 60, 86400])", time)
+
+    def test_base(self):
+        tool_wdl = WdlTranslator.translate_tool_internal(
+            EchoTestTool(), with_resource_overrides=True
+        ).get_string()
+        lines = tool_wdl.splitlines(keepends=False)
+        # print(tool_wdl)
+        cpus = lines[15].strip()
+        time = lines[18].strip()
+        memory = lines[19].strip()
+        disks = lines[16].strip()
+
+        self.assertEqual("cpu: select_first([runtime_cpu, 1])", cpus)
+
+        self.assertEqual('memory: "~{select_first([runtime_memory, 4])}G"', memory)
+
+        self.assertEqual("duration: select_first([runtime_seconds, 86400])", time)
+
+        self.assertEqual(
+            'disks: "local-disk ~{select_first([runtime_disks, 20])} SSD"', disks
         )

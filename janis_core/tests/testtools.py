@@ -51,6 +51,9 @@ class OperatorResourcesTestTool(EchoTestTool):
     def cpus(self, hints: Dict[str, Any]):
         return 2 * InputSelector("outputFiles")
 
+    def time(self, hints: Dict[str, Any]):
+        return 60
+
 
 class CatTestTool(CommandTool):
     def tool(self) -> str:

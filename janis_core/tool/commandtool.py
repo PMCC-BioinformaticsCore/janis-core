@@ -367,7 +367,7 @@ class CommandTool(Tool, ABC):
         The time is specified in SECONDS and must be a whole number.
         :return:
         """
-        return 86400
+        return None
 
     def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
         """
