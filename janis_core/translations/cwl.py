@@ -1020,13 +1020,6 @@ def prepare_tool_output_binding(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputBinding:
 
-    if isinstance(output.glob, Operator):
-        # It's not terribly hard to do this, we'd have to change the output_eval
-        # to use a combination of the presents_as AND
-        raise Exception(
-            "Janis does NOT currently support operations on the output glob in CWL"
-        )
-
     return cwlgen.CommandOutputBinding(
         glob=translate_to_cwl_glob(
             output.glob, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
@@ -1044,10 +1037,10 @@ def prepare_tool_output_eval(output: ToolOutput) -> Optional[str]:
     :return:
     """
 
-    if isinstance(output.glob, Operator):
-        raise NotImplementedError(
-            "Still to implement output_eval for globs on ToolOutput"
-        )
+    # if isinstance(output.glob, Operator):
+    #     raise NotImplementedError(
+    #         "Still to implement output_eval for globs on ToolOutput"
+    #     )
 
     if output.presents_as:
         return f"""\
@@ -1475,6 +1468,17 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
 
     elif isinstance(glob, WildcardSelector):
         return glob.wildcard
+
+    if isinstance(glob, Operator):
+        # It's not terribly hard to do this, we'd have to change the output_eval
+        # to use a combination of the presents_as AND
+        if any(isinstance(o, WildcardSelector) for o in glob.get_leaves()):
+            raise Exception(
+                f"Janis does NOT currently support operations on the output glob for output '{glob}' in tool '{tool.id()}'"
+            )
+        return CwlTranslator.unwrap_expression(
+            glob, code_environment=False, **debugkwargs
+        )
 
     raise Exception("Unimplemented selector type: " + glob.__class__.__name__)
 
