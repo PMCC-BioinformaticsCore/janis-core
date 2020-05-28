@@ -818,7 +818,8 @@ def prepare_tool_output_secondaries(output):
         for s in output.output_type.secondary_files()
     )
 
-    return f"""${{
+    return [
+        f"""${{
 
         function resolveSecondary(base, secPattern) {{
           if (secPattern[0] == "^") {{
@@ -833,6 +834,7 @@ def prepare_tool_output_secondaries(output):
         ];
 
 }}"""
+    ]
 
 
 def prepare_tool_input_secondaries(toolinp):
@@ -851,7 +853,8 @@ def prepare_tool_input_secondaries(toolinp):
         for s in toolinp.input_type.secondary_files()
     )
 
-    return f"""${{
+    return [
+        f"""${{
 
         function resolveSecondary(base, secPattern) {{
           if (secPattern[0] == "^") {{
@@ -867,6 +870,7 @@ def prepare_tool_input_secondaries(toolinp):
         ];
 
 }}"""
+    ]
 
 
 def translate_step(
