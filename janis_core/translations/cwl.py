@@ -1084,7 +1084,8 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
         for s in output.output_type.secondary_files()
     )
 
-    return f"""${{
+    return [
+        f"""${{
 
         function resolveSecondary(base, secPattern) {{
           if (secPattern[0] == "^") {{
@@ -1099,6 +1100,7 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
         ];
 
 }}"""
+    ]
 
 
 def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[str]]]:
@@ -1132,7 +1134,8 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
         for s in inp.input_type.secondary_files()
     )
 
-    return f"""${{
+    return [
+        f"""${{
 
         function resolveSecondary(base, secPattern) {{
           if (secPattern[0] == "^") {{
@@ -1148,6 +1151,7 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
         ];
 
 }}"""
+    ]
 
 
 def get_run_ref_from_subtool(
