@@ -35,8 +35,7 @@ from janis_core.types import (
     String,
     Selector,
     Directory,
-)
-from janis_core.types.common_data_types import (
+    DirectoryGenerator,
     Stdout,
     Stderr,
     Array,
@@ -388,7 +387,7 @@ class WdlTranslator(TranslatorBase):
             )
 
         for ti in tool.inputs():
-            commands.extend(prepare_move_statements_for_input(ti))
+            commands.extend(prepare_move_statements_for_input(ti, inmap))
 
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
@@ -1619,7 +1618,7 @@ def prepare_env_var_setters(
     return statements
 
 
-def prepare_move_statements_for_input(ti: ToolInput):
+def prepare_move_statements_for_input(ti: ToolInput, inputsdict):
     """
     Update 2019-12-16:
 
@@ -1651,6 +1650,10 @@ def prepare_move_statements_for_input(ti: ToolInput):
 
     it = ti.input_type
     commands: List[wdl.Task.Command] = []
+
+    if isinstance(it, DirectoryGenerator):
+        resolved = resolve_tool_input_value(ti, inputsdict)
+        return [wdl.Task.Command(f"mkdir -p ~{{{ti.id()}}}")]
 
     if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
         return commands

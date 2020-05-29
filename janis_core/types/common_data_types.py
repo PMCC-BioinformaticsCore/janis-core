@@ -151,6 +151,11 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         return None
 
 
+class DirectoryGenerator(Filename):
+    def __init__(self, prefix="generatedDir", suffix=None, optional=None):
+        super().__init__(prefix, suffix, optional)
+
+
 class Int(DataType):
     @staticmethod
     def name():

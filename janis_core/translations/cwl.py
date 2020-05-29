@@ -41,6 +41,7 @@ from janis_core.types import (
     StringFormatter,
     DataType,
     Directory,
+    DirectoryGenerator,
 )
 from janis_core.types.common_data_types import Stdout, Stderr, Array, File, Filename
 from janis_core.utils import first_value
@@ -343,6 +344,8 @@ class CwlTranslator(TranslatorBase):
         stdout = stdouts[0].stdoutname if len(stdouts) > 0 else None
         stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
+        toolinputs = tool.inputs()
+
         if isinstance(stdout, InputSelector):
             stdout = translate_input_selector(stdout, code_environment=False)
 
@@ -382,9 +385,10 @@ class CwlTranslator(TranslatorBase):
             ]
             tool_cwl.requirements.append(cwlgen.EnvVarRequirement(lls))
 
+        cwlgen_dirents_for_initialworkdir = []
         inputs_that_require_localisation = [
             ti
-            for ti in tool.inputs()
+            for ti in toolinputs
             if ti.localise_file
             and (
                 isinstance(ti.input_type.received_type(), File)
@@ -395,15 +399,22 @@ class CwlTranslator(TranslatorBase):
             )
         ]
         if inputs_that_require_localisation:
+            cwlgen_dirents_for_initialworkdir.extend(
+                cwlgen.Dirent(entry="$(inputs.%s)" % ti.id(), entryname=ti.presents_as)
+                for ti in inputs_that_require_localisation
+            )
+        inputs_that_require_directory_creation = [
+            ti for ti in toolinputs if isinstance(ti.input_type, DirectoryGenerator)
+        ]
+        if inputs_that_require_directory_creation:
+            cwlgen_dirents_for_initialworkdir.extend(
+                cwlgen.Directory(basename="$(inputs.%s)" % ti.id(), listing=[])
+                for ti in inputs_that_require_directory_creation
+            )
+
+        if len(cwlgen_dirents_for_initialworkdir) > 0:
             tool_cwl.requirements.append(
-                cwlgen.InitialWorkDirRequirement(
-                    [
-                        cwlgen.Dirent(
-                            entry="$(inputs.%s)" % ti.id(), entryname=ti.presents_as
-                        )
-                        for ti in inputs_that_require_localisation
-                    ]
-                )
+                cwlgen.InitialWorkDirRequirement(cwlgen_dirents_for_initialworkdir)
             )
 
         if with_container:
@@ -705,15 +716,19 @@ def translate_tool_input(
 
     data_type = toolinput.input_type.cwl_type(default is not None)
 
-    input_binding = cwlgen.CommandLineBinding(
-        # load_contents=toolinput.load_contents,
-        position=toolinput.position,
-        prefix=toolinput.prefix,
-        separate=toolinput.separate_value_from_prefix,
-        itemSeparator=toolinput.separator,
-        valueFrom=value_from,
-        shellQuote=toolinput.shell_quote,
-    )
+    input_binding = None
+
+    if toolinput.position is not None or toolinput.prefix is not None:
+
+        input_binding = cwlgen.CommandLineBinding(
+            # load_contents=toolinput.load_contents,
+            position=toolinput.position,
+            prefix=toolinput.prefix,
+            separate=toolinput.separate_value_from_prefix,
+            itemSeparator=toolinput.separator,
+            valueFrom=value_from,
+            shellQuote=toolinput.shell_quote,
+        )
 
     non_optional_dt_component = (
         [t for t in data_type if t != "null"][0]
