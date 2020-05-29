@@ -1,33 +1,24 @@
-from typing import Dict
+from typing import Dict, Union
 
 from janis_core.utils import lowercase_dictkeys
 
-from janis_core.__meta__ import GITHUB_URL
 from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translationdeps.supportedtranslations import (
-    SupportedTranslations,
-    SupportedTranslation,
-)
 from janis_core.translations.wdl import WdlTranslator
 from .cwl import CwlTranslator
 from .translationbase import TranslatorBase
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 
-def get_translator(translation: SupportedTranslation) -> TranslatorBase:
-    if translation == SupportedTranslations.CWL:
-        return CwlTranslator()
-    elif translation == SupportedTranslations.WDL:
-        return WdlTranslator()
 
-    raise NotImplementedError(
-        f"The requested translation ('{translation}') has not been implemented yet, "
-        f"why not contribute one at '{GITHUB_URL}'."
-    )
+def get_translator(translation: Union[str, SupportedTranslation]):
+    if not isinstance(translation, SupportedTranslation):
+        translation = SupportedTranslation(translation)
+    return translation.get_translator()
 
 
 def translate_workflow(
     workflow,
-    translation: SupportedTranslation,
+    translation: Union[str, SupportedTranslation],
     to_console=True,
     tool_to_console=False,
     with_docker=True,
@@ -71,7 +62,7 @@ def translate_workflow(
 
 def translate_code_tool(
     tool,
-    translation: SupportedTranslation,
+    translation: Union[str, SupportedTranslation],
     to_console=True,
     to_disk=False,
     export_path=None,
@@ -93,7 +84,7 @@ def translate_code_tool(
 
 def translate_tool(
     tool,
-    translation: SupportedTranslation,
+    translation: Union[str, SupportedTranslation],
     to_console=True,
     to_disk=False,
     export_path=None,
@@ -120,7 +111,11 @@ def translate_tool(
 
 
 def build_resources_input(
-    workflow, translation: SupportedTranslation, hints, max_cores=None, max_mem=None
+    workflow,
+    translation: Union[str, SupportedTranslation],
+    hints,
+    max_cores=None,
+    max_mem=None,
 ) -> str:
     translator = get_translator(translation)
     return translator.stringify_translated_inputs(
