@@ -4,6 +4,7 @@ from enum import Enum
 class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
+    SHELL = "shell"
 
     def __str__(self):
         return self.value
@@ -20,7 +21,15 @@ class SupportedTranslation(Enum):
             from ..translations.wdl import WdlTranslator
 
             return WdlTranslator()
+        elif self == SupportedTranslation.SHELL:
+            from ..translations.bash import BashTranslator
+
+            return BashTranslator()
 
     @staticmethod
     def all():
-        return [SupportedTranslation.CWL, SupportedTranslation.WDL]
+        return [
+            SupportedTranslation.CWL,
+            SupportedTranslation.WDL,
+            SupportedTranslation.SHELL,
+        ]
