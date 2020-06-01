@@ -15,7 +15,7 @@ class TestConditionals(unittest.TestCase):
         w.input("name", str, value="Michael")
 
         w.step("echo", Echo(inp=w.name), when=w.inp > 1)
-        w.step("cat", Cat(file=w.echo.out), when=w.echo.out == "Hello, Michael")
+        w.step("cat", Cat(file=w.echo.out), when=w.echo.out.equals("Hello, Michael"))
 
         w.output("out", source=w.echo.out)
 
@@ -32,10 +32,26 @@ class TestConditionals(unittest.TestCase):
         w.input("inp1", str, value="Hello")
         w.input("inp2", str, value="Hi there")
 
-        w.conditional("echoswitch", [(w.inp > 1, Echo(inp=w.inp1)), Echo(inp=w.inp2)])
+        w.conditional(
+            "echoswitch",
+            [
+                (w.inp > 1, Echo(inp=w.inp1)),
+                (w.inp.equals(1), Echo(inp="tasy case")),
+                Echo(inp=w.inp2),
+            ],
+        )
 
         w.output("out", source=w.echoswitch)
 
-        w.translate(
-            "wdl"  # to_disk=True, export_path="~/Desktop/tmp/{name}", validate=True
+        wdl_wf, _, wdl_tools = w.translate(
+            "wdl",
+            to_console=False,
+            to_disk=True,
+            export_path="~/Desktop/tmp/{name}",
+            validate=True,
         )
+
+        echoswitch = [w for w in wdl_tools if w[0] == "tools/echoswitch.wdl"][0][1]
+        print(echoswitch)
+
+        # print(wdl_wf)

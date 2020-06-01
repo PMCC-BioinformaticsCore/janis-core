@@ -554,7 +554,7 @@ class Stdout(File):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
-        if self.optional is not None:
+        if optional is not None:
             subtype.optional = optional
 
         if subtype and not isinstance(subtype, File):

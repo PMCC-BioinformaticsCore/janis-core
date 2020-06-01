@@ -1,3 +1,5 @@
+from copy import copy
+
 from janis_core.types import UnionType, Int, File, Float, Directory
 
 from janis_core.types.common_data_types import String, Array, AnyType
@@ -195,7 +197,14 @@ class FirstOperator(Operator):
         return [Array(AnyType)]
 
     def returntype(self):
-        return self.args[0].subtype()
+        if isinstance(self.args[0], list):
+            rettype = self.args[0][0].returntype()
+        else:
+            rettype = self.args[0].subtype()
+
+        rettype = copy(rettype)
+        rettype.optional = False
+        return rettype
 
     def __str__(self):
         iterable = self.args[0]

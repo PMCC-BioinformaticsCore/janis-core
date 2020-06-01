@@ -202,7 +202,6 @@ class WdlTranslator(TranslatorBase):
             outtag = None
 
             if isinstance(o.source, list):
-                pick_value = o.pick_value
                 vals = ", ".join(
                     WdlTranslator.unwrap_expression(
                         expression=source,
@@ -213,14 +212,6 @@ class WdlTranslator(TranslatorBase):
                     )
                     for source in o.source
                 )
-                if pick_value == PickValue.all_non_null:
-                    outtag = f"select_all([{vals}])"
-                elif pick_value == PickValue.first_non_null:
-                    outtag = f"select_first([{vals}])"
-                else:
-                    raise Exception(
-                        "WDL conversion is currently unable to handle single_non_null"
-                    )
             else:
                 outtag = WdlTranslator.unwrap_expression(
                     expression=o.source,
@@ -1541,8 +1532,9 @@ def translate_step_node(
         )
 
     if node.when is not None:
-        print(node.when)
-        condition = node.when
+        condition = WdlTranslator.unwrap_expression(
+            node.when, inputsdict=inputsdict, string_environment=False
+        )
         call = wdl.WorkflowConditional(condition, [call])
         # determine how to unwrap when
 

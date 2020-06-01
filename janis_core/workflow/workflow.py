@@ -5,6 +5,7 @@ from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
+from janis_core.operators.standard import FirstOperator
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -29,6 +30,7 @@ from janis_core.operators import (
     StringFormatter,
     StepOutputSelector,
     InputNodeSelector,
+    Selector,
 )
 from janis_core.operators.logical import (
     AndOperator,
@@ -231,7 +233,6 @@ class OutputNode(Node):
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
         output_name: Union[str, InputSelector] = None,
-        pick_value: PickValue = None,
         skip_typecheck=False,
     ):
         super().__init__(wf, NodeType.OUTPUT, identifier)
@@ -243,15 +244,12 @@ class OutputNode(Node):
         if isinstance(single_source, StepOutputSelector):
             snode = single_source.node
             stype = snode.outputs()[single_source.tag].outtype
-        elif isinstance(single_source, InputNodeSelector):
-            snode = single_source.input_node
-            stype = snode.outputs()[None].outtype
+            if snode.scatter:
+                stype = Array(stype)
+        elif isinstance(single_source, Selector):
+            stype = single_source.returntype()
         else:
             raise Exception("Unsupported output source type " + str(single_source))
-
-        # todo: verify how a scatter on multiple input nodes should be handled, likely an error if they're different
-        if isinstance(snode, StepNode) and snode.scatter:
-            stype = Array(stype)
 
         if not skip_typecheck and not datatype.can_receive_from(stype):
             Logger.critical(
@@ -267,7 +265,6 @@ class OutputNode(Node):
         )
         self.output_folder = output_folder
         self.output_name = output_name
-        self.pick_value = pick_value
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -377,14 +374,13 @@ class Workflow(Tool):
         identifier: str,
         datatype: Optional[ParseableType] = None,
         source: Union[
-            List[Union[StepNode, ConnectionSource]], Union[StepNode, ConnectionSource]
+            List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
         ] = None,
         output_folder: Union[
             str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
         output_name: Union[str, InputSelector, ConnectionSource] = None,
         doc: Union[str, OutputDocumentation] = None,
-        pick_value: PickValue = None,
     ):
         """
         Create an output on a workflow
@@ -399,7 +395,6 @@ class Workflow(Tool):
         :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
         resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
         may result in an unexpected termination.
-        :param pick_value: A pick value describes how to pick which value (if source is an array) should be used
         :return:
         """
         self.verify_identifier(identifier, repr(datatype))
@@ -409,35 +404,31 @@ class Workflow(Tool):
 
         sourceoperator = verify_or_try_get_source(source)
         skip_typecheck = False
-        if isinstance(sourceoperator, list):
-            # better be a pick_value
-            if not pick_value:
-                pick_value = PickValue.first_non_null
-                Logger.warn(
-                    "janis.output had source=List, but didn't provide a pick_value, defaulting to first_non_null"
-                )
+        # if isinstance(sourceoperator, list):
+        #     sourceoperator = sourceoperator[0]
+        # else:
+        #     sourceoperator = sourceoperator
 
-            sourceoperator = sourceoperator[0]
-        else:
-            sourceoperator = sourceoperator
-
-        if isinstance(sourceoperator, StepOutputSelector):
-            node, tag = sourceoperator.node, sourceoperator.tag
-        elif isinstance(sourceoperator, InputNodeSelector):
-            node = sourceoperator.input_node
-            tag = None
-        else:
-            raise Exception("Unsupported output source type: " + str(sourceoperator))
+        # if isinstance(sourceoperator, StepOutputSelector):
+        #     node, tag = sourceoperator.node, sourceoperator.tag
+        # elif isinstance(sourceoperator, InputNodeSelector):
+        #     node = sourceoperator.input_node
+        #     tag = None
+        # else:
+        #     raise Exception("Unsupported output source type: " + str(sourceoperator))
 
         if not datatype:
-            datatype: DataType = copy.copy(node.outputs()[tag].outtype.received_type())
-            if isinstance(node, InputNode) and node.default is not None:
+            while isinstance(sourceoperator, list):
+                sourceoperator: Selector = sourceoperator[0]
+
+            datatype: DataType = copy.copy(sourceoperator.returntype())
+            if (
+                isinstance(sourceoperator, InputNodeSelector)
+                and sourceoperator.input_node.default is not None
+            ):
                 datatype.optional = False
 
-            if isinstance(node, StepNode) and node.scatter:
-                datatype = Array(datatype)
-
-            if pick_value and pick_value == PickValue.all_non_null:
+            elif isinstance(sourceoperator, StepNode) and sourceoperator.scatter:
                 datatype = Array(datatype)
 
             skip_typecheck = True
@@ -469,7 +460,6 @@ class Workflow(Tool):
             output_name=output_name,
             doc=doc,
             skip_typecheck=skip_typecheck,
-            pick_value=pick_value,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
@@ -716,11 +706,10 @@ class Workflow(Tool):
         if item in self.__dict__ or item == "nodes":
             return self.__dict__.get(item)
 
-        if self.nodes and item in self.nodes:
-            node = self.nodes[item]
-            if isinstance(node, InputNode):
-                return node.as_operator()
-            return node
+        try:
+            return self.__getitem__(item)
+        except KeyError:
+            pass
 
         raise AttributeError(
             f"AttributeError: '{type(self).__name__}' object has no attribute '{item}'"
@@ -728,8 +717,11 @@ class Workflow(Tool):
 
     def __getitem__(self, item):
 
-        if item in self.nodes:
-            return self.nodes[item]
+        if self.nodes and item in self.nodes:
+            node = self.nodes[item]
+            if isinstance(node, InputNode):
+                return node.as_operator()
+            return node
 
         raise KeyError(f"KeyError: '{type(self).__name__}' object has no node '{item}'")
 
@@ -1006,7 +998,7 @@ def wrap_steps_in_workflow(
         if operator is None:
             return None
 
-        if not isinstance(operator, Operator):
+        if not isinstance(operator, Selector):
             return operator
 
         # traverse through the operator, rebuilding and swapping out InputOperator / StepOperator
@@ -1015,8 +1007,8 @@ def wrap_steps_in_workflow(
         if isinstance(operator, StepOutputSelector):
             # pipe in the input of the step_operator
             identifier = f"cond_{operator.node.id()}_{operator.tag}"
-            if identifier in w.input_nodes:
-                return w.input_nodes[identifier]
+            if identifier in w.step_nodes:
+                return w[identifier]
             else:
                 workflow_connection_map[identifier] = operator
                 return w.input(
@@ -1025,10 +1017,10 @@ def wrap_steps_in_workflow(
         if isinstance(operator, InputNodeSelector):
             identifier = f"cond_{operator.input_node.id()}"
             if identifier in w.input_nodes:
-                return w.input_nodes[identifier]
+                return w[identifier]
             else:
                 innode: InputNode = operator.input_node
-                workflow_connection_map[identifier] = innode
+                workflow_connection_map[identifier] = operator
                 return w.input(identifier, first_value(innode.outputs()).outtype)
 
         if isinstance(operator, StringFormatter):
@@ -1060,7 +1052,11 @@ def wrap_steps_in_workflow(
             newcond = rebuild_condition(step[0])
             tool = step[1]
             prevcond = or_prev_conds(prevconds)
-            cond = AndOperator(newcond, NotOperator(prevcond)) if prevcond else newcond
+            cond = (
+                AndOperator(newcond, NotOperator(prevcond))
+                if prevcond is not None
+                else newcond
+            )
             prevconds.append(newcond)
         else:
             tool = step
@@ -1088,10 +1084,9 @@ def wrap_steps_in_workflow(
     # They should all have exact same contract
     outputs = steps[0].tool.outputs_map().values()
     for o in outputs:
+        out_source = [stp[o.id()] for stp in steps]
         w.output(
-            o.id(),
-            source=[stp[o.id()] for stp in steps],
-            pick_value=PickValue.first_non_null,
+            o.id(), source=FirstOperator(out_source),
         )
 
     return w(**workflow_connection_map)

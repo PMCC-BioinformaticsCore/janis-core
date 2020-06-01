@@ -1,22 +1,9 @@
+from abc import ABC, abstractmethod
 from typing import Union
 
 from janis_core.graph.node import NodeType
-
-from janis_core.types import get_instantiated_type
-
+from janis_core.types.common_data_types import Array, File, Directory, Int
 from janis_core.utils import first_value
-
-from janis_core.utils.errors import (
-    TooManyArgsException,
-    IncorrectArgsException,
-    InvalidByProductException,
-    ConflictingArgumentsException,
-)
-from janis_core.utils.logger import Logger
-from janis_core.types.common_data_types import Array, String, File, Directory, Int
-
-from janis_core.utils.bracketmatching import get_keywords_between_braces
-from abc import ABC, abstractmethod
 
 
 class Selector(ABC):
@@ -258,7 +245,8 @@ class StepOutputSelector(Selector):
 
     def returntype(self):
         retval = self.node.outputs()[self.tag].outtype
-        if self.node.scatter:
+
+        if hasattr(self.node, "scatter") and self.node.scatter:
             retval = Array(retval)
         return retval
 
@@ -267,7 +255,9 @@ class StepOutputSelector(Selector):
         return StepOutputSelector(step_tuple[0], step_tuple[1])
 
     def __repr__(self):
-        return self.node.id() + "." + self.tag
+        parts = [p for p in (self.node.id(), self.tag) if p is not None]
+
+        return ".".join(parts)
 
     def to_string_formatter(self):
         from janis_core.operators.stringformatter import StringFormatter
