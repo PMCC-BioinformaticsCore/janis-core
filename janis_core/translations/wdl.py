@@ -1922,7 +1922,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
             newlocation = ti.presents_as
             base = f'"{ti.presents_as}"'
 
-        commands.append(wdl.Task.Command(f"ln -f ~{{{ti.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"cp -f ~{{{ti.id()}}} {newlocation}"))
 
     if it.secondary_files():
         for s in it.secondary_files():
@@ -1932,7 +1932,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
                 ti.secondaries_present_as.get(s, s)
             )
             newpath = REMOVE_EXTENSION(base, iters) + newext
-            commands.append(wdl.Task.Command(f"ln -f ~{{{sectag}}} {newpath}"))
+            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {newpath}"))
 
     return commands
 

@@ -757,7 +757,7 @@ class Workflow(Tool):
 
     def translate(
         self,
-        translation: SupportedTranslation,
+        translation: Union[str, SupportedTranslation],
         to_console=True,
         tool_to_console=False,
         to_disk=False,
@@ -839,7 +839,7 @@ class Workflow(Tool):
 
     def generate_resources_file(
         self,
-        translation: SupportedTranslation,
+        translation: Union[str, SupportedTranslation],
         hints: Dict[str, Any] = None,
         to_console=True,
     ):
