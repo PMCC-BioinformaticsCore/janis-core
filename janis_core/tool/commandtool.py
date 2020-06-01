@@ -1,6 +1,5 @@
 import re
 from abc import ABC, abstractmethod
-from inspect import isclass
 from typing import List, Dict, Optional, Any, Union, Callable, Set
 
 from janis_core.tool.documentation import (
@@ -18,7 +17,7 @@ from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.utils.logger import Logger
 from janis_core.operators import Selector, Operator
-from janis_core.utils.metadata import ToolMetadata, Metadata
+from janis_core.utils.metadata import ToolMetadata
 
 
 class ToolArgument:
@@ -364,7 +363,7 @@ class CommandTool(Tool, ABC):
 
     def translate(
         self,
-        translation: SupportedTranslation,
+        translation: Union[str, SupportedTranslation],
         to_console=True,
         to_disk=False,
         export_path=None,

@@ -1,9 +1,7 @@
 from enum import Enum
 
-SupportedTranslation = str
 
-
-class SupportedTranslations(Enum):
+class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
 
@@ -13,6 +11,16 @@ class SupportedTranslations(Enum):
     def __eq__(self, other):
         return str(self) == str(other)
 
+    def get_translator(self):
+        if self == SupportedTranslation.CWL:
+            from ..translations.cwl import CwlTranslator
+
+            return CwlTranslator()
+        elif self == SupportedTranslation.WDL:
+            from ..translations.wdl import WdlTranslator
+
+            return WdlTranslator()
+
     @staticmethod
     def all():
-        return [SupportedTranslations.CWL, SupportedTranslations.WDL]
+        return [SupportedTranslation.CWL, SupportedTranslation.WDL]
