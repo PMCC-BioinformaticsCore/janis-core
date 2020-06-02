@@ -386,8 +386,8 @@ class TranslatorBase(ABC):
         if not isinstance(tool, Workflow):
             cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
-            disk = inputs.get(f"{prefix}runtime_disks", "20")
-            seconds = inputs.get(f"{prefix}runtime_seconds", "86400")
+            disk = inputs.get(f"{prefix}runtime_disks", 20)
+            seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
 
             if max_cores and cpus > max_cores:
                 Logger.info(

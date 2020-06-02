@@ -973,14 +973,19 @@ def translate_tool_input(
 
     data_type = toolinput.input_type.cwl_type(default is not None)
 
-    input_binding = cwlgen.CommandLineBinding(
-        # load_contents=toolinput.load_contents,
-        position=toolinput.position,
-        prefix=toolinput.prefix,
-        separate=toolinput.separate_value_from_prefix,
-        itemSeparator=toolinput.separator,
-        valueFrom=value_from,
-        shellQuote=toolinput.shell_quote,
+    bind_to_commandline = toolinput.position is not None or toolinput.prefix is not None
+    input_binding = (
+        cwlgen.CommandLineBinding(
+            # load_contents=toolinput.load_contents,
+            position=toolinput.position,
+            prefix=toolinput.prefix,
+            separate=toolinput.separate_value_from_prefix,
+            itemSeparator=toolinput.separator,
+            valueFrom=value_from,
+            shellQuote=toolinput.shell_quote,
+        )
+        if bind_to_commandline
+        else None
     )
 
     non_optional_dt_component = (
@@ -991,8 +996,10 @@ def translate_tool_input(
 
     # Binding array inputs onto the console
     # https://www.commonwl.org/user_guide/09-array-inputs/
-    if isinstance(toolinput.input_type, Array) and isinstance(
-        non_optional_dt_component, cwlgen.CommandInputArraySchema
+    if (
+        bind_to_commandline
+        and isinstance(toolinput.input_type, Array)
+        and isinstance(non_optional_dt_component, cwlgen.CommandInputArraySchema)
     ):
         if toolinput.prefix_applies_to_all_elements:
             input_binding.prefix = None
