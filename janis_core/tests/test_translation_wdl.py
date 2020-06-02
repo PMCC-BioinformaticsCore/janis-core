@@ -882,24 +882,28 @@ workflow wb {
     String inp
     Int? echo_runtime_memory
     Int? echo_runtime_cpu
-    String echo_runtime_disks
+    Int? echo_runtime_disks
+    Int? echo_runtime_seconds
     Int? echo_2_runtime_memory
     Int? echo_2_runtime_cpu
-    String echo_2_runtime_disks
+    Int? echo_2_runtime_disks
+    Int? echo_2_runtime_seconds
   }
   call T.TestStepTool as echo {
     input:
       inputs=inp,
       runtime_memory=echo_runtime_memory,
       runtime_cpu=echo_runtime_cpu,
-      runtime_disks=echo_runtime_disks
+      runtime_disks=echo_runtime_disks,
+      runtime_seconds=echo_runtime_seconds
   }
   call T.TestStepTool as echo_2 {
     input:
       inputs=inp,
       runtime_memory=echo_2_runtime_memory,
       runtime_cpu=echo_2_runtime_cpu,
-      runtime_disks=echo_2_runtime_disks
+      runtime_disks=echo_2_runtime_disks,
+      runtime_seconds=echo_2_runtime_seconds
   }
 }"""
         self.assertEqual(_tooldef, "\n".join(wf.split("\n")[4:]))

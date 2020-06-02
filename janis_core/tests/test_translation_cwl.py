@@ -734,14 +734,12 @@ inputs:
 - id: testtool
   label: testtool
   type: string
-  inputBinding: {}
 - id: arrayInp
   label: arrayInp
   type:
   - type: array
     items: string
   - 'null'
-  inputBinding: {}
 
 outputs:
 - id: std
