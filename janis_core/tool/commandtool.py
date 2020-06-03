@@ -661,6 +661,32 @@ class CommandToolBuilder(CommandTool):
             f"Janis does not recognise {type(self._memory)} as a valid memory type"
         )
 
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        if self._time is None:
+            return None
+        if isinstance(self._time, (int, float, Selector)):
+            return self._time
+
+        if callable(self._time):
+            return self._time(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._time)} as a valid memory type"
+        )
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        if self._disk is None:
+            return None
+        if isinstance(self._disk, (int, float, Selector)):
+            return self._disk
+
+        if callable(self._disk):
+            return self._disk(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._disk)} as a valid memory type"
+        )
+
     def __init__(
         self,
         tool: str,
@@ -677,6 +703,8 @@ class CommandToolBuilder(CommandTool):
         metadata: ToolMetadata = None,
         cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
         memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        time: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        disk: Union[int, Callable[[Dict[str, Any]], int]] = None,
     ):
         """
         Builder for a CommandTool.
@@ -693,9 +721,11 @@ class CommandToolBuilder(CommandTool):
         :param tool_module: Unix, bioinformatics, etc.
         :param tool_provider: The manafacturer of the tool, eg: Illumina, Samtools
         :param metadata: Metadata object describing the Janis tool interface
-        :param cpu: An integer, or function that takes a dictionary of hints and returns an integer
-        :param memory: An integer, or function that takes a dictionary of hints and returns an integer
-        """
+        :param cpu: An integer, or function that takes a dictionary of hints and returns an integer in 'number of CPUs'
+        :param memory: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
+        :param time: An integer, or function that takes a dictionary of hints and returns an integer in 'seconds'
+        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
+"""
 
         super().__init__()
 
@@ -713,3 +743,5 @@ class CommandToolBuilder(CommandTool):
         self._metadata = metadata
         self._cpu = cpu
         self._memory = memory
+        self._time = time
+        self._disk = disk
