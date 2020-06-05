@@ -1185,7 +1185,10 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
         else:
             if tprefix:
-                expr = f'"{tprefix}" + sep("{separator}", {expr})'
+                if tool_input.prefix_applies_to_all_elements:
+                    expr = f'sep("{separator}", prefix("{tprefix}", {expr}))'
+                else:
+                    expr = f'"{tprefix}" + sep("{separator}", {expr})'
             else:
                 expr = f'sep("{separator}", {expr})'
 

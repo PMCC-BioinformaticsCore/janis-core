@@ -638,6 +638,13 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             '~{if defined(select_first([tag, true])) then "--amazing" else ""}', resp
         )
 
+    def test_array_prefix_each_element_non_quoted(self):
+        ti = ToolInput(
+            "tag", Array(Int), prefix="-i", prefix_applies_to_all_elements=True
+        )
+        resp = wdl.translate_command_input(ti).get_string()
+        self.assertEqual('~{sep(" ", prefix("-i ", tag))}', resp)
+
 
 class TestWdlInputTranslation(unittest.TestCase):
     def test_string_nooptional_nodefault(self):
