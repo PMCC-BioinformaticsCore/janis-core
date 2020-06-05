@@ -845,24 +845,37 @@ class WdlTranslator(TranslatorBase):
                 )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        r.kwargs["cpu"] = cls.unwrap_expression(
+        cls.add_runtimefield_overrides_for_wdl(
+            runtime_block=r,
+            tool=tool,
+            inmap=inmap,
+            with_resource_overrides=with_resource_overrides,
+        )
+
+        return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+
+    @classmethod
+    def add_runtimefield_overrides_for_wdl(
+        cls, runtime_block, tool, inmap, with_resource_overrides
+    ):
+        runtime_block.kwargs["cpu"] = cls.unwrap_expression(
             CpuSelector(), inmap, string_environment=False, tool=tool, id="runtimestats"
         )
-        r.kwargs["memory"] = cls.unwrap_expression(
+        runtime_block.kwargs["memory"] = cls.unwrap_expression(
             MemorySelector(),
             inmap,
             string_environment=False,
             tool=tool,
             id="runtimestats",
         )
-        r.kwargs["duration"] = cls.unwrap_expression(
+        runtime_block.kwargs["duration"] = cls.unwrap_expression(
             TimeSelector(),
             inmap,
             string_environment=False,
             tool=tool,
             id="runtimestats",
         )
-        r.kwargs["disks"] = cls.unwrap_expression(
+        runtime_block.kwargs["disks"] = cls.unwrap_expression(
             DiskSelector(),
             inmap,
             string_environment=False,
@@ -871,11 +884,9 @@ class WdlTranslator(TranslatorBase):
         )
 
         if with_resource_overrides:
-            r.kwargs["zones"] = '"australia-southeast1-b"'
+            runtime_block.kwargs["zones"] = '"australia-southeast1-b"'
 
-        r.kwargs["preemptible"] = 2
-
-        return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+        runtime_block.kwargs["preemptible"] = 2
 
     @classmethod
     def translate_code_tool_internal(
@@ -893,7 +904,7 @@ class WdlTranslator(TranslatorBase):
                 f"numbers or an underscore)"
             )
 
-        ins = [
+        ins = cls.get_resource_override_inputs() + [
             ToolInput(
                 t.id(),
                 input_type=t.intype,
@@ -904,7 +915,7 @@ class WdlTranslator(TranslatorBase):
             for t in tool.tool_inputs()
         ]
 
-        tr_ins = cls.translate_tool_inputs(cls.get_resource_override_inputs() + ins)
+        tr_ins = cls.translate_tool_inputs(ins)
 
         outs = []
         for t in tool.tool_outputs():
@@ -956,17 +967,10 @@ EOT"""
                     f"or --allow-empty-container"
                 )
 
-        if with_resource_overrides:
-            tr_ins.append(wdl.Input(wdl.WdlType.parse_type("String"), "runtime_disks"))
-            r.kwargs["disks"] = "runtime_disks"
-            r.kwargs["zones"] = '"australia-southeast1-b"'
-
-        # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        # r.kwargs["cpu"] = get_input_value_from_potential_selector_or_generator(
-        #     CpuSelector(), {}, string_environment=False, id="runtimestats"
-        # )
-
-        r.kwargs["memory"] = '"~{select_first([runtime_memory, 4])}G"'
+        inmap = {t.id(): t for t in ins}
+        cls.add_runtimefield_overrides_for_wdl(
+            r, tool=tool, inmap=inmap, with_resource_overrides=with_resource_overrides
+        )
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
