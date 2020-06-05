@@ -671,7 +671,10 @@ def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
             raise Exception(
                 "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
             )
-        name = "basename(%s)" % name
+        if tool_input.presents_as:
+            name = tool_input.presents_as
+        else:
+            name = "basename(%s)" % name
 
     return name
 
