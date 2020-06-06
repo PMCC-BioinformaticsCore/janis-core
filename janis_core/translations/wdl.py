@@ -1088,7 +1088,9 @@ EOT"""
         return workflow.id() + "-resources.json"
 
 
-def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
+def resolve_tool_input_value(
+    tool_input: ToolInput, inputsdict, string_environment=False, **debugkwargs
+):
     name = tool_input.id()
     indefault = (
         tool_input.input_type
@@ -1111,7 +1113,10 @@ def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
 
     elif indefault is not None:
         default = WdlTranslator.unwrap_expression(
-            indefault, inputsdict=inputsdict, string_environment=False, **debugkwargs
+            indefault,
+            inputsdict=inputsdict,
+            string_environment=string_environment,
+            **debugkwargs,
         )
 
     if default is not None:
@@ -1124,11 +1129,15 @@ def resolve_tool_input_value(tool_input: ToolInput, inputsdict, **debugkwargs):
                 "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
             )
         if tool_input.presents_as:
-            name = tool_input.presents_as
+            return (
+                tool_input.presents_as
+                if string_environment
+                else f'"{tool_input.presents_as}"'
+            )
         else:
             name = "basename(%s)" % name
 
-    return name
+    return f"~{{{name}}}" if string_environment else name
 
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
@@ -1136,7 +1145,14 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     if not (tool_input.position is not None or tool_input.prefix):
         return None
 
-    name = resolve_tool_input_value(tool_input, inputsdict=inputsdict, **debugkwargs)
+    if tool_input.localise_file and tool_input.presents_as:
+        return wdl.Task.Command.CommandInput(
+            value=tool_input.presents_as, position=tool_input.position
+        )
+
+    name = resolve_tool_input_value(
+        tool_input, inputsdict=inputsdict, string_environment=False, **debugkwargs
+    )
     intype = tool_input.input_type
 
     optional = (not isinstance(intype, Filename) and intype.optional) or (
