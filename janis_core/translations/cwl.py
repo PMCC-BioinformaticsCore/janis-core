@@ -25,7 +25,7 @@ from io import StringIO
 
 from typing import List, Dict, Optional, Tuple
 
-import janis_core.utils.cwl_v1_0 as cwlgen
+import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
 
 from janis_core import ToolArgument
