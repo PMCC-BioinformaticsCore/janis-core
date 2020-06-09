@@ -1160,7 +1160,9 @@ def prepare_filename_replacements_for(
         )
 
     if inp.input_to_select not in inputsdict:
-        raise Exception
+        raise Exception(
+            f"The InputSelector '{inp.input_to_select}' did not select a valid input"
+        )
 
     tinp = inputsdict.get(inp.input_to_select)
     intype = tinp.input_type
