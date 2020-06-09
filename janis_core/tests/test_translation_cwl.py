@@ -9,7 +9,7 @@ from janis_core.tests.testtools import (
     FilenameGeneratedTool,
 )
 
-import janis_core.utils.cwl_v1_0 as cwlgen
+import cwl_utils.parser_v1_0 as cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (

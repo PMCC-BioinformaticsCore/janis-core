@@ -14,7 +14,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union
 
-import janis_core.utils.cwl_v1_0 as cwl
+import cwl_utils.parser_v1_0 as cwlgen
 from wdlgen import WdlType
 
 from janis_core.utils import is_array_prefix
@@ -257,7 +257,7 @@ class DataType(ABC):
             [tp, "null"] if self.optional and not has_default else tp
         )  # and not has_default
 
-    def map_cwl_type(self, parameter: cwl.Parameter) -> cwl.Parameter:
+    def map_cwl_type(self, parameter: cwlgen.Parameter) -> cwlgen.Parameter:
         if not NativeTypes.is_valid(self.primitive()):
             raise Exception(
                 f"{self.id()} must declare its primitive as one of the NativeTypes "
