@@ -148,6 +148,11 @@ class Selector(ABC):
 
         return AsIntOperator(self)
 
+    def as_float(self):
+        from janis_core.operators.operator import AsFloatOperator
+
+        return AsFloatOperator(self)
+
     def op_and(self, other):
         from janis_core.operators.logical import AndOperator
 

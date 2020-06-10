@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 
 from janis_core.operators.selectors import Selector
-from janis_core.types import DataType, get_instantiated_type
+from janis_core.types import DataType, get_instantiated_type, Float
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
@@ -11,6 +11,13 @@ class Operator(Selector, ABC):
         self.args: List[Union[Selector, any]] = list(args)
 
         self.validate()
+
+    def requires_contents(self):
+        """
+        A subclass should set this to TRUE
+        :return:
+        """
+        return False
 
     @staticmethod
     @abstractmethod
@@ -242,3 +249,27 @@ class AsIntOperator(SingleValueOperator):
 
     def returntype(self):
         return Int
+
+
+class AsFloatOperator(SingleValueOperator):
+    @staticmethod
+    def symbol():
+        return "float"
+
+    @staticmethod
+    def friendly_signature():
+        return "X -> Float"
+
+    @staticmethod
+    def wdl_symbol():
+        return ""
+
+    @staticmethod
+    def cwl_symbol():
+        return "Number"
+
+    def argtypes(self):
+        return [AnyType]
+
+    def returntype(self):
+        return Float()

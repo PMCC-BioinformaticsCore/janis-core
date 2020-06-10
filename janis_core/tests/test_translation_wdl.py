@@ -2,6 +2,7 @@ import unittest
 from typing import Optional
 
 import wdlgen
+from janis_core.types import Float
 
 import janis_core.translations.wdl as wdl
 from janis_core import (
@@ -23,7 +24,7 @@ from janis_core import (
 )
 from janis_core.operators import CpuSelector, StringFormatter
 from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import JoinOperator
+from janis_core.operators.standard import JoinOperator, ReadContents
 from janis_core.tests.testtools import (
     TestTypeWithSecondary,
     TestTypeWithNonEscapedSecondary,
@@ -1230,3 +1231,31 @@ class TestWdlResourceOperators(unittest.TestCase):
             'memory: "~{select_first([runtime_memory, if ((size(inputFile, "MB") > 1024)) then 4 else 2, 4])}G"',
             memory,
         )
+
+
+class TestReadContentsOperator(unittest.TestCase):
+    def test_read_contents_string(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", String, glob=ReadContents(Stdout()))],
+            container=None,
+            version="-1",
+        )
+
+        t.translate("wdl", allow_empty_container=True)
+
+    def test_read_contents_as_int(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", Float, glob=ReadContents(Stdout()).as_float())],
+            container=None,
+            version="-1",
+        )
+
+        t.translate("wdl", allow_empty_container=True)
