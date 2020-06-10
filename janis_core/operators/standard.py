@@ -1,9 +1,32 @@
 from copy import copy
-
-from janis_core.types import UnionType, Int, File, Float, Directory
+from typing import List
+from janis_core.types import DataType, UnionType, Int, File, Float, Directory
 
 from janis_core.types.common_data_types import String, Array, AnyType
 from janis_core.operators.operator import Operator
+
+
+class ReadContents(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "File -> String"
+
+    def argtypes(self) -> List[DataType]:
+        return [File()]
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"read_string({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"{arg}.contents"
+
+    def returntype(self):
+        return String
+
+    def requires_contents(self):
+        return True
 
 
 class JoinOperator(Operator):
