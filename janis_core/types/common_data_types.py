@@ -550,7 +550,7 @@ class Stdout(File):
     def name():
         return "Stdout"
 
-    def __init__(self, subtype=None, stdoutname=None, optional=None):
+    def __init__(self, subtype=None, optional=None):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
@@ -562,7 +562,6 @@ class Stdout(File):
                 "Janis does not currently support non-File stdout annotations"
             )
 
-        self.stdoutname = stdoutname
         self.subtype = subtype
 
         if self.subtype.secondary_files():

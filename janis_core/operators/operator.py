@@ -17,6 +17,15 @@ class Operator(Selector, ABC):
         A subclass should set this to TRUE
         :return:
         """
+        return self._requires_contents(self.args)
+
+    @staticmethod
+    def _requires_contents(obj):
+
+        if isinstance(obj, list):
+            return any(Operator._requires_contents(o) for o in obj)
+        elif isinstance(obj, Selector):
+            return obj.requires_contents()
         return False
 
     @staticmethod
