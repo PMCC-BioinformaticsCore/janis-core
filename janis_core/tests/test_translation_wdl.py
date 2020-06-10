@@ -1272,7 +1272,7 @@ class TestReadContentsOperator(unittest.TestCase):
             version="-1",
         )
 
-        t.translate("wdl", allow_empty_container=True)
+        t.translate("cwl", allow_empty_container=True)
 
     def test_read_contents_as_int(self):
 

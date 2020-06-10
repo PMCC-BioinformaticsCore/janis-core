@@ -70,6 +70,9 @@ CWL_VERSION = "v1.0"
 SHEBANG = "#!/usr/bin/env cwl-runner"
 yaml = ruamel.yaml.YAML()
 
+STDOUT_NAME = "_stdout"
+STDERR_NAME = "_stderr"
+
 
 ## TRANSLATION
 
@@ -360,24 +363,9 @@ class CwlTranslator(TranslatorBase):
         container_override=None,
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
-        stdouts = [
-            o.outtype
-            for o in tool.tool_outputs()
-            if isinstance(o.outtype, Stdout) and o.outtype.stdoutname
-        ]
-        stderrs = [
-            o.outtype
-            for o in tool.tool_outputs()
-            if isinstance(o.outtype, Stderr) and o.outtype.stderrname
-        ]
-        stdout = stdouts[0].stdoutname if len(stdouts) > 0 else None
-        stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
 
-        if isinstance(stdout, InputSelector):
-            stdout = translate_input_selector(stdout, code_environment=False)
-
-        if isinstance(stderr, InputSelector):
-            stderr = translate_input_selector(stderr, code_environment=False)
+        stdout = STDOUT_NAME
+        stderr = STDERR_NAME
 
         tool_cwl = cwlgen.CommandLineTool(
             id=tool.id(),
@@ -687,6 +675,7 @@ return {out_capture}
         code_environment=True,
         selector_override=None,
         tool=None,
+        for_output=False,
         **debugkwargs,
     ):
         if value is None:
@@ -832,6 +821,13 @@ return {out_capture}
                 **debugkwargs,
             )
 
+        elif for_output and isinstance(value, (Stderr, Stdout)):
+            # next few ones we rely on the globs being
+            if isinstance(value, Stdout):
+                return "self[0]"
+            elif isinstance(value, Stderr):
+                return "self[1]"
+
         elif isinstance(value, InputSelector):
             return translate_input_selector(
                 selector=value,
@@ -848,6 +844,7 @@ return {out_capture}
                 code_environment=True,
                 selector_override=selector_override,
                 tool=tool,
+                for_output=for_output,
                 **debugkwargs,
             )
             return CwlTranslator.wrap_in_codeblock_if_required(
@@ -1074,19 +1071,48 @@ def translate_tool_output(
     )
 
 
+def requires_content(obj):
+    if isinstance(obj, list):
+        return any(requires_content(o) for o in obj)
+
+    elif isinstance(obj, Operator) and obj.requires_contents():
+        return True
+
+    return False
+
+
+def has_std(obj):
+    if isinstance(obj, (Stderr, Stdout)):
+        return True
+
+    elif isinstance(obj, list):
+        return any(has_std(o) for o in obj)
+
+    elif isinstance(obj, Operator) and has_std(obj.get_leaves()):
+        return True
+
+    return False
+
+
 def prepare_tool_output_binding(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputBinding:
 
+    loadcontents = requires_content(output.glob)
+    requires_std = has_std(output.glob)
+
     return cwlgen.CommandOutputBinding(
-        glob=translate_to_cwl_glob(
+        glob=[STDOUT_NAME, STDERR_NAME]
+        if requires_std
+        else translate_to_cwl_glob(
             output.glob, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
         ),
-        outputEval=prepare_tool_output_eval(output),
+        outputEval=prepare_tool_output_eval(tool, output),
+        loadContents=loadcontents,
     )
 
 
-def prepare_tool_output_eval(output: ToolOutput) -> Optional[str]:
+def prepare_tool_output_eval(tool, output: ToolOutput) -> Optional[str]:
     """
     Sometimes we want to rename it on the output, we do this by
     generating an output_eval expression and rewriting the basename
@@ -1095,10 +1121,10 @@ def prepare_tool_output_eval(output: ToolOutput) -> Optional[str]:
     :return:
     """
 
-    # if isinstance(output.glob, Operator):
-    #     raise NotImplementedError(
-    #         "Still to implement output_eval for globs on ToolOutput"
-    #     )
+    if isinstance(output.glob, Operator):
+        return CwlTranslator.unwrap_expression(
+            output.glob, code_environment=False, tool=tool, for_output=True
+        )
 
     if output.presents_as:
         return f"""\

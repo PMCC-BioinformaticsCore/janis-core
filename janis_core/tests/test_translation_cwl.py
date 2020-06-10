@@ -2,6 +2,7 @@ import unittest
 from typing import List, Dict, Any, Optional
 
 from janis_core.operators.logical import If, IsDefined
+from janis_core.operators.standard import ReadContents
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -28,6 +29,8 @@ from janis_core import (
     StringFormatter,
     CommandToolBuilder,
     ToolOutput,
+    DataType,
+    Float,
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
@@ -714,6 +717,40 @@ class TestCwlResourceOperators(unittest.TestCase):
         )
 
 
+class TestReadContentsOperator(unittest.TestCase):
+    def test_read_contents_string(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", String, glob=ReadContents(Stdout()))],
+            container=None,
+            version="-1",
+        )
+
+        translated = CwlTranslator.translate_tool_internal(
+            t, allow_empty_container=True
+        )
+        self.assertTrue(translated.outputs[0].outputBinding.loadContents)
+
+    def test_read_contents_as_int(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", Float, glob=ReadContents(Stdout()).as_float())],
+            container=None,
+            version="-1",
+        )
+        translated = CwlTranslator.translate_tool_internal(
+            t, allow_empty_container=True
+        )
+        self.assertTrue(translated.outputs[0].outputBinding.loadContents)
+        self.assertEqual("float", translated.outputs[0].type)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
@@ -745,6 +782,8 @@ outputs:
 - id: std
   label: std
   type: stdout
+stdout: _stdout
+stderr: _stderr
 
 baseCommand: echo
 arguments:

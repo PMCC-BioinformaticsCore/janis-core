@@ -15,6 +15,13 @@ class Selector(ABC):
     def returntype(self):
         pass
 
+    def requires_contents(self):
+        """
+        A subclass should set this to TRUE
+        :return:
+        """
+        return False
+
     def __neg__(self):
         from janis_core.operators.logical import NotOperator
 
