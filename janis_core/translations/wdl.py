@@ -824,9 +824,10 @@ class WdlTranslator(TranslatorBase):
 
         commands.append(wdl.Task.Command(bc, command_ins, command_args))
 
-        for ito in range(len(tool.outputs())):
+        namedwdlouts = {t.name: t for t in outs}
+        for to in toolouts:
             commands.extend(
-                prepare_move_statements_for_output(toolouts[ito], outs[ito].expression)
+                prepare_move_statements_for_output(to, namedwdlouts[to.id()].expression)
             )
 
         r = wdl.Task.Runtime()
