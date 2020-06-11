@@ -751,6 +751,32 @@ class TestReadContentsOperator(unittest.TestCase):
         self.assertEqual("float", translated.outputs[0].type)
 
 
+class TestCWLNotNullOperator(unittest.TestCase):
+    def test_workflow_string_not_null(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", Optional[str])
+        w.output("out", source=w.inp.assert_not_null())
+
+        cwltool = w.translate("cwl", allow_empty_container=True, to_console=False)[0]
+        print(cwltool)
+
+    def test_commandtool_string(self):
+
+        t = CommandToolBuilder(
+            tool="id",
+            base_command=None,
+            inputs=[ToolInput("inp", Optional[str])],
+            outputs=[
+                ToolOutput("out", str, glob=InputSelector("inp").assert_not_null())
+            ],
+            version=None,
+            container=None,
+        )
+
+        cwltool = t.translate("cwl", allow_empty_container=True, to_console=False)
+        print(cwltool)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool

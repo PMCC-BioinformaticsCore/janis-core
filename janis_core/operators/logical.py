@@ -96,6 +96,35 @@ class If(Operator, ABC):
         return f"{cond} ? {v1} : {v2}"
 
 
+class AssertNotNull(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "X? -> X"
+
+    def argtypes(self) -> List[DataType]:
+        return [AnyType]
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"select_first([{arg}])"
+
+    def to_cwl(self, unwrap_operator, *args):
+        return unwrap_operator(self.args[0])
+
+    def returntype(self):
+        from copy import copy
+
+        a = self.args[0]
+        if isinstance(a, Selector):
+            ret = get_instantiated_type(a.returntype())
+        else:
+            ret = get_instantiated_type(a)
+
+        ret = copy(ret)
+        ret.optional = False
+        return ret
+
+
 # Other single value operators
 
 

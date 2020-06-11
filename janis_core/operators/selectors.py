@@ -31,6 +31,11 @@ class Selector(ABC):
     def to_string_formatter(self):
         pass
 
+    def assert_not_null(self):
+        from janis_core.operators.logical import AssertNotNull
+
+        return AssertNotNull(self)
+
     def __and__(self, other):
         from janis_core.operators.logical import AndOperator
 

@@ -1073,7 +1073,25 @@ class TestWdlSecondaryTranslation(unittest.TestCase):
 
         wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref))
 
-        trans = wf.translate("wdl")
+        wdlwf, _, _ = wf.translate("wdl", to_console=False)
+
+        expected = """\
+version development
+
+import "tools/CatTestTool_TEST.wdl" as C
+
+workflow wf {
+  input {
+    File ref
+    File ref_txt
+  }
+  call C.CatTestTool as stp {
+    input:
+      inp=ref,
+      inp_txt=ref_txt
+  }
+}"""
+        self.assertEqual(expected, wdlwf)
 
 
 class TestCompleteOperators(unittest.TestCase):
@@ -1272,7 +1290,7 @@ class TestReadContentsOperator(unittest.TestCase):
             version="-1",
         )
 
-        t.translate("cwl", allow_empty_container=True)
+        t.translate("wdl", allow_empty_container=True)
 
     def test_read_contents_as_int(self):
 
@@ -1286,3 +1304,37 @@ class TestReadContentsOperator(unittest.TestCase):
         )
 
         t.translate("wdl", allow_empty_container=True)
+
+
+class TestWDLNotNullOperator(unittest.TestCase):
+    def test_workflow_string_not_null(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", Optional[str])
+        w.output("out", source=w.inp.assert_not_null())
+
+        wdltool = (
+            w.translate("wdl", allow_empty_container=True, to_console=False)[0]
+            .splitlines()[-3]
+            .strip()
+        )
+        self.assertEqual("String out = select_first([inp])", wdltool)
+
+    def test_commandtool_string(self):
+
+        t = CommandToolBuilder(
+            tool="id",
+            base_command=None,
+            inputs=[ToolInput("inp", Optional[str])],
+            outputs=[
+                ToolOutput("out", str, glob=InputSelector("inp").assert_not_null())
+            ],
+            version=None,
+            container=None,
+        )
+
+        wdltool = (
+            t.translate("wdl", allow_empty_container=True, to_console=False)
+            .splitlines()[-3]
+            .strip()
+        )
+        self.assertEqual("String out = select_first([inp])", wdltool)
