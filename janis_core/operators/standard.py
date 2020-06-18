@@ -74,7 +74,8 @@ class BasenameOperator(Operator):
         return str(self)
 
 
-class TransformOperator(Operator):
+
+class TransposeOperator(Operator):
     @staticmethod
     def friendly_signature():
         return "Array[Array[X]] -> Array[Array[x]]"
@@ -97,7 +98,7 @@ class TransformOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         return (
             unwrap_operator(args[0])
-            + ".map(function(c, i) { return q.map(function(row) { return row[i]; }); })"
+            + ".reduce(function(prev, next) { return next.map(function(item, i) { return (prev[i] || []).concat(next[i]); }) }, [])"
         )
 
 
