@@ -28,6 +28,11 @@ class ReadContents(Operator):
     def requires_contents(self):
         return True
 
+    def evaluate(self, inputs):
+        file = self.evaluate_arg(self.args[0], inputs)
+        with open(file) as f:
+            return f.read()
+
 
 class JoinOperator(Operator):
     @staticmethod
@@ -47,6 +52,10 @@ class JoinOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
         return f"{iterable}.join({separator})"
+
+    def evaluate(self, inputs):
+        iterable, separator = self.evaluate_arg(self.args, inputs)
+        return str(separator).join((str(el) for el in iterable))
 
 
 class BasenameOperator(Operator):
@@ -73,6 +82,10 @@ class BasenameOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def evaluate(self, inputs):
+        from os.path import basename
+
+        return basename(self.evaluate_arg(self.args[0], inputs))
 
 
 class TransposeOperator(Operator):
@@ -101,6 +114,10 @@ class TransposeOperator(Operator):
             + ".reduce(function(prev, next) { return next.map(function(item, i) { return (prev[i] || []).concat(next[i]); }) }, [])"
         )
 
+    def evaluate(self, inputs):
+        ar = self.evaluate_arg(self.args[0], inputs)
+        return [[ar[i][j] for i in range(len(ar))] for j in range(len(ar[0]))]
+
 
 class LengthOperator(Operator):
     @staticmethod
@@ -126,6 +143,10 @@ class LengthOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"{arg}.length"
+
+    def evaluate(self, inputs):
+        ar = self.evaluate_arg(self.args[0], inputs)
+        return len(ar)
 
 
 class FlattenOperator(Operator):
@@ -153,11 +174,15 @@ class FlattenOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"{arg}.flat()"
 
+    def evaluate(self, inputs):
+        ar = self.evaluate_arg(self.args[0], inputs)
+        return [el for sl in ar for el in sl]
+
 
 class ApplyPrefixOperator(Operator):
     @staticmethod
     def friendly_signature():
-        return "String, Array[String] -> String"
+        return "String, Array[String] -> Array[String]"
 
     def argtypes(self):
         return [String, Array(AnyType)]
@@ -179,6 +204,10 @@ class ApplyPrefixOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
         return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
+
+    def evaluate(self, inputs):
+        prefix, iterable = self.evaluate_arg(self.args, inputs)
+        return [f"{prefix}{el}" for el in iterable]
 
 
 class FileSizeOperator(Operator):
@@ -210,6 +239,12 @@ class FileSizeOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
         return f"({f}.size / 1048576)"
+
+    def evaluate(self, inputs):
+        from os.path import getsize
+
+        file = self.evaluate_arg(self.args[0], inputs)
+        return getsize(file) / 1048576
 
 
 class FirstOperator(Operator):
@@ -245,6 +280,10 @@ class FirstOperator(Operator):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
 
+    def evaluate(self, inputs):
+        iterable = self.evaluate_arg(self.args[0], inputs)
+        return [i for i in iterable if i is not None][0]
+
 
 class FilterNullOperator(Operator):
     @staticmethod
@@ -271,3 +310,7 @@ class FilterNullOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})"
+
+    def evaluate(self, inputs):
+        iterable = self.evaluate_arg(self.args[0], inputs)
+        return [i for i in iterable if i is not None]

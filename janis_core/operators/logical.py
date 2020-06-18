@@ -50,6 +50,9 @@ class IsDefined(Operator, ABC):
     def __repr__(self):
         return str(self)
 
+    def evaluate(self, inputs):
+        return self.evaluate_arg(self.args[0], inputs) is not None
+
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         # 2 equals (!=) in javascript will coerce undefined to equal null
@@ -87,6 +90,11 @@ class If(Operator, ABC):
     def __repr__(self):
         return str(self)
 
+    def evaluate(self, inputs):
+        cond, iftrue, iffalse = self.args
+        result = iftrue if self.evaluate_arg(cond, inputs) else iffalse
+        return self.evaluate_arg(result, inputs)
+
     def to_wdl(self, unwrap_operator, *args):
         cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"if ({cond}) then {v1} else {v2}"
@@ -103,6 +111,11 @@ class AssertNotNull(Operator):
 
     def argtypes(self) -> List[DataType]:
         return [AnyType]
+
+    def evaluate(self, inputs):
+        result = self.evaluate_arg(self.args[0], inputs)
+        assert result is not None
+        return result
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
@@ -151,8 +164,11 @@ class NotOperator(SingleValueOperator):
     def returntype(self):
         return Boolean
 
+    @staticmethod
+    def apply_to(value):
+        return not value
 
-# Two value operators
+    # Two value operators
 
 
 class AndOperator(TwoValueOperator):
@@ -171,6 +187,10 @@ class AndOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "&&"
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 and arg2
 
     def returntype(self):
         return Boolean
@@ -196,6 +216,10 @@ class OrOperator(TwoValueOperator):
     def cwl_symbol():
         return "||"
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 or arg2
+
     def returntype(self):
         return Boolean
 
@@ -219,6 +243,10 @@ class EqualityOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "=="
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 == arg2
 
     def returntype(self):
         return Boolean
@@ -250,6 +278,10 @@ class InequalityOperator(TwoValueOperator):
     def argtypes(self):
         return [AnyType, AnyType]
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 != arg2
+
 
 class GtOperator(TwoValueOperator):
     @staticmethod
@@ -267,6 +299,10 @@ class GtOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return ">"
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 > arg2
 
     def returntype(self):
         return Boolean
@@ -292,6 +328,10 @@ class GteOperator(TwoValueOperator):
     def cwl_symbol():
         return ">="
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 >= arg2
+
     def returntype(self):
         return Boolean
 
@@ -315,6 +355,10 @@ class LtOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "<"
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 < arg2
 
     def returntype(self):
         return Boolean
@@ -340,6 +384,10 @@ class LteOperator(TwoValueOperator):
     def cwl_symbol():
         return "<="
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 <= arg2
+
     def returntype(self):
         return Boolean
 
@@ -363,6 +411,10 @@ class AddOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "+"
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 + arg2
 
     def argtypes(self):
         return [AnyType, AnyType]
@@ -412,6 +464,10 @@ class SubtractOperator(TwoValueOperator):
     def cwl_symbol():
         return "-"
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 - arg2
+
     def argtypes(self):
         return [Union[Int, Double, Float], Union[Int, Double, Float]]
 
@@ -440,6 +496,10 @@ class MultiplyOperator(TwoValueOperator):
     def cwl_symbol():
         return "*"
 
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 * arg2
+
     def argtypes(self):
         return [NumericType, NumericType]
 
@@ -467,6 +527,10 @@ class DivideOperator(TwoValueOperator):
     @staticmethod
     def cwl_symbol():
         return "/"
+
+    @staticmethod
+    def apply_to(arg1, arg2):
+        return arg1 / arg2
 
     def argtypes(self):
         return [NumericType, NumericType]
@@ -503,6 +567,12 @@ class FloorOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"Math.floor({arg})"
 
+    def evaluate(self, inputs):
+        from math import floor
+
+        result = self.evaluate_arg(self.args[0], inputs)
+        return floor(result)
+
 
 class CeilOperator(Operator):
     @staticmethod
@@ -530,6 +600,12 @@ class CeilOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"Math.ceil({arg})"
 
+    def evaluate(self, inputs):
+        from math import ceil
+
+        result = self.evaluate_arg(self.args[0], inputs)
+        return ceil(result)
+
 
 class RoundOperator(Operator):
     @staticmethod
@@ -556,3 +632,7 @@ class RoundOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"Math.round({arg})"
+
+    def evaluate(self, inputs):
+        result = self.evaluate_arg(self.args[0], inputs)
+        return round(result)

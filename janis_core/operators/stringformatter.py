@@ -24,6 +24,7 @@ class StringFormatter(Operator):
         return "String, **kwargs -> String"
 
     def __init__(self, format: str, **kwargs):
+        # ignore super().__init__ call
         self._format: str = format
 
         keywords, balance = get_keywords_between_braces(self._format)
@@ -57,6 +58,12 @@ class StringFormatter(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
+
+    def evaluate(self, inputs):
+        resolvedvalues = {
+            k: self.evaluate_arg(v, inputs) for k, v in self.kwargs.items()
+        }
+        return self.resolve_with_resolved_values(**resolvedvalues)
 
     def __repr__(self):
         val = self._format

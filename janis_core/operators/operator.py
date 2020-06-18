@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-from janis_core.operators.selectors import Selector
+from janis_core.operators.selectors import Selector, InputSelector, InputNodeSelector
 from janis_core.types import DataType, get_instantiated_type, Float
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
@@ -85,6 +85,32 @@ class Operator(Selector, ABC):
 
         return True
 
+    @staticmethod
+    def evaluate_arg(arg, inputs):
+        if arg is None:
+            return None
+        elif isinstance(arg, list):
+            return [Operator.evaluate_arg(a, inputs) for a in arg]
+        elif isinstance(arg, (str, int, float, bool)):
+            return arg
+
+        elif arg in inputs:
+            return inputs[arg]
+        elif isinstance(arg, InputSelector):
+            return inputs[arg.input_to_select]
+        elif isinstance(arg, InputNodeSelector):
+            return inputs[arg.id()]
+
+        if isinstance(arg, Operator):
+            return arg.evaluate(inputs)
+
+        raise Exception(f"Janis cannot evaluate '{arg.__class__.__name__}'")
+
+    @abstractmethod
+    def evaluate(self, inputs):
+        # I need each operator to define this method
+        pass
+
     @abstractmethod
     def to_wdl(self, unwrap_operator, *args):
         pass
@@ -148,9 +174,18 @@ class SingleValueOperator(Operator, ABC):
     def cwl_symbol():
         pass
 
+    @staticmethod
+    @abstractmethod
+    def apply_to(value):
+        pass
+
     def __str__(self):
         internal = self.args[0]
         return f"{self.symbol()}({internal})"
+
+    def evaluate(self, inputs):
+        result = self.evaluate_arg(self.args[0], inputs)
+        return self.apply_to(result)
 
     def to_wdl(self, unwrap_operator, *args):
         return f"{self.wdl_symbol()}({unwrap_operator(*args)})"
@@ -174,6 +209,15 @@ class TwoValueOperator(Operator, ABC):
     @abstractmethod
     def cwl_symbol():
         pass
+
+    @staticmethod
+    @abstractmethod
+    def apply_to(arg1, arg2):
+        pass
+
+    def evaluate(self, inputs):
+        arg1, arg2 = [self.evaluate_arg(a, inputs) for a in self.args]
+        return self.apply_to(arg1, arg2)
 
     def to_wdl(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
@@ -205,6 +249,10 @@ class AsStringOperator(SingleValueOperator):
     def cwl_symbol():
         return "String"
 
+    @staticmethod
+    def apply_to(value):
+        return str(value)
+
     def argtypes(self):
         return [AnyType]
 
@@ -228,6 +276,10 @@ class AsBoolOperator(SingleValueOperator):
     @staticmethod
     def cwl_symbol():
         return "Boolean"
+
+    @staticmethod
+    def apply_to(value):
+        return bool(value)
 
     def argtypes(self):
         return [AnyType]
@@ -276,6 +328,10 @@ class AsFloatOperator(SingleValueOperator):
     @staticmethod
     def cwl_symbol():
         return "Number"
+
+    @staticmethod
+    def apply_to(value):
+        return float(value)
 
     def argtypes(self):
         return [AnyType]

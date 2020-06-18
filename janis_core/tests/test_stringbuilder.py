@@ -226,6 +226,13 @@ class TestStringFormatterResolve(unittest.TestCase):
         )  # ;) https://www.youtube.com/watch?v=7WCfTREZSdQ
         self.assertEqual("S07E25 is the same as S07E25", resolved)
 
+    def test_evaluate_from_input_selector_resolved(self):
+        namesel = InputSelector("name")
+        adjsel = InputSelector("adjsel")
+        b = StringFormatter("{name} is {adjective}", name=namesel, adjective=adjsel)
+        inp = {"name": "Janis", "adjsel": "pretty good"}
+        self.assertEqual("Janis is pretty good", b.evaluate(inp))
+
 
 class TestInputSelectorConversion(unittest.TestCase):
     def test_input_selector_conversion(self):

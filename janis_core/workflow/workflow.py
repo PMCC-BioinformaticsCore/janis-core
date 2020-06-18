@@ -486,8 +486,8 @@ class Workflow(Tool):
         if isinstance(out, list):
             return [self.verify_output_source_type(identifier, o, outtype) for o in out]
 
-        if isinstance(out, str):
-            return out
+        if isinstance(out, (str, bool, float, int)):
+            return str(out)
 
         if isinstance(out, tuple):
             # ConnectionSource tuple
@@ -511,6 +511,13 @@ class Workflow(Tool):
                     f"Couldn't find the input {out.input_to_select} in the workflow, expected one of: "
                     + ", ".join(keys)
                 )
+            return out
+
+        if isinstance(out, Operator):
+            fixed_types = [
+                self.verify_output_source_type(identifier, o, outtype)
+                for o in out.get_leaves()
+            ]
             return out
 
         raise Exception(f"Invalid type for {outtype}: {out.__class__.__name__}")
