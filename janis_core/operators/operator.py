@@ -149,6 +149,11 @@ class IndexOperator(Operator, ABC):
     def __repr__(self):
         return str(self)
 
+    def evaluate(self, inputs):
+        iterable, idx = self.evaluate_arg(self.args, inputs)
+
+        return iterable[idx]
+
     def to_wdl(self, unwrap_operator, *args):
         base, index = self.args
         return f"{base}[{index}]"
