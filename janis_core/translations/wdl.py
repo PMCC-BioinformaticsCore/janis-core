@@ -1184,9 +1184,9 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
         condition_for_binding = None
 
         if intype.optional:
-            expr = f"select_first([{expr}, []])"
+            expr = f"select_first([{expr}])"
             condition_for_binding = (
-                f"(defined({name}) && length(select_first([{name}, []])) > 0)"
+                f"(defined({name}) && length(select_first([{name}])) > 0)"
             )
 
         if intype.subtype().optional:
