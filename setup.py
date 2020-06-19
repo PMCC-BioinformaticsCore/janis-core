@@ -57,7 +57,7 @@ setup(
         "tabulate",
         "path",
         "cwlformat >= 2020.5.19",
-        "cwl-utils >= 0.4",
+        "cwl-utils >= 0.5",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,
