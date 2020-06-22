@@ -938,7 +938,7 @@ class DynamicWorkflow(WorkflowBase):
         super().__init__(**connections)
         self.has_constructed = False
 
-    def constructor(self, inputs):
+    def constructor(self, inputs: Dict[str, any], hints: Dict[str, any]):
         """
         A place to construct your workflows. This is called after inputs are initially processed
         :return:
