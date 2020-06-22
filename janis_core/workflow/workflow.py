@@ -635,7 +635,7 @@ class WorkflowBase(Tool, ABC):
             self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 
         self.has_scatter = self.has_scatter or scatter is not None
-        self.has_subworkflow = self.has_subworkflow or isinstance(tool, Workflow)
+        self.has_subworkflow = self.has_subworkflow or isinstance(tool, WorkflowBase)
         self.nodes[identifier] = stp
         self.step_nodes[identifier] = stp
 
@@ -831,7 +831,7 @@ class WorkflowBase(Tool, ABC):
         tools: Dict[str, CommandTool] = {}
         for t in self.step_nodes.values():
             tl = t.tool
-            if isinstance(tl, Workflow):
+            if isinstance(tl, WorkflowBase):
                 tools.update(tl.get_tools())
             elif t.id() not in tools:
                 tools[tl.id()] = tl
