@@ -160,10 +160,10 @@ class TranslatorBase(ABC):
                 wf.write(str_tool)
                 Logger.log(f"Wrote {fn_workflow}  to disk")
 
-            for (fn_tool, str_tool) in str_tools:
+            for (fn_tool, disk_str_tool) in str_tools:
                 with open(os.path.join(d, fn_tool), "w+") as toolfp:
                     Logger.log(f"Writing {fn_tool} to disk")
-                    toolfp.write(str_tool)
+                    toolfp.write(disk_str_tool)
                     Logger.log(f"Written {fn_tool} to disk")
 
             if not merge_resources and with_resource_overrides:
