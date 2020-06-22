@@ -28,7 +28,7 @@ from typing import List, Dict, Optional, Tuple
 import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
 
-from janis_core import ToolArgument
+from janis_core import ToolArgument, ToolType
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.logical import IsDefined, If, RoundOperator
@@ -213,7 +213,7 @@ class CwlTranslator(TranslatorBase):
         }
         for t in tools_to_build:
             tool: Tool = tools_to_build[t]
-            if isinstance(tool, Workflow):
+            if tool.type() == ToolType.Workflow:
                 wf_cwl, subtools = cls.translate_workflow(
                     tool,
                     is_nested_tool=True,
@@ -261,7 +261,7 @@ class CwlTranslator(TranslatorBase):
 
         ad = additional_inputs or {}
         values_provided_from_tool = {}
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
@@ -1254,7 +1254,7 @@ def get_run_ref_from_subtool(
         from janis_core.workflow.workflow import Workflow
 
         has_resources_overrides = len(resource_overrides) > 0
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             return CwlTranslator.translate_workflow_to_all_in_one(
                 tool,
                 with_resource_overrides=has_resources_overrides,
@@ -1608,7 +1608,7 @@ def build_resource_override_maps_for_workflow(
                     # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
                 ]
             )
-        elif isinstance(tool, Workflow):
+        elif tool.type() == ToolType.Workflow:
             tool_pre = prefix + s.id()
             inputs.extend(build_resource_override_maps_for_workflow(tool, tool_pre))
 

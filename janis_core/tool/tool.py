@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Optional, List, Dict, Set
 
 from janis_core.tool.documentation import (
@@ -11,13 +12,11 @@ from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
 
-ToolType = str
 
-
-class ToolTypes:
-    Workflow: ToolType = "workflow"
-    CommandTool: ToolType = "command-tool"
-    CodeTool: ToolType = "code-tool"
+class ToolType(Enum):
+    Workflow = "workflow"
+    CommandTool = "command-tool"
+    CodeTool = "code-tool"
 
 
 class TInput(object):

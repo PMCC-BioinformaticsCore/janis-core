@@ -1,7 +1,7 @@
 from typing import List, Type, Optional
 from inspect import isfunction, ismodule, isabstract, isclass
 
-from janis_core.tool.commandtool import Tool, ToolTypes, CommandTool, CommandToolBuilder
+from janis_core.tool.commandtool import Tool, ToolType, CommandTool, CommandToolBuilder
 from janis_core.code.pythontool import CodeTool, PythonTool
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
@@ -21,7 +21,7 @@ class JanisShed:
     _has_been_hydrated = False
 
     should_trace = False
-    recognised_types = {ToolTypes.Workflow, ToolTypes.CommandTool, ToolTypes.CodeTool}
+    recognised_types = {ToolType.Workflow, ToolType.CommandTool, ToolType.CodeTool}
 
     # getters
 

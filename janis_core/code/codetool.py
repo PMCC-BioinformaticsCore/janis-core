@@ -2,9 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Union
 
 from janis_core.operators import Selector
+from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
-
-from janis_core.tool.tool import Tool, TOutput, TInput, ToolType, ToolTypes
 
 
 class CodeTool(Tool, ABC):
@@ -94,7 +93,7 @@ class CodeTool(Tool, ABC):
 
     @classmethod
     def type(cls) -> ToolType:
-        return ToolTypes.CodeTool
+        return ToolType.CodeTool
 
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}

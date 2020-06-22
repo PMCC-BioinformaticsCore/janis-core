@@ -13,7 +13,7 @@ from janis_core.utils.validators import Validators
 from janis_core.types import ParseableType, get_instantiated_type, Stdout, Stderr
 
 from janis_core.types.common_data_types import String, Filename
-from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
+from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.utils.logger import Logger
 from janis_core.operators import Selector, Operator
@@ -383,7 +383,7 @@ class CommandTool(Tool, ABC):
 
     @classmethod
     def type(cls):
-        return ToolTypes.CommandTool
+        return ToolType.CommandTool
 
     def translate(
         self,

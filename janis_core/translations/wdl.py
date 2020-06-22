@@ -31,7 +31,7 @@ from janis_core.types.data_types import is_python_primitive
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
-from janis_core.tool.tool import Tool, TOutput
+from janis_core.tool.tool import Tool, TOutput, ToolType
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.operators import (
     InputSelector,
@@ -267,7 +267,7 @@ class WdlTranslator(TranslatorBase):
             t = s.tool
 
             if t.versioned_id() not in wtools:
-                if isinstance(t, Workflow):
+                if t.type() == ToolType.Workflow:
                     wf_wdl, wf_tools = cls.translate_workflow(
                         t,
                         with_container=with_container,
@@ -998,7 +998,7 @@ EOT"""
 
         inp = {}
         values_provided_from_tool = {}
-        is_workflow = isinstance(tool, Workflow)
+        is_workflow = tool.type() == ToolType.Workflow
 
         if is_workflow:
             values_provided_from_tool = {
@@ -1059,7 +1059,7 @@ EOT"""
     ):
         from janis_core.workflow.workflow import Workflow
 
-        is_workflow = isinstance(tool, Workflow)
+        is_workflow = tool.type() == ToolType.Workflow
         d = super().build_resources_input(
             tool=tool,
             hints=hints,

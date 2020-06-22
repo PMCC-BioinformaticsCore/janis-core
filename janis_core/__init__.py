@@ -28,8 +28,13 @@ from janis_core.toolbox.toolbox import JanisShed
 import janis_core.toolbox.entrypoints as entrypoints
 
 # Tools
-from janis_core.tool.tool import Tool, ToolTypes, TOutput, TInput
-from janis_core.workflow.workflow import Workflow, WorkflowBuilder
+from janis_core.tool.tool import Tool, ToolType, TOutput, TInput
+from janis_core.workflow.workflow import (
+    Workflow,
+    WorkflowBuilder,
+    WorkflowBase,
+    DynamicWorkflow,
+)
 from janis_core.tool.commandtool import (
     CommandTool,
     CommandToolBuilder,

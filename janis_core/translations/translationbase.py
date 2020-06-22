@@ -2,10 +2,11 @@ import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
 
-from janis_core.code.codetool import CodeTool
 from path import Path
 
+from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
+from janis_core.tool.tool import ToolType
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
 from janis_core.utils import lowercase_dictkeys
@@ -65,11 +66,10 @@ class TranslatorBase(ABC):
         allow_empty_container=False,
         container_override=None,
     ):
-        from janis_core.workflow.workflow import Workflow
 
         str_tool, tr_tools = None, []
 
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             tr_tool, tr_tools = self.translate_workflow(
                 tool,
                 with_container=with_container,
@@ -379,11 +379,10 @@ class TranslatorBase(ABC):
     def build_resources_input(
         cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
     ):
-        from janis_core.workflow.workflow import Workflow
 
         inputs = inputs or {}
 
-        if not isinstance(tool, Workflow):
+        if not tool.type() == ToolType.Workflow:
             cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
             disk = inputs.get(f"{prefix}runtime_disks", 20)
@@ -463,9 +462,8 @@ class TranslatorBase(ABC):
 
     @classmethod
     def filename(cls, tool):
-        from janis_core.workflow.workflow import Workflow
 
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             return cls.workflow_filename(tool)
         return cls.tool_filename(tool)
 

@@ -1,10 +1,19 @@
 import copy
 import os
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
+from janis_core.operators import (
+    InputSelector,
+    Operator,
+    StringFormatter,
+    StepOutputSelector,
+    InputNodeSelector,
+    Selector,
+)
+from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
 from janis_core.operators.standard import FirstOperator
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.documentation import (
@@ -13,7 +22,7 @@ from janis_core.tool.documentation import (
     InputQualityType,
     DocumentationMeta,
 )
-from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
+from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.types import (
@@ -23,29 +32,10 @@ from janis_core.types import (
     Array,
     Filename,
 )
-
-from janis_core.operators import (
-    InputSelector,
-    Operator,
-    StringFormatter,
-    StepOutputSelector,
-    InputNodeSelector,
-    Selector,
-)
-from janis_core.operators.logical import (
-    AndOperator,
-    OrOperator,
-    NotOperator,
-    or_prev_conds,
-    SingleValueOperator,
-    TwoValueOperator,
-)
-
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
-from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethods
 from janis_core.utils.validators import Validators
 
@@ -274,7 +264,7 @@ class OutputNode(Node):
         return None
 
 
-class Workflow(Tool):
+class WorkflowBase(Tool, ABC):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 
@@ -299,20 +289,8 @@ class Workflow(Tool):
         self.has_subworkflow = False
         self.has_multiple_inputs = False
 
-        # Now that we've initialised everything, we can "construct" the workflows for that subclass this class
-        # else, for the WorkflowBuilder it will do nothing and they'll add workflows later
-        self.constructor()
-
     @abstractmethod
     def friendly_name(self):
-        pass
-
-    @abstractmethod
-    def constructor(self):
-        """
-        A place to construct your workflows. This is called directly after initialisation.
-        :return:
-        """
         pass
 
     def verify_identifier(self, identifier: str, component: str):
@@ -734,7 +712,7 @@ class Workflow(Tool):
 
     @classmethod
     def type(cls) -> ToolType:
-        return ToolTypes.Workflow
+        return ToolType.Workflow
 
     def tool_inputs(self) -> List[TInput]:
         """
@@ -939,6 +917,38 @@ class Workflow(Tool):
             return meta.version
 
 
+class Workflow(WorkflowBase):
+    def __init__(self, **connections):
+        super().__init__(**connections)
+        # Now that we've initialised everything, we can "construct" the workflows for that subclass this class
+        # else, for the WorkflowBuilder it will do nothing and they'll add workflows later
+        self.constructor()
+
+    @abstractmethod
+    def constructor(self):
+        """
+        A place to construct your workflows. This is called directly after initialisation.
+        :return:
+        """
+        pass
+
+
+class DynamicWorkflow(WorkflowBase):
+    def __init__(self, **connections):
+        super().__init__(**connections)
+        self.has_constructed = False
+
+    def constructor(self, inputs):
+        """
+        A place to construct your workflows. This is called after inputs are initially processed
+        :return:
+        """
+        self.has_constructed = True
+
+    def modify_inputs(self, inputs):
+        return inputs
+
+
 class WorkflowBuilder(Workflow):
     def __init__(
         self,
@@ -1092,8 +1102,6 @@ def wrap_steps_in_workflow(
     outputs = steps[0].tool.outputs_map().values()
     for o in outputs:
         out_source = [stp[o.id()] for stp in steps]
-        w.output(
-            o.id(), source=FirstOperator(out_source),
-        )
+        w.output(o.id(), source=FirstOperator(out_source))
 
     return w(**workflow_connection_map)
