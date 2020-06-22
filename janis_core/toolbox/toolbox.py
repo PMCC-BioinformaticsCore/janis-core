@@ -187,7 +187,7 @@ class JanisShed:
                 return
 
             tp = cls.type()
-            if isinstance(tp, str) and tp in JanisShed.recognised_types:
+            if isinstance(tp, ToolType) and tp in JanisShed.recognised_types:
                 if isabstract(cls):
                     if issubclass(cls, Tool):
                         abstractmethods = list(cls.__abstractmethods__)
