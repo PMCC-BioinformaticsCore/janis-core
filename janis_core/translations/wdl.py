@@ -17,6 +17,7 @@ This file is logically structured similar to the cwl equiv:
 """
 
 import json
+import functools
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
@@ -93,6 +94,26 @@ class CustomGlob(Selector):
         raise Exception("Not supported for CustomGlob")
 
 
+def try_catch_translate(type):
+    def try_catch_translate_inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+
+                jargs = " ".join(str(a) for a in args)
+                jargs += " " + " ".join(f"{k}={v}" for k, v in kwargs.items())
+                Logger.critical(
+                    f"Couldn't translate {type or ''} to WDL with {jargs}: {repr(e)}"
+                )
+                raise
+
+        return wrapper
+
+    return try_catch_translate_inner
+
+
 class WdlTranslator(TranslatorBase):
     def __init__(self):
         super().__init__(name="wdl")
@@ -114,6 +135,7 @@ class WdlTranslator(TranslatorBase):
         return ["java", "-jar", "$womtooljar", "validate", wfpath]
 
     @classmethod
+    @try_catch_translate(type="workflow")
     def translate_workflow(
         cls,
         wfi,
@@ -132,6 +154,7 @@ class WdlTranslator(TranslatorBase):
         :param is_nested_tool:
         :return:
         """
+
         # Import needs to be here, otherwise we end up circularly importing everything
         # I need the workflow for type comparison
         from janis_core.workflow.workflow import Workflow
@@ -317,6 +340,181 @@ class WdlTranslator(TranslatorBase):
 
         return w, wtools
 
+    @classmethod
+    @try_catch_translate(type="command tool")
+    def translate_tool_internal(
+        cls,
+        tool: CommandTool,
+        with_container=True,
+        with_resource_overrides=False,
+        allow_empty_container=False,
+        container_override=None,
+    ):
+
+        if not Validators.validate_identifier(tool.id()):
+            raise Exception(
+                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+                f"numbers or an underscore)"
+            )
+
+        inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
+        toolouts = tool.outputs()
+        inmap = {i.tag: i for i in inputs}
+
+        if len(inputs) != len(inmap):
+            dups = ", ".join(find_duplicates(list(inmap.keys())))
+            raise Exception(
+                f"There are {len(dups)} duplicate values in  {tool.id()}'s inputs: {dups}"
+            )
+
+        outdups = find_duplicates([o.id() for o in toolouts])
+        if len(outdups) > 0:
+            raise Exception(
+                f"There are {len(outdups)} duplicate values in  {tool.id()}'s outputs: {outdups}"
+            )
+
+        ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
+        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool=tool)
+        command_args = cls.translate_tool_args(
+            tool.arguments(), inmap, tool=tool, toolId=tool.id()
+        )
+        command_ins = cls.build_command_from_inputs(tool.inputs())
+
+        commands = []
+
+        env = tool.env_vars()
+        if env:
+            commands.extend(
+                prepare_env_var_setters(env, inputsdict=inmap, toolid=tool.id())
+            )
+
+        for ti in tool.inputs():
+            commands.extend(prepare_move_statements_for_input(ti))
+
+        rbc = tool.base_command()
+        bc = " ".join(rbc) if isinstance(rbc, list) else rbc
+
+        commands.append(wdl.Task.Command(bc, command_ins, command_args))
+
+        namedwdlouts = {t.name: t for t in outs}
+        for to in toolouts:
+            commands.extend(
+                prepare_move_statements_for_output(to, namedwdlouts[to.id()].expression)
+            )
+
+        r = wdl.Task.Runtime()
+        if with_container:
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
+
+        # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
+        cls.add_runtimefield_overrides_for_wdl(
+            runtime_block=r,
+            tool=tool,
+            inmap=inmap,
+            with_resource_overrides=with_resource_overrides,
+        )
+
+        return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+
+    @classmethod
+    @try_catch_translate(type="code tool")
+    def translate_code_tool_internal(
+        cls,
+        tool: CodeTool,
+        with_docker=True,
+        with_resource_overrides=True,
+        allow_empty_container=False,
+        container_override=None,
+    ):
+        if not Validators.validate_identifier(tool.id()):
+            raise Exception(
+                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+                f"numbers or an underscore)"
+            )
+
+        ins = cls.get_resource_override_inputs() + [
+            ToolInput(
+                t.id(),
+                input_type=t.intype,
+                prefix=f"--{t.id()}",
+                default=t.default,
+                doc=t.doc,
+            )
+            for t in tool.tool_inputs()
+        ]
+
+        tr_ins = cls.translate_tool_inputs(ins)
+
+        outs = []
+        for t in tool.tool_outputs():
+            if isinstance(t.outtype, Stdout):
+                outs.append(ToolOutput(t.id(), output_type=t.outtype))
+                continue
+
+            outs.append(
+                ToolOutput(
+                    t.id(),
+                    output_type=t.outtype,
+                    glob=CustomGlob(f'read_json(stdout())["{t.id()}"]'),
+                )
+            )
+
+        tr_outs = cls.translate_tool_outputs(outs, {}, tool=tool)
+
+        commands = []
+
+        scriptname = tool.script_name()
+
+        commands.append(
+            wdl.Task.Command(
+                f"""
+cat <<EOT >> {scriptname}
+    {tool.prepared_script()}
+EOT"""
+            )
+        )
+
+        command_ins = cls.build_command_from_inputs(ins)
+        bc = tool.base_command()
+        bcs = " ".join(bc) if isinstance(bc, list) else bc
+        commands.append(wdl.Task.Command(bcs, command_ins, []))
+
+        r = wdl.Task.Runtime()
+        if with_docker:
+            container = (
+                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                or tool.container()
+            )
+
+            if container is not None:
+                r.add_docker(container)
+            elif not allow_empty_container:
+                raise Exception(
+                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
+                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
+                    f"or --allow-empty-container"
+                )
+
+        inmap = {t.id(): t for t in ins}
+        cls.add_runtimefield_overrides_for_wdl(
+            r, tool=tool, inmap=inmap, with_resource_overrides=with_resource_overrides
+        )
+
+        return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
+
     @staticmethod
     def wrap_if_string_environment(value, string_environment: bool):
         return f'"{value}"' if not string_environment else value
@@ -364,6 +562,7 @@ class WdlTranslator(TranslatorBase):
                 selector=expression,
                 inputsdict=inputsdict,
                 string_environment=string_environment,
+                tool=tool,
                 **debugkwargs,
             )
         elif isinstance(expression, WildcardSelector):
@@ -389,7 +588,7 @@ class WdlTranslator(TranslatorBase):
             ops.append(4)
 
             return cls.unwrap_expression(
-                StringFormatter("{value}G", value=FirstOperator(ops)),
+                FirstOperator(ops),
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
@@ -461,7 +660,7 @@ class WdlTranslator(TranslatorBase):
                 ops.append(tooldisk)
             ops.append(20)
             return cls.unwrap_expression(
-                StringFormatter("local-disk {value} SSD", value=FirstOperator(ops)),
+                FirstOperator(ops),
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
@@ -769,93 +968,6 @@ class WdlTranslator(TranslatorBase):
         return command_ins
 
     @classmethod
-    def translate_tool_internal(
-        cls,
-        tool: CommandTool,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override=None,
-    ):
-
-        if not Validators.validate_identifier(tool.id()):
-            raise Exception(
-                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
-                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
-                f"numbers or an underscore)"
-            )
-
-        inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
-        toolouts = tool.outputs()
-        inmap = {i.tag: i for i in inputs}
-
-        if len(inputs) != len(inmap):
-            dups = ", ".join(find_duplicates(list(inmap.keys())))
-            raise Exception(
-                f"There are {len(dups)} duplicate values in  {tool.id()}'s inputs: {dups}"
-            )
-
-        outdups = find_duplicates([o.id() for o in toolouts])
-        if len(outdups) > 0:
-            raise Exception(
-                f"There are {len(outdups)} duplicate values in  {tool.id()}'s outputs: {outdups}"
-            )
-
-        ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
-        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool=tool)
-        command_args = cls.translate_tool_args(
-            tool.arguments(), inmap, tool=tool, toolId=tool.id()
-        )
-        command_ins = cls.build_command_from_inputs(tool.inputs())
-
-        commands = []
-
-        env = tool.env_vars()
-        if env:
-            commands.extend(
-                prepare_env_var_setters(env, inputsdict=inmap, toolid=tool.id())
-            )
-
-        for ti in tool.inputs():
-            commands.extend(prepare_move_statements_for_input(ti))
-
-        rbc = tool.base_command()
-        bc = " ".join(rbc) if isinstance(rbc, list) else rbc
-
-        commands.append(wdl.Task.Command(bc, command_ins, command_args))
-
-        namedwdlouts = {t.name: t for t in outs}
-        for to in toolouts:
-            commands.extend(
-                prepare_move_statements_for_output(to, namedwdlouts[to.id()].expression)
-            )
-
-        r = wdl.Task.Runtime()
-        if with_container:
-            container = (
-                WdlTranslator.get_container_override_for_tool(tool, container_override)
-                or tool.container()
-            )
-            if container is not None:
-                r.add_docker(container)
-            elif not allow_empty_container:
-                raise Exception(
-                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
-                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
-                    f"or --allow-empty-container"
-                )
-
-        # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        cls.add_runtimefield_overrides_for_wdl(
-            runtime_block=r,
-            tool=tool,
-            inmap=inmap,
-            with_resource_overrides=with_resource_overrides,
-        )
-
-        return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
-
-    @classmethod
     def add_runtimefield_overrides_for_wdl(
         cls, runtime_block, tool, inmap, with_resource_overrides
     ):
@@ -863,7 +975,7 @@ class WdlTranslator(TranslatorBase):
             CpuSelector(), inmap, string_environment=False, tool=tool, id="runtimestats"
         )
         runtime_block.kwargs["memory"] = cls.unwrap_expression(
-            MemorySelector(),
+            StringFormatter("{value}G", value=MemorySelector()),
             inmap,
             string_environment=False,
             tool=tool,
@@ -877,7 +989,7 @@ class WdlTranslator(TranslatorBase):
             id="runtimestats",
         )
         runtime_block.kwargs["disks"] = cls.unwrap_expression(
-            DiskSelector(),
+            StringFormatter("local-disk {value} SSD", value=DiskSelector()),
             inmap,
             string_environment=False,
             tool=tool,
@@ -888,92 +1000,6 @@ class WdlTranslator(TranslatorBase):
             runtime_block.kwargs["zones"] = '"australia-southeast1-b"'
 
         runtime_block.kwargs["preemptible"] = 2
-
-    @classmethod
-    def translate_code_tool_internal(
-        cls,
-        tool: CodeTool,
-        with_docker=True,
-        with_resource_overrides=True,
-        allow_empty_container=False,
-        container_override=None,
-    ):
-        if not Validators.validate_identifier(tool.id()):
-            raise Exception(
-                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
-                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
-                f"numbers or an underscore)"
-            )
-
-        ins = cls.get_resource_override_inputs() + [
-            ToolInput(
-                t.id(),
-                input_type=t.intype,
-                prefix=f"--{t.id()}",
-                default=t.default,
-                doc=t.doc,
-            )
-            for t in tool.tool_inputs()
-        ]
-
-        tr_ins = cls.translate_tool_inputs(ins)
-
-        outs = []
-        for t in tool.tool_outputs():
-            if isinstance(t.outtype, Stdout):
-                outs.append(ToolOutput(t.id(), output_type=t.outtype))
-                continue
-
-            outs.append(
-                ToolOutput(
-                    t.id(),
-                    output_type=t.outtype,
-                    glob=CustomGlob(f'read_json(stdout())["{t.id()}"]'),
-                )
-            )
-
-        tr_outs = cls.translate_tool_outputs(outs, {}, tool=tool)
-
-        commands = []
-
-        scriptname = tool.script_name()
-
-        commands.append(
-            wdl.Task.Command(
-                f"""
-cat <<EOT >> {scriptname}
-{tool.prepared_script()}
-EOT"""
-            )
-        )
-
-        command_ins = cls.build_command_from_inputs(ins)
-        bc = tool.base_command()
-        bcs = " ".join(bc) if isinstance(bc, list) else bc
-        commands.append(wdl.Task.Command(bcs, command_ins, []))
-
-        r = wdl.Task.Runtime()
-        if with_docker:
-            container = (
-                WdlTranslator.get_container_override_for_tool(tool, container_override)
-                or tool.container()
-            )
-
-            if container is not None:
-                r.add_docker(container)
-            elif not allow_empty_container:
-                raise Exception(
-                    f"The tool '{tool.id()}' did not have a container. Although not recommended, "
-                    f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
-                    f"or --allow-empty-container"
-                )
-
-        inmap = {t.id(): t for t in ins}
-        cls.add_runtimefield_overrides_for_wdl(
-            r, tool=tool, inmap=inmap, with_resource_overrides=with_resource_overrides
-        )
-
-        return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
     @classmethod
     def build_inputs_file(
@@ -1733,6 +1759,7 @@ def translate_string_formatter(
         for k in selector.kwargs
         # Our selector is getting an input
         if isinstance(selector.kwargs[k], InputSelector)
+        and not isinstance(selector.kwargs[k], (CpuSelector, MemorySelector))
         and selector.kwargs[k].input_to_select in inputsdict
         and not isinstance(
             inputsdict[selector.kwargs[k].input_to_select].input_type, Filename

@@ -45,6 +45,12 @@ class TranslatorBase(ABC):
     def __init__(self, name):
         self.name = name
 
+    def __repr__(self):
+        return f"{self.name}Translator"
+
+    def __str__(self):
+        return repr(self)
+
     def translate(
         self,
         tool,

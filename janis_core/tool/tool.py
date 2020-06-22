@@ -18,6 +18,15 @@ class ToolType(Enum):
     CommandTool = "command-tool"
     CodeTool = "code-tool"
 
+    def __str__(self):
+        if self == ToolType.Workflow:
+            return "Workflow"
+        elif self == ToolType.CommandTool:
+            return "CommandTool"
+        elif self == ToolType.CodeTool:
+            return "CodeTool"
+        return "".join(a.title() for a in self.value.split("-"))
+
 
 class TInput(object):
     def __init__(
@@ -59,6 +68,9 @@ class Tool(ABC, object):
             self.metadata = meta
 
         self.connections = connections
+
+    def __repr__(self):
+        return f"{str(self.type())}<{self.id()}>"
 
     @classmethod
     @abstractmethod
