@@ -1,6 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
+import functools
 
 from path import Path
 
@@ -13,9 +14,56 @@ from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
 
 
+class TranslationError(Exception):
+    def __init__(self, message, inner: Exception):
+        super().__init__(message, inner)
+        # self.inner = inner
+
+
+kwargstoignore = {"container_override"}
+
+
+def try_catch_translate(type):
+    def try_catch_translate_inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except TranslationError:
+                raise
+            except Exception as e:
+
+                components = ", ".join(
+                    [
+                        *[repr(a) for a in args],
+                        *[
+                            f"{k}={v}"
+                            for k, v in kwargs.items()
+                            if k not in kwargstoignore
+                        ],
+                    ]
+                )
+                message = f"Couldn't translate {type or ''} to WDL with ({components})"
+                er = TranslationError(message, inner=e)
+                Logger.log_ex(er)
+                raise er
+
+        return wrapper
+
+    return try_catch_translate_inner
+
+
+class TranslatorMeta(type(ABC)):
+    def __repr__(cls):
+        return cls.__name__
+
+    def __str__(cls):
+        return cls.__name__
+
+
 class TranslatorBase(ABC):
     """
-    So you're thinking about adding a new translation :)
+    So you're thinking about adding a new tWranslation :)
 
     This class will hopefully give you a pretty good indication
     on what's required to add a new translation, however what I
@@ -42,14 +90,10 @@ class TranslatorBase(ABC):
     You can find these in /janis/tests/test_translation_*.py)
     """
 
+    __metaclass__ = TranslatorMeta
+
     def __init__(self, name):
         self.name = name
-
-    def __repr__(self):
-        return f"{self.name}Translator"
-
-    def __str__(self):
-        return repr(self)
 
     def translate(
         self,

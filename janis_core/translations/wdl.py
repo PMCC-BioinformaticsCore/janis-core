@@ -17,7 +17,6 @@ This file is logically structured similar to the cwl equiv:
 """
 
 import json
-import functools
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
@@ -33,7 +32,11 @@ from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
 from janis_core.tool.tool import Tool, TOutput, ToolType
-from janis_core.translations.translationbase import TranslatorBase
+from janis_core.translations.translationbase import (
+    TranslatorBase,
+    TranslatorMeta,
+    try_catch_translate,
+)
 from janis_core.operators import (
     InputSelector,
     WildcardSelector,
@@ -94,27 +97,7 @@ class CustomGlob(Selector):
         raise Exception("Not supported for CustomGlob")
 
 
-def try_catch_translate(type):
-    def try_catch_translate_inner(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-
-                jargs = " ".join(str(a) for a in args)
-                jargs += " " + " ".join(f"{k}={v}" for k, v in kwargs.items())
-                Logger.critical(
-                    f"Couldn't translate {type or ''} to WDL with {jargs}: {repr(e)}"
-                )
-                raise
-
-        return wrapper
-
-    return try_catch_translate_inner
-
-
-class WdlTranslator(TranslatorBase):
+class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
     def __init__(self):
         super().__init__(name="wdl")
 

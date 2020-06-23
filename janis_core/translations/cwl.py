@@ -37,7 +37,11 @@ from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool, ToolInput
 from janis_core.tool.tool import Tool
-from janis_core.translations.translationbase import TranslatorBase
+from janis_core.translations.translationbase import (
+    TranslatorBase,
+    TranslatorMeta,
+    try_catch_translate,
+)
 from janis_core.operators import (
     InputSelector,
     Selector,
@@ -77,32 +81,13 @@ STDERR_NAME = "_stderr"
 ## TRANSLATION
 
 
-class CwlTranslator(TranslatorBase):
+class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
     def __init__(self):
         super().__init__(name="cwl")
-
-        # class literal(str):
-        #     pass
-        #
-        # def literal_presenter(dumper, data):
-        #     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
-        #
-        # ruamel.yaml.add_representer(literal, literal_presenter)
 
     @staticmethod
     def walk_and_check_cwldict(c):
         return c.save()
-        # primitives = (str, int, bool, float)
-        # if isinstance(c, primitives):
-        #     return c
-        #
-        # if isinstance(c, list):
-        #     return [CwlTranslator.walk_and_check_cwldict(cc) for cc in c]
-        #
-        # elif isinstance(c, dict):
-        #     return {k: CwlTranslator.walk_and_check_cwldict(v) for k, v in c.items()}
-        # else:
-        #     return CwlTranslator.walk_and_check_cwldict(c.save())
 
     @staticmethod
     def stringify_commentedmap(m):
@@ -142,6 +127,7 @@ class CwlTranslator(TranslatorBase):
         return ["cwltool", "--validate", wfpath]
 
     @classmethod
+    @try_catch_translate(type="workflow")
     def translate_workflow(
         cls,
         wf,
@@ -288,6 +274,7 @@ class CwlTranslator(TranslatorBase):
         return inp
 
     @classmethod
+    @try_catch_translate(type="workflow (all in one)")
     def translate_workflow_to_all_in_one(
         cls,
         wf,
@@ -354,6 +341,7 @@ class CwlTranslator(TranslatorBase):
         return w
 
     @classmethod
+    @try_catch_translate(type="tool")
     def translate_tool_internal(
         cls,
         tool: CommandTool,
@@ -485,6 +473,7 @@ class CwlTranslator(TranslatorBase):
         return tool_cwl
 
     @classmethod
+    @try_catch_translate(type="code tool")
     def translate_code_tool_internal(
         cls,
         tool: CodeTool,

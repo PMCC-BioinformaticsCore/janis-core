@@ -185,7 +185,7 @@ class Logger:
 
     @staticmethod
     def log_ex(ex: Exception):
-        Logger.critical(str(ex))
+        Logger.critical(repr(ex))
 
     @staticmethod
     def get_prefix(level: int):
