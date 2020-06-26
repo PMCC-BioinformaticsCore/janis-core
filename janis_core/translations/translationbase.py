@@ -12,6 +12,7 @@ from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
 from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
+from janis_core.operators.selectors import Selector
 
 
 class TranslationError(Exception):
@@ -412,10 +413,9 @@ class TranslatorBase(ABC):
         pass
 
     @classmethod
-    @abstractmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool,
         recursive=False,
         merge_resources=False,
         hints=None,
@@ -423,7 +423,32 @@ class TranslatorBase(ABC):
         max_cores=None,
         max_mem=None,
     ) -> Dict[str, any]:
-        pass
+
+        ad = additional_inputs or {}
+        values_provided_from_tool = {}
+        if tool.type() == ToolType.Workflow:
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or (i.default and not isinstance(i.default, Selector))
+            }
+
+        inp = {
+            i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
+            for i in tool.tool_inputs()
+            if i.default
+            or not i.intype.optional
+            or i.id() in ad
+            or i.id() in values_provided_from_tool
+        }
+
+        if merge_resources:
+            for k, v in cls.build_resources_input(
+                tool, hints, max_cores, max_mem
+            ).items():
+                inp[k] = ad.get(k, v)
+
+        return inp
 
     @classmethod
     def build_resources_input(
