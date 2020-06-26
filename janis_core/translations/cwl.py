@@ -249,9 +249,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         values_provided_from_tool = {}
         if tool.type() == ToolType.Workflow:
             values_provided_from_tool = {
-                i.id(): i.value or i.default
+                i.id(): i.value if i.value is not None else i.default
                 for i in tool.input_nodes.values()
-                if i.value or (i.default and not isinstance(i.default, Selector))
+                if i.value
+                or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         inp = {
@@ -259,7 +260,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 ad.get(i.id(), values_provided_from_tool.get(i.id()))
             )
             for i in tool.tool_inputs()
-            if i.default
+            if i.default is not None
             or not i.intype.optional
             or i.id() in ad
             or i.id() in values_provided_from_tool
