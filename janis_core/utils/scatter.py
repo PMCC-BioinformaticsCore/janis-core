@@ -34,7 +34,7 @@ class ScatterDescription:
         self,
         fields: List[str],
         method: ScatterMethods = None,
-        labels=Union[InputSelector, InputNodeSelector, List[str]],
+        labels: Union[InputSelector, InputNodeSelector, List[str]] = None,
     ):
         """
 
@@ -47,7 +47,7 @@ class ScatterDescription:
         self.method: ScatterMethods = method
 
         self.labels = None
-        if labels:
+        if labels is not None:
             if isinstance(labels, list):
                 self.labels = map(str, labels)
             elif isinstance(labels, InputNodeSelector):

@@ -716,11 +716,12 @@ return {out_capture}
                 selector_override=selector_override,
             )
         elif isinstance(value, StepOutputSelector):
-            raise Exception("Didn't expect to unwrap StepOutputSelector here")
-            # sel = f"{value.node.id()}/{value.tag}"
-            # if sel in selector_override:
-            #     sel = selector_override[sel]
-            # return CwlTranslator.wrap_in_codeblock_if_required(sel, code_environment)
+            sel = f"{value.node.id()}/{value.tag}"
+            if sel in selector_override:
+                return selector_override[sel]
+            raise Exception(
+                "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
+            )
 
         elif isinstance(value, MemorySelector):
             if not tool:
