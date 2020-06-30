@@ -223,6 +223,7 @@ class OutputNode(Node):
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
         output_name: Union[str, InputSelector] = None,
+        extension: Optional[str] = None,
         skip_typecheck=False,
     ):
         super().__init__(wf, NodeType.OUTPUT, identifier)
@@ -255,6 +256,7 @@ class OutputNode(Node):
         )
         self.output_folder = output_folder
         self.output_name = output_name
+        self.extension = extension
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -358,6 +360,7 @@ class WorkflowBase(Tool, ABC):
             str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
         output_name: Union[str, InputSelector, ConnectionSource] = None,
+        extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):
         """
@@ -422,7 +425,6 @@ class WorkflowBase(Tool, ABC):
             output_folder = self.verify_output_source_type(
                 identifier, ot, "output_folder"
             )
-
         doc = (
             doc
             if isinstance(doc, OutputDocumentation)
@@ -436,6 +438,7 @@ class WorkflowBase(Tool, ABC):
             source=sourceoperator,
             output_folder=output_folder,
             output_name=output_name,
+            extension=extension,
             doc=doc,
             skip_typecheck=skip_typecheck,
         )
