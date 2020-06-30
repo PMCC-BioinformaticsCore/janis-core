@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import List
+from typing import List, Union
+
+from janis_core.operators.selectors import InputSelector, InputNodeSelector
 
 ScatterMethod = str
 
@@ -28,15 +30,35 @@ class ScatterDescription:
     Class for keeping track of scatter information
     """
 
-    def __init__(self, fields: List[str], method: ScatterMethods = None):
+    def __init__(
+        self,
+        fields: List[str],
+        method: ScatterMethods = None,
+        labels=Union[InputSelector, InputNodeSelector, List[str]],
+    ):
         """
 
         :param fields: The fields of the the tool that should be scattered on.
         :param method: The method that should be used to scatter the two arrays
+        :param labels: (JANIS ONLY) -
         :type method: ScatterMethods
         """
         self.fields = fields
         self.method: ScatterMethods = method
+
+        self.labels = None
+        if labels:
+            if isinstance(labels, list):
+                self.labels = map(str, labels)
+            elif isinstance(labels, InputNodeSelector):
+                self.labels = InputSelector(labels.id())
+            elif isinstance(labels, InputSelector):
+                self.labels = labels
+            else:
+                raise Exception(
+                    f"Unrecognised type '{type(labels).__name__} for scatter labels, expected InputSelector, InputNodeSelector, List[str]"
+                )
+
         if len(fields) > 1 and method is None:
             raise Exception(
                 "When there is more than one field, a ScatterMethod must be selected"
