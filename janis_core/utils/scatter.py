@@ -3,23 +3,21 @@ from typing import List, Union
 
 from janis_core.operators.selectors import InputSelector, InputNodeSelector
 
-ScatterMethod = str
 
-
-class ScatterMethods(Enum):
+class ScatterMethod(Enum):
     """
     The scatter methods that Janis supports:
         - Dot: Inner product of two vectors of the same length, eg: Dot [A, B, C] · [1, 2, 3] => [A1, B2, C3]
         - Cross: Cartesian product of two vectors, producing every combination of the scattered inputs [A, B] x [1, 2] => [A1, A2, B1, B2]
     """
 
-    dot: ScatterMethod = "dot"
-    cross: ScatterMethod = "cross"
+    dot = "dot"
+    cross = "cross"
 
     def cwl(self):
-        if self == ScatterMethods.dot:
+        if self == ScatterMethod.dot:
             return "dotproduct"
-        elif self == ScatterMethods.cross:
+        elif self == ScatterMethod.cross:
             return "flat_crossproduct"  # "nested_crossproduct"
 
         raise Exception(f"Unrecognised scatter method: '{self.value}'")
@@ -33,7 +31,7 @@ class ScatterDescription:
     def __init__(
         self,
         fields: List[str],
-        method: ScatterMethods = None,
+        method: ScatterMethod = None,
         labels: Union[InputSelector, InputNodeSelector, List[str]] = None,
     ):
         """
@@ -41,10 +39,10 @@ class ScatterDescription:
         :param fields: The fields of the the tool that should be scattered on.
         :param method: The method that should be used to scatter the two arrays
         :param labels: (JANIS ONLY) -
-        :type method: ScatterMethods
+        :type method: ScatterMethod
         """
         self.fields = fields
-        self.method: ScatterMethods = method
+        self.method: ScatterMethod = method
 
         self.labels = None
         if labels is not None:

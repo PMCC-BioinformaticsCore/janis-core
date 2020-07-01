@@ -67,7 +67,7 @@ from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.pickvalue import PickValue
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.utils.validators import Validators
 from janis_core.utils.secondary import (
     split_secondary_file_carats,
@@ -1722,7 +1722,7 @@ def wrap_scatter_call(
         insource = insource_ar[0]
         alias = first_value(scattered_old_to_new_identifier)[0]
     else:
-        method = "zip" if scatter.method == ScatterMethods.dot else "cross"
+        method = "zip" if scatter.method == ScatterMethod.dot else "cross"
         insource = recursive_2param_wrap(method, insource_ar)
         alias = scattered_old_to_new_identifier["-"]
 

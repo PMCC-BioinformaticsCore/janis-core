@@ -36,7 +36,7 @@ from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.utils.validators import Validators
 
 ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
@@ -539,7 +539,7 @@ class WorkflowBase(Tool, ABC):
                     f"Couldn't scatter with field '{scatter}' ({type(scatter)}"
                 )
 
-            scatter = ScatterDescription(fields, method=ScatterMethods.dot)
+            scatter = ScatterDescription(fields, method=ScatterMethod.dot)
 
         # verify scatter
         if scatter:

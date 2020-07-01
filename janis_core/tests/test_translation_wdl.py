@@ -39,7 +39,7 @@ from janis_core.tests.testtools import (
     OperatorResourcesTestTool,
 )
 from janis_core.translations import WdlTranslator
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 
 
 class MultipleEcho(CommandTool):
@@ -720,7 +720,7 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
         step = w.step(
             "dotTool",
             SingleTestTool(inputs=w.inp, input2=w.inp2),
-            scatter=ScatterDescription(fields=["inputs"], method=ScatterMethods.dot),
+            scatter=ScatterDescription(fields=["inputs"], method=ScatterMethod.dot),
         )
 
         outp = wdl.translate_step_node(
@@ -767,7 +767,7 @@ scatter (i in inp) {
             "dotTool",
             SingleTestTool(inputs=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
-                fields=["inputs", "input2"], method=ScatterMethods.dot
+                fields=["inputs", "input2"], method=ScatterMethod.dot
             ),
         )
 
@@ -794,7 +794,7 @@ scatter (Q in zip(inp, inp2)) {
             "dotTool",
             SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3),
             scatter=ScatterDescription(
-                fields=["inputs", "input2", "input3"], method=ScatterMethods.dot
+                fields=["inputs", "input2", "input3"], method=ScatterMethod.dot
             ),
         )
 
@@ -824,7 +824,7 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
             SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
             scatter=ScatterDescription(
                 fields=["inputs", "input2", "input3", "input4"],
-                method=ScatterMethods.dot,
+                method=ScatterMethod.dot,
             ),
         )
 
@@ -852,7 +852,7 @@ scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
             "dotTool",
             MultipleEcho(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
-                fields=["input1", "input2"], method=ScatterMethods.dot
+                fields=["input1", "input2"], method=ScatterMethod.dot
             ),
         )
 
