@@ -293,8 +293,17 @@ class FilterNullOperator(Operator):
     def argtypes(self):
         return [Array(AnyType)]
 
+    #def returntype(self):
+    #    return self.args[0].subtype()
     def returntype(self):
-        return self.args[0].subtype()
+        if isinstance(self.args[0], list):
+            rettype = self.args[0][0].returntype()
+        else:
+            rettype = self.args[0].subtype()
+
+        rettype = copy(rettype)
+        rettype.optional = False
+        return Array(rettype)        
 
     def __str__(self):
         iterable = self.args[0]
