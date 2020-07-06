@@ -23,6 +23,9 @@ class ScatterMethod(Enum):
         raise Exception(f"Unrecognised scatter method: '{self.value}'")
 
 
+ScatterMethods = ScatterMethod
+
+
 class ScatterDescription:
     """
     Class for keeping track of scatter information
