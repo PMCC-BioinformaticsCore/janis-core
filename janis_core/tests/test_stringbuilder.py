@@ -240,3 +240,52 @@ class TestInputSelectorConversion(unittest.TestCase):
         formatter = inpsel.to_string_formatter()
         self.assertEqual(1, len(formatter.kwargs))
         self.assertEqual(inpsel, formatter.kwargs.get("test"))
+
+
+class TestDictionaryCombinationBuilder(unittest.TestCase):
+    def test_double(self):
+        d = {"a": [1, 2], "b": ["a", "b", "c"]}
+        combinations = StringFormatter.generate_combinations_of_input_dicts(
+            list(d.items())
+        )
+        self.assertEqual(6, len(combinations))
+        self.assertDictEqual({"a": 1, "b": "a"}, combinations[0])
+        self.assertDictEqual({"a": 1, "b": "b"}, combinations[1])
+        self.assertDictEqual({"a": 1, "b": "c"}, combinations[2])
+        self.assertDictEqual({"a": 2, "b": "a"}, combinations[3])
+        self.assertDictEqual({"a": 2, "b": "b"}, combinations[4])
+        self.assertDictEqual({"a": 2, "b": "c"}, combinations[5])
+
+    def test_multi_string_formatter(self):
+        sf = StringFormatter("iteration_{i}", i=InputSelector("iters"))
+        sfs = sf.evaluate({"iters": [1, 2, 3]})
+
+        self.assertEqual(3, len(sfs))
+        self.assertEqual("iteration_1", sfs[0])
+        self.assertEqual("iteration_2", sfs[1])
+        self.assertEqual("iteration_3", sfs[2])
+
+    def test_dotproduct_string_formatter(self):
+        sf = StringFormatter(
+            "iteration_{i}_{j}", i=InputSelector("it1"), j=InputSelector("it2")
+        )
+        sfs = sf.evaluate({"it1": [1, 2, 3], "it2": ["a", "b", "c"]})
+
+        self.assertEqual(3, len(sfs))
+        self.assertEqual("iteration_1_a", sfs[0])
+        self.assertEqual("iteration_2_b", sfs[1])
+        self.assertEqual("iteration_3_c", sfs[2])
+
+    def test_crossproduct_string_formatter(self):
+        sf = StringFormatter(
+            "iteration_{i}_{j}", i=InputSelector("it1"), j=InputSelector("it2")
+        )
+        sfs = sf.evaluate({"it1": [1, 2, 3], "it2": ["a", "b"]})
+
+        self.assertEqual(6, len(sfs))
+        self.assertEqual("iteration_1_a", sfs[0])
+        self.assertEqual("iteration_1_b", sfs[1])
+        self.assertEqual("iteration_2_a", sfs[2])
+        self.assertEqual("iteration_2_b", sfs[3])
+        self.assertEqual("iteration_3_a", sfs[4])
+        self.assertEqual("iteration_3_b", sfs[5])

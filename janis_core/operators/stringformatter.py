@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
+
+from janis_core.utils import first_value
 
 from janis_core.types import String, AnyType
 from janis_core.operators.logical import Operator, AddOperator
@@ -63,7 +65,73 @@ class StringFormatter(Operator):
         resolvedvalues = {
             k: self.evaluate_arg(v, inputs) for k, v in self.kwargs.items()
         }
-        return self.resolve_with_resolved_values(**resolvedvalues)
+
+        values_that_are_lists = {
+            k: v for k, v in resolvedvalues.items() if isinstance(v, list)
+        }
+
+        inp_combinations: List[dict] = [{}]
+
+        if len(values_that_are_lists) > 0:
+            l = len(first_value(values_that_are_lists))
+            list_values_that_are_different = sum(
+                0 if len(v) == l else 1 for v in values_that_are_lists.values()
+            )
+
+            if list_values_that_are_different == 0:
+                # dot product
+                inp_combinations = [
+                    {k: v[i] for k, v in values_that_are_lists.items()}
+                    for i in range(l)
+                ]
+            elif list_values_that_are_different == 1:
+                # cross product
+                inp_combinations = self.generate_combinations_of_input_dicts(
+                    values_that_are_lists=list(values_that_are_lists.items())
+                )
+            else:
+                l_lengths = ", ".join(
+                    f"{k}={len(v)}" for k, v in values_that_are_lists.items()
+                )
+                raise Exception(
+                    "String Formatter evaluation doesn't support scattering for list of "
+                )
+
+        evaluated_combinations = [
+            self.resolve_with_resolved_values(**{**resolvedvalues, **c})
+            for c in inp_combinations
+        ]
+        if len(evaluated_combinations) == 0:
+            raise Exception(
+                "Something happened when resolving inputs with input values "
+                + str(inputs)
+            )
+        elif len(evaluated_combinations) == 1:
+            return evaluated_combinations[0]
+        else:
+            return evaluated_combinations
+
+    @staticmethod
+    def generate_combinations_of_input_dicts(
+        values_that_are_lists: List[Tuple[str, List[any]]]
+    ) -> List[Dict]:
+
+        if len(values_that_are_lists) == 0:
+            return []
+        key = values_that_are_lists[0][0]
+        values = values_that_are_lists[0][1]
+
+        if len(values_that_are_lists) == 1:
+            return [{key: v} for v in values]
+
+        combinations = []
+        for v in values:
+            for c in StringFormatter.generate_combinations_of_input_dicts(
+                values_that_are_lists[1:]
+            ):
+                combinations.append({**c, key: v})
+
+        return combinations
 
     def __repr__(self):
         val = self._format
