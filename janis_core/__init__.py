@@ -72,7 +72,7 @@ from janis_core.operators import (
 from janis_core.tool.documentation import *
 from janis_core.utils.logger import Logger, LogLevel
 from janis_core.translations import SupportedTranslation
-from janis_core.utils.scatter import ScatterDescription, ScatterMethod
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
