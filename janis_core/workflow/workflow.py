@@ -446,6 +446,57 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
+    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+        op = output_prefix or ""
+
+        tool = step.tool
+        input_ids = set(self.input_nodes.keys())
+
+        def check_is_valid_selector(selector, output_id: str):
+            if isinstance(selector, list):
+                return all(check_is_valid_selector(sel, output_id) for sel in selector)
+            if isinstance(selector, str):
+                return True
+            elif isinstance(selector, InputSelector):
+                if selector.input_to_select in input_ids:
+                    return True
+                else:
+                    Logger.warn(
+                        f"Couldn't port through the output_folder for {step.id()}.{output_id} as the input "
+                        f"'{selector.input_to_select}' was not found in the current inputs"
+                    )
+                    return False
+            elif isinstance(selector, Operator):
+                return all(
+                    check_is_valid_selector(sel, output_id)
+                    for sel in selector.get_leaves()
+                )
+
+            return False
+
+        for out in tool.tool_outputs():
+            output_folders = None
+            output_name = None
+            if isinstance(tool, Workflow):
+                outnode = tool.output_nodes[out.id()]
+
+                if outnode.output_folder is not None and check_is_valid_selector(
+                    outnode.output_folder, out.id()
+                ):
+                    output_folders = outnode.output_folder
+
+                if outnode.output_name is not None and check_is_valid_selector(
+                    outnode.output_name, out.id()
+                ):
+                    output_name = outnode.output_name
+
+            self.output(
+                op + out.id(),
+                source=step[out.id()],
+                output_name=output_name,
+                output_folder=output_folders or [],
+            )
+
     def all_input_keys(self):
         from janis_core.translations.translationbase import TranslatorBase
 
