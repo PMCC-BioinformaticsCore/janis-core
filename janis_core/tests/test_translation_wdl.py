@@ -1095,6 +1095,10 @@ workflow wf {
 
 
 class TestCompleteOperators(unittest.TestCase):
+    def test_list_operators(self):
+        exp = WdlTranslator.unwrap_expression([1, 2, "three"])
+        self.assertEqual('[1, 2, "three"]', exp)
+
     def test_step_input(self):
 
         ret, _, _ = TestWorkflowWithStepInputExpression().translate(

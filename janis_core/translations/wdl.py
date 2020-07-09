@@ -208,16 +208,14 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             outtag = None
 
             if isinstance(o.source, list):
-                vals = ", ".join(
-                    WdlTranslator.unwrap_expression(
-                        expression=source,
-                        inputsdict=None,
-                        string_environment=False,
-                        wfid=wf.id(),
-                        outputid=o.id(),
-                    )
-                    for source in o.source
+                outtag = WdlTranslator.unwrap_expression(
+                    expression=o.source,
+                    inputsdict=None,
+                    string_environment=False,
+                    wfid=wf.id(),
+                    outputid=o.id(),
                 )
+
             else:
                 outtag = WdlTranslator.unwrap_expression(
                     expression=o.source,
@@ -227,30 +225,27 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     outputid=o.id(),
                 )
 
-                w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
+            w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
 
-                if o.datatype.secondary_files():
-                    if isinstance(o.source, InputNodeSelector):
-                        src = [o.source.id()]
-                    elif isinstance(o.source, StepOutputSelector):
-                        src = [o.source.node.id(), o.source.tag]
-                    else:
-                        raise Exception(
-                            f"Unsupported type for output with secondary files: {type(o.source)}"
-                        )
-                    w.outputs.extend(
-                        wdl.Output(
-                            o.datatype.wdl(),
-                            get_secondary_tag_from_original_tag(o.id(), s),
-                            ".".join(
-                                [
-                                    *src[:-1],
-                                    get_secondary_tag_from_original_tag(src[-1], s),
-                                ]
-                            ),
-                        )
-                        for s in o.datatype.secondary_files()
+            if o.datatype.secondary_files():
+                if isinstance(o.source, InputNodeSelector):
+                    src = [o.source.id()]
+                elif isinstance(o.source, StepOutputSelector):
+                    src = [o.source.node.id(), o.source.tag]
+                else:
+                    raise Exception(
+                        f"Unsupported type for output with secondary files: {type(o.source)}"
                     )
+                w.outputs.extend(
+                    wdl.Output(
+                        o.datatype.wdl(),
+                        get_secondary_tag_from_original_tag(o.id(), s),
+                        ".".join(
+                            [*src[:-1], get_secondary_tag_from_original_tag(src[-1], s)]
+                        ),
+                    )
+                    for s in o.datatype.secondary_files()
+                )
 
         # Generate import statements (relative tool dir is later?)
         uniquetoolmap: Dict[str, Tool] = {t.versioned_id(): t for t in tools}
@@ -2016,7 +2011,11 @@ def prepare_move_statements_for_output(
             oldpath = REMOVE_EXTENSION(base, oldextvalues[1]) + oldextvalues[0]
             newpath = REMOVE_EXTENSION(base, newextvalues[1]) + newextvalues[0]
 
-            commands.append(wdl.Task.Command(f"ln -f {oldpath} {newpath}"))
+            commands.append(
+                wdl.Task.Command(
+                    f"if [ ! -f {oldpath} ]; then ln -f {oldpath} {newpath}; fi"
+                )
+            )
 
     return commands
 
