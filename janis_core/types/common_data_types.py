@@ -151,26 +151,19 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         super().map_cwl_type(parameter)
         parameter.default = self.generated_filenamecwl()
 
-    def generated_filename(self, inputs: Optional[Dict] = None) -> str:
-        from janis_core.operators.selectors import InputSelector
-
-        base = self.prefix
-        if isinstance(base, InputSelector):
-            inp = base.input_to_select
-            if not inputs or inp not in inputs:
-                raise Exception(
-                    f"The filename generator required the input '{inp}' but was not provided"
-                )
-            base = inputs[inp]
+    def generated_filename(self, replacements: Dict = None) -> str:
+        repl = replacements or {}
+        prefix = repl.get("prefix", self.prefix)
+        suffix = repl.get("suffix", self.suffix)
 
         suf = ""
-        if self.suffix:
-            if str(self.suffix).startswith("."):
-                suf = str(self.suffix)
+        if suffix:
+            if str(suffix).startswith("."):
+                suf = str(suffix)
             else:
-                suf = "-" + str(self.suffix)
+                suf = "-" + str(suffix)
         ex = "" if self.extension is None else self.extension
-        return base + suf + ex
+        return prefix + suf + ex
 
     def generated_filenamecwl(self) -> str:
         return f'"{self.generated_filename()}"'
@@ -268,7 +261,7 @@ class Float(DataType):
         return f"Value was of type {type(meta)}, expected float | int"
 
 
-class Double(DataType):
+class Double(Float):
     @staticmethod
     def name():
         return "Double"
@@ -298,6 +291,11 @@ class Double(DataType):
         if self.validate_value(meta, True):
             return None
         return f"Value was of type {type(meta)}, expected float | int"
+
+    def can_receive_from(self, other, *args, **kwargs) -> bool:
+        if not other.optional and isinstance(other, Float):
+            return True
+        return super().can_receive_from(other, *args, **kwargs)
 
 
 class Boolean(DataType):

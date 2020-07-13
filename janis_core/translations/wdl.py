@@ -504,6 +504,7 @@ EOT"""
         inputsdict=None,
         string_environment=False,
         tool=None,
+        for_output=False,
         **debugkwargs,
     ):
         if expression is None:
@@ -532,7 +533,14 @@ EOT"""
             return str(expression)
         elif isinstance(expression, Filename):
             gen_filename = expression.generated_filename(
-                inputs=prepare_filename_replacements_for(expression.prefix, inputsdict)
+                replacements={
+                    "prefix": WdlTranslator.unwrap_expression(
+                        expression.prefix,
+                        inputsdict=inputsdict,
+                        string_environment=True,
+                        for_output=True,
+                    )
+                }
             )
             return cls.wrap_if_string_environment(gen_filename, string_environment)
         elif isinstance(expression, StringFormatter):
@@ -646,6 +654,10 @@ EOT"""
             )
 
         elif isinstance(expression, InputSelector):
+            if for_output:
+                return prepare_filename_replacements_for(
+                    expression, inputsdict=inputsdict
+                )
             return translate_input_selector(
                 selector=expression,
                 inputsdict=inputsdict,
@@ -657,7 +669,12 @@ EOT"""
 
         wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
         unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
-            exp, inputsdict, string_environment=False, tool=tool, **debugkwargs
+            exp,
+            inputsdict,
+            string_environment=False,
+            tool=tool,
+            for_output=for_output,
+            **debugkwargs,
         )
 
         if isinstance(expression, InputNodeSelector):
@@ -2059,7 +2076,7 @@ def build_resource_override_maps_for_workflow(wf, prefix=None) -> List[wdl.Input
 
 def prepare_filename_replacements_for(
     inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
-) -> Optional[Dict[str, str]]:
+) -> str:
     if not (inp is not None and isinstance(inp, InputSelector)):
         return None
 
@@ -2089,4 +2106,4 @@ def prepare_filename_replacements_for(
     else:
         replacement = f"~{{{base}}}"
 
-    return {inp.input_to_select: replacement}
+    return replacement

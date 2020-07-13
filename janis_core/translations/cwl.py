@@ -27,12 +27,17 @@ from typing import List, Dict, Optional, Tuple
 
 import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
+from WDL.StdLib import _SelectFirst
 
 from janis_core import ToolArgument, ToolType
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.logical import IsDefined, If, RoundOperator
-from janis_core.operators.standard import BasenameOperator, FirstOperator
+from janis_core.operators.standard import (
+    BasenameOperator,
+    FirstOperator,
+    FilterNullOperator,
+)
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
 from janis_core.graph.steptaginput import full_lbl
 from janis_core.tool.commandtool import CommandTool, ToolInput
@@ -667,6 +672,7 @@ return {out_capture}
         selector_override=None,
         tool=None,
         for_output=False,
+        inputs_dict=None,
         **debugkwargs,
     ):
         if value is None:
@@ -821,6 +827,11 @@ return {out_capture}
                 return "self[1]"
 
         elif isinstance(value, InputSelector):
+            if for_output:
+                el = prepare_filename_replacements_for(value, inputsdict=inputs_dict)
+                return cls.wrap_in_codeblock_if_required(
+                    el, is_code_environment=code_environment
+                )
             return translate_input_selector(
                 selector=value,
                 code_environment=code_environment,
@@ -837,6 +848,7 @@ return {out_capture}
                 selector_override=selector_override,
                 tool=tool,
                 for_output=for_output,
+                inputs_dict=inputs_dict,
                 **debugkwargs,
             )
             return CwlTranslator.wrap_in_codeblock_if_required(
@@ -943,14 +955,17 @@ def translate_tool_input(
 
     if isinstance(intype, Filename):
 
-        if isinstance(intype.prefix, InputSelector):
-            default = intype.generated_filename(
-                inputs={intype.prefix.input_to_select: "generated"}
-            )
+        if isinstance(intype.prefix, Selector):
+            default = intype.generated_filename(replacements={"prefix": "generated"})
             value_from = intype.generated_filename(
-                inputs=prepare_filename_replacements_for(
-                    intype.prefix, inputsdict=inputsdict
-                )
+                replacements={
+                    "prefix": CwlTranslator.unwrap_expression(
+                        intype.prefix,
+                        code_environment=False,
+                        for_output=True,
+                        inputs_dict=inputsdict,
+                    )
+                }
             )
         else:
             default = intype.generated_filename()
@@ -1532,11 +1547,16 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
             tinp: ToolInput = inputsdict[glob.input_to_select]
             intype = tinp.input_type
             if isinstance(intype, Filename):
-                if isinstance(intype.prefix, InputSelector):
+                if isinstance(intype.prefix, Selector):
                     return intype.generated_filename(
-                        inputs=prepare_filename_replacements_for(
-                            intype.prefix, inputsdict=inputsdict
-                        )
+                        replacements={
+                            "prefix": CwlTranslator.unwrap_expression(
+                                intype.prefix,
+                                inputs_dict=inputsdict,
+                                for_output=True,
+                                code_environment=False,
+                            )
+                        }
                     )
                 else:
                     return intype.generated_filename()
@@ -1614,35 +1634,37 @@ def build_resource_override_maps_for_workflow(
 
 
 def prepare_filename_replacements_for(
-    inp: Optional[InputSelector], inputsdict: Optional[Dict[str, ToolInput]]
+    inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
 ) -> Optional[Dict[str, str]]:
     if inp is None or not isinstance(inp, InputSelector):
         return None
 
     if not inputsdict:
-        raise Exception(
-            f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
-        )
+        return "inputs." + inp.input_to_select
+        # raise Exception(
+        #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+        # )
 
-    if inp.input_to_select not in inputsdict:
-        raise Exception(
-            f"The InputSelector '{inp.input_to_select}' did not select a valid input"
-        )
+    if isinstance(inp, InputSelector):
+        if inp.input_to_select not in inputsdict:
+            raise Exception(
+                f"The InputSelector '{inp.input_to_select}' did not select a valid input"
+            )
 
-    tinp = inputsdict.get(inp.input_to_select)
-    intype = tinp.input_type
+        tinp = inputsdict.get(inp.input_to_select)
+        intype = tinp.input_type
 
-    if isinstance(intype, (File, Directory)):
-        if isinstance(intype, File) and intype.extension:
-            base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+        if isinstance(intype, (File, Directory)):
+            if isinstance(intype, File) and intype.extension:
+                base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+            else:
+                base = f"inputs.{tinp.id()}.basename"
         else:
-            base = f"inputs.{tinp.id()}.basename"
-    else:
-        base = "inputs." + tinp.id()
+            base = "inputs." + tinp.id()
 
-    if intype.optional:
-        replacement = f'$(inputs.{tinp.id()} ? {base} : "generated")'
-    else:
-        replacement = f"$({base})"
+        if intype.optional:
+            replacement = f'inputs.{tinp.id()} ? {base} : "generated"'
+        else:
+            replacement = f"{base}"
 
-    return {inp.input_to_select: replacement}
+        return replacement
