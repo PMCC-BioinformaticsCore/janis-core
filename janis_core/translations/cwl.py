@@ -172,6 +172,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     continue
 
                 resource_overrides[r.id[(len(s.id()) + 1) :]] = r.id
+
             w.steps.append(
                 translate_step_node(
                     s,
@@ -1274,6 +1275,12 @@ def translate_step_node(
     allow_empty_container=False,
     container_override=None,
 ) -> cwlgen.WorkflowStep:
+
+    if step.when is not None:
+        Logger.warn(
+            f"Janis has not implemented conditionals in CWL. Please see GitHub for more information. "
+            f"Skipping the condition for step '{step.id()}' when calling '{step.tool.id()}'"
+        )
 
     tool = step.tool
 
