@@ -82,7 +82,7 @@ from janis_core.workflow.workflow import InputNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
-    lambda x, iterations: f"`echo '{x}' {iterations * SED_REMOVE_EXTENSION}`"
+    lambda x, iterations: f"$(echo '{x}' {iterations * SED_REMOVE_EXTENSION})"
 )
 
 
