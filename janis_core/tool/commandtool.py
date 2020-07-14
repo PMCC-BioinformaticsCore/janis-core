@@ -23,6 +23,14 @@ from janis_core.utils.metadata import ToolMetadata
 class ToolArgument:
     expr_pattern = "\$\(.*\)"
 
+    def __repr__(self):
+        attrs = ", ".join(
+            f"{k}={repr(v)}"
+            for k, v in self.__dict__.items()
+            if not k.startswith("_") and not callable(v)
+        )
+        return f"{self.__class__.__name__}({attrs})"
+
     def __init__(
         self,
         value: Any,

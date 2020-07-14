@@ -499,8 +499,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             for o in tool.tool_outputs()
             if isinstance(o.outtype, Stderr) and o.outtype.stderrname
         ]
-        stdout = "python-capture.stdout"
-        stderr = stderrs[0].stderrname if len(stderrs) > 0 else None
+        stdout = "cwl.output.json"
+        stderr = "python-capture.stderr"
 
         scriptname = tool.script_name()
         inputsdict = {t.id(): t for t in tool.inputs()}
@@ -552,13 +552,6 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     # param_format=None,
                     # streamable=None,
                     doc=output.doc.doc if output.doc else None,
-                    outputBinding=cwlgen.CommandOutputBinding(
-                        glob=stdout,
-                        loadContents=True,
-                        outputEval=cls.prepare_output_eval_for_python_codetool(
-                            tag=output.tag, outtype=output.outtype
-                        ),
-                    ),
                     type=output.outtype.cwl_type(),
                 )
             )
