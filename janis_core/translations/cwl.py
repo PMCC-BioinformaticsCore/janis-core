@@ -456,7 +456,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                         CpuSelector(), code_environment=False, tool=tool
                     ),
                     ramMin=CwlTranslator.unwrap_expression(
-                        MemorySelector(), code_environment=False, tool=tool
+                        # Note that 1GB = 953.674 MiB
+                        RoundOperator(953.674 * MemorySelector()),
+                        code_environment=False,
+                        tool=tool,
                     ),
                     outdirMin=CwlTranslator.unwrap_expression(
                         DiskSelector(), code_environment=False, tool=tool
@@ -727,9 +730,8 @@ return {out_capture}
             if toolmem is not None:
                 ops.append(toolmem)
             ops.append(4)
-            # Note that 1GB = 953.674 MiB
             return cls.unwrap_expression(
-                RoundOperator(953.674 * FirstOperator(ops)),
+                FirstOperator(ops),
                 code_environment=code_environment,
                 tool=tool,
                 **debugkwargs,
