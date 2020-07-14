@@ -20,33 +20,16 @@ This file is logically structured similar to the WDL equiv:
 ## IMPORTS
 
 import re
-from typing import List, Dict, Optional, Any, Tuple, Union
 from io import StringIO
-
 from typing import List, Dict, Optional, Tuple
+from typing import Union
 
 import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
-from WDL.StdLib import _SelectFirst
 
 from janis_core import ToolArgument, ToolType
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
-from janis_core.operators.logical import IsDefined, If, RoundOperator
-from janis_core.operators.standard import (
-    BasenameOperator,
-    FirstOperator,
-    FilterNullOperator,
-)
-from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput
-from janis_core.graph.steptaginput import full_lbl
-from janis_core.tool.commandtool import CommandTool, ToolInput
-from janis_core.tool.tool import Tool
-from janis_core.translations.translationbase import (
-    TranslatorBase,
-    TranslatorMeta,
-    try_catch_translate,
-)
 from janis_core.operators import (
     InputSelector,
     Selector,
@@ -60,6 +43,16 @@ from janis_core.operators import (
     TimeSelector,
     DiskSelector,
 )
+from janis_core.operators.logical import IsDefined, If, RoundOperator
+from janis_core.operators.standard import FirstOperator
+from janis_core.tool.commandtool import CommandTool, ToolInput
+from janis_core.tool.commandtool import ToolOutput
+from janis_core.tool.tool import Tool
+from janis_core.translations.translationbase import (
+    TranslatorBase,
+    TranslatorMeta,
+    try_catch_translate,
+)
 from janis_core.types.common_data_types import (
     Stdout,
     Stderr,
@@ -69,10 +62,8 @@ from janis_core.types.common_data_types import (
     DataType,
     Directory,
 )
-from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import ToolMetadata
-
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
 CWL_VERSION = "v1.0"
@@ -143,7 +134,6 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         allow_empty_container=False,
         container_override=None,
     ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
-        from janis_core.workflow.workflow import Workflow
 
         metadata = wf.metadata
         w = cwlgen.Workflow(
@@ -249,7 +239,6 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         max_cores=None,
         max_mem=None,
     ) -> Dict[str, any]:
-        from janis_core.workflow.workflow import Workflow
 
         ad = additional_inputs or {}
         values_provided_from_tool = {}
@@ -1251,7 +1240,6 @@ def get_run_ref_from_subtool(
         prefix = "" if is_nested_tool else "tools/"
         return prefix + CwlTranslator.tool_filename(tool)
     else:
-        from janis_core.workflow.workflow import Workflow
 
         has_resources_overrides = len(resource_overrides) > 0
         if tool.type() == ToolType.Workflow:
@@ -1596,8 +1584,6 @@ def translate_memory_selector(selector: MemorySelector):
 def build_resource_override_maps_for_workflow(
     wf, prefix=None
 ) -> List[cwlgen.InputParameter]:
-    from janis_core.workflow.workflow import Workflow
-
     # returns a list of key, value pairs
     inputs = []
     if not prefix:
