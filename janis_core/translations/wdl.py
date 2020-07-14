@@ -510,6 +510,8 @@ EOT"""
         if expression is None:
             return ""
 
+        wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
+
         if isinstance(expression, list):
             toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")
             joined_values = ", ".join(
@@ -655,9 +657,10 @@ EOT"""
 
         elif isinstance(expression, InputSelector):
             if for_output:
-                return prepare_filename_replacements_for(
+                val = prepare_filename_replacements_for(
                     expression, inputsdict=inputsdict
                 )
+                return wrap_in_code_block(val)
             return translate_input_selector(
                 selector=expression,
                 inputsdict=inputsdict,
@@ -667,7 +670,6 @@ EOT"""
         elif callable(getattr(expression, "wdl", None)):
             return expression.wdl()
 
-        wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
         unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
             exp,
             inputsdict,
@@ -2102,8 +2104,6 @@ def prepare_filename_replacements_for(
         base = tinp.id()
 
     if intype.optional:
-        replacement = f'~{{if defined({tinp.id()}) then {base} else "generated"}}'
-    else:
-        replacement = f"~{{{base}}}"
+        base = f'if defined({tinp.id()}) then {base} else "generated"'
 
-    return replacement
+    return base

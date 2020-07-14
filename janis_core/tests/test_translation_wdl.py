@@ -1179,6 +1179,24 @@ workflow cwl_test_array_step_input {
 
         self.assertEqual(expected, ret)
 
+    def test_expression_for_output(self):
+        ti = ToolInput("bam", Array(File))
+
+        res = wdl.WdlTranslator.unwrap_expression(
+            If(
+                InputSelector("bam").length().equals(1),
+                InputSelector("bam")[0],
+                "generated",
+            ),
+            for_output=True,
+            inputsdict={"bam": ti},
+            string_environment=False,
+        )
+
+        self.assertEqual(
+            'if ((length(bam) == 1)) then inputs.bam[0] else "generated"', res
+        )
+
 
 class TestWdlWorkflowInputToOutputConnection(unittest.TestCase):
     def test_simple(self):
