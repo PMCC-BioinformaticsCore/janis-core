@@ -1193,9 +1193,7 @@ workflow cwl_test_array_step_input {
             string_environment=False,
         )
 
-        self.assertEqual(
-            'if ((length(bam) == 1)) then inputs.bam[0] else "generated"', res
-        )
+        self.assertEqual('if ((length(bam) == 1)) then bam[0] else "generated"', res)
 
 
 class TestWdlWorkflowInputToOutputConnection(unittest.TestCase):

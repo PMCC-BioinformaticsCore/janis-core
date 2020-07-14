@@ -416,6 +416,19 @@ class TestCwlTranslateInput(unittest.TestCase):
         self.assertEqual("File", tinp.type)
         self.assertListEqual(["^.txt"], tinp.secondaryFiles)
 
+    def test_array_secondary_file_translation(self):
+        inp = InputNode(
+            None,
+            identifier="testIdentifier",
+            datatype=Array(TestTypeWithSecondary()),
+            default=None,
+            value=None,
+        )
+        tinp = cwl.translate_workflow_input(inp, None)
+        self.assertIsInstance(tinp.type, cwlgen.CommandInputArraySchema)
+        self.assertEqual("File", tinp.type.items)
+        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+
 
 class TestCwlOutputGeneration(unittest.TestCase):
     def test_stdout_no_outputbinding(self):
