@@ -886,10 +886,15 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
         else:
             default = inp.default
 
+    sf = dt.secondary_files()
+
+    if isinstance(dt, Array):
+        sf = dt.subtype().secondary_files()
+
     return cwlgen.InputParameter(
         id=inp.id(),
         default=default,
-        secondaryFiles=inp.datatype.secondary_files(),
+        secondaryFiles=sf,
         format=None,
         streamable=None,
         doc=doc,
