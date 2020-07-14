@@ -2030,7 +2030,7 @@ def prepare_move_statements_for_output(
 
             commands.append(
                 wdl.Task.Command(
-                    f"if [ ! -f {oldpath} ]; then ln -f {oldpath} {newpath}; fi"
+                    f"if [ -f {oldpath} ]; then ln -f {oldpath} {newpath}; fi"
                 )
             )
 
