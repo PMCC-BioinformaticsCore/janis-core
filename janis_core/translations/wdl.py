@@ -78,7 +78,7 @@ from janis_core.utils.secondary import (
 
 
 ## PRIMARY TRANSLATION METHODS
-from janis_core.workflow.workflow import InputNode
+from janis_core.workflow.workflow import InputNode, StepNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -511,6 +511,12 @@ EOT"""
             return ""
 
         wrap_in_code_block = lambda x: f"~{{{x}}}" if string_environment else x
+
+        if isinstance(expression, StepNode):
+            raise Exception(
+                f"The Step node '{expression.id()}' was found when unwrapping an expression, "
+                f"you might not have selected an output."
+            )
 
         if isinstance(expression, list):
             toolid = value_or_default(debugkwargs.get("tool_id"), "get-value-list")

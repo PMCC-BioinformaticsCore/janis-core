@@ -665,6 +665,12 @@ return {out_capture}
                 return "null"
             return None
 
+        if isinstance(value, StepNode):
+            raise Exception(
+                f"The Step node '{value.id()}' was found when unwrapping an expression, "
+                f"you might not have selected an output."
+            )
+
         if isinstance(value, list):
             toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
             inner = ", ".join(
