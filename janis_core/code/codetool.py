@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Union
 
+from janis_core.operators import Selector
+from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
-
-from janis_core.tool.tool import Tool, TOutput, TInput, ToolType, ToolTypes
 
 
 class CodeTool(Tool, ABC):
@@ -45,6 +45,32 @@ class CodeTool(Tool, ABC):
         """
         return None
 
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in SECONDS and must be a whole number.
+        :return:
+        """
+        return None
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in GB.
+        :return:
+        """
+        return None
+
     # Janis developer should inherit these methods
 
     @abstractmethod
@@ -67,7 +93,7 @@ class CodeTool(Tool, ABC):
 
     @classmethod
     def type(cls) -> ToolType:
-        return ToolTypes.CodeTool
+        return ToolType.CodeTool
 
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}
@@ -85,6 +111,8 @@ class CodeTool(Tool, ABC):
         hints=None,
         include_defaults=True,
     ):
+        from janis_core.operators.selectors import Selector
+
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
             if (
@@ -95,13 +123,29 @@ class CodeTool(Tool, ABC):
                 d[i] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
-            cpus = self.cpus(hints) or 1
+            cpus = self.cpus(hints)
             mem = self.memory(hints)
+            disk = self.disk(hints)
+            secs = self.time(hints)
+            if cpus is None:
+                cpus = 1
+            elif isinstance(cpus, Selector):
+                cpus = None
+
+            if isinstance(mem, Selector):
+                mem = None
+
+            if isinstance(secs, Selector):
+                secs = None
+
+            if isinstance(disk, Selector):
+                disk = None
             d.update(
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": "local-disk 60 SSD",
+                    "runtime_disks": disk,
+                    "runtime_seconds": secs,
                 }
             )
 

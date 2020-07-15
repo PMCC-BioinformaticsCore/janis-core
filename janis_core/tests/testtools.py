@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Optional, Union
 
+from janis_core.operators.logical import If, IsDefined
 from janis_core.types import Filename
 
 from janis_core import (
@@ -16,7 +17,62 @@ from janis_core import (
     ToolArgument,
     InputDocumentation,
     InputQualityType,
+    Workflow,
 )
+
+
+class EchoTestTool(CommandTool):
+    def tool(self) -> str:
+        return "EchoTestTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "echo"
+
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", str, position=0)]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class OperatorResourcesTestTool(EchoTestTool):
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inputFile", File, position=1), ToolInput("outputFiles", int)]
+
+    def memory(self, hints: Dict[str, Any]):
+        return If(InputSelector("inputFile").file_size() > 1024, 4, 2)
+
+    def cpus(self, hints: Dict[str, Any]):
+        return 2 * InputSelector("outputFiles")
+
+    def time(self, hints: Dict[str, Any]):
+        return 60
+
+
+class CatTestTool(CommandTool):
+    def tool(self) -> str:
+        return "CatTestTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "cat"
+
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", File, position=0)]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
 
 
 class SingleTestTool(CommandTool):
@@ -105,7 +161,7 @@ class ArrayTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inputs", Array(String()))]
+        return [ToolInput("inputs", Array(String()), position=1)]
 
     def outputs(self):
         return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]
@@ -171,7 +227,18 @@ class TestToolWithSecondaryOutput(TestTool):
         ]
 
 
+class TestToolWithSecondaryInput(CatTestTool):
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", TestTypeWithSecondary, position=0)]
+
+
 class TestTypeWithSecondary(File):
+    @staticmethod
+    def secondary_files():
+        return ["^.txt"]
+
+
+class TestTypeWithNonEscapedSecondary(File):
     @staticmethod
     def secondary_files():
         return [".txt"]
@@ -210,3 +277,24 @@ class TestInputQualityTool(CommandTool):
 
     def version(self) -> str:
         return "TEST"
+
+
+class TestWorkflowWithStepInputExpression(Workflow):
+    def constructor(self):
+        self.input("mystring", Optional[str], value="")
+        self.input("mystring_backup", Optional[str])
+
+        self.step(
+            "print",
+            EchoTestTool(
+                inp=If(IsDefined(self.mystring), self.mystring, self.mystring_backup)
+            ),
+        )
+
+        self.output("out", source=self.print)
+
+    def friendly_name(self):
+        return "TEST: WorkflowWithStepInputExpression"
+
+    def id(self) -> str:
+        return self.__class__.__name__

@@ -30,9 +30,9 @@ class TestTypingGenerics(TestCase):
         self.assertTrue(is_generic(List[str]))
 
     def test_qualified_generic_union(self):
-        self.assertFalse(is_base_generic(Union[str, None]))
-        self.assertTrue(is_qualified_generic(Union[str, None]))
-        self.assertTrue(is_generic(Union[str, None]))
+        self.assertFalse(is_base_generic(Union[str, int]))
+        self.assertTrue(is_qualified_generic(Union[str, int]))
+        self.assertTrue(is_generic(Union[str, int]))
 
     def test_qualified_generic_optional(self):
         self.assertFalse(is_base_generic(Optional[str]))

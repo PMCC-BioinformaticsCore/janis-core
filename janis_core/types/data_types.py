@@ -12,7 +12,7 @@
 
 """
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Type
 
 import cwl_utils.parser_v1_0 as cwlgen
 from wdlgen import WdlType
@@ -25,9 +25,9 @@ PythonPrimitive = Union[str, float, int, bool]
 
 
 def is_python_primitive(t):
-    return (isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])) or any(
-        isinstance(t, T) for T in [str, float, int, bool]
-    )
+    return (
+        isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])
+    ) or isinstance(t, (str, float, int, bool))
 
 
 # see below for ParseableType
@@ -218,6 +218,12 @@ class DataType(ABC):
         #
         # Although these are the same definition, they won't actually compare to the same value
 
+        if other.name().lower() == "union":
+            return all(
+                self.can_receive_from(t, source_has_default=source_has_default)
+                for t in other.subtypes
+            )
+
         receive_from = list(
             reversed([x.__name__ for x in type(other.received_type()).mro()])
         )
@@ -283,5 +289,14 @@ class DataType(ABC):
         """
         return valuetoparse
 
+    def copy(self):
+        from copy import deepcopy
+
+        return deepcopy(self)
+
     # def default(self):
     #     return self.default_value
+
+
+ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
+ParseableType = ParseableTypeBase

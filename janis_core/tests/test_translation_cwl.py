@@ -1,4 +1,8 @@
 import unittest
+from typing import List, Dict, Any, Optional
+
+from janis_core.operators.logical import If, IsDefined
+from janis_core.operators.standard import ReadContents
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -6,7 +10,10 @@ from janis_core.tests.testtools import (
     TestTool,
     TestToolV2,
     TestTypeWithSecondary,
+    TestWorkflowWithStepInputExpression,
+    EchoTestTool,
     FilenameGeneratedTool,
+    OperatorResourcesTestTool,
 )
 
 import cwl_utils.parser_v1_0 as cwlgen
@@ -22,6 +29,8 @@ from janis_core import (
     StringFormatter,
     CommandToolBuilder,
     ToolOutput,
+    DataType,
+    Float,
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
@@ -108,7 +117,7 @@ class TestCwlArraySeparators(unittest.TestCase):
 
     def test_regular_input_bindingin(self):
         t = ToolInput("filesA", Array(String()), prefix="-A", position=1)
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesA",
@@ -128,7 +137,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=2,
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesB",
@@ -152,7 +161,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             position=4,
             separator=",",
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
         self.assertDictEqual(
             {
                 "id": "filesC",
@@ -175,7 +184,7 @@ class TestCwlArraySeparators(unittest.TestCase):
             prefix="-D",
             prefix_applies_to_all_elements=True,
         )
-        cwltoolinput = cwl.translate_tool_input(t, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None)
 
         self.assertDictEqual(
             {
@@ -212,50 +221,34 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_input_value_none_codeenv(self):
         self.assertEqual(
-            None,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                None, code_environment=True
-            ),
+            "null", cwl.CwlTranslator.unwrap_expression(None, code_environment=True)
         )
 
     def test_input_value_none_nocodeenv(self):
         self.assertEqual(
-            None,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                None, code_environment=False
-            ),
+            None, cwl.CwlTranslator.unwrap_expression(None, code_environment=False)
         )
 
     def test_input_value_string_codeenv(self):
         self.assertEqual(
             '"TestString"',
-            cwl.get_input_value_from_potential_selector_or_generator(
-                "TestString", code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression("TestString", code_environment=True),
         )
 
     def test_input_value_string_nocodeenv(self):
         self.assertEqual(
             "TestString",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                "TestString", code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression("TestString", code_environment=False),
         )
 
     def test_input_value_int_codeenv(self):
         self.assertEqual(
-            42,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                42, code_environment=True
-            ),
+            "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=True)
         )
 
     def test_input_value_int_nocodeenv(self):
         self.assertEqual(
-            42,
-            cwl.get_input_value_from_potential_selector_or_generator(
-                42, code_environment=False
-            ),
+            "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
         )
 
     # def test_input_value_filename_codeenv(self):
@@ -278,62 +271,48 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         inp = InputSelector("threads")
         self.assertEqual(
             "inputs.threads",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
         )
 
     def test_input_value_inpselect_nocodeenv(self):
         inp = InputSelector("threads")
         self.assertEqual(
             "$(inputs.threads)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
+            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
         )
 
     def test_input_value_wildcard(self):
         self.assertRaises(
-            Exception,
-            cwl.get_input_value_from_potential_selector_or_generator,
-            value=WildcardSelector("*"),
+            Exception, cwl.CwlTranslator.unwrap_expression, value=WildcardSelector("*")
         )
 
-    def test_input_value_cpuselect_codeenv(self):
-        inp = CpuSelector()
-        self.assertEqual(
-            "inputs.runtime_cpu" "",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
-        )
+    # def test_input_value_cpuselect_codeenv(self):
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "inputs.runtime_cpu",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+    #     )
+    #
+    # def test_input_value_cpuselect_nocodeenv(self):
+    #     inp = CpuSelector()
+    #     self.assertEqual(
+    #         "$(inputs.runtime_cpu)",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+    #     )
 
-    def test_input_value_cpuselect_nocodeenv(self):
-        inp = CpuSelector()
-        self.assertEqual(
-            "$(inputs.runtime_cpu)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
-        )
-
-    def test_input_value_memselect_codeenv(self):
-        inp = MemorySelector()
-        self.assertEqual(
-            "inputs.runtime_memory",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=True
-            ),
-        )
-
-    def test_input_value_memselect_nocodeenv(self):
-        inp = MemorySelector()
-        self.assertEqual(
-            "$(inputs.runtime_memory)",
-            cwl.get_input_value_from_potential_selector_or_generator(
-                inp, code_environment=False
-            ),
-        )
+    # def test_input_value_memselect_codeenv(self):
+    #     inp = MemorySelector()
+    #     self.assertEqual(
+    #         "inputs.runtime_memory",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+    #     )
+    #
+    # def test_input_value_memselect_nocodeenv(self):
+    #     inp = MemorySelector()
+    #     self.assertEqual(
+    #         "$(inputs.runtime_memory)",
+    #         cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+    #     )
 
     def test_input_value_cwl_callable(self):
         class NonCallableCwl:
@@ -341,8 +320,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
                 return "unbelievable"
 
         self.assertEqual(
-            "unbelievable",
-            cwl.get_input_value_from_potential_selector_or_generator(NonCallableCwl()),
+            "unbelievable", cwl.CwlTranslator.unwrap_expression(NonCallableCwl())
         )
 
     def test_input_value_cwl_noncallable(self):
@@ -352,26 +330,24 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
         self.assertRaises(
             Exception,
-            cwl.get_input_value_from_potential_selector_or_generator,
+            cwl.CwlTranslator.unwrap_expression,
             value=NonCallableCwl(),
             tool_id=None,
         )
 
     def test_string_formatter(self):
         b = StringFormatter("no format")
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b)
         self.assertEqual("no format", res)
 
     def test_string_formatter_one_string_param(self):
         b = StringFormatter("there's {one} arg", one="a string")
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual('$("there\'s {one} arg".replace(/\{one\}/g, "a string"))', res)
 
     def test_string_formatter_one_input_selector_param(self):
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = cwl.get_input_value_from_potential_selector_or_generator(
-            b, code_environment=False
-        )
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual(
             '$("an input {arg}".replace(/\{arg\}/g, inputs.random_input))', res
         )
@@ -383,7 +359,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = cwl.get_input_value_from_potential_selector_or_generator(b)
+        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
         self.assertEqual(
             '$("{tumorName}:{normalName}".replace(/\{tumorName\}/g, inputs.tumorInputName).replace(/\{normalName\}/g, inputs.normalInputName))',
             res,
@@ -417,7 +393,7 @@ class TestCwlTranslateInput(unittest.TestCase):
             doc=InputDocumentation("docstring"),
             value=None,
         )
-        tinp = cwl.translate_input(inp)
+        tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("testIdentifier", tinp.id)
         self.assertIsNone(tinp.label)
@@ -435,15 +411,28 @@ class TestCwlTranslateInput(unittest.TestCase):
             default=None,
             value=None,
         )
-        tinp = cwl.translate_input(inp)
+        tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("File", tinp.type)
-        self.assertListEqual([".txt"], tinp.secondaryFiles)
+        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+
+    def test_array_secondary_file_translation(self):
+        inp = InputNode(
+            None,
+            identifier="testIdentifier",
+            datatype=Array(TestTypeWithSecondary()),
+            default=None,
+            value=None,
+        )
+        tinp = cwl.translate_workflow_input(inp, None)
+        self.assertIsInstance(tinp.type, cwlgen.CommandInputArraySchema)
+        self.assertEqual("File", tinp.type.items)
+        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
 
 
 class TestCwlOutputGeneration(unittest.TestCase):
     def test_stdout_no_outputbinding(self):
-        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}).save()
+        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 
 
@@ -601,11 +590,96 @@ class TestContainerOverride(unittest.TestCase):
         self.assertEqual(expected_container, received_container)
 
 
+class TestCWLCompleteOperators(unittest.TestCase):
+    def test_step_input(self):
+
+        ret, _, _ = TestWorkflowWithStepInputExpression().translate(
+            "cwl", to_console=False
+        )
+        self.assertEqual(cwl_stepinput, ret)
+
+    def test_array_step_input(self):
+        wf = WorkflowBuilder("cwl_test_array_step_input")
+        wf.input("inp1", Optional[str])
+        wf.input("inp2", Optional[str])
+
+        wf.step(
+            "print",
+            ArrayTestTool(
+                inputs=[
+                    If(IsDefined(wf.inp1), wf.inp1, "default1"),
+                    If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
+                ]
+            ),
+        ),
+
+        wf.output("out", source=wf.print)
+
+        ret, _, _ = wf.translate("cwl", allow_empty_container=True, to_console=False)
+        self.assertEqual(cwl_arraystepinput, ret)
+
+
+class WorkflowCwlInputDefaultOperator(unittest.TestCase):
+    def test_string_formatter(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("sampleName", str)
+        wf.input("platform", str)
+
+        wf.input(
+            "readGroupHeaderLine",
+            String(optional=True),
+            default=StringFormatter(
+                "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+                name=InputSelector("sampleName"),
+                pl=InputSelector("platform"),
+            ),
+        )
+        wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
+        wf.output("out", source=wf.print)
+        d, _ = cwl.CwlTranslator.translate_workflow(
+            wf, with_container=False, allow_empty_container=True
+        )
+        stepinputs = d.save()["steps"][0]["in"]
+        self.assertEqual(4, len(stepinputs))
+        expression = stepinputs[-1]["valueFrom"]
+        expected = (
+            "$((inputs._print_inp_readGroupHeaderLine != null) "
+            "? inputs._print_inp_readGroupHeaderLine "
+            ': "@RG\\\\tID:{name}\\\\tSM:{name}\\\\tLB:{name}\\\\tPL:{pl}".replace(/\\{name\\}/g, inputs._print_inp_sampleName).replace(/\\{pl\\}/g, inputs._print_inp_platform))'
+        )
+        self.assertEqual(expected, expression)
+
+    def test_string_formatter_stepinput(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("sampleName", str)
+        wf.input("platform", str)
+
+        wf.step(
+            "print",
+            EchoTestTool(
+                inp=StringFormatter(
+                    "@RG\\tID:{name}\\tSM:{name}\\tLB:{name}\\tPL:{pl}",
+                    name=wf.sampleName,
+                    pl=wf.platform,
+                )
+            ),
+        )
+        wf.output("out", source=wf.print)
+        d, _ = cwl.CwlTranslator.translate_workflow(
+            wf, with_container=False, allow_empty_container=True
+        )
+        stepinputs = d.save()["steps"][0]["in"]
+        self.assertEqual(3, len(stepinputs))
+        expression = stepinputs[-1]["valueFrom"]
+        expected = '$("@RG\\\\tID:{name}\\\\tSM:{name}\\\\tLB:{name}\\\\tPL:{pl}".replace(/\\{name\\}/g, inputs._print_inp_sampleName).replace(/\\{pl\\}/g, inputs._print_inp_platform))'
+        self.assertEqual(expected, expression)
+
+
 class TestCWLFilenameGeneration(unittest.TestCase):
     def test_1(self):
         tool = FilenameGeneratedTool()
         inputsdict = {t.id(): t for t in tool.inputs()}
-        mapped = [cwl.translate_tool_input(i, inputsdict) for i in tool.inputs()]
+        mapped = [cwl.translate_tool_input(i, inputsdict, tool) for i in tool.inputs()]
         expressions = [
             mapped[i].save()["inputBinding"]["valueFrom"] for i in range(4, len(mapped))
         ]
@@ -638,6 +712,84 @@ class TestCWLRunRefs(unittest.TestCase):
         self.assertEqual("tools/TestTranslationtool_v0_0_2.cwl", stps["stp2"].run)
 
 
+class TestCwlResourceOperators(unittest.TestCase):
+    def test_1(self):
+        tool_cwl = CwlTranslator.translate_tool_internal(
+            OperatorResourcesTestTool(), with_resource_overrides=True
+        )
+        resourcereq = [
+            r for r in tool_cwl.requirements if r.class_ == "ResourceRequirement"
+        ][0]
+        self.assertEqual(
+            "$([inputs.runtime_cpu, (2 * inputs.outputFiles), 1].filter(function (inner) { return inner != null })[0])",
+            resourcereq.coresMin,
+        )
+        self.assertEqual(
+            "$(Math.round((953.674 * [inputs.runtime_memory, ((inputs.inputFile.size / 1048576) > 1024) ? 4 : 2, 4].filter(function (inner) { return inner != null })[0])))",
+            resourcereq.ramMin,
+        )
+
+
+class TestReadContentsOperator(unittest.TestCase):
+    def test_read_contents_string(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", String, glob=ReadContents(Stdout()))],
+            container=None,
+            version="-1",
+        )
+
+        translated = CwlTranslator.translate_tool_internal(
+            t, allow_empty_container=True
+        )
+        self.assertTrue(translated.outputs[0].outputBinding.loadContents)
+
+    def test_read_contents_as_int(self):
+
+        t = CommandToolBuilder(
+            tool="test_readcontents",
+            base_command=["echo", "1"],
+            inputs=[],
+            outputs=[ToolOutput("out", Float, glob=ReadContents(Stdout()).as_float())],
+            container=None,
+            version="-1",
+        )
+        translated = CwlTranslator.translate_tool_internal(
+            t, allow_empty_container=True
+        )
+        self.assertTrue(translated.outputs[0].outputBinding.loadContents)
+        self.assertEqual("float", translated.outputs[0].type)
+
+
+class TestCWLNotNullOperator(unittest.TestCase):
+    def test_workflow_string_not_null(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", Optional[str])
+        w.output("out", source=w.inp.assert_not_null())
+
+        cwltool = w.translate("cwl", allow_empty_container=True, to_console=False)[0]
+        print(cwltool)
+
+    def test_commandtool_string(self):
+
+        t = CommandToolBuilder(
+            tool="id",
+            base_command=None,
+            inputs=[ToolInput("inp", Optional[str])],
+            outputs=[
+                ToolOutput("out", str, glob=InputSelector("inp").assert_not_null())
+            ],
+            version=None,
+            container=None,
+        )
+
+        cwltool = t.translate("cwl", allow_empty_container=True, to_console=False)
+        print(cwltool)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
@@ -658,19 +810,19 @@ inputs:
 - id: testtool
   label: testtool
   type: string
-  inputBinding: {}
 - id: arrayInp
   label: arrayInp
   type:
   - type: array
     items: string
   - 'null'
-  inputBinding: {}
 
 outputs:
 - id: std
   label: std
   type: stdout
+stdout: _stdout
+stderr: _stderr
 
 baseCommand: echo
 arguments:
@@ -706,4 +858,89 @@ steps:
   run: tools/ArrayStepTool.cwl
   out:
   - id: outs
+id: test_add_single_to_array_edge
+"""
+
+cwl_stepinput = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+label: 'TEST: WorkflowWithStepInputExpression'
+
+requirements:
+- class: InlineJavascriptRequirement
+- class: StepInputExpressionRequirement
+
+inputs:
+- id: mystring
+  type:
+  - string
+  - 'null'
+- id: mystring_backup
+  type:
+  - string
+  - 'null'
+
+outputs:
+- id: out
+  type: File
+  outputSource: print/out
+
+steps:
+- id: print
+  in:
+  - id: _print_inp_mystring
+    source: mystring
+  - id: _print_inp_mystringbackup
+    source: mystring_backup
+  - id: inp
+    valueFrom: |-
+      $((inputs._print_inp_mystring != null) ? inputs._print_inp_mystring : inputs._print_inp_mystringbackup)
+  run: tools/EchoTestTool_TEST.cwl
+  out:
+  - id: out
+id: TestWorkflowWithStepInputExpression
+"""
+
+cwl_arraystepinput = """\
+#!/usr/bin/env cwl-runner
+class: Workflow
+cwlVersion: v1.0
+
+requirements:
+- class: InlineJavascriptRequirement
+- class: StepInputExpressionRequirement
+- class: MultipleInputFeatureRequirement
+
+inputs:
+- id: inp1
+  type:
+  - string
+  - 'null'
+- id: inp2
+  type:
+  - string
+  - 'null'
+
+outputs:
+- id: out
+  type:
+    type: array
+    items: File
+  outputSource: print/outs
+
+steps:
+- id: print
+  in:
+  - id: _print_inputs_inp1
+    source: inp1
+  - id: _print_inputs_inp2
+    source: inp2
+  - id: inputs
+    valueFrom: |-
+      $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
+  run: tools/ArrayStepTool.cwl
+  out:
+  - id: outs
+id: cwl_test_array_step_input
 """

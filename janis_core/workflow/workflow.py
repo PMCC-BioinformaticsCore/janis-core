@@ -1,10 +1,20 @@
 import copy
 import os
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import List, Union, Optional, Dict, Tuple, Any, Set
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
+from janis_core.operators import (
+    InputSelector,
+    Operator,
+    StringFormatter,
+    StepOutputSelector,
+    InputNodeSelector,
+    Selector,
+)
+from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
+from janis_core.operators.standard import FirstOperator
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -12,7 +22,7 @@ from janis_core.tool.documentation import (
     InputQualityType,
     DocumentationMeta,
 )
-from janis_core.tool.tool import Tool, ToolType, ToolTypes, TInput, TOutput
+from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.types import (
@@ -20,22 +30,32 @@ from janis_core.types import (
     ParseableType,
     get_instantiated_type,
     Array,
-    InputSelector,
     Filename,
 )
 from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.utils.validators import Validators
 
-ConnectionSource = Union[Node, Tuple[Node, str]]
+ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 
-def verify_or_try_get_source(source: Union[ConnectionSource, List[ConnectionSource]]):
+def verify_or_try_get_source(
+    source: Union[ConnectionSource, List[ConnectionSource]]
+) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector]]:
+
+    if isinstance(source, StepOutputSelector):
+        return source
+    if isinstance(source, InputNodeSelector):
+        return source
     if isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
+
+    if isinstance(source, Operator):
+        # return [verify_or_try_get_source(r) for r in rt] if len(rt) > 1 else rt
+        return source
     node, tag = None, None
     if isinstance(source, tuple):
         node, tag = source
@@ -57,7 +77,7 @@ def verify_or_try_get_source(source: Union[ConnectionSource, List[ConnectionSour
             f"expected one of {tags}"
         )
 
-    return node, tag
+    return StepOutputSelector(node, tag)
 
 
 class InputNode(Node):
@@ -76,7 +96,10 @@ class InputNode(Node):
         self.doc = doc
         self.value = value
 
-    def outputs(self) -> Dict[str, TOutput]:
+    def as_operator(self):
+        return InputNodeSelector(self)
+
+    def outputs(self) -> Dict[Optional[str], TOutput]:
         # Program will just grab first value anyway
         return {None: TOutput(self.identifier, self.datatype)}
 
@@ -92,20 +115,56 @@ class StepNode(Node):
         tool: Tool,
         doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
+        when: Operator = None,
     ):
         super().__init__(wf, NodeType.STEP, identifier)
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
+        self.when = when
 
-    def inputs(self):
-        return self.tool.inputs_map()
+        self.parent_has_conditionals = False
+        self.has_conditionals = when is not None
 
-    def outputs(self):
-        return self.tool.outputs_map()
+    def inputs(self) -> Dict[str, TInput]:
+        ins = self.tool.inputs_map()
+
+        # if self.parent_has_conditionals:
+        #     q = {}
+        #     for iv in ins.values():
+        #         intype = copy.copy(iv.intype)
+        #         intype.optional = True
+        #         q[iv.id()] = TInput(
+        #             iv.id(), intype=intype, doc=iv.doc, default=iv.default
+        #         )
+        #
+        #     ins = q
+
+        return ins
+
+    def outputs(self) -> Dict[str, TOutput]:
+        outs = self.tool.outputs_map()
+
+        if self.has_conditionals:
+            q = {}
+            for ov in outs.values():
+                outtype = copy.copy(ov.outtype)
+                outtype.optional = True
+                q[ov.id()] = TOutput(ov.id(), outtype=outtype, doc=ov.doc)
+
+            outs = q
+
+        return outs
 
     def _add_edge(self, tag: str, source: ConnectionSource):
-        node, outtag = verify_or_try_get_source(source)
+        stepoperator = verify_or_try_get_source(source)
+        # node, outtag = stepoperator.node, stepoperator.tag
+
+        # Todo: readd this when dealing with conditionals, essentially,
+        #  need to determine whether an upstream is conditional (and hence this will have optional out)
+        # if isinstance(node, StepNode):
+        #     if node.has_conditionals or node.parent_has_conditionals:
+        #         self.parent_has_conditionals = True
 
         if tag not in self.sources:
             self.sources[tag] = StepTagInput(self, tag)
@@ -113,7 +172,7 @@ class StepNode(Node):
         # If tag is in scatter.fields, then we can
         scatter = self.scatter and tag in self.scatter.fields
 
-        return self.sources[tag].add_source(node, outtag, should_scatter=scatter)
+        return self.sources[tag].add_source(source, should_scatter=scatter)
 
     def __getattr__(self, item):
         if item in self.__dict__:
@@ -121,16 +180,16 @@ class StepNode(Node):
 
         return self.get_item(item)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> StepOutputSelector:
         return self.get_item(item)
 
-    def get_item(self, item):
+    def get_item(self, item) -> StepOutputSelector:
         ins = self.inputs()
         if item in ins:
-            return self, item
+            return StepOutputSelector(self, item)
         outs = self.outputs()
         if item in outs:
-            return self, item
+            return StepOutputSelector(self, item)
 
         tags = ", ".join(
             [f"in.{i}" for i in ins.keys()] + [f"out.{o}" for o in outs.keys()]
@@ -158,30 +217,34 @@ class OutputNode(Node):
         wf,
         identifier: str,
         datatype: DataType,
-        source: ConnectionSource,
+        source: Union[List[ConnectionSource], ConnectionSource],
         doc: OutputDocumentation = None,
         output_folder: Union[
             str, InputSelector, List[Union[str, InputSelector]]
         ] = None,
         output_name: Union[str, InputSelector] = None,
+        extension: Optional[str] = None,
         skip_typecheck=False,
     ):
         super().__init__(wf, NodeType.OUTPUT, identifier)
         self.datatype = datatype
 
-        # if source[0].node_type != NodeType.STEP:
-        #     raise Exception(
-        #         f"Unsupported connection type: {"Output"} → {source[0].node_type}"
-        #     )
+        sources = source if isinstance(source, list) else [source]
+        single_source = sources[0]
 
-        stype = source[0].outputs()[source[1]].outtype
-        snode = source[0]
-        if isinstance(snode, StepNode) and snode.scatter:
-            stype = Array(stype)
+        if isinstance(single_source, StepOutputSelector):
+            snode = single_source.node
+            stype = snode.outputs()[single_source.tag].outtype
+            if snode.scatter:
+                stype = Array(stype)
+        elif isinstance(single_source, Selector):
+            stype = single_source.returntype()
+        else:
+            raise Exception("Unsupported output source type " + str(single_source))
 
         if not skip_typecheck and not datatype.can_receive_from(stype):
             Logger.critical(
-                f"Mismatch of types when joining to output node '{source[0].id()}.{source[1]}' to '{identifier}' "
+                f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
@@ -193,6 +256,7 @@ class OutputNode(Node):
         )
         self.output_folder = output_folder
         self.output_name = output_name
+        self.extension = extension
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -202,7 +266,7 @@ class OutputNode(Node):
         return None
 
 
-class Workflow(Tool):
+class WorkflowBase(Tool, ABC):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 
@@ -227,20 +291,8 @@ class Workflow(Tool):
         self.has_subworkflow = False
         self.has_multiple_inputs = False
 
-        # Now that we've initialised everything, we can "construct" the workflows for that subclass this class
-        # else, for the WorkflowBuilder it will do nothing and they'll add workflows later
-        self.constructor()
-
     @abstractmethod
     def friendly_name(self):
-        pass
-
-    @abstractmethod
-    def constructor(self):
-        """
-        A place to construct your workflows. This is called directly after initialisation.
-        :return:
-        """
         pass
 
     def verify_identifier(self, identifier: str, component: str):
@@ -295,17 +347,20 @@ class Workflow(Tool):
         )
         self.nodes[identifier] = inp
         self.input_nodes[identifier] = inp
-        return inp
+        return InputNodeSelector(inp)
 
     def output(
         self,
         identifier: str,
         datatype: Optional[ParseableType] = None,
-        source: Union[StepNode, ConnectionSource] = None,
+        source: Union[
+            List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
+        ] = None,
         output_folder: Union[
             str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
         ] = None,
-        output_name: Union[str, InputSelector, InputNode] = None,
+        output_name: Union[str, InputSelector, ConnectionSource] = None,
+        extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):
         """
@@ -328,30 +383,48 @@ class Workflow(Tool):
         if source is None:
             raise Exception("Output source must not be 'None'")
 
-        node, tag = verify_or_try_get_source(source)
+        sourceoperator = verify_or_try_get_source(source)
         skip_typecheck = False
+        # if isinstance(sourceoperator, list):
+        #     sourceoperator = sourceoperator[0]
+        # else:
+        #     sourceoperator = sourceoperator
+
+        # if isinstance(sourceoperator, StepOutputSelector):
+        #     node, tag = sourceoperator.node, sourceoperator.tag
+        # elif isinstance(sourceoperator, InputNodeSelector):
+        #     node = sourceoperator.input_node
+        #     tag = None
+        # else:
+        #     raise Exception("Unsupported output source type: " + str(sourceoperator))
+
         if not datatype:
-            datatype: DataType = copy.copy(node.outputs()[tag].outtype.received_type())
-            if isinstance(node, InputNode) and node.default is not None:
+            while isinstance(sourceoperator, list):
+                sourceoperator: Selector = sourceoperator[0]
+
+            datatype: DataType = copy.copy(sourceoperator.returntype())
+            if (
+                isinstance(sourceoperator, InputNodeSelector)
+                and sourceoperator.input_node.default is not None
+            ):
                 datatype.optional = False
 
-            if isinstance(node, StepNode) and node.scatter:
+            elif isinstance(sourceoperator, StepNode) and sourceoperator.scatter:
                 datatype = Array(datatype)
 
             skip_typecheck = True
 
-        if output_name:
+        if output_name is not None:
             if isinstance(output_name, list):
                 raise Exception("An output_name cannot be of type 'list'")
             output_name = self.verify_output_source_type(
                 identifier, output_name, "output_name"
             )
-        if output_folder:
+        if output_folder is not None:
             ot = output_folder if isinstance(output_folder, list) else [output_folder]
             output_folder = self.verify_output_source_type(
                 identifier, ot, "output_folder"
             )
-
         doc = (
             doc
             if isinstance(doc, OutputDocumentation)
@@ -362,15 +435,67 @@ class Workflow(Tool):
             self,
             identifier=identifier,
             datatype=get_instantiated_type(datatype),
-            source=(node, tag),
+            source=sourceoperator,
             output_folder=output_folder,
             output_name=output_name,
+            extension=extension,
             doc=doc,
             skip_typecheck=skip_typecheck,
         )
         self.nodes[identifier] = otp
         self.output_nodes[identifier] = otp
         return otp
+
+    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+        op = output_prefix or ""
+
+        tool = step.tool
+        input_ids = set(self.input_nodes.keys())
+
+        def check_is_valid_selector(selector, output_id: str):
+            if isinstance(selector, list):
+                return all(check_is_valid_selector(sel, output_id) for sel in selector)
+            if isinstance(selector, str):
+                return True
+            elif isinstance(selector, InputSelector):
+                if selector.input_to_select in input_ids:
+                    return True
+                else:
+                    Logger.warn(
+                        f"Couldn't port through the output_folder for {step.id()}.{output_id} as the input "
+                        f"'{selector.input_to_select}' was not found in the current inputs"
+                    )
+                    return False
+            elif isinstance(selector, Operator):
+                return all(
+                    check_is_valid_selector(sel, output_id)
+                    for sel in selector.get_leaves()
+                )
+
+            return False
+
+        for out in tool.tool_outputs():
+            output_folders = None
+            output_name = None
+            if isinstance(tool, Workflow):
+                outnode = tool.output_nodes[out.id()]
+
+                if outnode.output_folder is not None and check_is_valid_selector(
+                    outnode.output_folder, out.id()
+                ):
+                    output_folders = outnode.output_folder
+
+                if outnode.output_name is not None and check_is_valid_selector(
+                    outnode.output_name, out.id()
+                ):
+                    output_name = outnode.output_name
+
+            self.output(
+                op + out.id(),
+                source=step[out.id()],
+                output_name=output_name,
+                output_folder=output_folders or [],
+            )
 
     def all_input_keys(self):
         from janis_core.translations.translationbase import TranslatorBase
@@ -393,8 +518,8 @@ class Workflow(Tool):
         if isinstance(out, list):
             return [self.verify_output_source_type(identifier, o, outtype) for o in out]
 
-        if isinstance(out, str):
-            return out
+        if isinstance(out, (str, bool, float, int)):
+            return str(out)
 
         if isinstance(out, tuple):
             # ConnectionSource tuple
@@ -408,6 +533,9 @@ class Workflow(Tool):
 
             return InputSelector(out.identifier)
 
+        if isinstance(out, InputNodeSelector):
+            return InputSelector(out.input_node.id())
+
         if isinstance(out, InputSelector):
             keys = set(self.input_nodes.keys())
             if out.input_to_select not in keys:
@@ -417,13 +545,21 @@ class Workflow(Tool):
                 )
             return out
 
-        raise Exception(f"Invalidate type for {outtype}: {out.__class__.__name__}")
+        if isinstance(out, Operator):
+            fixed_types = [
+                self.verify_output_source_type(identifier, o, outtype)
+                for o in out.get_leaves()
+            ]
+            return out
+
+        raise Exception(f"Invalid type for {outtype}: {out.__class__.__name__}")
 
     def step(
         self,
         identifier: str,
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
+        when: Optional[Operator] = None,
         ignore_missing=False,
         doc: str = None,
     ):
@@ -434,6 +570,8 @@ class Workflow(Tool):
         :param tool: The tool that should run for this step.
         :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
+        :param when: An operator / condition that determines whether the step should run
+        : type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
         """
@@ -452,7 +590,7 @@ class Workflow(Tool):
                     f"Couldn't scatter with field '{scatter}' ({type(scatter)}"
                 )
 
-            scatter = ScatterDescription(fields, method=ScatterMethods.dot)
+            scatter = ScatterDescription(fields, method=ScatterMethod.dot)
 
         # verify scatter
         if scatter:
@@ -497,8 +635,9 @@ class Workflow(Tool):
             )
 
         d = doc if isinstance(doc, DocumentationMeta) else DocumentationMeta(doc=doc)
-
-        stp = StepNode(self, identifier=identifier, tool=tool, scatter=scatter, doc=d)
+        stp = StepNode(
+            self, identifier=identifier, tool=tool, scatter=scatter, when=when, doc=d
+        )
 
         added_edges = []
         for (k, v) in connections.items():
@@ -550,18 +689,66 @@ class Workflow(Tool):
             self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 
         self.has_scatter = self.has_scatter or scatter is not None
-        self.has_subworkflow = self.has_subworkflow or isinstance(tool, Workflow)
+        self.has_subworkflow = self.has_subworkflow or isinstance(tool, WorkflowBase)
         self.nodes[identifier] = stp
         self.step_nodes[identifier] = stp
 
         return stp
 
+    def conditional(
+        self, stepid: str, conditions: List[Union[Tuple[Operator, Tool], Tool]]
+    ):
+        if len(conditions) <= 1:
+            raise Exception("A switch statement must include at least 2 conditions")
+        # validate tools
+        tools = []
+        for i in range(len(conditions)):
+            con = conditions[i]
+            if isinstance(con, tuple):
+                tools.append(con[1])
+            else:
+                if i < (len(conditions) - 1):
+                    raise Exception(
+                        "A default statement (no condition) must be the last element in the switch"
+                    )
+                tools.append(con)
+
+        # check output schema
+        compare_schema = tools[0].outputs_map()
+        in_keys = set(compare_schema.keys())
+        non_matching_tools = []
+        for i in range(1, len(tools)):
+            tool = tools[i]
+            outs = tool.outputs_map()
+            extra_params = set(outs.keys()) - in_keys
+            non_matching_els = list(
+                k
+                for k, v in compare_schema.items()
+                if k not in outs or not v.outtype.can_receive_from(outs[k].outtype)
+            )
+            if len(non_matching_els) > 0:
+                non_matching_tools.append(
+                    tool.id() + ": " + ", ".join(non_matching_els + list(extra_params))
+                )
+
+        if non_matching_tools:
+            raise Exception(
+                "Not all tools in the switch statement shared the output schema: "
+                + " || ".join(non_matching_tools)
+            )
+
+        # should be good to build the workflow:
+        w = wrap_steps_in_workflow(stepid, conditions)
+        self.step(stepid, w)
+
     def __getattr__(self, item):
         if item in self.__dict__ or item == "nodes":
             return self.__dict__.get(item)
 
-        if self.nodes and item in self.nodes:
-            return self.nodes[item]
+        try:
+            return self.__getitem__(item)
+        except KeyError:
+            pass
 
         raise AttributeError(
             f"AttributeError: '{type(self).__name__}' object has no attribute '{item}'"
@@ -569,14 +756,17 @@ class Workflow(Tool):
 
     def __getitem__(self, item):
 
-        if item in self.nodes:
-            return self.nodes[item]
+        if self.nodes and item in self.nodes:
+            node = self.nodes[item]
+            if isinstance(node, InputNode):
+                return node.as_operator()
+            return node
 
         raise KeyError(f"KeyError: '{type(self).__name__}' object has no node '{item}'")
 
     @classmethod
     def type(cls) -> ToolType:
-        return ToolTypes.Workflow
+        return ToolType.Workflow
 
     def tool_inputs(self) -> List[TInput]:
         """
@@ -695,7 +885,7 @@ class Workflow(Tool):
         tools: Dict[str, CommandTool] = {}
         for t in self.step_nodes.values():
             tl = t.tool
-            if isinstance(tl, Workflow):
+            if isinstance(tl, WorkflowBase):
                 tools.update(tl.get_tools())
             elif t.id() not in tools:
                 tools[tl.id()] = tl
@@ -781,6 +971,46 @@ class Workflow(Tool):
             return meta.version
 
 
+class Workflow(WorkflowBase):
+    def __init__(self, **connections):
+        super().__init__(**connections)
+        # Now that we've initialised everything, we can "construct" the workflows for that subclass this class
+        # else, for the WorkflowBuilder it will do nothing and they'll add workflows later
+        self.constructor()
+
+    @abstractmethod
+    def constructor(self):
+        """
+        A place to construct your workflows. This is called directly after initialisation.
+        :return:
+        """
+        pass
+
+
+class DynamicWorkflow(WorkflowBase):
+    def __init__(self, **connections):
+        super().__init__(**connections)
+        self.has_constructed = False
+
+    @abstractmethod
+    def constructor(self, inputs: Dict[str, any], hints: Dict[str, str]):
+        """
+        A place to construct your workflows. This is called after inputs are initially processed
+
+        :param inputs: Dictionary of input values
+        :param hints: Dictionary of hints that should be applied
+        """
+        self.has_constructed = True
+
+    def modify_inputs(self, inputs, hints: Dict[str, str]):
+        """
+        :param inputs: Dictionary of input values
+        :param hints: Dictionary of hints that should be applied
+        :return: The modified inputs dictionary
+        """
+        return inputs
+
+
 class WorkflowBuilder(Workflow):
     def __init__(
         self,
@@ -831,3 +1061,109 @@ class WorkflowBuilder(Workflow):
 
     def __str__(self):
         return f'WorkflowBuilder("{self._identifier}")'
+
+
+def wrap_steps_in_workflow(
+    stepId: str, steps: List[Union[Tuple[Operator, Tool], Tool]]
+):
+    # skip validation of steps
+
+    # need to resolve connections and try to map them to the same
+
+    w = WorkflowBuilder(stepId)
+    workflow_connection_map = {}
+
+    def rebuild_condition(operator: Operator):
+        if operator is None:
+            return None
+
+        if not isinstance(operator, Selector):
+            return operator
+
+        # traverse through the operator, rebuilding and swapping out InputOperator / StepOperator
+        # ensure traversal through StringFormatters to looking for the same thing
+
+        if isinstance(operator, StepOutputSelector):
+            # pipe in the input of the step_operator
+            identifier = f"cond_{operator.node.id()}_{operator.tag}"
+            if identifier in w.step_nodes:
+                return w[identifier]
+            else:
+                workflow_connection_map[identifier] = operator
+                return w.input(
+                    identifier, operator.node.outputs()[operator.tag].outtype
+                )
+        if isinstance(operator, InputNodeSelector):
+            identifier = f"cond_{operator.input_node.id()}"
+            if identifier in w.input_nodes:
+                return w[identifier]
+            else:
+                innode: InputNode = operator.input_node
+                workflow_connection_map[identifier] = operator
+                return w.input(identifier, first_value(innode.outputs()).outtype)
+
+        if isinstance(operator, StringFormatter):
+            return StringFormatter(
+                operator._format,
+                **{k: rebuild_condition(v) for k, v in operator.kwargs.items()},
+            )
+
+        if isinstance(operator, Operator):
+            return operator.__class__(*[rebuild_condition(t) for t in operator.args])
+
+        # if isinstance(operator, SingleValueOperator):
+        #     return operator.__class__(rebuild_condition(operator.internal))
+        #
+        # if isinstance(operator, TwoValueOperator):
+        #     return operator.__class__(
+        #         rebuild_condition(operator.lhs), rebuild_condition(operator.rhs)
+        #     )
+
+        return operator
+
+    prevconds: List[Operator] = []
+
+    for i in range(len(steps)):
+        step = steps[i]
+        stepid = "switch_case_" + str(i + 1)
+
+        if isinstance(step, tuple):
+            newcond = rebuild_condition(step[0])
+            tool = step[1]
+            prevcond = or_prev_conds(prevconds)
+            cond = (
+                AndOperator(newcond, NotOperator(prevcond))
+                if prevcond is not None
+                else newcond
+            )
+            prevconds.append(newcond)
+        else:
+            tool = step
+            cond = NotOperator(or_prev_conds(prevconds))
+
+        toolinputs = tool.inputs_map()
+        connection_map = {}
+        for (k, v) in tool.connections.items():
+
+            # unique
+            identifier = stepid + "_" + k
+
+            if is_python_primitive(v):
+                # the add step will create the literal for us
+                connection_map[k] = v
+            else:
+                # generate an input for this step, of whatever type our tool wants
+                toolin = toolinputs[k]
+                workflow_connection_map[identifier] = v
+                connection_map[k] = w.input(identifier, toolin.intype, doc=toolin.doc)
+
+        w.step(stepid, tool(**connection_map), when=cond)
+
+    steps = list(w.step_nodes.values())
+    # They should all have exact same contract
+    outputs = steps[0].tool.outputs_map().values()
+    for o in outputs:
+        out_source = [stp[o.id()] for stp in steps]
+        w.output(o.id(), source=FirstOperator(out_source))
+
+    return w(**workflow_connection_map)

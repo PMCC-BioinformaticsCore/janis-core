@@ -1,4 +1,5 @@
 import unittest
+from typing import Optional, List, Union
 
 from janis_core import Array, String, Stdout, File, Int, Float, Boolean
 from janis_core.types import get_instantiated_type, get_from_python_type
@@ -91,8 +92,18 @@ class TestParseTypes(unittest.TestCase):
         self.assertTrue(t.optional)
         self.assertIsInstance(t, File)
 
+    def test_parse_union_type(self):
+        t = get_instantiated_type(Union[str, int])
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
+        self.assertEqual("Union<String, Integer>", t.id())
 
-from typing import Optional, List
+    def test_parse_union_optional_types(self):
+        t = get_instantiated_type(Union[Optional[str], int])
+        self.assertTrue(t.optional)
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
+        self.assertEqual("Union<String, Integer>", t.id())
 
 
 class TestPythonAnnotations(unittest.TestCase):

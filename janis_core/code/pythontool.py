@@ -163,7 +163,7 @@ try:
     args = cli.parse_args()
     result = code_block({argkwargs})
     print(json.dumps(result))
-except e:
+except Exception as e:
     print(str(e), file=sys.stderr)
     raise
 """
