@@ -1,6 +1,6 @@
 importlib-metadata
 importlib-resources
-illusional.wdlgen>=0.2.7
+illusional.wdlgen < 0.3.0
 networkx>=2.1
 ruamel.yaml >= 0.12.4, <= 0.16
 tabulate
