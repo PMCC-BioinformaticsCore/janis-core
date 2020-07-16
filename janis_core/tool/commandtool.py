@@ -177,10 +177,11 @@ class ToolOutput:
         self,
         tag: str,
         output_type: ParseableType,
-        glob: Optional[Union[Selector, str]] = None,
+        selector: Optional[Union[Selector, str]] = None,
         presents_as: str = None,
         secondaries_present_as: Dict[str, str] = None,
         doc: Optional[Union[str, OutputDocumentation]] = None,
+        glob: Optional[Union[Selector, str]] = None,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -188,7 +189,8 @@ class ToolOutput:
 
         :param tag: The identifier of a output, must be unique in the inputs and outputs.
         :param output_type: The type of output that is being collected.
-        :param glob: How to collect this output, can accept any :class:`janis.Selector`.
+        :param selector: How to collect this output, can accept any :class:`janis.Selector`.
+        :param glob: (DEPRECATED) An alias for `selector`
         :param doc: Documentation on what the output is, used to generate docs.
         """
 
@@ -200,14 +202,21 @@ class ToolOutput:
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
 
-        if glob is None and not (
+        if selector is None and glob is not None:
+            selector = glob
+        elif selector is not None and glob is not None:
+            raise TypeError(
+                f"ToolInput({tag}) received inputs for both selector and glob. Please only use glob"
+            )
+
+        if selector is None and not (
             isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
         ):
             raise Exception(
                 "ToolOutput expects a glob when the output type is not Stdout / Stderr"
             )
 
-        self.glob = glob
+        self.selector = selector
         self.presents_as = presents_as
         self.secondaries_present_as = secondaries_present_as
         self.doc = (
@@ -216,10 +225,10 @@ class ToolOutput:
             else OutputDocumentation(doc=doc)
         )
 
-        if isinstance(glob, Operator) and self.presents_as:
+        if isinstance(selector, Operator) and self.presents_as:
             raise Exception(
                 f"Error when constructing output '{self.id()}', Janis does not support 'presents_as' AND "
-                "operators within a glob . Please raise an issue if you think this is in error."
+                "operators within a ToolOutput selector. Please raise an issue if you think this is in error."
             )
 
         if self.secondaries_present_as:
