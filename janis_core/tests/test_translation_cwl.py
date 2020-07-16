@@ -117,7 +117,7 @@ class TestCwlArraySeparators(unittest.TestCase):
 
     def test_regular_input_bindingin(self):
         t = ToolInput("filesA", Array(String()), prefix="-A", position=1)
-        cwltoolinput = cwl.translate_tool_input(t, None, None)
+        cwltoolinput = cwl.translate_tool_input(t, None, None).save()
         self.assertDictEqual(
             {
                 "id": "filesA",
@@ -125,7 +125,7 @@ class TestCwlArraySeparators(unittest.TestCase):
                 "type": {"items": "string", "type": "array"},
                 "inputBinding": {"prefix": "-A", "position": 1},
             },
-            CwlTranslator.walk_and_check_cwldict(cwltoolinput),
+            cwltoolinput,
         )
 
     def test_nested_input_binding(self):

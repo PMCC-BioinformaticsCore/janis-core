@@ -19,7 +19,7 @@ This file is logically structured similar to the WDL equiv:
 
 ## IMPORTS
 
-import re
+import re, json
 from io import StringIO
 from typing import List, Dict, Optional, Tuple
 from typing import Union
@@ -82,20 +82,22 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         super().__init__(name="cwl")
 
     @staticmethod
-    def walk_and_check_cwldict(c):
-        return c.save()
-
-    @staticmethod
     def stringify_commentedmap(m):
         io = StringIO()
         yaml.dump(m, io)
         return io.getvalue()
 
     @staticmethod
-    def stringify_translated_workflow(wf, format=True):
-        saved = CwlTranslator.walk_and_check_cwldict(wf)
+    def stringify_translated_workflow(
+        wf: cwlgen.Savable, should_format=True, as_json=False
+    ):
+        saved = wf.save()
+
+        if as_json:
+            return json.dumps(saved)
+
         formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
-        if format:
+        if should_format:
             from cwlformat.formatter import cwl_format
 
             formatted = cwl_format(formatted)
@@ -103,11 +105,16 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         return formatted
 
     @staticmethod
-    def stringify_translated_tool(tool, format=True):
-        saved = CwlTranslator.walk_and_check_cwldict(tool)
+    def stringify_translated_tool(
+        tool: cwlgen.Savable, should_format=True, as_json=False
+    ):
+        saved = tool.save()
+
+        if as_json:
+            return json.dumps(saved)
 
         formatted = SHEBANG + "\n" + CwlTranslator.stringify_commentedmap(saved)
-        if format:
+        if should_format:
             from cwlformat.formatter import cwl_format
 
             formatted = cwl_format(formatted)
@@ -322,7 +329,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes]
+        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -1100,14 +1107,14 @@ def prepare_tool_output_binding(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputBinding:
 
-    loadcontents = requires_content(output.glob)
-    requires_std = has_std(output.glob)
+    loadcontents = requires_content(output.selector)
+    requires_std = has_std(output.selector)
 
     return cwlgen.CommandOutputBinding(
         glob=[STDOUT_NAME, STDERR_NAME]
         if requires_std
         else translate_to_cwl_glob(
-            output.glob, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
+            output.selector, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
         ),
         outputEval=prepare_tool_output_eval(tool, output),
         loadContents=loadcontents,
@@ -1123,9 +1130,9 @@ def prepare_tool_output_eval(tool, output: ToolOutput) -> Optional[str]:
     :return:
     """
 
-    if isinstance(output.glob, Operator):
+    if isinstance(output.selector, Operator):
         return CwlTranslator.unwrap_expression(
-            output.glob, code_environment=False, tool=tool, for_output=True
+            output.selector, code_environment=False, tool=tool, for_output=True
         )
 
     if output.presents_as:

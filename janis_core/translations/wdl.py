@@ -856,13 +856,13 @@ EOT"""
         for o in tooloutputs:
             wdl_type = wdl.WdlType.parse_type(o.output_type.wdl())
             expression = cls.unwrap_expression_for_output(
-                o, o.glob, inputsdict=inputsmap, tool=tool, toolid=tool.id()
+                o, o.selector, inputsdict=inputsmap, tool=tool, toolid=tool.id()
             )
             outs.append(wdl.Output(wdl_type, o.id(), expression))
             outs.extend(
                 cls.prepare_secondary_tool_outputs(
                     out=o,
-                    original_expression=o.glob,
+                    original_expression=o.selector,
                     expression=expression,
                     toolid=tool.id(),
                 )
