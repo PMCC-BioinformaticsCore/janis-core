@@ -1,6 +1,14 @@
 from copy import copy
 from typing import List
-from janis_core.types import DataType, UnionType, Int, File, Float, Directory
+from janis_core.types import (
+    DataType,
+    UnionType,
+    Int,
+    File,
+    Float,
+    Directory,
+    get_instantiated_type,
+)
 
 from janis_core.types.common_data_types import String, Array, AnyType
 from janis_core.operators.operator import Operator
@@ -47,7 +55,7 @@ class JoinOperator(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
-        if self.args[0].returntype().optional:
+        if get_instantiated_type(self.args[0].returntype()).optional:
             return f"sep({separator}, select_first([{iterable}, []]))"
         else:
             return f"sep({separator}, {iterable})"
@@ -302,7 +310,7 @@ class FilterNullOperator(Operator):
         else:
             rettype = self.args[0].subtype()
 
-        rettype = copy(rettype)
+        rettype = copy(get_instantiated_type(rettype))
         rettype.optional = False
         return Array(rettype)
 
