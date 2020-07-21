@@ -4,6 +4,7 @@ from enum import Enum
 class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
+    Nextflow = "nf"
 
     def __str__(self):
         return self.value
@@ -20,6 +21,10 @@ class SupportedTranslation(Enum):
             from ..translations.wdl import WdlTranslator
 
             return WdlTranslator()
+        elif self == SupportedTranslation.Nextflow:
+            from ..translations.nextflow import NextflowTranslator
+
+            return NextflowTranslator()
 
     @staticmethod
     def all():
