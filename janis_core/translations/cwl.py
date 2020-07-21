@@ -27,7 +27,7 @@ from typing import Union
 import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
 
-from janis_core import ToolArgument, ToolType
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators import (
@@ -45,9 +45,8 @@ from janis_core.operators import (
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
-from janis_core.tool.commandtool import CommandTool, ToolInput
-from janis_core.tool.commandtool import ToolOutput
-from janis_core.tool.tool import Tool
+from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
+from janis_core.tool.tool import Tool, ToolType
 from janis_core.translations.translationbase import (
     TranslatorBase,
     TranslatorMeta,
@@ -543,7 +542,9 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     )
                 )
                 continue
-
+            output_eval = CwlTranslator.prepare_output_eval_for_python_codetool(
+                output.id(), output.outtype
+            )
             tool_cwl.outputs.append(
                 cwlgen.CommandOutputParameter(
                     id=output.tag,
@@ -552,13 +553,19 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     # streamable=None,
                     doc=output.doc.doc if output.doc else None,
                     type=output.outtype.cwl_type(),
+                    outputBinding=None
+                    if not output_eval
+                    else cwlgen.CommandOutputBinding(outputEval=output_eval),
                 )
             )
 
         tool_cwl.requirements.append(
             cwlgen.InitialWorkDirRequirement(
                 listing=[
-                    cwlgen.Dirent(entryname=scriptname, entry=tool.prepared_script())
+                    cwlgen.Dirent(
+                        entryname=scriptname,
+                        entry=tool.prepared_script(SupportedTranslation.CWL),
+                    )
                 ]
             )
         )
@@ -598,37 +605,31 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 arraylayers += 1
                 base = outtype.subtype()
 
-        out_capture = ""
-        if requires_obj_capture:
-            classtype = "File" if isinstance(outtype, File) else "Directory"
-            fileout_generator = (
-                lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
-            )
+        if not requires_obj_capture:
+            return None
 
-            if arraylayers:
-                els = ["var els = [];"]
+        classtype = "File" if isinstance(outtype, File) else "Directory"
+        fileout_generator = (
+            lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
+        )
 
-                base_var = f"v{arraylayers}"
-                center = f"els.push({fileout_generator(base_var)};"
+        if arraylayers:
+            els = ["var els = [];"]
 
-                def iteratively_wrap(center, iterable, layers_remaining):
-                    var = f"v{layers_remaining}"
-                    if layers_remaining > 1:
-                        center = iteratively_wrap(center, var, layers_remaining - 1)
-                    return f"for (var {var} of {iterable}) {{ {center} }}"
+            base_var = f"v{arraylayers}"
+            center = f"els.push({fileout_generator(base_var)};"
 
-                out_capture = "\n".join(
-                    [els, iteratively_wrap(center, "c", arraylayers)]
-                )
-            else:
-                out_capture = fileout_generator("c")
+            def iteratively_wrap(center, iterable, layers_remaining):
+                var = f"v{layers_remaining}"
+                if layers_remaining > 1:
+                    center = iteratively_wrap(center, var, layers_remaining - 1)
+                return f"for (var {var} of {iterable}) {{ {center} }}"
+
+            out_capture = "\n".join([els, iteratively_wrap(center, "c", arraylayers)])
         else:
-            out_capture = "c"
+            out_capture = fileout_generator("self")
 
         return f"""${{
-var d = JSON.parse(self[0].contents)
-if (!d) return null;
-var c = d["{tag}"]
 return {out_capture}
 }}"""
 

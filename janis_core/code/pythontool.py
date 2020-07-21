@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from textwrap import dedent
+from textwrap import dedent, indent
 from typing import Dict, Any, Optional, Type, List
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.types.data_types import NativeTypes
 
@@ -117,7 +118,7 @@ class PythonTool(CodeTool, ABC):
     def container(self):
         return "python:3.8.1"
 
-    def prepared_script(self):
+    def prepared_script(self, translation: SupportedTranslation):
         import inspect
 
         nl = "\n"
@@ -147,6 +148,33 @@ class PythonTool:
             }.items()
         )
 
+        extra_param_parsing = ""
+
+        if translation == SupportedTranslation.CWL:
+
+            extra_param_parsing = """
+from os import getcwd, path
+cwd = getcwd()
+def prepare_file_or_directory_type(file_or_directory, value):
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [prepare_file_or_directory_type(v) for v in value]
+    return {
+        "class": file_or_directory,
+        "path": path.join(cwd, value)
+    }"""
+            for out in self.outputs():
+                st = (
+                    out.outtype.fundamental_type()
+                    if isinstance(out.outtype, Array)
+                    else out.outtype
+                )
+                if not isinstance(st, (File, Directory)):
+                    continue
+                file_or_directory = "Directory" if isinstance(st, Directory) else "File"
+                extra_param_parsing += f'\nresult["{out.id()}"] = prepare_file_or_directory_type("{file_or_directory}", result["{out.id()}"])'
+            extra_param_parsing = indent(extra_param_parsing, 4 * " ")
         return f"""
 import argparse, json, sys
 from typing import Optional, List, Dict, Any
@@ -162,6 +190,7 @@ cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
 try:
     args = cli.parse_args()
     result = code_block({argkwargs})
+{extra_param_parsing}
     print(json.dumps(result))
 except Exception as e:
     print(str(e), file=sys.stderr)

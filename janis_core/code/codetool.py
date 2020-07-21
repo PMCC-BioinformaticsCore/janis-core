@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Union
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators import Selector
 from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
@@ -86,7 +87,7 @@ class CodeTool(Tool, ABC):
         pass
 
     @abstractmethod
-    def prepared_script(self):
+    def prepared_script(self, translation: SupportedTranslation):
         pass
 
     # Other internal methods

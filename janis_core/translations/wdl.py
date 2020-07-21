@@ -22,6 +22,7 @@ from typing import List, Dict, Any, Set, Tuple, Optional
 
 import wdlgen as wdl
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators.logical import If, IsDefined
 from janis_core.operators.standard import FirstOperator
 from janis_core.types import get_instantiated_type, DataType
@@ -460,7 +461,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             wdl.Task.Command(
                 f"""
 cat <<EOT >> {scriptname}
-    {tool.prepared_script()}
+    {tool.prepared_script(SupportedTranslation.WDL)}
 EOT"""
             )
         )
