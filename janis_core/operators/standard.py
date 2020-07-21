@@ -55,7 +55,15 @@ class JoinOperator(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
-        if get_instantiated_type(self.args[0].returntype()).optional:
+        iterable_arg = self.args[0]
+        if isinstance(iterable_arg, list):
+            is_optional = any(
+                get_instantiated_type(a.returntype()).optional for a in iterable_arg
+            )
+        else:
+            is_optional = get_instantiated_type(iterable_arg.returntype()).optional
+
+        if is_optional:
             return f"sep({separator}, select_first([{iterable}, []]))"
         else:
             return f"sep({separator}, {iterable})"
