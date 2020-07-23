@@ -136,14 +136,14 @@ class Process(NFBase):
         if not self.inputs:
             return None
         return indent(
-            "inputs:\n" + "\n".join("  " + i.get_string() for i in self.inputs), "  "
+            "input:\n" + "\n".join("  " + i.get_string() for i in self.inputs), "  "
         )
 
     def prepare_outputs(self, prefix="  "):
         if not self.outputs:
             return None
         return indent(
-            "outputs:\n" + "\n".join(prefix + o.get_string() for o in self.outputs),
+            "output:\n" + "\n".join(prefix + o.get_string() for o in self.outputs),
             "  ",
         )
 
