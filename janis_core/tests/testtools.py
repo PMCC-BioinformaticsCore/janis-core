@@ -76,12 +76,10 @@ class CatTestTool(CommandTool):
 
 
 class SingleTestTool(CommandTool):
-    @staticmethod
-    def tool():
+    def tool(self):
         return "TestStepTool"
 
-    @staticmethod
-    def base_command():
+    def base_command(self):
         return "echo"
 
     def inputs(self):
@@ -98,12 +96,10 @@ class SingleTestTool(CommandTool):
     def outputs(self):
         return [ToolOutput("out", String(), glob=WildcardSelector("*"))]
 
-    @staticmethod
-    def container():
+    def container(self):
         return None
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
 
