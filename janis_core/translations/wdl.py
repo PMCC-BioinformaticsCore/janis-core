@@ -1821,6 +1821,14 @@ def translate_input_selector(
 
     inp = inputsdict[selector.input_to_select]
     name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
+
+    intype = inp.input_type
+    if selector.use_basename and isinstance(intype, (File, Directory)):
+        if isinstance(intype, File) and intype.extension:
+            name = f'basename({name}, "{intype.extension}")'
+        else:
+            name = f"basename({name})"
+
     if string_environment:
 
         return f"~{{{name}}}"
