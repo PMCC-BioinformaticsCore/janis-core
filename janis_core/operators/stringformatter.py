@@ -25,7 +25,11 @@ class StringFormatter(Operator):
     def friendly_signature():
         return "String, **kwargs -> String"
 
+    def validate(self, perform_typecheck=False):
+        return True
+
     def __init__(self, format: str, **kwargs):
+        super().__init__([])
         # ignore super().__init__ call
         self._format: str = format
 

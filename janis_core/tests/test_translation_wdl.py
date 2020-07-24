@@ -397,17 +397,17 @@ class TestWDLFilenameGeneration(unittest.TestCase):
             for a in WdlTranslator.build_command_from_inputs(tool.inputs())
         ]
 
-        self.assertEqual('~{select_first([generatedInp, "~{inp}"])}', mapped[0])
+        self.assertEqual("'~{select_first([generatedInp, \"~{inp}\"])}'", mapped[0])
         self.assertEqual(
-            '~{select_first([generatedInpOptional, "~{if defined(inpOptional) then inpOptional else "generated"}"])}',
+            '\'~{select_first([generatedInpOptional, "~{if defined(inpOptional) then inpOptional else "generated"}"])}\'',
             mapped[1],
         )
         self.assertEqual(
-            '~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}',
+            '\'~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}\'',
             mapped[2],
         )
         self.assertEqual(
-            '~{select_first([generatedFileInpOptional, "~{if defined(fileInpOptional) then basename(fileInpOptional, ".txt") else "generated"}.optional.txt"])}',
+            '\'~{select_first([generatedFileInpOptional, "~{if defined(fileInpOptional) then basename(fileInpOptional, ".txt") else "generated"}.optional.txt"])}\'',
             mapped[3],
         )
 
@@ -532,7 +532,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_nooptional_position(self):
         ti = ToolInput("tag", String(), position=0)
         resp = wdl.translate_command_input(ti)
-        self.assertEqual("~{tag}", resp.get_string())
+        self.assertEqual("'~{tag}'", resp.get_string())
 
     def test_nodefault_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing")
@@ -578,7 +578,7 @@ class TestWdlToolInputGeneration(unittest.TestCase):
         # this will get turned into an optional
         ti = ToolInput("tag", String(), position=0, default="defval")
         resp = wdl.translate_command_input(ti)
-        self.assertEqual('~{select_first([tag, "defval"])}', resp.get_string())
+        self.assertEqual("'~{select_first([tag, \"defval\"])}'", resp.get_string())
 
     def test_default_nooptional_prefix_sep(self):
         ti = ToolInput("tag", String(), prefix="--amazing", default="defval")

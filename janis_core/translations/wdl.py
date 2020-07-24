@@ -1256,10 +1256,10 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
             else:
                 name = f"{tprefix}'~{{{name}}}'"
         else:
-            if not optional:
-                name = f"~{{{name}}}"
-            else:
+            if optional:
                 name = f'~{{if defined({name}) then ("\'" + {name} + "\'") else ""}}'
+            else:
+                name = f"'~{{{name}}}'"
 
     else:
         if prefix:
@@ -1314,7 +1314,11 @@ def translate_input_selector_for_secondary_output(
 
 
 def translate_string_formatter_for_output(
-    out, selector: StringFormatter, inputsdict: Dict[str, ToolInput], **debugkwargs
+    out,
+    selector: StringFormatter,
+    inputsdict: Dict[str, ToolInput],
+    string_environment,
+    **debugkwargs,
 ) -> str:
     """
     The output glob was a string formatter, so we'll need to build the correct glob
