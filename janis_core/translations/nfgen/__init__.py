@@ -1,4 +1,4 @@
-from .common import Channel
+from .common import Channel, NFFile, Import
 from .process import (
     Process,
     ProcessInput,
@@ -7,5 +7,7 @@ from .process import (
     InputProcessQualifier,
     OutputProcessQualifier,
 )
+
+from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
 
 from .directives import *
