@@ -32,7 +32,10 @@ class NextflowTranslator(TranslatorBase):
         # construct script
         script = cls.prepare_script_for_tool(tool)
         process = nfgen.Process(
-            name=tool.id(), script=script, script_type=nfgen.ProcessScriptType.shell
+            name=tool.id(),
+            script=script,
+            script_type=nfgen.ProcessScriptType.shell,
+            script_quote="'",
         )
 
         inputs: List[ToolInput] = tool.inputs()
