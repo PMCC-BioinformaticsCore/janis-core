@@ -542,6 +542,9 @@ class Array(DataType):
             return st.fundamental_type()
         return st.received_type()
 
+    def received_type(self):
+        return Array(self._t.received_type(), optional=self.optional)
+
 
 class Stdout(File):
     @staticmethod

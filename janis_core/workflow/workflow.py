@@ -402,7 +402,7 @@ class WorkflowBase(Tool, ABC):
             while isinstance(sourceoperator, list):
                 sourceoperator: Selector = sourceoperator[0]
 
-            datatype: DataType = copy.copy(sourceoperator.returntype())
+            datatype: DataType = copy.copy(sourceoperator.returntype().received_type())
             if (
                 isinstance(sourceoperator, InputNodeSelector)
                 and sourceoperator.input_node.default is not None
