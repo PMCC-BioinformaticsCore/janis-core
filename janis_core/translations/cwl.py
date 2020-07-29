@@ -1341,7 +1341,7 @@ def translate_step_node(
 
     for k, inp in step.inputs().items():
         if k not in step.sources:
-            if inp.intype.optional or inp.default:
+            if inp.intype.optional or inp.default is not None:
                 continue
             else:
                 raise Exception(
