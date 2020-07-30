@@ -61,7 +61,11 @@ class JoinOperator(Operator):
                 get_instantiated_type(a.returntype()).optional for a in iterable_arg
             )
         else:
-            is_optional = get_instantiated_type(iterable_arg.returntype()).optional
+            rettype = get_instantiated_type(iterable_arg.returntype())
+            if isinstance(rettype, Array):
+                is_optional = rettype.subtype().optional
+            else:
+                is_optional = rettype.optional
 
         if is_optional:
             return f"sep({separator}, select_first([{iterable}, []]))"
