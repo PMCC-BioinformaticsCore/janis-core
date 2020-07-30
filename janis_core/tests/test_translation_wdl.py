@@ -1001,7 +1001,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override={tool.id(): expected_container}
         )
 
-        line = translated.splitlines()[23].strip()
+        line = translated.splitlines()[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_string_override(self):
@@ -1012,7 +1012,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override=expected_container
         )
 
-        line = translated.splitlines()[23].strip()
+        line = translated.splitlines()[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_override_casecheck(self):
@@ -1029,7 +1029,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             container_override={toolid_upper: expected_container},
         )
 
-        line = translated.splitlines()[23].strip()
+        line = translated.splitlines()[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
 
@@ -1089,6 +1089,34 @@ workflow wf {
     input:
       inp=ref,
       inp_txt=ref_txt
+  }
+}"""
+        self.assertEqual(expected, wdlwf)
+
+    def test_array_secondary_connection(self):
+        wf = WorkflowBuilder("wf")
+        wf.input("ref", Array(TestTypeWithSecondary))
+
+        wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref), scatter="inp")
+
+        wdlwf, _, _ = wf.translate("wdl", to_console=False)
+
+        expected = """\
+version development
+
+import "tools/CatTestTool_TEST.wdl" as C
+
+workflow wf {
+  input {
+    Array[File] ref
+    Array[File] ref_txt
+  }
+  scatter (r in transpose([ref, ref_txt])) {
+     call C.CatTestTool as stp {
+      input:
+        inp=r[0],
+        inp_txt=r[1]
+    }
   }
 }"""
         self.assertEqual(expected, wdlwf)
@@ -1264,10 +1292,9 @@ class TestWdlResourceOperators(unittest.TestCase):
             OperatorResourcesTestTool(), with_resource_overrides=True
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)
-        # print(tool_wdl)
-        cpus = lines[16].strip()
-        time = lines[19].strip()
-        memory = lines[20].strip()
+        cpus = lines[-12].strip()
+        time = lines[-9].strip()
+        memory = lines[-8].strip()
 
         self.assertEqual("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", cpus)
         self.assertEqual(
@@ -1282,10 +1309,10 @@ class TestWdlResourceOperators(unittest.TestCase):
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)
         # print(tool_wdl)
-        cpus = lines[15].strip()
-        time = lines[18].strip()
-        memory = lines[19].strip()
-        disks = lines[16].strip()
+        cpus = lines[-12].strip()
+        disks = lines[-11].strip()
+        time = lines[-9].strip()
+        memory = lines[-8].strip()
 
         self.assertEqual("cpu: select_first([runtime_cpu, 1])", cpus)
 
