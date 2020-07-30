@@ -360,7 +360,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         )
         command_ins = cls.build_command_from_inputs(tool.inputs())
 
-        commands = []
+        commands = [wdl.Task.Command("set -e")]
 
         env = tool.env_vars()
         if env:
@@ -1202,22 +1202,21 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     if prefix and separate_value_from_prefix and not is_flag:
         tprefix += " "
 
+    expr = name
+
     if isinstance(intype, Boolean):
         if tool_input.prefix:
-            name = f'~{{if defined({name}) then "{tprefix}" else ""}}'
+            expr = f'~{{if defined({expr}) then "{tprefix}" else ""}}'
     elif isinstance(intype, Array):
-
-        expr = name
 
         separator = tool_input.separator if tool_input.separator is not None else " "
         should_quote = isinstance(intype.subtype(), (String, File, Directory))
         condition_for_binding = None
 
         if intype.optional:
+            rexpr = expr
             expr = f"select_first([{expr}])"
-            condition_for_binding = (
-                f"(defined({name}) && length(select_first([{name}])) > 0)"
-            )
+            condition_for_binding = f"(defined({rexpr}) && length({expr}) > 0)"
 
         if intype.subtype().optional:
             expr = f"select_all({expr})"
@@ -1243,35 +1242,35 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
                 expr = f'sep("{separator}", {expr})'
 
         if condition_for_binding is not None:
-            name = f'~{{if {condition_for_binding} then {expr} else ""}}'
+            expr = f'~{{if {condition_for_binding} then {expr} else ""}}'
         else:
-            name = f"~{{{expr}}}"
+            expr = f"~{{{expr}}}"
     elif (
         isinstance(intype, (String, File, Directory))
         and tool_input.shell_quote is not False
     ):
         if tprefix:
             if optional:
-                name = f'~{{if defined({name}) then ("{tprefix}\'" + {name} + "\'") else ""}}'
+                expr = f'~{{if defined({expr}) then ("{tprefix}\'" + {expr} + "\'") else ""}}'
             else:
-                name = f"{tprefix}'~{{{name}}}'"
+                expr = f"{tprefix}'~{{{expr}}}'"
         else:
             if optional:
-                name = f'~{{if defined({name}) then ("\'" + {name} + "\'") else ""}}'
+                expr = f'~{{if defined({expr}) then ("\'" + {expr} + "\'") else ""}}'
             else:
-                name = f"'~{{{name}}}'"
+                expr = f"'~{{{expr}}}'"
 
     else:
         if prefix:
             if optional:
-                name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
+                expr = f"~{{if defined({expr}) then (\"{tprefix}\" + {expr}) else ''}}"
             else:
-                name = f"{tprefix}~{{{name}}}"
+                expr = f"{tprefix}~{{{expr}}}"
         else:
-            name = f"~{{{name}}}"
+            expr = f"~{{{expr}}}"
 
     # there used to be a whole lot of login in the wdl.Task.Command.CommandInput but it's been moved to here now
-    return wdl.Task.Command.CommandInput(value=name, position=tool_input.position)
+    return wdl.Task.Command.CommandInput(value=expr, position=tool_input.position)
 
 
 def translate_input_selector_for_output(
