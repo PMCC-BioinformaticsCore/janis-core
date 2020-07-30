@@ -200,4 +200,4 @@ class JanisShed:
                 return JanisShed.add_tool(ic)
 
         except Exception as e:
-            Logger.log(f"{str(e)} for type {str(cls)}")
+            Logger.warn(f"{repr(e)} for type {str(cls)}")

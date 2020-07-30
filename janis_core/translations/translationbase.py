@@ -228,14 +228,14 @@ class TranslatorBase(ABC):
             import subprocess
 
             if should_zip:
-                Logger.info("Zipping tools")
+                Logger.debug("Zipping tools")
                 with Path(d):
                     FNULL = open(os.devnull, "w")
                     zip_result = subprocess.run(
                         ["zip", "-r", "tools.zip", "tools/"], stdout=FNULL
                     )
                     if zip_result.returncode == 0:
-                        Logger.info("Zipped tools")
+                        Logger.debug("Zipped tools")
                     else:
                         Logger.critical(str(zip_result.stderr.decode()))
 
@@ -436,7 +436,7 @@ class TranslatorBase(ABC):
         inp = {
             i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
             for i in tool.tool_inputs()
-            if i.default
+            if i.default is not None
             or not i.intype.optional
             or i.id() in ad
             or i.id() in values_provided_from_tool
