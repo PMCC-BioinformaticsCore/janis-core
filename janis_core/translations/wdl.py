@@ -128,7 +128,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_nested_tool=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[any, Dict[str, any]]:
+    ) -> Tuple[wdl.Workflow, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
 
@@ -228,7 +228,10 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
 
-            if o.datatype.secondary_files():
+            fundamental_outtype = o.datatype
+            if isinstance(fundamental_outtype, Array):
+                fundamental_outtype = fundamental_outtype.fundamental_type()
+            if fundamental_outtype.secondary_files():
                 if isinstance(o.source, InputNodeSelector):
                     src = [o.source.id()]
                 elif isinstance(o.source, StepOutputSelector):
@@ -245,7 +248,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                             [*src[:-1], get_secondary_tag_from_original_tag(src[-1], s)]
                         ),
                     )
-                    for s in o.datatype.secondary_files()
+                    for s in fundamental_outtype.secondary_files()
                 )
 
         # Generate import statements (relative tool dir is later?)

@@ -233,6 +233,9 @@ class TestToolWithSecondaryInput(CatTestTool):
 
 
 class TestTypeWithSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".txt")
+
     @staticmethod
     def secondary_files():
         return ["^.txt"]
@@ -298,3 +301,20 @@ class TestWorkflowWithStepInputExpression(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+class TestWorkflowThatOutputsArraysOfSecondaryFiles(Workflow):
+    def id(self) -> str:
+        return "TestWorkflowThatOutputsArraysOfSecondaryFiles"
+
+    def friendly_name(self):
+        return "Test Workflow That outputs ararys of secondary files"
+
+    def constructor(self):
+        self.input("inp", Array(String))
+
+        self.step(
+            "stp", TestToolWithSecondaryOutput(testtool=self.inp), scatter="testtool"
+        )
+
+        self.output("out", source=self.stp.out)

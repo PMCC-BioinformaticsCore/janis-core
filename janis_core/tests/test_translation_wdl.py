@@ -37,6 +37,7 @@ from janis_core.tests.testtools import (
     TestWorkflowWithStepInputExpression,
     ArrayTestTool,
     OperatorResourcesTestTool,
+    TestWorkflowThatOutputsArraysOfSecondaryFiles,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -1133,6 +1134,14 @@ workflow wf {
   }
 }"""
         self.assertEqual(expected, wdlwf)
+
+    def test_workflow_secondary_outputs(self):
+        wf = TestWorkflowThatOutputsArraysOfSecondaryFiles()
+        wfwdl, _ = WdlTranslator.translate_workflow(wf)
+
+        outs = [o.get_string() for o in wfwdl.outputs]
+        self.assertEqual("Array[File] out = stp.out", outs[0])
+        self.assertEqual("Array[File] out_txt = stp.out_txt", outs[1])
 
 
 class TestCompleteOperators(unittest.TestCase):
