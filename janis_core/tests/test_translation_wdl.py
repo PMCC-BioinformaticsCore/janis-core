@@ -295,6 +295,19 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         tr = wdl.translate_command_input(ti)
         self.assertEqual("-t ~{select_first([threads, runtime_cpu])}", tr.get_string())
 
+    def test_tool_input_optional_array(self):
+        ti = ToolInput(
+            "adapter",
+            input_type=Array(String(), optional=True),
+            prefix="-a",
+            prefix_applies_to_all_elements=True,
+        )
+        tr = wdl.translate_command_input(ti)
+        self.assertEqual(
+            '~{if (defined(adapter) && length(select_first([adapter])) > 0) then "-a \'" + sep("\' -a  \'", select_first([adapter])) + "\'" else ""}',
+            tr.get_string(),
+        )
+
     # def test_input_value_memselect_stringenv(self):
     #     inp = MemorySelector()
     #     self.assertEqual(
