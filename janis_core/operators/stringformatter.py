@@ -115,6 +115,11 @@ class StringFormatter(Operator):
         else:
             return evaluated_combinations
 
+    def __rewrite_operator(self, args_to_rewrite: dict):
+        return self.__class__(
+            self._format, **self.__substitute_arg(args_to_rewrite, self.kwargs)
+        )
+
     @staticmethod
     def generate_combinations_of_input_dicts(
         values_that_are_lists: List[Tuple[str, List[any]]]

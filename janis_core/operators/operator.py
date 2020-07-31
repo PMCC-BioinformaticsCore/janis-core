@@ -106,6 +106,21 @@ class Operator(Selector, ABC):
 
         raise Exception(f"Janis cannot evaluate '{arg.__class__.__name__}'")
 
+    def rewrite_operator(self, args_to_rewrite: dict):
+        return self.__class__(*self.__substitute_arg(args_to_rewrite, self.args))
+
+    @staticmethod
+    def __substitute_arg(args_to_rewrite: dict, arg: any):
+        if isinstance(arg, list):
+            return [Operator.__substitute_arg(args_to_rewrite, a) for a in arg]
+        elif isinstance(arg, dict):
+            return {
+                k: Operator.__substitute_arg(args_to_rewrite, a) for k, a in arg.items()
+            }
+        if arg in args_to_rewrite:
+            return args_to_rewrite[arg]
+        return arg
+
     @abstractmethod
     def evaluate(self, inputs):
         # I need each operator to define this method
@@ -315,6 +330,10 @@ class AsIntOperator(SingleValueOperator):
 
     def returntype(self):
         return Int
+
+    @staticmethod
+    def apply_to(value):
+        return int(value)
 
 
 class AsFloatOperator(SingleValueOperator):
