@@ -356,10 +356,8 @@ class WorkflowBase(Tool, ABC):
         source: Union[
             List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
         ] = None,
-        output_folder: Union[
-            str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
-        ] = None,
-        output_name: Union[str, InputSelector, ConnectionSource] = None,
+        output_folder: Union[str, Selector, List[Union[str, Selector]]] = None,
+        output_name: Union[str, Selector, ConnectionSource] = None,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):

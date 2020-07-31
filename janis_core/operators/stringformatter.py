@@ -115,9 +115,9 @@ class StringFormatter(Operator):
         else:
             return evaluated_combinations
 
-    def __rewrite_operator(self, args_to_rewrite: dict):
+    def rewrite_operator(self, args_to_rewrite: dict):
         return self.__class__(
-            self._format, **self.__substitute_arg(args_to_rewrite, self.kwargs)
+            self._format, **self.substitute_arg(args_to_rewrite, self.kwargs)
         )
 
     @staticmethod

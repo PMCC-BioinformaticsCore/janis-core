@@ -107,15 +107,15 @@ class Operator(Selector, ABC):
         raise Exception(f"Janis cannot evaluate '{arg.__class__.__name__}'")
 
     def rewrite_operator(self, args_to_rewrite: dict):
-        return self.__class__(*self.__substitute_arg(args_to_rewrite, self.args))
+        return self.__class__(*self.substitute_arg(args_to_rewrite, self.args))
 
     @staticmethod
-    def __substitute_arg(args_to_rewrite: dict, arg: any):
+    def substitute_arg(args_to_rewrite: dict, arg: any):
         if isinstance(arg, list):
-            return [Operator.__substitute_arg(args_to_rewrite, a) for a in arg]
+            return [Operator.substitute_arg(args_to_rewrite, a) for a in arg]
         elif isinstance(arg, dict):
             return {
-                k: Operator.__substitute_arg(args_to_rewrite, a) for k, a in arg.items()
+                k: Operator.substitute_arg(args_to_rewrite, a) for k, a in arg.items()
             }
         if arg in args_to_rewrite:
             return args_to_rewrite[arg]
