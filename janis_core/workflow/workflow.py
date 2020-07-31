@@ -452,27 +452,74 @@ class WorkflowBase(Tool, ABC):
         tool = step.tool
         input_ids = set(self.input_nodes.keys())
 
-        def check_is_valid_selector(selector, output_id: str):
-            if isinstance(selector, list):
-                return all(check_is_valid_selector(sel, output_id) for sel in selector)
-            if isinstance(selector, str):
+        # Selector with 3 possibilities
+        #   1. Valid - no requirements -> return true
+        #   2. Almost valid - requires a transformation -> {}
+        #   3. Invalid - uses an invalid type -> return false
+
+        def check_selector_and_get_transformation(
+            selector, output_id: str
+        ) -> Union[Selector, bool]:
+            """
+            :return:
+                - True if no transformation is required
+                - None if the selector is invalid
+                - Selector if the transformation is required
+            """
+
+            if is_python_primitive(selector):
                 return True
             elif isinstance(selector, InputSelector):
-                if selector.input_to_select in input_ids:
-                    return True
-                else:
+                if selector.input_to_select not in input_ids:
                     Logger.warn(
-                        f"Couldn't port through the output_folder for {step.id()}.{output_id} as the input "
+                        f"Couldn't port the through selector for for {step.id()}.{output_id} as the input "
                         f"'{selector.input_to_select}' was not found in the current inputs"
                     )
                     return False
-            elif isinstance(selector, Operator):
-                return all(
-                    check_is_valid_selector(sel, output_id)
-                    for sel in selector.get_leaves()
-                )
+                return True
 
+            elif isinstance(selector, InputNodeSelector):
+                if selector.id() not in input_ids:
+                    Logger.warn(
+                        f"Couldn't port the through selector for for {step.id()}.{output_id} as an input node with ID"
+                        f"'{selector.id()}' was not found in the current inputs"
+                    )
+                    return False
+                return InputSelector(selector.id())
+
+            Logger.warn(
+                f"The selector {selector} ({type(selector)}) could not be transformed and cannot be used as an output/name folder for {self.id()}.{output_id}"
+            )
             return False
+
+        def get_transformed_selector(selector, output_id: str):
+
+            if isinstance(selector, list):
+                return [get_transformed_selector(sel, output_id) for sel in selector]
+
+            if isinstance(selector, Operator):
+                transformation = {}
+                for sel in selector.get_leaves():
+                    tr = check_selector_and_get_transformation(sel, output_id)
+                    if tr is True:
+                        continue
+                    if tr is False:
+                        # something was invalid and couldn't be transformed
+                        # it's been logged though
+                        return None
+                    transformation[sel] = tr
+
+                if len(transformation) > 0:
+                    return selector.rewrite_operator(transformation)
+                return selector
+
+            tr = check_selector_and_get_transformation(selector, output_id)
+            if tr is False:
+                return None
+            elif tr is True:
+                return selector
+            else:
+                return tr
 
         for out in tool.tool_outputs():
             output_folders = None
@@ -480,15 +527,15 @@ class WorkflowBase(Tool, ABC):
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
 
-                if outnode.output_folder is not None and check_is_valid_selector(
-                    outnode.output_folder, out.id()
-                ):
-                    output_folders = outnode.output_folder
+                if outnode.output_folder is not None:
+                    output_folders = get_transformed_selector(
+                        outnode.output_folder, out.id()
+                    )
 
-                if outnode.output_name is not None and check_is_valid_selector(
-                    outnode.output_name, out.id()
-                ):
-                    output_name = outnode.output_name
+                if outnode.output_name is not None:
+                    output_name = get_transformed_selector(
+                        outnode.output_name, out.id()
+                    )
 
             self.output(
                 op + out.id(),
