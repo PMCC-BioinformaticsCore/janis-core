@@ -66,6 +66,8 @@ from janis_core.operators import (
     MemorySelector,
     CpuSelector,
     StringFormatter,
+    standard,
+    logical,
 )
 
 # Misc
