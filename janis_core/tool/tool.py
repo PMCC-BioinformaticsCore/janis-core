@@ -37,6 +37,12 @@ class TInput(object):
         self.default = default
         self.doc = doc
 
+    def __repr__(self):
+        items = ["{self.id()}", self.intype.id()]
+        if self.default is not None:
+            items.append("default=" + str(self.default))
+        return f"ToolOutput({', '.join(items)})"
+
     def id(self):
         return self.tag
 
@@ -46,6 +52,9 @@ class TOutput(object):
         self.tag = tag
         self.outtype = get_instantiated_type(outtype)
         self.doc: Optional[OutputDocumentation] = doc
+
+    def __repr__(self):
+        return f'ToolOutput("{self.id()}", {self.outtype.id()})'
 
     def id(self):
         return self.tag
