@@ -421,7 +421,7 @@ class AddOperator(TwoValueOperator):
 
     def returntype(self):
         lhs_val: DataType = self.args[0]
-        rhs_val: DataType = self.args[0]
+        rhs_val: DataType = self.args[1]
 
         if isinstance(lhs_val, Selector):
             lhs = get_instantiated_type(lhs_val.returntype())

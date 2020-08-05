@@ -142,6 +142,9 @@ class Operator(Selector, ABC):
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({', '.join(repr(a) for a in self.args)})"
+
 
 class IndexOperator(Operator, ABC):
     def __init__(self, base, index):
@@ -203,6 +206,9 @@ class SingleValueOperator(Operator, ABC):
         internal = self.args[0]
         return f"{self.symbol()}({internal})"
 
+    def __repr__(self):
+        return str(self)
+
     def evaluate(self, inputs):
         result = self.evaluate_arg(self.args[0], inputs)
         return self.apply_to(result)
@@ -250,6 +256,9 @@ class TwoValueOperator(Operator, ABC):
     def __str__(self):
         args = self.args
         return f"({args[0]} {self.symbol()} {args[1]})"
+
+    def __repr__(self):
+        return str(self)
 
 
 class AsStringOperator(SingleValueOperator):
