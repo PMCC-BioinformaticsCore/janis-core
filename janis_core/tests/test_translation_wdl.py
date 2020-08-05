@@ -305,7 +305,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         )
         tr = wdl.translate_command_input(ti)
         self.assertEqual(
-            '~{if (defined(adapter) && length(select_first([adapter])) > 0) then "-a \'" + sep("\' -a  \'", select_first([adapter])) + "\'" else ""}',
+            '~{if (defined(adapter) && length(select_first([adapter])) > 0) then "-a \'" + sep("\' -a \'", select_first([adapter])) + "\'" else ""}',
             tr.get_string(),
         )
 

@@ -1213,7 +1213,10 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     elif isinstance(intype, Array):
 
         separator = tool_input.separator if tool_input.separator is not None else " "
-        should_quote = isinstance(intype.subtype(), (String, File, Directory))
+        should_quote = (
+            isinstance(intype.subtype(), (String, File, Directory))
+            and tool_input.shell_quote is not False
+        )
         condition_for_binding = None
 
         if intype.optional:
@@ -1226,7 +1229,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
         if should_quote:
             if tool_input.prefix_applies_to_all_elements:
-                separator = f"'{separator}{tprefix} '"
+                separator = f"'{separator}{tprefix}'"
             else:
                 separator = f"'{separator}'"
 
