@@ -773,13 +773,17 @@ EOT"""
             )
         elif isinstance(expression, WildcardSelector):
             base_expression = translate_wildcard_selector(expression)
-            if not isinstance(output.output_type, Array):
+            if (
+                not isinstance(output.output_type, Array)
+                and not expression.select_first
+            ):
                 Logger.info(
                     f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
                     f"but the return type was not an array. For WDL, the first element will be used, "
                     f"ie: '{base_expression}[0]'"
                 )
                 base_expression += "[0]"
+
             return base_expression
 
         elif isinstance(expression, InputSelector):
@@ -1866,7 +1870,11 @@ def translate_wildcard_selector(
     if secondary_format:
         wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
 
-    return f'glob("{wildcard}")'
+    gl = f'glob("{wildcard}")'
+    if selector.select_first:
+        gl += "[0]"
+
+    return gl
 
 
 ## HELPER METHODS

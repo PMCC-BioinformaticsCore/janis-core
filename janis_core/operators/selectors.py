@@ -289,8 +289,9 @@ class StepOutputSelector(Selector):
 
 
 class WildcardSelector(Selector):
-    def __init__(self, wildcard):
+    def __init__(self, wildcard, select_first=False):
         self.wildcard = wildcard
+        self.select_first = select_first
 
     def returntype(self):
         return Array(Union[File, Directory])
