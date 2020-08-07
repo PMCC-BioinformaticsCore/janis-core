@@ -92,6 +92,13 @@ class CodeTool(Tool, ABC):
 
     # Other internal methods
 
+    def id(self) -> str:
+        return self.__class__.__name__
+
+    def version(self):
+        #
+        return None
+
     @classmethod
     def type(cls) -> ToolType:
         return ToolType.CodeTool
