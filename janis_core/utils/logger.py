@@ -4,7 +4,7 @@
 import sys
 import os
 from datetime import datetime
-from typing import Optional, TextIO
+from typing import Optional, TextIO, Dict, Tuple
 import traceback
 
 
@@ -94,6 +94,10 @@ class LogLevel:
 class Logger:
     CONSOLE_LEVEL: Optional[int] = LogLevel.INFO
     __TEMP_CONSOLE_LEVEL: Optional[int] = None
+
+    WRITE_LEVELS: Dict[int, Tuple[Optional[str], Optional[TextIO]]] = {}
+
+    # DEPRECATED
     WRITE_LEVEL: Optional[int] = LogLevel.DEBUG
 
     WRITE_LOCATION: Optional[str] = None
@@ -120,28 +124,39 @@ class Logger:
         if Logger.__TEMP_CONSOLE_LEVEL is not None:
             Logger.set_console_level(Logger.__TEMP_CONSOLE_LEVEL)
 
+    # Deprecated
     @staticmethod
     def set_write_level(level: Optional[int]):
+        Logger.WRITE_LEVELS = {[level]: (Logger.WRITE_LOCATION, Logger.__WRITE_POINTER)}
         Logger.WRITE_LEVEL = level
 
     @staticmethod
     def set_write_location(location: str):
-        if Logger.__WRITE_POINTER is not None:
-            Logger.__WRITE_POINTER.close()
+        for p in Logger.WRITE_LEVELS.values():
+            (path, pointer) = p
+            if pointer is not None and not pointer.closed:
+                pointer.close()
 
         if location is None:
-            Logger.WRITE_LOCATION = None
-            Logger.__WRITE_POINTER = None
-            return
-
-        Logger.WRITE_LOCATION = location
-        Logger.__WRITE_POINTER = open(location, "a")
+            Logger.WRITE_LEVELS = {}
+        else:
+            level = Logger.WRITE_LEVEL
+            # legacy
+            Logger.WRITE_LOCATION = location
+            Logger.__WRITE_POINTER = open(location, "a")
+            Logger.WRITE_LEVELS = {level: (location, Logger.__WRITE_POINTER)}
 
     @staticmethod
     def close_file():
-        if Logger.__WRITE_POINTER is not None:
-            Logger.__WRITE_POINTER.close()
-            Logger.__WRITE_POINTER = None
+        nwl = {}
+        for k, p in Logger.WRITE_LEVELS.items():
+            path, pointer = p
+            nwl[k] = (path, None)
+            if pointer is not None and not pointer.closed:
+                pointer.close()
+
+        Logger.WRITE_LEVELS = nwl
+        Logger.__WRITE_POINTER = None
 
     @staticmethod
     def log(message: str, level: int = LogLevel.VERBOSE):
@@ -157,15 +172,13 @@ class Logger:
         #     traceback.print_stack(limit=12)
         #     raise Exception(traceback.extract_stack(limit=5))
 
-        if (
-            Logger.WRITE_LEVEL is not None
-            and level <= Logger.WRITE_LEVEL
-            and Logger.__WRITE_POINTER is not None
-            and not Logger.__WRITE_POINTER.closed
-        ):
-            Logger.__WRITE_POINTER.write(m + "\n")
-            Logger.__WRITE_POINTER.flush()
-            os.fsync(Logger.__WRITE_POINTER.fileno())
+        for loglevel, p in Logger.WRITE_LEVELS.items():
+            pointer = p[1]
+            if level > loglevel or pointer is None or pointer.closed:
+                continue
+            pointer.write(m + "\n")
+            pointer.flush()
+            os.fsync(pointer.fileno())
 
     @staticmethod
     def debug(message: str):
