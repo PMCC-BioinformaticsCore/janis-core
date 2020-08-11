@@ -43,6 +43,9 @@ class ReadContents(Operator):
 
 
 class JoinOperator(Operator):
+    def __init__(self, iterable, separator):
+        super().__init__(iterable, separator)
+
     @staticmethod
     def friendly_signature():
         return "Array[X], String -> String"
@@ -51,7 +54,7 @@ class JoinOperator(Operator):
         return [Array(UnionType(AnyType)), String]
 
     def returntype(self):
-        return String
+        return String()
 
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
