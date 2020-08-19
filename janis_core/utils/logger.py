@@ -127,7 +127,7 @@ class Logger:
     # Deprecated
     @staticmethod
     def set_write_level(level: Optional[int]):
-        Logger.WRITE_LEVELS = {[level]: (Logger.WRITE_LOCATION, Logger.__WRITE_POINTER)}
+        Logger.WRITE_LEVELS = {level: (Logger.WRITE_LOCATION, Logger.__WRITE_POINTER)}
         Logger.WRITE_LEVEL = level
 
     @staticmethod
