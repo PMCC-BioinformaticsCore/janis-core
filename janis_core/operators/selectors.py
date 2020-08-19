@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
+from janis_core.types import get_instantiated_type
+
 from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
 from janis_core.utils import first_value
@@ -174,7 +176,7 @@ class Selector(ABC):
     def basename(self):
         from .standard import BasenameOperator
 
-        outtype = self.returntype()
+        outtype = get_instantiated_type(self.returntype()).received_type()
         if not isinstance(outtype, (File, Directory)):
             raise Exception(
                 "Basename operator can only be applied to steps of File / Directory type, received: "
