@@ -1837,7 +1837,7 @@ def translate_input_selector(
     name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
 
     intype = inp.input_type
-    if selector.use_basename and isinstance(intype, (File, Directory)):
+    if selector.remove_file_extension and isinstance(intype, (File, Directory)):
         if isinstance(intype, File) and intype.extension:
             name = f'basename({name}, "{intype.extension}")'
         else:

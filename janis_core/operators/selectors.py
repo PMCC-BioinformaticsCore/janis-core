@@ -6,6 +6,7 @@ from janis_core.types import get_instantiated_type
 from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
 from janis_core.utils import first_value
+from janis_core.utils.logger import Logger
 
 
 class Selector(ABC):
@@ -195,10 +196,20 @@ SelectorOrValue = Union[Selector, int, str, float]
 
 
 class InputSelector(Selector):
-    def __init__(self, input_to_select, use_basename=None):
+    def __init__(self, input_to_select, remove_file_extension=None, **kwargs):
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
-        self.use_basename = use_basename
+
+        if "use_basename" in kwargs:
+            use_basename = kwargs["use_basename"]
+            if remove_file_extension is None:
+                remove_file_extension = use_basename
+            Logger.warn(
+                f"The 'use_basename' key is deprecated, please use 'remove_file_extension' instead: "
+                f'InputSelector("{self.input_to_select}", remove_file_extension={str(use_basename)})'
+            )
+
+        self.remove_file_extension = remove_file_extension
 
     def returntype(self):
         # Todo: Work out how this can be achieved

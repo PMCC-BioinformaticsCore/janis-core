@@ -1498,7 +1498,7 @@ def translate_input_selector(
     if selector_override and sel in selector_override:
         sel = selector_override[sel]
 
-    basename_extra = ".basename" if selector.use_basename else ""
+    basename_extra = ".basename" if selector.remove_file_extension else ""
     base = f"inputs.{sel}{basename_extra}"
     return base if code_environment else f"$({base})"
 
