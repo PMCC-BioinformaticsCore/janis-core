@@ -385,6 +385,12 @@ class File(DataType):
 
         return f"Value was of type {type(meta)}, expected string (path)"
 
+    def can_receive_from(self, other, source_has_default=False) -> bool:
+        o = get_instantiated_type(other).received_type()
+        if type(self) == File and isinstance(o, File):
+            return True
+        return super().can_receive_from(o)
+
 
 class Directory(DataType):
     def __init__(self, optional=False):
