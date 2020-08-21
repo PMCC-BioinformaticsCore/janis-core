@@ -1010,6 +1010,56 @@ class WorkflowBase(Tool, ABC):
 
         return data
 
+    @staticmethod
+    def get_step_ids_from_selector(selector: Selector) -> Set[str]:
+        if isinstance(selector, StepOutputSelector):
+            return {selector.node.id()}
+        elif isinstance(selector, Operator):
+            from itertools import chain
+
+            return set(
+                chain.from_iterable(
+                    Workflow.get_step_ids_from_selector(s)
+                    for s in selector.get_leaves()
+                )
+            )
+        return set()
+
+    def get_dot_plot(self):
+        from graphviz import Digraph
+
+        dot = Digraph(comment=self.friendly_name())
+
+        add_later: Dict[str, Set[str]] = {}
+
+        for stp in self.step_nodes.values():
+            dot.node(stp.id(), stp.tool.friendly_name())
+            if stp.sources:
+                to_add = set()
+                for srcId, steptaginput in stp.sources.items():
+                    sti: StepTagInput = steptaginput
+                    src = sti.source()
+                    if src is None:
+                        continue
+                    if isinstance(src, list):
+                        for s in src:
+                            to_add.update(Workflow.get_step_ids_from_selector(s.source))
+                    else:
+                        to_add.update(Workflow.get_step_ids_from_selector(src.source))
+
+                if to_add:
+                    if stp.id() in add_later:
+                        add_later[stp.id()].update(to_add)
+                    else:
+                        add_later[stp.id()] = to_add
+
+        for (src, finals) in add_later.items():
+            for f in finals:
+                dot.edge(f, src)
+
+        print(dot.source)
+        dot.render(view=True)
+
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
         if meta:
