@@ -1025,15 +1025,47 @@ class WorkflowBase(Tool, ABC):
             )
         return set()
 
-    def get_dot_plot(self):
+    def get_dot_plot(
+        self,
+        show=True,
+        graph=None,
+        default_base_connection=None,
+        prefix="",
+        render_subworkflows=True,
+        depth=0,
+    ):
         from graphviz import Digraph
 
-        dot = Digraph(comment=self.friendly_name())
+        if graph is None:
+            graph = Digraph(comment=self.friendly_name(), node_attr={"shape": "record"})
 
         add_later: Dict[str, Set[str]] = {}
 
+        pref = f"{prefix}_" if prefix else ""
+
         for stp in self.step_nodes.values():
-            dot.node(stp.id(), stp.tool.friendly_name())
+            tool = stp.tool
+            if render_subworkflows and isinstance(tool, WorkflowBase):
+                subid = pref + stp.id()
+                with graph.subgraph(name="cluster_" + subid) as g:
+                    g.attr(
+                        color=f"grey{(9 - depth) * 10}",
+                        label=f"{tool.friendly_name()} ({subid})",
+                        style="filled",
+                    )
+                    # if prefix:
+                    g.node(subid, shape="Msquare")
+                    tool.get_dot_plot(
+                        show=False,
+                        graph=g,
+                        default_base_connection=subid,
+                        prefix=subid,
+                        depth=depth + 1,
+                    )
+
+            else:
+                graph.node(pref + stp.id(), stp.tool.friendly_name())
+
             if stp.sources:
                 to_add = set()
                 for srcId, steptaginput in stp.sources.items():
@@ -1045,8 +1077,10 @@ class WorkflowBase(Tool, ABC):
                         for s in src:
                             to_add.update(Workflow.get_step_ids_from_selector(s.source))
                     else:
-                        to_add.update(Workflow.get_step_ids_from_selector(src.source))
 
+                        to_add.update(Workflow.get_step_ids_from_selector(src.source))
+                # if len(to_add) == 0 and default_base_connection is not None:
+                #     to_add.add(default_base_connection)
                 if to_add:
                     if stp.id() in add_later:
                         add_later[stp.id()].update(to_add)
@@ -1055,10 +1089,12 @@ class WorkflowBase(Tool, ABC):
 
         for (src, finals) in add_later.items():
             for f in finals:
-                dot.edge(f, src)
+                graph.edge(pref + f, pref + src)
+        if show:
+            print(graph.source)
+            graph.render(view=True)
 
-        print(dot.source)
-        dot.render(view=True)
+        return graph
 
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
