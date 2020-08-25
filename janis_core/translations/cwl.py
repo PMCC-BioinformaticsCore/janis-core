@@ -1692,7 +1692,7 @@ def build_resource_override_maps_for_workflow(
                         id=tool_pre + "runtime_cpu", type="int?"
                     ),
                     cwlgen.CommandInputParameter(
-                        id=tool_pre + "runtime_disks", type="string?"
+                        id=tool_pre + "runtime_disks", type="int?"
                     ),
                     cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_seconds", type="int?"
