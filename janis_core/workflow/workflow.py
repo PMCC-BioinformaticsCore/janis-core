@@ -1122,6 +1122,7 @@ class WorkflowBase(Tool, ABC):
     def get_dot_plot(
         self,
         show=False,
+        log_to_stdout=True,
         expand_subworkflows=False,
         persist_subworkflows=False,
         output_directory: Optional[str] = None
@@ -1150,7 +1151,8 @@ class WorkflowBase(Tool, ABC):
                 graph.render(filename=pb, format="png", view=False)
 
         primary_graph = graphs[self.versioned_id()]
-        print(primary_graph.source)
+        if log_to_stdout:
+            print(primary_graph.source)
         if show:
             primary_graph.render(view=True)
 
