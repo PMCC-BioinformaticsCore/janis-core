@@ -65,7 +65,7 @@ from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import ToolMetadata
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
-CWL_VERSION = "v1.0"
+CWL_VERSION = "v1.2"
 SHEBANG = "#!/usr/bin/env cwl-runner"
 yaml = ruamel.yaml.YAML()
 
@@ -1049,7 +1049,7 @@ def translate_tool_input(
 
 def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineBinding:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandLineBinding
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandLineBinding
 
     :param argument: Tool argument to build command line for
     :return:
@@ -1069,7 +1069,7 @@ def translate_tool_output(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputParameter:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandOutputParameter
 
     :param output:
     :type output: ToolOutput
