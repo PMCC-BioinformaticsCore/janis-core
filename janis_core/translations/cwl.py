@@ -465,7 +465,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 [
                     cwlgen.CommandInputParameter(id="runtime_memory", type="float?"),
                     cwlgen.CommandInputParameter(id="runtime_cpu", type="int?"),
-                    # cwlgen.CommandInputParameter("runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(id="runtime_disks", type="int?"),
+                    cwlgen.CommandInputParameter(id="runtime_seconds", type="int?"),
                 ]
             )
 
