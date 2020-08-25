@@ -86,8 +86,14 @@ class TaggedRegistry(Generic[T]):
             return None
         tagged_objs = self.registry[type_name]
 
+        Logger.debug(
+            f"'{type_name}' has {len(tagged_objs)} versions ({', '.join(tagged_objs.keys())})"
+        )
         if tag is None or tag == self.default_tag:
             if self.default_tag in tagged_objs:
+                Logger.info(
+                    f"Using the default tag for '{type_name}' from {len(tagged_objs)} versions"
+                )
                 return tagged_objs.get(self.default_tag)[0]
             return None
 
