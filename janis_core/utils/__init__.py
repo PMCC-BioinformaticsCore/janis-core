@@ -24,6 +24,27 @@ def get_value_for_hints_and_ordered_resource_tuple(
     return None
 
 
+def fully_qualify_filename(fn):
+    """
+    The theory is, if the user types in a relative path (from the cwd), we should fully qualify this path.
+    We'd also want to resolve `~` / `.` and other operators too.
+    :param fn:
+    :return:
+    """
+    from re import compile
+    import os.path
+
+    uri_prefix = compile("^[A-z0-9]{2,}:\/\/")
+
+    if fn is None:
+        return None
+    if isinstance(fn, list):
+        return [fully_qualify_filename(f) for f in fn]
+    if uri_prefix.match(fn):
+        return fn
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(fn)))
+
+
 def zip_directory(parent_dir, dir_name):
     import subprocess
     from .logger import Logger

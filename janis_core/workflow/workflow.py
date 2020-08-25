@@ -33,7 +33,7 @@ from janis_core.types import (
     Filename,
 )
 from janis_core.types.data_types import is_python_primitive
-from janis_core.utils import first_value
+from janis_core.utils import first_value, fully_qualify_filename
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -936,6 +936,17 @@ class WorkflowBase(Tool, ABC):
                 tools[tl.id()] = tl
         return tools
 
+    def get_subworkflows(self):
+        tools: Dict[str, WorkflowBase] = {}
+        for t in self.step_nodes.values():
+            tl = t.tool
+            if not isinstance(tl, WorkflowBase):
+                continue
+            tools[self.versioned_id()] = self
+            tools.update(tl.get_subworkflows())
+
+        return tools
+
     def containers(self) -> Dict[str, str]:
         tools: Dict[str, str] = {}
         for t in self.step_nodes.values():
@@ -1009,6 +1020,143 @@ class WorkflowBase(Tool, ABC):
                     writer.writerow(row)
 
         return data
+
+    @staticmethod
+    def get_step_ids_from_selector(selector: Selector) -> Set[str]:
+        if isinstance(selector, StepOutputSelector):
+            return {selector.node.id()}
+        elif isinstance(selector, Operator):
+            from itertools import chain
+
+            return set(
+                chain.from_iterable(
+                    Workflow.get_step_ids_from_selector(s)
+                    for s in selector.get_leaves()
+                )
+            )
+        return set()
+
+    @staticmethod
+    def get_dot_plot_internal(
+        tool,
+        graph: Optional = None,
+        default_base_connection=None,
+        prefix="",
+        expand_subworkflows=True,
+        depth=0,
+    ):
+
+        if graph is None:
+            from graphviz import Digraph
+
+            graph = Digraph(
+                name=tool.id(),
+                comment=tool.friendly_name(),
+                node_attr={"shape": "record"},
+            )
+
+        add_later: Dict[str, Set[str]] = {}
+
+        pref = f"{prefix}_" if prefix else ""
+
+        for stp in tool.step_nodes.values():
+            tool = stp.tool
+
+            fn = stp.id()
+            if tool.friendly_name():
+                fn += f" ({tool.friendly_name()})"
+            elif stp.doc and stp.doc.doc:
+                fn += f" ({stp.doc.doc})"
+            is_subworkflow = isinstance(tool, WorkflowBase)
+            if expand_subworkflows and is_subworkflow:
+                subid = pref + stp.id()
+                bgcolor = f"grey{(9 - depth) * 10}"
+                with graph.subgraph(name="cluster_" + subid, comment=stp.doc.doc) as g:
+                    g.attr(bgcolor, label=fn, style="filled")
+                    # if prefix:
+                    g.node(subid, shape="Msquare")
+                    WorkflowBase.get_dot_plot_internal(
+                        tool=tool,
+                        graph=g,
+                        default_base_connection=subid,
+                        prefix=subid,
+                        depth=depth + 1,
+                    )
+
+            else:
+                bgcolor = "grey80" if is_subworkflow else None
+                graph.node(
+                    pref + stp.id(),
+                    fn,
+                    style="filled" if is_subworkflow else None,
+                    color=bgcolor,
+                )
+
+            if stp.sources:
+                to_add = set()
+                for srcId, steptaginput in stp.sources.items():
+                    sti: StepTagInput = steptaginput
+                    src = sti.source()
+                    if src is None:
+                        continue
+                    if isinstance(src, list):
+                        for s in src:
+                            to_add.update(Workflow.get_step_ids_from_selector(s.source))
+                    else:
+
+                        to_add.update(Workflow.get_step_ids_from_selector(src.source))
+                # if len(to_add) == 0 and default_base_connection is not None:
+                #     to_add.add(default_base_connection)
+                if to_add:
+                    if stp.id() in add_later:
+                        add_later[stp.id()].update(to_add)
+                    else:
+                        add_later[stp.id()] = to_add
+
+        for (src, finals) in add_later.items():
+            for f in finals:
+                graph.edge(pref + f, pref + src)
+
+        return graph
+
+    def get_dot_plot(
+        self,
+        show=False,
+        log_to_stdout=True,
+        expand_subworkflows=False,
+        persist_subworkflows=False,
+        output_directory: Optional[str] = None
+        # these options are primarily for the recu
+    ):
+
+        tools = [self]
+        if persist_subworkflows:
+            tools = [self] + [t for t in self.get_subworkflows().values()]
+
+        Logger.info(f"Generating graphs for {len(tools)} workflows")
+        if output_directory:
+            output_directory = fully_qualify_filename(output_directory)
+            Logger.info(f"Persisting to '{output_directory}'")
+
+        graphs = {}
+        for tool in tools:
+            graph = self.get_dot_plot_internal(
+                tool, expand_subworkflows=expand_subworkflows
+            )
+            graphs[tool.versioned_id()] = graph
+
+            if output_directory:
+                pb = os.path.join(output_directory, tool.versioned_id()) + ".dot"
+                Logger.debug(f"Outputting workflow to '{pb}'")
+                graph.render(filename=pb, format="png", view=False)
+
+        primary_graph = graphs[self.versioned_id()]
+        if log_to_stdout:
+            print(primary_graph.source)
+        if show:
+            primary_graph.render(view=True)
+
+        return graphs
 
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
