@@ -4,7 +4,7 @@
 from inspect import isclass
 from typing import Union, Type, Dict, Any, Optional, List
 
-import cwl_utils.parser_v1_0 as cwlgen
+import cwl_utils.parser_v1_2 as cwlgen
 import wdlgen
 
 from janis_core.types.data_types import DataType, NativeTypes, NativeType, ParseableType

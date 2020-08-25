@@ -16,7 +16,7 @@ from janis_core.tests.testtools import (
     OperatorResourcesTestTool,
 )
 
-import cwl_utils.parser_v1_0 as cwlgen
+import cwl_utils.parser_v1_2 as cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (

@@ -14,7 +14,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
-import cwl_utils.parser_v1_0 as cwlgen
+import cwl_utils.parser_v1_2 as cwlgen
 from wdlgen import WdlType
 
 from janis_core.utils import is_array_prefix

@@ -24,7 +24,7 @@ from io import StringIO
 from typing import List, Dict, Optional, Tuple
 from typing import Union
 
-import cwl_utils.parser_v1_0 as cwlgen
+import cwl_utils.parser_v1_2 as cwlgen
 import ruamel.yaml
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
@@ -905,7 +905,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     if isinstance(dt, Array):
         sf = dt.subtype().secondary_files()
 
-    return cwlgen.InputParameter(
+    return cwlgen.WorkflowInputParameter(
         id=inp.id(),
         default=default,
         secondaryFiles=sf,
@@ -1619,11 +1619,13 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.InputParameter(
+                    cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_memory", type="float?"
                     ),
-                    cwlgen.InputParameter(id=tool_pre + "runtime_cpu", type="int?"),
-                    # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_cpu", type="int?"
+                    ),
+                    # cwlgen.CommandInputParameter(tool_pre + "runtime_disks", type="string?"),
                 ]
             )
         elif tool.type() == ToolType.Workflow:
