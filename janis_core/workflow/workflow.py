@@ -1049,7 +1049,11 @@ class WorkflowBase(Tool, ABC):
         if graph is None:
             from graphviz import Digraph
 
-            graph = Digraph(comment=tool.friendly_name(), node_attr={"shape": "record"})
+            graph = Digraph(
+                name=tool.id(),
+                comment=tool.friendly_name(),
+                node_attr={"shape": "record"},
+            )
 
         add_later: Dict[str, Set[str]] = {}
 
@@ -1057,14 +1061,18 @@ class WorkflowBase(Tool, ABC):
 
         for stp in tool.step_nodes.values():
             tool = stp.tool
-            if expand_subworkflows and isinstance(tool, WorkflowBase):
+
+            fn = stp.id()
+            if tool.friendly_name():
+                fn += f" ({tool.friendly_name()})"
+            elif stp.doc and stp.doc.doc:
+                fn += f" ({stp.doc.doc})"
+            is_subworkflow = isinstance(tool, WorkflowBase)
+            if expand_subworkflows and is_subworkflow:
                 subid = pref + stp.id()
-                with graph.subgraph(name="cluster_" + subid) as g:
-                    g.attr(
-                        color=f"grey{(9 - depth) * 10}",
-                        label=f"{tool.friendly_name()} ({subid})",
-                        style="filled",
-                    )
+                bgcolor = f"grey{(9 - depth) * 10}"
+                with graph.subgraph(name="cluster_" + subid, comment=stp.doc.doc) as g:
+                    g.attr(bgcolor, label=fn, style="filled")
                     # if prefix:
                     g.node(subid, shape="Msquare")
                     WorkflowBase.get_dot_plot_internal(
@@ -1076,7 +1084,13 @@ class WorkflowBase(Tool, ABC):
                     )
 
             else:
-                graph.node(pref + stp.id(), stp.tool.friendly_name())
+                bgcolor = "grey80" if is_subworkflow else None
+                graph.node(
+                    pref + stp.id(),
+                    fn,
+                    style="filled" if is_subworkflow else None,
+                    color=bgcolor,
+                )
 
             if stp.sources:
                 to_add = set()
