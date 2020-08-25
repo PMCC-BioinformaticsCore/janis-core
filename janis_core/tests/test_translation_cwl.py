@@ -790,6 +790,28 @@ class TestCWLNotNullOperator(unittest.TestCase):
         print(cwltool)
 
 
+class TestCWLWhen(unittest.TestCase):
+    def test_basic(self):
+        w = WorkflowBuilder("my_conditional_workflow")
+
+        w.input("inp", String(optional=True))
+
+        w.step(
+            "print_if_has_value",
+            TestTool(testtool=w.inp),
+            # only print if the input "inp" is defined.
+            when=IsDefined(w.inp),
+        )
+
+        w.output("out", source=w.print_if_has_value)
+
+        c = cwl.translate_step_node(w.print_if_has_value)
+
+        self.assertEqual("$((inputs.__when_inp != null))", c.when)
+        extra_input: cwlgen.WorkflowStepInput = c.in_[-1]
+        self.assertEqual("__when_inp", extra_input.id)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool

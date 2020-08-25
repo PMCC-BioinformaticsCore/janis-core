@@ -1297,20 +1297,67 @@ def get_run_ref_from_subtool(
             )
 
 
+def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Selector):
+    prepare_alias = lambda x: f"__when_{re.sub('[^0-9a-zA-Z]+', '', x)}"
+
+    # two step process
+    #   1. Look through and find ALL sources includng an operator's leaves
+    #           Ensure these are connected using the alias
+    #   2. Go through sources again, build up the expression
+
+    param_aliasing = {}
+    # Use a dict to ensure we don't double add inputs
+    ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
+
+    processed_sources = []
+
+    src = when
+    if isinstance(src, InputNodeSelector) and isinstance(
+        src.input_node.default, Selector
+    ):
+        src = If(IsDefined(src), src, src.input_node.default)
+
+    processed_sources.append(src)
+
+    if isinstance(src, Operator):
+        # we'll need to get the leaves and do extra mappings
+        for leaf in src.get_leaves():
+            if not isinstance(leaf, Selector):
+                # probably a python literal
+                continue
+            sel = CwlTranslator.unwrap_selector_for_reference(leaf)
+            alias = prepare_alias(sel)
+            param_aliasing[sel] = alias
+            ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+    else:
+        sel = CwlTranslator.unwrap_selector_for_reference(src)
+        alias = prepare_alias(sel)
+        param_aliasing[sel] = alias
+        ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+
+    stp.in_.extend(ins_to_connect.values())
+
+    # 2. Again
+
+    valuefrom = CwlTranslator.unwrap_expression(
+        src,
+        code_environment=False,
+        selector_override=param_aliasing,
+        step=stp.id,
+        expression_context="when",
+    )
+
+    stp.when = valuefrom
+
+
 def translate_step_node(
     step: StepNode,
     is_nested_tool=False,
-    resource_overrides=Dict[str, str],
+    resource_overrides: Dict[str, str] = None,
     use_run_ref=True,
     allow_empty_container=False,
     container_override=None,
 ) -> cwlgen.WorkflowStep:
-
-    if step.when is not None:
-        Logger.warn(
-            f"Janis has not implemented conditionals in CWL. Please see GitHub for more information. "
-            f"Skipping the condition for step '{step.id()}' when calling '{step.tool.id()}'"
-        )
 
     tool = step.tool
 
@@ -1486,8 +1533,14 @@ def translate_step_node(
 
         cwlstep.in_.append(d)
 
-    for r in resource_overrides:
-        cwlstep.in_.append(cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r]))
+    if resource_overrides:
+        for r in resource_overrides:
+            cwlstep.in_.append(
+                cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r])
+            )
+
+    if step.when is not None:
+        add_when_conditional_for_workflow_stp(cwlstep, step.when)
 
     return cwlstep
 
