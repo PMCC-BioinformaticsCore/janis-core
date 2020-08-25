@@ -370,12 +370,25 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             outputs=[],
             arguments=[],
             requirements=[],
+            hints=[],
         )
 
         # if any(not i.shell_quote for i in tool.inputs()):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptRequirement()])
+        ops = [InputSelector("runtime_seconds")]
+        tooltime = tool.time({})
+        if tooltime is not None:
+            ops.append(tooltime)
+        ops.append(86400)
+        tool_cwl.hints.append(
+            cwlgen.ToolTimeLimit(
+                timelimit=CwlTranslator.unwrap_expression(
+                    FirstOperator(ops), code_environment=False, tool_id=tool.id()
+                )
+            )
+        )
 
         envs = tool.env_vars()
         if envs:
@@ -1625,7 +1638,12 @@ def build_resource_override_maps_for_workflow(
                     cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_cpu", type="int?"
                     ),
-                    # cwlgen.CommandInputParameter(tool_pre + "runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_disks", type="string?"
+                    ),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_seconds", type="int?"
+                    ),
                 ]
             )
         elif tool.type() == ToolType.Workflow:

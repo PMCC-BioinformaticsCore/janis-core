@@ -828,6 +828,11 @@ baseCommand: echo
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters"
+
+hints:
+- class: ToolTimeLimit
+  timelimit: |-
+    $([inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0])
 id: TestTranslationtool
 """
 
