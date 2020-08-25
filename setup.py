@@ -58,6 +58,7 @@ setup(
         "path",
         "cwlformat >= 2020.5.19",
         "cwl-utils >= 0.6",
+        "graphviz",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,
