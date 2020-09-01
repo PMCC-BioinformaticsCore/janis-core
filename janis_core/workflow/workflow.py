@@ -522,8 +522,10 @@ class WorkflowBase(Tool, ABC):
         for out in tool.tool_outputs():
             output_folders = None
             output_name = None
+            ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
+                ext = outnode.extension
 
                 if outnode.output_folder is not None:
                     output_folders = get_transformed_selector(
@@ -540,6 +542,7 @@ class WorkflowBase(Tool, ABC):
                 source=step[out.id()],
                 output_name=output_name,
                 output_folder=output_folders or [],
+                extension=ext,
             )
 
     def all_input_keys(self):
