@@ -357,7 +357,7 @@ class WorkflowBase(Tool, ABC):
             List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
         ] = None,
         output_folder: Union[str, Selector, List[Union[str, Selector]]] = None,
-        output_name: Union[str, Selector, ConnectionSource] = None,
+        output_name: Union[bool, str, Selector, ConnectionSource] = True,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):
@@ -367,13 +367,20 @@ class WorkflowBase(Tool, ABC):
         :param identifier: The identifier for the output
         :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
         :param source: The source of the output, must be an output to a step node
-        :param output_folder: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
-        a structure of nested directories, the first element being the root directory.
-        At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
-        scattered source, and the number of elements is equal.
-        :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
-        resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
-        may result in an unexpected termination.
+        :param output_folder: Decides the output folder(s) where the output will reside. If a list is passed, it
+        represents a structure of nested directories, the first element being the root directory.
+            - None (default): the assistant will copy to the root of the output directory
+            - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+        NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+            also resolves to an array, which the assistant can unwrap multiple dimensions of arrays ONLY if the number
+            of elements in the output_scattered source and the number of resolved elements is equal.
+
+        :param output_name: Decides the name of the output (without extension) that an output will have:
+            - True (default): the assistant will choose an output name based on output identifier (tag),
+            - False: the assistant will use the original filename (this might cause filename conflicts)
+            - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+        NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+            also resolves to an array, which the assistant can unwrap multiple dimensions of arrays.
         :return:
         """
         self.verify_identifier(identifier, repr(datatype))
@@ -565,8 +572,9 @@ class WorkflowBase(Tool, ABC):
     ):
         if isinstance(out, list):
             return [self.verify_output_source_type(identifier, o, outtype) for o in out]
-
-        if isinstance(out, (str, bool, float, int)):
+        if isinstance(out, bool):
+            return out
+        if isinstance(out, (str, float, int)):
             return str(out)
 
         if isinstance(out, tuple):
@@ -1075,7 +1083,7 @@ class WorkflowBase(Tool, ABC):
                 subid = pref + stp.id()
                 bgcolor = f"grey{(9 - depth) * 10}"
                 with graph.subgraph(name="cluster_" + subid, comment=stp.doc.doc) as g:
-                    g.attr(bgcolor, label=fn, style="filled")
+                    g.attr(color=bgcolor, label=fn, style="filled")
                     # if prefix:
                     g.node(subid, shape="Msquare")
                     WorkflowBase.get_dot_plot_internal(
