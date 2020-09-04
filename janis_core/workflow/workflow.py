@@ -368,20 +368,22 @@ class WorkflowBase(Tool, ABC):
         :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
         :param source: The source of the output, must be an output to a step node
         :param output_folder: Decides the output folder(s) where the output will reside. If a list is passed, it
-        represents a structure of nested directories, the first element being the root directory.
-            - None (default): the assistant will copy to the root of the output directory
-            - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
-        NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+            represents a structure of nested directories, the first element being the root directory.
+                - None (default): the assistant will copy to the root of the output directory
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
             also resolves to an array, which the assistant can unwrap multiple dimensions of arrays ONLY if the number
             of elements in the output_scattered source and the number of resolved elements is equal.
 
         :param output_name: Decides the name of the output (without extension) that an output will have:
-            - True (default): the assistant will choose an output name based on output identifier (tag),
-            - False: the assistant will use the original filename (this might cause filename conflicts)
-            - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
-        NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
-            also resolves to an array, which the assistant can unwrap multiple dimensions of arrays.
-        :return:
+                - True (default): the assistant will choose an output name based on output identifier (tag),
+                - None / False: the assistant will use the original filename (this might cause filename conflicts)
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+                also resolves to an array, which the assistant can unwrap multiple dimensions of arrays.
+        :param extension: The extension to use if janis renames the output. By default, it will pull the extension
+            from the inherited data type (eg: CSV -> ".csv"), or it will attempt to pull the extension from the file.
+        :return: janis.WorkflowOutputNode
         """
         self.verify_identifier(identifier, repr(datatype))
 
@@ -627,7 +629,7 @@ class WorkflowBase(Tool, ABC):
         :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
         :param when: An operator / condition that determines whether the step should run
-        : type when: Optional[Operator]
+        :type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
         """
