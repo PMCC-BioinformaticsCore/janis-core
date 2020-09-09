@@ -244,6 +244,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
 
         ad = additional_inputs or {}
@@ -269,7 +270,11 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         if merge_resources:
             for k, v in cls.build_resources_input(
-                tool, hints, max_cores, max_mem
+                tool,
+                hints,
+                max_cores=max_cores,
+                max_mem=max_mem,
+                max_duration=max_duration,
             ).items():
                 inp[k] = ad.get(k, v)
 

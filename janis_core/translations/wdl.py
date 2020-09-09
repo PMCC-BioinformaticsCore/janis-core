@@ -1022,6 +1022,7 @@ EOT"""
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
         """
         Recursive is currently unused, but eventually input overrides could be generated the whole way down
@@ -1077,7 +1078,13 @@ EOT"""
         if merge_resources:
             inp.update(
                 cls.build_resources_input(
-                    tool, hints, max_cores, max_mem, inputs=ad, is_root=True
+                    tool,
+                    hints,
+                    max_cores=max_cores,
+                    max_mem=max_mem,
+                    max_duration=max_duration,
+                    inputs=ad,
+                    is_root=True,
                 )
             )
 
@@ -1090,6 +1097,7 @@ EOT"""
         hints,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         inputs=None,
         prefix=None,
         is_root=False,
@@ -1102,6 +1110,7 @@ EOT"""
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
             prefix=prefix or "",
             inputs=inputs,
         )

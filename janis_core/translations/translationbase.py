@@ -113,6 +113,7 @@ class TranslatorBase(ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         with_container=True,
         allow_empty_container=False,
         container_override=None,
@@ -154,6 +155,7 @@ class TranslatorBase(ABC):
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
         )
         tr_res = self.build_resources_input(tool, hints)
 
@@ -422,6 +424,7 @@ class TranslatorBase(ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
 
         ad = additional_inputs or {}
@@ -444,7 +447,11 @@ class TranslatorBase(ABC):
 
         if merge_resources:
             for k, v in cls.build_resources_input(
-                tool, hints, max_cores, max_mem
+                tool,
+                hints,
+                max_cores=max_cores,
+                max_mem=max_mem,
+                max_duration=max_duration,
             ).items():
                 inp[k] = ad.get(k, v)
 
@@ -452,7 +459,14 @@ class TranslatorBase(ABC):
 
     @classmethod
     def build_resources_input(
-        cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
+        cls,
+        tool,
+        hints,
+        max_cores=None,
+        max_mem=None,
+        max_duration=None,
+        inputs=None,
+        prefix="",
     ):
 
         inputs = inputs or {}
@@ -475,6 +489,14 @@ class TranslatorBase(ABC):
                     "this was dropped to the new maximum"
                 )
                 mem = max_mem
+
+            if seconds and max_duration and seconds > max_duration:
+                Logger.info(
+                    f"Tool '{tool.tool()}' exceeded ({seconds} secs) max duration in seconds ({max_duration} secs), "
+                    "this was dropped to the new maximum"
+                )
+                seconds = max_duration
+
             return {
                 prefix + "runtime_memory": mem,
                 prefix + "runtime_cpu": cpus,
@@ -490,6 +512,7 @@ class TranslatorBase(ABC):
                     hints=hints,
                     max_cores=max_cores,
                     max_mem=max_mem,
+                    max_duration=max_duration,
                     prefix=prefix + s.id() + "_",
                     inputs=inputs,
                 )
