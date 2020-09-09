@@ -7,6 +7,7 @@ from janis_core.tool.documentation import (
     OutputDocumentation,
     InputQualityType,
 )
+from janis_core.tool.toolevaluation import ToolEvaluation
 from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
@@ -184,6 +185,7 @@ class Tool(ABC, object):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override=None,
+        to_console=True,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")
 
@@ -244,3 +246,28 @@ INPUTS:
 OUTPUTS:
 {outputs}
 """
+
+    def evaluate(self) -> ToolEvaluation:
+        meta: Metadata = self.bind_metadata() or self.metadata
+
+        has_friendly_name = bool(self.friendly_name())
+        has_contributors = meta.contributors is not None and len(meta.contributors) > 0
+
+        try:
+            _ = self.translate("cwl", to_console=False)
+            can_translate_to_cwl = True
+        except Exception as e:
+            can_translate_to_cwl = repr(e)
+
+        try:
+            _ = self.translate("wdl", to_console=False)
+            can_translate_to_wdl = True
+        except Exception as e:
+            can_translate_to_wdl = repr(e)
+
+        return ToolEvaluation(
+            can_translate_to_cwl=can_translate_to_cwl,
+            can_translate_to_wdl=can_translate_to_wdl,
+            has_friendly_name=has_friendly_name,
+            has_contributors=has_contributors,
+        )
