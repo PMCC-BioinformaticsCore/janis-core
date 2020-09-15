@@ -1407,3 +1407,34 @@ class TestWDLNotNullOperator(unittest.TestCase):
             .strip()
         )
         self.assertEqual("String out = select_first([inp])", wdltool)
+
+
+class TestWdlWildcardSelector(unittest.TestCase):
+    def test_regular_wildcard_selector(self):
+        out = ToolOutput("out", Array(File), selector=WildcardSelector("*.txt"))
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('Array[File] out = glob("*.txt")', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single(self):
+        out = ToolOutput(
+            "out", File, selector=WildcardSelector("*.txt", select_first=True)
+        )
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('File out = glob("*.txt")[0]', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single_warning(self):
+        out = ToolOutput("out", File, selector=WildcardSelector("*.txt"))
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('File out = glob("*.txt")[0]', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single_optional(self):
+        out = ToolOutput(
+            "out",
+            File(optional=True),
+            selector=WildcardSelector("*.txt", select_first=True),
+        )
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual(
+            'File? out = if length(glob("*.txt")) > 0 then glob("*.txt")[0] else None',
+            translated_out.get_string(),
+        )

@@ -250,6 +250,14 @@ class ToolOutput:
     def id(self):
         return self.tag
 
+    def __repr__(self):
+        attrs = ", ".join(
+            f"{k}={repr(v)}"
+            for k, v in self.__dict__.items()
+            if not k.startswith("_") and not callable(v) and v is not None
+        )
+        return f"{self.__class__.__name__}({attrs})"
+
 
 class CommandTool(Tool, ABC):
     """

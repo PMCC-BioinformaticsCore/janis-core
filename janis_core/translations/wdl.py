@@ -772,17 +772,24 @@ EOT"""
                 **debugkwargs,
             )
         elif isinstance(expression, WildcardSelector):
-            base_expression = translate_wildcard_selector(expression)
-            if (
-                not isinstance(output.output_type, Array)
-                and not expression.select_first
-            ):
-                Logger.info(
-                    f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
-                    f"but the return type was not an array. For WDL, the first element will be used, "
-                    f"ie: '{base_expression}[0]'"
-                )
-                base_expression += "[0]"
+            is_single = not isinstance(output.output_type, Array)
+            select_first = None
+            is_single_optional = None
+            if is_single:
+                is_single_optional = output.output_type.optional
+                if not expression.select_first:
+                    Logger.info(
+                        f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
+                        f"but the return type was not an array. For WDL, the first element will be used, "
+                        f"ie: 'glob(\"{expression.wildcard}\")[0]'"
+                    )
+                    select_first = True
+
+            base_expression = translate_wildcard_selector(
+                expression,
+                override_select_first=select_first,
+                is_optional=is_single_optional,
+            )
 
             return base_expression
 
@@ -896,12 +903,23 @@ EOT"""
         ):
             if isinstance(original_expression, WildcardSelector):
                 # do custom override for wildcard selector
+                is_single = not isinstance(out.output_type, Array)
+                select_first = None
+                is_single_optional = None
+                if is_single and not original_expression.select_first:
+                    select_first = True
+                    is_single_optional = out.output_type.optional
                 ftype = out.output_type.subtype().wdl()
                 return [
                     wdl.Output(
                         ftype,
                         get_secondary_tag_from_original_tag(out.id(), s),
-                        translate_wildcard_selector(original_expression, s),
+                        translate_wildcard_selector(
+                            original_expression,
+                            secondary_format=s,
+                            override_select_first=select_first,
+                            is_optional=is_single_optional,
+                        ),
                     )
                     for s in out.output_type.subtype().secondary_files()
                 ]
@@ -1871,7 +1889,10 @@ def translate_input_selector(
 
 
 def translate_wildcard_selector(
-    selector: WildcardSelector, secondary_format: Optional[str] = None
+    selector: WildcardSelector,
+    secondary_format: Optional[str] = None,
+    override_select_first: Optional[bool] = None,
+    is_optional: Optional[bool] = None,
 ):
     if not selector.wildcard:
         raise Exception(
@@ -1883,8 +1904,11 @@ def translate_wildcard_selector(
         wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
 
     gl = f'glob("{wildcard}")'
-    if selector.select_first:
-        gl += "[0]"
+    if selector.select_first or override_select_first:
+        if is_optional:
+            gl = f"if length({gl}) > 0 then {gl}[0] else None"
+        else:
+            gl += "[0]"
 
     return gl
 
