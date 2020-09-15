@@ -1240,9 +1240,10 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
     if isinstance(intype, Boolean):
         if tool_input.prefix:
-            condition = f"(defined({expr}) and ({expr}))"
             if tool_input.default is not None:
-                condition = f"~{{{expr}}}"
+                condition = expr
+            else:
+                condition = f"(defined({expr}) && select_first([{expr}]))"
             expr = f'~{{if {condition} then "{tprefix}" else ""}}'
     elif isinstance(intype, Array):
 
