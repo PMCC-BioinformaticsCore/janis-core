@@ -201,5 +201,14 @@ class Logger:
         Logger.critical(repr(ex))
 
     @staticmethod
+    def guess_log(message: str, default_level=LogLevel.WARNING):
+        if message.startswith("DEBUG"):
+            Logger.debug(message[min(len(message) - 1, 6) :])
+        elif message.startswith("INFO"):
+            Logger.info(message[min(len(message) - 1, 5) :])
+        else:
+            Logger.log(message, level=default_level)
+
+    @staticmethod
     def get_prefix(level: int):
         return f"{datetime.now().replace(microsecond=0).isoformat()} [{LogLevel.get_str(level)}]"
