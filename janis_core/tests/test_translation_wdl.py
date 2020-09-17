@@ -646,7 +646,12 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             resp.get_string(),
         )
 
-    def test_bind_boolean_as_default(self):
+    def test_bind_boolean(self):
+        ti = ToolInput("tag", Boolean, prefix="--amazing", default=True)
+        resp = wdl.translate_command_input(ti).get_string()
+        self.assertEqual('~{if tag then "--amazing" else ""}', resp)
+
+    def test_bind_optional_oolean_as_default(self):
         ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing", default=True)
         resp = wdl.translate_command_input(ti).get_string()
         self.assertEqual(

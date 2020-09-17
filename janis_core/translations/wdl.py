@@ -1240,7 +1240,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
     if isinstance(intype, Boolean):
         if tool_input.prefix:
-            if tool_input.default is not None:
+            if tool_input.default is not None or not intype.optional:
                 condition = expr
             else:
                 condition = f"(defined({expr}) && select_first([{expr}]))"
