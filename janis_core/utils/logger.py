@@ -206,6 +206,11 @@ class Logger:
             Logger.debug(message[min(len(message) - 1, 6) :])
         elif message.startswith("INFO"):
             Logger.info(message[min(len(message) - 1, 5) :])
+        elif message.startswith("WARNING"):
+            Logger.warn(message[min(len(message) - 1), 8:])
+        elif message.startswith("CRITICAL"):
+            Logger.critical(message[min(len(message) - 9), 6:])
+
         else:
             Logger.log(message, level=default_level)
 
