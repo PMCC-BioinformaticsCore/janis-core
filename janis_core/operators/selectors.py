@@ -169,6 +169,11 @@ class Selector(ABC):
 
         return OrOperator(self, other)
 
+    def contents(self):
+        from janis_core.operators.standard import ReadContents
+
+        return ReadContents(self)
+
     def __getitem__(self, item):
         from janis_core.operators.operator import IndexOperator
 
