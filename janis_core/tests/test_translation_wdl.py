@@ -90,7 +90,7 @@ class TestToolWithSecondaryOutput(TestTool):
             ToolOutput(
                 "out",
                 TestTypeWithNonEscapedSecondary(),
-                glob=InputSelector("testtool") + "/out",
+                selector=InputSelector("testtool") + "/out",
             )
         ]
 
@@ -540,6 +540,20 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         self.assertEqual("out_txt", os[1].name)
         self.assertEqual('(testtool + "/out") + ".txt"', os[1].expression)
+
+    def test_optional_tool_output_with_secondary(self):
+        tool = TestToolWithSecondaryOutput()
+        toolout = ToolOutput(
+            "out",
+            TestTypeWithNonEscapedSecondary(optional=True),
+            selector=InputSelector("testtool"),
+        )
+        inmap = {t.id(): t for t in tool.inputs()}
+        os = WdlTranslator.translate_tool_outputs([toolout], inmap, tool=tool)
+        self.assertEqual(
+            'File? out_txt = if defined(testtool) then (testtool + ".txt") else None',
+            os[1].get_string(),
+        )
 
 
 class TestWdlToolInputGeneration(unittest.TestCase):

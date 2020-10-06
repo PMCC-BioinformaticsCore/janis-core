@@ -956,6 +956,11 @@ EOT"""
                         f"This could be resolved by ensuring the definition for '{ot.__class__.__name__}' contains an extension."
                     )
 
+                if ot.optional:
+                    exp = [
+                        f"if defined({expression}) then ({e}) else None" for e in exp
+                    ]
+
                 outs.append(wdl.Output(ftype, tag, exp if islist else exp[0]))
 
         return outs
