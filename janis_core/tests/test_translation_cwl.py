@@ -34,7 +34,7 @@ from janis_core import (
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
-from janis_core.types import CpuSelector, MemorySelector, Stdout
+from janis_core.types import CpuSelector, MemorySelector, Stdout, UnionType, File
 from janis_core.workflow.workflow import InputNode
 
 
@@ -788,6 +788,18 @@ class TestCWLNotNullOperator(unittest.TestCase):
 
         cwltool = t.translate("cwl", allow_empty_container=True, to_console=False)
         print(cwltool)
+
+
+class TestCwlUnionType(unittest.TestCase):
+    def test_file_file(self):
+        utype = UnionType(File, File)
+        cwl_utype = utype.cwl_type()
+        self.assertEqual("File", cwl_utype)
+
+    def test_file_int_str(self):
+        utype = UnionType(int, File, File, str)
+        cwl_utype = sorted(utype.cwl_type())
+        self.assertListEqual(["File", "int", "string"], cwl_utype)
 
 
 cwl_testtool = """\
