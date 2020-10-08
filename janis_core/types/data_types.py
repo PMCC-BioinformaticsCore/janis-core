@@ -257,7 +257,9 @@ class DataType(ABC):
     def _question_mark_if_optional(self, has_default: bool = False):
         return "?" if self.optional or has_default else ""
 
-    def cwl_type(self, has_default=False):
+    def cwl_type(
+        self, has_default=False
+    ) -> Union[str, cwlgen.Type, List[Union[str, cwlgen.Type]]]:
         tp = NativeTypes.map_to_cwl(self.primitive())
         return (
             [tp, "null"] if self.optional and not has_default else tp

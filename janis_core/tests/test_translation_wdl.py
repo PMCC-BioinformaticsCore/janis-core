@@ -2,6 +2,7 @@ import unittest
 from typing import Optional
 
 import wdlgen
+from janis_core.types import UnionType
 
 import janis_core.translations.wdl as wdl
 from janis_core import (
@@ -1464,3 +1465,22 @@ class TestWdlWildcardSelector(unittest.TestCase):
             'File? out = if length(glob("*.txt")) > 0 then glob("*.txt")[0] else None',
             translated_out.get_string(),
         )
+
+
+class TestUnionType(unittest.TestCase):
+    def test_lots_of_files(self):
+        class TextFile(File):
+            def name(self):
+                return "TextFile"
+
+        uniontype = UnionType(File, TextFile)
+        self.assertEqual("File", uniontype.wdl().get_string())
+
+    def test_file_int_fail(self):
+        uniontype = UnionType(File, int)
+        self.assertRaises(Exception, uniontype.wdl)
+
+    def test_samtools_view(self):
+        from janis_bioinformatics.tools.samtools import SamToolsView_1_9
+
+        SamToolsView_1_9().translate("wdl")

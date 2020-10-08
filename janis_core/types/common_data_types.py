@@ -6,7 +6,10 @@ from typing import Dict, Any, Set
 
 import cwl_utils.parser_v1_0 as cwlgen
 import wdlgen
+from wdlgen import WdlType
 
+from janis_core.utils.logger import Logger
+from janis_core.__meta__ import GITHUB_URL
 from janis_core.types.data_types import DataType, NativeTypes, NativeType, ParseableType
 from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
@@ -17,18 +20,30 @@ class UnionType(DataType):
 
         invalid_types = []
         valid_types = []
+        types_with_secondaries = []
         for subtype in subtypes:
             resolvedtype = get_instantiated_type(subtype)
             if not isinstance(resolvedtype, DataType):
                 invalid_types.append(resolvedtype)
+            elif isinstance(resolvedtype, File) and resolvedtype.secondary_files():
+                types_with_secondaries.append(types_with_secondaries)
             else:
                 valid_types.append(resolvedtype)
+
+        if len(types_with_secondaries) > 0:
+            raise Exception(
+                "UnionType doesn't accept data types with secondary files (yet), affected types: "
+                + ", ".join(str(t) for t in types_with_secondaries)
+            )
 
         if len(invalid_types) > 0:
             raise Exception(
                 "UnionType contained invalid types "
                 + ", ".join(str(t) for t in invalid_types)
             )
+
+        if len(valid_types) < 1:
+            raise Exception("UnionType is expecting at least 2 data type arguments")
 
         self.subtypes = valid_types
         super().__init__(optional)
@@ -62,6 +77,36 @@ class UnionType(DataType):
                 self.can_receive_from(t, *args, **kwargs) for t in other.subtypes
             )
         return any(t.can_receive_from(other, *args, **kwargs) for t in self.subtypes)
+
+    def wdl(self, has_default=False) -> WdlType:
+        # custom stuff here
+        wdl_data_types = [a.wdl() for a in self.subtypes]
+        # we require the WDL to be identical for WDL to work
+
+        if len(set(a.get_string() for a in wdl_data_types)) > 1:
+
+            resuting_signatures = ", ".join(
+                f"{a.id()}: {a.wdl().get_string()}" for a in self.subtypes
+            )
+
+            raise Exception(
+                "Janis doesn't support UnionTypes in WDL where there is more than 1 WDL type signatures. "
+                f"Please raise an issue on GitHub ({GITHUB_URL}) if this is a blocker. Resulting signatures: "
+                + resuting_signatures
+            )
+
+        return wdl_data_types[0]
+
+    def cwl_type(self, has_default=False):
+        inner_types = [a.cwl_type(has_default=has_default) for a in self.subtypes]
+        try:
+            inner_types = list(set(inner_types))
+        except Exception as e:
+            Logger.debug(f"Error creating set from ({inner_types}): {e}")
+
+        if len(inner_types) == 1:
+            return inner_types[0]
+        return inner_types
 
 
 class String(DataType):
@@ -393,6 +438,13 @@ class File(DataType):
         if type(self) == File and isinstance(o, File):
             return True
         return super().can_receive_from(o)
+
+    # def cwl_type(self, has_default=False):
+    #     secs = self.secondary_files()
+    #     if secs:
+    #         tp = cwlgen.File(secondaryFiles=self.secondary_files())
+    #         return [tp, "null"] if self.optional and not has_default else tp
+    #     return super().cwl_type(has_default=has_default)
 
 
 class Directory(DataType):
