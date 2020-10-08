@@ -102,16 +102,14 @@ class JanisTransformation:
 
         transformations: List[JanisTransformation] = transformations
 
-        tr: JanisTransformation = transformations[0]
-        end_tr: JanisTransformation = transformations[-1]
+        initial_tr: JanisTransformation = transformations[0]
+        final_tr: JanisTransformation = transformations[-1]
 
         w = WorkflowBuilder(
-            f"Convert_{tr.type1.name().title()}To{end_tr.type2.name().title()}"
+            f"convert_{initial_tr.type1.name().lower()}_to_{final_tr.type2.name().lower()}"
         )
 
-        prev_input: Optional[JanisTransformation] = w.input(
-            f"inp_{tr.type1.name().lower()}", tr.type1
-        )
+        prev_input = w.input(f"inp_{initial_tr.type1.name().lower()}", initial_tr.type1)
 
         for transform in transformations:
             stpid = f"transform_{transform.type1.name().lower()}_to_{transform.type2.name().lower()}"
@@ -124,7 +122,7 @@ class JanisTransformation:
                 transform.relevant_tool_output
             ]
 
-        w.output("out", end_tr.type2, source=prev_input)
+        w.output("out", final_tr.type2, source=prev_input)
 
         return w
 
