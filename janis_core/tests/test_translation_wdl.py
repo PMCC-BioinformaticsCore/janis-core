@@ -1479,8 +1479,3 @@ class TestUnionType(unittest.TestCase):
     def test_file_int_fail(self):
         uniontype = UnionType(File, int)
         self.assertRaises(Exception, uniontype.wdl)
-
-    def test_samtools_view(self):
-        from janis_bioinformatics.tools.samtools import SamToolsView_1_9
-
-        SamToolsView_1_9().translate("wdl")
