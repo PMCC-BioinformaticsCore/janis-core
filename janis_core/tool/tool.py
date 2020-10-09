@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict, Set, Any, Callable
 
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -58,6 +58,41 @@ class TOutput(object):
 
     def id(self):
         return self.tag
+
+
+# class TTestOperator(Enum):
+#     Equal = "equal"
+#     Gt = "gt"
+#     Gte = "gte"
+#     Lt = "lt"
+#     Lte = "lte"
+#     Contains = "contains"
+
+
+class TTestCompared(Enum):
+    Value = "value"
+    FileContent = "file-content"
+    FileSize = "file-size"
+    FileMd5 = "file-md5"
+    LineCount = "line-count"
+
+
+class TTestExpectedOutput(object):
+    def __init__(self, tag: str, compared: TTestCompared, operator: Callable, expected_value: Any):
+        self.tag = tag
+        self.compared = compared
+        self.operator = operator
+        self.expected_value = expected_value
+
+    def __repr__(self):
+        return f"{self.tag}: {self.compared.value} {str(self.operator)} {str(self.expected_value)}"
+
+
+class TTestCase(object):
+    def __init__(self, name: str, input: Dict[str, Any], output: Dict[str, TTestExpectedOutput]):
+        self.name = name
+        self.input = input
+        self.output = output
 
 
 class Tool(ABC, object):
@@ -244,3 +279,9 @@ INPUTS:
 OUTPUTS:
 {outputs}
 """
+
+    def tests(self) -> Optional[List[TTestCase]]:
+        """
+        A list of test cases for this tool
+        """
+        return None
