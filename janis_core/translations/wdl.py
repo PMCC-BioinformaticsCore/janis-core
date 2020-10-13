@@ -538,7 +538,9 @@ EOT"""
             return f"[{joined_values}]"
         if is_python_primitive(expression):
             if isinstance(expression, str):
-                return cls.wrap_if_string_environment(expression, string_environment)
+                return cls.wrap_if_string_environment(
+                    prepare_escaped_string(expression), string_environment
+                )
             if isinstance(expression, bool):
                 return "true" if expression else "false"
 
@@ -1156,6 +1158,10 @@ EOT"""
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.json"
+
+
+def prepare_escaped_string(value: str):
+    return json.dumps(value)[1:-1]
 
 
 def resolve_tool_input_value(
