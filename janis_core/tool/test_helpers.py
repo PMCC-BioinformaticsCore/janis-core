@@ -1,4 +1,3 @@
-import unittest
 from typing import Dict, Union, List, Set
 from tabulate import tabulate
 
@@ -10,6 +9,13 @@ def get_all_tools(modules: List):
     shed.hydrate(force=True, modules=modules)
 
     return shed.get_all_tools()
+
+
+def get_one_tool(tool_id: str, modules: List):
+    shed = jc.JanisShed
+    shed.hydrate(force=True, modules=modules)
+
+    return shed.get_tool(tool_id)
 
 
 def print_test_report(failed: Dict[str, str], succeeded: Set):
