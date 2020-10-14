@@ -60,29 +60,29 @@ class TOutput(object):
         return self.tag
 
 
-# class TTestOperator(Enum):
-#     Equal = "equal"
-#     Gt = "gt"
-#     Gte = "gte"
-#     Lt = "lt"
-#     Lte = "lte"
-#     Contains = "contains"
-
-
 class TTestCompared(Enum):
     Value = "value"
-    FileContent = "file-content"
+    FileDiff = "file-diff"
     FileSize = "file-size"
     FileMd5 = "file-md5"
     LineCount = "line-count"
 
 
 class TTestExpectedOutput(object):
-    def __init__(self, tag: str, compared: TTestCompared, operator: Callable, expected_value: Any):
+    def __init__(self, tag: str, compared: TTestCompared, operator: Callable,
+                 expected_value: Any, expected_source: Optional[Any] = None):
         self.tag = tag
         self.compared = compared
         self.operator = operator
         self.expected_value = expected_value
+
+        # If the 'compared' type requires us to transform from a different object to expected value
+        # example:
+        # compared: FileDiff
+        # expected_source: file path to the expected file
+        # expected_value: values readable by 'operator'. It could be the number of
+        # lines of diff result of expected file and actual file.
+        self.expected_source = expected_source
 
     def __repr__(self):
         return f"{self.tag}: {self.compared.value} {str(self.operator)} {str(self.expected_value)}"

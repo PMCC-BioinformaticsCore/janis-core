@@ -1,4 +1,4 @@
-import unittest
+import difflib
 import hashlib
 import os
 from typing import Dict, List, Optional, Any
@@ -38,19 +38,17 @@ class ToolTestSuiteRunner():
         """
         Run all test cases for one tool
         """
-        failed = set()
-        succeeded = set()
+        failed_test_cases = {}
+        succeeded_test_cases = set()
         for t in self.tool.tests() or []:
-            output = self.run(t.input)
+            failed, succeeded = self.run_one_test_case(t)
 
-            for expected_output in t.output:
-                output_value = output[expected_output.tag]
-                if self.assert_expected_output(expected_output, output_value) is False:
-                    failed.add(str(expected_output))
-                else:
-                    succeeded.add(str(expected_output))
+            if failed > 0:
+                failed_test_cases[t.name] = failed
+            else:
+                succeeded_test_cases.add(t.name)
 
-        return failed, succeeded
+        return failed_test_cases, succeeded_test_cases
 
     def run_one_test_case(self, t: TTestCase):
         """
@@ -62,16 +60,14 @@ class ToolTestSuiteRunner():
         output = self.run(t.input)
         for expected_output in t.output:
             output_value = output[expected_output.tag]
-            if self.assert_expected_output(expected_output, output_value) is False:
-                failed.add(str(expected_output))
+            actual_output = self.get_value_to_compare(expected_output, output_value)
+            test_result = expected_output.operator(actual_output, expected_output.expected_value)
+            if test_result is False:
+                failed.add(f"{str(expected_output)} | actual output: {actual_output}")
             else:
                 succeeded.add(str(expected_output))
 
         return failed, succeeded
-
-    def assert_expected_output(self, expected_output: TTestExpectedOutput, output_value: Any):
-        value = self.get_value_to_compare(expected_output, output_value)
-        return expected_output.operator(value, expected_output.expected_value)
 
     def get_value_to_compare(self, expected_output: TTestExpectedOutput, output_value: Any) -> Any:
         output_tag = expected_output.tag
@@ -79,9 +75,15 @@ class ToolTestSuiteRunner():
 
         if expected_output.compared == TTestCompared.Value:
             value = output_value
-        elif expected_output.compared == TTestCompared.FileContent:
-            with open(output_value, "rb") as f:
-                value = f.read()
+        elif expected_output.compared == TTestCompared.FileDiff:
+            with open(expected_output.expected_source) as expected_file:
+                expected_content = list(expected_file)
+            with open(output_value) as output_file:
+                output_content = list(output_file)
+
+            diff = difflib.unified_diff(expected_content, output_content,
+                                        fromfile='expected', tofile='actual', lineterm='')
+            value = list(diff)
         elif expected_output.compared == TTestCompared.FileMd5:
             value = self.read_md5(output_value)
         elif expected_output.compared == TTestCompared.FileSize:
