@@ -716,7 +716,7 @@ EOT"""
         else:
             stype = expression.__class__.__name__
         raise Exception(
-            f"Could not detect type '{stype}' to convert to input value{warning}"
+            f"Could not convert expression '{expression}' as could detect type '{stype}' to convert to input value{warning}"
         )
 
     @classmethod
@@ -1269,6 +1269,8 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
             rexpr = expr
             expr = f"select_first([{expr}])"
             condition_for_binding = f"(defined({rexpr}) && length({expr}) > 0)"
+        else:
+            condition_for_binding = f"length({expr}) > 0"
 
         if intype.subtype().optional:
             expr = f"select_all({expr})"
@@ -1490,13 +1492,11 @@ def translate_step_node(
         invalid_sources = [
             si
             for si in scatterable
-            if si.multiple_inputs or isinstance(si.source(), list)
+            if si.multiple_inputs
+            or (isinstance(si.source(), list) and len(si.source()) > 1)
         ]
         if len(invalid_sources) > 0:
-            invalid_sources_str = ", ".join(
-                WdlTranslator.unwrap_expression(si.source(), inputsdict=inputsdict)
-                for si in invalid_sources
-            )
+            invalid_sources_str = ", ".join(f"{si.source()}" for si in invalid_sources)
             raise NotImplementedError(
                 f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
                 f"on multiple inputs, this behaviour has not been implemented"
