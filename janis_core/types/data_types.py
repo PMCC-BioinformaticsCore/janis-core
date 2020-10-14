@@ -12,9 +12,9 @@
 
 """
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Type
 
-import cwlgen as cwl
+import cwl_utils.parser_v1_0 as cwlgen
 from wdlgen import WdlType
 
 from janis_core.utils import is_array_prefix
@@ -25,9 +25,9 @@ PythonPrimitive = Union[str, float, int, bool]
 
 
 def is_python_primitive(t):
-    return (isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])) or any(
-        isinstance(t, T) for T in [str, float, int, bool]
-    )
+    return (
+        isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])
+    ) or isinstance(t, (str, float, int, bool))
 
 
 # see below for ParseableType
@@ -88,27 +88,27 @@ class NativeTypes:
     @staticmethod
     def map_to_cwl(t: NativeType):
         if t == NativeTypes.kBool:
-            return cwl.CwlTypes.BOOLEAN
+            return "boolean"
         elif t == NativeTypes.kInt:
-            return cwl.CwlTypes.INT
+            return "int"
         elif t == NativeTypes.kLong:
-            return cwl.CwlTypes.LONG
+            return "long"
         elif t == NativeTypes.kFloat:
-            return cwl.CwlTypes.FLOAT
+            return "float"
         elif t == NativeTypes.kDouble:
-            return cwl.CwlTypes.DOUBLE
+            return "double"
         elif t == NativeTypes.kStr:
-            return cwl.CwlTypes.STRING
+            return "string"
         elif t == NativeTypes.kFile:
-            return cwl.CwlTypes.FILE
+            return "File"
         elif t == NativeTypes.kDirectory:
-            return cwl.CwlTypes.DIRECTORY
+            return "Directory"
         elif t == NativeTypes.kArray:
-            return cwl.CwlTypes.ARRAY
+            return "array"
         elif t == NativeTypes.kStdout:
-            return cwl.CwlTypes.STDOUT
+            return "stdout"
         elif t == NativeTypes.kStderr:
-            return cwl.CwlTypes.STDERR
+            return "stderr"
         raise Exception(
             f"Unhandled primitive type {t}, expected one of {', '.join(NativeTypes.all)}"
         )
@@ -218,6 +218,12 @@ class DataType(ABC):
         #
         # Although these are the same definition, they won't actually compare to the same value
 
+        if other.name().lower() == "union":
+            return all(
+                self.can_receive_from(t, source_has_default=source_has_default)
+                for t in other.subtypes
+            )
+
         receive_from = list(
             reversed([x.__name__ for x in type(other.received_type()).mro()])
         )
@@ -251,13 +257,15 @@ class DataType(ABC):
     def _question_mark_if_optional(self, has_default: bool = False):
         return "?" if self.optional or has_default else ""
 
-    def cwl_type(self, has_default=False):
+    def cwl_type(
+        self, has_default=False
+    ) -> Union[str, cwlgen.Type, List[Union[str, cwlgen.Type]]]:
         tp = NativeTypes.map_to_cwl(self.primitive())
         return (
             [tp, "null"] if self.optional and not has_default else tp
         )  # and not has_default
 
-    def map_cwl_type(self, parameter: cwl.Parameter) -> cwl.Parameter:
+    def map_cwl_type(self, parameter: cwlgen.Parameter) -> cwlgen.Parameter:
         if not NativeTypes.is_valid(self.primitive()):
             raise Exception(
                 f"{self.id()} must declare its primitive as one of the NativeTypes "
@@ -283,5 +291,14 @@ class DataType(ABC):
         """
         return valuetoparse
 
+    def copy(self):
+        from copy import deepcopy
+
+        return deepcopy(self)
+
     # def default(self):
     #     return self.default_value
+
+
+ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
+ParseableType = ParseableTypeBase

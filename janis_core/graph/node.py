@@ -4,36 +4,42 @@
     Provides base class that different nodes must override, this translates closest to a Step
 """
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Dict, List, Tuple, Any
 
 from janis_core.tool.tool import TInput, TOutput
 
 NodeLabel = str
-NodeType = int
 
 
-class NodeTypes:
-    INPUT: NodeType = 1
-    OUTPUT: NodeType = 2
-    STEP: NodeType = 3
+class NodeType(Enum):
+    INPUT = 1
+    OUTPUT = 2
+    STEP = 3
 
     @staticmethod
-    def to_str(node_type: NodeType) -> str:
-        if node_type == NodeTypes.INPUT:
+    def to_str(node_type) -> str:
+
+        v = NodeType(node_type) if not isinstance(node_type, NodeType) else node_type
+
+        if v == NodeType.INPUT:
             return "Input"
-        if node_type == NodeTypes.OUTPUT:
+        elif v == NodeType.OUTPUT:
             return "Output"
-        if node_type == NodeTypes.STEP:
+        elif v == NodeType.STEP:
             return "Task"
-        raise Exception(f"Unhandled task type: '{node_type}'")
+        raise Exception(f"Unhandled task type: '{v.value}'")
+
+    def __str__(self):
+        return NodeType.to_str(self)
 
     @staticmethod
-    def to_col(node_type: NodeType) -> str:
-        if node_type == NodeTypes.INPUT:
+    def to_col(node_type) -> str:
+        if node_type == NodeType.INPUT:
             return "red"
-        if node_type == NodeTypes.OUTPUT:
+        if node_type == NodeType.OUTPUT:
             return "lightblue"
-        if node_type == NodeTypes.STEP:
+        if node_type == NodeType.STEP:
             return "blue"
         raise Exception(f"Unhandled task type: '{node_type}'")
 
@@ -70,7 +76,7 @@ class Node(ABC):
         return f"{self.node_type}: {self.id()}"
 
     def __str__(self):
-        return f"{NodeTypes.to_str(self.node_type)}: {self.identifier}"
+        return f"{NodeType.to_str(self.node_type)}: {self.identifier}"
 
     def set_depth(self, depth: int):
         self.depth = max(self.depth, depth)
@@ -149,8 +155,8 @@ def layout_nodes(nodes: List[Node], n_inputs: int = 0) -> Dict[Node, Tuple[int, 
 
 def layout_nodes2(nodes: List[Node]) -> Dict[Node, Tuple[int, int]]:
     # Aim for something like Rabix
-    inputs = [n for n in nodes if n.node_type == NodeTypes.INPUT]
-    others = [n for n in nodes if n.node_type != NodeTypes.INPUT]
+    inputs = [n for n in nodes if n.node_type == NodeType.INPUT]
+    others = [n for n in nodes if n.node_type != NodeType.INPUT]
 
     pos = layout_nodes(others, len(inputs))
     s = 0

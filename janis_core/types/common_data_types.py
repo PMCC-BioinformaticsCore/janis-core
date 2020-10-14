@@ -2,21 +2,111 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Union, Type, Dict, Any, Optional
+from typing import Dict, Any, Set
 
-import cwlgen
+import cwl_utils.parser_v1_0 as cwlgen
 import wdlgen
+from wdlgen import WdlType
 
-from janis_core.types.data_types import (
-    DataType,
-    NativeTypes,
-    NativeType,
-    PythonPrimitive,
-)
+from janis_core.utils.logger import Logger
+from janis_core.__meta__ import GITHUB_URL
+from janis_core.types.data_types import DataType, NativeTypes, NativeType, ParseableType
 from janis_core.utils.generics_util import is_generic, is_qualified_generic
 
-ParseableTypeBase = Union[Type[PythonPrimitive], DataType, Type[DataType]]
-ParseableType = ParseableTypeBase
+
+class UnionType(DataType):
+    def __init__(self, *subtypes: ParseableType, optional=False):
+        self._initial_subtypes = [t for t in subtypes]
+
+        invalid_types = []
+        valid_types = []
+        types_with_secondaries = []
+        for subtype in subtypes:
+            resolvedtype = get_instantiated_type(subtype)
+            if not isinstance(resolvedtype, DataType):
+                invalid_types.append(resolvedtype)
+            elif isinstance(resolvedtype, File) and resolvedtype.secondary_files():
+                types_with_secondaries.append(types_with_secondaries)
+            else:
+                valid_types.append(resolvedtype)
+
+        if len(types_with_secondaries) > 0:
+            raise Exception(
+                "UnionType doesn't accept data types with secondary files (yet), affected types: "
+                + ", ".join(str(t) for t in types_with_secondaries)
+            )
+
+        if len(invalid_types) > 0:
+            raise Exception(
+                "UnionType contained invalid types "
+                + ", ".join(str(t) for t in invalid_types)
+            )
+
+        if len(valid_types) < 1:
+            raise Exception("UnionType is expecting at least 2 data type arguments")
+
+        self.subtypes = valid_types
+        super().__init__(optional)
+
+    def id(self):
+        return "Union<" + ", ".join(s.id() for s in self.subtypes) + ">"
+
+    @staticmethod
+    def name() -> str:
+        return "Union"
+
+    @staticmethod
+    def primitive() -> NativeType:
+        return None
+
+    @staticmethod
+    def doc() -> str:
+        return "Union datatype"
+
+    def validate_value(self, *args, **kwargs) -> bool:
+        return any(t.validate_value(*args, **kwargs) for t in self.subtypes)
+
+    def invalid_value_hint(self, *args, **kwargs):
+        hints = [t.invalid_value_hint(*args, **kwargs) for t in self.subtypes]
+        return ", ".join(t for t in hints if t)
+
+    def can_receive_from(self, other, *args, **kwargs):
+        if isinstance(other, UnionType):
+            # we'll require all elements in the source to be received by this type-
+            return all(
+                self.can_receive_from(t, *args, **kwargs) for t in other.subtypes
+            )
+        return any(t.can_receive_from(other, *args, **kwargs) for t in self.subtypes)
+
+    def wdl(self, has_default=False) -> WdlType:
+        # custom stuff here
+        wdl_data_types = [a.wdl() for a in self.subtypes]
+        # we require the WDL to be identical for WDL to work
+
+        if len(set(a.get_string() for a in wdl_data_types)) > 1:
+
+            resuting_signatures = ", ".join(
+                f"{a.id()}: {a.wdl().get_string()}" for a in self.subtypes
+            )
+
+            raise Exception(
+                "Janis doesn't support UnionTypes in WDL where there is more than 1 WDL type signatures. "
+                f"Please raise an issue on GitHub ({GITHUB_URL}) if this is a blocker. Resulting signatures: "
+                + resuting_signatures
+            )
+
+        return wdl_data_types[0]
+
+    def cwl_type(self, has_default=False):
+        inner_types = [a.cwl_type(has_default=has_default) for a in self.subtypes]
+        try:
+            inner_types = list(set(inner_types))
+        except Exception as e:
+            Logger.debug(f"Error creating set from ({inner_types}): {e}")
+
+        if len(inner_types) == 1:
+            return inner_types[0]
+        return inner_types
 
 
 class String(DataType):
@@ -71,7 +161,6 @@ class Filename(String):
         :param guid: Use this guid instead of generating one
         :param optional: IGNORED (legacy)
         """
-        import uuid
 
         self.prefix = prefix
         self.extension = extension
@@ -107,26 +196,19 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         super().map_cwl_type(parameter)
         parameter.default = self.generated_filenamecwl()
 
-    def generated_filename(self, inputs: Optional[Dict] = None) -> str:
-        from janis_core.types.selectors import InputSelector
-
-        base = self.prefix
-        if isinstance(base, InputSelector):
-            inp = base.input_to_select
-            if not inputs or inp not in inputs:
-                raise Exception(
-                    f"The filename generator required the input '{inp}' but was not provided"
-                )
-            base = inputs[inp]
+    def generated_filename(self, replacements: Dict = None) -> str:
+        repl = replacements or {}
+        prefix = repl.get("prefix", self.prefix)
+        suffix = repl.get("suffix", self.suffix)
 
         suf = ""
-        if self.suffix:
-            if str(self.suffix).startswith("."):
-                suf = str(self.suffix)
+        if suffix:
+            if str(suffix).startswith("."):
+                suf = str(suffix)
             else:
-                suf = "-" + str(self.suffix)
+                suf = "-" + str(suffix)
         ex = "" if self.extension is None else self.extension
-        return base + suf + ex
+        return prefix + suf + ex
 
     def generated_filenamecwl(self) -> str:
         return f'"{self.generated_filename()}"'
@@ -224,7 +306,7 @@ class Float(DataType):
         return f"Value was of type {type(meta)}, expected float | int"
 
 
-class Double(DataType):
+class Double(Float):
     @staticmethod
     def name():
         return "Double"
@@ -254,6 +336,11 @@ class Double(DataType):
         if self.validate_value(meta, True):
             return None
         return f"Value was of type {type(meta)}, expected float | int"
+
+    def can_receive_from(self, other, *args, **kwargs) -> bool:
+        if not other.optional and isinstance(other, Float):
+            return True
+        return super().can_receive_from(other, *args, **kwargs)
 
 
 class Boolean(DataType):
@@ -301,13 +388,16 @@ class Boolean(DataType):
 
 
 class File(DataType):
-    def __init__(self, optional=False, extension=None):
+    def __init__(
+        self, optional=False, extension=None, alternate_extensions: Set[str] = None
+    ):
         """
         :param optional:
-        :param common_extension: Used in CWL to try and guess the file extension where it's not available otherwise
+        :param extension: Used in CWL to try and guess the file extension where it's not available otherwise
         """
         super(File, self).__init__(optional=optional)
         self.extension = extension
+        self.alternate_extensions = alternate_extensions
 
     @staticmethod
     def name():
@@ -328,7 +418,7 @@ class File(DataType):
         return meta.get("path")
 
     def cwl_input(self, value: Any):
-        return {"class": cwlgen.CwlTypes.FILE, "path": value}
+        return {"class": "File", "path": value}
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
@@ -342,6 +432,19 @@ class File(DataType):
             return None
 
         return f"Value was of type {type(meta)}, expected string (path)"
+
+    def can_receive_from(self, other, source_has_default=False) -> bool:
+        o = get_instantiated_type(other).received_type()
+        if type(self) == File and isinstance(o, File):
+            return True
+        return super().can_receive_from(o)
+
+    # def cwl_type(self, has_default=False):
+    #     secs = self.secondary_files()
+    #     if secs:
+    #         tp = cwlgen.File(secondaryFiles=self.secondary_files())
+    #         return [tp, "null"] if self.optional and not has_default else tp
+    #     return super().cwl_type(has_default=has_default)
 
 
 class Directory(DataType):
@@ -374,7 +477,7 @@ class Directory(DataType):
 
     def cwl_input(self, value: Any):
         # WDL: "{workflowName}.label" = meta["path"}
-        return {"class": cwlgen.CwlTypes.DIRECTORY, "path": value}
+        return {"class": "Directory", "path": value}
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         if meta is None:
@@ -428,15 +531,14 @@ class Array(DataType):
     def cwl_type(self, has_default=False):
         inp = cwlgen.CommandInputArraySchema(
             items=self._t.cwl_type(),
+            type="array"
             # label=None,
             # input_binding=None
         )
         return [inp, "null"] if self.optional and not has_default else inp
 
     def map_cwl_type(self, parameter: cwlgen.Parameter) -> cwlgen.Parameter:
-        parameter.type = cwlgen.CommandInputArraySchema(
-            items=None, label=None, input_binding=None
-        )
+        parameter.type = cwlgen.CommandInputArraySchema(items=None, type="array")
         return parameter
 
     def cwl_input(self, value: Any):
@@ -501,23 +603,27 @@ class Array(DataType):
             return st.fundamental_type()
         return st.received_type()
 
+    def received_type(self):
+        return Array(self._t.received_type(), optional=self.optional)
+
 
 class Stdout(File):
     @staticmethod
     def name():
         return "Stdout"
 
-    def __init__(self, subtype=None, stdoutname=None, optional=None):
+    def __init__(self, subtype=None, optional=None):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
+        if optional is not None:
+            subtype.optional = optional
 
         if subtype and not isinstance(subtype, File):
             raise Exception(
                 "Janis does not currently support non-File stdout annotations"
             )
 
-        self.stdoutname = stdoutname
         self.subtype = subtype
 
         if self.subtype.secondary_files():
@@ -534,7 +640,10 @@ class Stdout(File):
         return f"stdout<{self.subtype.id()}>"
 
     def received_type(self):
-        return self.subtype
+        st = self.subtype
+        if self.optional is not None:
+            st.optional = self.optional
+        return st
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         """
@@ -551,10 +660,12 @@ class Stderr(File):
     def name():
         return "Stderr"
 
-    def __init__(self, subtype=None, stderrname=None):
+    def __init__(self, subtype=None, stderrname=None, optional=None):
         super().__init__(optional=False)
 
         subtype = get_instantiated_type(subtype) if subtype is not None else File()
+        if optional is not None:
+            subtype.optional = optional
 
         if subtype and not isinstance(subtype, File):
             raise Exception(
@@ -578,7 +689,10 @@ class Stderr(File):
         return f"stderr<{self.subtype.id()}>"
 
     def received_type(self):
-        return self.subtype
+        st = self.subtype
+        if self.optional is not None:
+            st.optional = self.optional
+        return st
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
         """
@@ -600,31 +714,58 @@ all_types = [
     File,
     Directory,
     Stdout,
+    Stderr,
     Array,
 ]
 
 
 def get_from_python_type(dt, optional: bool = None, overrider=None):
     if dt is None:
-        return None
+        return Boolean(optional=True)
 
     bc = overrider or get_instantiated_type
+    dtt = dt if type(dt) == type else None
     typedt = type(dt)
 
-    if dt == str or typedt == str:
-        return String(optional=optional)
-    if dt == bool or typedt == bool:
+    try:
+        if dtt == str or typedt == str:
+            return String(optional=optional)
+    except Exception as e:
+        print(e)
+    if dtt == bool or typedt == bool:
         return Boolean(optional=optional)
-    if dt == int or typedt == int:
+    if dtt == int or typedt == int:
         return Int(optional=optional)
-    if dt == float or typedt == float:
+    if dtt == float or typedt == float:
         return Float(optional=optional)
 
     if is_qualified_generic(dt):
 
         if str(dt).startswith("typing.List"):
-            nt = bc(dt.__args__[0])
+            nt = bc(dt.__args__[0], overrider=bc)
             return Array(nt, optional=optional)
+
+        elif str(dt).startswith("typing.Union"):
+            subtypes = dt.__args__
+            new_subtypes = [
+                t
+                for t in subtypes
+                if (t is not None and not (isclass(t) and t() is None))
+            ]
+            optional = len(subtypes) != len(new_subtypes)
+
+            if len(new_subtypes) == 0:
+                raise TypeError(
+                    "Unsure how to parse generic: '{str(dt)}', please raise an issue if you think this is in error"
+                )
+
+            if len(new_subtypes) == 1:
+                return get_instantiated_type(
+                    new_subtypes[0], optional=optional, overrider=bc
+                )
+
+            nts = [bc(n, overrider=bc) for n in new_subtypes]
+            return UnionType(*nts, optional=optional)
 
         args = dt.__args__
         if len(args) > 2:
@@ -668,3 +809,7 @@ def get_instantiated_type(datatype: ParseableType, optional=None, overrider=None
         return dt
 
     raise TypeError(f"Unable to parse type '{str(datatype)}'")
+
+
+NumericType = UnionType(Int, Double, Float)
+AnyType = UnionType(String, Boolean, Int, Double, Float, File, Directory)

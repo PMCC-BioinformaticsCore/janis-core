@@ -24,7 +24,7 @@ class InputDocumentation(DocumentationMeta):
     def __init__(
         self,
         doc: Optional[str],
-        quality: InputQualityType = None,
+        quality: InputQualityType = InputQualityType.user,
         example: Optional[str] = None,
     ):
         super().__init__(doc)
