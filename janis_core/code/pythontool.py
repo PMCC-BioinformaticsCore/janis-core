@@ -207,8 +207,11 @@ except Exception as e:
         required = not inp.intype.optional
 
         if isinstance(bintype, Array):
-            params.append("nargs='+'")
             bintype = bintype.fundamental_type()
+            params.append("nargs='+'")
+            if required:
+                params.append("default=[]")
+                required = False
 
         if isinstance(bintype, Int):
             intype = "int"
