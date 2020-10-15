@@ -526,7 +526,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         )
 
         tool_cwl.arguments.append(
-            cwlgen.CommandLineBinding(value_from="inputs.json", prefix="--json")
+            cwlgen.CommandLineBinding(valueFrom="inputs.json", prefix="--json")
         )
 
         tool_cwl.inputs.extend(

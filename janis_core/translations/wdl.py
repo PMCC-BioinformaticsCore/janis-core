@@ -472,9 +472,7 @@ EOT"""
         prepared_map = ", ".join(f'"{i.id()}": {i.id()}' for i in ins)
 
         command_ins = [
-            wdl.Task.Command.CommandInput(
-                f"write_json({{{prepared_map}}})", prefix="--json"
-            )
+            wdl.Task.Command.CommandInput(f"--prefix ~{{write_json({{{prepared_map}}})")
         ]
         commands.append(wdl.Task.Command(tool.base_command(), command_ins, []))
 
