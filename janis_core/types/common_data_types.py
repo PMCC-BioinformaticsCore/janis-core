@@ -2,7 +2,7 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Dict, Any
+from typing import Dict, Any, Set
 
 import cwl_utils.parser_v1_0 as cwlgen
 import wdlgen
@@ -388,13 +388,16 @@ class Boolean(DataType):
 
 
 class File(DataType):
-    def __init__(self, optional=False, extension=None):
+    def __init__(
+        self, optional=False, extension=None, alternate_extensions: Set[str] = None
+    ):
         """
         :param optional:
-        :param common_extension: Used in CWL to try and guess the file extension where it's not available otherwise
+        :param extension: Used in CWL to try and guess the file extension where it's not available otherwise
         """
         super(File, self).__init__(optional=optional)
         self.extension = extension
+        self.alternate_extensions = alternate_extensions
 
     @staticmethod
     def name():

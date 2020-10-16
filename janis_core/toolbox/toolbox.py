@@ -1,13 +1,15 @@
-from typing import List, Type, Optional
+from typing import List, Type, Optional, Tuple
 from inspect import isfunction, ismodule, isabstract, isclass
 
 from janis_core.tool.commandtool import Tool, ToolType, CommandTool, CommandToolBuilder
 from janis_core.code.pythontool import CodeTool, PythonTool
+from janis_core.types import get_instantiated_type, File
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger, LogLevel
 import janis_core.toolbox.entrypoints as EP
 from janis_core.toolbox.register import TaggedRegistry, Registry
+from janis_core.transformation import JanisTransformation, JanisTransformationGraph
 
 
 class JanisShed:
@@ -17,8 +19,11 @@ class JanisShed:
     _byclassname = Registry()
     _toolshed = TaggedRegistry("latest")
     _typeshed = Registry()
+    _transformationgraph = JanisTransformationGraph()
 
-    _has_been_hydrated = False
+    _has_hydrated_datatypes = False
+    _has_hydrated_tools = False
+    _has_hydrated_transformations = False
 
     should_trace = False
     recognised_types = {ToolType.Workflow, ToolType.CommandTool, ToolType.CodeTool}
@@ -32,25 +37,30 @@ class JanisShed:
 
     @staticmethod
     def get_tool(tool: str, version: str = None):
-        JanisShed.hydrate()
+        JanisShed.hydrate_tools()
         if version:
             version = version.lower()
         return JanisShed._toolshed.get(tool.lower(), version)
 
     @staticmethod
     def get_datatype(datatype: str):
-        JanisShed.hydrate()
+        JanisShed.hydrate_datapoints()
         return JanisShed._typeshed.get(datatype.lower())
 
     @staticmethod
     def get_all_tools() -> List[List[Tool]]:
-        JanisShed.hydrate()
+        JanisShed.hydrate_tools()
         return JanisShed._toolshed.objects()
 
     @staticmethod
     def get_all_datatypes() -> List[Type[DataType]]:
-        JanisShed.hydrate()
+        JanisShed.hydrate_datapoints()
         return JanisShed._typeshed.objects()
+
+    @staticmethod
+    def get_transformation_graph():
+        JanisShed.hydrate_transformations()
+        return JanisShed._transformationgraph
 
     # setters
 
@@ -74,14 +84,45 @@ class JanisShed:
     @staticmethod
     def hydrate(force=False, modules: list = None):
         # go get everything
-        if JanisShed._has_been_hydrated and not force:
+        if modules is None and JanisShed._has_been_hydrated and not force:
             return
 
         if not modules:
             modules = []
-            modules.extend(JanisShed._get_datatype_entrypoints())
-            modules.extend(JanisShed._get_tool_entrypoints())
+            if not JanisShed._has_hydrated_datatypes:
+                modules.extend(JanisShed._get_datatype_entrypoints())
+            if not JanisShed._has_hydrated_tools:
+                modules.extend(JanisShed._get_tool_entrypoints())
 
+        JanisShed._has_been_hydrated = True
+        JanisShed._has_hydrated_datatypes = True
+
+    @staticmethod
+    def hydrate_datapoints():
+        if JanisShed._has_hydrated_datatypes:
+            return Logger.log("Skipping hydrating datapoints (as already hydrated)")
+
+        JanisShed.hydrate_from(JanisShed._get_datatype_entrypoints())
+        JanisShed._has_hydrated_datatypes = True
+
+    @staticmethod
+    def hydrate_tools():
+        if JanisShed._has_hydrated_datatypes:
+            return Logger.log("Skipping hydrating tools (as already hydrated)")
+
+        JanisShed.hydrate_from(JanisShed._get_tool_entrypoints())
+        JanisShed._has_hydrated_datatypes = True
+
+    @staticmethod
+    def hydrate_transformations():
+        if JanisShed._has_hydrated_transformations:
+            return Logger.log("Skipping hydrating transformations (as already hydrated")
+        transformations = JanisShed._get_datatype_transformations_from_entrypoints()
+
+        JanisShed._transformationgraph.add_edges(transformations)
+
+    @staticmethod
+    def hydrate_from(modules: list):
         level = None
         cl = Logger.CONSOLE_LEVEL
         if JanisShed.should_trace:
@@ -100,8 +141,6 @@ class JanisShed:
         Logger.log(
             f"Restoring CONSOLE_LEVEL to {LogLevel.get_str(cl)} now that Janis shed has been hydrated"
         )
-
-        JanisShed._has_been_hydrated = True
 
     @staticmethod
     def _get_datatype_entrypoints():
@@ -131,6 +170,29 @@ class JanisShed:
                 ep.append(m)
             except ImportError as e:
                 t = f"Couldn't import janis data_type extension '{entrypoint.name}': {e}"
+                Logger.critical(t)
+                continue
+        return ep
+
+    @staticmethod
+    def _get_datatype_transformations_from_entrypoints():
+        import importlib_metadata
+
+        ep = []
+        eps = importlib_metadata.entry_points().get(EP.TRANSFORMATIONS, [])
+        for entrypoint in eps:
+            try:
+                m = entrypoint.load()
+                if m is not None and isinstance(m, list):
+                    ep.extend(m)
+                else:
+                    Logger.warn(
+                        f"Janis transformation entrypoint {entrypoint.name}' was not a list (type {type(m)}). "
+                        f"Only export a single list of transformations, for example: "
+                        f"`janis_bioinformatics.transformations:transformations`"
+                    )
+            except ImportError as e:
+                t = f"Couldn't import janis datatype_transformation extension '{entrypoint.name}': {e}"
                 Logger.critical(t)
                 continue
         return ep
@@ -201,3 +263,42 @@ class JanisShed:
 
         except Exception as e:
             Logger.warn(f"{repr(e)} for type {str(cls)}")
+
+    @staticmethod
+    def guess_datatype_by_filename(filename: str):
+        dts = JanisShed.get_all_datatypes()
+
+        matches: List[Tuple[int, File]] = []
+
+        for datatype in dts:
+            if isclass(datatype):
+                if not issubclass(datatype, File):
+                    continue
+                datatype = get_instantiated_type(datatype)
+            elif not isinstance(datatype, File):
+                continue
+            if not datatype.extension:
+                continue
+
+            if filename.endswith(datatype.extension):
+                matches.append((len(datatype.extension), datatype))
+
+        if len(matches) == 0:
+            return None
+        elif len(matches) == 1:
+            return matches[0][1]
+        else:
+            matches = sorted(matches, key=lambda a: a[0], reverse=True)
+            matched_dt = matches[0][1]
+            ranked = ", ".join(
+                f"{match[1].name()} ({match[0]})" for match in matches[1:]
+            )
+            Logger.info(
+                f"There were {len(matches)} for matching datatypes. Using {matched_dt.name()} ({matches[0][0]}) "
+                f"as it was the best match from: {ranked}"
+            )
+            return matches[0][1]
+
+
+if __name__ == "__main__":
+    JanisShed.hydrate_transformations()

@@ -651,7 +651,7 @@ return {out_capture}
         if value is None:
             return None
         if isinstance(value, str):
-            return value
+            return prepare_escaped_string(value)
         elif isinstance(value, int) or isinstance(value, float):
             return value
         elif isinstance(value, InputNodeSelector):
@@ -702,7 +702,7 @@ return {out_capture}
 
         if isinstance(value, str):
             return CwlTranslator.quote_values_if_code_environment(
-                value, code_environment
+                prepare_escaped_string(value), code_environment
             )
         elif isinstance(value, int) or isinstance(value, float):
             return str(value)
@@ -881,6 +881,14 @@ return {out_capture}
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.yml"
+
+
+# matcher_double_quote = re.compile('[^\\\]"')
+# matcher_single_quote = re.compile("[^\\\]'")
+
+
+def prepare_escaped_string(value: str):
+    return json.dumps(value)[1:-1]
 
 
 def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParameter:
@@ -1516,7 +1524,7 @@ def translate_string_formatter(
     **debugkwargs,
 ):
 
-    escapedFormat = selector._format.replace("\\", "\\\\")
+    escapedFormat = prepare_escaped_string(selector._format)
 
     if len(selector.kwargs) == 0:
         return escapedFormat

@@ -685,7 +685,9 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             "tag", Array(Int), prefix="-i", prefix_applies_to_all_elements=True
         )
         resp = wdl.translate_command_input(ti).get_string()
-        self.assertEqual('~{sep(" ", prefix("-i ", tag))}', resp)
+        self.assertEqual(
+            '~{if length(tag) > 0 then sep(" ", prefix("-i ", tag)) else ""}', resp
+        )
 
 
 class TestWdlInputTranslation(unittest.TestCase):
@@ -1479,8 +1481,3 @@ class TestUnionType(unittest.TestCase):
     def test_file_int_fail(self):
         uniontype = UnionType(File, int)
         self.assertRaises(Exception, uniontype.wdl)
-
-    def test_samtools_view(self):
-        from janis_bioinformatics.tools.samtools import SamToolsView_1_9
-
-        SamToolsView_1_9().translate("wdl")
