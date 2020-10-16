@@ -3,7 +3,7 @@ from tabulate import tabulate
 
 import janis_core as jc
 
-janis_assistant_version_required_min = "0.10.6"
+janis_assistant_version_required_min = "v0.10.6"
 
 
 def get_all_tools(modules: List):

@@ -24,17 +24,21 @@ class ToolTestSuiteRunner():
         try:
             import janis_assistant
             if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
-                raise Exception()
+                raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
+                                f" must be installed. Installed version is {janis_assistant.__version__}")
 
             from janis_assistant.main import run_with_outputs
+
+            output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id(), "cwl")
+            return run_with_outputs(self.tool, input, output_dir)
         except Exception as e:
-            raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
-                            f" must be installed")
+            raise e
+
 
         # Call this outside the try-except so that we can still throw
         # different exceptions relevant to the actual logic of this function
         # Now all good, we run the test
-        return run_with_outputs(self.tool, input)
+
 
     def run_all_tests(self):
         """
