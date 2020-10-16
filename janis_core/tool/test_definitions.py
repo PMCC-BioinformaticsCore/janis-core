@@ -1,12 +1,14 @@
 # import docker
-import unittest
 from typing import Dict, Union, List, Set
+from pkg_resources import parse_version
 
 from janis_core import ToolType, Tool, CommandTool, CodeTool, Workflow
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations.cwl import CwlTranslator
 from janis_core.translations.wdl import WdlTranslator
 from janis_core.utils.metadata import ToolMetadata
+
+from janis_core.tool import test_helpers
 
 
 class ToolEvaluator:
@@ -44,7 +46,7 @@ class ToolEvaluator:
         evaluation["friendly_name"] = cls.evaluate_friendly_name(tool)
         evaluation["metadata"] = cls.evaluate_metadata(tool)
         evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
-        # evaluation['container'] = cls.evaluate_container(tool)
+        evaluation['container'] = cls.evaluate_container(tool)
         evaluation["translation"] = cls.evaluate_translation(tool)
 
         return evaluation
@@ -85,19 +87,39 @@ class ToolEvaluator:
 
         return True
 
-    # def evaluate_container(tool: jc.Tool) -> Union[str, bool]:
-    #     """
-    #     Evaluate if the image specified for this tool exists in the remote registry
-    #     """
-    #     client = docker.from_env()
-    #     try:
-    #         client.images.get_registry_data(tool.container())
-    #     except docker.errors.NotFound as e:
-    #         return f"image {tool.container()} not found"
-    #     except Exception as e:
-    #         return f"image {tool.container()}: {str(e)}"
-    #
-    #     return True
+    @staticmethod
+    def evaluate_container(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if the image specified for this tool exists in the remote registry
+        """
+        # If there is no container, we don't need to check if the container exists in the registry
+        if tool.container() is None:
+            return True
+
+        min_version_required = test_helpers.janis_assistant_version_required_min
+
+        try:
+            import janis_assistant
+            if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
+                raise Exception()
+
+            from janis_assistant.data.container.registries import ContainerRegistryBase, ContainerRegistry
+            from janis_assistant.data.container.info import ContainerInfo
+
+        except Exception as e:
+            raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
+                            f" must be installed")
+
+        # Call this outside the try-except so that we can still throw
+        # different exceptions relevant to the actual logic of this function
+        ci = ContainerInfo.parse(tool.container())
+        registry = ContainerRegistry.from_host(ci.host).to_registry()
+        digest = registry.get_digest(ci)
+
+        if digest:
+            return True
+        else:
+            return f"image {tool.container()} not found"
 
     @staticmethod
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
@@ -141,27 +163,3 @@ class ToolEvaluator:
             return True
 
         return "; ".join(errors)
-
-    # def run_test(self, modules: List):
-    #     all_tools = get_all_tools(modules)
-    #
-    #     failed = {}
-    #     succeeded = set()
-    #     # TODO: revert to full list
-    #     # for tool_versions in all_tools:
-    #     for tool_versions in all_tools[132:134]:
-    #         for versioned_tool in tool_versions:
-    #             evaluation = self.evaluate(versioned_tool)
-    #
-    #             if evaluation is True:
-    #                 succeeded.add(versioned_tool.versioned_id())
-    #             else:
-    #                 failed[versioned_tool.versioned_id()] = evaluation
-    #
-    #     print_test_report(failed, succeeded)
-    #
-    #     if len(failed) > 0:
-    #         raise Exception(
-    #             f"There were {len(failed)} tool(s) that did not contain sufficient metadata to include in the "
-    #             f"janis_* repository. Please check to ensure your tool is in the list below"
-    #         )

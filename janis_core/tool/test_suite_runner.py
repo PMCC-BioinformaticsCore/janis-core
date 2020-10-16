@@ -6,6 +6,7 @@ from pkg_resources import parse_version
 
 from janis_core.tool.tool import Tool, TTestExpectedOutput, TTestCompared, TTestCase
 from janis_core.types import DataType, File, String
+from janis_core.tool import test_helpers
 
 
 class ToolTestSuiteRunner():
@@ -16,21 +17,22 @@ class ToolTestSuiteRunner():
         self.tool = tool
 
     def run(self, input: Dict[str, str]):
-        janis_assistant_version_required_min = "0.10.6"
-
         # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
         # So, we only import this package here in this function
         # Make sure the correct version of janis_assistant is installed first
+        min_version_required = test_helpers.janis_assistant_version_required_min
         try:
             import janis_assistant
-            if parse_version(janis_assistant.__version__) < parse_version(janis_assistant_version_required_min):
+            if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
                 raise Exception()
 
             from janis_assistant.main import run_with_outputs
         except Exception as e:
-            raise Exception(f"to run this test, janis_asisstant >= {janis_assistant_version_required_min}"
+            raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
                             f" must be installed")
 
+        # Call this outside the try-except so that we can still throw
+        # different exceptions relevant to the actual logic of this function
         # Now all good, we run the test
         return run_with_outputs(self.tool, input)
 
