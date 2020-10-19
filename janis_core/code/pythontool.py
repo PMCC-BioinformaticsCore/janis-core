@@ -159,7 +159,7 @@ def prepare_file_or_directory_type(file_or_directory, value):
     if value is None:
         return None
     if isinstance(value, list):
-        return [prepare_file_or_directory_type(v) for v in value]
+        return [prepare_file_or_directory_type(file_or_directory, v) for v in value]
     return {
         "class": file_or_directory,
         "path": path.join(cwd, value)
