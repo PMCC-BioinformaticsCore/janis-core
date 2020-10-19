@@ -89,10 +89,12 @@ class JanisShed:
 
         if not modules:
             modules = []
-            if not JanisShed._has_hydrated_datatypes:
+            if not JanisShed._has_hydrated_datatypes or force:
                 modules.extend(JanisShed._get_datatype_entrypoints())
-            if not JanisShed._has_hydrated_tools:
+            if not JanisShed._has_hydrated_tools or force:
                 modules.extend(JanisShed._get_tool_entrypoints())
+
+        JanisShed.hydrate_from(modules)
 
         JanisShed._has_been_hydrated = True
         JanisShed._has_hydrated_datatypes = True
@@ -301,4 +303,9 @@ class JanisShed:
 
 
 if __name__ == "__main__":
-    JanisShed.hydrate_transformations()
+    import janis_bioinformatics.tools
+
+    # JanisShed.hydrate_transformations()
+
+    JanisShed.hydrate(force=True, modules=[janis_bioinformatics.tools])
+    all_tools = JanisShed.get_all_tools()

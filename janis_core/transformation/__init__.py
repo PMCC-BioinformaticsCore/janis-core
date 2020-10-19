@@ -5,7 +5,7 @@ We can use this to build up a set of operations to
 from typing import Optional, List, Dict
 
 from janis_core.tool.tool import Tool
-from janis_core.types import get_instantiated_type, ParseableType
+from janis_core.types import get_instantiated_type, ParseableType, DataType
 from janis_core.utils.logger import Logger
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 
@@ -149,6 +149,29 @@ class JanisTransformationGraph:
 
     def find_connection(self, source_dt: ParseableType, desired_dt: ParseableType):
 
+        from inspect import getmro
+
+        source = get_instantiated_type(source_dt)
+        desired = get_instantiated_type(desired_dt)
+
+        types = getmro(type(source))
+
+        for T in types:
+            if not issubclass(T, DataType):
+                continue
+
+            transformation = self.find_connection_inner(T, desired)
+            if transformation is not None:
+                return transformation
+
+        raise Exception(
+            f"There's no transformation that can satisfy {source.name()} -> {desired.name()}"
+        )
+
+    def find_connection_inner(
+        self, source_dt: ParseableType, desired_dt: ParseableType
+    ):
+
         source = get_instantiated_type(source_dt)
         desired = get_instantiated_type(desired_dt)
 
@@ -177,9 +200,7 @@ class JanisTransformationGraph:
 
             queue.extend(self._edges.get(end_name, []))
 
-        raise Exception(
-            f"There's no transformation that can satisfy {source.name()} -> {desired.name()}"
-        )
+        return None
 
     @staticmethod
     def trace(
