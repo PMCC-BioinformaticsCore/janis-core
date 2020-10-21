@@ -28,52 +28,56 @@ class ToolTestSuiteRunner():
                                 f" must be installed. Installed version is {janis_assistant.__version__}")
 
             from janis_assistant.main import run_with_outputs
+            from janis_assistant.management.configuration import JanisConfiguration
+            from janis_assistant.engines.enginetypes import EngineType
 
-            output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id(), "cwl")
-            return run_with_outputs(self.tool, input, output_dir)
+            engines = [
+                EngineType.cromwell.value,
+                EngineType.cwltool.value,
+            ]
+            current_dir = os.getcwd()
+
+            output = {}
+            for engine in engines:
+                output_dir = os.path.join(current_dir, "tests_output", self.tool.id())
+                config = JanisConfiguration(engine=engine)
+                result = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
+                print(result)
+                output[engine] = result
+
+                #TODO: investigate why we need to change directory here?
+                os.chdir(current_dir)
+
+            return output
         except Exception as e:
             raise e
-
-
-        # Call this outside the try-except so that we can still throw
-        # different exceptions relevant to the actual logic of this function
-        # Now all good, we run the test
-
-
-    def run_all_tests(self):
-        """
-        Run all test cases for one tool
-        """
-        failed_test_cases = {}
-        succeeded_test_cases = set()
-        for t in self.tool.tests() or []:
-            failed, succeeded = self.run_one_test_case(t)
-
-            if failed > 0:
-                failed_test_cases[t.name] = failed
-            else:
-                succeeded_test_cases.add(t.name)
-
-        return failed_test_cases, succeeded_test_cases
 
     def run_one_test_case(self, t: TTestCase):
         """
         Run one test case and assert multiple expected output
         """
-        failed = set()
-        succeeded = set()
+        output_all_engines = self.run(t.input)
 
-        output = self.run(t.input)
-        for expected_output in t.output:
-            output_value = output[expected_output.tag]
-            actual_output = self.get_value_to_compare(expected_output, output_value)
-            test_result = expected_output.operator(actual_output, expected_output.expected_value)
-            if test_result is False:
-                failed.add(f"{str(expected_output)} | actual output: {actual_output}")
-            else:
-                succeeded.add(str(expected_output))
+        test_results = {}
+        for engine in output_all_engines:
+            output = output_all_engines[engine]
 
-        return failed, succeeded
+            failed = set()
+            succeeded = set()
+            for expected_output in t.output:
+                print(output)
+                output_value = output[expected_output.tag]
+                actual_output = self.get_value_to_compare(expected_output, output_value)
+
+                test_result = expected_output.operator(actual_output, expected_output.expected_value)
+                if test_result is False:
+                    failed.add(f"{str(expected_output)} {type(expected_output.expected_value)} | actual output: {actual_output} {type(actual_output)}")
+                else:
+                    succeeded.add(str(expected_output))
+
+            test_results[engine] = (failed, succeeded)
+
+        return test_results
 
     def get_value_to_compare(self, expected_output: TTestExpectedOutput, output_value: Any) -> Any:
         output_tag = expected_output.tag

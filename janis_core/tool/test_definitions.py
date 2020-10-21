@@ -112,6 +112,11 @@ class ToolEvaluator:
 
         # Call this outside the try-except so that we can still throw
         # different exceptions relevant to the actual logic of this function
+        if not tool.container():
+            print(tool.id(), "no container")
+        else:
+            print(tool.id(), tool.container())
+
         ci = ContainerInfo.parse(tool.container())
         registry = ContainerRegistry.from_host(ci.host).to_registry()
         digest = registry.get_digest(ci)
