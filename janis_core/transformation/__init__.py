@@ -157,7 +157,7 @@ class JanisTransformationGraph:
         types = getmro(type(source))
 
         for T in types:
-            if not issubclass(T, DataType):
+            if not issubclass(T, DataType) or T == DataType:
                 continue
 
             transformation = self.find_connection_inner(T, desired)
