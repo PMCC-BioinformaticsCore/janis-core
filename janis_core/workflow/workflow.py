@@ -333,16 +333,12 @@ class WorkflowBase(Tool, ABC):
         if default is not None:
             datatype.optional = True
 
-        doc = (
-            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
-        )
-
         inp = InputNode(
             self,
             identifier=identifier,
             datatype=datatype,
             default=default,
-            doc=doc,
+            doc=InputDocumentation.try_parse_from(doc),
             value=value,
         )
         self.nodes[identifier] = inp
@@ -727,14 +723,9 @@ class WorkflowBase(Tool, ABC):
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(
-                    inp_identifier,
-                    inputs[k].intype,
-                    default=v,
-                    doc=InputDocumentation(
-                        doc=None, quality=InputQualityType.configuration
-                    ),
-                )
+                doc = copy.copy(InputDocumentation.try_parse_from(inputs[k].doc))
+                doc.quality = InputQualityType.configuration
+                v = self.input(inp_identifier, inputs[k].intype, default=v, doc=doc)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
