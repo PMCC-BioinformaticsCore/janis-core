@@ -33,7 +33,7 @@ class ToolTestSuiteRunner():
 
             engines = [
                 EngineType.cromwell.value,
-                EngineType.cwltool.value,
+                # EngineType.cwltool.value,
             ]
             current_dir = os.getcwd()
 
@@ -85,39 +85,51 @@ class ToolTestSuiteRunner():
 
         if expected_output.compared == TTestCompared.Value:
             value = output_value
+        elif expected_output.compared == TTestCompared.FileContent:
+            with open(output_value) as f:
+                value = f.read()
         elif expected_output.compared == TTestCompared.FileDiff:
-            with open(expected_output.expected_source) as expected_file:
-                expected_content = list(expected_file)
-            with open(output_value) as output_file:
-                output_content = list(output_file)
-
-            diff = difflib.unified_diff(expected_content, output_content,
-                                        fromfile='expected', tofile='actual', lineterm='')
-            value = list(diff)
+            value = self.file_diff(expected_file_path=expected_output.expected_source,
+                                   output_file_path=output_value)
         elif expected_output.compared == TTestCompared.FileMd5:
             value = self.read_md5(output_value)
         elif expected_output.compared == TTestCompared.FileSize:
             value = os.path.getsize(output_value)
         elif expected_output.compared == TTestCompared.LineCount:
-            output_type = self.tool.outputs_map().get(output_tag).outtype
-
-            try:
-                if isinstance(output_type, File):
-                    # text file only here
-                    value = sum(1 for line in open(output_value, "r"))
-                elif isinstance(output_type, String):
-                    value = len(output_value.splitlines())
-            except Exception as e:
-                raise Exception(f"{TTestCompared.LineCount} comparison type is not allowed for"
-                                f" output type {output_type}")
+            value = self.line_count(output_tag=output_tag, output_value=output_value)
         else:
             raise Exception(f"{expected_output.compared} comparison type is not supported")
 
         return value
 
-    def read_md5(self, file_path: str):
+    def read_md5(self, file_path: str) -> str:
         hash_md5 = hashlib.md5()
         with open(file_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
+
+    def file_diff(self, expected_file_path: str, output_file_path: str) -> List[str]:
+        with open(expected_file_path) as expected_file:
+            expected_content = list(expected_file)
+        with open(output_file_path) as output_file:
+            output_content = list(output_file)
+
+        diff = difflib.unified_diff(expected_content, output_content,
+                                    fromfile='expected', tofile='actual', lineterm='')
+        return list(diff)
+
+    def line_count(self, output_tag: str, output_value: Any) -> int:
+        output_type = self.tool.outputs_map().get(output_tag).outtype
+
+        try:
+            if isinstance(output_type, File):
+                # text file only here
+                value = sum(1 for line in open(output_value, "r"))
+            elif isinstance(output_type, String):
+                value = len(output_value.splitlines())
+        except Exception as e:
+            raise Exception(f"{TTestCompared.LineCount} comparison type is not allowed for"
+                            f" output type {output_type}")
+
+        return value

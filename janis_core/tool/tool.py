@@ -63,6 +63,7 @@ class TOutput(object):
 class TTestCompared(Enum):
     Value = "value"
     FileDiff = "file-diff"
+    FileContent = "file-content"
     FileSize = "file-size"
     FileMd5 = "file-md5"
     LineCount = "line-count"
