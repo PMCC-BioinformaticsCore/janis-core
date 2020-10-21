@@ -122,7 +122,7 @@ class JanisTransformation:
                 transform.relevant_tool_output
             ]
 
-        w.output("out", final_tr.type2, source=prev_input)
+        w.output("out", final_tr.type2, source=prev_input, output_name=False)
 
         return w
 
