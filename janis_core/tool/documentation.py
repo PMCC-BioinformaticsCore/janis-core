@@ -26,7 +26,9 @@ class InputDocumentation(DocumentationMeta):
         doc: Optional[str],
         quality: InputQualityType = InputQualityType.user,
         example: Optional[Union[str, List[str]]] = None,
-        source: Optional[Dict[str, Union[str, List[str]]]] = None,
+        source: Optional[
+            Union[str, List[str], Dict[str, Union[str, List[str]]]]
+        ] = None,
     ):
         """
         Extended documentation for inputs
@@ -43,10 +45,10 @@ class InputDocumentation(DocumentationMeta):
 
     @staticmethod
     def try_parse_from(doc: Union[str, Dict[str, str], any]):
-        if isinstance(doc, InputDocumentation):
-            return doc
-        elif isinstance(doc, str):
+        if doc is None or isinstance(doc, str):
             return InputDocumentation(doc=doc)
+        elif isinstance(doc, InputDocumentation):
+            return doc
         elif isinstance(doc, dict):
             return InputDocumentation(**doc)
         else:
