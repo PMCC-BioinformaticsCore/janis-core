@@ -320,7 +320,7 @@ class WorkflowBase(Tool, ABC):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: Union[str, InputDocumentation] = None,
+        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
     ):
         """
         Create an input node on a workflow
