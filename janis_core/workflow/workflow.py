@@ -320,7 +320,7 @@ class WorkflowBase(Tool, ABC):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: Union[str, InputDocumentation] = None,
+        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
     ):
         """
         Create an input node on a workflow
@@ -333,16 +333,12 @@ class WorkflowBase(Tool, ABC):
         if default is not None:
             datatype.optional = True
 
-        doc = (
-            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
-        )
-
         inp = InputNode(
             self,
             identifier=identifier,
             datatype=datatype,
             default=default,
-            doc=doc,
+            doc=InputDocumentation.try_parse_from(doc),
             value=value,
         )
         self.nodes[identifier] = inp
@@ -727,14 +723,9 @@ class WorkflowBase(Tool, ABC):
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(
-                    inp_identifier,
-                    inputs[k].intype,
-                    default=v,
-                    doc=InputDocumentation(
-                        doc=None, quality=InputQualityType.configuration
-                    ),
-                )
+                doc = copy.copy(InputDocumentation.try_parse_from(inputs[k].doc))
+                doc.quality = InputQualityType.configuration
+                v = self.input(inp_identifier, inputs[k].intype, default=v, doc=doc)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
@@ -1177,8 +1168,39 @@ class WorkflowBase(Tool, ABC):
 
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
-        if meta:
+        if meta and meta.version:
             return meta.version
+
+    def apply_input_documentation(
+        self,
+        inputs: Dict[str, Union[InputDocumentation, str, Dict[str, any]]],
+        should_override=False,
+        strict=False,
+    ):
+        missing, skipped = set(), set()
+        innodes = self.input_nodes
+        for inpid, doc in inputs.items():
+            if inpid not in innodes:
+                if strict:
+                    missing.add(inpid)
+                continue
+            node = innodes[inpid]
+            existing_doc = node.doc and node.doc.doc
+            if existing_doc is None or should_override:
+                node.doc = InputDocumentation.try_parse_from(doc)
+            else:
+                skipped.add(inpid)
+
+        if missing:
+            raise Exception(
+                "Couldn't find the following inputs to update: " + ", ".join(missing)
+            )
+
+        if skipped:
+            Logger.log(
+                "Skipped updating fields as they already had documentation: "
+                + ", ".join(skipped)
+            )
 
 
 class Workflow(WorkflowBase):

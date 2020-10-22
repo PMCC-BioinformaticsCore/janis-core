@@ -597,6 +597,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @staticmethod
     def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
+        return None
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
@@ -613,13 +614,13 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         if not requires_obj_capture:
             return None
 
-        classtype = "File" if isinstance(outtype, File) else "Directory"
+        classtype = "File" if isinstance(base, File) else "Directory"
         fileout_generator = (
             lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
         )
 
         if arraylayers:
-            els = ["var els = [];"]
+            els = []
 
             base_var = f"v{arraylayers}"
             center = f"els.push({fileout_generator(base_var)};"
@@ -630,12 +631,19 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     center = iteratively_wrap(center, var, layers_remaining - 1)
                 return f"for (var {var} of {iterable}) {{ {center} }}"
 
-            out_capture = "\n".join([els, iteratively_wrap(center, "c", arraylayers)])
+            out_capture = "\n".join(
+                [
+                    "var els = [];",
+                    iteratively_wrap(center, "c", arraylayers),
+                    "return els",
+                ]
+            )
         else:
-            out_capture = fileout_generator("self")
+            capture = fileout_generator("self")
+            out_capture = f"return {capture};"
 
         return f"""${{
-return {out_capture}
+{out_capture}
 }}"""
 
     @classmethod
