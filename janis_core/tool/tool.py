@@ -1,3 +1,5 @@
+import sys
+import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, List, Dict, Set, Any, Callable
@@ -11,6 +13,15 @@ from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
+
+
+class ToolWithTestSuite(ABC):
+    TEST_DATA_FOLDER = "test_data"
+
+    @classmethod
+    def test_data_path(cls):
+        module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
+        return os.path.join(module_path, cls.TEST_DATA_FOLDER)
 
 
 class ToolType(Enum):
@@ -67,11 +78,12 @@ class TTestCompared(Enum):
     FileSize = "file-size"
     FileMd5 = "file-md5"
     LineCount = "line-count"
+    ListSize = "list-size"
 
 
 class TTestExpectedOutput(object):
-    def __init__(self, tag: str, compared: TTestCompared, operator: Callable,
-                 expected_value: Any, expected_source: Optional[Any] = None):
+    def __init__(self, tag: str, compared: TTestCompared, operator: Callable, expected_value: Any,
+                 expected_source: Optional[Any] = None, array_index: Optional[Any] = None):
         self.tag = tag
         self.compared = compared
         self.operator = operator
@@ -84,6 +96,9 @@ class TTestExpectedOutput(object):
         # expected_value: values readable by 'operator'. It could be the number of
         # lines of diff result of expected file and actual file.
         self.expected_source = expected_source
+
+        # if an output is an array, we can look at just 1 item of the array, so here we specify the index
+        self.array_index = array_index
 
     def __repr__(self):
         return f"{self.tag}: {self.compared.value} {str(self.operator)} {str(self.expected_value)}"

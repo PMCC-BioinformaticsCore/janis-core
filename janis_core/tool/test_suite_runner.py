@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Any
 from pkg_resources import parse_version
 
 from janis_core.tool.tool import Tool, TTestExpectedOutput, TTestCompared, TTestCase
-from janis_core.types import DataType, File, String
+from janis_core.types import DataType, File, String, Array
 from janis_core.tool import test_helpers
 
 
@@ -33,20 +33,21 @@ class ToolTestSuiteRunner():
 
             engines = [
                 EngineType.cromwell.value,
-                # EngineType.cwltool.value,
+                EngineType.cwltool.value,
             ]
             current_dir = os.getcwd()
 
             output = {}
             for engine in engines:
                 output_dir = os.path.join(current_dir, "tests_output", self.tool.id())
+                # output_dir = os.path.join("tests_output")
                 config = JanisConfiguration(engine=engine)
                 result = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
                 print(result)
                 output[engine] = result
 
                 #TODO: investigate why we need to change directory here?
-                os.chdir(current_dir)
+                # os.chdir(current_dir)
 
             return output
         except Exception as e:
@@ -61,26 +62,37 @@ class ToolTestSuiteRunner():
         test_results = {}
         for engine in output_all_engines:
             output = output_all_engines[engine]
-
             failed = set()
             succeeded = set()
-            for expected_output in t.output:
-                print(output)
-                output_value = output[expected_output.tag]
-                actual_output = self.get_value_to_compare(expected_output, output_value)
 
-                test_result = expected_output.operator(actual_output, expected_output.expected_value)
+            for test_logic in t.output:
+                workflow_output = output[test_logic.tag]
+                actual_output = self.get_value_to_compare(test_logic, workflow_output)
+                test_result = test_logic.operator(actual_output, test_logic.expected_value)
+
                 if test_result is False:
-                    failed.add(f"{str(expected_output)} {type(expected_output.expected_value)} | actual output: {actual_output} {type(actual_output)}")
+                    failed.add(f"{str(test_logic)} {type(test_logic.expected_value)}"
+                               f" | actual output: {actual_output} {type(actual_output)}")
                 else:
-                    succeeded.add(str(expected_output))
+                    succeeded.add(str(test_logic))
 
             test_results[engine] = (failed, succeeded)
 
         return test_results
 
     def get_value_to_compare(self, expected_output: TTestExpectedOutput, output_value: Any) -> Any:
+        """
+        convert workflow output value to the format we want to compare
+        """
         output_tag = expected_output.tag
+        output_type = self.tool.outputs_map().get(output_tag).outtype
+
+        # Convert array to element of array
+        if isinstance(output_type, Array):
+            if expected_output.array_index is not None:
+                output_list = output_value.split("|")
+                output_value = output_list[expected_output.array_index]
+
         value = None
 
         if expected_output.compared == TTestCompared.Value:
@@ -96,7 +108,9 @@ class ToolTestSuiteRunner():
         elif expected_output.compared == TTestCompared.FileSize:
             value = os.path.getsize(output_value)
         elif expected_output.compared == TTestCompared.LineCount:
-            value = self.line_count(output_tag=output_tag, output_value=output_value)
+            value = self.line_count(output_type=output_type, output_value=output_value)
+        elif expected_output.compared == TTestCompared.ListSize:
+            pass
         else:
             raise Exception(f"{expected_output.compared} comparison type is not supported")
 
@@ -119,9 +133,7 @@ class ToolTestSuiteRunner():
                                     fromfile='expected', tofile='actual', lineterm='')
         return list(diff)
 
-    def line_count(self, output_tag: str, output_value: Any) -> int:
-        output_type = self.tool.outputs_map().get(output_tag).outtype
-
+    def line_count(self, output_value: Any, output_type: Any) -> int:
         try:
             if isinstance(output_type, File):
                 # text file only here
