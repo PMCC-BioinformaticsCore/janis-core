@@ -1589,7 +1589,11 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
                 expr = If(IsDefined(glob), expr, tinp.default)
 
             return CwlTranslator.unwrap_expression(
-                expr, code_environment=False, **debugkwargs
+                expr,
+                inputs_dict=inputsdict,
+                code_environment=False,
+                for_output=True,
+                **debugkwargs,
             )
 
     elif isinstance(glob, StringFormatter):
@@ -1661,7 +1665,7 @@ def prepare_filename_replacements_for(
         return None
 
     if not inputsdict:
-        return "inputs." + inp.input_to_select
+        return "inputs." + inp.input_to_select + ".basename"
         # raise Exception(
         #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
         # )
@@ -1676,7 +1680,7 @@ def prepare_filename_replacements_for(
         intype = tinp.input_type
 
         if isinstance(intype, (File, Directory)):
-            if isinstance(intype, File) and intype.extension:
+            if inp.remove_file_extension and intype.extension:
                 base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
             else:
                 base = f"inputs.{tinp.id()}.basename"
