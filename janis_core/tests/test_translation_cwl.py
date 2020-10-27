@@ -435,6 +435,17 @@ class TestCwlOutputGeneration(unittest.TestCase):
         out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 
+    def test_localised_out(self):
+
+        inps = {"inp": ToolInput("inp", File, position=1, localise_file=True)}
+        out = ToolOutput("out", File, selector=InputSelector("inp"))
+
+        cwlout = cwl.translate_tool_output(
+            out, inps, environment="dev-test_localised_out", tool=None
+        )
+        ob: cwlgen.CommandOutputBinding = cwlout.outputBinding
+        self.assertEqual("$(inputs.inp.basename)", ob.glob)
+
 
 class TestCwlGenerateInput(unittest.TestCase):
     def setUp(self):

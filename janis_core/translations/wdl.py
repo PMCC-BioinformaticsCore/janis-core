@@ -1442,10 +1442,10 @@ def translate_step_node(
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
-    
+
     This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
     and tbh it's pretty confusing.
-    
+
     :param node:
     :param step_identifier:
     :param step_alias:
@@ -2052,14 +2052,20 @@ def prepare_move_statements_for_input(ti: ToolInput):
         commands.append(wdl.Task.Command(f"cp -f ~{{{ti.id()}}} {newlocation}"))
 
     if it.secondary_files():
+        sec_presents_as = ti.secondaries_present_as or {}
+
         for s in it.secondary_files():
             sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+            if ti.localise_file and not ti.presents_as:
+                # move into the current directory
+                dest = "."
+            else:
+                sectag = get_secondary_tag_from_original_tag(ti.id(), s)
 
-            newext, iters = split_secondary_file_carats(
-                ti.secondaries_present_as.get(s, s)
-            )
-            newpath = REMOVE_EXTENSION(base, iters) + newext
-            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {newpath}"))
+                newext, iters = split_secondary_file_carats(sec_presents_as.get(s, s))
+                dest = REMOVE_EXTENSION(base, iters) + newext
+
+            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {dest}"))
 
     return commands
 
