@@ -756,9 +756,7 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
             # Filter out None or NoneType
             try:
                 new_subtypes = [
-                    t
-                    for t in subtypes
-                    if (t is not None and not (isclass(t) and isinstance(None, t)))
+                    t for t in subtypes if t is not None and type(None) != t
                 ]
             except Exception as e:
                 Logger.critical(
