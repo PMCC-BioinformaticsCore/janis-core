@@ -753,11 +753,18 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
 
         elif str(dt).startswith("typing.Union"):
             subtypes = dt.__args__
-            new_subtypes = [
-                t
-                for t in subtypes
-                if (t is not None and not (isclass(t) and t() is None))
-            ]
+            # Filter out None or NoneType
+            try:
+                new_subtypes = [
+                    t
+                    for t in subtypes
+                    if (t is not None and not (isclass(t) and isinstance(None, t)))
+                ]
+            except Exception as e:
+                Logger.critical(
+                    f"Couldn't determine the appropriate internal types from {str(dt)}, failed with error: {str(e)}"
+                )
+                raise
             optional = len(subtypes) != len(new_subtypes)
 
             if len(new_subtypes) == 0:
