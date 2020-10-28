@@ -16,69 +16,68 @@ class ToolTestSuiteRunner():
     def __init__(self, tool: Tool):
         self.tool = tool
 
-    def run(self, input: Dict[str, str]):
-        # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
-        # So, we only import this package here in this function
-        # Make sure the correct version of janis_assistant is installed first
+    @classmethod
+    def verify_janis_assistant_installed(cls):
         min_version_required = test_helpers.janis_assistant_version_required_min
+
         try:
             import janis_assistant
             if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
                 raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
                                 f" must be installed. Installed version is {janis_assistant.__version__}")
 
-            from janis_assistant.main import run_with_outputs
-            from janis_assistant.management.configuration import JanisConfiguration
-            from janis_assistant.engines.enginetypes import EngineType
-
-            engines = [
-                EngineType.cromwell.value,
-                EngineType.cwltool.value,
-            ]
-            current_dir = os.getcwd()
-
-            output = {}
-            for engine in engines:
-                output_dir = os.path.join(current_dir, "tests_output", self.tool.id())
-                # output_dir = os.path.join("tests_output")
-                config = JanisConfiguration(engine=engine)
-                result = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
-                print(result)
-                output[engine] = result
-
-                #TODO: investigate why we need to change directory here?
-                # os.chdir(current_dir)
-
-            return output
         except Exception as e:
             raise e
 
-    def run_one_test_case(self, t: TTestCase):
+    @classmethod
+    def get_available_engines(cls):
+        cls.verify_janis_assistant_installed()
+        from janis_assistant.engines.enginetypes import EngineType
+
+        engines = [
+            EngineType.cromwell.value,
+            EngineType.cwltool.value,
+        ]
+
+        return engines
+
+    def run(self, input: Dict[str, str], engine):
+        # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
+        # So, we only import this package here in this function
+        # Make sure the correct version of janis_assistant is installed first
+
+        self.verify_janis_assistant_installed()
+
+        from janis_assistant.main import run_with_outputs
+        from janis_assistant.management.configuration import JanisConfiguration
+
+        output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
+        config = JanisConfiguration(engine=engine)
+        output = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
+
+        return output
+
+    def run_one_test_case(self, t: TTestCase, engine):
         """
         Run one test case and assert multiple expected output
         """
-        output_all_engines = self.run(t.input)
+        output = self.run(input=t.input, engine=engine)
 
-        test_results = {}
-        for engine in output_all_engines:
-            output = output_all_engines[engine]
-            failed = set()
-            succeeded = set()
+        failed = set()
+        succeeded = set()
 
-            for test_logic in t.output:
-                workflow_output = output[test_logic.tag]
-                actual_output = self.get_value_to_compare(test_logic, workflow_output)
-                test_result = test_logic.operator(actual_output, test_logic.expected_value)
+        for test_logic in t.output:
+            workflow_output = output[test_logic.tag]
+            actual_output = self.get_value_to_compare(test_logic, workflow_output)
+            test_result = test_logic.operator(actual_output, test_logic.expected_value)
 
-                if test_result is False:
-                    failed.add(f"{str(test_logic)} {type(test_logic.expected_value)}"
-                               f" | actual output: {actual_output} {type(actual_output)}")
-                else:
-                    succeeded.add(str(test_logic))
+            if test_result is False:
+                failed.add(f"{str(test_logic)} {type(test_logic.expected_value)}"
+                           f" | actual output: {actual_output} {type(actual_output)}")
+            else:
+                succeeded.add(str(test_logic))
 
-            test_results[engine] = (failed, succeeded)
-
-        return test_results
+        return failed, succeeded
 
     def get_value_to_compare(self, expected_output: TTestExpectedOutput, output_value: Any) -> Any:
         """
