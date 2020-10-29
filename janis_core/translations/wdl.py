@@ -2039,13 +2039,13 @@ def prepare_move_statements_for_input(ti: ToolInput):
         if ti.localise_file and not ti.presents_as:
             newlocation = "."
         elif not ti.localise_file and ti.presents_as:
-            newlocation = f'"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"'
+            newlocation = f"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"
             base = newlocation
         else:
             newlocation = ti.presents_as
-            base = f'"{ti.presents_as}"'
+            base = ti.presents_as
 
-        commands.append(wdl.Task.Command(f"cp -f ~{{{ti.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"cp -f '~{{{ti.id()}}}' '{newlocation}'"))
 
     if it.secondary_files():
         sec_presents_as = ti.secondaries_present_as or {}
@@ -2061,7 +2061,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
                 newext, iters = split_secondary_file_carats(sec_presents_as.get(s, s))
                 dest = REMOVE_EXTENSION(base, iters) + newext
 
-            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {dest}"))
+            commands.append(wdl.Task.Command(f"cp -f '~{{{sectag}}}' {dest}"))
 
     return commands
 
