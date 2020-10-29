@@ -61,15 +61,17 @@ class Edge:
         # stoolin: TOutput = self.start.outputs()[
         #     self.stag
         # ] if self.stag is not None else first_value(self.start.outputs())
-        ftoolin: TInput = self.finish.inputs()[
-            self.ftag
-        ] if self.ftag is not None else first_value(self.finish.inputs())
+        ftoolin: TInput = (
+            self.finish.inputs()[self.ftag]
+            if self.ftag is not None
+            else first_value(self.finish.inputs())
+        )
 
         stype = get_instantiated_type(self.source.returntype())
         ftype = get_instantiated_type(ftoolin.intype)
 
         if self.scatter:
-            if not isinstance(stype, Array):
+            if not stype.is_array():
                 raise Exception(
                     f"Scatter was required for '{self.source} → '{self.finish.id()}.{self.ftag}' but "
                     f"the input type was {type(stype).__name__} and not an array"
@@ -81,7 +83,7 @@ class Edge:
 
         self.compatible_types = ftype.can_receive_from(stype, False)
         if not self.compatible_types:
-            if isinstance(ftype, Array) and ftype.subtype().can_receive_from(stype):
+            if ftype.is_array() and ftype.subtype().can_receive_from(stype):
                 self.compatible_types = True
 
         if not self.compatible_types:
@@ -92,7 +94,7 @@ class Edge:
                 f"Mismatch of types when joining '{s}' to '{f}': "
                 f"{stype.id()} -/→ {ftoolin.intype.id()}"
             )
-            if isinstance(stype, Array) and ftype.can_receive_from(stype.subtype()):
+            if stype.is_array() and ftype.can_receive_from(stype.subtype()):
                 message += " (did you forget to SCATTER?)"
             Logger.critical(message)
 
@@ -126,7 +128,7 @@ class StepTagInput:
         # start: Node, stag: Optional[str]
 
         # stype = (start.outputs()[stag] if stag is not None else first_value(start.outputs())).outtype
-        stype = operator.returntype()
+        stype = get_instantiated_type(operator.returntype())
         ftype = (
             self.finish.inputs()[self.ftag]
             if self.ftag is not None
@@ -143,22 +145,22 @@ class StepTagInput:
         #     stype = Array(stype)
 
         if should_scatter:
-            if not isinstance(stype, Array):
+            if not stype.is_array():
                 raise Exception(
                     f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
                     f"the input type was {type(stype).__name__} and not an array"
                 )
-            stype = stype.subtype()
+            stype = get_instantiated_type(stype.subtype())
 
         if len(self.source_map) == 1:  # and start.id() not in self.source_map:
             self.multiple_inputs = True
 
-            if not isinstance(ftype, Array):
+            if not ftype.is_array():
                 raise Exception(
                     f"Adding multiple inputs to '{self.finish.id()}' and '{ftype.id()}' is not an array"
                 )
 
-        if not isinstance(stype, Array) and isinstance(ftype, Array):
+        if not stype.is_array() and ftype.is_array():
             # https://www.commonwl.org/user_guide/misc/#connect-a-solo-value-to-an-input-that-expects-an-array-of-that-type
             self.multiple_inputs = True
 

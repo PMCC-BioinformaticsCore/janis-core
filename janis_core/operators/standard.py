@@ -65,7 +65,7 @@ class JoinOperator(Operator):
             )
         else:
             rettype = get_instantiated_type(iterable_arg.returntype())
-            if isinstance(rettype, Array):
+            if rettype.is_array():
                 is_optional = rettype.subtype().optional
             else:
                 is_optional = rettype.optional

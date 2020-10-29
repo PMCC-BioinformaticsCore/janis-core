@@ -601,13 +601,13 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
-        if isinstance(outtype, Array) and isinstance(
+        if outtype.is_array() and isinstance(
             outtype.fundamental_type(), (File, Directory)
         ):
             requires_obj_capture = True
             base = outtype
             arraylayers = 0
-            while isinstance(base, Array):
+            while base.is_array():
                 arraylayers += 1
                 base = outtype.subtype()
 
@@ -923,7 +923,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
 
     sf = dt.secondary_files()
 
-    if isinstance(dt, Array):
+    if dt.is_array():
         sf = dt.subtype().secondary_files()
 
     return cwlgen.InputParameter(
@@ -1026,7 +1026,7 @@ def translate_tool_input(
     # https://www.commonwl.org/user_guide/09-array-inputs/
     if (
         bind_to_commandline
-        and isinstance(toolinput.input_type, Array)
+        and toolinput.input_type.is_array()
         and isinstance(non_optional_dt_component, cwlgen.CommandInputArraySchema)
     ):
         if toolinput.prefix_applies_to_all_elements:
@@ -1382,11 +1382,7 @@ def translate_step_node(
             src = ar_source[0]
 
             ot = src.source.returntype()
-            if (
-                isinstance(intype, Array)
-                and not isinstance(ot, Array)
-                and not src.scatter
-            ):
+            if intype.is_array() and not ot.is_array() and not src.scatter:
                 array_input_from_single_source = True
 
         should_select_first_element = not (
