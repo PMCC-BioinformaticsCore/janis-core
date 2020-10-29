@@ -13,15 +13,15 @@ def get_all_tools(modules: List):
     return shed.get_all_tools()
 
 
-def get_one_tool(tool_id: str, modules: List):
+def get_one_tool(tool_id: str, modules: List, version: str = None):
     shed = jc.JanisShed
     shed.hydrate(force=True, modules=modules)
 
-    return shed.get_tool(tool_id)
+    return shed.get_tool(tool=tool_id, version=version)
 
 
-def print_test_report(failed: Dict[str, str], succeeded: Set):
-    headers = ["Tool", "Status", "Description"]
+def print_test_report(failed: Dict[str, str], succeeded: Set, first_column_header: str = "Tool"):
+    headers = [first_column_header, "Status", "Description"]
     formatted_failed = [(tid, "FAILED", terror) for tid, terror in failed.items()]
     formatted_passed = [(tid, "PASSED", "") for tid in succeeded]
     print(tabulate([*formatted_failed, *formatted_passed], headers=headers))
