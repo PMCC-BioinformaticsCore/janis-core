@@ -93,7 +93,7 @@ class InputNode(Node):
         super().__init__(wf, NodeType.INPUT, identifier)
         self.datatype = datatype
         self.default = default
-        self.doc = doc
+        self.doc: Optional[InputDocumentation] = doc
         self.value = value
 
     def as_operator(self):
