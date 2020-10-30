@@ -1,7 +1,8 @@
 import copy
 import os
 from abc import abstractmethod, ABC
-from typing import List, Union, Optional, Dict, Tuple, Any, Set
+from inspect import isclass
+from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -451,7 +452,59 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
-    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+    def forward_inputs_from_tool(
+        self,
+        tool: Union[Tool, Type[Tool]],
+        inputs_to_forward: Optional[Iterable[str]] = None,
+        inputs_to_ignore: Iterable[str] = None,
+        input_prefix: str = "",
+    ) -> Dict[str, InputNodeSelector]:
+        """
+        Usage:
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, ["inp1", "inp2"])
+                OR
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, inputs_to_ignore=["inp2"])
+
+            self.step("yourstp", YourTool(**yourstp_inputs))
+
+        :param tool: The tool for which to forward the inputs for
+        :param inputs_to_forward: List of inputs to forward. You MUST specify ALL the inputs you want to forward.
+        :param inputs_to_ignore: You can choose _ALL_ inputs, except those specified here. This option is IGNORED if inputs_to_forward is defined
+        :param input_prefix: Add a prefix when forwarding it to the parent workflow (self)
+        :return:
+        """
+
+        itool = tool() if isclass(tool) else tool
+        qualified_inputs_to_forward = inputs_to_forward
+        tinps: Dict[str, TInput] = {t.id(): t for t in itool.tool_inputs()}
+
+        if inputs_to_forward is None and inputs_to_ignore is None:
+            raise Exception(
+                f"You must specify ONE of inputs_to_forward OR inputs_to_ignore when "
+                f"calling 'forward_inputs_from_tool' with tool {tool.id()})"
+            )
+        elif not inputs_to_forward:
+            qualified_inputs_to_forward = [
+                inpid for inpid in tinps.keys() if inpid not in inputs_to_ignore
+            ]
+
+        d = {}
+        for inp in qualified_inputs_to_forward:
+            if inp not in tinps:
+                raise Exception(
+                    f"Couldn't find the input {inp} in the tool {itool.id()}"
+                )
+            tinp = tinps[inp]
+            d[inp] = self.input(input_prefix + inp, tinp.intype, doc=tinp.doc)
+
+        return d
+
+    def capture_outputs_from_step(
+        self,
+        step: StepNode,
+        output_prefix=None,
+        default_output_name: Union[bool, str, Selector, ConnectionSource] = True,
+    ):
         op = output_prefix or ""
 
         tool = step.tool
@@ -528,7 +581,7 @@ class WorkflowBase(Tool, ABC):
 
         for out in tool.tool_outputs():
             output_folders = None
-            output_name = None
+            output_name = default_output_name
             ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
