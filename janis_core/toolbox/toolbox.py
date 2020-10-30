@@ -113,7 +113,7 @@ class JanisShed:
             return Logger.log("Skipping hydrating tools (as already hydrated)")
 
         JanisShed.hydrate_from(JanisShed._get_tool_entrypoints())
-        JanisShed._has_hydrated_datatypes = True
+        JanisShed._has_hydrated_tools = True
 
     @staticmethod
     def hydrate_transformations():
@@ -122,6 +122,7 @@ class JanisShed:
         transformations = JanisShed._get_datatype_transformations_from_entrypoints()
 
         JanisShed._transformationgraph.add_edges(transformations)
+        JanisShed._has_hydrated_transformations = True
 
     @staticmethod
     def hydrate_from(modules: list):
