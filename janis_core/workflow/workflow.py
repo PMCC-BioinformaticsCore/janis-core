@@ -455,7 +455,12 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
-    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+    def capture_outputs_from_step(
+        self,
+        step: StepNode,
+        output_prefix=None,
+        default_output_name: Union[bool, str, Selector, ConnectionSource] = True,
+    ):
         op = output_prefix or ""
 
         tool = step.tool
@@ -532,7 +537,7 @@ class WorkflowBase(Tool, ABC):
 
         for out in tool.tool_outputs():
             output_folders = None
-            output_name = None
+            output_name = default_output_name
             ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
