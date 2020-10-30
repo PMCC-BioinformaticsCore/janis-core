@@ -75,6 +75,7 @@ class TTestCompared(Enum):
     Value = "value"
     FileDiff = "file-diff"
     FileContent = "file-content"
+    FileExists = "file-exists"
     FileSize = "file-size"
     FileMd5 = "file-md5"
     LineCount = "line-count"
@@ -83,7 +84,8 @@ class TTestCompared(Enum):
 
 class TTestExpectedOutput(object):
     def __init__(self, tag: str, compared: TTestCompared, operator: Callable, expected_value: Any,
-                 expected_source: Optional[Any] = None, array_index: Optional[Any] = None):
+                 expected_source: Optional[Any] = None, array_index: Optional[int] = None,
+                 suffix: Optional[str] = None):
         self.tag = tag
         self.compared = compared
         self.operator = operator
@@ -99,6 +101,9 @@ class TTestExpectedOutput(object):
 
         # if an output is an array, we can look at just 1 item of the array, so here we specify the index
         self.array_index = array_index
+
+        # if the compared object is a file, we can add suffix to test secondary files of this file
+        self.suffix = suffix
 
     def __repr__(self):
         return f"{self.tag}: {self.compared.value} {str(self.operator)} {str(self.expected_value)}"

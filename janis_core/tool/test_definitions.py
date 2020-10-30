@@ -45,7 +45,7 @@ class ToolEvaluator:
 
         evaluation["friendly_name"] = cls.evaluate_friendly_name(tool)
         evaluation["metadata"] = cls.evaluate_metadata(tool)
-        evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
+        # evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
         evaluation['container'] = cls.evaluate_container(tool)
         evaluation["translation"] = cls.evaluate_translation(tool)
 

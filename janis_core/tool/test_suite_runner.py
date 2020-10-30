@@ -54,7 +54,7 @@ class ToolTestSuiteRunner():
         output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         config = JanisConfiguration(engine=engine)
         output = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
-
+        print(output)
         return output
 
     def run_one_test_case(self, t: TTestCase, engine):
@@ -92,6 +92,11 @@ class ToolTestSuiteRunner():
                 output_list = output_value.split("|")
                 output_value = output_list[expected_output.array_index]
 
+        # Add extension to a filename (when testing secondary files)
+        if isinstance(output_type, File):
+            if expected_output.suffix is not None:
+                output_value = f"{output_value}{expected_output.suffix}"
+
         value = None
 
         if expected_output.compared == TTestCompared.Value:
@@ -99,6 +104,8 @@ class ToolTestSuiteRunner():
         elif expected_output.compared == TTestCompared.FileContent:
             with open(output_value) as f:
                 value = f.read()
+        elif expected_output.compared == TTestCompared.FileExists:
+            value = os.path.isfile(output_value)
         elif expected_output.compared == TTestCompared.FileDiff:
             value = self.file_diff(expected_file_path=expected_output.expected_source,
                                    output_file_path=output_value)
