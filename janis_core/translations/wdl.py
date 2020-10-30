@@ -1442,10 +1442,10 @@ def translate_step_node(
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
-    
+
     This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
     and tbh it's pretty confusing.
-    
+
     :param node:
     :param step_identifier:
     :param step_alias:

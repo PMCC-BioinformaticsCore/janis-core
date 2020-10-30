@@ -61,9 +61,11 @@ class Edge:
         # stoolin: TOutput = self.start.outputs()[
         #     self.stag
         # ] if self.stag is not None else first_value(self.start.outputs())
-        ftoolin: TInput = self.finish.inputs()[
-            self.ftag
-        ] if self.ftag is not None else first_value(self.finish.inputs())
+        ftoolin: TInput = (
+            self.finish.inputs()[self.ftag]
+            if self.ftag is not None
+            else first_value(self.finish.inputs())
+        )
 
         stype = get_instantiated_type(self.source.returntype())
         ftype = get_instantiated_type(ftoolin.intype)
