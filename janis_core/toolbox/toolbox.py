@@ -295,8 +295,8 @@ class JanisShed:
             ranked = ", ".join(
                 f"{match[1].name()} ({match[0]})" for match in matches[1:]
             )
-            Logger.info(
-                f"There were {len(matches)} for matching datatypes. Using {matched_dt.name()} ({matches[0][0]}) "
+            Logger.debug(
+                f"There were {len(matches)} matches for matching datatypes. Using {matched_dt.name()} ({matches[0][0]}) "
                 f"as it was the best match from: {ranked}"
             )
             return matches[0][1]
