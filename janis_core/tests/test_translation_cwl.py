@@ -34,7 +34,7 @@ from janis_core import (
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import CwlTranslator
-from janis_core.types import CpuSelector, MemorySelector, Stdout
+from janis_core.types import CpuSelector, MemorySelector, Stdout, UnionType, File
 from janis_core.workflow.workflow import InputNode
 
 
@@ -46,6 +46,7 @@ class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
         actual = t.translate("cwl", to_console=False)
+        self.maxDiff = None
         self.assertEqual(cwl_testtool, actual)
 
 
@@ -369,7 +370,7 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         trans = cwl.CwlTranslator
         translated = trans.translate_tool_internal(TestTool())
         arg: cwlgen.CommandLineBinding = translated.arguments[0]
-        self.assertEqual('test:\\\\t:escaped:\\\\n:characters"', arg.valueFrom)
+        self.assertEqual('test:\\\\t:escaped:\\\\n:characters\\"', arg.valueFrom)
 
 
 class TestCwlEnvVar(unittest.TestCase):
@@ -790,6 +791,18 @@ class TestCWLNotNullOperator(unittest.TestCase):
         print(cwltool)
 
 
+class TestCwlUnionType(unittest.TestCase):
+    def test_file_file(self):
+        utype = UnionType(File, File)
+        cwl_utype = utype.cwl_type()
+        self.assertEqual("File", cwl_utype)
+
+    def test_file_int_str(self):
+        utype = UnionType(int, File, File, str)
+        cwl_utype = sorted(utype.cwl_type())
+        self.assertListEqual(["File", "int", "string"], cwl_utype)
+
+
 class TestCWLWhen(unittest.TestCase):
     def test_basic(self):
         w = WorkflowBuilder("my_conditional_workflow")
@@ -849,7 +862,7 @@ stderr: _stderr
 baseCommand: echo
 arguments:
 - position: 0
-  valueFrom: test:\\\\t:escaped:\\\\n:characters"
+  valueFrom: test:\\\\t:escaped:\\\\n:characters\\"
 
 hints:
 - class: ToolTimeLimit

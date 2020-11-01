@@ -1,7 +1,8 @@
 import copy
 import os
 from abc import abstractmethod, ABC
-from typing import List, Union, Optional, Dict, Tuple, Any, Set
+from inspect import isclass
+from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -357,7 +358,7 @@ class WorkflowBase(Tool, ABC):
             List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
         ] = None,
         output_folder: Union[str, Selector, List[Union[str, Selector]]] = None,
-        output_name: Union[str, Selector, ConnectionSource] = None,
+        output_name: Union[bool, str, Selector, ConnectionSource] = True,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):
@@ -367,14 +368,23 @@ class WorkflowBase(Tool, ABC):
         :param identifier: The identifier for the output
         :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
         :param source: The source of the output, must be an output to a step node
-        :param output_folder: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
-        a structure of nested directories, the first element being the root directory.
-        At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
-        scattered source, and the number of elements is equal.
-        :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
-        resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
-        may result in an unexpected termination.
-        :return:
+        :param output_folder: Decides the output folder(s) where the output will reside. If a list is passed, it
+            represents a structure of nested directories, the first element being the root directory.
+                - None (default): the assistant will copy to the root of the output directory
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+            also resolves to an array, which the assistant can unwrap multiple dimensions of arrays ONLY if the number
+            of elements in the output_scattered source and the number of resolved elements is equal.
+
+        :param output_name: Decides the name of the output (without extension) that an output will have:
+                - True (default): the assistant will choose an output name based on output identifier (tag),
+                - None / False: the assistant will use the original filename (this might cause filename conflicts)
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+                also resolves to an array, which the assistant can unwrap multiple dimensions of arrays.
+        :param extension: The extension to use if janis renames the output. By default, it will pull the extension
+            from the inherited data type (eg: CSV -> ".csv"), or it will attempt to pull the extension from the file.
+        :return: janis.WorkflowOutputNode
         """
         self.verify_identifier(identifier, repr(datatype))
 
@@ -400,7 +410,9 @@ class WorkflowBase(Tool, ABC):
             while isinstance(sourceoperator, list):
                 sourceoperator: Selector = sourceoperator[0]
 
-            datatype: DataType = copy.copy(sourceoperator.returntype().received_type())
+            datatype: DataType = copy.copy(
+                get_instantiated_type(sourceoperator.returntype()).received_type()
+            )
             if (
                 isinstance(sourceoperator, InputNodeSelector)
                 and sourceoperator.input_node.default is not None
@@ -444,7 +456,59 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
-    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+    def forward_inputs_from_tool(
+        self,
+        tool: Union[Tool, Type[Tool]],
+        inputs_to_forward: Optional[Iterable[str]] = None,
+        inputs_to_ignore: Iterable[str] = None,
+        input_prefix: str = "",
+    ) -> Dict[str, InputNodeSelector]:
+        """
+        Usage:
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, ["inp1", "inp2"])
+                OR
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, inputs_to_ignore=["inp2"])
+
+            self.step("yourstp", YourTool(**yourstp_inputs))
+
+        :param tool: The tool for which to forward the inputs for
+        :param inputs_to_forward: List of inputs to forward. You MUST specify ALL the inputs you want to forward.
+        :param inputs_to_ignore: You can choose _ALL_ inputs, except those specified here. This option is IGNORED if inputs_to_forward is defined
+        :param input_prefix: Add a prefix when forwarding it to the parent workflow (self)
+        :return:
+        """
+
+        itool = tool() if isclass(tool) else tool
+        qualified_inputs_to_forward = inputs_to_forward
+        tinps: Dict[str, TInput] = {t.id(): t for t in itool.tool_inputs()}
+
+        if inputs_to_forward is None and inputs_to_ignore is None:
+            raise Exception(
+                f"You must specify ONE of inputs_to_forward OR inputs_to_ignore when "
+                f"calling 'forward_inputs_from_tool' with tool {tool.id()})"
+            )
+        elif not inputs_to_forward:
+            qualified_inputs_to_forward = [
+                inpid for inpid in tinps.keys() if inpid not in inputs_to_ignore
+            ]
+
+        d = {}
+        for inp in qualified_inputs_to_forward:
+            if inp not in tinps:
+                raise Exception(
+                    f"Couldn't find the input {inp} in the tool {itool.id()}"
+                )
+            tinp = tinps[inp]
+            d[inp] = self.input(input_prefix + inp, tinp.intype, doc=tinp.doc)
+
+        return d
+
+    def capture_outputs_from_step(
+        self,
+        step: StepNode,
+        output_prefix=None,
+        default_output_name: Union[bool, str, Selector, ConnectionSource] = True,
+    ):
         op = output_prefix or ""
 
         tool = step.tool
@@ -521,9 +585,11 @@ class WorkflowBase(Tool, ABC):
 
         for out in tool.tool_outputs():
             output_folders = None
-            output_name = None
+            output_name = default_output_name
+            ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
+                ext = outnode.extension
 
                 if outnode.output_folder is not None:
                     output_folders = get_transformed_selector(
@@ -540,6 +606,7 @@ class WorkflowBase(Tool, ABC):
                 source=step[out.id()],
                 output_name=output_name,
                 output_folder=output_folders or [],
+                extension=ext,
             )
 
     def all_input_keys(self):
@@ -562,8 +629,9 @@ class WorkflowBase(Tool, ABC):
     ):
         if isinstance(out, list):
             return [self.verify_output_source_type(identifier, o, outtype) for o in out]
-
-        if isinstance(out, (str, bool, float, int)):
+        if isinstance(out, bool):
+            return out
+        if isinstance(out, (str, float, int)):
             return str(out)
 
         if isinstance(out, tuple):
@@ -616,7 +684,7 @@ class WorkflowBase(Tool, ABC):
         :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
         :param when: An operator / condition that determines whether the step should run
-        : type when: Optional[Operator]
+        :type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
         """
@@ -850,6 +918,7 @@ class WorkflowBase(Tool, ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         allow_empty_container=False,
         container_override: dict = None,
     ):
@@ -873,6 +942,7 @@ class WorkflowBase(Tool, ABC):
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
         )
@@ -1072,7 +1142,7 @@ class WorkflowBase(Tool, ABC):
                 subid = pref + stp.id()
                 bgcolor = f"grey{(9 - depth) * 10}"
                 with graph.subgraph(name="cluster_" + subid, comment=stp.doc.doc) as g:
-                    g.attr(bgcolor, label=fn, style="filled")
+                    g.attr(color=bgcolor, label=fn, style="filled")
                     # if prefix:
                     g.node(subid, shape="Msquare")
                     WorkflowBase.get_dot_plot_internal(

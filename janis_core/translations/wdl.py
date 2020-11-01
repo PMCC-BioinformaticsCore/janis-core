@@ -538,7 +538,9 @@ EOT"""
             return f"[{joined_values}]"
         if is_python_primitive(expression):
             if isinstance(expression, str):
-                return cls.wrap_if_string_environment(expression, string_environment)
+                return cls.wrap_if_string_environment(
+                    prepare_escaped_string(expression), string_environment
+                )
             if isinstance(expression, bool):
                 return "true" if expression else "false"
 
@@ -714,7 +716,7 @@ EOT"""
         else:
             stype = expression.__class__.__name__
         raise Exception(
-            f"Could not detect type '{stype}' to convert to input value{warning}"
+            f"Could not convert expression '{expression}' as could detect type '{stype}' to convert to input value{warning}"
         )
 
     @classmethod
@@ -772,17 +774,24 @@ EOT"""
                 **debugkwargs,
             )
         elif isinstance(expression, WildcardSelector):
-            base_expression = translate_wildcard_selector(expression)
-            if (
-                not isinstance(output.output_type, Array)
-                and not expression.select_first
-            ):
-                Logger.info(
-                    f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
-                    f"but the return type was not an array. For WDL, the first element will be used, "
-                    f"ie: '{base_expression}[0]'"
-                )
-                base_expression += "[0]"
+            is_single = not isinstance(output.output_type, Array)
+            select_first = None
+            is_single_optional = None
+            if is_single:
+                is_single_optional = output.output_type.optional
+                if not expression.select_first:
+                    Logger.info(
+                        f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
+                        f"but the return type was not an array. For WDL, the first element will be used, "
+                        f"ie: 'glob(\"{expression.wildcard}\")[0]'"
+                    )
+                    select_first = True
+
+            base_expression = translate_wildcard_selector(
+                expression,
+                override_select_first=select_first,
+                is_optional=is_single_optional,
+            )
 
             return base_expression
 
@@ -896,12 +905,23 @@ EOT"""
         ):
             if isinstance(original_expression, WildcardSelector):
                 # do custom override for wildcard selector
+                is_single = not isinstance(out.output_type, Array)
+                select_first = None
+                is_single_optional = None
+                if is_single and not original_expression.select_first:
+                    select_first = True
+                    is_single_optional = out.output_type.optional
                 ftype = out.output_type.subtype().wdl()
                 return [
                     wdl.Output(
                         ftype,
                         get_secondary_tag_from_original_tag(out.id(), s),
-                        translate_wildcard_selector(original_expression, s),
+                        translate_wildcard_selector(
+                            original_expression,
+                            secondary_format=s,
+                            override_select_first=select_first,
+                            is_optional=is_single_optional,
+                        ),
                     )
                     for s in out.output_type.subtype().secondary_files()
                 ]
@@ -937,6 +957,11 @@ EOT"""
                         f" as it uses the escape characater '^' but Janis can't determine the extension of the output."
                         f"This could be resolved by ensuring the definition for '{ot.__class__.__name__}' contains an extension."
                     )
+
+                if ot.optional:
+                    exp = [
+                        f"if defined({expression}) then ({e}) else None" for e in exp
+                    ]
 
                 outs.append(wdl.Output(ftype, tag, exp if islist else exp[0]))
 
@@ -1022,6 +1047,7 @@ EOT"""
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
         """
         Recursive is currently unused, but eventually input overrides could be generated the whole way down
@@ -1077,7 +1103,13 @@ EOT"""
         if merge_resources:
             inp.update(
                 cls.build_resources_input(
-                    tool, hints, max_cores, max_mem, inputs=ad, is_root=True
+                    tool,
+                    hints,
+                    max_cores=max_cores,
+                    max_mem=max_mem,
+                    max_duration=max_duration,
+                    inputs=ad,
+                    is_root=True,
                 )
             )
 
@@ -1090,6 +1122,7 @@ EOT"""
         hints,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         inputs=None,
         prefix=None,
         is_root=False,
@@ -1102,6 +1135,7 @@ EOT"""
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
             prefix=prefix or "",
             inputs=inputs,
         )
@@ -1124,6 +1158,10 @@ EOT"""
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.json"
+
+
+def prepare_escaped_string(value: str):
+    return json.dumps(value)[1:-1]
 
 
 def resolve_tool_input_value(
@@ -1213,7 +1251,11 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
 
     if isinstance(intype, Boolean):
         if tool_input.prefix:
-            expr = f'~{{if defined({expr}) then "{tprefix}" else ""}}'
+            if tool_input.default is not None or not intype.optional:
+                condition = expr
+            else:
+                condition = f"(defined({expr}) && select_first([{expr}]))"
+            expr = f'~{{if {condition} then "{tprefix}" else ""}}'
     elif isinstance(intype, Array):
 
         separator = tool_input.separator if tool_input.separator is not None else " "
@@ -1227,6 +1269,8 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
             rexpr = expr
             expr = f"select_first([{expr}])"
             condition_for_binding = f"(defined({rexpr}) && length({expr}) > 0)"
+        else:
+            condition_for_binding = f"length({expr}) > 0"
 
         if intype.subtype().optional:
             expr = f"select_all({expr})"
@@ -1398,10 +1442,10 @@ def translate_step_node(
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
-    
+
     This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
     and tbh it's pretty confusing.
-    
+
     :param node:
     :param step_identifier:
     :param step_alias:
@@ -1448,13 +1492,11 @@ def translate_step_node(
         invalid_sources = [
             si
             for si in scatterable
-            if si.multiple_inputs or isinstance(si.source(), list)
+            if si.multiple_inputs
+            or (isinstance(si.source(), list) and len(si.source()) > 1)
         ]
         if len(invalid_sources) > 0:
-            invalid_sources_str = ", ".join(
-                WdlTranslator.unwrap_expression(si.source(), inputsdict=inputsdict)
-                for si in invalid_sources
-            )
+            invalid_sources_str = ", ".join(f"{si.source()}" for si in invalid_sources)
             raise NotImplementedError(
                 f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
                 f"on multiple inputs, this behaviour has not been implemented"
@@ -1859,7 +1901,10 @@ def translate_input_selector(
 
 
 def translate_wildcard_selector(
-    selector: WildcardSelector, secondary_format: Optional[str] = None
+    selector: WildcardSelector,
+    secondary_format: Optional[str] = None,
+    override_select_first: Optional[bool] = None,
+    is_optional: Optional[bool] = None,
 ):
     if not selector.wildcard:
         raise Exception(
@@ -1871,8 +1916,11 @@ def translate_wildcard_selector(
         wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
 
     gl = f'glob("{wildcard}")'
-    if selector.select_first:
-        gl += "[0]"
+    if selector.select_first or override_select_first:
+        if is_optional:
+            gl = f"if length({gl}) > 0 then {gl}[0] else None"
+        else:
+            gl += "[0]"
 
     return gl
 

@@ -2,6 +2,7 @@ import unittest
 from typing import Optional
 
 import wdlgen
+from janis_core.types import UnionType
 
 import janis_core.translations.wdl as wdl
 from janis_core import (
@@ -90,7 +91,7 @@ class TestToolWithSecondaryOutput(TestTool):
             ToolOutput(
                 "out",
                 TestTypeWithNonEscapedSecondary(),
-                glob=InputSelector("testtool") + "/out",
+                selector=InputSelector("testtool") + "/out",
             )
         ]
 
@@ -541,6 +542,20 @@ class TestWdlGenerateInput(unittest.TestCase):
         self.assertEqual("out_txt", os[1].name)
         self.assertEqual('(testtool + "/out") + ".txt"', os[1].expression)
 
+    def test_optional_tool_output_with_secondary(self):
+        tool = TestToolWithSecondaryOutput()
+        toolout = ToolOutput(
+            "out",
+            TestTypeWithNonEscapedSecondary(optional=True),
+            selector=InputSelector("testtool"),
+        )
+        inmap = {t.id(): t for t in tool.inputs()}
+        os = WdlTranslator.translate_tool_outputs([toolout], inmap, tool=tool)
+        self.assertEqual(
+            'File? out_txt = if defined(testtool) then (testtool + ".txt") else None',
+            os[1].get_string(),
+        )
+
 
 class TestWdlToolInputGeneration(unittest.TestCase):
     def test_nodefault_nooptional_position(self):
@@ -646,11 +661,23 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             resp.get_string(),
         )
 
-    def test_bind_boolean_as_default(self):
+    def test_bind_boolean(self):
+        ti = ToolInput("tag", Boolean, prefix="--amazing", default=True)
+        resp = wdl.translate_command_input(ti).get_string()
+        self.assertEqual('~{if tag then "--amazing" else ""}', resp)
+
+    def test_bind_optional_oolean_as_default(self):
         ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing", default=True)
         resp = wdl.translate_command_input(ti).get_string()
         self.assertEqual(
-            '~{if defined(select_first([tag, true])) then "--amazing" else ""}', resp
+            '~{if select_first([tag, true]) then "--amazing" else ""}', resp
+        )
+
+    def test_bind_boolean(self):
+        ti = ToolInput("tag", Boolean(optional=True), prefix="--amazing")
+        resp = wdl.translate_command_input(ti).get_string()
+        self.assertEqual(
+            '~{if (defined(tag) && select_first([tag])) then "--amazing" else ""}', resp
         )
 
     def test_array_prefix_each_element_non_quoted(self):
@@ -658,7 +685,9 @@ class TestWdlToolInputGeneration(unittest.TestCase):
             "tag", Array(Int), prefix="-i", prefix_applies_to_all_elements=True
         )
         resp = wdl.translate_command_input(ti).get_string()
-        self.assertEqual('~{sep(" ", prefix("-i ", tag))}', resp)
+        self.assertEqual(
+            '~{if length(tag) > 0 then sep(" ", prefix("-i ", tag)) else ""}', resp
+        )
 
 
 class TestWdlInputTranslation(unittest.TestCase):
@@ -1407,3 +1436,48 @@ class TestWDLNotNullOperator(unittest.TestCase):
             .strip()
         )
         self.assertEqual("String out = select_first([inp])", wdltool)
+
+
+class TestWdlWildcardSelector(unittest.TestCase):
+    def test_regular_wildcard_selector(self):
+        out = ToolOutput("out", Array(File), selector=WildcardSelector("*.txt"))
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('Array[File] out = glob("*.txt")', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single(self):
+        out = ToolOutput(
+            "out", File, selector=WildcardSelector("*.txt", select_first=True)
+        )
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('File out = glob("*.txt")[0]', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single_warning(self):
+        out = ToolOutput("out", File, selector=WildcardSelector("*.txt"))
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual('File out = glob("*.txt")[0]', translated_out.get_string())
+
+    def test_regular_wildcard_selector_single_optional(self):
+        out = ToolOutput(
+            "out",
+            File(optional=True),
+            selector=WildcardSelector("*.txt", select_first=True),
+        )
+        translated_out = WdlTranslator.translate_tool_outputs([out], {}, out)[0]
+        self.assertEqual(
+            'File? out = if length(glob("*.txt")) > 0 then glob("*.txt")[0] else None',
+            translated_out.get_string(),
+        )
+
+
+class TestUnionType(unittest.TestCase):
+    def test_lots_of_files(self):
+        class TextFile(File):
+            def name(self):
+                return "TextFile"
+
+        uniontype = UnionType(File, TextFile)
+        self.assertEqual("File", uniontype.wdl().get_string())
+
+    def test_file_int_fail(self):
+        uniontype = UnionType(File, int)
+        self.assertRaises(Exception, uniontype.wdl)

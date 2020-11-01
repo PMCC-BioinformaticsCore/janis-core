@@ -241,3 +241,11 @@ class TestExportPath(unittest.TestCase):
 #         # new interpretation: can't skip because default
 #         self.assertEqual(False, can_skip)
 #         # self.assertEqual(True, can_skip)
+
+
+class TestInputsOverride(unittest.TestCase):
+    def test1(self):
+        from janis_bioinformatics.tools.common import IndexFasta
+
+        outs = IndexFasta().generate_inputs_override(with_resource_overrides=True)
+        print(outs)

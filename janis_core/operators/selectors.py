@@ -39,60 +39,79 @@ class Selector(ABC):
 
         return AssertNotNull(self)
 
-    def __and__(self, other):
+    def and_(self, other):
         from janis_core.operators.logical import AndOperator
 
         return AndOperator(self, other)
+
+    def __and__(self, other):
+        return self.and_(other)
 
     def __rand__(self, other):
         from janis_core.operators.logical import AndOperator
 
         return AndOperator(other, self)
 
-    def __or__(self, other):
+    def or_(self, other):
         from janis_core.operators.logical import OrOperator
 
         return OrOperator(self, other)
+
+    def __or__(self, other):
+        return self.or_(other)
 
     def __ror__(self, other):
         from janis_core.operators.logical import OrOperator
 
         return OrOperator(other, self)
 
-    def __add__(self, other):
+    def add(self, other):
         from janis_core.operators.logical import AddOperator
 
         return AddOperator(self, other)
+
+    def __add__(self, other):
+        return self.add(other)
 
     def __radd__(self, other):
         from janis_core.operators.logical import AddOperator
 
         return AddOperator(other, self)
 
-    def __sub__(self, other):
+    def subtract(self, other):
         from janis_core.operators.logical import SubtractOperator
 
         return SubtractOperator(self, other)
+
+    def __sub__(self, other):
+        return self.subtract(other)
 
     def __rsub__(self, other):
         from janis_core.operators.logical import SubtractOperator
 
         return SubtractOperator(other, self)
 
-    def __mul__(self, other):
+    def multiply(self, other):
         from janis_core.operators.logical import MultiplyOperator
 
         return MultiplyOperator(self, other)
+
+    def __mul__(self, other):
+        return self.multiply(other)
 
     def __rmul__(self, other):
         from janis_core.operators.logical import MultiplyOperator
 
         return MultiplyOperator(other, self)
 
-    def __truediv__(self, other):
+    def divide(self, other):
+
         from janis_core.operators.logical import DivideOperator
 
         return DivideOperator(self, other)
+
+    def __truediv__(self, other):
+        return self.divide(other)
 
     def __rtruediv__(self, other):
         from janis_core.operators.logical import DivideOperator
@@ -105,39 +124,54 @@ class Selector(ABC):
 
         return EqualityOperator(self, other)
 
-    def __ne__(self, other):
+    def not_equals(self, other):
+
         from janis_core.operators.logical import EqualityOperator
 
         return EqualityOperator(self, other)
 
-    def __gt__(self, other):
+    def __ne__(self, other):
+        return self.not_equals(other)
+
+    def greater_than(self, other):
         from janis_core.operators.logical import GtOperator
 
         return GtOperator(self, other)
 
-    def __ge__(self, other):
+    def __gt__(self, other):
+        return self.greater_than(other)
+
+    def greater_than_or_equals(self, other):
         from janis_core.operators.logical import GteOperator
 
         return GteOperator(self, other)
 
-    def __lt__(self, other):
+    def __ge__(self, other):
+        return self.greater_than_or_equals(other)
+
+    def less_than(self, other):
         from janis_core.operators.logical import LtOperator
 
         return LtOperator(self, other)
 
-    def __le__(self, other):
+    def __lt__(self, other):
+        return self.less_than(other)
+
+    def less_than_or_equals(self, other):
         from janis_core.operators.logical import LteOperator
 
         return LteOperator(self, other)
-
-    def __len__(self):
-
-        return self.length()
 
     def length(self):
         from janis_core.operators.standard import LengthOperator
 
         return LengthOperator(self)
+
+    def __len__(self):
+
+        raise Exception(
+            f"Calling the len function on a Janis selector, ie:'len({str(self)})' is not supported, please use '{str(self)}.length)'"
+        )
 
     def as_str(self):
         from janis_core.operators.operator import AsStringOperator
@@ -168,6 +202,11 @@ class Selector(ABC):
         from janis_core.operators.logical import OrOperator
 
         return OrOperator(self, other)
+
+    def contents(self):
+        from janis_core.operators.standard import ReadContents
+
+        return ReadContents(self)
 
     def __getitem__(self, item):
         from janis_core.operators.operator import IndexOperator

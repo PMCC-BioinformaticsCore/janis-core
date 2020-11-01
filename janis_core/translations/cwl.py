@@ -244,6 +244,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
 
         ad = additional_inputs or {}
@@ -269,7 +270,11 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         if merge_resources:
             for k, v in cls.build_resources_input(
-                tool, hints, max_cores, max_mem
+                tool,
+                hints,
+                max_cores=max_cores,
+                max_mem=max_mem,
+                max_duration=max_duration,
             ).items():
                 inp[k] = ad.get(k, v)
 
@@ -606,6 +611,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @staticmethod
     def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
+        return None
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
@@ -622,13 +628,13 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         if not requires_obj_capture:
             return None
 
-        classtype = "File" if isinstance(outtype, File) else "Directory"
+        classtype = "File" if isinstance(base, File) else "Directory"
         fileout_generator = (
             lambda c: f"{{ class: '{classtype}', path: {c}, basename: {c}.substring({c}.lastIndexOf('/') + 1) }}"
         )
 
         if arraylayers:
-            els = ["var els = [];"]
+            els = []
 
             base_var = f"v{arraylayers}"
             center = f"els.push({fileout_generator(base_var)};"
@@ -639,12 +645,19 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     center = iteratively_wrap(center, var, layers_remaining - 1)
                 return f"for (var {var} of {iterable}) {{ {center} }}"
 
-            out_capture = "\n".join([els, iteratively_wrap(center, "c", arraylayers)])
+            out_capture = "\n".join(
+                [
+                    "var els = [];",
+                    iteratively_wrap(center, "c", arraylayers),
+                    "return els",
+                ]
+            )
         else:
-            out_capture = fileout_generator("self")
+            capture = fileout_generator("self")
+            out_capture = f"return {capture};"
 
         return f"""${{
-return {out_capture}
+{out_capture}
 }}"""
 
     @classmethod
@@ -660,7 +673,7 @@ return {out_capture}
         if value is None:
             return None
         if isinstance(value, str):
-            return value
+            return prepare_escaped_string(value)
         elif isinstance(value, int) or isinstance(value, float):
             return value
         elif isinstance(value, InputNodeSelector):
@@ -711,7 +724,7 @@ return {out_capture}
 
         if isinstance(value, str):
             return CwlTranslator.quote_values_if_code_environment(
-                value, code_environment
+                prepare_escaped_string(value), code_environment
             )
         elif isinstance(value, int) or isinstance(value, float):
             return str(value)
@@ -890,6 +903,14 @@ return {out_capture}
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.yml"
+
+
+# matcher_double_quote = re.compile('[^\\\]"')
+# matcher_single_quote = re.compile("[^\\\]'")
+
+
+def prepare_escaped_string(value: str):
+    return json.dumps(value)[1:-1]
 
 
 def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParameter:
@@ -1578,7 +1599,7 @@ def translate_string_formatter(
     **debugkwargs,
 ):
 
-    escapedFormat = selector._format.replace("\\", "\\\\")
+    escapedFormat = prepare_escaped_string(selector._format)
 
     if len(selector.kwargs) == 0:
         return escapedFormat

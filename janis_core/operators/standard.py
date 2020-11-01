@@ -31,7 +31,7 @@ class ReadContents(Operator):
         return f"{arg}.contents"
 
     def returntype(self):
-        return String
+        return String()
 
     def requires_contents(self):
         return True
