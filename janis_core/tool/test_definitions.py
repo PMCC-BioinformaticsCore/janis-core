@@ -67,17 +67,26 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_metadata(tool: Tool) -> Union[str, bool]:
+        METADATA_KEY_CONTRIBUTORS = "contributors"
+        METADATA_KEY_CREATED_DATE = "created date"
+        METADATA_KEY_INSTITUTION = "institution"
+
         if isinstance(tool.metadata, ToolMetadata):
             required = {
-                "contributors": tool.metadata.contributors,
-                "created date": tool.metadata.dateCreated,
-                "institution": tool.metadata.institution,
+                METADATA_KEY_CONTRIBUTORS: tool.metadata.contributors,
+                METADATA_KEY_CREATED_DATE: tool.metadata.dateCreated,
+                METADATA_KEY_INSTITUTION: tool.metadata.institution,
             }
 
             missing = []
             for key, field in required.items():
                 if field is None or not field:
                     missing.append(key)
+
+            # special case, tool_provider() value overwrites contributors in the documentation
+            if METADATA_KEY_INSTITUTION in missing:
+                if tool.tool_provider():
+                    missing.remove(METADATA_KEY_INSTITUTION)
 
             if missing:
                 return f"Missing metadata: {', '.join(missing)}"
