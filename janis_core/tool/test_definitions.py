@@ -1,14 +1,15 @@
-# import docker
+import os
 from typing import Dict, Union, List, Set
 from pkg_resources import parse_version
 
 from janis_core import ToolType, Tool, CommandTool, CodeTool, Workflow
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.utils.metadata import ToolMetadata
 from janis_core.translations.cwl import CwlTranslator
 from janis_core.translations.wdl import WdlTranslator
-from janis_core.utils.metadata import ToolMetadata
 
 from janis_core.tool import test_helpers
+from janis_core import WorkflowBase, CommandTool, CodeTool
+from janis_core.utils.logger import Logger
 
 
 class ToolEvaluator:
@@ -137,25 +138,19 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
-        cwl_file_path = f"/tmp/janis/tests/{tool.id()}/cwl"
-        wdl_file_path = f"/tmp/janis/tests/{tool.id()}/wdl"
+        engines = test_helpers.get_available_engines()
+        output_dir = os.path.join(os.getcwd(), "tests_output", tool.id())
 
-        tool.translate(
-            SupportedTranslation.CWL,
-            to_console=False,
-            to_disk=True,
-            export_path=cwl_file_path,
-        )
-        tool.translate(
-            SupportedTranslation.WDL,
-            to_console=False,
-            to_disk=True,
-            export_path=wdl_file_path,
-        )
+        errors = []
+        for engine in engines:
+            try:
+                translator = engines[engine]
+                translator.translate(tool, export_path=output_dir, should_validate=True, to_console=False, to_disk=True)
+            except Exception as e:
+                errors.append(f"{translator.name}: validation failed {str(e)}")
 
-        # TODO: translate and validate
-        CwlTranslator.validate_command_for(cwl_file_path, "", "", "")
-        WdlTranslator.validate_command_for(wdl_file_path, "", "", "")
+        if errors:
+            return ", ".join(errors)
 
         return True
 

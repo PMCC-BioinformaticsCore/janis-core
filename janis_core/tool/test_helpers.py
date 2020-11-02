@@ -1,9 +1,39 @@
 from typing import Dict, Union, List, Set
 from tabulate import tabulate
+from pkg_resources import parse_version
 
 import janis_core as jc
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translations.cwl import CwlTranslator
+from janis_core.translations.wdl import WdlTranslator
+
 
 janis_assistant_version_required_min = "0.10.6"
+
+
+def verify_janis_assistant_installed():
+    min_version_required = janis_assistant_version_required_min
+
+    try:
+        import janis_assistant
+        if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
+            raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
+                            f" must be installed. Installed version is {janis_assistant.__version__}")
+
+    except Exception as e:
+        raise e
+
+
+def get_available_engines():
+    verify_janis_assistant_installed()
+    from janis_assistant.engines.enginetypes import EngineType
+
+    engines = {
+        EngineType.cromwell.value: WdlTranslator(),
+        EngineType.cwltool.value: CwlTranslator(),
+    }
+
+    return engines
 
 
 def get_all_tools(modules: List):

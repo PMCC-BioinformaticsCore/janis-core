@@ -2,7 +2,6 @@ import difflib
 import hashlib
 import os
 from typing import Dict, List, Optional, Any
-from pkg_resources import parse_version
 
 from janis_core.tool.tool import Tool, TTestExpectedOutput, TTestCompared, TTestCase
 from janis_core.types import DataType, File, String, Array
@@ -16,37 +15,12 @@ class ToolTestSuiteRunner():
     def __init__(self, tool: Tool):
         self.tool = tool
 
-    @classmethod
-    def verify_janis_assistant_installed(cls):
-        min_version_required = test_helpers.janis_assistant_version_required_min
-
-        try:
-            import janis_assistant
-            if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
-                raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
-                                f" must be installed. Installed version is {janis_assistant.__version__}")
-
-        except Exception as e:
-            raise e
-
-    @classmethod
-    def get_available_engines(cls):
-        cls.verify_janis_assistant_installed()
-        from janis_assistant.engines.enginetypes import EngineType
-
-        engines = [
-            EngineType.cromwell.value,
-            EngineType.cwltool.value,
-        ]
-
-        return engines
-
     def run(self, input: Dict[str, str], engine):
         # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
         # So, we only import this package here in this function
         # Make sure the correct version of janis_assistant is installed first
 
-        self.verify_janis_assistant_installed()
+        test_helpers.verify_janis_assistant_installed()
 
         from janis_assistant.main import run_with_outputs
         from janis_assistant.management.configuration import JanisConfiguration
@@ -54,7 +28,7 @@ class ToolTestSuiteRunner():
         output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         config = JanisConfiguration(engine=engine)
         output = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
-        print(output)
+
         return output
 
     def run_one_test_case(self, t: TTestCase, engine):
