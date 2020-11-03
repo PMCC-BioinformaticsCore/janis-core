@@ -1,17 +1,19 @@
 import difflib
 import hashlib
 import os
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
-from janis_core.tool.tool import Tool, TTestExpectedOutput, TTestCompared, TTestCase
-from janis_core.types import DataType, File, String, Array
+from janis_core.tool.tool import Tool
+from janis_core.tool.test_classes import TTestExpectedOutput, TTestCompared, TTestCase
+from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 
 
-class ToolTestSuiteRunner():
+class ToolTestSuiteRunner:
     """
     A class to read tool test cases, run the test cases, and assert the expected output
     """
+
     def __init__(self, tool: Tool):
         self.tool = tool
 
@@ -27,7 +29,9 @@ class ToolTestSuiteRunner():
 
         output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         config = JanisConfiguration(engine=engine)
-        output = run_with_outputs(tool=self.tool, inputs=input, output_dir=output_dir, config=config)
+        output = run_with_outputs(
+            tool=self.tool, inputs=input, output_dir=output_dir, config=config
+        )
 
         return output
 
@@ -46,14 +50,18 @@ class ToolTestSuiteRunner():
             test_result = test_logic.operator(actual_output, test_logic.expected_value)
 
             if test_result is False:
-                failed.add(f"{str(test_logic)} {type(test_logic.expected_value)}"
-                           f" | actual output: {actual_output} {type(actual_output)}")
+                failed.add(
+                    f"{str(test_logic)} {type(test_logic.expected_value)}"
+                    f" | actual output: {actual_output} {type(actual_output)}"
+                )
             else:
                 succeeded.add(str(test_logic))
 
         return failed, succeeded
 
-    def get_value_to_compare(self, expected_output: TTestExpectedOutput, output_value: Any) -> Any:
+    def get_value_to_compare(
+        self, expected_output: TTestExpectedOutput, output_value: Any
+    ) -> Any:
         """
         convert workflow output value to the format we want to compare
         """
@@ -81,8 +89,10 @@ class ToolTestSuiteRunner():
         elif expected_output.compared == TTestCompared.FileExists:
             value = os.path.isfile(output_value)
         elif expected_output.compared == TTestCompared.FileDiff:
-            value = self.file_diff(expected_file_path=expected_output.expected_source,
-                                   output_file_path=output_value)
+            value = self.file_diff(
+                expected_file_path=expected_output.expected_source,
+                output_file_path=output_value,
+            )
         elif expected_output.compared == TTestCompared.FileMd5:
             value = self.read_md5(output_value)
         elif expected_output.compared == TTestCompared.FileSize:
@@ -92,7 +102,9 @@ class ToolTestSuiteRunner():
         elif expected_output.compared == TTestCompared.ListSize:
             pass
         else:
-            raise Exception(f"{expected_output.compared} comparison type is not supported")
+            raise Exception(
+                f"{expected_output.compared} comparison type is not supported"
+            )
 
         return value
 
@@ -109,8 +121,13 @@ class ToolTestSuiteRunner():
         with open(output_file_path) as output_file:
             output_content = list(output_file)
 
-        diff = difflib.unified_diff(expected_content, output_content,
-                                    fromfile='expected', tofile='actual', lineterm='')
+        diff = difflib.unified_diff(
+            expected_content,
+            output_content,
+            fromfile="expected",
+            tofile="actual",
+            lineterm="",
+        )
         return list(diff)
 
     def line_count(self, output_value: Any, output_type: Any) -> int:
@@ -121,7 +138,9 @@ class ToolTestSuiteRunner():
             elif isinstance(output_type, String):
                 value = len(output_value.splitlines())
         except Exception as e:
-            raise Exception(f"{TTestCompared.LineCount} comparison type is not allowed for"
-                            f" output type {output_type}")
+            raise Exception(
+                f"{TTestCompared.LineCount} comparison type is not allowed for"
+                f" output type {output_type}"
+            )
 
         return value

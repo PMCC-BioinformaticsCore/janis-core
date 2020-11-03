@@ -1,15 +1,12 @@
 import os
-from typing import Dict, Union, List, Set
+from typing import Dict, Union
 from pkg_resources import parse_version
 
-from janis_core import ToolType, Tool, CommandTool, CodeTool, Workflow
+from janis_core import ToolType, Tool, Workflow
 from janis_core.utils.metadata import ToolMetadata
-from janis_core.translations.cwl import CwlTranslator
-from janis_core.translations.wdl import WdlTranslator
 
 from janis_core.tool import test_helpers
-from janis_core import WorkflowBase, CommandTool, CodeTool
-from janis_core.utils.logger import Logger
+from janis_core import CommandTool, CodeTool
 
 
 class ToolEvaluator:
@@ -47,7 +44,7 @@ class ToolEvaluator:
         evaluation["friendly_name"] = cls.evaluate_friendly_name(tool)
         evaluation["metadata"] = cls.evaluate_metadata(tool)
         # evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
-        evaluation['container'] = cls.evaluate_container(tool)
+        evaluation["container"] = cls.evaluate_container(tool)
         evaluation["translation"] = cls.evaluate_translation(tool)
 
         return evaluation
@@ -110,15 +107,23 @@ class ToolEvaluator:
 
         try:
             import janis_assistant
-            if parse_version(janis_assistant.__version__) < parse_version(min_version_required):
+
+            if parse_version(janis_assistant.__version__) < parse_version(
+                min_version_required
+            ):
                 raise Exception()
 
-            from janis_assistant.data.container.registries import ContainerRegistryBase, ContainerRegistry
+            from janis_assistant.data.container.registries import (
+                ContainerRegistryBase,
+                ContainerRegistry,
+            )
             from janis_assistant.data.container.info import ContainerInfo
 
         except Exception as e:
-            raise Exception(f"to run this test, janis_asisstant >= {min_version_required}"
-                            f" must be installed")
+            raise Exception(
+                f"to run this test, janis_asisstant >= {min_version_required}"
+                f" must be installed"
+            )
 
         # Call this outside the try-except so that we can still throw
         # different exceptions relevant to the actual logic of this function
@@ -145,7 +150,13 @@ class ToolEvaluator:
         for engine in engines:
             try:
                 translator = engines[engine]
-                translator.translate(tool, export_path=output_dir, should_validate=True, to_console=False, to_disk=True)
+                translator.translate(
+                    tool,
+                    export_path=output_dir,
+                    should_validate=True,
+                    to_console=False,
+                    to_disk=True,
+                )
             except Exception as e:
                 errors.append(f"{translator.name}: validation failed {str(e)}")
 
