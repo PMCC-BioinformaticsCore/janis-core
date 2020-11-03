@@ -183,7 +183,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
+        w.outputs = []
+        for o in wf.output_nodes.values():
+            new_output, additional_step = translate_workflow_output(o, tool=wf)
+            w.outputs.append(new_output)
+            if additional_step:
+                w.steps.append(additional_step)
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -269,19 +274,22 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             if isinstance(src, Operator):
                 # we'll need to get the leaves and do extra mappings
+                load_contents = src.requires_contents()
                 for leaf in src.get_leaves():
                     if not isinstance(leaf, Selector):
                         # probably a python literal
                         continue
                     sel = CwlTranslator.unwrap_selector_for_reference(leaf)
                     alias = prepare_alias(sel)
-                    param_aliasing[sel] = alias
+                    param_aliasing[sel] = "inputs." + alias
                     ins_to_connect[alias] = cwlgen.WorkflowStepInput(
                         id=alias, source=sel
                     )
                     tool_inputs.append(
                         cwlgen.CommandInputParameter(
-                            type=leaf.returntype().cwl_type(), id=alias
+                            type=leaf.returntype().received_type().cwl_type(),
+                            id=alias,
+                            loadContents=load_contents,
                         )
                     )
             else:
@@ -437,7 +445,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
+        w.outputs = []
+        for o in wf.output_nodes.values():
+            new_output, additional_step = translate_workflow_output(o, tool=wf)
+            w.outputs.append(new_output)
+            if additional_step:
+                w.steps.append(additional_step)
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -1056,29 +1069,50 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     )
 
 
-def translate_workflow_output(node: OutputNode) -> cwlgen.WorkflowOutputParameter:
+def translate_workflow_output(
+    node: OutputNode, tool: Tool
+) -> Tuple[cwlgen.WorkflowOutputParameter, Optional[cwlgen.WorkflowStep]]:
     """
     Translate a workflow output node to a cwlgen.WorkflowOutputParameter
     :param node:
     :type node: OutputNode
+    :tool tool: Tool reference to
     :return:
     """
     # we're going to need to transform this later to an operator
-    source = CwlTranslator.unwrap_selector_for_reference(node.source)
 
     ot = node.datatype
     if isinstance(ot, Stdout):
         ot = ot.subtype or File()
     doc = node.doc.doc if node.doc else None
 
-    return cwlgen.WorkflowOutputParameter(
-        id=node.id(),
-        outputSource=source,
-        secondaryFiles=node.datatype.secondary_files(),
-        streamable=None,
-        doc=doc,
-        type=ot.cwl_type(),
-        linkMerge=None,
+    pre_step = None
+
+    if isinstance(node.source, Operator):
+        additional_step_id = f"_evaluate-output-{node.id()}"
+        operators = node.source if isinstance(node.source, list) else [node.source]
+        pre_step = CwlTranslator.convert_operator_to_commandtool(
+            step_id=additional_step_id,
+            operators=operators,
+            tool=tool,
+            select_first_element=not isinstance(node.source, list),
+        )
+        source = f"{additional_step_id}/out"
+
+    else:
+        source = CwlTranslator.unwrap_selector_for_reference(node.source)
+
+    return (
+        cwlgen.WorkflowOutputParameter(
+            id=node.id(),
+            outputSource=source,
+            secondaryFiles=node.datatype.secondary_files(),
+            streamable=None,
+            doc=doc,
+            type=ot.cwl_type(),
+            linkMerge=None,
+        ),
+        pre_step,
     )
 
 
@@ -1453,12 +1487,12 @@ def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Select
                 continue
             sel = CwlTranslator.unwrap_selector_for_reference(leaf)
             alias = prepare_alias(sel)
-            param_aliasing[sel] = alias
+            param_aliasing[sel] = "inputs." + alias
             ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
     else:
         sel = CwlTranslator.unwrap_selector_for_reference(src)
         alias = prepare_alias(sel)
-        param_aliasing[sel] = alias
+        param_aliasing[sel] = "inputs." + alias
         ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
 
     stp.in_.extend(ins_to_connect.values())
@@ -1641,14 +1675,14 @@ def translate_step_node(
                             continue
                         sel = CwlTranslator.unwrap_selector_for_reference(leaf)
                         alias = prepare_alias(sel)
-                        param_aliasing[sel] = alias
+                        param_aliasing[sel] = "inputs." + alias
                         ins_to_connect[alias] = cwlgen.WorkflowStepInput(
                             id=alias, source=sel
                         )
                 else:
                     sel = CwlTranslator.unwrap_selector_for_reference(src)
                     alias = prepare_alias(sel)
-                    param_aliasing[sel] = alias
+                    param_aliasing[sel] = "inputs." + alias
                     ins_to_connect[alias] = cwlgen.WorkflowStepInput(
                         id=alias, source=sel
                     )
@@ -1706,9 +1740,11 @@ def translate_input_selector(
 
     if selector_override and sel in selector_override:
         sel = selector_override[sel]
+    else:
+        sel = f"inputs.{sel}"
 
     basename_extra = ".basename" if selector.remove_file_extension else ""
-    base = f"inputs.{sel}{basename_extra}"
+    base = f"{sel}{basename_extra}"
     return base if code_environment else f"$({base})"
 
 
