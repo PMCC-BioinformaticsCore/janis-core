@@ -17,10 +17,11 @@ class TTestExpectedOutput(object):
     def __init__(
         self,
         tag: str,
-        compared: TTestCompared,
+        compared: Enum,
         operator: Callable,
-        expected_value: Any,
-        expected_source: Optional[Any] = None,
+        expected_value: Optional[Any] = None,
+        expected_file: Optional[str] = None,
+        file_diff_source: Optional[str] = None,
         array_index: Optional[int] = None,
         suffix: Optional[str] = None,
     ):
@@ -28,14 +29,15 @@ class TTestExpectedOutput(object):
         self.compared = compared
         self.operator = operator
         self.expected_value = expected_value
+        self.expected_file = expected_file
 
         # If the 'compared' type requires us to transform from a different object to expected value
         # example:
         # compared: FileDiff
-        # expected_source: file path to the expected file
+        # file_diff_source: file path to the expected file
         # expected_value: values readable by 'operator'. It could be the number of
         # lines of diff result of expected file and actual file.
-        self.expected_source = expected_source
+        self.file_diff_source = file_diff_source
 
         # if an output is an array, we can look at just 1 item of the array, so here we specify the index
         self.array_index = array_index
@@ -44,7 +46,11 @@ class TTestExpectedOutput(object):
         self.suffix = suffix
 
     def __repr__(self):
-        return f"{self.tag}: {self.compared.value} {str(self.operator)} {str(self.expected_value)}"
+        repr_expected_value = str(self.expected_value)
+        if self.expected_value is None:
+            repr_expected_value = f"content of {self.expected_file}"
+
+        return f"{self.tag}: {self.compared.value} {str(self.operator)} {repr_expected_value}"
 
 
 class TTestCase(object):

@@ -1,12 +1,13 @@
 import difflib
 import hashlib
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from janis_core.tool.tool import Tool
 from janis_core.tool.test_classes import TTestExpectedOutput, TTestCompared, TTestCase
 from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
+from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 
 class ToolTestSuiteRunner:
@@ -47,11 +48,12 @@ class ToolTestSuiteRunner:
         for test_logic in t.output:
             workflow_output = output[test_logic.tag]
             actual_output = self.get_value_to_compare(test_logic, workflow_output)
-            test_result = test_logic.operator(actual_output, test_logic.expected_value)
+            expected_value = self.get_expected_value(test_logic)
+            test_result = test_logic.operator(actual_output, expected_value)
 
             if test_result is False:
                 failed.add(
-                    f"{str(test_logic)} {type(test_logic.expected_value)}"
+                    f"{str(test_logic)} {type(expected_value)}"
                     f" | actual output: {actual_output} {type(actual_output)}"
                 )
             else:
@@ -59,54 +61,88 @@ class ToolTestSuiteRunner:
 
         return failed, succeeded
 
+    def get_expected_value(self, test_logic: TTestExpectedOutput):
+        if test_logic.expected_value is not None:
+            return test_logic.expected_value
+        elif test_logic.expected_file is not None:
+            with open(test_logic.expected_file) as expected_file:
+                return expected_file.read()
+        else:
+            raise Exception(
+                "one of `TTestExpectedOutput.expected_value` or `TTestExpectedOutput.expected_file` must not be empty"
+            )
+
     def get_value_to_compare(
-        self, expected_output: TTestExpectedOutput, output_value: Any
+        self, test_logic: TTestExpectedOutput, output_value: Any
     ) -> Any:
         """
         convert workflow output value to the format we want to compare
         """
-        output_tag = expected_output.tag
+        output_tag = test_logic.tag
         output_type = self.tool.outputs_map().get(output_tag).outtype
+        output_value = self._preprocess(
+            test_logic=test_logic,
+            output_value=output_value,
+            output_type=output_type,
+        )
 
+        return self._transform_value(
+            test_logic=test_logic,
+            output_value=output_value,
+            output_type=output_type,
+        )
+
+    def _transform_value(
+        self, test_logic: TTestExpectedOutput, output_value: Any, output_type: Any
+    ) -> Any:
+        value = None
+
+        if test_logic.compared == TTestCompared.Value:
+            value = output_value
+        elif test_logic.compared == TTestCompared.FileContent:
+            with open(output_value) as f:
+                value = f.read()
+        elif test_logic.compared == TTestCompared.FileExists:
+            value = os.path.isfile(output_value)
+        elif test_logic.compared == TTestCompared.FileDiff:
+            value = self.file_diff(
+                expected_file_path=test_logic.file_diff_source,
+                output_file_path=output_value,
+            )
+        elif test_logic.compared == TTestCompared.FileMd5:
+            value = self.read_md5(output_value)
+        elif test_logic.compared == TTestCompared.FileSize:
+            value = os.path.getsize(output_value)
+        elif test_logic.compared == TTestCompared.LineCount:
+            value = self.line_count(output_type=output_type, output_value=output_value)
+        elif test_logic.compared == TTestCompared.ListSize:
+            value = len(output_value.split("|"))
+        elif test_logic.compared == TTestCompared.GenomicsStat:
+            value = self.read_genomics_stat(
+                output_type=output_type, output_value=output_value
+            )
+        else:
+            raise Exception(f"{test_logic.compared} comparison type is not supported")
+
+        return value
+
+    def _preprocess(
+        self, test_logic: TTestExpectedOutput, output_value: Any, output_type: Any
+    ) -> Any:
         # Convert array to element of array
         if isinstance(output_type, Array):
-            if expected_output.array_index is not None:
+            if test_logic.array_index is not None:
                 output_list = output_value.split("|")
-                output_value = output_list[expected_output.array_index]
+                output_value = output_list[test_logic.array_index]
 
         # Add extension to a filename (when testing secondary files)
         if isinstance(output_type, File):
-            if expected_output.suffix is not None:
-                output_value = f"{output_value}{expected_output.suffix}"
+            if test_logic.suffix is not None:
+                output_value = apply_secondary_file_format_to_filename(
+                    output_value, test_logic.suffix
+                )
 
-        value = None
-
-        if expected_output.compared == TTestCompared.Value:
-            value = output_value
-        elif expected_output.compared == TTestCompared.FileContent:
-            with open(output_value) as f:
-                value = f.read()
-        elif expected_output.compared == TTestCompared.FileExists:
-            value = os.path.isfile(output_value)
-        elif expected_output.compared == TTestCompared.FileDiff:
-            value = self.file_diff(
-                expected_file_path=expected_output.expected_source,
-                output_file_path=output_value,
-            )
-        elif expected_output.compared == TTestCompared.FileMd5:
-            value = self.read_md5(output_value)
-        elif expected_output.compared == TTestCompared.FileSize:
-            value = os.path.getsize(output_value)
-        elif expected_output.compared == TTestCompared.LineCount:
-            value = self.line_count(output_type=output_type, output_value=output_value)
-        elif expected_output.compared == TTestCompared.ListSize:
-            pass
-        else:
-            raise Exception(
-                f"{expected_output.compared} comparison type is not supported"
-            )
-
-        return value
+        return output_value
 
     def read_md5(self, file_path: str) -> str:
         hash_md5 = hashlib.md5()
@@ -115,11 +151,23 @@ class ToolTestSuiteRunner:
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def file_diff(self, expected_file_path: str, output_file_path: str) -> List[str]:
+    def file_diff(
+        self,
+        expected_file_path: str,
+        output_file_path: Optional[str] = None,
+        output_content: Optional[str] = None,
+    ) -> List[str]:
         with open(expected_file_path) as expected_file:
             expected_content = list(expected_file)
-        with open(output_file_path) as output_file:
-            output_content = list(output_file)
+
+        if output_file_path is not None:
+            with open(output_file_path) as output_file:
+                output_content = list(output_file)
+
+        if output_content is None:
+            raise Exception(
+                "One of `output_file_path` or `output_content` must not be None"
+            )
 
         diff = difflib.unified_diff(
             expected_content,
