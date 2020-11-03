@@ -2,7 +2,7 @@ import unittest
 from typing import List, Dict, Any, Optional
 
 from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import ReadContents
+from janis_core.operators.standard import ReadContents, FilterNullOperator
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -818,7 +818,7 @@ class TestCWLWhen(unittest.TestCase):
 
         w.output("out", source=w.print_if_has_value)
 
-        c = cwl.translate_step_node(w.print_if_has_value)
+        c = cwl.translate_step_node(w.print_if_has_value)[0]
 
         self.assertEqual("$((inputs.__when_inp != null))", c.when)
         extra_input: cwlgen.WorkflowStepInput = c.in_[-1]
