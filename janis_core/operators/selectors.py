@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
-from janis_core.types import get_instantiated_type
+from janis_core.types import get_instantiated_type, DataType
 
 from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
@@ -15,7 +15,7 @@ class Selector(ABC):
         return True
 
     @abstractmethod
-    def returntype(self):
+    def returntype(self) -> DataType:
         pass
 
     def requires_contents(self):
