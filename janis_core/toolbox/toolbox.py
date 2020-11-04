@@ -98,6 +98,7 @@ class JanisShed:
 
         JanisShed._has_been_hydrated = True
         JanisShed._has_hydrated_datatypes = True
+        JanisShed._has_hydrated_tools = True
 
     @staticmethod
     def hydrate_datapoints():
@@ -113,7 +114,7 @@ class JanisShed:
             return Logger.log("Skipping hydrating tools (as already hydrated)")
 
         JanisShed.hydrate_from(JanisShed._get_tool_entrypoints())
-        JanisShed._has_hydrated_datatypes = True
+        JanisShed._has_hydrated_tools = True
 
     @staticmethod
     def hydrate_transformations():
@@ -122,6 +123,7 @@ class JanisShed:
         transformations = JanisShed._get_datatype_transformations_from_entrypoints()
 
         JanisShed._transformationgraph.add_edges(transformations)
+        JanisShed._has_hydrated_transformations = True
 
     @staticmethod
     def hydrate_from(modules: list):
@@ -265,41 +267,6 @@ class JanisShed:
 
         except Exception as e:
             Logger.warn(f"{repr(e)} for type {str(cls)}")
-
-    @staticmethod
-    def guess_datatype_by_filename(filename: str):
-        dts = JanisShed.get_all_datatypes()
-
-        matches: List[Tuple[int, File]] = []
-
-        for datatype in dts:
-            if isclass(datatype):
-                if not issubclass(datatype, File):
-                    continue
-                datatype = get_instantiated_type(datatype)
-            elif not isinstance(datatype, File):
-                continue
-            if not datatype.extension:
-                continue
-
-            if filename.endswith(datatype.extension):
-                matches.append((len(datatype.extension), datatype))
-
-        if len(matches) == 0:
-            return None
-        elif len(matches) == 1:
-            return matches[0][1]
-        else:
-            matches = sorted(matches, key=lambda a: a[0], reverse=True)
-            matched_dt = matches[0][1]
-            ranked = ", ".join(
-                f"{match[1].name()} ({match[0]})" for match in matches[1:]
-            )
-            Logger.info(
-                f"There were {len(matches)} for matching datatypes. Using {matched_dt.name()} ({matches[0][0]}) "
-                f"as it was the best match from: {ranked}"
-            )
-            return matches[0][1]
 
 
 if __name__ == "__main__":

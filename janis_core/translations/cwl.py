@@ -1656,7 +1656,7 @@ def build_resource_override_maps_for_workflow(
 
 def prepare_filename_replacements_for(
     inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
-) -> Optional[Dict[str, str]]:
+) -> Optional[str]:
     if inp is None or not isinstance(inp, InputSelector):
         return None
 

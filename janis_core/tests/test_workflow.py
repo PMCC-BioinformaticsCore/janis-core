@@ -338,3 +338,23 @@ class TestWorkflowInputCollection(TestCase):
         )
         inputs = self.wf.generate_inputs_override(values_to_ignore=ignore_keys)
         self.assertSetEqual(expected_keys, set(inputs.keys()))
+
+
+class TestCaptureInputsFromTool(TestCase):
+    def test_check_explicit_inputs(self):
+        w = WorkflowBuilder("wf")
+
+        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_forward=["inputs"])
+
+        self.assertEqual(1, len(d))
+        self.assertEqual(d["inputs"].id(), "inputs")
+
+    def test_check_implicit_inputs(self):
+        w = WorkflowBuilder("wf")
+
+        Tool = SingleTestTool()
+
+        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_ignore=["inputs"])
+
+        self.assertEqual(len(Tool.tool_inputs()) - 1, len(d))
+        self.assertNotIn("inputs", d)
