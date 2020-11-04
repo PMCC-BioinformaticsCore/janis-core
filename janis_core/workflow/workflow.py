@@ -1230,6 +1230,14 @@ class WorkflowBase(Tool, ABC):
         should_override=False,
         strict=False,
     ):
+        """
+        Apply a dictionary of input documentation to a number of input nodes
+
+        :param inputs: Dict[InputNode_ID, Union[InputDocumentation, str, Dict]]
+        :param should_override: Should override the doc on an input node.
+        :param strict: Ensure every key in the inputs dictionary is in the workflow, otherwise throw an error.
+        :return: None
+        """
         missing, skipped = set(), set()
         innodes = self.input_nodes
         for inpid, doc in inputs.items():

@@ -156,6 +156,9 @@ class DataType(ABC):
     def is_array(self):
         return False
 
+    def __repr__(self):
+        return self.id()
+
     @staticmethod
     @abstractmethod
     def name() -> str:

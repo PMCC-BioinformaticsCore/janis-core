@@ -2056,8 +2056,6 @@ def prepare_move_statements_for_input(ti: ToolInput):
                 # move into the current directory
                 dest = "."
             else:
-                sectag = get_secondary_tag_from_original_tag(ti.id(), s)
-
                 newext, iters = split_secondary_file_carats(sec_presents_as.get(s, s))
                 dest = REMOVE_EXTENSION(base, iters) + newext
 

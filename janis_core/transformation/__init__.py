@@ -16,14 +16,14 @@ class JanisTransformation:
 
     def __init__(
         self,
-        type1: ParseableType,
-        type2: ParseableType,
+        start_type: ParseableType,
+        finish_type: ParseableType,
         tool: Tool,
         relevant_tool_input: Optional[str] = None,
         relevant_tool_output: Optional[str] = None,
     ):
-        self.type1 = get_instantiated_type(type1)
-        self.type2 = get_instantiated_type(type2)
+        self.type1 = get_instantiated_type(start_type)
+        self.type2 = get_instantiated_type(finish_type)
         self.tool = tool
 
         connection_type = f"`{self.type1} -> {self.type2}`"
@@ -51,7 +51,7 @@ class JanisTransformation:
                 )
             elif len(relevant_types) > 1:
                 raise Exception(
-                    f"There were too many inputs of '{self.tool.id()}' of type '{self.type1}' for "
+                    f"There were too many relevant inputs of '{self.tool.id()}' of type '{self.type1}' for "
                     f"JanisTransformation to automatically select the relevant input, you should "
                     f"provide a 'relevant_tool_input' in the {connection_type} JanisTransformation."
                 )
@@ -147,12 +147,17 @@ class JanisTransformationGraph:
             else:
                 self._edges[dt_id] = [edge]
 
-    def find_connection(self, source_dt: ParseableType, desired_dt: ParseableType):
+    def find_connection(
+        self, source_dt: ParseableType, desired_dt: ParseableType
+    ) -> List[JanisTransformation]:
 
         from inspect import getmro
 
         source = get_instantiated_type(source_dt)
         desired = get_instantiated_type(desired_dt)
+
+        if source.name() == desired.name():
+            return []
 
         types = getmro(type(source))
 
@@ -170,10 +175,13 @@ class JanisTransformationGraph:
 
     def find_connection_inner(
         self, source_dt: ParseableType, desired_dt: ParseableType
-    ):
+    ) -> Optional[List[JanisTransformation]]:
 
         source = get_instantiated_type(source_dt)
         desired = get_instantiated_type(desired_dt)
+
+        if source.name() == desired.name():
+            return []
 
         queue: List[JanisTransformation] = []
         parent_mapping: Dict[str, JanisTransformation] = {}
