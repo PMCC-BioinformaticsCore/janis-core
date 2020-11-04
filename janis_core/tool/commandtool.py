@@ -67,9 +67,9 @@ class ToolArgument:
             else None
         )
         self.separate_value_from_prefix = separate_value_from_prefix
-        self.doc: DocumentationMeta = doc if isinstance(
-            doc, InputDocumentation
-        ) else InputDocumentation(doc)
+        self.doc: DocumentationMeta = (
+            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc)
+        )
         self.shell_quote = shell_quote
 
         if (
@@ -129,9 +129,9 @@ class ToolInput(ToolArgument):
             shell_quote=shell_quote,
         )
 
-        self.doc: InputDocumentation = doc if isinstance(
-            doc, DocumentationMeta
-        ) else InputDocumentation(doc=doc)
+        self.doc: InputDocumentation = (
+            doc if isinstance(doc, DocumentationMeta) else InputDocumentation(doc=doc)
+        )
 
         # if default is not None:
         #     input_type.optional = True
@@ -749,8 +749,7 @@ class CommandToolBuilder(CommandTool):
         :param cpu: An integer, or function that takes a dictionary of hints and returns an integer in 'number of CPUs'
         :param memory: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
         :param time: An integer, or function that takes a dictionary of hints and returns an integer in 'seconds'
-        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
-"""
+        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'"""
 
         super().__init__()
 
