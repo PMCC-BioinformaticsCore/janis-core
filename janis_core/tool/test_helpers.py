@@ -11,6 +11,9 @@ janis_assistant_version_required_min = "0.10.8"
 
 
 def verify_janis_assistant_installed():
+    """
+    Check if the correct version of janis assistant is installed
+    """
     min_version_required = janis_assistant_version_required_min
 
     try:
@@ -29,6 +32,9 @@ def verify_janis_assistant_installed():
 
 
 def get_available_engines():
+    """
+    Get a list of available engines to run the test suite against
+    """
     verify_janis_assistant_installed()
     from janis_assistant.engines.enginetypes import EngineType
 
@@ -41,6 +47,9 @@ def get_available_engines():
 
 
 def get_all_tools(modules: List):
+    """
+    Get all available tools in the list of modules
+    """
     shed = jc.JanisShed
     shed.hydrate(force=True, modules=modules)
 
@@ -48,6 +57,9 @@ def get_all_tools(modules: List):
 
 
 def get_one_tool(tool_id: str, modules: List, version: str = None):
+    """
+    Get one tool given id and the modules where to search it from
+    """
     shed = jc.JanisShed
     shed.hydrate(force=True, modules=modules)
 
@@ -57,6 +69,9 @@ def get_one_tool(tool_id: str, modules: List, version: str = None):
 def print_test_report(
     failed: Dict[str, str], succeeded: Set, first_column_header: str = "Tool"
 ):
+    """
+    Print test report in tabular text format
+    """
     headers = [first_column_header, "Status", "Description"]
     formatted_failed = [(tid, "FAILED", terror) for tid, terror in failed.items()]
     formatted_passed = [(tid, "PASSED", "") for tid in succeeded]

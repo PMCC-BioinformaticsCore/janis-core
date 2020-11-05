@@ -19,6 +19,9 @@ class ToolTestSuiteRunner:
         self.tool = tool
 
     def run(self, input: Dict[str, str], engine):
+        """
+        Run a tool or workflow given a list of input using the specified engine
+        """
         # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
         # So, we only import this package here in this function
         # Make sure the correct version of janis_assistant is installed first
@@ -62,6 +65,10 @@ class ToolTestSuiteRunner:
         return failed, succeeded
 
     def get_expected_value(self, test_logic: TTestExpectedOutput):
+        """
+        Get the expected value of a given expected output.
+        It could be specified in a variable or in a file.
+        """
         if test_logic.expected_value is not None:
             return test_logic.expected_value
         elif test_logic.expected_file is not None:
@@ -95,6 +102,9 @@ class ToolTestSuiteRunner:
     def _transform_value(
         self, test_logic: TTestExpectedOutput, output_value: Any, output_type: Any
     ) -> Any:
+        """
+        Transform the output value based on the type of value we want to compare (e.g. md5, file size, etc)
+        """
         value = None
 
         if test_logic.compared == TTestCompared.Value:
@@ -129,6 +139,10 @@ class ToolTestSuiteRunner:
     def _preprocess(
         self, test_logic: TTestExpectedOutput, output_value: Any, output_type: Any
     ) -> Any:
+        """
+        Do preprocessing such as converting from a list of values to a single value,
+        Append suffix to filenames if we want to check secondary files, etc
+        """
         # Convert array to element of array
         if isinstance(output_type, Array):
             if test_logic.array_index is not None:
@@ -145,6 +159,9 @@ class ToolTestSuiteRunner:
         return output_value
 
     def read_md5(self, file_path: str) -> str:
+        """
+        Read md5 checksum of a file
+        """
         hash_md5 = hashlib.md5()
         with open(file_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
@@ -157,6 +174,9 @@ class ToolTestSuiteRunner:
         output_file_path: Optional[str] = None,
         output_content: Optional[str] = None,
     ) -> List[str]:
+        """
+        Create a list if file diff result between two files
+        """
         with open(expected_file_path) as expected_file:
             expected_content = list(expected_file)
 
@@ -179,6 +199,9 @@ class ToolTestSuiteRunner:
         return list(diff)
 
     def line_count(self, output_value: Any, output_type: Any) -> int:
+        """
+        Count number of lines in a file or in a string
+        """
         try:
             if isinstance(output_type, File):
                 # text file only here

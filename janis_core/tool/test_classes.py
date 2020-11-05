@@ -14,6 +14,12 @@ class TTestCompared(Enum):
 
 
 class TTestExpectedOutput(object):
+    """
+    Describe the logic on how to test the expected output of a test case.
+    A test case can have multiple instances of this class to test different output or
+    different logic of the same output
+    """
+
     def __init__(
         self,
         tag: str,
@@ -29,6 +35,8 @@ class TTestExpectedOutput(object):
         self.compared = compared
         self.operator = operator
         self.expected_value = expected_value
+
+        # we can have a 'string' expected output stored in a file
         self.expected_file = expected_file
 
         # If the 'compared' type requires us to transform from a different object to expected value
@@ -54,6 +62,11 @@ class TTestExpectedOutput(object):
 
 
 class TTestCase(object):
+    """
+    A test case requires a workflow or tool to be run once (per engine).
+    But, we can have multiple output to apply different test logic.
+    """
+
     def __init__(
         self, name: str, input: Dict[str, Any], output: Dict[str, TTestExpectedOutput]
     ):

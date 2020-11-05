@@ -51,6 +51,9 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_unit_test_exists(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if test suite for this tool is provided
+        """
         if tool.tests():
             return True
 
@@ -58,6 +61,9 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_friendly_name(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if a friendly name for documentation is provided
+        """
         if tool.friendly_name() is None:
             return "Missing friendly name"
 
@@ -65,6 +71,9 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_metadata(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if important metadata for documentation is p
+        """
         METADATA_KEY_CONTRIBUTORS = "contributors"
         METADATA_KEY_CREATED_DATE = "created date"
         METADATA_KEY_INSTITUTION = "institution"
@@ -143,6 +152,9 @@ class ToolEvaluator:
 
     @staticmethod
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if the wdl and cwl translations are valid
+        """
         engines = test_helpers.get_available_engines()
         output_dir = os.path.join(os.getcwd(), "tests_output", tool.id())
 
