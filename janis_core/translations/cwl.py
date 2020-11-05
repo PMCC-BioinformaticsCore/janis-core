@@ -24,8 +24,9 @@ from io import StringIO
 from typing import List, Dict, Optional, Tuple
 from typing import Union
 
-import cwl_utils.parser_v1_2 as cwlgen
 import ruamel.yaml
+
+from janis_core.deps import cwlgen
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.code.codetool import CodeTool
@@ -1375,7 +1376,7 @@ def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Select
 def translate_step_node(
     step: StepNode,
     is_nested_tool=False,
-    resource_overrides: Dict[str, str] = None,
+    resource_overrides: Optional[Dict[str, str]] = None,
     use_run_ref=True,
     allow_empty_container=False,
     container_override=None,
