@@ -39,7 +39,7 @@ class Operator(Selector, ABC):
             if isinstance(a, Operator):
                 leaves.extend(a.get_leaves())
             else:
-                leaves.append(a)
+                (leaves.extend if isinstance(a, list) else leaves.append)(a)
         return leaves
 
     @abstractmethod

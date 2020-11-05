@@ -2,7 +2,7 @@ import unittest
 from typing import List, Dict, Any, Optional
 
 from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import ReadContents
+from janis_core.operators.standard import ReadContents, FilterNullOperator
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -802,6 +802,44 @@ class TestCWLNotNullOperator(unittest.TestCase):
         print(cwltool)
 
 
+class TestCwlScatterExpression(unittest.TestCase):
+    def test_filter_null(self):
+        T = CommandToolBuilder(
+            tool="testsingleinput",
+            base_command="echo",
+            inputs=[ToolInput("inp", str, position=0)],
+            outputs=[ToolOutput("out", Stdout)],
+            version="v1",
+            container=None,
+        )
+        w = WorkflowBuilder("wf")
+        w.input("inp", Array(Optional[str], optional=True))
+        w.step("stp", T(inp=FilterNullOperator(w.inp)), scatter="inp")
+        w.output("out", source=w.stp.out)
+
+        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+        self.assertEqual(2, len(w_cwl.steps))
+        self.assertEqual(
+            "_evaluate_prescatter-stp-inp/out", w_cwl.steps[1].in_[0].source
+        )
+
+
+class TestWorkflowOutputExpression(unittest.TestCase):
+    def test_read_contents(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str)
+        w.step("stp", EchoTestTool(inp=w.inp))
+        w.output("out", source=w.stp.out.contents())
+
+        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+
+        self.assertEqual(2, len(w_cwl.steps))
+        self.assertEqual(
+            "${return {out: inputs._stpout.contents }}", w_cwl.steps[1].run.expression
+        )
+        self.assertTrue(w_cwl.steps[1].run.inputs[0].loadContents)
+
+
 class TestCwlUnionType(unittest.TestCase):
     def test_file_file(self):
         utype = UnionType(File, File)
@@ -829,7 +867,7 @@ class TestCWLWhen(unittest.TestCase):
 
         w.output("out", source=w.print_if_has_value)
 
-        c = cwl.translate_step_node(w.print_if_has_value)
+        c = cwl.translate_step_node(w.print_if_has_value)[0]
 
         self.assertEqual("$((inputs.__when_inp != null))", c.when)
         extra_input: cwlgen.WorkflowStepInput = c.in_[-1]

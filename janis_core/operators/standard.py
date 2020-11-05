@@ -323,7 +323,7 @@ class FilterNullOperator(Operator):
         if isinstance(self.args[0], list):
             rettype = self.args[0][0].returntype()
         else:
-            rettype = self.args[0].subtype()
+            rettype = self.args[0].returntype().subtype()
 
         rettype = copy(get_instantiated_type(rettype))
         rettype.optional = False

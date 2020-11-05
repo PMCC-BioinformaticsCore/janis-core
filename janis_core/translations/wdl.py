@@ -1706,10 +1706,10 @@ def generate_scatterable_details(
             # We asserted earlier that the source_map only has one value (through multipleInputs)
             e: Edge = s.source_map[0]
 
-            if isinstance(e.source, Operator):
-                raise Exception(
-                    "Currently, Janis doesn't support operating on a value to be scattered"
-                )
+            # if isinstance(e.source, Operator):
+            #     raise Exception(
+            #         "Currently, Janis doesn't support operating on a value to be scattered"
+            #     )
 
             original_expr = WdlTranslator.unwrap_expression(s.source().source)
             newid = generate_new_id_from(original_expr, forbiddenidentifierscopy)
