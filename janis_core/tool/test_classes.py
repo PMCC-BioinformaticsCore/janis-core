@@ -1,8 +1,12 @@
 from enum import Enum
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, Union, List
 
 
-class TTestCompared(Enum):
+class TTestValuePreProcessor(Enum):
+    """
+    An Enum class for a list of possible pre-processing we can do to output values
+    """
+
     Value = "value"
     FileDiff = "file-diff"
     FileContent = "file-content"
@@ -23,16 +27,35 @@ class TTestExpectedOutput(object):
     def __init__(
         self,
         tag: str,
-        compared: Enum,
-        operator: Callable,
+        pre_processor: Union[TTestValuePreProcessor, Callable],
+        operator: Callable[[Any, Any], bool],
         expected_value: Optional[Any] = None,
         expected_file: Optional[str] = None,
         file_diff_source: Optional[str] = None,
         array_index: Optional[int] = None,
-        suffix: Optional[str] = None,
+        suffix_secondary_file: Optional[str] = None,
     ):
+        """
+
+        :param tag: output field name
+        :type tag: str
+        :param pre_processor: one of the TTestValuePreProcessor or a function to do the pre-processing of the output value
+        :type pre_processor: Union[TTestValuePreProcessor, Callable]
+        :param operator: A callable function to compare output value and expected value
+        :type operator: Callable[[Any, Any], bool]
+        :param expected_value: the value expected output
+        :type expected_value:Optional[Any]
+        :param expected_file: the file path to the value of expected output
+        :type expected_file: Optional[str]
+        :param file_diff_source: the file path to the source file for file diff comparison
+        :type file_diff_source: Optional[str]
+        :param array_index: an integer to represent the index of the element we want to test (for array output only)
+        :type array_index: Optional[int]
+        :param suffix_secondary_file: additional file
+        :type suffix_secondary_file: Optional[str]
+        """
         self.tag = tag
-        self.compared = compared
+        self.compared = pre_processor
         self.operator = operator
         self.expected_value = expected_value
 
@@ -51,7 +74,7 @@ class TTestExpectedOutput(object):
         self.array_index = array_index
 
         # if the compared object is a file, we can add suffix to test secondary files of this file
-        self.suffix = suffix
+        self.suffix = suffix_secondary_file
 
     def __repr__(self):
         repr_expected_value = str(self.expected_value)
@@ -68,8 +91,17 @@ class TTestCase(object):
     """
 
     def __init__(
-        self, name: str, input: Dict[str, Any], output: Dict[str, TTestExpectedOutput]
+        self, name: str, input: Dict[str, Any], output: List[TTestExpectedOutput]
     ):
+        """
+
+        :param name: name of the test case
+        :type name: str
+        :param input: tool input values keyed by its input field name
+        :type input: Dict[str, Any]
+        :param output: List of definitions on how to assert the expected output
+        :type output: List[TTestExpectedOutput]
+        """
         self.name = name
         self.input = input
         self.output = output

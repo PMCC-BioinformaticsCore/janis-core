@@ -4,7 +4,11 @@ import os
 from typing import Dict, List, Any, Optional
 
 from janis_core.tool.tool import Tool
-from janis_core.tool.test_classes import TTestExpectedOutput, TTestCompared, TTestCase
+from janis_core.tool.test_classes import (
+    TTestExpectedOutput,
+    TTestValuePreProcessor,
+    TTestCase,
+)
 from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
@@ -107,27 +111,27 @@ class ToolTestSuiteRunner:
         """
         value = None
 
-        if test_logic.compared == TTestCompared.Value:
+        if test_logic.compared == TTestValuePreProcessor.Value:
             value = output_value
-        elif test_logic.compared == TTestCompared.FileContent:
+        elif test_logic.compared == TTestValuePreProcessor.FileContent:
             with open(output_value) as f:
                 value = f.read()
-        elif test_logic.compared == TTestCompared.FileExists:
+        elif test_logic.compared == TTestValuePreProcessor.FileExists:
             value = os.path.isfile(output_value)
-        elif test_logic.compared == TTestCompared.FileDiff:
+        elif test_logic.compared == TTestValuePreProcessor.FileDiff:
             value = self.file_diff(
                 expected_file_path=test_logic.file_diff_source,
                 output_file_path=output_value,
             )
-        elif test_logic.compared == TTestCompared.FileMd5:
+        elif test_logic.compared == TTestValuePreProcessor.FileMd5:
             value = self.read_md5(output_value)
-        elif test_logic.compared == TTestCompared.FileSize:
+        elif test_logic.compared == TTestValuePreProcessor.FileSize:
             value = os.path.getsize(output_value)
-        elif test_logic.compared == TTestCompared.LineCount:
+        elif test_logic.compared == TTestValuePreProcessor.LineCount:
             value = self.line_count(output_type=output_type, output_value=output_value)
-        elif test_logic.compared == TTestCompared.ListSize:
+        elif test_logic.compared == TTestValuePreProcessor.ListSize:
             value = len(output_value.split("|"))
-        elif test_logic.compared == TTestCompared.GenomicsStat:
+        elif test_logic.compared == TTestValuePreProcessor.GenomicsStat:
             value = self.read_genomics_stat(
                 output_type=output_type, output_value=output_value
             )
@@ -210,7 +214,7 @@ class ToolTestSuiteRunner:
                 value = len(output_value.splitlines())
         except Exception as e:
             raise Exception(
-                f"{TTestCompared.LineCount} comparison type is not allowed for"
+                f"{TTestValuePreProcessor.LineCount} comparison type is not allowed for"
                 f" output type {output_type}"
             )
 
