@@ -5,7 +5,7 @@ We can use this to build up a set of operations to
 from typing import Optional, List, Dict
 
 from janis_core.tool.tool import Tool
-from janis_core.types import get_instantiated_type, ParseableType, DataType
+from janis_core.types import get_instantiated_type, ParseableType, DataType, File
 from janis_core.utils.logger import Logger
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 
@@ -134,8 +134,11 @@ class JanisTransformationGraph:
 
     def build_workflow_to_translate(
         self, source_dt: ParseableType, desired_dt: ParseableType
-    ):
+    ) -> Optional[Workflow]:
         transformations = self.find_connection(source_dt, desired_dt)
+
+        if len(transformations) == 0:
+            return None
 
         return JanisTransformation.convert_transformations_to_workflow(transformations)
 
@@ -156,7 +159,7 @@ class JanisTransformationGraph:
         source = get_instantiated_type(source_dt)
         desired = get_instantiated_type(desired_dt)
 
-        if source.name() == desired.name():
+        if desired.can_receive_from(source):
             return []
 
         types = getmro(type(source))
@@ -180,7 +183,7 @@ class JanisTransformationGraph:
         source = get_instantiated_type(source_dt)
         desired = get_instantiated_type(desired_dt)
 
-        if source.name() == desired.name():
+        if desired.can_receive_from(source):
             return []
 
         queue: List[JanisTransformation] = []
