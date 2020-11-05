@@ -184,7 +184,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-            is_array = isinstance(i.datatype, Array)
+            is_array = i.datatype.is_array()
             if i.datatype.secondary_files() or (
                 is_array and i.datatype.subtype().secondary_files()
             ):
@@ -229,7 +229,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
 
             fundamental_outtype = o.datatype
-            if isinstance(fundamental_outtype, Array):
+            if fundamental_outtype.is_array():
                 fundamental_outtype = fundamental_outtype.fundamental_type()
             if fundamental_outtype.secondary_files():
                 if isinstance(o.source, InputNodeSelector):
@@ -774,7 +774,7 @@ EOT"""
                 **debugkwargs,
             )
         elif isinstance(expression, WildcardSelector):
-            is_single = not isinstance(output.output_type, Array)
+            is_single = not output.output_type.is_array()
             select_first = None
             is_single_optional = None
             if is_single:
@@ -854,7 +854,7 @@ EOT"""
 
                 sec = value_or_default(
                     i.input_type.subtype().secondary_files()
-                    if isinstance(i.input_type, Array)
+                    if i.input_type.is_array()
                     else i.input_type.secondary_files(),
                     default=[],
                 )
@@ -899,13 +899,13 @@ EOT"""
         islist = isinstance(expression, list)
 
         if (
-            isinstance(out.output_type, Array)
+            out.output_type.is_array()
             and isinstance(out.output_type.subtype(), File)
             and out.output_type.subtype().secondary_files()
         ):
             if isinstance(original_expression, WildcardSelector):
                 # do custom override for wildcard selector
-                is_single = not isinstance(out.output_type, Array)
+                is_single = not out.output_type.is_array()
                 select_first = None
                 is_single_optional = None
                 if is_single and not original_expression.select_first:
@@ -1088,7 +1088,7 @@ EOT"""
                     inp[
                         get_secondary_tag_from_original_tag(inp_key, sec)
                     ] = apply_secondary_file_format_to_filename(inp_val, sec)
-            elif isinstance(i.intype, Array) and i.intype.subtype().secondary_files():
+            elif i.intype.is_array() and i.intype.subtype().secondary_files():
                 # handle array of secondary files
                 for sec in i.intype.subtype().secondary_files():
                     inp[get_secondary_tag_from_original_tag(inp_key, sec)] = (
@@ -1200,7 +1200,7 @@ def resolve_tool_input_value(
         name = f"select_first([{name}, {default}])"
 
     if tool_input.localise_file:
-        if isinstance(tool_input.input_type, Array):
+        if tool_input.input_type.is_array():
             raise Exception(
                 "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
             )
@@ -1256,7 +1256,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
             else:
                 condition = f"(defined({expr}) && select_first([{expr}]))"
             expr = f'~{{if {condition} then "{tprefix}" else ""}}'
-    elif isinstance(intype, Array):
+    elif intype.is_array():
 
         separator = tool_input.separator if tool_input.separator is not None else " "
         should_quote = (
@@ -1539,11 +1539,7 @@ def translate_step_node(
             source = ar_source[0]
 
             ot = source.source.returntype()
-            if (
-                isinstance(intype, Array)
-                and not isinstance(ot, Array)
-                and not source.scatter
-            ):
+            if intype.is_array() and not ot.is_array() and not source.scatter:
                 array_input_from_single_source = True
         else:
             Logger.critical(
@@ -1556,7 +1552,7 @@ def translate_step_node(
 
         secondaries = (
             intype.secondary_files()
-            if not isinstance(intype, Array)
+            if not intype.is_array()
             else intype.subtype().secondary_files()
         ) or []
         # place to put the processed_sources:
@@ -1581,7 +1577,7 @@ def translate_step_node(
                 sec_out = set(
                     value_or_default(
                         ot.subtype().secondary_files()
-                        if isinstance(ot, Array)
+                        if ot.is_array()
                         else ot.secondary_files(),
                         default=[],
                     )
@@ -2043,23 +2039,27 @@ def prepare_move_statements_for_input(ti: ToolInput):
         if ti.localise_file and not ti.presents_as:
             newlocation = "."
         elif not ti.localise_file and ti.presents_as:
-            newlocation = f'"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"'
+            newlocation = f"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"
             base = newlocation
         else:
             newlocation = ti.presents_as
-            base = f'"{ti.presents_as}"'
+            base = ti.presents_as
 
-        commands.append(wdl.Task.Command(f"cp -f ~{{{ti.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"cp -f '~{{{ti.id()}}}' '{newlocation}'"))
 
     if it.secondary_files():
+        sec_presents_as = ti.secondaries_present_as or {}
+
         for s in it.secondary_files():
             sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+            if ti.localise_file and not ti.presents_as:
+                # move into the current directory
+                dest = "."
+            else:
+                newext, iters = split_secondary_file_carats(sec_presents_as.get(s, s))
+                dest = REMOVE_EXTENSION(base, iters) + newext
 
-            newext, iters = split_secondary_file_carats(
-                ti.secondaries_present_as.get(s, s)
-            )
-            newpath = REMOVE_EXTENSION(base, iters) + newext
-            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {newpath}"))
+            commands.append(wdl.Task.Command(f"cp -f '~{{{sectag}}}' {dest}"))
 
     return commands
 

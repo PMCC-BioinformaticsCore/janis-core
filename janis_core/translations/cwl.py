@@ -601,13 +601,13 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
-        if isinstance(outtype, Array) and isinstance(
+        if outtype.is_array() and isinstance(
             outtype.fundamental_type(), (File, Directory)
         ):
             requires_obj_capture = True
             base = outtype
             arraylayers = 0
-            while isinstance(base, Array):
+            while base.is_array():
                 arraylayers += 1
                 base = outtype.subtype()
 
@@ -923,7 +923,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
 
     sf = dt.secondary_files()
 
-    if isinstance(dt, Array):
+    if dt.is_array():
         sf = dt.subtype().secondary_files()
 
     return cwlgen.InputParameter(
@@ -1026,7 +1026,7 @@ def translate_tool_input(
     # https://www.commonwl.org/user_guide/09-array-inputs/
     if (
         bind_to_commandline
-        and isinstance(toolinput.input_type, Array)
+        and toolinput.input_type.is_array()
         and isinstance(non_optional_dt_component, cwlgen.CommandInputArraySchema)
     ):
         if toolinput.prefix_applies_to_all_elements:
@@ -1382,11 +1382,7 @@ def translate_step_node(
             src = ar_source[0]
 
             ot = src.source.returntype()
-            if (
-                isinstance(intype, Array)
-                and not isinstance(ot, Array)
-                and not src.scatter
-            ):
+            if intype.is_array() and not ot.is_array() and not src.scatter:
                 array_input_from_single_source = True
 
         should_select_first_element = not (
@@ -1589,7 +1585,11 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
                 expr = If(IsDefined(glob), expr, tinp.default)
 
             return CwlTranslator.unwrap_expression(
-                expr, code_environment=False, **debugkwargs
+                expr,
+                inputs_dict=inputsdict,
+                code_environment=False,
+                for_output=True,
+                **debugkwargs,
             )
 
     elif isinstance(glob, StringFormatter):
@@ -1656,12 +1656,12 @@ def build_resource_override_maps_for_workflow(
 
 def prepare_filename_replacements_for(
     inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
-) -> Optional[Dict[str, str]]:
+) -> Optional[str]:
     if inp is None or not isinstance(inp, InputSelector):
         return None
 
     if not inputsdict:
-        return "inputs." + inp.input_to_select
+        return "inputs." + inp.input_to_select + ".basename"
         # raise Exception(
         #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
         # )
@@ -1676,7 +1676,7 @@ def prepare_filename_replacements_for(
         intype = tinp.input_type
 
         if isinstance(intype, (File, Directory)):
-            if isinstance(intype, File) and intype.extension:
+            if inp.remove_file_extension and intype.extension:
                 base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
             else:
                 base = f"inputs.{tinp.id()}.basename"

@@ -52,3 +52,9 @@ PIPELINES = "janis.pipelines"
     corresponding key, and these WILL override internal templates.
 """
 TEMPLATES = "janis.templates"
+
+
+"""
+    Transformations used to convert types between each other. This should be a List[janis.JanisTransformation]
+"""
+TRANSFORMATIONS = "janis.datatype_transformations"

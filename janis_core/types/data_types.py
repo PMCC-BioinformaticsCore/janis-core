@@ -153,6 +153,12 @@ class DataType(ABC):
         self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
 
+    def is_array(self):
+        return False
+
+    def __repr__(self):
+        return self.id()
+
     @staticmethod
     @abstractmethod
     def name() -> str:
