@@ -1,7 +1,7 @@
 import unittest
 from typing import Optional
 
-import wdlgen
+from janis_core.deps import wdlgen
 from janis_core.types import UnionType
 
 import janis_core.translations.wdl as wdl

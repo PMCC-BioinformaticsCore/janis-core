@@ -20,7 +20,7 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
-import wdlgen as wdl
+from janis_core.deps import wdlgen as wdl
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators.logical import If, IsDefined

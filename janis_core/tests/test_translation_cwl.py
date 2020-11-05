@@ -16,7 +16,7 @@ from janis_core.tests.testtools import (
     OperatorResourcesTestTool,
 )
 
-import cwl_utils.parser_v1_0 as cwlgen
+from janis_core.deps import cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (
@@ -46,6 +46,7 @@ class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
         actual = t.translate("cwl", to_console=False)
+        self.maxDiff = None
         self.assertEqual(cwl_testtool, actual)
 
 
@@ -55,12 +56,12 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow(
-            id="wid", cwlVersion="v1.0", inputs={}, outputs={}, steps={}
+            id="wid", cwlVersion="v1.2", inputs={}, outputs={}, steps={}
         )
         expected = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -75,12 +76,12 @@ id: wid
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool(
-            id="tid", inputs={}, outputs={}, cwlVersion="v1.0"
+            id="tid", inputs={}, outputs={}, cwlVersion="v1.2"
         )
         expected = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -813,10 +814,32 @@ class TestCwlUnionType(unittest.TestCase):
         self.assertListEqual(["File", "int", "string"], cwl_utype)
 
 
+class TestCWLWhen(unittest.TestCase):
+    def test_basic(self):
+        w = WorkflowBuilder("my_conditional_workflow")
+
+        w.input("inp", String(optional=True))
+
+        w.step(
+            "print_if_has_value",
+            TestTool(testtool=w.inp),
+            # only print if the input "inp" is defined.
+            when=IsDefined(w.inp),
+        )
+
+        w.output("out", source=w.print_if_has_value)
+
+        c = cwl.translate_step_node(w.print_if_has_value)
+
+        self.assertEqual("$((inputs.__when_inp != null))", c.when)
+        extra_input: cwlgen.WorkflowStepInput = c.in_[-1]
+        self.assertEqual("__when_inp", extra_input.id)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-cwlVersion: v1.0
+cwlVersion: v1.2
 label: Tool for testing translation
 
 requirements:
@@ -851,6 +874,11 @@ baseCommand: echo
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters\\"
+
+hints:
+- class: ToolTimeLimit
+  timelimit: |-
+    $([inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0])
 id: TestTranslationtool
 """
 
@@ -858,7 +886,7 @@ id: TestTranslationtool
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement
@@ -887,7 +915,7 @@ id: test_add_single_to_array_edge
 cwl_stepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 label: 'TEST: WorkflowWithStepInputExpression'
 
 requirements:
@@ -928,7 +956,7 @@ id: TestWorkflowWithStepInputExpression
 cwl_arraystepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement

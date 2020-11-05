@@ -4,9 +4,8 @@
 from inspect import isclass
 from typing import Dict, Any, Set
 
-import cwl_utils.parser_v1_0 as cwlgen
-import wdlgen
-from wdlgen import WdlType
+
+from janis_core.deps import cwlgen, wdlgen
 
 from janis_core.utils.logger import Logger
 from janis_core.__meta__ import GITHUB_URL
@@ -81,7 +80,7 @@ class UnionType(DataType):
             )
         return any(t.can_receive_from(other, *args, **kwargs) for t in self.subtypes)
 
-    def wdl(self, has_default=False) -> WdlType:
+    def wdl(self, has_default=False) -> wdlgen.WdlType:
         # custom stuff here
         wdl_data_types = [a.wdl() for a in self.subtypes]
         # we require the WDL to be identical for WDL to work

@@ -24,8 +24,9 @@ from io import StringIO
 from typing import List, Dict, Optional, Tuple
 from typing import Union
 
-import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
+
+from janis_core.deps import cwlgen
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.code.codetool import CodeTool
@@ -65,7 +66,7 @@ from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import ToolMetadata
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
-CWL_VERSION = "v1.0"
+CWL_VERSION = "v1.2"
 SHEBANG = "#!/usr/bin/env cwl-runner"
 yaml = ruamel.yaml.YAML()
 
@@ -375,12 +376,25 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             outputs=[],
             arguments=[],
             requirements=[],
+            hints=[],
         )
 
         # if any(not i.shell_quote for i in tool.inputs()):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptRequirement()])
+        ops = [InputSelector("runtime_seconds")]
+        tooltime = tool.time({})
+        if tooltime is not None:
+            ops.append(tooltime)
+        ops.append(86400)
+        tool_cwl.hints.append(
+            cwlgen.ToolTimeLimit(
+                timelimit=CwlTranslator.unwrap_expression(
+                    FirstOperator(ops), code_environment=False, tool_id=tool.id()
+                )
+            )
+        )
 
         envs = tool.env_vars()
         if envs:
@@ -457,7 +471,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 [
                     cwlgen.CommandInputParameter(id="runtime_memory", type="float?"),
                     cwlgen.CommandInputParameter(id="runtime_cpu", type="int?"),
-                    # cwlgen.CommandInputParameter("runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(id="runtime_disks", type="int?"),
+                    cwlgen.CommandInputParameter(id="runtime_seconds", type="int?"),
                 ]
             )
 
@@ -926,7 +941,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     if dt.is_array():
         sf = dt.subtype().secondary_files()
 
-    return cwlgen.InputParameter(
+    return cwlgen.WorkflowInputParameter(
         id=inp.id(),
         default=default,
         secondaryFiles=sf,
@@ -1057,7 +1072,7 @@ def translate_tool_input(
 
 def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineBinding:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandLineBinding
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandLineBinding
 
     :param argument: Tool argument to build command line for
     :return:
@@ -1077,7 +1092,7 @@ def translate_tool_output(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputParameter:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandOutputParameter
 
     :param output:
     :type output: ToolOutput
@@ -1305,20 +1320,67 @@ def get_run_ref_from_subtool(
             )
 
 
+def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Selector):
+    prepare_alias = lambda x: f"__when_{re.sub('[^0-9a-zA-Z]+', '', x)}"
+
+    # two step process
+    #   1. Look through and find ALL sources includng an operator's leaves
+    #           Ensure these are connected using the alias
+    #   2. Go through sources again, build up the expression
+
+    param_aliasing = {}
+    # Use a dict to ensure we don't double add inputs
+    ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
+
+    processed_sources = []
+
+    src = when
+    if isinstance(src, InputNodeSelector) and isinstance(
+        src.input_node.default, Selector
+    ):
+        src = If(IsDefined(src), src, src.input_node.default)
+
+    processed_sources.append(src)
+
+    if isinstance(src, Operator):
+        # we'll need to get the leaves and do extra mappings
+        for leaf in src.get_leaves():
+            if not isinstance(leaf, Selector):
+                # probably a python literal
+                continue
+            sel = CwlTranslator.unwrap_selector_for_reference(leaf)
+            alias = prepare_alias(sel)
+            param_aliasing[sel] = alias
+            ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+    else:
+        sel = CwlTranslator.unwrap_selector_for_reference(src)
+        alias = prepare_alias(sel)
+        param_aliasing[sel] = alias
+        ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+
+    stp.in_.extend(ins_to_connect.values())
+
+    # 2. Again
+
+    valuefrom = CwlTranslator.unwrap_expression(
+        src,
+        code_environment=False,
+        selector_override=param_aliasing,
+        step=stp.id,
+        expression_context="when",
+    )
+
+    stp.when = valuefrom
+
+
 def translate_step_node(
     step: StepNode,
     is_nested_tool=False,
-    resource_overrides=Dict[str, str],
+    resource_overrides: Optional[Dict[str, str]] = None,
     use_run_ref=True,
     allow_empty_container=False,
     container_override=None,
 ) -> cwlgen.WorkflowStep:
-
-    if step.when is not None:
-        Logger.warn(
-            f"Janis has not implemented conditionals in CWL. Please see GitHub for more information. "
-            f"Skipping the condition for step '{step.id()}' when calling '{step.tool.id()}'"
-        )
 
     tool = step.tool
 
@@ -1490,8 +1552,14 @@ def translate_step_node(
 
         cwlstep.in_.append(d)
 
-    for r in resource_overrides:
-        cwlstep.in_.append(cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r]))
+    if resource_overrides:
+        for r in resource_overrides:
+            cwlstep.in_.append(
+                cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r])
+            )
+
+    if step.when is not None:
+        add_when_conditional_for_workflow_stp(cwlstep, step.when)
 
     return cwlstep
 
@@ -1640,11 +1708,18 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.InputParameter(
+                    cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_memory", type="float?"
                     ),
-                    cwlgen.InputParameter(id=tool_pre + "runtime_cpu", type="int?"),
-                    # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_cpu", type="int?"
+                    ),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_disks", type="int?"
+                    ),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_seconds", type="int?"
+                    ),
                 ]
             )
         elif tool.type() == ToolType.Workflow:
