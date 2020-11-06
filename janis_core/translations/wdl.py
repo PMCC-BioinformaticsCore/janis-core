@@ -20,7 +20,7 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
-import wdlgen as wdl
+from janis_core.deps import wdlgen as wdl
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators.logical import If, IsDefined
@@ -1706,10 +1706,10 @@ def generate_scatterable_details(
             # We asserted earlier that the source_map only has one value (through multipleInputs)
             e: Edge = s.source_map[0]
 
-            if isinstance(e.source, Operator):
-                raise Exception(
-                    "Currently, Janis doesn't support operating on a value to be scattered"
-                )
+            # if isinstance(e.source, Operator):
+            #     raise Exception(
+            #         "Currently, Janis doesn't support operating on a value to be scattered"
+            #     )
 
             original_expr = WdlTranslator.unwrap_expression(s.source().source)
             newid = generate_new_id_from(original_expr, forbiddenidentifierscopy)
