@@ -185,12 +185,18 @@ class ToolEvaluator:
 
         containers = [v for k, v in tool.containers().items()]
         cache_location = os.path.join(os.getcwd(), "tests_output", "containers")
-        digest = get_digests_from_containers(containers, cache_location=cache_location)
+        digests = get_digests_from_containers(containers, cache_location=cache_location)
 
-        if digest:
-            return True
-        else:
-            return f"image {tool.container()} not found"
+        errors = []
+        for c in containers:
+            # if digest is exactly the same, it means digest is not found (it's just the tag name)
+            if c not in digests or digests[c] == c:
+                errors.append(f"container {c} not found")
+
+        if errors:
+            return ", ".join(errors)
+
+        return True
 
     @staticmethod
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
