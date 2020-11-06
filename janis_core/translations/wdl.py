@@ -552,7 +552,7 @@ EOT"""
                         expression.prefix,
                         inputsdict=inputsdict,
                         string_environment=True,
-                        for_output=True,
+                        for_output=for_output,
                     )
                 }
             )
@@ -1879,7 +1879,9 @@ def translate_input_selector(
     name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
 
     intype = inp.input_type
-    if selector.remove_file_extension and isinstance(intype, (File, Directory)):
+    if selector.remove_file_extension and (
+        File().can_receive_from(intype) or Directory().can_receive_from(intype)
+    ):
         if isinstance(intype, File) and intype.extension:
             name = f'basename({name}, "{intype.extension}")'
         else:
