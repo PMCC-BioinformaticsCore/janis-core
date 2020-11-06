@@ -196,7 +196,7 @@ class ToolEvaluator:
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
         """
         Evaluate if we can successfully translate to wdl and cwl
-
+        # TODO: validate translations (will look into better way to ensure validation tool exists)
 
         :param tool: Janis tool
         :type tool: Tool
@@ -214,7 +214,6 @@ class ToolEvaluator:
                 translator.translate(
                     tool,
                     export_path=output_dir,
-                    should_validate=True,
                     to_console=False,
                     to_disk=True,
                 )
