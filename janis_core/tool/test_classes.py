@@ -83,7 +83,11 @@ class TTestExpectedOutput(object):
         if self.expected_value is None:
             repr_expected_value = f"content of {self.expected_file}"
 
-        return f"{self.tag}: {self.preprocessor.value} {str(self.operator)} {repr_expected_value}"
+        repr_preprocessor = str(self.preprocessor)
+        if isinstance(self.preprocessor, TTestPreprocessor):
+            repr_preprocessor = self.preprocessor.value
+
+        return f"{self.tag}: {repr_preprocessor} {str(self.operator)} {repr_expected_value}"
 
     def _validate_input(self):
         if self.expected_value is None and self.expected_file is None:

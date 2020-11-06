@@ -1,6 +1,7 @@
 from typing import Dict, Union, List, Set, Optional
 from tabulate import tabulate
 from pkg_resources import parse_version
+from nose.tools import nottest
 
 import janis_core as jc
 from janis_core.translations.translationbase import TranslatorBase
@@ -85,6 +86,7 @@ def get_one_tool(tool_id: str, modules: List, version: Optional[str] = None) -> 
     return shed.get_tool(tool=tool_id, version=version)
 
 
+@nottest
 def print_test_report(
     failed: Dict[str, str], succeeded: Set, id_column_header: str = "Tool"
 ):

@@ -94,7 +94,7 @@ class ToolEvaluator:
         return evaluation
 
     @staticmethod
-    def evaluate_unit_test_exists(tool: Tool) -> Union[str, bool]:
+    def evaluate_unittest_exists(tool: Tool) -> Union[str, bool]:
         """
         Evaluate if test suite for this tool is provided
 

@@ -14,6 +14,7 @@ from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
 from janis_core.tool.test_classes import TTestCase
+from nose.tools import nottest
 
 
 class ToolType(Enum):
@@ -250,6 +251,7 @@ OUTPUTS:
 {outputs}
 """
 
+    @nottest
     def tests(self) -> Optional[List[TTestCase]]:
         """
         A list of test cases for this tool
@@ -257,6 +259,7 @@ OUTPUTS:
         return None
 
     @classmethod
+    @nottest
     def test_data_path(cls):
         module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
         return os.path.join(module_path, cls.TEST_DATA_FOLDER)
