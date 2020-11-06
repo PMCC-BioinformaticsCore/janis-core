@@ -14,6 +14,12 @@ class ToolEvaluator:
     def evaluate(cls, tool: Tool) -> Union[str, bool]:
         """
         Evaluate a Janis tool whether they satisfy certain criteria for them to be publishable
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return: error message or True if valid
+        :rtype: Union[str, bool]
         """
         if tool.type() == ToolType.Workflow:
             return cls.evaluate_workflow(tool)
@@ -25,24 +31,62 @@ class ToolEvaluator:
 
     @classmethod
     def evaluate_command_tool(cls, tool: CommandTool) -> Union[str, bool]:
+        """
+        Evaluate a Janis command line tool whether they satisfy certain criteria for them to be publishable
+
+        :param tool: Janis command line tool
+        :type tool: CommandTool
+
+        :return: error message or True if valid
+        :rtype: Union[str, bool]
+        """
         evaluation = cls.evaluate_generic(tool)
         return cls._read_evaluation(evaluation)
 
     @classmethod
     def evaluate_code_tool(cls, tool: CodeTool) -> Union[str, bool]:
+        """
+        Evaluate a Janis code tool whether they satisfy certain criteria for them to be publishable
+
+        :param tool: Janis code tool
+        :type tool: CodeTool
+
+        :return: error message or True if valid
+        :rtype: Union[str, bool]
+        """
         evaluation = cls.evaluate_generic(tool)
         return cls._read_evaluation(evaluation)
 
     @classmethod
     def evaluate_workflow(cls, wf: Workflow) -> Union[str, bool]:
-        return True
+        """
+        Evaluate a Janis workflow whether they satisfy certain criteria for them to be publishable
+
+        :param tool: Janis workflow
+        :type tool: Workflow
+
+        :return: error message or True if valid
+        :rtype: Union[str, bool]
+        """
+        evaluation = cls.evaluate_generic(wf)
+        return cls._read_evaluation(evaluation)
 
     @classmethod
-    def evaluate_generic(cls, tool) -> Dict[str, str]:
+    def evaluate_generic(cls, tool: Tool) -> Dict[str, str]:
+        """
+        Generic evaluations to be applied to all Janis tools
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return: evaluation outcome keyed by evaluated category
+        :rtype: Dict[str, str]
+        """
         evaluation = {}
 
         evaluation["friendly_name"] = cls.evaluate_friendly_name(tool)
         evaluation["metadata"] = cls.evaluate_metadata(tool)
+        # TODO: turn this on when we have implemented all unit tests
         # evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
         evaluation["container"] = cls.evaluate_container(tool)
         evaluation["translation"] = cls.evaluate_translation(tool)
@@ -53,6 +97,12 @@ class ToolEvaluator:
     def evaluate_unit_test_exists(tool: Tool) -> Union[str, bool]:
         """
         Evaluate if test suite for this tool is provided
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if unit tests for this tool exists
+        :rtype: Union[str, bool]
         """
         if tool.tests():
             return True
@@ -63,8 +113,14 @@ class ToolEvaluator:
     def evaluate_friendly_name(tool: Tool) -> Union[str, bool]:
         """
         Evaluate if a friendly name for documentation is provided
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if a friendly name for this tool exists
+        :rtype: Union[str, bool]
         """
-        if tool.friendly_name() is None:
+        if not tool.friendly_name():
             return "Missing friendly name"
 
         return True
@@ -72,7 +128,13 @@ class ToolEvaluator:
     @staticmethod
     def evaluate_metadata(tool: Tool) -> Union[str, bool]:
         """
-        Evaluate if important metadata for documentation is p
+        Evaluate if important metadata for documentation is provided
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if all required metadata for this tool exists
+        :rtype: Union[str, bool]
         """
         METADATA_KEY_CONTRIBUTORS = "contributors"
         METADATA_KEY_CREATED_DATE = "created date"
@@ -106,44 +168,24 @@ class ToolEvaluator:
     @staticmethod
     def evaluate_container(tool: Tool) -> Union[str, bool]:
         """
-        Evaluate if the image specified for this tool exists in the remote registry
+        Evaluate if the container specified for this tool exists in the remote registry
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if listed container for this tool exists in the remote registry
+        :rtype: Union[str, bool]
         """
         # If there is no container, we don't need to check if the container exists in the registry
-        if tool.container() is None:
+        if tool.containers() is None:
             return True
 
-        min_version_required = test_helpers.janis_assistant_version_required_min
+        test_helpers.verify_janis_assistant_installed()
+        from janis_assistant.data.container import get_digests_from_containers
 
-        try:
-            import janis_assistant
-
-            if parse_version(janis_assistant.__version__) < parse_version(
-                min_version_required
-            ):
-                raise Exception()
-
-            from janis_assistant.data.container.registries import (
-                ContainerRegistryBase,
-                ContainerRegistry,
-            )
-            from janis_assistant.data.container.info import ContainerInfo
-
-        except Exception as e:
-            raise Exception(
-                f"to run this test, janis_asisstant >= {min_version_required}"
-                f" must be installed"
-            )
-
-        # Call this outside the try-except so that we can still throw
-        # different exceptions relevant to the actual logic of this function
-        if not tool.container():
-            print(tool.id(), "no container")
-        else:
-            print(tool.id(), tool.container())
-
-        ci = ContainerInfo.parse(tool.container())
-        registry = ContainerRegistry.from_host(ci.host).to_registry()
-        digest = registry.get_digest(ci)
+        containers = [v for k, v in tool.containers().items()]
+        cache_location = os.path.join(os.getcwd(), "tests_output", "containers")
+        digest = get_digests_from_containers(containers, cache_location=cache_location)
 
         if digest:
             return True
@@ -153,7 +195,14 @@ class ToolEvaluator:
     @staticmethod
     def evaluate_translation(tool: Tool) -> Union[str, bool]:
         """
-        Evaluate if the wdl and cwl translations are valid
+        Evaluate if we can successfully translate to wdl and cwl
+
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if we can successfully translate to wdl and cwl
+        :rtype: Union[str, bool]
         """
         engines = test_helpers.get_available_engines()
         output_dir = os.path.join(os.getcwd(), "tests_output", tool.id())
@@ -182,9 +231,12 @@ class ToolEvaluator:
         """
         Translate evaluation results into reportable format
 
-        Returns:
+        :param evaluation:
+        :type evaluation:
+        :return:
             - True if no error is found in each of the evaluation criteria
             - A string of error messages if at least one of the evaluation fails
+        :rtype: Union[str, bool]
         """
         errors = []
         for field in evaluation:
