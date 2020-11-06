@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, Callable, Union, List
 
 
-class TTestValuePreProcessor(Enum):
+class TTestPreprocessor(Enum):
     """
     An Enum class for a list of possible pre-processing we can do to output values
     """
@@ -27,7 +27,7 @@ class TTestExpectedOutput(object):
     def __init__(
         self,
         tag: str,
-        pre_processor: Union[TTestValuePreProcessor, Callable],
+        preprocessor: Union[TTestPreprocessor, Callable[[Any], Any]],
         operator: Callable[[Any, Any], bool],
         expected_value: Optional[Any] = None,
         expected_file: Optional[str] = None,
@@ -39,8 +39,8 @@ class TTestExpectedOutput(object):
 
         :param tag: output field name
         :type tag: str
-        :param pre_processor: one of the TTestValuePreProcessor or a function to do the pre-processing of the output value
-        :type pre_processor: Union[TTestValuePreProcessor, Callable]
+        :param preprocessor: one of the TTestValuePreProcessor or a function to do the pre-processing of the output value
+        :type preprocessor: Union[TTestPreprocessor, Callable]
         :param operator: A callable function to compare output value and expected value
         :type operator: Callable[[Any, Any], bool]
         :param expected_value: the value expected output
@@ -55,7 +55,7 @@ class TTestExpectedOutput(object):
         :type suffix_secondary_file: Optional[str]
         """
         self.tag = tag
-        self.compared = pre_processor
+        self.preprocessor = preprocessor
         self.operator = operator
         self.expected_value = expected_value
 
@@ -76,12 +76,20 @@ class TTestExpectedOutput(object):
         # if the compared object is a file, we can add suffix to test secondary files of this file
         self.suffix = suffix_secondary_file
 
+        self._validate_input()
+
     def __repr__(self):
         repr_expected_value = str(self.expected_value)
         if self.expected_value is None:
             repr_expected_value = f"content of {self.expected_file}"
 
-        return f"{self.tag}: {self.compared.value} {str(self.operator)} {repr_expected_value}"
+        return f"{self.tag}: {self.preprocessor.value} {str(self.operator)} {repr_expected_value}"
+
+    def _validate_input(self):
+        if self.expected_value is None and self.expected_file is None:
+            raise Exception(
+                "one of `expected_value` or `expected_file` must not be empty"
+            )
 
 
 class TTestCase(object):
