@@ -3,10 +3,7 @@ from tabulate import tabulate
 from pkg_resources import parse_version
 
 import janis_core as jc
-from janis_core.translations.cwl import CwlTranslator
-from janis_core.translations.wdl import WdlTranslator
 from janis_core.translations.translationbase import TranslatorBase
-
 
 janis_assistant_version_required_min = "0.10.8"
 
@@ -38,11 +35,16 @@ def get_available_engines() -> Dict[str, TranslatorBase]:
     """
     verify_janis_assistant_installed()
     from janis_assistant.engines.enginetypes import EngineType
+    from janis_assistant.engines import (
+        get_ideal_specification_for_engine,
+        get_engine_type,
+    )
 
-    engines = {
-        EngineType.cromwell.value: WdlTranslator(),
-        EngineType.cwltool.value: CwlTranslator(),
-    }
+    engines = {}
+    for engine in EngineType.engines():
+        engine_type = get_engine_type(engine)
+        supported_translation = get_ideal_specification_for_engine(engine_type)
+        engines[engine] = supported_translation.get_translator()
 
     return engines
 
