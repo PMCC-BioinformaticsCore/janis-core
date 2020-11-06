@@ -16,15 +16,6 @@ from janis_core.utils.validators import Validators
 from janis_core.tool.test_classes import TTestCase
 
 
-class ToolWithTestSuite(ABC):
-    TEST_DATA_FOLDER = "test_data"
-
-    @classmethod
-    def test_data_path(cls):
-        module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
-        return os.path.join(module_path, cls.TEST_DATA_FOLDER)
-
-
 class ToolType(Enum):
     Workflow = "workflow"
     CommandTool = "command-tool"
@@ -76,6 +67,8 @@ class Tool(ABC, object):
     """
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
+
+    TEST_DATA_FOLDER = "test_data"
 
     def __init__(self, metadata_class=Metadata, **connections):
         """
@@ -262,3 +255,8 @@ OUTPUTS:
         A list of test cases for this tool
         """
         return None
+
+    @classmethod
+    def test_data_path(cls):
+        module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
+        return os.path.join(module_path, cls.TEST_DATA_FOLDER)
