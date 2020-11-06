@@ -224,7 +224,7 @@ class ToolEvaluator:
                     to_disk=True,
                 )
             except Exception as e:
-                errors.append(f"{translator.name}: validation failed {str(e)}")
+                errors.append(f"{translator.name}: translation failed {str(e)}")
 
         if errors:
             return ", ".join(errors)
