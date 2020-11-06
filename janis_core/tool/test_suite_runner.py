@@ -44,9 +44,8 @@ class ToolTestSuiteRunner:
         from janis_assistant.management.configuration import JanisConfiguration
 
         output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
-        config = JanisConfiguration(engine=engine)
         output = run_with_outputs(
-            tool=self.tool, inputs=input, output_dir=output_dir, config=config
+            tool=self.tool, inputs=input, output_dir=output_dir, engine=engine
         )
 
         return output
