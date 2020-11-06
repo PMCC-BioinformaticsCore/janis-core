@@ -175,10 +175,6 @@ class ToolTestSuiteRunner:
             value = self.line_count(output_type=output_type, output_value=output_value)
         elif test_logic.preprocessor == TTestPreprocessor.ListSize:
             value = len(output_value.split("|"))
-        elif test_logic.preprocessor == TTestPreprocessor.GenomicsStat:
-            value = self.read_genomics_stat(
-                output_type=output_type, output_value=output_value
-            )
         else:
             raise Exception(
                 f"{test_logic.preprocessor} comparison type is not supported"
