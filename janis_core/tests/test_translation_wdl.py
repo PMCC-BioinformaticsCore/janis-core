@@ -417,11 +417,11 @@ class TestWDLFilenameGeneration(unittest.TestCase):
             "'~{select_first([generatedInpOptional, \"~{inpOptional}\"])}'", mapped[1]
         )
         self.assertEqual(
-            "'~{select_first([generatedFileInp, \"~{fileInp}.transformed.fnp\"])}'",
+            '\'~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}\'',
             mapped[2],
         )
         self.assertEqual(
-            "'~{select_first([generatedFileInpOptional, \"~{fileInpOptional}.optional.txt\"])}'",
+            '\'~{select_first([generatedFileInpOptional, "~{basename(fileInpOptional, ".txt")}.optional.txt"])}\'',
             mapped[3],
         )
 
