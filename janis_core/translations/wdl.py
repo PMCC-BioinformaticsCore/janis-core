@@ -538,6 +538,8 @@ EOT"""
             return f"[{joined_values}]"
         if is_python_primitive(expression):
             if isinstance(expression, str):
+                if string_environment:
+                    return expression
                 return cls.wrap_if_string_environment(
                     prepare_escaped_string(expression), string_environment
                 )

@@ -709,6 +709,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             )
 
         if isinstance(value, str):
+            if not code_environment:
+                return value
             return CwlTranslator.quote_values_if_code_environment(
                 prepare_escaped_string(value), code_environment
             )
