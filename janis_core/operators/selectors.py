@@ -26,6 +26,9 @@ class Selector(ABC):
         return False
 
     def __neg__(self):
+        self.negate()
+
+    def negate(self):
         from janis_core.operators.logical import NotOperator
 
         return NotOperator(self)
@@ -38,6 +41,14 @@ class Selector(ABC):
         from janis_core.operators.logical import AssertNotNull
 
         return AssertNotNull(self)
+
+    def is_null(self):
+        return self.is_not_null().negate()
+
+    def is_not_null(self):
+        from janis_core.operators.logical import IsDefined
+
+        return IsDefined(self)
 
     def and_(self, other):
         from janis_core.operators.logical import AndOperator
