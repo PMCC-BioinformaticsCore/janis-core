@@ -256,9 +256,18 @@ SelectorOrValue = Union[Selector, int, str, float]
 
 
 class InputSelector(Selector):
-    def __init__(self, input_to_select, remove_file_extension=None, **kwargs):
+    def __init__(
+        self, input_to_select, remove_file_extension=None, type_hint=File, **kwargs
+    ):
+        """
+        :param input_to_select: The name of the input to select
+        :param remove_file_extension: Call basename() and remove the file extension
+        :param type_hint: Janis can't determine the type of the input to select until translation time,
+            so providing a hint type might suppress false warnings. This is similar to using .as_type(dt)
+        """
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
+        self.type_hint = get_instantiated_type(type_hint) or File()
 
         if "use_basename" in kwargs:
             use_basename = kwargs["use_basename"]
@@ -273,7 +282,7 @@ class InputSelector(Selector):
 
     def returntype(self):
         # Todo: Work out how this can be achieved
-        return File
+        return self.type_hint
 
     def to_string_formatter(self):
         kwarg = {self.input_to_select: self}
@@ -373,63 +382,95 @@ class WildcardSelector(Selector):
         raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
 
 
-class MemorySelector(InputSelector):
-    def __init__(self):
-        super().__init__("runtime_memory")
+class AliasSelector(Selector):
+    def __init__(self, inner: Selector, dt: ParseableType):
+        self.inner_selector = inner
+        self.data_type = get_instantiated_type(dt)
 
-    def returntype(self):
-        return Int(optional=True)
+    def returntype(self) -> DataType:
+        return self.data_type
 
-    def __str__(self):
-        return "runtime_memory"
-
-    def __repr__(self):
-        return str(self)
+    def to_string_formatter(self):
+        return f"({self.inner_selector} as {self.data_type})"
 
 
-class CpuSelector(InputSelector):
-    def __init__(self, default=1):
-        super().__init__("runtime_cpu")
+class ResourceSelector(InputSelector):
+    def __init__(
+        self,
+        resource_to_select: str,
+        resource_type: DataType,
+        default: Optional[any] = None,
+    ):
+        super().__init__(resource_to_select)
+
+        self.resource_type = resource_type
         self.default = default
 
-    def returntype(self):
-        return Int(optional=bool(self.default is None))
+    def get_operation(self, tool, hints):
+        value_from_defined_method = self.get_value_from_tool(tool, hints)
+        # can't do a check for is_opera
+        if (
+            value_from_defined_method is not None
+            and hasattr(value_from_defined_method, "get_leaves")
+            and any(
+                isinstance(l, type(self))
+                for l in value_from_defined_method.get_leaves()
+            )
+        ):
+            raise Exception(
+                f"{type(self).__name__}() should not be used for when building {self.input_to_select} method for '{tool.id()}'"
+            )
 
-    def __str__(self):
-        return "runtime_cpu"
+        ops = [InputSelector(self.input_to_select)]
+        if value_from_defined_method is not None:
+            ops.append(value_from_defined_method)
+        if self.default is not None:
+            ops.append(self.default)
 
-    def __repr__(self):
-        return str(self)
+        if len(ops) == 1:
+            return ops[0]
+
+        from .standard import FirstOperator
+
+        return FirstOperator(ops)
+
+    @abstractmethod
+    def get_value_from_tool(self, tool, hints):
+        pass
 
 
-class DiskSelector(InputSelector):
+class MemorySelector(ResourceSelector):
     def __init__(self):
-        super().__init__("runtime_disks")
+        super().__init__("runtime_memory", Int(optional=False), 4)
 
-    def returntype(self):
-        return Int(optional=True)
-
-    def __str__(self):
-        return "runtime_disks"
-
-    def __repr__(self):
-        return str(self)
+    def get_value_from_tool(self, tool, hints):
+        return tool.memory(hints)
 
 
-class TimeSelector(InputSelector):
+class CpuSelector(ResourceSelector):
+    def __init__(self, default=1):
+        super().__init__("runtime_cpu", Int(optional=bool(default is None)), default)
+
+    def get_value_from_tool(self, tool, hints):
+        return tool.cpus(hints)
+
+
+class DiskSelector(ResourceSelector):
+    def __init__(self, default=20):
+        super().__init__("runtime_disks", Int(optional=True), default)
+
+    def get_value_from_tool(self, tool, hints):
+        return tool.disk(hints)
+
+
+class TimeSelector(ResourceSelector):
     def __init__(self, default=86400):
         """
         Specified in seconds
         :param default:
         """
-        super().__init__("runtime_seconds")
+        super().__init__("runtime_seconds", Int(optional=False), default)
         self.default = default
 
-    def returntype(self):
-        return Int(optional=bool(self.default is None))
-
-    def __str__(self):
-        return "runtime_seconds"
-
-    def __repr__(self):
-        return str(self)
+    def get_value_from_tool(self, tool, hints):
+        return tool.time(hints)

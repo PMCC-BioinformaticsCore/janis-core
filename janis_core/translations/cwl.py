@@ -43,6 +43,7 @@ from janis_core.operators import (
     StepOutputSelector,
     TimeSelector,
     DiskSelector,
+    ResourceSelector,
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
@@ -875,93 +876,14 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             raise Exception(
                 "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
             )
-
-        elif isinstance(value, MemorySelector):
+        elif isinstance(value, ResourceSelector):
             if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolmem = tool.memory({})
-
-            if isinstance(toolmem, Operator) and any(
-                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
-            ):
                 raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
                 )
-            ops = [InputSelector("runtime_memory")]
-            if toolmem is not None:
-                ops.append(toolmem)
-            ops.append(4)
+            operation = value.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, CpuSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolcpu = tool.cpus({})
-
-            if isinstance(toolcpu, Operator) and any(
-                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
-            ):
-                raise Exception(
-                    f"CpuSelector() should not be use used in tool.cpus() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_cpu")]
-            if toolcpu is not None:
-                ops.append(toolcpu)
-            ops.append(1)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, TimeSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping TimeSelector")
-            tooltime = tool.time({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_seconds")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(86400)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, DiskSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping DiskSelector")
-            tooltime = tool.disk({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, DiskSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"DiskSelector() should not be use used in tool.disk() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_disks")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(20)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
+                operation, code_environment=code_environment, tool=tool, **debugkwargs
             )
 
         elif for_output and isinstance(value, (Stderr, Stdout)):
