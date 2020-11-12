@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional
+
+from janis_core.types.data_types import ParseableType
 
 from janis_core.types import get_instantiated_type, DataType
 
@@ -240,6 +242,14 @@ class Selector(ABC):
         from .standard import FileSizeOperator
 
         return FileSizeOperator(self)
+
+    def flattened(self):
+        from .standard import FlattenOperator
+
+        return FlattenOperator(self)
+
+    def as_type(self, data_type: ParseableType):
+        as_type = get_instantiated_type(data_type)
 
 
 SelectorOrValue = Union[Selector, int, str, float]
