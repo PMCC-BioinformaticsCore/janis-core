@@ -249,7 +249,7 @@ class Selector(ABC):
         return FlattenOperator(self)
 
     def as_type(self, data_type: ParseableType):
-        as_type = get_instantiated_type(data_type)
+        return AliasSelector(self, data_type)
 
 
 SelectorOrValue = Union[Selector, int, str, float]
@@ -383,6 +383,10 @@ class WildcardSelector(Selector):
 
 
 class AliasSelector(Selector):
+    """
+    Simply a way to silence the Janis type system
+    """
+
     def __init__(self, inner: Selector, dt: ParseableType):
         self.inner_selector = inner
         self.data_type = get_instantiated_type(dt)

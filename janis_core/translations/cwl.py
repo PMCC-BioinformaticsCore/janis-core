@@ -44,6 +44,7 @@ from janis_core.operators import (
     TimeSelector,
     DiskSelector,
     ResourceSelector,
+    AliasSelector,
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
@@ -854,6 +855,16 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             return CwlTranslator.quote_values_if_code_environment(
                 value.generated_filename(), code_environment
             )
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_expression(
+                value.inner_selector,
+                code_environment=code_environment,
+                selector_override=selector_override,
+                inputs_dict=inputs_dict,
+                for_output=for_output,
+                tool=tool,
+                **debugkwargs,
+            )
 
         elif isinstance(value, StringFormatter):
             return translate_string_formatter(
@@ -883,7 +894,11 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             operation = value.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                operation, code_environment=code_environment, tool=tool, **debugkwargs
+                operation,
+                code_environment=code_environment,
+                tool=tool,
+                inputs_dict=inputs_dict,
+                **debugkwargs,
             )
 
         elif for_output and isinstance(value, (Stderr, Stdout)):

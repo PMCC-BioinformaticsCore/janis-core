@@ -51,6 +51,7 @@ from janis_core.operators import (
     TimeSelector,
     DiskSelector,
     ResourceSelector,
+    AliasSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -560,6 +561,17 @@ EOT"""
                 }
             )
             return cls.wrap_if_string_environment(gen_filename, string_environment)
+
+        elif isinstance(expression, AliasSelector):
+            return cls.unwrap_expression(
+                expression.inner_selector,
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                for_output=for_output,
+                **debugkwargs,
+            )
+
         elif isinstance(expression, StringFormatter):
             return translate_string_formatter(
                 selector=expression,
@@ -577,7 +589,7 @@ EOT"""
 
             if not tool:
                 raise Exception(
-                    f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(expression).__name__}"
                 )
             operation = expression.get_operation(tool, hints={})
             return cls.unwrap_expression(
@@ -585,6 +597,7 @@ EOT"""
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
+                for_output=for_output,
                 **debugkwargs,
             )
 
