@@ -1096,11 +1096,14 @@ def resolve_tool_input_value(
     )
 
     default = None
-    if isinstance(indefault, CpuSelector):
+    if isinstance(indefault, ResourceSelector):
+
         if indefault.default:
-            default = f"select_first([runtime_cpu, {str(indefault.default)}])"
+            default = (
+                f"select_first([{indefault.input_to_select}, {str(indefault.default)}])"
+            )
         else:
-            default = "runtime_cpu"
+            default = indefault.input_to_select
 
     elif isinstance(indefault, InputSelector):
         Logger.critical(
