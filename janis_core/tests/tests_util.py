@@ -84,6 +84,11 @@ class Test2ItemMethodWrap(TestCase):
 
 # class testtranslate(TestCase):
 #     def test1(self):
+#         from janis_bioinformatics.tools.samtools import SamToolsView_1_9
+#
+#         SamToolsView_1_9().translate("wdl")
+
+
 # from janis_pipelines import WGSGermlineGATK
 
 # WGSGermlineGATK().translate("cwl")
