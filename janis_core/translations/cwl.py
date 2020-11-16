@@ -1000,7 +1000,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     return cwlgen.WorkflowInputParameter(
         id=inp.id(),
         default=default,
-        secondaryFiles=sf,
+        secondaryFiles=[cwlgen.SecondaryFileSchema(s) for s in sf] if sf else None,
         format=None,
         streamable=None,
         doc=doc,
@@ -1042,11 +1042,15 @@ def translate_workflow_output(
     else:
         source = CwlTranslator.unwrap_selector_for_reference(node.source)
 
+    sf = None
+    if node.datatype.secondary_files():
+        sf = [cwlgen.SecondaryFileSchema(s) for s in node.datatype.secondary_files()]
+
     return (
         cwlgen.WorkflowOutputParameter(
             id=node.id(),
             outputSource=source,
-            secondaryFiles=node.datatype.secondary_files(),
+            secondaryFiles=sf,
             streamable=None,
             doc=doc,
             type=ot.cwl_type(),
@@ -1259,7 +1263,9 @@ $}}
     return None
 
 
-def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
+def prepare_tool_output_secondaries(
+    output,
+) -> Optional[Union[List[cwlgen.SecondaryFileSchema], str, List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL OUTPUT
 
@@ -1277,7 +1283,10 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     """
 
     if not output.secondaries_present_as:
-        return output.output_type.secondary_files()
+        sfs = output.output_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = output.secondaries_present_as
     tb = "    "
@@ -1310,7 +1319,9 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     ]
 
 
-def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[str]]]:
+def prepare_tool_input_secondaries(
+    inp: ToolInput,
+) -> Optional[Union[str, List[cwlgen.SecondaryFileSchema], List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL INPUT
 
@@ -1327,7 +1338,10 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
     :return:
     """
     if not inp.secondaries_present_as:
-        return inp.input_type.secondary_files()
+        sfs = inp.input_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = inp.secondaries_present_as
     tb = "    "
