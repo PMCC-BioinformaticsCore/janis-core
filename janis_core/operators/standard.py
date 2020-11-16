@@ -184,7 +184,7 @@ class FlattenOperator(Operator):
         return [Array(Array(AnyType))]
 
     def returntype(self):
-        return Array(self.args[0].subtype().subtype())
+        return Array(self.args[0].returntype().subtype().subtype())
 
     def __str__(self):
         return f"flatten({self.args[0]})"

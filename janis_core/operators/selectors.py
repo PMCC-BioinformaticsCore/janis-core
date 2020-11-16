@@ -248,6 +248,11 @@ class Selector(ABC):
 
         return FlattenOperator(self)
 
+    def joined(self, separator: str):
+        from .standard import JoinOperator
+
+        return JoinOperator(self, separator)
+
     def as_type(self, data_type: ParseableType):
         return AliasSelector(self, data_type)
 
