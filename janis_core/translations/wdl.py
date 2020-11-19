@@ -50,6 +50,8 @@ from janis_core.operators import (
     InputNodeSelector,
     TimeSelector,
     DiskSelector,
+    ResourceSelector,
+    AliasSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -559,6 +561,17 @@ EOT"""
                 }
             )
             return cls.wrap_if_string_environment(gen_filename, string_environment)
+
+        elif isinstance(expression, AliasSelector):
+            return cls.unwrap_expression(
+                expression.inner_selector,
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                for_output=for_output,
+                **debugkwargs,
+            )
+
         elif isinstance(expression, StringFormatter):
             return translate_string_formatter(
                 selector=expression,
@@ -572,100 +585,19 @@ EOT"""
                 f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
             )
 
-        elif isinstance(expression, MemorySelector):
+        elif isinstance(expression, ResourceSelector):
+
             if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolmem = tool.memory({})
-
-            if isinstance(toolmem, Operator) and any(
-                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
-            ):
                 raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(expression).__name__}"
                 )
-
-            ops = [InputSelector("runtime_memory")]
-            if toolmem is not None:
-                ops.append(toolmem)
-            ops.append(4)
-
+            operation = expression.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                FirstOperator(ops),
+                operation,
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, CpuSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolcpu = tool.cpus({})
-
-            if isinstance(toolcpu, Operator) and any(
-                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
-            ):
-                raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_cpu")]
-            if toolcpu is not None:
-                ops.append(toolcpu)
-            ops.append(1)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, TimeSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping TimeSelector")
-            tooltime = tool.time({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_seconds")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(86400)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, DiskSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping DiskSelector")
-            tooldisk = tool.disk({})
-
-            if isinstance(tooldisk, Operator) and any(
-                isinstance(l, DiskSelector) for l in tooldisk.get_leaves()
-            ):
-                raise Exception(
-                    f"DiskSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_disks")]
-            if tooldisk is not None:
-                ops.append(tooldisk)
-            ops.append(20)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
+                for_output=for_output,
                 **debugkwargs,
             )
 
@@ -1177,11 +1109,14 @@ def resolve_tool_input_value(
     )
 
     default = None
-    if isinstance(indefault, CpuSelector):
+    if isinstance(indefault, ResourceSelector):
+
         if indefault.default:
-            default = f"select_first([runtime_cpu, {str(indefault.default)}])"
+            default = (
+                f"select_first([{indefault.input_to_select}, {str(indefault.default)}])"
+            )
         else:
-            default = "runtime_cpu"
+            default = indefault.input_to_select
 
     elif isinstance(indefault, InputSelector):
         Logger.critical(

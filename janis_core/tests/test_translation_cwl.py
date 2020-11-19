@@ -415,7 +415,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("File", tinp.type)
-        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+        self.assertEqual("^.txt", tinp.secondaryFiles[0].pattern)
 
     def test_array_secondary_file_translation(self):
         inp = InputNode(
@@ -428,7 +428,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         tinp = cwl.translate_workflow_input(inp, None)
         self.assertIsInstance(tinp.type, cwlgen.CommandInputArraySchema)
         self.assertEqual("File", tinp.type.items)
-        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+        self.assertEqual("^.txt", tinp.secondaryFiles[0].pattern)
 
 
 class TestCwlOutputGeneration(unittest.TestCase):

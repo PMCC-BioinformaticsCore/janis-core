@@ -13,6 +13,7 @@ from janis_core.operators import (
     StepOutputSelector,
     InputNodeSelector,
     Selector,
+    AliasSelector,
 )
 from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
 from janis_core.operators.standard import FirstOperator
@@ -45,13 +46,15 @@ ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 def verify_or_try_get_source(
     source: Union[ConnectionSource, List[ConnectionSource]]
-) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector]]:
+) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector], Operator]:
 
     if isinstance(source, StepOutputSelector):
         return source
-    if isinstance(source, InputNodeSelector):
+    elif isinstance(source, InputNodeSelector):
         return source
-    if isinstance(source, list):
+    elif isinstance(source, AliasSelector):
+        return source
+    elif isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
 
     if isinstance(source, Operator):
@@ -60,8 +63,10 @@ def verify_or_try_get_source(
     node, tag = None, None
     if isinstance(source, tuple):
         node, tag = source
-    else:
+    elif isinstance(source, Node):
         node = source
+    else:
+        raise Exception(f"Unrecognised source type: {source} ({type(source).__name__})")
 
     outs = node.outputs()
     if tag is None:

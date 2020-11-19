@@ -43,6 +43,8 @@ from janis_core.operators import (
     StepOutputSelector,
     TimeSelector,
     DiskSelector,
+    ResourceSelector,
+    AliasSelector,
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
@@ -853,6 +855,16 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             return CwlTranslator.quote_values_if_code_environment(
                 value.generated_filename(), code_environment
             )
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_expression(
+                value.inner_selector,
+                code_environment=code_environment,
+                selector_override=selector_override,
+                inputs_dict=inputs_dict,
+                for_output=for_output,
+                tool=tool,
+                **debugkwargs,
+            )
 
         elif isinstance(value, StringFormatter):
             return translate_string_formatter(
@@ -875,92 +887,17 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             raise Exception(
                 "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
             )
-
-        elif isinstance(value, MemorySelector):
+        elif isinstance(value, ResourceSelector):
             if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolmem = tool.memory({})
-
-            if isinstance(toolmem, Operator) and any(
-                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
-            ):
                 raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
                 )
-            ops = [InputSelector("runtime_memory")]
-            if toolmem is not None:
-                ops.append(toolmem)
-            ops.append(4)
+            operation = value.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                FirstOperator(ops),
+                operation,
                 code_environment=code_environment,
                 tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, CpuSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolcpu = tool.cpus({})
-
-            if isinstance(toolcpu, Operator) and any(
-                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
-            ):
-                raise Exception(
-                    f"CpuSelector() should not be use used in tool.cpus() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_cpu")]
-            if toolcpu is not None:
-                ops.append(toolcpu)
-            ops.append(1)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, TimeSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping TimeSelector")
-            tooltime = tool.time({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_seconds")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(86400)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, DiskSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping DiskSelector")
-            tooltime = tool.disk({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, DiskSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"DiskSelector() should not be use used in tool.disk() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_disks")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(20)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
+                inputs_dict=inputs_dict,
                 **debugkwargs,
             )
 
@@ -1063,7 +1000,7 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     return cwlgen.WorkflowInputParameter(
         id=inp.id(),
         default=default,
-        secondaryFiles=sf,
+        secondaryFiles=[cwlgen.SecondaryFileSchema(s) for s in sf] if sf else None,
         format=None,
         streamable=None,
         doc=doc,
@@ -1105,11 +1042,15 @@ def translate_workflow_output(
     else:
         source = CwlTranslator.unwrap_selector_for_reference(node.source)
 
+    sf = None
+    if node.datatype.secondary_files():
+        sf = [cwlgen.SecondaryFileSchema(s) for s in node.datatype.secondary_files()]
+
     return (
         cwlgen.WorkflowOutputParameter(
             id=node.id(),
             outputSource=source,
-            secondaryFiles=node.datatype.secondary_files(),
+            secondaryFiles=sf,
             streamable=None,
             doc=doc,
             type=ot.cwl_type(),
@@ -1322,7 +1263,9 @@ $}}
     return None
 
 
-def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
+def prepare_tool_output_secondaries(
+    output,
+) -> Optional[Union[List[cwlgen.SecondaryFileSchema], str, List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL OUTPUT
 
@@ -1340,7 +1283,10 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     """
 
     if not output.secondaries_present_as:
-        return output.output_type.secondary_files()
+        sfs = output.output_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = output.secondaries_present_as
     tb = "    "
@@ -1373,7 +1319,9 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     ]
 
 
-def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[str]]]:
+def prepare_tool_input_secondaries(
+    inp: ToolInput,
+) -> Optional[Union[str, List[cwlgen.SecondaryFileSchema], List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL INPUT
 
@@ -1390,7 +1338,10 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
     :return:
     """
     if not inp.secondaries_present_as:
-        return inp.input_type.secondary_files()
+        sfs = inp.input_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = inp.secondaries_present_as
     tb = "    "
