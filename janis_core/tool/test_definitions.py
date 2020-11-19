@@ -3,13 +3,15 @@ from typing import Dict, Union
 from pkg_resources import parse_version
 
 from janis_core import ToolType, Tool, Workflow
-from janis_core.utils.metadata import ToolMetadata
+from janis_core.utils.metadata import ToolMetadata, Metadata
 
 from janis_core.tool import test_helpers
 from janis_core import CommandTool, CodeTool
 
 
 class ToolEvaluator:
+    STATUS_SKIPPED = "SKIPPED"
+
     @classmethod
     def evaluate(cls, tool: Tool) -> Union[str, bool]:
         """
@@ -21,6 +23,9 @@ class ToolEvaluator:
         :return: error message or True if valid
         :rtype: Union[str, bool]
         """
+        if tool.skip_test():
+            return cls.STATUS_SKIPPED
+
         if tool.type() == ToolType.Workflow:
             return cls.evaluate_workflow(tool)
         elif tool.type() == ToolType.CommandTool:
@@ -140,7 +145,7 @@ class ToolEvaluator:
         METADATA_KEY_CREATED_DATE = "created date"
         METADATA_KEY_INSTITUTION = "institution"
 
-        if isinstance(tool.metadata, ToolMetadata):
+        if isinstance(tool.metadata, Metadata):
             required = {
                 METADATA_KEY_CONTRIBUTORS: tool.metadata.contributors,
                 METADATA_KEY_CREATED_DATE: tool.metadata.dateCreated,
@@ -177,13 +182,19 @@ class ToolEvaluator:
         :rtype: Union[str, bool]
         """
         # If there is no container, we don't need to check if the container exists in the registry
-        if tool.containers() is None:
+        if not tool.containers():
+            return True
+
+        # Some tool might not have container, we only want to check if a container is listed, its digest exists
+        containers = [v for k, v in tool.containers().items()]
+        containers = list(filter(None, containers))
+
+        if not containers:
             return True
 
         test_helpers.verify_janis_assistant_installed()
         from janis_assistant.data.container import get_digests_from_containers
 
-        containers = [v for k, v in tool.containers().items()]
         cache_location = os.path.join(os.getcwd(), "tests_output", "containers")
         digests = get_digests_from_containers(containers, cache_location=cache_location)
 

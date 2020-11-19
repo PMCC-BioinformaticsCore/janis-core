@@ -88,7 +88,10 @@ def get_one_tool(tool_id: str, modules: List, version: Optional[str] = None) -> 
 
 @nottest
 def print_test_report(
-    failed: Dict[str, str], succeeded: Set, id_column_header: str = "Tool"
+    failed: Dict[str, str],
+    succeeded: Set,
+    skipped: Optional[Set] = None,
+    id_column_header: str = "Tool",
 ):
     """
     Print test report in tabular text format
@@ -103,5 +106,10 @@ def print_test_report(
     """
     headers = [id_column_header, "Status", "Description"]
     formatted_failed = [(tid, "FAILED", terror) for tid, terror in failed.items()]
+    formatted_skipped = [(tid, "SKIPPED", "") for tid in skipped]
     formatted_passed = [(tid, "PASSED", "") for tid in succeeded]
-    print(tabulate([*formatted_failed, *formatted_passed], headers=headers))
+    print(
+        tabulate(
+            [*formatted_failed, *formatted_skipped, *formatted_passed], headers=headers
+        )
+    )

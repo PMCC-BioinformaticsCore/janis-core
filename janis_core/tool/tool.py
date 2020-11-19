@@ -263,3 +263,11 @@ OUTPUTS:
     def test_data_path(cls):
         module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
         return os.path.join(module_path, cls.TEST_DATA_FOLDER)
+
+    @classmethod
+    @nottest
+    def skip_test(cls) -> bool:
+        """
+        Sometimes, we may want to skip tests for some tools because they are not ready yet
+        """
+        return False
