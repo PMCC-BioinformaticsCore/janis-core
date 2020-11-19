@@ -174,7 +174,7 @@ class Logger:
         #     traceback.print_stack(limit=12)
         #     raise Exception(traceback.extract_stack(limit=5))
 
-        should_write = (datetime.now() - Logger.last_write).total_seconds() > 5
+        should_write = (datetime.now() - Logger.last_write).total_seconds() >= 1
 
         for loglevel, p in Logger.WRITE_LEVELS.items():
             pointer = p[1]
