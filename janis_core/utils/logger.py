@@ -103,6 +103,8 @@ class Logger:
     WRITE_LOCATION: Optional[str] = None
     __WRITE_POINTER: Optional[TextIO] = None
 
+    last_write: datetime = datetime.now()
+
     @staticmethod
     def set_console_level(level: Optional[int]):
         Logger.CONSOLE_LEVEL = level
@@ -172,13 +174,18 @@ class Logger:
         #     traceback.print_stack(limit=12)
         #     raise Exception(traceback.extract_stack(limit=5))
 
+        should_write = (datetime.now() - Logger.last_write).total_seconds() > 5
+
         for loglevel, p in Logger.WRITE_LEVELS.items():
             pointer = p[1]
             if level > loglevel or pointer is None or pointer.closed:
                 continue
             pointer.write(m + "\n")
-            pointer.flush()
-            os.fsync(pointer.fileno())
+
+            if should_write:
+                Logger.last_write = datetime.now()
+                pointer.flush()
+                os.fsync(pointer.fileno())
 
     @staticmethod
     def debug(message: str):
