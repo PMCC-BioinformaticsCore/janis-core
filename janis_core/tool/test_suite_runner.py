@@ -50,7 +50,9 @@ class ToolTestSuiteRunner:
 
         return output
 
-    def run_one_test_case(self, t: TTestCase, engine) -> Tuple[Set, Set]:
+    def run_one_test_case(
+        self, t: TTestCase, engine: str, output: Optional[Dict] = None
+    ) -> Tuple[Set, Set, Dict]:
         """
         Run one test case and assert multiple expected output
 
@@ -62,7 +64,9 @@ class ToolTestSuiteRunner:
         :return: A tuple of failed error messages and successful expected output
         :rtype: Tuple[Set, Set]
         """
-        output = self.run(input=t.input, engine=engine)
+        # If output is provided, we don't want to re-run the workflow
+        if output is None:
+            output = self.run(input=t.input, engine=engine)
 
         failed = set()
         succeeded = set()
@@ -81,7 +85,7 @@ class ToolTestSuiteRunner:
             else:
                 succeeded.add(str(test_logic))
 
-        return failed, succeeded
+        return failed, succeeded, output
 
     def get_expected_value(self, test_logic: TTestExpectedOutput) -> Any:
         """

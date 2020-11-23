@@ -90,7 +90,7 @@ def get_one_tool(tool_id: str, modules: List, version: Optional[str] = None) -> 
 def print_test_report(
     failed: Dict[str, str],
     succeeded: Set,
-    skipped: Optional[Set] = None,
+    skipped: Optional[Set] = set(),
     id_column_header: str = "Tool",
 ):
     """
