@@ -6,7 +6,7 @@ from janis_core import ToolType, Tool, Workflow
 from janis_core.utils.metadata import ToolMetadata, Metadata
 
 from janis_core.tool import test_helpers
-from janis_core import CommandTool, CodeTool
+from janis_core import CommandTool, CodeTool, Logger
 
 
 class ToolEvaluator:
@@ -194,6 +194,8 @@ class ToolEvaluator:
 
         test_helpers.verify_janis_assistant_installed()
         from janis_assistant.data.container import get_digests_from_containers
+        from janis_assistant.data.container.info import ContainerInfo
+        from janis_assistant.data.container.registries import ContainerRegistry
 
         cache_location = os.path.join(os.getcwd(), "tests_output", "containers")
         digests = get_digests_from_containers(containers, cache_location=cache_location)
@@ -202,7 +204,9 @@ class ToolEvaluator:
         for c in containers:
             # if digest is exactly the same, it means digest is not found (it's just the tag name)
             if c not in digests or digests[c] == c:
-                errors.append(f"container {c} not found")
+                # if the container nameis already using hash, we don't want to report any issue here
+                if not "@sha256:" in c:
+                    errors.append(f"container {c} not found")
 
         if errors:
             return ", ".join(errors)
