@@ -66,7 +66,9 @@ def get_all_tools(modules: List) -> List[List[jc.Tool]]:
     return shed.get_all_tools()
 
 
-def get_one_tool(tool_id: str, modules: List, version: Optional[str] = None) -> jc.Tool:
+def get_one_tool(
+    tool_id: str, modules: Optional[List] = None, version: Optional[str] = None
+) -> jc.Tool:
     """
     Get one tool given id and the modules where to search it from
 
