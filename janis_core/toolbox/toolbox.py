@@ -21,6 +21,7 @@ class JanisShed:
     _typeshed = Registry()
     _transformationgraph = JanisTransformationGraph()
 
+    _has_been_hydrated = False
     _has_hydrated_datatypes = False
     _has_hydrated_tools = False
     _has_hydrated_transformations = False
