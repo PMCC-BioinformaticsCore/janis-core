@@ -683,8 +683,9 @@ EOT"""
             joined_values = ", ".join(
                 str(
                     cls.unwrap_expression_for_output(
-                        expression[i],
-                        inputsdict,
+                        output=output,
+                        expression=expression[i],
+                        inputsdict=inputsdict,
                         string_environment=False,
                         tool_id=toolid + "." + str(i),
                     )
