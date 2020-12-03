@@ -1214,7 +1214,7 @@ workflow wf {
         self.assertEqual(l2, lines[1].strip())
 
 
-class TestCreateFilesAndDirectories(unittest.TestCase):
+class TestWDLCreateFilesAndDirectories(unittest.TestCase):
 
     initial_params = {
         "tool": "testCreateFilesAndDirectries",

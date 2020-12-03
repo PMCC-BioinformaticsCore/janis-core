@@ -578,6 +578,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             for o in tool.outputs()
         )
 
+        initial_workdir_req = cls.build_initial_workdir_from_tool(tool)
+        if initial_workdir_req:
+            tool_cwl.requirements.append(initial_workdir_req)
+
         args = tool.arguments()
         if args:
             tool_cwl.arguments.extend(
@@ -944,6 +948,43 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         raise Exception(
             "Could not detect type %s to convert to input value" % type(value)
         )
+
+    @classmethod
+    def build_initial_workdir_from_tool(cls, tool):
+
+        listing = []
+
+        inputsdict = {t.id(): t for t in tool.inputs()}
+
+        directories = tool.directories_to_create()
+        files = tool.files_to_create()
+
+        if directories is not None:
+            directories = (
+                directories if isinstance(directories, list) else [directories]
+            )
+            for directory in directories:
+                unwrapped_dir = cls.unwrap_expression(
+                    directory, inputsdict=inputsdict, tool=tool, code_environment=True
+                )
+                listing.append(
+                    f'$({{ class: "Directory", basename: {unwrapped_dir}, listing: [] }})'
+                )
+        if files:
+            for path, contents in files if isinstance(files, list) else files.items():
+                unwrapped_path = cls.unwrap_expression(
+                    path, inputsdict=inputsdict, tool=tool, code_environment=False
+                )
+                unwrapped_contents = cls.unwrap_expression(
+                    contents, inputsdict=inputsdict, tool=tool, code_environment=False
+                )
+                listing.append(
+                    cwlgen.Dirent(entry=unwrapped_contents, entryname=unwrapped_path)
+                )
+
+        if listing:
+            return cwlgen.InitialWorkDirRequirement(listing=listing)
+        return None
 
     @staticmethod
     def workflow_filename(workflow):

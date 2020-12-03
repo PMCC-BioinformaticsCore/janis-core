@@ -642,6 +642,79 @@ class TestCWLCompleteOperators(unittest.TestCase):
         self.assertEqual(cwl_arraystepinput, ret)
 
 
+class TestCreateFilesAndDirectories(unittest.TestCase):
+
+    initial_params = {
+        "tool": "testCreateFilesAndDirectries",
+        "version": "DEV",
+        "container": "ubuntu",
+        "base_command": "cat",
+        "inputs": [ToolInput("inp", File), ToolInput("name", str)],
+        "outputs": [ToolOutput("out", Stdout)],
+    }
+
+    def test_create_single_directory(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create="test-directory"
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: "test-directory", listing: [] })',
+            req[0],
+        )
+
+    def test_create_single_directory_from_selector(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name")
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: inputs.name, listing: [] })', req[0]
+        )
+
+    def test_create_single_directory_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name") + "-out"
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: (inputs.name + "-out"), listing: [] })',
+            req[0],
+        )
+
+    def test_create_single_file_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[("my-path.txt", InputSelector("inp").contents())],
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual("my-path.txt", req[0].entryname)
+        self.assertEqual("$(inputs.inp.contents)", req[0].entry)
+
+    def test_create_single_file_path_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[
+                (
+                    StringFormatter("{name}.txt", name=InputSelector("name")),
+                    "this is contents",
+                )
+            ],
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertIsInstance(req[0], cwlgen.Dirent)
+        self.assertEqual(
+            '$("{name}.txt".replace(/\{name\}/g, inputs.name))', req[0].entryname
+        )
+        self.assertEqual("this is contents", req[0].entry)
+
+
 class WorkflowCwlInputDefaultOperator(unittest.TestCase):
     def test_string_formatter(self):
         wf = WorkflowBuilder("wf")
