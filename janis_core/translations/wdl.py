@@ -877,15 +877,23 @@ EOT"""
             for s in ot.secondary_files():
                 tag = get_secondary_tag_from_original_tag(out.id(), s)
                 ar_exp = expression if islist else [expression]
+                potential_extensions = ot.get_extensions()
                 if "^" not in s:
                     exp = [(ex + f' + "{s}"') for ex in ar_exp]
-                elif ot.extension:
-                    exp = [
-                        'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                            inp=ex, old_ext=ot.extension, new_ext=s.replace("^", "")
-                        )
-                        for ex in ar_exp
-                    ]
+                elif potential_extensions:
+                    exp = []
+                    for ex in ar_exp:
+                        inner_exp = ex
+                        for ext in potential_extensions:
+                            inner_exp = (
+                                'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+                                    inp=inner_exp,
+                                    old_ext=ext,
+                                    new_ext=s.replace("^", ""),
+                                )
+                            )
+                        exp.append(inner_exp)
+
                 else:
                     raise Exception(
                         f"Unsure how to handle secondary file '{s}' for the tool output '{out.id()}' (ToolId={toolid})"
@@ -1816,8 +1824,17 @@ def translate_input_selector(
     if selector.remove_file_extension and (
         File().can_receive_from(intype) or Directory().can_receive_from(intype)
     ):
-        if isinstance(intype, File) and intype.extension:
-            name = f'basename({name}, "{intype.extension}")'
+        if isinstance(intype, File):
+            extensions = {
+                e
+                for e in [intype.extension, *(intype.alternate_extensions or [])]
+                if e is not None
+            }
+            if extensions:
+                for ext in extensions:
+                    name = f'basename({name}, "{ext}")'
+            else:
+                name = f"basename({name})"
         else:
             name = f"basename({name})"
 

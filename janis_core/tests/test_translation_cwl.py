@@ -38,6 +38,17 @@ from janis_core.types import CpuSelector, MemorySelector, Stdout, UnionType, Fil
 from janis_core.workflow.workflow import InputNode
 
 
+class TestTypeWithAlternateAndSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(
+            optional=optional, extension=".txt", alternate_extensions={".text"}
+        )
+
+    @staticmethod
+    def secondary_files():
+        return ["^.file"]
+
+
 class TestCwlTypesConversion(unittest.TestCase):
     pass
 

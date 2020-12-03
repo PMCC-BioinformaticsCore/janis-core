@@ -401,6 +401,15 @@ class File(DataType):
         self.extension = extension
         self.alternate_extensions = alternate_extensions
 
+    def get_extensions(self):
+        exts = []
+        if self.extension:
+            exts.append(self.extension)
+        if self.alternate_extensions:
+            exts.extend(self.alternate_extensions)
+
+        return exts
+
     @staticmethod
     def name():
         return "File"

@@ -406,6 +406,8 @@ class CommandTool(Tool, ABC):
         """
         return None
 
+    def initial_
+
     @classmethod
     def type(cls):
         return ToolType.CommandTool

@@ -1861,8 +1861,13 @@ def prepare_filename_replacements_for(
         intype = tinp.input_type
 
         if isinstance(intype, (File, Directory)):
-            if inp.remove_file_extension and intype.extension:
-                base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+            potential_extensions = (
+                intype.get_extensions() if isinstance(intype, File) else None
+            )
+            if inp.remove_file_extension and potential_extensions:
+                base = f"inputs.{tinp.id()}.basename"
+                for ext in potential_extensions:
+                    base += f'.replace(/{ext}$/, "")'
             else:
                 base = f"inputs.{tinp.id()}.basename"
         else:

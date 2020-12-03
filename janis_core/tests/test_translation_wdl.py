@@ -96,6 +96,17 @@ class TestToolWithSecondaryOutput(TestTool):
         ]
 
 
+class TestTypeWithAlternateAndSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(
+            optional=optional, extension=".txt", alternate_extensions={".text"}
+        )
+
+    @staticmethod
+    def secondary_files():
+        return ["^.file"]
+
+
 class TestWdl(unittest.TestCase):
     def test_optional_array(self):
         t = Array(File(), optional=True)
@@ -1170,6 +1181,37 @@ workflow wf {
         outs = [o.get_string() for o in wfwdl.outputs]
         self.assertEqual("Array[File] out = stp.out", outs[0])
         self.assertEqual("Array[File] out_txt = stp.out_txt", outs[1])
+
+    def test_tool_with_secondary_and_alternates(self):
+        tool = CommandToolBuilder(
+            tool="test_secondary_and_alternates",
+            base_command="cat",
+            inputs=[
+                ToolInput(
+                    "inp",
+                    TestTypeWithAlternateAndSecondary(),
+                    position=1,
+                    localise_file=True,
+                )
+            ],
+            outputs=[
+                ToolOutput(
+                    "out",
+                    TestTypeWithAlternateAndSecondary(),
+                    selector=InputSelector("inp"),
+                )
+            ],
+            container="ubtunu",
+            version="TEST",
+        )
+
+        out = tool.translate("wdl", to_console=False)
+        lines = out.splitlines(keepends=False)[-4:-2]
+        l1 = "File out = basename(inp)"
+        l2 = 'File out_file = sub(sub(basename(inp), "\\\\.txt$", ".file"), "\\\\.text$", ".file")'
+
+        self.assertEqual(l1, lines[0].strip())
+        self.assertEqual(l2, lines[1].strip())
 
 
 class TestCompleteOperators(unittest.TestCase):
