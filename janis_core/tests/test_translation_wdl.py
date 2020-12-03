@@ -1214,6 +1214,74 @@ workflow wf {
         self.assertEqual(l2, lines[1].strip())
 
 
+class TestCreateFilesAndDirectories(unittest.TestCase):
+
+    initial_params = {
+        "tool": "testCreateFilesAndDirectries",
+        "version": "DEV",
+        "container": "ubuntu",
+        "base_command": "cat",
+        "inputs": [ToolInput("inp", File), ToolInput("name", str)],
+        "outputs": [ToolOutput("out", Stdout)],
+    }
+
+    def test_create_single_directory(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create="test-directory"
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+
+        self.assertEqual("mkdir -p 'test-directory'", commands[0].command)
+
+    def test_create_single_directory_from_selector(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name")
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        self.assertEqual("mkdir -p '~{name}'", commands[0].command)
+
+    def test_create_single_directory_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name") + "-out"
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        self.assertEqual("mkdir -p '~{(name + \"-out\")}'", commands[0].command)
+
+    def test_create_single_file_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[("my-path.txt", InputSelector("inp").contents())],
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        expected = """\
+cat <<EOT >> 'my-path.txt'
+~{read_string(inp)}
+EOT"""
+        self.assertEqual(expected, commands[0].command)
+
+    def test_create_single_file_path_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[
+                (
+                    StringFormatter("{name}.txt", name=InputSelector("name")),
+                    "this is contents",
+                )
+            ],
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        expected = """\
+cat <<EOT >> '~{name}.txt'
+this is contents
+EOT"""
+        self.assertEqual(expected, commands[0].command)
+
+
 class TestCompleteOperators(unittest.TestCase):
     def test_list_operators(self):
         exp = WdlTranslator.unwrap_expression([1, 2, "three"])

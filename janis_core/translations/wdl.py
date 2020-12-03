@@ -66,7 +66,12 @@ from janis_core.types.common_data_types import (
     Double,
     String,
 )
-from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
+from janis_core.utils import (
+    first_value,
+    recursive_2param_wrap,
+    find_duplicates,
+    generate_cat_command_from_statements,
+)
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.pickvalue import PickValue
@@ -366,6 +371,9 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         command_ins = cls.build_command_from_inputs(tool.inputs())
 
         commands = [wdl.Task.Command("set -e")]
+
+        # generate directories / file to create commands
+        commands.extend(cls.build_commands_for_file_to_create(tool))
 
         env = tool.env_vars()
         if env:
@@ -945,6 +953,41 @@ EOT"""
             if cmd:
                 command_ins.append(cmd)
         return command_ins
+
+    @classmethod
+    def build_commands_for_file_to_create(
+        cls, tool: CommandTool
+    ) -> List[wdl.Task.Command]:
+        commands = []
+        inputsdict = {t.id(): t for t in tool.inputs()}
+
+        directories = tool.directories_to_create()
+        files = tool.files_to_create()
+
+        if directories is not None:
+            directories = (
+                directories if isinstance(directories, list) else [directories]
+            )
+            for directory in directories:
+                unwrapped_dir = cls.unwrap_expression(
+                    directory, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                commands.append(f"mkdir -p '{unwrapped_dir}'")
+        if files:
+            for path, contents in files if isinstance(files, list) else files.items():
+                unwrapped_path = cls.unwrap_expression(
+                    path, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                unwrapped_contents = cls.unwrap_expression(
+                    contents, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                commands.append(
+                    generate_cat_command_from_statements(
+                        path=unwrapped_path, contents=unwrapped_contents
+                    )
+                )
+
+        return list(map(wdl.Task.Command, commands))
 
     @classmethod
     def add_runtimefield_overrides_for_wdl(
