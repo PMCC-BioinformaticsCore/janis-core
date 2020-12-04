@@ -19,8 +19,21 @@ class ToolTestSuiteRunner:
     A class to read tool test cases, run the test cases, and assert the expected output
     """
 
-    def __init__(self, tool: Tool):
+    def __init__(self, tool: Tool, config: str = None):
         self.tool = tool
+
+        test_helpers.verify_janis_assistant_installed()
+        from janis_assistant.management.configuration import JanisConfiguration
+
+        self.config: Optional[JanisConfiguration] = None
+        if isinstance(config, JanisConfiguration):
+            self.config = config
+        elif isinstance(config, str):
+            self.config = JanisConfiguration.initial_configuration(path=config)
+        else:
+            raise ValueError(
+                f"Unrecognised type for janis configuration {config} (type: {type(config)})"
+            )
 
     def run(self, input: Dict[str, str], engine: str) -> Dict[str, Any]:
         """
@@ -38,14 +51,15 @@ class ToolTestSuiteRunner:
         # So, we only import this package here in this function
         # Make sure the correct version of janis_assistant is installed first
 
-        test_helpers.verify_janis_assistant_installed()
-
         from janis_assistant.main import run_with_outputs
-        from janis_assistant.management.configuration import JanisConfiguration
 
         output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         output = run_with_outputs(
-            tool=self.tool, inputs=input, output_dir=output_dir, engine=engine
+            tool=self.tool,
+            inputs=input,
+            output_dir=output_dir,
+            engine=engine,
+            config=self.config,
         )
 
         return output
@@ -125,9 +139,7 @@ class ToolTestSuiteRunner:
         output_tag = test_logic.tag
         output_type = self.tool.outputs_map().get(output_tag).outtype
         output_value = self._extract_workflow_output(
-            test_logic=test_logic,
-            output_value=output_value,
-            output_type=output_type,
+            test_logic=test_logic, output_value=output_value, output_type=output_type,
         )
 
         # Convert the output value to a format that we want to apply our test (e.g. md5, file content, etc)
