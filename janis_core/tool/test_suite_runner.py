@@ -26,7 +26,9 @@ class ToolTestSuiteRunner:
         from janis_assistant.management.configuration import JanisConfiguration
 
         self.config: Optional[JanisConfiguration] = None
-        if isinstance(config, JanisConfiguration):
+        if not config:
+            pass
+        elif isinstance(config, JanisConfiguration):
             self.config = config
         elif isinstance(config, str):
             self.config = JanisConfiguration.initial_configuration(path=config)
@@ -139,7 +141,7 @@ class ToolTestSuiteRunner:
         output_tag = test_logic.tag
         output_type = self.tool.outputs_map().get(output_tag).outtype
         output_value = self._extract_workflow_output(
-            test_logic=test_logic, output_value=output_value, output_type=output_type,
+            test_logic=test_logic, output_value=output_value, output_type=output_type
         )
 
         # Convert the output value to a format that we want to apply our test (e.g. md5, file content, etc)

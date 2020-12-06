@@ -550,7 +550,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", ArrayTestTool(inputs=w.inp1))
+        w.step("stp1", ArrayTestTool(inps=w.inp1))
 
         c, _, _ = CwlTranslator().translate(
             w, to_console=False, allow_empty_container=True
@@ -561,7 +561,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
 class TestPackedWorkflow(unittest.TestCase):
     def test_simple(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
-        w.step("ech", SingleTestTool(inputs="Hello"), doc="Print 'Hello'")
+        w.step("ech", SingleTestTool(input1="Hello"), doc="Print 'Hello'")
         c = CwlTranslator.translate_workflow_to_all_in_one(
             w, allow_empty_container=True
         )
@@ -629,7 +629,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.step(
             "print",
             ArrayTestTool(
-                inputs=[
+                inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -639,6 +639,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.output("out", source=wf.print)
 
         ret, _, _ = wf.translate("cwl", allow_empty_container=True, to_console=False)
+        self.maxDiff = None
         self.assertEqual(cwl_arraystepinput, ret)
 
 
@@ -661,8 +662,7 @@ class TestCreateFilesAndDirectories(unittest.TestCase):
 
         self.assertEqual(1, len(req))
         self.assertEqual(
-            '$({ class: "Directory", basename: "test-directory", listing: [] })',
-            req[0],
+            '$({ class: "Directory", basename: "test-directory", listing: [] })', req[0]
         )
 
     def test_create_single_directory_from_selector(self):
@@ -1024,7 +1024,7 @@ outputs: []
 steps:
 - id: stp1
   in:
-  - id: inputs
+  - id: inps
     source:
     - inp1
     linkMerge: merge_nested
@@ -1105,13 +1105,13 @@ outputs:
 steps:
 - id: print
   in:
-  - id: _print_inputs_inp1
+  - id: _print_inps_inp1
     source: inp1
-  - id: _print_inputs_inp2
+  - id: _print_inps_inp2
     source: inp2
-  - id: inputs
+  - id: inps
     valueFrom: |-
-      $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
+      $([(inputs._print_inps_inp1 != null) ? inputs._print_inps_inp1 : "default1", (inputs._print_inps_inp2 != null) ? (inputs._print_inps_inp2 + "_suffix") : ""])
   run: tools/ArrayStepTool.cwl
   out:
   - id: outs

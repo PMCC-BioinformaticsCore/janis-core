@@ -893,12 +893,8 @@ EOT"""
                     for ex in ar_exp:
                         inner_exp = ex
                         for ext in potential_extensions:
-                            inner_exp = (
-                                'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                                    inp=inner_exp,
-                                    old_ext=ext,
-                                    new_ext=s.replace("^", ""),
-                                )
+                            inner_exp = 'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+                                inp=inner_exp, old_ext=ext, new_ext=s.replace("^", "")
                             )
                         exp.append(inner_exp)
 

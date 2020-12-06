@@ -1,12 +1,10 @@
 import os
 from typing import Dict, Union
-from pkg_resources import parse_version
 
+from janis_core import CommandTool, CodeTool
 from janis_core import ToolType, Tool, Workflow
-from janis_core.utils.metadata import ToolMetadata, Metadata
-
 from janis_core.tool import test_helpers
-from janis_core import CommandTool, CodeTool, Logger
+from janis_core.utils.metadata import Metadata
 
 
 class ToolEvaluator:
@@ -194,8 +192,6 @@ class ToolEvaluator:
 
         test_helpers.verify_janis_assistant_installed()
         from janis_assistant.data.container import get_digests_from_containers
-        from janis_assistant.data.container.info import ContainerInfo
-        from janis_assistant.data.container.registries import ContainerRegistry
 
         cache_location = os.path.join(os.getcwd(), "tests_output", "containers")
         digests = get_digests_from_containers(containers, cache_location=cache_location)
@@ -233,10 +229,7 @@ class ToolEvaluator:
             try:
                 translator = engines[engine]
                 translator.translate(
-                    tool,
-                    export_path=output_dir,
-                    to_console=False,
-                    to_disk=True,
+                    tool, export_path=output_dir, to_console=False, to_disk=True
                 )
             except Exception as e:
                 errors.append(f"{translator.name}: translation failed {str(e)}")

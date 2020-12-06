@@ -71,9 +71,9 @@ class TestWorkflow(TestCase):
     def test_add_qualified_edge(self):
         w = WorkflowBuilder("test_add_edge")
         inp = w.input("inp", str).input_node
-        stp = w.step("stp", SingleTestTool(inputs=w.inp))
+        stp = w.step("stp", SingleTestTool(input1=w.inp))
 
-        e = stp.sources["inputs"].source_map[0]
+        e = stp.sources["input1"].source_map[0]
 
         self.assertEqual(e.source.input_node.id(), inp.id())
         self.assertEqual(e.finish.id(), stp.id())
@@ -84,9 +84,9 @@ class TestWorkflow(TestCase):
         inp = w.input("inp", str)
         stp = w.step("stp", SingleTestTool(), ignore_missing=True)
 
-        stp["inputs"] = inp
+        stp["input1"] = inp
 
-        e: Edge = stp.sources["inputs"].source_map[0]
+        e: Edge = stp.sources["input1"].source_map[0]
         input_node: InputNodeSelector = e.source
         self.assertEqual(input_node.input_node.id(), inp.input_node.id())
         self.assertEqual(e.finish.id(), stp.id())
@@ -153,7 +153,7 @@ class TestWorkflow(TestCase):
 
         sub_w = WorkflowBuilder("subworkflow")
         sub_w.input("sub_inp", str)
-        sub_w.step("sub_stp", SingleTestTool(inputs=sub_w.sub_inp))
+        sub_w.step("sub_stp", SingleTestTool(input1=sub_w.sub_inp))
         sub_w.output("sub_out", source=sub_w.sub_stp.out)
 
         w.input("inp", str)
@@ -167,28 +167,28 @@ class TestWorkflow(TestCase):
     def test_add_scatter(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(str))
-        stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
+        stp = w.step("stp", SingleTestTool(input1=w.inp), scatter="input1")
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["input1"].source_map[0]
 
         self.assertTrue(e.compatible_types)
-        self.assertListEqual(["inputs"], stp.scatter.fields)
+        self.assertListEqual(["input1"], stp.scatter.fields)
 
     def test_add_non_scatter_fail(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(str))
-        stp = w.step("stp", SingleTestTool(inputs=w.inp))
+        stp = w.step("stp", SingleTestTool(input1=w.inp))
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["input1"].source_map[0]
 
         self.assertFalse(e.compatible_types)
 
     def test_add_scatter_incompatible(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(int))
-        stp = w.step("stp", SingleTestTool(inputs=w.inp), scatter="inputs")
+        stp = w.step("stp", SingleTestTool(input1=w.inp), scatter="input1")
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["input1"].source_map[0]
 
         self.assertTrue(e.scatter)
         self.assertFalse(e.compatible_types)
@@ -196,36 +196,36 @@ class TestWorkflow(TestCase):
     def test_add_scatter_nested_arrays(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(str)))
-        stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
+        stp = w.step("stp", ArrayTestTool(inps=w.inp), scatter="inps")
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["inps"].source_map[0]
 
         self.assertTrue(e.compatible_types)
-        self.assertListEqual(["inputs"], stp.scatter.fields)
+        self.assertListEqual(["inps"], stp.scatter.fields)
 
     def test_add_scatter_nested_arrays_incompatible(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(int)))
-        stp = w.step("stp", ArrayTestTool(inputs=w.inp), scatter="inputs")
+        stp = w.step("stp", ArrayTestTool(inps=w.inp), scatter="inps")
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["inps"].source_map[0]
 
         self.assertFalse(e.compatible_types)
-        self.assertListEqual(["inputs"], stp.scatter.fields)
+        self.assertListEqual(["inps"], stp.scatter.fields)
 
     def test_add_non_scatter(self):
         w = WorkflowBuilder("scatterededge")
         inp = w.input("inp", str)
-        stp = w.step("stp", SingleTestTool(inputs=inp))
+        stp = w.step("stp", SingleTestTool(input1=inp))
 
         self.assertIsNone(stp.scatter)
 
     def test_add_non_scatter2(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(String()))
-        w.step("stp", ArrayTestTool(inputs=w.inp))
+        w.step("stp", ArrayTestTool(inps=w.inp))
 
-        e = w.stp.sources["inputs"].source_map[0]
+        e = w.stp.sources["inps"].source_map[0]
         self.assertFalse(e.scatter)
 
     def test_invalid_scatter_field(self):
@@ -235,7 +235,7 @@ class TestWorkflow(TestCase):
             Exception,
             w.step,
             identifier="stp",
-            tool=ArrayTestTool(inputs=w.inp),
+            tool=ArrayTestTool(inps=w.inp),
             scatter="randomfield",
         )
 
@@ -246,19 +246,19 @@ class TestWorkflow(TestCase):
             Exception,
             w.step,
             identifier="stp",
-            tool=ArrayTestTool(inputs=w.inp),
-            scatter=["inputs", "randomfield"],
+            tool=ArrayTestTool(inps=w.inp),
+            scatter=["input1", "randomfield"],
         )
 
     def test_merge(self):
         w = WorkflowBuilder("scatterededge")
 
         w.input("inp1", Array(String()))
-        w.step("scatteredStp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
-        stp = w.step("mergeStp2", ArrayTestTool(inputs=w.scatteredStp1))
+        w.step("scatteredStp1", SingleTestTool(input1=w.inp1), scatter="input1")
+        stp = w.step("mergeStp2", ArrayTestTool(inps=w.scatteredStp1))
 
-        e1 = w.scatteredStp1.sources["inputs"].source_map[0]
-        e2 = w.mergeStp2.sources["inputs"].source_map[0]
+        e1 = w.scatteredStp1.sources["input1"].source_map[0]
+        e2 = w.mergeStp2.sources["inps"].source_map[0]
 
         self.assertTrue(e1.scatter)
         self.assertFalse(e2.scatter)
@@ -268,11 +268,11 @@ class TestWorkflow(TestCase):
         w = WorkflowBuilder("scatterededge")
 
         w.input("inp1", Array(String()))
-        stp1 = w.step("stp1", SingleTestTool(inputs=w.inp1), scatter="inputs")
-        stp2 = w.step("stp2", SingleTestTool(inputs=stp1), scatter="inputs")
+        stp1 = w.step("stp1", SingleTestTool(input1=w.inp1), scatter="input1")
+        stp2 = w.step("stp2", SingleTestTool(input1=stp1), scatter="input1")
 
-        e1 = stp1.sources["inputs"].source_map[0]
-        e2 = stp2.sources["inputs"].source_map[0]
+        e1 = stp1.sources["input1"].source_map[0]
+        e2 = stp2.sources["input1"].source_map[0]
 
         self.assertTrue(e1.scatter)
         self.assertTrue(e2.scatter)
@@ -280,9 +280,9 @@ class TestWorkflow(TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", String())
-        w.step("stp1", ArrayTestTool(inputs=w.inp1))
+        w.step("stp1", ArrayTestTool(inps=w.inp1))
 
-        e = w.stp1.sources["inputs"].source_map[0]
+        e = w.stp1.sources["inps"].source_map[0]
         self.assertTrue(w.has_multiple_inputs)
         self.assertTrue(e.compatible_types)
 
@@ -344,17 +344,17 @@ class TestCaptureInputsFromTool(TestCase):
     def test_check_explicit_inputs(self):
         w = WorkflowBuilder("wf")
 
-        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_forward=["inputs"])
+        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_forward=["input1"])
 
         self.assertEqual(1, len(d))
-        self.assertEqual(d["inputs"].id(), "inputs")
+        self.assertEqual(d["input1"].id(), "input1")
 
     def test_check_implicit_inputs(self):
         w = WorkflowBuilder("wf")
 
         Tool = SingleTestTool()
 
-        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_ignore=["inputs"])
+        d = w.forward_inputs_from_tool(SingleTestTool, inputs_to_ignore=["input1"])
 
         self.assertEqual(len(Tool.tool_inputs()) - 1, len(d))
-        self.assertNotIn("inputs", d)
+        self.assertNotIn("input1", d)

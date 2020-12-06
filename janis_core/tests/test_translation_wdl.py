@@ -772,8 +772,8 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2),
-            scatter=ScatterDescription(fields=["inputs"], method=ScatterMethod.dot),
+            SingleTestTool(input1=w.inp, input2=w.inp2),
+            scatter=ScatterDescription(fields=["input1"], method=ScatterMethod.dot),
         )
 
         outp = wdl.translate_step_node(
@@ -783,7 +783,7 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=i,
+      input1=i,
       input2=inp2
   }
 }"""
@@ -795,7 +795,7 @@ scatter (i in inp) {
         w.input("inp2", str)
 
         step = w.step(
-            "dotTool", SingleTestTool(inputs=w.inp, input2=w.inp2), scatter="inputs"
+            "dotTool", SingleTestTool(input1=w.inp, input2=w.inp2), scatter="input1"
         )
 
         outp = wdl.translate_step_node(
@@ -805,7 +805,7 @@ scatter (i in inp) {
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=i,
+      input1=i,
       input2=inp2
   }
 }"""
@@ -818,9 +818,9 @@ scatter (i in inp) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2),
+            SingleTestTool(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
-                fields=["inputs", "input2"], method=ScatterMethod.dot
+                fields=["input1", "input2"], method=ScatterMethod.dot
             ),
         )
 
@@ -831,7 +831,7 @@ scatter (i in inp) {
 scatter (Q in zip(inp, inp2)) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right
   }
 }"""
@@ -845,9 +845,9 @@ scatter (Q in zip(inp, inp2)) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3),
+            SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3),
             scatter=ScatterDescription(
-                fields=["inputs", "input2", "input3"], method=ScatterMethod.dot
+                fields=["input1", "input2", "input3"], method=ScatterMethod.dot
             ),
         )
 
@@ -858,7 +858,7 @@ scatter (Q in zip(inp, inp2)) {
 scatter (Q in zip(inp, zip(inp2, inp3))) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right.left,
       input3=Q.right.right
   }
@@ -874,9 +874,9 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
+            SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
             scatter=ScatterDescription(
-                fields=["inputs", "input2", "input3", "input4"],
+                fields=["input1", "input2", "input3", "input4"],
                 method=ScatterMethod.dot,
             ),
         )
@@ -888,7 +888,7 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
 scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right.left,
       input3=Q.right.right.left,
       input4=Q.right.right.right
@@ -928,8 +928,8 @@ class TestRuntimeOverrideGenerator(unittest.TestCase):
     def test_basic(self):
         w = WorkflowBuilder("wb")
         w.input("inp", str)
-        w.step("echo", SingleTestTool(inputs=w.inp))
-        w.step("echo_2", SingleTestTool(inputs=w.inp))
+        w.step("echo", SingleTestTool(input1=w.inp))
+        w.step("echo_2", SingleTestTool(input1=w.inp))
 
         wf, _, _ = w.translate(
             "wdl",
@@ -952,7 +952,7 @@ workflow wb {
   }
   call T.TestStepTool as echo {
     input:
-      inputs=inp,
+      input1=inp,
       runtime_memory=echo_runtime_memory,
       runtime_cpu=echo_runtime_cpu,
       runtime_disks=echo_runtime_disks,
@@ -960,7 +960,7 @@ workflow wb {
   }
   call T.TestStepTool as echo_2 {
     input:
-      inputs=inp,
+      input1=inp,
       runtime_memory=echo_2_runtime_memory,
       runtime_cpu=echo_2_runtime_cpu,
       runtime_disks=echo_2_runtime_disks,
@@ -1335,7 +1335,7 @@ workflow TestWorkflowWithStepInputExpression {
         wf.step(
             "print",
             ArrayTestTool(
-                inputs=[
+                inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -1358,7 +1358,7 @@ workflow cwl_test_array_step_input {
   }
   call A.ArrayStepTool as print {
     input:
-      inputs=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
+      inps=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
   }
   output {
     Array[File] out = print.outs
