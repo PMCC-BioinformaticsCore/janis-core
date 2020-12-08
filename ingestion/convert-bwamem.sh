@@ -1,1 +1,0 @@
-./fromcwl.py bwamem.cwl

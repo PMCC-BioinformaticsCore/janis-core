@@ -6,17 +6,9 @@ from typing import Optional, Union, List
 import janis_core as j
 
 
-PARSER_VERSION = "v1.2"
-
-if PARSER_VERSION == "v1.0":
-    import cwl_utils.parser_v1_0 as cwlgen
-elif PARSER_VERSION == "v1.1":
-    import cwl_utils.parser_v1_1 as cwlgen
-elif PARSER_VERSION == "v1.2":
-    import cwl_utils.parser_v1_2 as cwlgen
-else:
-    print(f"Didn't recognise CWL version {PARSER_VERSION}, loading default: v1.2")
-    import cwl_utils.parser_v1_2
+DEFAULT_PARSER_VERSION = "v1.2"
+# load cwlgen into here
+cwlgen = None
 
 
 class GenericFileWithSecondaries(j.File):
@@ -29,6 +21,7 @@ class GenericFileWithSecondaries(j.File):
 
 
 def from_document(doc):
+
     loaded_doc = cwlgen.load_document(doc)
     return from_loaded_doc(loaded_doc)
 
@@ -241,6 +234,41 @@ def ingest_command_line_tool(clt):
     return jclt
 
 
+def load_cwlgen_from_version(cwl_version):
+    global cwlgen
+
+    if cwl_version == "v1.0":
+        import cwl_utils.parser_v1_0 as cwlutils
+    elif cwl_version == "v1.1":
+        import cwl_utils.parser_v1_1 as cwlutils
+    elif cwl_version == "v1.2":
+        import cwl_utils.parser_v1_2 as cwlutils
+    else:
+        print(
+            f"Didn't recognise CWL version {cwl_version}, loading default: {DEFAULT_PARSER_VERSION}"
+        )
+        cwlutils = load_cwlgen_from_version(DEFAULT_PARSER_VERSION)
+
+    cwlgen = cwlutils
+
+    return cwlgen
+
+
+def load_cwl_version_from_doc(doc):
+    import ruamel.yaml
+
+    # load tool into memory
+    with open(doc) as fp:
+        tool_dict = ruamel.yaml.load(fp, Loader=ruamel.yaml.Loader)
+
+    if "cwlVersion" not in tool_dict:
+        raise Exception(f"Couldn't find cwlVersion in tool {doc}")
+
+    cwl_version = tool_dict["cwlVersion"]
+    print(f"Using cwlVersion: {cwl_version}", file=sys.stderr)
+    load_cwlgen_from_version(cwl_version)
+
+
 if __name__ == "__main__":
     import sys
 
@@ -248,5 +276,7 @@ if __name__ == "__main__":
         raise Exception("Expected 1 argument, the name of a CWL tool.")
     toolname = sys.argv[1]
 
+    load_cwl_version_from_doc(toolname)
     tool = from_document(toolname)
+
     tool.translate("wdl")
