@@ -6,7 +6,7 @@ from typing import Optional, Union, List
 import janis_core as j
 
 
-PARSER_VERSION = "v1.0"
+PARSER_VERSION = "v1.2"
 
 if PARSER_VERSION == "v1.0":
     import cwl_utils.parser_v1_0 as cwlgen
