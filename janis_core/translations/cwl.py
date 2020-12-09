@@ -1766,6 +1766,12 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
     if glob is None:
         return None
 
+    if isinstance(glob, list):
+        return [
+            translate_to_cwl_glob(g, inputsdict=inputsdict, tool=tool, **debugkwargs)
+            for g in glob
+        ]
+
     if not isinstance(glob, Selector):
         Logger.critical(
             "String globs are being phased out from tool output selections, please use the provided "
