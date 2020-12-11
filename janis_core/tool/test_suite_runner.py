@@ -1,6 +1,7 @@
 import difflib
 import hashlib
 import os
+import urllib
 from typing import Dict, List, Any, Optional, Tuple, Set
 
 from janis_core.tool.tool import Tool
@@ -13,6 +14,8 @@ from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
+from janis_core.utils.file_source import FileSource
+
 
 class ToolTestSuiteRunner:
     """
@@ -21,6 +24,10 @@ class ToolTestSuiteRunner:
 
     def __init__(self, tool: Tool, config: str = None):
         self.tool = tool
+        self.output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
+        self.cached_input_files_dir = os.path.join(
+            self.output_dir, "cached_input_files"
+        )
 
         test_helpers.verify_janis_assistant_installed()
         from janis_assistant.management.configuration import JanisConfiguration
@@ -55,11 +62,10 @@ class ToolTestSuiteRunner:
 
         from janis_assistant.main import run_with_outputs
 
-        output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         output = run_with_outputs(
             tool=self.tool,
             inputs=input,
-            output_dir=output_dir,
+            output_dir=self.output_dir,
             engine=engine,
             config=self.config,
         )
@@ -89,6 +95,7 @@ class ToolTestSuiteRunner:
 
         for test_logic in t.output:
             workflow_output = output[test_logic.tag]
+            self._download_remote_files(test_logic)
             actual_output = self.get_value_to_compare(test_logic, workflow_output)
             expected_value = self.get_expected_value(test_logic)
             test_result = test_logic.operator(actual_output, expected_value)
@@ -233,6 +240,49 @@ class ToolTestSuiteRunner:
                 )
 
         return output_value
+
+    def _download_remote_files(self, test_logic: TTestExpectedOutput):
+        source = None
+
+        file_attributes = ["expected_file", "file_diff_source"]
+        for att in file_attributes:
+            if not hasattr(test_logic, att):
+                raise Exception(f"{test_logic.__class__} has no attribute {att}")
+
+            source = getattr(test_logic, att)
+
+            if source:
+                f = FileSource(source)
+                local_file_path = os.path.join(
+                    self.cached_input_files_dir, f.basename()
+                )
+
+                # Not downloading if an existing
+                if not f.is_local():
+                    if not os.path.isdir(self.cached_input_files_dir):
+                        os.mkdir(self.cached_input_files_dir)
+
+                    f.download(local_file_path)
+
+                # source = local_file_path
+                setattr(test_logic, att, local_file_path)
+
+        for source in [test_logic.file_diff_source, test_logic.expected_file]:
+            if source:
+                f = FileSource(source)
+                local_file_path = os.path.join(
+                    self.cached_input_files_dir, f.basename()
+                )
+
+                # Not downloading if an existing
+                if not f.is_local():
+                    if not os.path.isdir(self.cached_input_files_dir):
+                        os.mkdir(self.cached_input_files_dir)
+
+                    f.download(local_file_path)
+
+                # source = local_file_path
+                test_logic.expected_file = local_file_path
 
     def read_md5(self, file_path: str) -> str:
         """
