@@ -22,20 +22,28 @@ class ToolTestSuiteRunner:
     def __init__(self, tool: Tool, config: str = None):
         self.tool = tool
 
-        test_helpers.verify_janis_assistant_installed()
-        from janis_assistant.management.configuration import JanisConfiguration
+        self._raw_config = config
+        self._config = None
 
-        self.config: Optional[JanisConfiguration] = None
-        if not config:
-            pass
-        elif isinstance(config, JanisConfiguration):
-            self.config = config
-        elif isinstance(config, str):
-            self.config = JanisConfiguration.initial_configuration(path=config)
-        else:
-            raise ValueError(
-                f"Unrecognised type for janis configuration {config} (type: {type(config)})"
-            )
+    @property
+    def config(self):
+        if self._config is None:
+
+            from janis_assistant.management.configuration import JanisConfiguration
+
+            if not self._raw_config:
+                pass
+            elif isinstance(self._raw_config, JanisConfiguration):
+                self._config = self._raw_config
+            elif isinstance(self._raw_config, str):
+                self._config = JanisConfiguration.initial_configuration(
+                    path=self._raw_config
+                )
+            else:
+                raise ValueError(
+                    f"Unrecognised type for janis configuration {self._raw_config} (type: {type(self._raw_config)})"
+                )
+        return self._config
 
     def run(self, input: Dict[str, str], engine: str) -> Dict[str, Any]:
         """
@@ -52,6 +60,7 @@ class ToolTestSuiteRunner:
         # Note, we do not want janis_core to depend on janis_assistant except for when we run these tests
         # So, we only import this package here in this function
         # Make sure the correct version of janis_assistant is installed first
+        test_helpers.verify_janis_assistant_installed()
 
         from janis_assistant.main import run_with_outputs
 
