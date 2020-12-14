@@ -305,7 +305,8 @@ class ToolTestSuiteRunner:
         try:
             if isinstance(output_type, File):
                 # text file only here
-                value = sum(1 for line in open(output_value, "r"))
+                with open(output_value) as fp:
+                    value = sum(1 for _ in fp)
             elif isinstance(output_type, String):
                 value = len(output_value.splitlines())
         except Exception as e:
