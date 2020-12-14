@@ -1,16 +1,11 @@
-import os
 import operator
-from typing import Optional, List, Dict, Union
+import os
+from typing import Optional, List, Union
 from unittest import TestCase
+
+from janis_core import ToolOutput, ToolInput, CommandTool, Stdout
+from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
-from janis_core.tool.test_classes import (
-    TTestCase,
-    TTestExpectedOutput,
-    TTestPreprocessor,
-)
-
-
-from janis_core import ToolOutput, ToolInput, CommandTool, Stdout, File
 
 
 class TestTool(CommandTool):
@@ -34,6 +29,24 @@ class TestTool(CommandTool):
 
 
 class TestToolTestRunner(TestCase):
+    """
+    This class is just testing the 'expected_output' evaluator, and not actually running tools.
+    If you're interested in running tools (and require janis_assistant, consider the following)
+        from unittest import TestCase, skipUnless
+        try:
+            import janis_assistant
+
+            has_janis_assistant = True
+        except:
+            has_janis_assistant = False
+
+        # ...
+        class MyTest(TestCase):
+            @skipUnless(has_janis_assistant, "Must have janis assistant to run this test")
+            def test_thing_one(self):
+                self.assertTrue
+    """
+
     def setUp(self):
         self.tool = TestTool()
         self.test_data_dir = os.path.join(os.getcwd(), "data")
