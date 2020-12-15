@@ -8,6 +8,7 @@ from janis_core.tool.test_classes import (
     TTestExpectedOutput,
     TTestPreprocessor,
 )
+from janis_core.types import File, String, Array
 
 
 from janis_core import ToolOutput, ToolInput, CommandTool, Stdout, File
@@ -265,10 +266,154 @@ class TestToolTestRunner(TestCase):
         failed, succeeded, output = runner.run_one_test_case(
             tc, engine="cromwell", output=expected_output
         )
-        print(failed)
 
         assert output == expected_output
         assert failed == {
             "tool_output: value eq some expected output text <class 'str'> | actual output: from dry run <class 'str'>"
         }
         assert succeeded == set()
+
+    def test_apply_preprocessor(self):
+        runner = ToolTestSuiteRunner(self.tool)
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.Value,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, "aaa", str) == "aaa"
+
+        file_path = os.path.join(self.test_data_dir, "test.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.FileContent,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, file_path, File()) == "abc\ndef\nghi\n"
+
+        file_path = os.path.join(self.test_data_dir, "test.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.FileExists,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, file_path, File()) is True
+
+        expected_file_path = os.path.join(self.test_data_dir, "test.txt")
+        output_file_path = os.path.join(self.test_data_dir, "test_diff.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.FileDiff,
+            operator=operator.eq,
+            file_diff_source=expected_file_path,
+            expected_value="",
+        )
+
+        assert runner._apply_preprocessor(t, output_file_path, File()) == [
+            "--- expected",
+            "+++ actual",
+            "@@ -1,3 +1,2 @@",
+            " abc\n",
+            "-def\n",
+            " ghi\n",
+        ]
+
+        file_path = os.path.join(self.test_data_dir, "test.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.FileMd5,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert (
+            runner._apply_preprocessor(t, file_path, File())
+            == "7fe4b98fb68caf83fa31905435f08da0"
+        )
+
+        file_path = os.path.join(self.test_data_dir, "test.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.FileSize,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, file_path, File()) == 12
+
+        file_path = os.path.join(self.test_data_dir, "test.txt")
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.LineCount,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, file_path, File()) == 3
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.LineCount,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, "line1\nline2", String()) == 2
+        assert runner._apply_preprocessor(t, "line1\nline2\n", String()) == 2
+        assert runner._apply_preprocessor(t, "line1", String()) == 1
+        assert runner._apply_preprocessor(t, "", String()) == 0
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.ListSize,
+            operator=operator.eq,
+            expected_value="xxx",
+        )
+
+        assert runner._apply_preprocessor(t, "a|b|c|d|e", Array(String)) == 5
+        assert runner._apply_preprocessor(t, "", Array(String)) == 0
+
+    def test_extract_workflow_output(self):
+        runner = ToolTestSuiteRunner(self.tool)
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.Value,
+            operator=operator.eq,
+            expected_value="xxx",
+            array_index=2,
+        )
+
+        assert runner._extract_workflow_output(t, "a|b|c|d|e", Array(String)) == "c"
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.Value,
+            operator=operator.eq,
+            expected_value="xxx",
+            suffix_secondary_file=".bai",
+        )
+
+        assert (
+            runner._extract_workflow_output(t, "/dir/sample.bam", File())
+            == "/dir/sample.bam.bai"
+        )
+
+        t = TTestExpectedOutput(
+            tag="tool_output",
+            preprocessor=TTestPreprocessor.Value,
+            operator=operator.eq,
+            expected_value="xxx",
+            suffix_secondary_file="^.bai",
+        )
+
+        assert (
+            runner._extract_workflow_output(t, "/dir/sample.bam", File())
+            == "/dir/sample.bai"
+        )
