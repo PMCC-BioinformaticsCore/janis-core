@@ -20,7 +20,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements/tests.txt
         pip install codecov coverage requests_mock nose_parameterized
-        pip install janis-pipelines.runner
+        pip install git+https://github.com/PMCC-BioinformaticsCore/janis-assistant.git@test-branch-v011x
     - name: Test with nosetests
       run: |
         nosetests -w janis_core --with-coverage --cover-package=janis_core
