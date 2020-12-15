@@ -15,6 +15,7 @@ from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 from janis_core.utils.file_scheme import FileScheme
+from janis_core import Logger
 
 
 class ToolTestSuiteRunner:
@@ -26,7 +27,7 @@ class ToolTestSuiteRunner:
         self.tool = tool
         self.output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         self.cached_input_files_dir = os.path.join(
-            self.output_dir, "cached_input_files"
+            os.getcwd(), "tests_output", "cached_test_files"
         )
 
         test_helpers.verify_janis_assistant_installed()
@@ -242,7 +243,14 @@ class ToolTestSuiteRunner:
         return output_value
 
     def _download_remote_files(self, test_logic: TTestExpectedOutput):
-        source = None
+        """
+        Download remote test files (only expected output files) to a cache directory
+
+        :param test_logic: an object that holds information about an expected output
+        :type test_logic: TTestExpectedOutput
+        :return: None
+        :rtype: None
+        """
 
         file_attributes = ["expected_file", "file_diff_source"]
         for att in file_attributes:
@@ -253,36 +261,24 @@ class ToolTestSuiteRunner:
 
             if source:
                 f = FileScheme(source)
-                local_file_path = os.path.join(
-                    self.cached_input_files_dir, f.basename()
-                )
-
-                # Not downloading if an existing
                 if not f.is_local():
-                    if not os.path.isdir(self.cached_input_files_dir):
-                        os.mkdir(self.cached_input_files_dir)
+                    local_file_path = os.path.join(
+                        self.cached_input_files_dir,
+                        f"{f.hash_filename()}_{f.basename()}",
+                    )
 
-                    f.download(local_file_path)
+                    # Only download if the file does not already exist
+                    if not os.path.exists(local_file_path):
+                        Logger.info(f"Downloading remote file to {local_file_path}")
 
-                # source = local_file_path
+                        os.makedirs(self.cached_input_files_dir, exist_ok=True)
+                        f.download(local_file_path)
+                    else:
+                        Logger.info(
+                            f"Skip downloading remote file. File {f.source} already exists in {local_file_path}"
+                        )
+
                 setattr(test_logic, att, local_file_path)
-
-        for source in [test_logic.file_diff_source, test_logic.expected_file]:
-            if source:
-                f = FileScheme(source)
-                local_file_path = os.path.join(
-                    self.cached_input_files_dir, f.basename()
-                )
-
-                # Not downloading if an existing
-                if not f.is_local():
-                    if not os.path.isdir(self.cached_input_files_dir):
-                        os.mkdir(self.cached_input_files_dir)
-
-                    f.download(local_file_path)
-
-                # source = local_file_path
-                test_logic.expected_file = local_file_path
 
     def read_md5(self, file_path: str) -> str:
         """
