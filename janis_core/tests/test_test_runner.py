@@ -81,7 +81,9 @@ class TestTool(CommandTool):
 class TestToolTestRunner(TestCase):
     def setUp(self):
         self.tool = TestTool()
-        self.test_data_dir = os.path.join(os.getcwd(), "data")
+        self.test_data_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), "data"
+        )
 
     def test_get_expected_value(self):
         runner = ToolTestSuiteRunner(self.tool)
