@@ -14,7 +14,7 @@ from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
-from janis_core.utils.file_source import FileSource
+from janis_core.utils.file_scheme import FileScheme
 
 
 class ToolTestSuiteRunner:
@@ -252,7 +252,7 @@ class ToolTestSuiteRunner:
             source = getattr(test_logic, att)
 
             if source:
-                f = FileSource(source)
+                f = FileScheme(source)
                 local_file_path = os.path.join(
                     self.cached_input_files_dir, f.basename()
                 )
@@ -269,7 +269,7 @@ class ToolTestSuiteRunner:
 
         for source in [test_logic.file_diff_source, test_logic.expected_file]:
             if source:
-                f = FileSource(source)
+                f = FileScheme(source)
                 local_file_path = os.path.join(
                     self.cached_input_files_dir, f.basename()
                 )
