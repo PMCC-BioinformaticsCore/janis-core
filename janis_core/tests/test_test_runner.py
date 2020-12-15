@@ -1,5 +1,5 @@
-import os
 import operator
+import os
 from typing import Optional, List, Dict, Union
 from unittest import TestCase, mock
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
@@ -10,8 +10,9 @@ from janis_core.tool.test_classes import (
 )
 from janis_core.types import File, String, Array
 
-
-from janis_core import ToolOutput, ToolInput, CommandTool, Stdout, File
+from janis_core import ToolOutput, ToolInput, CommandTool, Stdout
+from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
+from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
 
 valid_url = "https://abc.com/some_dir/expected_output_file.txt"
 valid_url_2 = "https://abc.com/some_dir/diff_file.txt"
@@ -79,6 +80,24 @@ class TestTool(CommandTool):
 
 
 class TestToolTestRunner(TestCase):
+    """
+    This class is just testing the 'expected_output' evaluator, and not actually running tools.
+    If you're interested in running tools (and require janis_assistant, consider the following)
+        from unittest import TestCase, skipUnless
+        try:
+            import janis_assistant
+
+            has_janis_assistant = True
+        except:
+            has_janis_assistant = False
+
+        # ...
+        class MyTest(TestCase):
+            @skipUnless(has_janis_assistant, "Must have janis assistant to run this test")
+            def test_thing_one(self):
+                self.assertTrue
+    """
+
     def setUp(self):
         self.tool = TestTool()
         self.test_data_dir = os.path.join(

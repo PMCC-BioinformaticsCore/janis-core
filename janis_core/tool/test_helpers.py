@@ -6,7 +6,7 @@ from nose.tools import nottest
 import janis_core as jc
 from janis_core.translations.translationbase import TranslatorBase
 
-janis_assistant_version_required_min = "0.10.8"
+janis_assistant_version_required_min = "0.11.0"
 
 
 def verify_janis_assistant_installed():
