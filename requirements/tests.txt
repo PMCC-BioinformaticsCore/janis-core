@@ -1,2 +1,7 @@
 -r base.txt
 nose
+codecov
+coverage
+requests_mock
+nose_parameterized
+git+https://github.com/PMCC-BioinformaticsCore/janis-assistant.git@test-branch-v011x
