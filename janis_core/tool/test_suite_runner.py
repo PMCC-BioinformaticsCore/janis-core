@@ -200,6 +200,8 @@ class ToolTestSuiteRunner:
         elif test_logic.preprocessor == TTestPreprocessor.LineCount:
             value = self.line_count(output_type=output_type, output_value=output_value)
         elif test_logic.preprocessor == TTestPreprocessor.ListSize:
+            if not output_value:
+                return 0
             value = len(output_value.split("|"))
         else:
             raise Exception(
@@ -348,13 +350,12 @@ class ToolTestSuiteRunner:
         :return: number of lines
         :rtype: int
         """
-        try:
-            if isinstance(output_type, File):
-                # text file only here
-                value = sum(1 for line in open(output_value, "r"))
-            elif isinstance(output_type, String):
-                value = len(output_value.splitlines())
-        except Exception as e:
+        if isinstance(output_type, File):
+            # text file only here
+            value = sum(1 for line in open(output_value, "r"))
+        elif isinstance(output_type, String):
+            value = len(output_value.splitlines())
+        else:
             raise Exception(
                 f"{TTestPreprocessor.LineCount} comparison type is not allowed for"
                 f" output type {output_type}"
