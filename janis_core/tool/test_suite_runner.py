@@ -14,7 +14,6 @@ from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
-from janis_core.utils.file_scheme import FileScheme
 from janis_core import Logger
 
 
@@ -271,11 +270,21 @@ class ToolTestSuiteRunner:
             source = getattr(test_logic, att)
 
             if source:
-                f = FileScheme(source)
-                if not f.is_local():
+
+                test_helpers.verify_janis_assistant_installed()
+                from janis_assistant.management.filescheme import (
+                    FileScheme,
+                    LocalFileScheme,
+                )
+
+                # f = FileScheme(source)
+                if not FileScheme.is_local_path(source):
+                    fs = FileScheme.get_filescheme_for_url(source)
+                    last_modified = fs.last_modified(source)
+
                     local_file_path = os.path.join(
                         self.cached_input_files_dir,
-                        f"{f.hash_filename()}_{f.basename()}",
+                        f"{test_helpers.hash_filename(source, last_modified)}_{os.path.basename(source)}",
                     )
 
                     # Only download if the file does not already exist
@@ -283,10 +292,10 @@ class ToolTestSuiteRunner:
                         Logger.info(f"Downloading remote file to {local_file_path}")
 
                         os.makedirs(self.cached_input_files_dir, exist_ok=True)
-                        f.download(local_file_path)
+                        fs.cp_from(source, local_file_path)
                     else:
                         Logger.info(
-                            f"Skip downloading remote file. File {f.source} already exists in {local_file_path}"
+                            f"Skip downloading remote file. File {source} already exists in {local_file_path}"
                         )
 
                 setattr(test_logic, att, local_file_path)

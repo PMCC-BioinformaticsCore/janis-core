@@ -1,4 +1,6 @@
+import hashlib
 from typing import Dict, Union, List, Set, Optional
+from datetime import datetime
 from tabulate import tabulate
 from pkg_resources import parse_version
 from nose.tools import nottest
@@ -115,3 +117,18 @@ def print_test_report(
             [*formatted_failed, *formatted_skipped, *formatted_passed], headers=headers
         )
     )
+
+
+@nottest
+def hash_filename(source: str, last_modified: str) -> str:
+    """
+
+    :return:
+    :rtype:
+    """
+    # If we cannot find lat modified date, we will always download again
+    components = source + (last_modified or str(datetime.now()))
+    hash_md5 = hashlib.md5(str.encode(components))
+    hashed_filename = hash_md5.hexdigest()
+
+    return hashed_filename

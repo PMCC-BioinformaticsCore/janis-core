@@ -25,38 +25,46 @@ expected_file = "/my/local/file"
 
 class MockResponse:
     def __init__(
-        self,
-        json_data: Dict,
-        status_code: int,
-        headers: Optional[Dict] = None,
-        content: Optional[str] = None,
+        self, json_data: Dict, status_code: int, headers: Optional[Dict] = None
     ):
         self.json_data = json_data
         self.status_code = status_code
         self.headers = headers
-        self.content = content.encode()
+
+    def getcode(self):
+        return self.status_code
+
+    def getheader(self, field: str):
+        return self.headers.get(field)
 
     def json(self):
         return self.json_data
 
 
-# This method will be used by the mock to replace requests.get
-def mocked_requests_head_and_get(*args, **kwargs):
-
-    if args[0] == valid_url:
-        return MockResponse(
-            {}, 200, {"Last-Modified": valid_url_last_modified}, valid_url_content
-        )
-    elif args[0] == valid_url_2:
-        return MockResponse(
-            {}, 200, {"Last-Modified": valid_url_last_modified}, valid_url_content_2
-        )
+def mocked_urllib_urlopen(*args, **kwargs):
+    if args[0].full_url == valid_url:
+        return MockResponse({}, 200, {"Last-Modified": valid_url_last_modified})
+    elif args[0].full_url == valid_url_2:
+        return MockResponse({}, 200, {"Last-Modified": valid_url_last_modified})
 
     return MockResponse(None, 404)
 
 
-def mocked_run_with_outputs(*args, **kwargs):
-    return {"tool_output": expected_tool_output, "file": expected_file}
+def mocked_urllib_urlretrieve(*args, **kwargs):
+
+    if kwargs["url"] == valid_url:
+        local_path = kwargs["filename"]
+        with open(local_path, "wb") as f:
+            f.write(valid_url_content.encode())
+        return (local_path, {"Last-Modified": valid_url_last_modified})
+
+    elif kwargs["url"] == valid_url_2:
+        local_path = kwargs["filename"]
+        with open(local_path, "wb") as f:
+            f.write(valid_url_content_2.encode())
+        return (local_path, {"Last-Modified": valid_url_last_modified})
+
+    return None, None
 
 
 class TestTool(CommandTool):
@@ -154,9 +162,9 @@ class TestToolTestRunner(TestCase):
         file_path = os.path.join(self.test_data_dir, "test.txt")
         assert runner.get_value_to_compare(t2, file_path) == 3
 
-    @mock.patch("requests.get", side_effect=mocked_requests_head_and_get)
-    @mock.patch("requests.head", side_effect=mocked_requests_head_and_get)
-    def test_download_remote_files(self, mock_get, mock_head):
+    @mock.patch("urllib.request.urlopen", side_effect=mocked_urllib_urlopen)
+    @mock.patch("urllib.request.urlretrieve", side_effect=mocked_urllib_urlretrieve)
+    def test_download_remote_files(self, mock_urlopen, mock_urlretrieve):
         runner = ToolTestSuiteRunner(self.tool)
 
         t1 = TTestExpectedOutput(
