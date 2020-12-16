@@ -203,11 +203,9 @@ class TestToolTestRunner(TestCase):
 
         assert content_2 == valid_url_content_2.encode()
 
-    @mock.patch(
-        "janis_assistant.main.run_with_outputs",
-        side_effect=mocked_run_with_outputs,
-    )
-    def test_run_one_test_case_succeed(self, mock_output):
+    def test_run_one_test_case_succeed(
+        self,
+    ):
         runner = ToolTestSuiteRunner(self.tool)
 
         tc = TTestCase(
@@ -223,17 +221,16 @@ class TestToolTestRunner(TestCase):
             ],
         )
 
-        failed, succeeded, output = runner.run_one_test_case(tc, engine="cromwell")
+        expected_output = {"tool_output": expected_tool_output, "file": expected_file}
+        failed, succeeded, output = runner.run_one_test_case(
+            tc, engine="cromwell", output=expected_output
+        )
 
-        assert output == mock_output()
+        assert output == expected_output
         assert failed == set()
         assert succeeded == {"tool_output: value eq some expected output text"}
 
-    @mock.patch(
-        "janis_assistant.main.run_with_outputs",
-        side_effect=mocked_run_with_outputs,
-    )
-    def test_run_one_test_case_fail(self, mock_output):
+    def test_run_one_test_case_fail(self):
         runner = ToolTestSuiteRunner(self.tool)
 
         tc = TTestCase(
@@ -255,44 +252,16 @@ class TestToolTestRunner(TestCase):
             ],
         )
 
-        failed, succeeded, output = runner.run_one_test_case(tc, engine="cromwell")
-
-        assert output == mock_output()
-        assert failed == {
-            "file: value eq /xxx/yyy <class 'str'> | actual output: /my/local/file <class 'str'>"
-        }
-        assert succeeded == {"tool_output: value eq some expected output text"}
-
-    @mock.patch(
-        "janis_assistant.main.run_with_outputs",
-        side_effect=mocked_run_with_outputs,
-    )
-    def test_run_one_test_case_dry_run(self, mock_output):
-        runner = ToolTestSuiteRunner(self.tool)
-
-        tc = TTestCase(
-            name="test case 1",
-            input={"inp": "my input"},
-            output=[
-                TTestExpectedOutput(
-                    tag="tool_output",
-                    preprocessor=TTestPreprocessor.Value,
-                    operator=operator.eq,
-                    expected_value=expected_tool_output,
-                )
-            ],
-        )
-
-        expected_output = {"tool_output": "from dry run"}
+        expected_output = {"tool_output": expected_tool_output, "file": expected_file}
         failed, succeeded, output = runner.run_one_test_case(
             tc, engine="cromwell", output=expected_output
         )
 
         assert output == expected_output
         assert failed == {
-            "tool_output: value eq some expected output text <class 'str'> | actual output: from dry run <class 'str'>"
+            "file: value eq /xxx/yyy <class 'str'> | actual output: /my/local/file <class 'str'>"
         }
-        assert succeeded == set()
+        assert succeeded == {"tool_output: value eq some expected output text"}
 
     def test_apply_preprocessor(self):
         runner = ToolTestSuiteRunner(self.tool)

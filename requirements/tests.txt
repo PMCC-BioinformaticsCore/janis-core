@@ -4,4 +4,3 @@ codecov
 coverage
 requests_mock
 nose_parameterized
-janis-pipelines.runner>=v0.11.0
