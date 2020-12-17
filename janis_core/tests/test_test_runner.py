@@ -220,7 +220,7 @@ class TestToolTestRunner(TestCase):
         runner = ToolTestSuiteRunner(self.tool)
 
         tc = TTestCase(
-            name="test case 1",
+            name="test1",
             input={"inp": "my input"},
             output=[
                 TTestExpectedOutput(
@@ -245,7 +245,7 @@ class TestToolTestRunner(TestCase):
         runner = ToolTestSuiteRunner(self.tool)
 
         tc = TTestCase(
-            name="test case 1",
+            name="test1",
             input={"inp": "my input"},
             output=[
                 TTestExpectedOutput(
