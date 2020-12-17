@@ -14,8 +14,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
-import cwl_utils.parser_v1_0 as cwlgen
-from wdlgen import WdlType
+from janis_core.deps import cwlgen, wdlgen
 
 from janis_core.utils import is_array_prefix
 from janis_core.utils.logger import Logger
@@ -115,7 +114,7 @@ class NativeTypes:
 
     @staticmethod
     def map_to_wdl(t: NativeType):
-        import wdlgen as wdl
+        from janis_core.deps import wdlgen as wdl
 
         if t == NativeTypes.kBool:
             return wdl.PrimitiveType.kBoolean
@@ -152,6 +151,12 @@ class DataType(ABC):
     def __init__(self, optional=False):
         self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
+
+    def is_array(self):
+        return False
+
+    def __repr__(self):
+        return self.id()
 
     @staticmethod
     @abstractmethod
@@ -280,9 +285,9 @@ class DataType(ABC):
     def cwl_input(self, value: Any):
         return value
 
-    def wdl(self, has_default=False) -> WdlType:
+    def wdl(self, has_default=False) -> wdlgen.WdlType:
         qm = self._question_mark_if_optional(has_default)
-        return WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()) + qm)
+        return wdlgen.WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()) + qm)
 
     def parse_value(self, valuetoparse):
         """

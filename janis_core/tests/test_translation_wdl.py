@@ -1,7 +1,7 @@
 import unittest
 from typing import Optional
 
-import wdlgen
+from janis_core.deps import wdlgen
 from janis_core.types import UnionType
 
 import janis_core.translations.wdl as wdl
@@ -94,6 +94,17 @@ class TestToolWithSecondaryOutput(TestTool):
                 selector=InputSelector("testtool") + "/out",
             )
         ]
+
+
+class TestTypeWithAlternateAndSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(
+            optional=optional, extension=".txt", alternate_extensions={".text"}
+        )
+
+    @staticmethod
+    def secondary_files():
+        return ["^.file"]
 
 
 class TestWdl(unittest.TestCase):
@@ -417,11 +428,11 @@ class TestWDLFilenameGeneration(unittest.TestCase):
             "'~{select_first([generatedInpOptional, \"~{inpOptional}\"])}'", mapped[1]
         )
         self.assertEqual(
-            "'~{select_first([generatedFileInp, \"~{fileInp}.transformed.fnp\"])}'",
+            '\'~{select_first([generatedFileInp, "~{basename(fileInp, ".txt")}.transformed.fnp"])}\'',
             mapped[2],
         )
         self.assertEqual(
-            "'~{select_first([generatedFileInpOptional, \"~{fileInpOptional}.optional.txt\"])}'",
+            '\'~{select_first([generatedFileInpOptional, "~{basename(fileInpOptional, ".txt")}.optional.txt"])}\'',
             mapped[3],
         )
 
@@ -761,8 +772,8 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2),
-            scatter=ScatterDescription(fields=["inputs"], method=ScatterMethod.dot),
+            SingleTestTool(input1=w.inp, input2=w.inp2),
+            scatter=ScatterDescription(fields=["input1"], method=ScatterMethod.dot),
         )
 
         outp = wdl.translate_step_node(
@@ -772,7 +783,7 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=i,
+      input1=i,
       input2=inp2
   }
 }"""
@@ -784,7 +795,7 @@ scatter (i in inp) {
         w.input("inp2", str)
 
         step = w.step(
-            "dotTool", SingleTestTool(inputs=w.inp, input2=w.inp2), scatter="inputs"
+            "dotTool", SingleTestTool(input1=w.inp, input2=w.inp2), scatter="input1"
         )
 
         outp = wdl.translate_step_node(
@@ -794,7 +805,7 @@ scatter (i in inp) {
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=i,
+      input1=i,
       input2=inp2
   }
 }"""
@@ -807,9 +818,9 @@ scatter (i in inp) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2),
+            SingleTestTool(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
-                fields=["inputs", "input2"], method=ScatterMethod.dot
+                fields=["input1", "input2"], method=ScatterMethod.dot
             ),
         )
 
@@ -820,7 +831,7 @@ scatter (i in inp) {
 scatter (Q in zip(inp, inp2)) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right
   }
 }"""
@@ -834,9 +845,9 @@ scatter (Q in zip(inp, inp2)) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3),
+            SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3),
             scatter=ScatterDescription(
-                fields=["inputs", "input2", "input3"], method=ScatterMethod.dot
+                fields=["input1", "input2", "input3"], method=ScatterMethod.dot
             ),
         )
 
@@ -847,7 +858,7 @@ scatter (Q in zip(inp, inp2)) {
 scatter (Q in zip(inp, zip(inp2, inp3))) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right.left,
       input3=Q.right.right
   }
@@ -863,9 +874,9 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
 
         step = w.step(
             "dotTool",
-            SingleTestTool(inputs=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
+            SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
             scatter=ScatterDescription(
-                fields=["inputs", "input2", "input3", "input4"],
+                fields=["input1", "input2", "input3", "input4"],
                 method=ScatterMethod.dot,
             ),
         )
@@ -877,7 +888,7 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
 scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
    call A.SingleTestTool as dotTool {
     input:
-      inputs=Q.left,
+      input1=Q.left,
       input2=Q.right.left,
       input3=Q.right.right.left,
       input4=Q.right.right.right
@@ -917,8 +928,8 @@ class TestRuntimeOverrideGenerator(unittest.TestCase):
     def test_basic(self):
         w = WorkflowBuilder("wb")
         w.input("inp", str)
-        w.step("echo", SingleTestTool(inputs=w.inp))
-        w.step("echo_2", SingleTestTool(inputs=w.inp))
+        w.step("echo", SingleTestTool(input1=w.inp))
+        w.step("echo_2", SingleTestTool(input1=w.inp))
 
         wf, _, _ = w.translate(
             "wdl",
@@ -941,7 +952,7 @@ workflow wb {
   }
   call T.TestStepTool as echo {
     input:
-      inputs=inp,
+      input1=inp,
       runtime_memory=echo_runtime_memory,
       runtime_cpu=echo_runtime_cpu,
       runtime_disks=echo_runtime_disks,
@@ -949,7 +960,7 @@ workflow wb {
   }
   call T.TestStepTool as echo_2 {
     input:
-      inputs=inp,
+      input1=inp,
       runtime_memory=echo_2_runtime_memory,
       runtime_cpu=echo_2_runtime_cpu,
       runtime_disks=echo_2_runtime_disks,
@@ -1171,6 +1182,105 @@ workflow wf {
         self.assertEqual("Array[File] out = stp.out", outs[0])
         self.assertEqual("Array[File] out_txt = stp.out_txt", outs[1])
 
+    def test_tool_with_secondary_and_alternates(self):
+        tool = CommandToolBuilder(
+            tool="test_secondary_and_alternates",
+            base_command="cat",
+            inputs=[
+                ToolInput(
+                    "inp",
+                    TestTypeWithAlternateAndSecondary(),
+                    position=1,
+                    localise_file=True,
+                )
+            ],
+            outputs=[
+                ToolOutput(
+                    "out",
+                    TestTypeWithAlternateAndSecondary(),
+                    selector=InputSelector("inp"),
+                )
+            ],
+            container="ubtunu",
+            version="TEST",
+        )
+
+        out = tool.translate("wdl", to_console=False)
+        lines = out.splitlines(keepends=False)[-4:-2]
+        l1 = "File out = basename(inp)"
+        l2 = 'File out_file = sub(sub(basename(inp), "\\\\.txt$", ".file"), "\\\\.text$", ".file")'
+
+        self.assertEqual(l1, lines[0].strip())
+        self.assertEqual(l2, lines[1].strip())
+
+
+class TestWDLCreateFilesAndDirectories(unittest.TestCase):
+
+    initial_params = {
+        "tool": "testCreateFilesAndDirectries",
+        "version": "DEV",
+        "container": "ubuntu",
+        "base_command": "cat",
+        "inputs": [ToolInput("inp", File), ToolInput("name", str)],
+        "outputs": [ToolOutput("out", Stdout)],
+    }
+
+    def test_create_single_directory(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create="test-directory"
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+
+        self.assertEqual("mkdir -p 'test-directory'", commands[0].command)
+
+    def test_create_single_directory_from_selector(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name")
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        self.assertEqual("mkdir -p '~{name}'", commands[0].command)
+
+    def test_create_single_directory_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name") + "-out"
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        self.assertEqual("mkdir -p '~{(name + \"-out\")}'", commands[0].command)
+
+    def test_create_single_file_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[("my-path.txt", InputSelector("inp").contents())],
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        expected = """\
+cat <<EOT >> 'my-path.txt'
+~{read_string(inp)}
+EOT"""
+        self.assertEqual(expected, commands[0].command)
+
+    def test_create_single_file_path_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[
+                (
+                    StringFormatter("{name}.txt", name=InputSelector("name")),
+                    "this is contents",
+                )
+            ],
+        )
+        commands = WdlTranslator.build_commands_for_file_to_create(command)
+        self.assertEqual(1, len(commands))
+        expected = """\
+cat <<EOT >> '~{name}.txt'
+this is contents
+EOT"""
+        self.assertEqual(expected, commands[0].command)
+
 
 class TestCompleteOperators(unittest.TestCase):
     def test_list_operators(self):
@@ -1225,7 +1335,7 @@ workflow TestWorkflowWithStepInputExpression {
         wf.step(
             "print",
             ArrayTestTool(
-                inputs=[
+                inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -1248,7 +1358,7 @@ workflow cwl_test_array_step_input {
   }
   call A.ArrayStepTool as print {
     input:
-      inputs=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
+      inps=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
   }
   output {
     Array[File] out = print.outs

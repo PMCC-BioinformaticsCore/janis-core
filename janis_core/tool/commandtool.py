@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Union, Callable, Set
+from typing import List, Dict, Optional, Any, Union, Callable, Set, Tuple
 
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -406,6 +406,24 @@ class CommandTool(Tool, ABC):
         """
         return None
 
+    def directories_to_create(self) -> Union[str, List[str]]:
+        """
+        A list of directories to create. In WDL this is called before files_to_create as:
+            mkdir -p directory
+        In CWL, this is transformed to a InitialWorkDirRequiriement.Directory. The listing
+        is transformed by the files_to_create.
+        :return:
+        """
+        pass
+
+    def files_to_create(self) -> Dict[str, Union[str, Selector]]:
+        """
+        A list of files to create, keyed by their path. In WDL, this is executed AFTER directories_to_create.
+        In CWL, this will get turned into a InitialWorkDirRequirement.
+        :return:
+        """
+        pass
+
     @classmethod
     def type(cls):
         return ToolType.CommandTool
@@ -626,6 +644,10 @@ OUTPUTS:
         return wf
 
 
+SELECTOR_OR_VALUE = Union[Selector, str]
+POTENTIAL_LIST_SElECTOR = Union[SELECTOR_OR_VALUE, List[SELECTOR_OR_VALUE]]
+
+
 class CommandToolBuilder(CommandTool):
     def tool(self) -> str:
         return self._tool
@@ -712,6 +734,12 @@ class CommandToolBuilder(CommandTool):
             f"Janis does not recognise {type(self._disk)} as a valid memory type"
         )
 
+    def directories_to_create(self) -> Union[str, List[str]]:
+        return self._directories_to_create
+
+    def files_to_create(self) -> Dict[str, Union[str, Selector]]:
+        return self._files_to_create
+
     def __init__(
         self,
         tool: str,
@@ -730,6 +758,11 @@ class CommandToolBuilder(CommandTool):
         memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
         time: Union[int, Callable[[Dict[str, Any]], int]] = None,
         disk: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        directories_to_create: POTENTIAL_LIST_SElECTOR = None,
+        files_to_create: Union[
+            Dict[str, SELECTOR_OR_VALUE],
+            List[Tuple[SELECTOR_OR_VALUE, SELECTOR_OR_VALUE]],
+        ] = None,
     ):
         """
         Builder for a CommandTool.
@@ -749,7 +782,11 @@ class CommandToolBuilder(CommandTool):
         :param cpu: An integer, or function that takes a dictionary of hints and returns an integer in 'number of CPUs'
         :param memory: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
         :param time: An integer, or function that takes a dictionary of hints and returns an integer in 'seconds'
-        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'"""
+        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
+        :param directories_to_create: A list of directories to create, accepts an expression (selector / operator)
+        :param files_to_create: Either a List of tuples [path: Selector, contents: Selector],
+        or a dictionary {"path": contents}. The list of tuples allows you to use an operator for the pathname
+        """
 
         super().__init__()
 
@@ -769,3 +806,5 @@ class CommandToolBuilder(CommandTool):
         self._memory = memory
         self._time = time
         self._disk = disk
+        self._directories_to_create = directories_to_create
+        self._files_to_create = files_to_create

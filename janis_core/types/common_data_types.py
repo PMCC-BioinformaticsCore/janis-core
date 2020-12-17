@@ -4,9 +4,8 @@
 from inspect import isclass
 from typing import Dict, Any, Set
 
-import cwl_utils.parser_v1_0 as cwlgen
-import wdlgen
-from wdlgen import WdlType
+
+from janis_core.deps import cwlgen, wdlgen
 
 from janis_core.utils.logger import Logger
 from janis_core.__meta__ import GITHUB_URL
@@ -48,6 +47,9 @@ class UnionType(DataType):
         self.subtypes = valid_types
         super().__init__(optional)
 
+    def is_array(self):
+        return all(s.is_array() for s in self.subtypes)
+
     def id(self):
         return "Union<" + ", ".join(s.id() for s in self.subtypes) + ">"
 
@@ -78,7 +80,7 @@ class UnionType(DataType):
             )
         return any(t.can_receive_from(other, *args, **kwargs) for t in self.subtypes)
 
-    def wdl(self, has_default=False) -> WdlType:
+    def wdl(self, has_default=False) -> wdlgen.WdlType:
         # custom stuff here
         wdl_data_types = [a.wdl() for a in self.subtypes]
         # we require the WDL to be identical for WDL to work
@@ -399,6 +401,15 @@ class File(DataType):
         self.extension = extension
         self.alternate_extensions = alternate_extensions
 
+    def get_extensions(self):
+        exts = []
+        if self.extension:
+            exts.append(self.extension)
+        if self.alternate_extensions:
+            exts.extend(self.alternate_extensions)
+
+        return exts
+
     @staticmethod
     def name():
         return "File"
@@ -501,6 +512,9 @@ class Array(DataType):
         self._t = resolvedtype
         super().__init__(optional)
 
+    def is_array(self):
+        return True
+
     def subtype(self):
         return self._t
 
@@ -554,7 +568,7 @@ class Array(DataType):
         return wdlgen.WdlType(ar, optional=self.optional or has_default)
 
     def can_receive_from(self, other, source_has_default=False):
-        if isinstance(other, Array):
+        if other.is_array():
             return self._t.can_receive_from(other._t)
         if not self._t.can_receive_from(other):
             return False
@@ -599,7 +613,7 @@ class Array(DataType):
 
     def fundamental_type(self) -> DataType:
         st = self.subtype()
-        if isinstance(st, Array):
+        if st.is_array():
             return st.fundamental_type()
         return st.received_type()
 
@@ -747,11 +761,16 @@ def get_from_python_type(dt, optional: bool = None, overrider=None):
 
         elif str(dt).startswith("typing.Union"):
             subtypes = dt.__args__
-            new_subtypes = [
-                t
-                for t in subtypes
-                if (t is not None and not (isclass(t) and t() is None))
-            ]
+            # Filter out None or NoneType
+            try:
+                new_subtypes = [
+                    t for t in subtypes if t is not None and type(None) != t
+                ]
+            except Exception as e:
+                Logger.critical(
+                    f"Couldn't determine the appropriate internal types from {str(dt)}, failed with error: {str(e)}"
+                )
+                raise
             optional = len(subtypes) != len(new_subtypes)
 
             if len(new_subtypes) == 0:

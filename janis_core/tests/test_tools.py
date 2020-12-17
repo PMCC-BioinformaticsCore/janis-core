@@ -20,7 +20,7 @@ class TestContainers(TestCase):
 
         w.step("stp1", TestTool(testtool=w.inp))
         w.step("stp1_v2", TestToolV2(testtool=w.inp))
-        w.step("stp2", ArrayTestTool(inputs=w.aInp))
+        w.step("stp2", ArrayTestTool(inps=w.aInp))
 
         cons = w.containers()
         self.assertSetEqual(

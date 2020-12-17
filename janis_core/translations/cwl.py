@@ -24,8 +24,9 @@ from io import StringIO
 from typing import List, Dict, Optional, Tuple
 from typing import Union
 
-import cwl_utils.parser_v1_0 as cwlgen
 import ruamel.yaml
+
+from janis_core.deps import cwlgen
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.code.codetool import CodeTool
@@ -42,6 +43,8 @@ from janis_core.operators import (
     StepOutputSelector,
     TimeSelector,
     DiskSelector,
+    ResourceSelector,
+    AliasSelector,
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
@@ -65,7 +68,7 @@ from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import ToolMetadata
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
 
-CWL_VERSION = "v1.0"
+CWL_VERSION = "v1.2"
 SHEBANG = "#!/usr/bin/env cwl-runner"
 yaml = ruamel.yaml.YAML()
 
@@ -174,7 +177,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
                 resource_overrides[r.id[(len(s.id()) + 1) :]] = r.id
 
-            w.steps.append(
+            w.steps.extend(
                 translate_step_node(
                     s,
                     is_nested_tool=is_nested_tool,
@@ -183,7 +186,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
+        w.outputs = []
+        for o in wf.output_nodes.values():
+            new_output, additional_step = translate_workflow_output(o, tool=wf)
+            w.outputs.append(new_output)
+            if additional_step:
+                w.steps.append(additional_step)
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -233,6 +241,113 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 
         return w, tools
+
+    @classmethod
+    def convert_operator_to_commandtool(
+        cls,
+        step_id: str,
+        operators: List[Operator],
+        tool,
+        select_first_element: bool,
+        use_command_line_tool=False,
+    ) -> cwlgen.WorkflowStep:
+
+        if len(operators) == 0:
+            raise Exception(
+                "Expected at least one operator when building intermediary expression tool"
+            )
+
+        prepare_alias = lambda x: f"_{re.sub('[^0-9a-zA-Z]+', '', x)}"
+
+        # two step process
+        #   1. Look through and find ALL sources includng an operator's leaves
+        #           Ensure these are connected using the alias
+        #   2. Go through sources again, build up the expression
+
+        param_aliasing = {}
+        # Use a dict to ensure we don't double add inputs
+        ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
+        tool_inputs: List[cwlgen.CommandInputParameter] = []
+
+        for src in operators:
+            if isinstance(src, InputNodeSelector) and isinstance(
+                src.input_node.default, Selector
+            ):
+                src = If(IsDefined(src), src, src.input_node.default)
+
+            if isinstance(src, Operator):
+                # we'll need to get the leaves and do extra mappings
+                load_contents = src.requires_contents()
+                for leaf in src.get_leaves():
+                    if not isinstance(leaf, Selector):
+                        # probably a python literal
+                        continue
+                    sel = CwlTranslator.unwrap_selector_for_reference(leaf)
+                    alias = prepare_alias(sel)
+                    param_aliasing[sel] = "inputs." + alias
+                    ins_to_connect[alias] = cwlgen.WorkflowStepInput(
+                        id=alias, source=sel
+                    )
+                    tool_inputs.append(
+                        cwlgen.CommandInputParameter(
+                            type=leaf.returntype().received_type().cwl_type(),
+                            id=alias,
+                            loadContents=load_contents,
+                        )
+                    )
+            else:
+                sel = CwlTranslator.unwrap_selector_for_reference(src)
+                alias = prepare_alias(sel)
+                param_aliasing[sel] = alias
+                ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+
+        valuefrom = CwlTranslator.unwrap_expression(
+            operators[0] if select_first_element else operators,
+            code_environment=True,
+            selector_override=param_aliasing,
+            tool=tool,
+        )
+
+        tool_outputs = [
+            cwlgen.CommandOutputParameter(
+                type=operators[0].returntype().cwl_type(), id="out"
+            )
+        ]
+        if use_command_line_tool:
+
+            tool = cwlgen.CommandLineTool(
+                baseCommand=["nodejs", "expression.js"],
+                stdout="cwl.output.json",
+                inputs=tool_inputs,
+                outputs=tool_outputs,
+                requirements=[
+                    cwlgen.DockerRequirement(dockerPull="node:slim"),
+                    cwlgen.InitialWorkDirRequirement(
+                        listing=[
+                            cwlgen.Dirent(
+                                entryname="expression.js",
+                                entry=f"""\
+    "use strict";
+    var inputs = $(inputs);
+    var runtime = $(runtime);
+    var ret = {valuefrom};
+    process.stdout.write(JSON.stringify({{out: ret}}));
+        """,
+                            )
+                        ]
+                    ),
+                ],
+            )
+        else:
+            tool = cwlgen.ExpressionTool(
+                inputs=tool_inputs,
+                outputs=tool_outputs,
+                expression=f"${{return {{out: {valuefrom} }}}}",
+            )
+
+        return cwlgen.WorkflowStep(
+            id=step_id, in_=list(ins_to_connect.values()), out=["out"], run=tool
+        )
 
     @classmethod
     def build_inputs_file(
@@ -322,7 +437,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
                 resource_overrides[r.id[(len(s.id()) + 1) :]] = r.id
 
-            w.steps.append(
+            w.steps.extend(
                 translate_step_node(
                     s,
                     is_nested_tool=is_nested_tool,
@@ -333,7 +448,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        w.outputs = [translate_workflow_output(o) for o in wf.output_nodes.values()]
+        w.outputs = []
+        for o in wf.output_nodes.values():
+            new_output, additional_step = translate_workflow_output(o, tool=wf)
+            w.outputs.append(new_output)
+            if additional_step:
+                w.steps.append(additional_step)
 
         w.requirements.append(cwlgen.InlineJavascriptRequirement())
         w.requirements.append(cwlgen.StepInputExpressionRequirement())
@@ -375,12 +495,25 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             outputs=[],
             arguments=[],
             requirements=[],
+            hints=[],
         )
 
         # if any(not i.shell_quote for i in tool.inputs()):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
         tool_cwl.requirements.extend([cwlgen.InlineJavascriptRequirement()])
+        ops = [InputSelector("runtime_seconds")]
+        tooltime = tool.time({})
+        if tooltime is not None:
+            ops.append(tooltime)
+        ops.append(86400)
+        tool_cwl.hints.append(
+            cwlgen.ToolTimeLimit(
+                timelimit=CwlTranslator.unwrap_expression(
+                    FirstOperator(ops), code_environment=False, tool_id=tool.id()
+                )
+            )
+        )
 
         envs = tool.env_vars()
         if envs:
@@ -445,6 +578,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             for o in tool.outputs()
         )
 
+        initial_workdir_req = cls.build_initial_workdir_from_tool(tool)
+        if initial_workdir_req:
+            tool_cwl.requirements.append(initial_workdir_req)
+
         args = tool.arguments()
         if args:
             tool_cwl.arguments.extend(
@@ -457,7 +594,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 [
                     cwlgen.CommandInputParameter(id="runtime_memory", type="float?"),
                     cwlgen.CommandInputParameter(id="runtime_cpu", type="int?"),
-                    # cwlgen.CommandInputParameter("runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(id="runtime_disks", type="int?"),
+                    cwlgen.CommandInputParameter(id="runtime_seconds", type="int?"),
                 ]
             )
 
@@ -601,13 +739,13 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
         arraylayers = None
-        if isinstance(outtype, Array) and isinstance(
+        if outtype.is_array() and isinstance(
             outtype.fundamental_type(), (File, Directory)
         ):
             requires_obj_capture = True
             base = outtype
             arraylayers = 0
-            while isinstance(base, Array):
+            while base.is_array():
                 arraylayers += 1
                 base = outtype.subtype()
 
@@ -721,6 +859,16 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             return CwlTranslator.quote_values_if_code_environment(
                 value.generated_filename(), code_environment
             )
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_expression(
+                value.inner_selector,
+                code_environment=code_environment,
+                selector_override=selector_override,
+                inputs_dict=inputs_dict,
+                for_output=for_output,
+                tool=tool,
+                **debugkwargs,
+            )
 
         elif isinstance(value, StringFormatter):
             return translate_string_formatter(
@@ -743,92 +891,17 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             raise Exception(
                 "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
             )
-
-        elif isinstance(value, MemorySelector):
+        elif isinstance(value, ResourceSelector):
             if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolmem = tool.memory({})
-
-            if isinstance(toolmem, Operator) and any(
-                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
-            ):
                 raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
                 )
-            ops = [InputSelector("runtime_memory")]
-            if toolmem is not None:
-                ops.append(toolmem)
-            ops.append(4)
+            operation = value.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                FirstOperator(ops),
+                operation,
                 code_environment=code_environment,
                 tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, CpuSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolcpu = tool.cpus({})
-
-            if isinstance(toolcpu, Operator) and any(
-                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
-            ):
-                raise Exception(
-                    f"CpuSelector() should not be use used in tool.cpus() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_cpu")]
-            if toolcpu is not None:
-                ops.append(toolcpu)
-            ops.append(1)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, TimeSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping TimeSelector")
-            tooltime = tool.time({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_seconds")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(86400)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(value, DiskSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping DiskSelector")
-            tooltime = tool.disk({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, DiskSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"DiskSelector() should not be use used in tool.disk() for '{tool.id()}'"
-                )
-            ops = [InputSelector("runtime_disks")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(20)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                code_environment=code_environment,
-                tool=tool,
+                inputs_dict=inputs_dict,
                 **debugkwargs,
             )
 
@@ -875,6 +948,43 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         raise Exception(
             "Could not detect type %s to convert to input value" % type(value)
         )
+
+    @classmethod
+    def build_initial_workdir_from_tool(cls, tool):
+
+        listing = []
+
+        inputsdict = {t.id(): t for t in tool.inputs()}
+
+        directories = tool.directories_to_create()
+        files = tool.files_to_create()
+
+        if directories is not None:
+            directories = (
+                directories if isinstance(directories, list) else [directories]
+            )
+            for directory in directories:
+                unwrapped_dir = cls.unwrap_expression(
+                    directory, inputsdict=inputsdict, tool=tool, code_environment=True
+                )
+                listing.append(
+                    f'$({{ class: "Directory", basename: {unwrapped_dir}, listing: [] }})'
+                )
+        if files:
+            for path, contents in files if isinstance(files, list) else files.items():
+                unwrapped_path = cls.unwrap_expression(
+                    path, inputsdict=inputsdict, tool=tool, code_environment=False
+                )
+                unwrapped_contents = cls.unwrap_expression(
+                    contents, inputsdict=inputsdict, tool=tool, code_environment=False
+                )
+                listing.append(
+                    cwlgen.Dirent(entry=unwrapped_contents, entryname=unwrapped_path)
+                )
+
+        if listing:
+            return cwlgen.InitialWorkDirRequirement(listing=listing)
+        return None
 
     @staticmethod
     def workflow_filename(workflow):
@@ -925,13 +1035,13 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
 
     sf = dt.secondary_files()
 
-    if isinstance(dt, Array):
+    if dt.is_array():
         sf = dt.subtype().secondary_files()
 
-    return cwlgen.InputParameter(
+    return cwlgen.WorkflowInputParameter(
         id=inp.id(),
         default=default,
-        secondaryFiles=sf,
+        secondaryFiles=[cwlgen.SecondaryFileSchema(s) for s in sf] if sf else None,
         format=None,
         streamable=None,
         doc=doc,
@@ -940,29 +1050,54 @@ def translate_workflow_input(inp: InputNode, inputsdict) -> cwlgen.InputParamete
     )
 
 
-def translate_workflow_output(node: OutputNode) -> cwlgen.WorkflowOutputParameter:
+def translate_workflow_output(
+    node: OutputNode, tool: Tool
+) -> Tuple[cwlgen.WorkflowOutputParameter, Optional[cwlgen.WorkflowStep]]:
     """
     Translate a workflow output node to a cwlgen.WorkflowOutputParameter
     :param node:
     :type node: OutputNode
+    :tool tool: Tool reference to
     :return:
     """
     # we're going to need to transform this later to an operator
-    source = CwlTranslator.unwrap_selector_for_reference(node.source)
 
     ot = node.datatype
     if isinstance(ot, Stdout):
         ot = ot.subtype or File()
     doc = node.doc.doc if node.doc else None
 
-    return cwlgen.WorkflowOutputParameter(
-        id=node.id(),
-        outputSource=source,
-        secondaryFiles=node.datatype.secondary_files(),
-        streamable=None,
-        doc=doc,
-        type=ot.cwl_type(),
-        linkMerge=None,
+    pre_step = None
+
+    if isinstance(node.source, Operator):
+        additional_step_id = f"_evaluate-output-{node.id()}"
+        operators = node.source if isinstance(node.source, list) else [node.source]
+        pre_step = CwlTranslator.convert_operator_to_commandtool(
+            step_id=additional_step_id,
+            operators=operators,
+            tool=tool,
+            select_first_element=not isinstance(node.source, list),
+        )
+        source = f"{additional_step_id}/out"
+
+    else:
+        source = CwlTranslator.unwrap_selector_for_reference(node.source)
+
+    sf = None
+    if node.datatype.secondary_files():
+        sf = [cwlgen.SecondaryFileSchema(s) for s in node.datatype.secondary_files()]
+
+    return (
+        cwlgen.WorkflowOutputParameter(
+            id=node.id(),
+            outputSource=source,
+            secondaryFiles=sf,
+            streamable=None,
+            doc=doc,
+            type=ot.cwl_type(),
+            linkMerge=None,
+        ),
+        pre_step,
     )
 
 
@@ -1028,7 +1163,7 @@ def translate_tool_input(
     # https://www.commonwl.org/user_guide/09-array-inputs/
     if (
         bind_to_commandline
-        and isinstance(toolinput.input_type, Array)
+        and toolinput.input_type.is_array()
         and isinstance(non_optional_dt_component, cwlgen.CommandInputArraySchema)
     ):
         if toolinput.prefix_applies_to_all_elements:
@@ -1059,7 +1194,7 @@ def translate_tool_input(
 
 def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineBinding:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandLineBinding
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandLineBinding
 
     :param argument: Tool argument to build command line for
     :return:
@@ -1079,7 +1214,7 @@ def translate_tool_output(
     output: ToolOutput, inputsdict, tool, **debugkwargs
 ) -> cwlgen.CommandOutputParameter:
     """
-    https://www.commonwl.org/v1.0/CommandLineTool.html#CommandOutputParameter
+    https://www.commonwl.org/v1.2/CommandLineTool.html#CommandOutputParameter
 
     :param output:
     :type output: ToolOutput
@@ -1169,7 +1304,9 @@ $}}
     return None
 
 
-def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
+def prepare_tool_output_secondaries(
+    output,
+) -> Optional[Union[List[cwlgen.SecondaryFileSchema], str, List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL OUTPUT
 
@@ -1187,7 +1324,10 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     """
 
     if not output.secondaries_present_as:
-        return output.output_type.secondary_files()
+        sfs = output.output_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = output.secondaries_present_as
     tb = "    "
@@ -1220,7 +1360,9 @@ def prepare_tool_output_secondaries(output) -> Optional[Union[str, List[str]]]:
     ]
 
 
-def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[str]]]:
+def prepare_tool_input_secondaries(
+    inp: ToolInput,
+) -> Optional[Union[str, List[cwlgen.SecondaryFileSchema], List[str]]]:
     """
     Prepares the expressions / list of sec for a TOOL INPUT
 
@@ -1237,7 +1379,10 @@ def prepare_tool_input_secondaries(inp: ToolInput) -> Optional[Union[str, List[s
     :return:
     """
     if not inp.secondaries_present_as:
-        return inp.input_type.secondary_files()
+        sfs = inp.input_type.secondary_files()
+        if sfs:
+            return [cwlgen.SecondaryFileSchema(s) for s in sfs]
+        return None
 
     secs = inp.secondaries_present_as
     tb = "    "
@@ -1307,20 +1452,67 @@ def get_run_ref_from_subtool(
             )
 
 
+def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Selector):
+    prepare_alias = lambda x: f"__when_{re.sub('[^0-9a-zA-Z]+', '', x)}"
+
+    # two step process
+    #   1. Look through and find ALL sources includng an operator's leaves
+    #           Ensure these are connected using the alias
+    #   2. Go through sources again, build up the expression
+
+    param_aliasing = {}
+    # Use a dict to ensure we don't double add inputs
+    ins_to_connect: Dict[str, cwlgen.WorkflowStepInput] = {}
+
+    processed_sources = []
+
+    src = when
+    if isinstance(src, InputNodeSelector) and isinstance(
+        src.input_node.default, Selector
+    ):
+        src = If(IsDefined(src), src, src.input_node.default)
+
+    processed_sources.append(src)
+
+    if isinstance(src, Operator):
+        # we'll need to get the leaves and do extra mappings
+        for leaf in src.get_leaves():
+            if not isinstance(leaf, Selector):
+                # probably a python literal
+                continue
+            sel = CwlTranslator.unwrap_selector_for_reference(leaf)
+            alias = prepare_alias(sel)
+            param_aliasing[sel] = "inputs." + alias
+            ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+    else:
+        sel = CwlTranslator.unwrap_selector_for_reference(src)
+        alias = prepare_alias(sel)
+        param_aliasing[sel] = "inputs." + alias
+        ins_to_connect[alias] = cwlgen.WorkflowStepInput(id=alias, source=sel)
+
+    stp.in_.extend(ins_to_connect.values())
+
+    # 2. Again
+
+    valuefrom = CwlTranslator.unwrap_expression(
+        src,
+        code_environment=False,
+        selector_override=param_aliasing,
+        step=stp.id,
+        expression_context="when",
+    )
+
+    stp.when = valuefrom
+
+
 def translate_step_node(
     step: StepNode,
     is_nested_tool=False,
-    resource_overrides=Dict[str, str],
+    resource_overrides: Optional[Dict[str, str]] = None,
     use_run_ref=True,
     allow_empty_container=False,
     container_override=None,
-) -> cwlgen.WorkflowStep:
-
-    if step.when is not None:
-        Logger.warn(
-            f"Janis has not implemented conditionals in CWL. Please see GitHub for more information. "
-            f"Skipping the condition for step '{step.id()}' when calling '{step.tool.id()}'"
-        )
+) -> List[cwlgen.WorkflowStep]:
 
     tool = step.tool
 
@@ -1353,6 +1545,7 @@ def translate_step_node(
         if len(step.scatter.fields) > 1:
             cwlstep.scatterMethod = step.scatter.method.cwl()
         cwlstep.scatter = step.scatter.fields
+    scatter_fields = set(cwlstep.scatter or [])
 
     ## OUTPUTS
 
@@ -1361,6 +1554,8 @@ def translate_step_node(
     ]
 
     ## INPUTS
+
+    extra_steps: List[cwlgen.WorkflowStep] = []
 
     for k, inp in step.inputs().items():
         if k not in step.sources:
@@ -1384,11 +1579,7 @@ def translate_step_node(
             src = ar_source[0]
 
             ot = src.source.returntype()
-            if (
-                isinstance(intype, Array)
-                and not isinstance(ot, Array)
-                and not src.scatter
-            ):
+            if intype.is_array() and not ot.is_array() and not src.scatter:
                 array_input_from_single_source = True
 
         should_select_first_element = not (
@@ -1428,6 +1619,20 @@ def translate_step_node(
                 # https://www.commonwl.org/user_guide/misc/
                 link_merge = "merge_nested"
 
+        elif k in scatter_fields:
+            # it's an operator, and the CWL valueFrom scatters are post-scatter (which IMO is silly)
+            additional_step_id = f"_evaluate_prescatter-{step.id()}-{k}"
+
+            tool = CwlTranslator.convert_operator_to_commandtool(
+                step_id=additional_step_id,
+                operators=[a.source for a in ar_source],
+                tool=tool,
+                select_first_element=should_select_first_element,
+            )
+
+            source = f"{additional_step_id}/out"
+            extra_steps.append(tool)
+
         else:
             prepare_alias = (
                 lambda x: f"_{step.id()}_{k}_{re.sub('[^0-9a-zA-Z]+', '', x)}"
@@ -1461,14 +1666,14 @@ def translate_step_node(
                             continue
                         sel = CwlTranslator.unwrap_selector_for_reference(leaf)
                         alias = prepare_alias(sel)
-                        param_aliasing[sel] = alias
+                        param_aliasing[sel] = "inputs." + alias
                         ins_to_connect[alias] = cwlgen.WorkflowStepInput(
                             id=alias, source=sel
                         )
                 else:
                     sel = CwlTranslator.unwrap_selector_for_reference(src)
                     alias = prepare_alias(sel)
-                    param_aliasing[sel] = alias
+                    param_aliasing[sel] = "inputs." + alias
                     ins_to_connect[alias] = cwlgen.WorkflowStepInput(
                         id=alias, source=sel
                     )
@@ -1496,10 +1701,16 @@ def translate_step_node(
 
         cwlstep.in_.append(d)
 
-    for r in resource_overrides:
-        cwlstep.in_.append(cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r]))
+    if resource_overrides:
+        for r in resource_overrides:
+            cwlstep.in_.append(
+                cwlgen.WorkflowStepInput(id=r, source=resource_overrides[r])
+            )
 
-    return cwlstep
+    if step.when is not None:
+        add_when_conditional_for_workflow_stp(cwlstep, step.when)
+
+    return [*extra_steps, cwlstep]
 
 
 ## SELECTORS
@@ -1520,9 +1731,11 @@ def translate_input_selector(
 
     if selector_override and sel in selector_override:
         sel = selector_override[sel]
+    else:
+        sel = f"inputs.{sel}"
 
     basename_extra = ".basename" if selector.remove_file_extension else ""
-    base = f"inputs.{sel}{basename_extra}"
+    base = f"{sel}{basename_extra}"
     return base if code_environment else f"$({base})"
 
 
@@ -1552,6 +1765,12 @@ def translate_string_formatter(
 def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
     if glob is None:
         return None
+
+    if isinstance(glob, list):
+        return [
+            translate_to_cwl_glob(g, inputsdict=inputsdict, tool=tool, **debugkwargs)
+            for g in glob
+        ]
 
     if not isinstance(glob, Selector):
         Logger.critical(
@@ -1591,7 +1810,11 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
                 expr = If(IsDefined(glob), expr, tinp.default)
 
             return CwlTranslator.unwrap_expression(
-                expr, code_environment=False, **debugkwargs
+                expr,
+                inputs_dict=inputsdict,
+                code_environment=False,
+                for_output=True,
+                **debugkwargs,
             )
 
     elif isinstance(glob, StringFormatter):
@@ -1642,11 +1865,18 @@ def build_resource_override_maps_for_workflow(
             tool_pre = prefix + s.id() + "_"
             inputs.extend(
                 [
-                    cwlgen.InputParameter(
+                    cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_memory", type="float?"
                     ),
-                    cwlgen.InputParameter(id=tool_pre + "runtime_cpu", type="int?"),
-                    # cwlgen.InputParameter(tool_pre + "runtime_disks", type="string?"),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_cpu", type="int?"
+                    ),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_disks", type="int?"
+                    ),
+                    cwlgen.CommandInputParameter(
+                        id=tool_pre + "runtime_seconds", type="int?"
+                    ),
                 ]
             )
         elif tool.type() == ToolType.Workflow:
@@ -1658,12 +1888,12 @@ def build_resource_override_maps_for_workflow(
 
 def prepare_filename_replacements_for(
     inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
-) -> Optional[Dict[str, str]]:
+) -> Optional[str]:
     if inp is None or not isinstance(inp, InputSelector):
         return None
 
     if not inputsdict:
-        return "inputs." + inp.input_to_select
+        return "inputs." + inp.input_to_select + ".basename"
         # raise Exception(
         #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
         # )
@@ -1678,8 +1908,13 @@ def prepare_filename_replacements_for(
         intype = tinp.input_type
 
         if isinstance(intype, (File, Directory)):
-            if isinstance(intype, File) and intype.extension:
-                base = f'inputs.{tinp.id()}.basename.replace(/{intype.extension}$/, "")'
+            potential_extensions = (
+                intype.get_extensions() if isinstance(intype, File) else None
+            )
+            if inp.remove_file_extension and potential_extensions:
+                base = f"inputs.{tinp.id()}.basename"
+                for ext in potential_extensions:
+                    base += f'.replace(/{ext}$/, "")'
             else:
                 base = f"inputs.{tinp.id()}.basename"
         else:
