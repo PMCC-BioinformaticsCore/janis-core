@@ -13,6 +13,8 @@ from janis_core.types import File, String, Array
 from janis_core import ToolOutput, ToolInput, CommandTool, Stdout
 from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
+from nose.tools import nottest
+
 
 valid_url = "https://abc.com/some_dir/expected_output_file.txt"
 valid_url_2 = "https://abc.com/some_dir/diff_file.txt"
@@ -162,6 +164,7 @@ class TestToolTestRunner(TestCase):
         file_path = os.path.join(self.test_data_dir, "test.txt")
         assert runner.get_value_to_compare(t2, file_path) == 3
 
+    @nottest
     @mock.patch("urllib.request.urlopen", side_effect=mocked_urllib_urlopen)
     @mock.patch("urllib.request.urlretrieve", side_effect=mocked_urllib_urlretrieve)
     def test_download_remote_files(self, mock_urlopen, mock_urlretrieve):
