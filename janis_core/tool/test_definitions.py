@@ -88,6 +88,7 @@ class ToolEvaluator:
         evaluation = {}
 
         evaluation["friendly_name"] = cls.evaluate_friendly_name(tool)
+        evaluation["tool_module"] = cls.evaluate_tool_module(tool)
         evaluation["metadata"] = cls.evaluate_metadata(tool)
         # TODO: turn this on when we have implemented all unit tests
         # evaluation["unit_tests_exists"] = cls.evaluate_unit_test_exists(tool)
@@ -125,6 +126,22 @@ class ToolEvaluator:
         """
         if not tool.friendly_name():
             return "Missing friendly name"
+
+        return True
+
+    @staticmethod
+    def evaluate_tool_module(tool: Tool) -> Union[str, bool]:
+        """
+        Evaluate if tool module name for documentation is provided
+
+        :param tool: Janis tool
+        :type tool: Tool
+
+        :return:  error message or True if tool module name for this tool exists
+        :rtype: Union[str, bool]
+        """
+        if not tool.tool_module():
+            return "Missing tool module"
 
         return True
 
