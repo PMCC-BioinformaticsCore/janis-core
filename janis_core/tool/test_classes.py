@@ -117,7 +117,7 @@ class TTestCase(object):
         """
         # we don't want white space in the test case name
         if bool(re.search("\s", name)):
-            raise Exception("No whitespace is allowed in the TestCase name")
+            raise Exception(f"No whitespace is allowed in the TestCase name {name}")
 
         self.name = name
         self.input = input
