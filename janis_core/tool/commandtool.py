@@ -173,6 +173,11 @@ class ToolInput(ToolArgument):
 
 # This should really be a CommandToolOutput
 class ToolOutput:
+    init_key_map = {
+        # Skip glob when building python string initialiser
+        "glob": None
+    }
+
     def __init__(
         self,
         tag: str,
@@ -739,6 +744,27 @@ class CommandToolBuilder(CommandTool):
 
     def files_to_create(self) -> Dict[str, Union[str, Selector]]:
         return self._files_to_create
+
+    init_key_map = {
+        "tool": "_tool",
+        "base_command": "_base_command",
+        "inputs": "_inputs",
+        "outputs": "_outputs",
+        "container": "_container",
+        "version": "_version",
+        "friendly_name": "_friendly_name",
+        "arguments": "_arguments",
+        "env_vars": "_env_vars",
+        "tool_module": "_tool_module",
+        "tool_provider": "_tool_provider",
+        "metadata": "_metadata",
+        "cpu": "_cpu",
+        "memory": "_memory",
+        "time": "_time",
+        "disk": "_disk",
+        "directories_to_create": "_directories_to_create",
+        "files_to_create": "_files_to_create",
+    }
 
     def __init__(
         self,
