@@ -1312,20 +1312,20 @@ workflow TestWorkflowWithStepInputExpression {
 }"""
         self.assertEqual(expected, ret)
 
-    def test_separator(self):
-        tf = CommandToolBuilder(
-            tool="test_sep_operator",
-            base_command="echo",
-            inputs=[ToolInput("inp", Array(String))],
-            arguments=[
-                ToolArgument(JoinOperator(InputSelector("inp"), ","), position=0)
-            ],
-            outputs=[ToolOutput("out", Stdout)],
-            container="ubuntu:latest",
-            version="v",
-        )
-
-        tf.translate("cwl", to_disk=True, export_path="~/Desktop/tmp/wdltests/")
+    # def test_separator(self):
+    #     tf = CommandToolBuilder(
+    #         tool="test_sep_operator",
+    #         base_command="echo",
+    #         inputs=[ToolInput("inp", Array(String))],
+    #         arguments=[
+    #             ToolArgument(JoinOperator(InputSelector("inp"), ","), position=0)
+    #         ],
+    #         outputs=[ToolOutput("out", Stdout)],
+    #         container="ubuntu:latest",
+    #         version="v",
+    #     )
+    #
+    #     tf.translate("wdl", to_disk=True, export_path="~/Desktop/tmp/wdltests/")
 
     def test_array_step_input(self):
         wf = WorkflowBuilder("cwl_test_array_step_input")
