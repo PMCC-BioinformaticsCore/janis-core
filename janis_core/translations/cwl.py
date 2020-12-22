@@ -1160,7 +1160,11 @@ def translate_tool_input(
     elif is_selector(default):
         default = None
         value_from = CwlTranslator.unwrap_expression(
-            toolinput.default, code_environment=False, tool=tool, toolId=tool.id()
+            toolinput.default,
+            code_environment=False,
+            tool=tool,
+            toolId=tool.id(),
+            inputs_dict=inputsdict,
         )
 
     data_type = toolinput.input_type.cwl_type(default is not None)
@@ -1789,9 +1793,9 @@ def translate_input_selector(
 
         intype = tinp.input_type
         if selector.remove_file_extension:
-            if isinstance(intype, (File, Directory)):
+            if intype.is_base_type((File, Directory)):
                 potential_extensions = (
-                    intype.get_extensions() if isinstance(intype, File) else None
+                    intype.get_extensions() if intype.is_base_type(File) else None
                 )
                 if selector.remove_file_extension and potential_extensions:
                     sel = f"{sel}.basename"
@@ -1990,9 +1994,9 @@ def prepare_filename_replacements_for(
         tinp = inputsdict.get(inp.input_to_select)
         intype = tinp.input_type
 
-        if isinstance(intype, (File, Directory)):
+        if intype.is_base_type((File, Directory)):
             potential_extensions = (
-                intype.get_extensions() if isinstance(intype, File) else None
+                intype.get_extensions() if intype.is_base_type(File) else None
             )
             if inp.remove_file_extension and potential_extensions:
                 base = f"inputs.{tinp.id()}.basename"
