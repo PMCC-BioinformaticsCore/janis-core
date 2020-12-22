@@ -1,6 +1,8 @@
 import unittest
 from typing import List, Dict, Any, Optional
 
+from janis_core.tool.commandtool import ToolArgument
+
 from janis_core.operators.logical import If, IsDefined
 from janis_core.operators.standard import ReadContents, FilterNullOperator
 
@@ -221,14 +223,24 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         input_sel = InputSelector("random")
         self.assertEqual(
             "$(inputs.random)",
-            cwl.translate_input_selector(input_sel, code_environment=False),
+            cwl.translate_input_selector(
+                input_sel,
+                code_environment=False,
+                inputs_dict={},
+                skip_inputs_lookup=True,
+            ),
         )
 
     def test_input_selector_base_codeenv(self):
         input_sel = InputSelector("random")
         self.assertEqual(
             "inputs.random",
-            cwl.translate_input_selector(input_sel, code_environment=True),
+            cwl.translate_input_selector(
+                input_sel,
+                code_environment=True,
+                inputs_dict={},
+                skip_inputs_lookup=True,
+            ),
         )
 
     def test_input_value_none_codeenv(self):
@@ -283,14 +295,42 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         inp = InputSelector("threads")
         self.assertEqual(
             "inputs.threads",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+            cwl.CwlTranslator.unwrap_expression(
+                inp,
+                code_environment=True,
+                inputs_dict={"threads": ToolInput("threads", int)},
+            ),
         )
 
     def test_input_value_inpselect_nocodeenv(self):
         inp = InputSelector("threads")
         self.assertEqual(
             "$(inputs.threads)",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+            cwl.CwlTranslator.unwrap_expression(
+                inp,
+                code_environment=False,
+                inputs_dict={"threads": ToolInput("threads", int)},
+            ),
+        )
+
+    def test_input_value_removing_extension(self):
+        clt = CommandToolBuilder(
+            tool="dev",
+            base_command="echo",
+            inputs=[ToolInput("inp", File(extension=".txt"))],
+            outputs=[ToolOutput("out", str, selector=ReadContents(Stdout()))],
+            version="v1.0",
+            container="ubuntu",
+        )
+
+        arg = cwl.translate_tool_argument(
+            ToolArgument(InputSelector("inp", remove_file_extension=True) + ".bam"),
+            clt,
+            inputs_dict={t.id(): t for t in clt.inputs()},
+        )
+
+        self.assertEqual(
+            '$((inputs.inp.basename.replace(/.txt$/, "") + ".bam"))', arg.valueFrom
         )
 
     def test_input_value_wildcard(self):
@@ -359,7 +399,11 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_string_formatter_one_input_selector_param(self):
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
+        res = cwl.CwlTranslator.unwrap_expression(
+            b,
+            code_environment=False,
+            inputs_dict={"random_input": ToolInput("random_input", str)},
+        )
         self.assertEqual(
             '$("an input {arg}".replace(/\{arg\}/g, inputs.random_input))', res
         )
@@ -371,7 +415,13 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
+        inputs_dict = {
+            "tumorInputName": ToolInput("tumorInputName", str),
+            "normalInputName": ToolInput("normalInputName", str),
+        }
+        res = cwl.CwlTranslator.unwrap_expression(
+            b, code_environment=False, inputs_dict=inputs_dict
+        )
         self.assertEqual(
             '$("{tumorName}:{normalName}".replace(/\{tumorName\}/g, inputs.tumorInputName).replace(/\{normalName\}/g, inputs.normalInputName))',
             res,
@@ -951,7 +1001,9 @@ class TestCWLWhen(unittest.TestCase):
 
         w.output("out", source=w.print_if_has_value)
 
-        c = cwl.translate_step_node(w.print_if_has_value)[0]
+        inputs_dict = {"inp": ToolInput("inp", str)}
+
+        c = cwl.translate_step_node(w.print_if_has_value, inputs_dict=inputs_dict)[0]
 
         self.assertEqual("$((inputs.__when_inp != null))", c.when)
         extra_input: cwlgen.WorkflowStepInput = c.in_[-1]

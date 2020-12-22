@@ -156,6 +156,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             steps=[],
         )
         inputsdict = wf.inputs_map()
+        toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
         w.inputs = [
             translate_workflow_input(i, inputsdict=inputsdict)
@@ -180,6 +181,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             w.steps.extend(
                 translate_step_node(
                     s,
+                    inputs_dict=toolinputs_dict,
                     is_nested_tool=is_nested_tool,
                     resource_overrides=resource_overrides,
                     allow_empty_container=allow_empty_container,
@@ -364,6 +366,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         ad = additional_inputs or {}
         values_provided_from_tool = {}
+
         if tool.type() == ToolType.Workflow:
             values_provided_from_tool = {
                 i.id(): i.value if i.value is not None else i.default
@@ -416,6 +419,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         )
 
         inputsdict = wf.inputs_map()
+        toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
         w.inputs: List[cwlgen.InputParameter] = [
             translate_workflow_input(i, inputsdict=inputsdict)
@@ -440,6 +444,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             w.steps.extend(
                 translate_step_node(
                     s,
+                    inputs_dict=toolinputs_dict,
                     is_nested_tool=is_nested_tool,
                     resource_overrides=resource_overrides,
                     use_run_ref=False,
@@ -498,6 +503,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             hints=[],
         )
 
+        inputsdict = {t.id(): t for t in tool.inputs()}
+
         # if any(not i.shell_quote for i in tool.inputs()):
         tool_cwl.requirements.append(cwlgen.ShellCommandRequirement())
 
@@ -510,7 +517,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         tool_cwl.hints.append(
             cwlgen.ToolTimeLimit(
                 timelimit=CwlTranslator.unwrap_expression(
-                    FirstOperator(ops), code_environment=False, tool_id=tool.id()
+                    FirstOperator(ops),
+                    code_environment=False,
+                    tool_id=tool.id(),
+                    inputs_dict=inputsdict,
                 )
             )
         )
@@ -521,7 +531,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 cwlgen.EnvironmentDef(
                     k,
                     CwlTranslator.unwrap_expression(
-                        value=v, code_environment=False, toolid=tool.id()
+                        value=v,
+                        code_environment=False,
+                        toolid=tool.id(),
+                        inputs_dict=inputsdict,
                     ),
                 )
                 for k, v in envs.items()
@@ -569,7 +582,6 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     f"'allow_empty_container=True' or --allow-empty-container"
                 )
 
-        inputsdict = {t.id(): t for t in tool.inputs()}
         tool_cwl.inputs.extend(
             translate_tool_input(i, inputsdict, tool) for i in tool.inputs()
         )
@@ -585,7 +597,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         args = tool.arguments()
         if args:
             tool_cwl.arguments.extend(
-                translate_tool_argument(a, tool) for a in tool.arguments()
+                translate_tool_argument(a, tool, inputs_dict=inputsdict)
+                for a in tool.arguments()
             )
 
         if with_resource_overrides:
@@ -602,16 +615,23 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             tool_cwl.requirements.append(
                 cwlgen.ResourceRequirement(
                     coresMin=CwlTranslator.unwrap_expression(
-                        CpuSelector(), code_environment=False, tool=tool
+                        CpuSelector(),
+                        code_environment=False,
+                        tool=tool,
+                        inputs_dict=inputsdict,
                     ),
                     ramMin=CwlTranslator.unwrap_expression(
                         # Note that 1GB = 953.674 MiB
                         RoundOperator(953.674 * MemorySelector()),
                         code_environment=False,
                         tool=tool,
+                        inputs_dict=inputsdict,
                     ),
                     outdirMin=CwlTranslator.unwrap_expression(
-                        DiskSelector(), code_environment=False, tool=tool
+                        DiskSelector(),
+                        code_environment=False,
+                        tool=tool,
+                        inputs_dict=inputsdict,
                     ),
                 )
             )
@@ -647,7 +667,9 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         inputsdict = {t.id(): t for t in tool.inputs()}
 
         if isinstance(stderr, InputSelector):
-            stderr = translate_input_selector(stderr, code_environment=False)
+            stderr = translate_input_selector(
+                stderr, code_environment=False, inputs_dict=inputsdict
+            )
 
         tool_cwl = cwlgen.CommandLineTool(
             id=tool.id(),
@@ -839,6 +861,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     selector_override=selector_override,
                     tool=tool,
                     tool_id=toolid + "." + str(i),
+                    inputs_dict=inputs_dict,
                 )
                 for i in range(len(value))
             )
@@ -876,6 +899,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 selector_override=selector_override,
                 code_environment=code_environment,
                 tool=tool,
+                inputs_dict=inputs_dict,
                 **debugkwargs,
             )
         elif isinstance(value, InputNodeSelector):
@@ -883,6 +907,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 InputSelector(value.id()),
                 code_environment=code_environment,
                 selector_override=selector_override,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=True,
             )
         elif isinstance(value, StepOutputSelector):
             sel = f"{value.node.id()}/{value.tag}"
@@ -922,6 +948,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 selector=value,
                 code_environment=code_environment,
                 selector_override=selector_override,
+                inputs_dict=inputs_dict,
             )
         elif isinstance(value, WildcardSelector):
             raise Exception(
@@ -965,7 +992,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             )
             for directory in directories:
                 unwrapped_dir = cls.unwrap_expression(
-                    directory, inputsdict=inputsdict, tool=tool, code_environment=True
+                    directory, inputs_dict=inputsdict, tool=tool, code_environment=True
                 )
                 listing.append(
                     f'$({{ class: "Directory", basename: {unwrapped_dir}, listing: [] }})'
@@ -973,10 +1000,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         if files:
             for path, contents in files if isinstance(files, list) else files.items():
                 unwrapped_path = cls.unwrap_expression(
-                    path, inputsdict=inputsdict, tool=tool, code_environment=False
+                    path, inputs_dict=inputsdict, tool=tool, code_environment=False
                 )
                 unwrapped_contents = cls.unwrap_expression(
-                    contents, inputsdict=inputsdict, tool=tool, code_environment=False
+                    contents, inputs_dict=inputsdict, tool=tool, code_environment=False
                 )
                 listing.append(
                     cwlgen.Dirent(entry=unwrapped_contents, entryname=unwrapped_path)
@@ -1192,7 +1219,9 @@ def translate_tool_input(
     )
 
 
-def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineBinding:
+def translate_tool_argument(
+    argument: ToolArgument, tool, inputs_dict
+) -> cwlgen.CommandLineBinding:
     """
     https://www.commonwl.org/v1.2/CommandLineTool.html#CommandLineBinding
 
@@ -1204,7 +1233,7 @@ def translate_tool_argument(argument: ToolArgument, tool) -> cwlgen.CommandLineB
         prefix=argument.prefix,
         separate=argument.separate_value_from_prefix,
         valueFrom=CwlTranslator.unwrap_expression(
-            argument.value, code_environment=False, tool=tool
+            argument.value, code_environment=False, tool=tool, inputs_dict=inputs_dict
         ),
         shellQuote=argument.shell_quote,
     )
@@ -1507,6 +1536,7 @@ def add_when_conditional_for_workflow_stp(stp: cwlgen.WorkflowStep, when: Select
 
 def translate_step_node(
     step: StepNode,
+    inputs_dict: dict,
     is_nested_tool=False,
     resource_overrides: Optional[Dict[str, str]] = None,
     use_run_ref=True,
@@ -1688,7 +1718,11 @@ def translate_step_node(
                 else [si for si in processed_sources]
             )
             valuefrom = CwlTranslator.unwrap_expression(
-                src, code_environment=False, selector_override=param_aliasing, tool=tool
+                src,
+                code_environment=False,
+                selector_override=param_aliasing,
+                tool=tool,
+                inputs_dict=inputs_dict,
             )
 
         d = cwlgen.WorkflowStepInput(
@@ -1721,22 +1755,70 @@ def is_selector(selector):
 
 
 def translate_input_selector(
-    selector: InputSelector, code_environment, selector_override=None
+    selector: InputSelector,
+    code_environment,
+    inputs_dict,
+    selector_override=None,
+    skip_inputs_lookup=False,
 ):
     # TODO: Consider grabbing "path" of File
 
-    sel = selector.input_to_select
+    sel: str = selector.input_to_select
     if not sel:
         raise Exception("No input was selected for input selector: " + str(selector))
+
+    skip_lookup = skip_inputs_lookup or sel.startswith("runtime_")
 
     if selector_override and sel in selector_override:
         sel = selector_override[sel]
     else:
         sel = f"inputs.{sel}"
 
-    basename_extra = ".basename" if selector.remove_file_extension else ""
-    base = f"{sel}{basename_extra}"
-    return base if code_environment else f"$({base})"
+    if not skip_lookup:
+
+        if inputs_dict is None:
+            raise Exception(
+                f"An internal error occurred when translating input selector '{sel}': the inputs dictionary was None"
+            )
+        if selector.input_to_select not in inputs_dict:
+            raise Exception(
+                f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
+            )
+
+        tinp = inputs_dict[selector.input_to_select]
+
+        intype = tinp.input_type
+        if selector.remove_file_extension:
+            if isinstance(intype, (File, Directory)):
+                potential_extensions = (
+                    intype.get_extensions() if isinstance(intype, File) else None
+                )
+                if selector.remove_file_extension and potential_extensions:
+                    sel = f"{sel}.basename"
+                    for ext in potential_extensions:
+                        sel += f'.replace(/{ext}$/, "")'
+
+            elif intype.is_array() and isinstance(
+                intype.fundamental_type(), (File, Directory)
+            ):
+                inner_type = intype.fundamental_type()
+                extensions = (
+                    inner_type.get_extensions()
+                    if isinstance(inner_type, File)
+                    else None
+                )
+
+                inner_sel = f"el.basename"
+                if extensions:
+                    for ext in extensions:
+                        inner_sel += f'.replace(/{ext}$/, "")'
+                sel = f"{sel}.map(function(el) {{ return {inner_sel}; }})"
+            else:
+                Logger.warn(
+                    f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
+                )
+
+    return sel if code_environment else f"$({sel})"
 
 
 def translate_string_formatter(
@@ -1744,6 +1826,7 @@ def translate_string_formatter(
     selector_override,
     tool,
     code_environment=True,
+    inputs_dict=None,
     **debugkwargs,
 ):
 
@@ -1753,7 +1836,7 @@ def translate_string_formatter(
         return escapedFormat
 
     kwargreplacements = [
-        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, selector_override=selector_override, code_environment=True, tool=tool, **debugkwargs)})"
+        f".replace(/{re.escape('{' +k + '}')}/g, {CwlTranslator.unwrap_expression(v, selector_override=selector_override, code_environment=True, tool=tool, inputs_dict=inputs_dict, **debugkwargs)})"
         for k, v in selector.kwargs.items()
     ]
     expr = f'"{escapedFormat}"' + "".join(kwargreplacements)
@@ -1831,7 +1914,7 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
                 f"Janis does NOT currently support operations on the output glob for output '{glob}' in tool '{tool.id()}'"
             )
         return CwlTranslator.unwrap_expression(
-            glob, code_environment=False, **debugkwargs
+            glob, code_environment=False, inputs_dict=inputsdict, **debugkwargs
         )
 
     raise Exception("Unimplemented selector type: " + glob.__class__.__name__)

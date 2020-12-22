@@ -180,18 +180,12 @@ class TestToolTestRunner(TestCase):
 
         f1_local = f"f282f7ae4b77890d7c4f27740d1507e1_{os.path.basename(valid_url)}"
         f1_path = os.path.join(
-            os.getcwd(),
-            "tests_output",
-            "cached_test_files",
-            f1_local,
+            os.getcwd(), "tests_output", "cached_test_files", f1_local,
         )
 
         f2_local = f"c8ea947c092f9b75da21d24420c8a3a1_{os.path.basename(valid_url_2)}"
         f2_path = os.path.join(
-            os.getcwd(),
-            "tests_output",
-            "cached_test_files",
-            f2_local,
+            os.getcwd(), "tests_output", "cached_test_files", f2_local,
         )
 
         assert t1.expected_file == valid_url
@@ -214,9 +208,7 @@ class TestToolTestRunner(TestCase):
 
         assert content_2 == valid_url_content_2.encode()
 
-    def test_run_one_test_case_succeed(
-        self,
-    ):
+    def test_run_one_test_case_succeed(self,):
         runner = ToolTestSuiteRunner(self.tool)
 
         tc = TTestCase(
