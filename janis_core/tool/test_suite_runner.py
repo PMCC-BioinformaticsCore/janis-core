@@ -1,6 +1,7 @@
 import difflib
 import hashlib
 import os
+import urllib
 from typing import Dict, List, Any, Optional, Tuple, Set
 
 from janis_core.tool.tool import Tool
@@ -13,6 +14,8 @@ from janis_core.types import File, String, Array
 from janis_core.tool import test_helpers
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
+from janis_core import Logger
+
 
 class ToolTestSuiteRunner:
     """
@@ -21,6 +24,10 @@ class ToolTestSuiteRunner:
 
     def __init__(self, tool: Tool, config: str = None):
         self.tool = tool
+        self.output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
+        self.cached_input_files_dir = os.path.join(
+            os.getcwd(), "tests_output", "cached_test_files"
+        )
 
         self._raw_config = config
         self._config = None
@@ -64,11 +71,10 @@ class ToolTestSuiteRunner:
 
         from janis_assistant.main import run_with_outputs
 
-        output_dir = os.path.join(os.getcwd(), "tests_output", self.tool.id())
         output = run_with_outputs(
             tool=self.tool,
             inputs=input,
-            output_dir=output_dir,
+            output_dir=self.output_dir,
             engine=engine,
             config=self.config,
         )
@@ -98,6 +104,7 @@ class ToolTestSuiteRunner:
 
         for test_logic in t.output:
             workflow_output = output[test_logic.tag]
+            self._download_remote_files(test_logic)
             actual_output = self.get_value_to_compare(test_logic, workflow_output)
             expected_value = self.get_expected_value(test_logic)
             test_result = test_logic.operator(actual_output, expected_value)
@@ -201,6 +208,8 @@ class ToolTestSuiteRunner:
         elif test_logic.preprocessor == TTestPreprocessor.LineCount:
             value = self.line_count(output_type=output_type, output_value=output_value)
         elif test_logic.preprocessor == TTestPreprocessor.ListSize:
+            if not output_value:
+                return 0
             value = len(output_value.split("|"))
         else:
             raise Exception(
@@ -242,6 +251,54 @@ class ToolTestSuiteRunner:
                 )
 
         return output_value
+
+    def _download_remote_files(self, test_logic: TTestExpectedOutput):
+        """
+        Download remote test files (only expected output files) to a cache directory
+
+        :param test_logic: an object that holds information about an expected output
+        :type test_logic: TTestExpectedOutput
+        :return: None
+        :rtype: None
+        """
+
+        file_attributes = ["expected_file", "file_diff_source"]
+        for att in file_attributes:
+            if not hasattr(test_logic, att):
+                raise Exception(f"{test_logic.__class__} has no attribute {att}")
+
+            source = getattr(test_logic, att)
+
+            if source:
+
+                test_helpers.verify_janis_assistant_installed()
+                from janis_assistant.management.filescheme import (
+                    FileScheme,
+                    LocalFileScheme,
+                )
+
+                # f = FileScheme(source)
+                if not FileScheme.is_local_path(source):
+                    fs = FileScheme.get_filescheme_for_url(source)
+                    last_modified = fs.last_modified(source)
+
+                    local_file_path = os.path.join(
+                        self.cached_input_files_dir,
+                        f"{test_helpers.hash_filename(source, last_modified)}_{os.path.basename(source)}",
+                    )
+
+                    # Only download if the file does not already exist
+                    if not os.path.exists(local_file_path):
+                        Logger.info(f"Downloading remote file to {local_file_path}")
+
+                        os.makedirs(self.cached_input_files_dir, exist_ok=True)
+                        fs.cp_from(source, local_file_path)
+                    else:
+                        Logger.info(
+                            f"Skip downloading remote file. File {source} already exists in {local_file_path}"
+                        )
+
+                setattr(test_logic, att, local_file_path)
 
     def read_md5(self, file_path: str) -> str:
         """
@@ -311,14 +368,13 @@ class ToolTestSuiteRunner:
         :return: number of lines
         :rtype: int
         """
-        try:
-            if isinstance(output_type, File):
-                # text file only here
-                with open(output_value) as fp:
-                    value = sum(1 for _ in fp)
-            elif isinstance(output_type, String):
-                value = len(output_value.splitlines())
-        except Exception as e:
+        if isinstance(output_type, File):
+            # text file only here
+            with open(output_value) as fp:
+                value = sum(1 for _ in fp)
+        elif isinstance(output_type, String):
+            value = len(output_value.splitlines())
+        else:
             raise Exception(
                 f"{TTestPreprocessor.LineCount} comparison type is not allowed for"
                 f" output type {output_type}"

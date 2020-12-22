@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from typing import Optional, Dict, Any, Callable, Union, List
 
@@ -114,6 +115,10 @@ class TTestCase(object):
         :param output: List of definitions on how to assert the expected output
         :type output: List[TTestExpectedOutput]
         """
+        # we don't want white space in the test case name
+        if bool(re.search("\s", name)):
+            raise Exception(f"No whitespace is allowed in the TestCase name {name}")
+
         self.name = name
         self.input = input
         self.output = output

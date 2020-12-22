@@ -158,7 +158,7 @@ class JanisShed:
                 m = entrypoint.load()
                 ep.append(m)
             except ImportError as e:
-                t = f"Couldn't import janis data_type extension '{entrypoint.name}': {e}"
+                t = f"Couldn't import janis data_type extension {EP.DATATYPES} '{entrypoint.name}': {e}"
                 Logger.critical(t)
                 continue
         return ep
@@ -174,7 +174,7 @@ class JanisShed:
                 m = entrypoint.load()
                 ep.append(m)
             except ImportError as e:
-                t = f"Couldn't import janis data_type extension '{entrypoint.name}': {e}"
+                t = f"Couldn't import janis tools extension {EP.TOOLS} '{entrypoint.name}': {e}"
                 Logger.critical(t)
                 continue
         return ep
