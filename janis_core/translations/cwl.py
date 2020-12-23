@@ -829,6 +829,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         elif isinstance(value, InputSelector):
             return value.input_to_select
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_selector_for_reference(value.inner_selector)
+        else:
+            raise Exception(
+                f"Unknown type {type(value)} for unwrap_selector_for_reference: {value}"
+            )
 
     @classmethod
     def unwrap_expression(
@@ -1323,6 +1329,7 @@ def prepare_tool_output_eval(tool, output: ToolOutput) -> Optional[str]:
     """
 
     if isinstance(output.selector, Operator):
+        return None
         return CwlTranslator.unwrap_expression(
             output.selector, code_environment=False, tool=tool, for_output=True
         )
