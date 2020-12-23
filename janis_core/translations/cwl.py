@@ -2010,7 +2010,7 @@ def prepare_filename_replacements_for(
                 for ext in potential_extensions:
                     base += f'.replace(/{ext}$/, "")'
             else:
-                base = f"inputs.{tinp.id()}.basename"
+                base = f"inputs.{tinp.id()}"
         else:
             base = "inputs." + tinp.id()
 
