@@ -1,0 +1,32 @@
+digraph "classes_janis_core" {
+charset="utf-8"
+rankdir=BT
+
+"15" [label="{CodeTool|\l|base_command()\lcontainer()\lcontainers()\lcpus(hints)\ldisk(hints)\lgenerate_inputs_override(additional_inputs, with_resource_overrides, hints, include_defaults, values_to_ignore, quality_type)\lid()\linputs()\lmemory(hints)\loutputs()\lprepared_script(translation)\lscript_name()\ltime(hints)\ltool_inputs()\ltool_outputs()\ltranslate(translation, to_console, to_disk, export_path, with_docker, with_resource_overrides, allow_empty_container, container_override)\ltype(cls)\lversion()\lwrapped_in_wf()\l}", shape="record"];
+"16" [label="{CommandTool|\l|all_input_keys()\larguments()\lbase_command()\lcontainer()\lcontainers()\lcpus(hints)\ldirectories_to_create()\ldisk(hints)\lenv_vars()\lfiles_to_create()\lfull_name()\lgenerate_inputs_override(additional_inputs, with_resource_overrides, hints, include_defaults, values_to_ignore, quality_type)\lhelp()\lid()\linputs()\lmemory(hints)\loutputs()\ltime(hints)\ltool()\ltool_inputs()\ltool_outputs()\ltranslate(translation, to_console, to_disk, export_path, with_docker, with_resource_overrides, allow_empty_container, container_override)\ltype(cls)\lversion()\lwrapped_in_wf()\l}", shape="record"];
+"17" [label="{CommandToolBuilder|\l|arguments()\lbase_command()\lcontainer()\lcpus(hints)\ldirectories_to_create()\ldisk(hints)\lenv_vars()\lfiles_to_create()\lfriendly_name()\linputs()\lmemory(hints)\loutputs()\ltime(hints)\ltool()\ltool_module()\ltool_provider()\lversion()\l}", shape="record"];
+"29" [label="{DynamicWorkflow|has_constructed : bool\l|constructor(inputs, hints)\lmodify_inputs(inputs, hints)\l}", shape="record"];
+"86" [label="{PythonTool|\l|base_command()\lcode_block()\lcontainer()\lgenerate_cli_binding_for_input(inp)\linputs()\lprepared_script(translation)\lscript_name()\l}", shape="record"];
+"114" [label="{Tool|TEST_DATA_FOLDER : str\lconnections : dict\lmetadata : Metadata\l|all_input_keys()\lbind_metadata()\lcontainers()\ldoc()\lfriendly_name()\lgenerate_inputs_override(additional_inputs, with_resource_overrides, hints, include_defaults, values_to_ignore, quality_type)\lhelp()\lid()\linputs_map()\loutputs_map()\lskip_test(cls)\ltest_data_path(cls)\ltests()\ltool_inputs()\ltool_module()\ltool_outputs()\ltool_provider()\ltranslate(translation, with_docker, with_resource_overrides, allow_empty_container, container_override)\ltype(cls)\lversion()\lversioned_id()\l}", shape="record"];
+"115" [label="{ToolArgument|doc\lexpr_pattern : str\lis_expression\lposition : int\lprefix : NoneType\lseparate_value_from_prefix : NoneType\lshell_quote : NoneType\lvalue\l|}", shape="record"];
+"116" [label="{ToolEvaluator|STATUS_SKIPPED : str\l|evaluate(cls, tool)\levaluate_code_tool(cls, tool)\levaluate_command_tool(cls, tool)\levaluate_container(tool)\levaluate_friendly_name(tool)\levaluate_generic(cls, tool)\levaluate_metadata(tool)\levaluate_tool_module(tool)\levaluate_translation(tool)\levaluate_unittest_exists(tool)\levaluate_workflow(cls, wf)\l}", shape="record"];
+"117" [label="{ToolInput|default : NoneType\ldoc : InputDocumentation\linput_type : String, Float, Array, Boolean, UnionType, Int\llocalise_file : NoneType\lprefix_applies_to_all_elements : NoneType\lpresents_as : NoneType\lsecondaries_present_as : NoneType\lseparator : NoneType\ltag\l|id()\l}", shape="record"];
+"119" [label="{ToolOutput|doc\loutput_type : String, Float, Array, UnionType, Boolean, Int\lpresents_as : NoneType\lsecondaries_present_as : NoneType\lselector : NoneType\ltag\l|id()\l}", shape="record"];
+"131" [label="{Workflow|\l|constructor()\l}", shape="record"];
+"132" [label="{WorkflowBase|connections : dict\lhas_multiple_inputs : bool\lhas_scatter : bool\lhas_subworkflow : bool\linput_nodes : dict\lnodes : dict\loutput_nodes : dict\lstep_nodes : dict\l|all_input_keys()\lapply_input_documentation(inputs, should_override, strict)\lcapture_outputs_from_step(step, output_prefix, default_output_name)\lconditional(stepid, conditions)\lcontainers()\lforward_inputs_from_tool(tool, inputs_to_forward, inputs_to_ignore, input_prefix)\lfriendly_name()\lgenerate_inputs_override(additional_inputs, with_resource_overrides, hints, include_defaults, values_to_ignore, quality_type)\lgenerate_resources_file(translation, hints, to_console)\lgenerate_resources_table(hints, to_console, to_disk, output_type)\lget_dot_plot(show, log_to_stdout, expand_subworkflows, persist_subworkflows, output_directory)\lget_dot_plot_internal(tool, graph, default_base_connection, prefix, expand_subworkflows, depth)\lget_step_ids_from_selector(selector)\lget_subworkflows()\lget_tools()\linput(identifier, datatype, default, value, doc)\loutput(identifier, datatype, source, output_folder, output_name, extension, doc)\lreport(to_console, tabulate_tablefmt)\lstep(identifier, tool, scatter, when, ignore_missing, doc)\ltool_inputs()\ltool_outputs()\ltranslate(translation, to_console, tool_to_console, to_disk, write_inputs_file, with_docker, with_hints, with_resource_overrides, validate, should_zip, export_path, merge_resources, hints, allow_null_if_not_optional, additional_inputs, max_cores, max_mem, max_duration, allow_empty_container, container_override)\ltype(cls)\lverify_identifier(identifier, component)\lverify_output_source_type(identifier, out, outtype)\lversion()\l}", shape="record"];
+"133" [label="{WorkflowBuilder|connections : dict\l|bind_metadata()\lconstructor()\lfriendly_name()\lid()\ltool_module()\ltool_provider()\lversion()\l}", shape="record"];
+
+"29" -> "132" [arrowhead="empty", arrowtail="none"];
+"131" -> "132" [arrowhead="empty", arrowtail="none"];
+"132" -> "114" [arrowhead="empty", arrowtail="none"];
+"15" -> "114" [arrowhead="empty", arrowtail="none"];
+"86" -> "15" [arrowhead="empty", arrowtail="none"];
+"133" -> "131" [arrowhead="empty", arrowtail="none"];
+"17" -> "16" [arrowhead="empty", arrowtail="none"];
+"16" -> "114" [arrowhead="empty", arrowtail="none"];
+"115" -> "16" [arrowhead="empty", arrowtail="none"];
+"116" -> "16" [arrowhead="empty", arrowtail="none"];
+"119" -> "16" [arrowhead="empty", arrowtail="none"];
+"117" -> "115" [arrowhead="empty", arrowtail="none"];
+
+}
