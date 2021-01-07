@@ -6,7 +6,7 @@ from janis_core.types import DataType, get_instantiated_type, Float
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
-class Operator(Selector, ABC):
+class Operator(Selector):
     def __init__(self, *args):
         self.args: List[Union[Selector, any]] = list(args)
 

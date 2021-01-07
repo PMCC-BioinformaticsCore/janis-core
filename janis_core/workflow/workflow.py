@@ -272,7 +272,7 @@ class OutputNode(Node):
         return None
 
 
-class WorkflowBase(Tool, ABC):
+class WorkflowBase(Tool):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 

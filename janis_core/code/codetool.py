@@ -7,7 +7,7 @@ from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
 
 
-class CodeTool(Tool, ABC):
+class CodeTool(Tool):
 
     # User should inherit from these blocks
 
