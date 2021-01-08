@@ -69,7 +69,9 @@ def get_all_tools(modules: List) -> List[List[jc.Tool]]:
 
 
 def get_one_tool(
-    tool_id: str, modules: Optional[List] = None, version: Optional[str] = None
+    tool_id: Union[str, jc.Tool],
+    modules: Optional[List] = None,
+    version: Optional[str] = None,
 ) -> jc.Tool:
     """
     Get one tool given id and the modules where to search it from
@@ -84,6 +86,9 @@ def get_one_tool(
     :return: Janis tool
     :rtype: Tool
     """
+    if isinstance(tool_id, jc.Tool):
+        return tool_id
+
     shed = jc.JanisShed
     shed.hydrate(force=True, modules=modules)
 
