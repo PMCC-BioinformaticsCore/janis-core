@@ -510,7 +510,7 @@ class TestCwlOutputGeneration(unittest.TestCase):
     def test_localised_out(self):
 
         inps = {"inp": ToolInput("inp", File, position=1, localise_file=True)}
-        out = ToolOutput("out", File, selector=InputSelector("inp").basename())
+        out = ToolOutput("out", File, selector=InputSelector("inp"))
 
         cwlout = cwl.translate_tool_output(
             out, inps, environment="dev-test_localised_out", tool=None

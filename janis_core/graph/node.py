@@ -44,7 +44,7 @@ class NodeType(Enum):
         raise Exception(f"Unhandled task type: '{node_type}'")
 
 
-class Node(ABC):
+class Node(object):
 
     _N_counter: int = 1
     _N_nodeId_map: Dict[int, Any] = {}

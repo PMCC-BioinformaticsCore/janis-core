@@ -1796,7 +1796,7 @@ def translate_input_selector(
                 f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
             )
 
-        tinp = inputs_dict[selector.input_to_select]
+        tinp: ToolInput = inputs_dict[selector.input_to_select]
 
         intype = tinp.input_type
         if selector.remove_file_extension:
@@ -1828,6 +1828,13 @@ def translate_input_selector(
                 Logger.warn(
                     f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
                 )
+        elif tinp.localise_file:
+            if intype.is_base_type((File, Directory)):
+                sel += ".basename"
+            elif intype.is_array() and isinstance(
+                intype.fundamental_type(), (File, Directory)
+            ):
+                sel = f"{sel}.map(function(el) {{ return el.basename; }})"
 
     return sel if code_environment else f"$({sel})"
 
@@ -2009,8 +2016,16 @@ def prepare_filename_replacements_for(
                 base = f"inputs.{tinp.id()}.basename"
                 for ext in potential_extensions:
                     base += f'.replace(/{ext}$/, "")'
+            elif tinp.localise_file:
+                base = f"inputs.{tinp.id()}.basename"
             else:
                 base = f"inputs.{tinp.id()}"
+        elif (
+            intype.is_array()
+            and isinstance(intype.fundamental_type(), (File, Directory))
+            and tinp.localise_file
+        ):
+            base = f"inputs.{tinp.id()}.map(function(el) {{ return el.basename; }})"
         else:
             base = "inputs." + tinp.id()
 
