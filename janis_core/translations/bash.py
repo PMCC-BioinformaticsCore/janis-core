@@ -8,7 +8,6 @@ from janis_core.types import (
     InputSelector,
     WildcardSelector,
     CpuSelector,
-    StringFormatter,
     String,
     Selector,
     Directory,
@@ -19,6 +18,8 @@ from janis_core.types import (
     Filename,
     File,
 )
+
+from janis_core.operators import StringFormatter
 
 
 class BashTranslator(TranslatorBase):
@@ -34,6 +35,11 @@ class BashTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
+        workflow_str = ""
+
+        for stp in workflow.steps():
+            workflow_str += BashTranslator.translate_tool_internal(stp.tool)
+
         raise Exception("Not supported for bash translation")
 
     @classmethod
@@ -93,7 +99,9 @@ class BashTranslator(TranslatorBase):
 
 {doc}
 
-{command}
+{command} \\
+   --fastqs $(joinby ' ' $iterable)
+
         """
 
     @classmethod
@@ -150,6 +158,9 @@ class BashTranslator(TranslatorBase):
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         return None
+
+    def unwrap_expression(cls, expression):
+        return str(expression)
 
 
 def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugkwargs):
