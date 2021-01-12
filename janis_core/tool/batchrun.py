@@ -1,7 +1,8 @@
 from inspect import isclass
 from typing import Union, List, Type
 
-from janis_core.utils.scatter import ScatterDescription, ScatterMethods
+from janis_core import WorkflowBase
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 
 from janis_core.types import Array
 
@@ -48,10 +49,10 @@ class BatchRunTool(Workflow):
         self.step(
             self.inner.id(),
             self.inner(**innode_map),
-            scatter=ScatterDescription(list(self.fields), ScatterMethods.dot),
+            scatter=ScatterDescription(list(self.fields), ScatterMethod.dot),
         )
 
-        if isinstance(self.inner, Workflow):
+        if isinstance(self.inner, WorkflowBase):
             # We can do special output_folder grouping
             for oid, o in self.output_nodes.items():
                 folders = o.output_folder

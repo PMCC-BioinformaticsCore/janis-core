@@ -14,6 +14,7 @@ class Validators:
         "ignore_missing",
         "output",
         "input",
+        "inputs",
     }
 
     @staticmethod

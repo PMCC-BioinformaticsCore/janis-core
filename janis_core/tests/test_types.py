@@ -1,4 +1,5 @@
 import unittest
+from typing import Optional, List, Union
 
 from janis_core import Array, String, Stdout, File, Int, Float, Boolean
 from janis_core.types import get_instantiated_type, get_from_python_type
@@ -91,8 +92,18 @@ class TestParseTypes(unittest.TestCase):
         self.assertTrue(t.optional)
         self.assertIsInstance(t, File)
 
+    def test_parse_union_type(self):
+        t = get_instantiated_type(Union[str, int])
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
+        self.assertEqual("Union<String, Integer>", t.id())
 
-from typing import Optional, List
+    def test_parse_union_optional_types(self):
+        t = get_instantiated_type(Union[Optional[str], int])
+        self.assertTrue(t.optional)
+        self.assertIsInstance(t.subtypes[0], String)
+        self.assertIsInstance(t.subtypes[1], Int)
+        self.assertEqual("Union<String, Integer>", t.id())
 
 
 class TestPythonAnnotations(unittest.TestCase):
@@ -108,7 +119,7 @@ class TestPythonAnnotations(unittest.TestCase):
     def test_2(self):
         t = get_from_python_type(List[str])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertFalse(st.optional)
         self.assertIsInstance(st, String)
@@ -116,10 +127,10 @@ class TestPythonAnnotations(unittest.TestCase):
     def test_3(self):
         t = get_from_python_type(List[List[str]])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertFalse(st.optional)
-        self.assertIsInstance(st, Array)
+        self.assertTrue(st.is_array())
         sst = st.subtype()
         self.assertFalse(sst.optional)
         self.assertIsInstance(sst, String)
@@ -128,7 +139,7 @@ class TestPythonAnnotations(unittest.TestCase):
         # Might be a fun python 3.6 thing here...
         t = get_from_python_type(List[Optional[str]])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertTrue(st.optional)
         self.assertIsInstance(st, String)

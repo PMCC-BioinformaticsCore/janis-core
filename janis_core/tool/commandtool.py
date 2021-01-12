@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Union, Callable, Set
+from typing import List, Dict, Optional, Any, Union, Callable, Set, Tuple
 
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -10,23 +10,26 @@ from janis_core.tool.documentation import (
 )
 from janis_core.utils.validators import Validators
 
-from janis_core.types import (
-    Selector,
-    Logger,
-    ParseableType,
-    get_instantiated_type,
-    Stdout,
-    Stderr,
-)
+from janis_core.types import ParseableType, get_instantiated_type, Stdout, Stderr
 
 from janis_core.types.common_data_types import String, Filename
-from janis_core.tool.tool import Tool, ToolTypes, TInput, TOutput
+from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.utils.logger import Logger
+from janis_core.operators import Selector, Operator
 from janis_core.utils.metadata import ToolMetadata
 
 
 class ToolArgument:
     expr_pattern = "\$\(.*\)"
+
+    def __repr__(self):
+        attrs = ", ".join(
+            f"{k}={repr(v)}"
+            for k, v in self.__dict__.items()
+            if not k.startswith("_") and not callable(v)
+        )
+        return f"{self.__class__.__name__}({attrs})"
 
     def __init__(
         self,
@@ -56,14 +59,17 @@ class ToolArgument:
         self.position: Optional[int] = position
         self.is_expression = (
             isinstance(self.value, Selector)
-            or (re.match(self.expr_pattern, self.value) is not None)
-            if self.value
+            or (
+                isinstance(self.value, str)
+                and re.match(self.expr_pattern, self.value) is not None
+            )
+            if self.value is not None
             else None
         )
         self.separate_value_from_prefix = separate_value_from_prefix
-        self.doc: DocumentationMeta = doc if isinstance(
-            doc, InputDocumentation
-        ) else InputDocumentation(doc)
+        self.doc: DocumentationMeta = (
+            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc)
+        )
         self.shell_quote = shell_quote
 
         if (
@@ -123,9 +129,9 @@ class ToolInput(ToolArgument):
             shell_quote=shell_quote,
         )
 
-        self.doc: InputDocumentation = doc if isinstance(
-            doc, DocumentationMeta
-        ) else InputDocumentation(doc=doc)
+        self.doc: InputDocumentation = (
+            doc if isinstance(doc, DocumentationMeta) else InputDocumentation(doc=doc)
+        )
 
         # if default is not None:
         #     input_type.optional = True
@@ -171,10 +177,11 @@ class ToolOutput:
         self,
         tag: str,
         output_type: ParseableType,
-        glob: Optional[Union[Selector, str]] = None,
+        selector: Optional[Union[Selector, str]] = None,
         presents_as: str = None,
         secondaries_present_as: Dict[str, str] = None,
         doc: Optional[Union[str, OutputDocumentation]] = None,
+        glob: Optional[Union[Selector, str]] = None,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -182,7 +189,8 @@ class ToolOutput:
 
         :param tag: The identifier of a output, must be unique in the inputs and outputs.
         :param output_type: The type of output that is being collected.
-        :param glob: How to collect this output, can accept any :class:`janis.Selector`.
+        :param selector: How to collect this output, can accept any :class:`janis.Selector`.
+        :param glob: (DEPRECATED) An alias for `selector`
         :param doc: Documentation on what the output is, used to generate docs.
         """
 
@@ -194,14 +202,21 @@ class ToolOutput:
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
 
-        if not glob and not (
+        if selector is None and glob is not None:
+            selector = glob
+        elif selector is not None and glob is not None:
+            raise TypeError(
+                f"ToolInput({tag}) received inputs for both selector and glob. Please only use glob"
+            )
+
+        if selector is None and not (
             isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
         ):
             raise Exception(
                 "ToolOutput expects a glob when the output type is not Stdout / Stderr"
             )
 
-        self.glob = glob
+        self.selector = selector
         self.presents_as = presents_as
         self.secondaries_present_as = secondaries_present_as
         self.doc = (
@@ -209,6 +224,12 @@ class ToolOutput:
             if isinstance(doc, OutputDocumentation)
             else OutputDocumentation(doc=doc)
         )
+
+        if isinstance(selector, Operator) and self.presents_as:
+            raise Exception(
+                f"Error when constructing output '{self.id()}', Janis does not support 'presents_as' AND "
+                "operators within a ToolOutput selector. Please raise an issue if you think this is in error."
+            )
 
         if self.secondaries_present_as:
             if not self.output_type.secondary_files():
@@ -228,6 +249,14 @@ class ToolOutput:
 
     def id(self):
         return self.tag
+
+    def __repr__(self):
+        attrs = ", ".join(
+            f"{k}={repr(v)}"
+            for k, v in self.__dict__.items()
+            if not k.startswith("_") and not callable(v) and v is not None
+        )
+        return f"{self.__class__.__name__}({attrs})"
 
 
 class CommandTool(Tool, ABC):
@@ -326,7 +355,7 @@ class CommandTool(Tool, ABC):
             return f"{self.tool()}/{self.version()}"
         return self.tool()
 
-    def memory(self, hints: Dict[str, Any]) -> Optional[float]:
+    def memory(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
         """
         These values are used to generate a separate runtime.json / runtime.yaml input
         that can be passed to the execution engine to fill in for the specified hints.
@@ -335,12 +364,10 @@ class CommandTool(Tool, ABC):
         truly portable.
 
         This memory must be in GB!
-        :param hints: Dict[Key: value] of hints
-        :return: Optional[int]
         """
         return None
 
-    def cpus(self, hints: Dict[str, Any]) -> Optional[int]:
+    def cpus(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
         """
         These values are used to generate a separate runtime.json / runtime.yaml input
         that can be passed to the execution engine to fill in for the specified hints.
@@ -348,14 +375,58 @@ class CommandTool(Tool, ABC):
         These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
         truly portable.
 
-        The CPU must be a whole number. If your tool contains threads
+        The CPU must be a whole number or a Selector that resolves to a whole number.
         :return:
         """
         return None
 
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in SECONDS and must be a whole number.
+        :return:
+        """
+        return None
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in GB.
+        :return:
+        """
+        return None
+
+    def directories_to_create(self) -> Union[str, List[str]]:
+        """
+        A list of directories to create. In WDL this is called before files_to_create as:
+            mkdir -p directory
+        In CWL, this is transformed to a InitialWorkDirRequiriement.Directory. The listing
+        is transformed by the files_to_create.
+        :return:
+        """
+        pass
+
+    def files_to_create(self) -> Dict[str, Union[str, Selector]]:
+        """
+        A list of files to create, keyed by their path. In WDL, this is executed AFTER directories_to_create.
+        In CWL, this will get turned into a InitialWorkDirRequirement.
+        :return:
+        """
+        pass
+
     @classmethod
     def type(cls):
-        return ToolTypes.CommandTool
+        return ToolType.CommandTool
 
     def translate(
         self,
@@ -399,6 +470,7 @@ class CommandTool(Tool, ABC):
             "runtime_memory",
             "runtime_cpu",
             "runtime_disks",
+            "runtime_seconds",
         ]
 
     def help(self):
@@ -519,13 +591,29 @@ OUTPUTS:
                 d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
-            cpus = self.cpus(hints) or 1
+            cpus = self.cpus(hints)
             mem = self.memory(hints)
+            disk = self.disk(hints)
+            secs = self.time(hints)
+            if cpus is None:
+                cpus = 1
+            elif isinstance(cpus, Selector):
+                cpus = None
+
+            if isinstance(mem, Selector):
+                mem = None
+
+            if isinstance(secs, Selector):
+                secs = None
+
+            if isinstance(disk, Selector):
+                disk = None
             d.update(
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": "local-disk 60 SSD",
+                    "runtime_disks": disk,
+                    "runtime_seconds": secs,
                 }
             )
 
@@ -554,6 +642,10 @@ OUTPUTS:
             wf.output(o.id(), source=stp[o.id()])
 
         return wf
+
+
+SELECTOR_OR_VALUE = Union[Selector, str]
+POTENTIAL_LIST_SElECTOR = Union[SELECTOR_OR_VALUE, List[SELECTOR_OR_VALUE]]
 
 
 class CommandToolBuilder(CommandTool):
@@ -593,7 +685,7 @@ class CommandToolBuilder(CommandTool):
     def cpus(self, hints: Dict[str, Any]):
         if self._cpu is None:
             return None
-        if isinstance(self._cpu, int) or isinstance(self._cpu, float):
+        if isinstance(self._cpu, (int, float, Selector)):
             return self._cpu
 
         if callable(self._cpu):
@@ -606,7 +698,7 @@ class CommandToolBuilder(CommandTool):
     def memory(self, hints: Dict[str, Any]):
         if self._memory is None:
             return None
-        if isinstance(self._memory, int) or isinstance(self._memory, float):
+        if isinstance(self._memory, (int, float, Selector)):
             return self._memory
 
         if callable(self._memory):
@@ -615,6 +707,38 @@ class CommandToolBuilder(CommandTool):
         raise Exception(
             f"Janis does not recognise {type(self._memory)} as a valid memory type"
         )
+
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        if self._time is None:
+            return None
+        if isinstance(self._time, (int, float, Selector)):
+            return self._time
+
+        if callable(self._time):
+            return self._time(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._time)} as a valid memory type"
+        )
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        if self._disk is None:
+            return None
+        if isinstance(self._disk, (int, float, Selector)):
+            return self._disk
+
+        if callable(self._disk):
+            return self._disk(hints)
+
+        raise Exception(
+            f"Janis does not recognise {type(self._disk)} as a valid memory type"
+        )
+
+    def directories_to_create(self) -> Union[str, List[str]]:
+        return self._directories_to_create
+
+    def files_to_create(self) -> Dict[str, Union[str, Selector]]:
+        return self._files_to_create
 
     def __init__(
         self,
@@ -632,6 +756,13 @@ class CommandToolBuilder(CommandTool):
         metadata: ToolMetadata = None,
         cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
         memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        time: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        disk: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        directories_to_create: POTENTIAL_LIST_SElECTOR = None,
+        files_to_create: Union[
+            Dict[str, SELECTOR_OR_VALUE],
+            List[Tuple[SELECTOR_OR_VALUE, SELECTOR_OR_VALUE]],
+        ] = None,
     ):
         """
         Builder for a CommandTool.
@@ -648,8 +779,13 @@ class CommandToolBuilder(CommandTool):
         :param tool_module: Unix, bioinformatics, etc.
         :param tool_provider: The manafacturer of the tool, eg: Illumina, Samtools
         :param metadata: Metadata object describing the Janis tool interface
-        :param cpu: An integer, or function that takes a dictionary of hints and returns an integer
-        :param memory: An integer, or function that takes a dictionary of hints and returns an integer
+        :param cpu: An integer, or function that takes a dictionary of hints and returns an integer in 'number of CPUs'
+        :param memory: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
+        :param time: An integer, or function that takes a dictionary of hints and returns an integer in 'seconds'
+        :param disk: An integer, or function that takes a dictionary of hints and returns an integer in 'GBs'
+        :param directories_to_create: A list of directories to create, accepts an expression (selector / operator)
+        :param files_to_create: Either a List of tuples [path: Selector, contents: Selector],
+        or a dictionary {"path": contents}. The list of tuples allows you to use an operator for the pathname
         """
 
         super().__init__()
@@ -668,3 +804,7 @@ class CommandToolBuilder(CommandTool):
         self._metadata = metadata
         self._cpu = cpu
         self._memory = memory
+        self._time = time
+        self._disk = disk
+        self._directories_to_create = directories_to_create
+        self._files_to_create = files_to_create

@@ -1,4 +1,7 @@
+import sys
+import os
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Optional, List, Dict, Set
 
 from janis_core.tool.documentation import (
@@ -10,14 +13,23 @@ from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
+from janis_core.tool.test_classes import TTestCase
+from nose.tools import nottest
 
-ToolType = str
 
+class ToolType(Enum):
+    Workflow = "workflow"
+    CommandTool = "command-tool"
+    CodeTool = "code-tool"
 
-class ToolTypes:
-    Workflow: ToolType = "workflow"
-    CommandTool: ToolType = "command-tool"
-    CodeTool: ToolType = "code-tool"
+    def __str__(self):
+        if self == ToolType.Workflow:
+            return "Workflow"
+        elif self == ToolType.CommandTool:
+            return "CommandTool"
+        elif self == ToolType.CodeTool:
+            return "CodeTool"
+        return "".join(a.title() for a in self.value.split("-"))
 
 
 class TInput(object):
@@ -29,6 +41,12 @@ class TInput(object):
         self.default = default
         self.doc = doc
 
+    def __repr__(self):
+        items = ["{self.id()}", self.intype.id()]
+        if self.default is not None:
+            items.append("default=" + str(self.default))
+        return f"ToolOutput({', '.join(items)})"
+
     def id(self):
         return self.tag
 
@@ -39,6 +57,9 @@ class TOutput(object):
         self.outtype = get_instantiated_type(outtype)
         self.doc: Optional[OutputDocumentation] = doc
 
+    def __repr__(self):
+        return f'ToolOutput("{self.id()}", {self.outtype.id()})'
+
     def id(self):
         return self.tag
 
@@ -47,6 +68,8 @@ class Tool(ABC, object):
     """
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
+
+    TEST_DATA_FOLDER = "test_data"
 
     def __init__(self, metadata_class=Metadata, **connections):
         """
@@ -60,6 +83,9 @@ class Tool(ABC, object):
             self.metadata = meta
 
         self.connections = connections
+
+    def __repr__(self):
+        return f"{str(self.type())}<{self.id()}>"
 
     @classmethod
     @abstractmethod
@@ -103,7 +129,7 @@ class Tool(ABC, object):
             dups = find_duplicates([i.tag for i in ins])
             dupstext = ", ".join(dups)
             raise Exception(
-                f"There are {len(dups)} duplicate values in  {self.id()}'s inputs: {dupstext}"
+                f"There are {len(dups)} duplicate values in {self.id()}'s inputs: {dupstext}"
             )
 
         return indict
@@ -224,3 +250,24 @@ INPUTS:
 OUTPUTS:
 {outputs}
 """
+
+    @nottest
+    def tests(self) -> Optional[List[TTestCase]]:
+        """
+        A list of test cases for this tool
+        """
+        return None
+
+    @classmethod
+    @nottest
+    def test_data_path(cls):
+        module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
+        return os.path.join(module_path, cls.TEST_DATA_FOLDER)
+
+    @classmethod
+    @nottest
+    def skip_test(cls) -> bool:
+        """
+        Sometimes, we may want to skip tests for some tools because they are not ready yet
+        """
+        return False

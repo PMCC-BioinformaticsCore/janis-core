@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Set
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.operators import Selector
+from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
 
-from janis_core.tool.tool import Tool, TOutput, TInput, ToolType, ToolTypes
 
-
-class CodeTool(Tool, ABC):
+class CodeTool(Tool):
 
     # User should inherit from these blocks
 
@@ -45,6 +46,32 @@ class CodeTool(Tool, ABC):
         """
         return None
 
+    def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in SECONDS and must be a whole number.
+        :return:
+        """
+        return None
+
+    def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
+        """
+        These values are used to generate a separate runtime.json / runtime.yaml input
+        that can be passed to the execution engine to fill in for the specified hints.
+
+        These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
+        truly portable.
+
+        The time is specified in GB.
+        :return:
+        """
+        return None
+
     # Janis developer should inherit these methods
 
     @abstractmethod
@@ -60,14 +87,21 @@ class CodeTool(Tool, ABC):
         pass
 
     @abstractmethod
-    def prepared_script(self):
+    def prepared_script(self, translation: SupportedTranslation):
         pass
 
     # Other internal methods
 
+    def id(self) -> str:
+        return self.__class__.__name__
+
+    def version(self):
+        #
+        return None
+
     @classmethod
     def type(cls) -> ToolType:
-        return ToolTypes.CodeTool
+        return ToolType.CodeTool
 
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}
@@ -84,26 +118,49 @@ class CodeTool(Tool, ABC):
         with_resource_overrides=False,
         hints=None,
         include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List = None,
     ):
+        from janis_core.operators.selectors import Selector
+
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
+            if values_to_ignore and i.id() in values_to_ignore and i.id() not in ad:
+                continue
             if (
-                not i.intype.optional
-                or i.id() in ad
-                or (include_defaults and i.default)
+                not i.intype.optional  # not optional
+                or i.id() in ad  # OR you supplied a value
+                or (include_defaults and i.default)  # OR we are including a default
             ):
-                d[i] = ad.get(i.id(), i.default)
+                d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
-            cpus = self.cpus(hints) or 1
+            cpus = self.cpus(hints)
             mem = self.memory(hints)
+            disk = self.disk(hints)
+            secs = self.time(hints)
+            if cpus is None:
+                cpus = 1
+            elif isinstance(cpus, Selector):
+                cpus = None
+
+            if isinstance(mem, Selector):
+                mem = None
+
+            if isinstance(secs, Selector):
+                secs = None
+
+            if isinstance(disk, Selector):
+                disk = None
             d.update(
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": "local-disk 60 SSD",
+                    "runtime_disks": disk,
+                    "runtime_seconds": secs,
                 }
             )
+        return d
 
     def translate(
         self,

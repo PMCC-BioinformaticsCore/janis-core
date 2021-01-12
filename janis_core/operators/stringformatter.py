@@ -1,3 +1,10 @@
+from typing import Optional, List, Dict, Tuple
+
+from janis_core.utils import first_value
+
+from janis_core.types import String, AnyType
+from janis_core.operators.logical import Operator, AddOperator
+from janis_core.utils.bracketmatching import get_keywords_between_braces
 from janis_core.utils.errors import (
     TooManyArgsException,
     IncorrectArgsException,
@@ -6,49 +13,24 @@ from janis_core.utils.errors import (
 )
 from janis_core.utils.logger import Logger
 
-from janis_core.utils.bracketmatching import get_keywords_between_braces
-from abc import ABC
 
+class StringFormatter(Operator):
+    def returntype(self):
+        return String()
 
-class Selector(ABC):
-    pass
+    def argtypes(self):
+        return [String, Optional[AnyType]]
 
+    @staticmethod
+    def friendly_signature():
+        return "String, **kwargs -> String"
 
-class InputSelector(Selector):
-    def __init__(self, input_to_select, use_basename=None):
-        # maybe worth validating the input_to_select identifier
-        self.input_to_select = input_to_select
-        self.use_basename = use_basename
+    def validate(self, perform_typecheck=False):
+        return True
 
-    def to_string_formatter(self):
-        kwarg = {self.input_to_select: self}
-        return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
-
-    def __radd__(self, other):
-        return StringFormatter(other) + self.to_string_formatter()
-
-    def __add__(self, other):
-        return self.to_string_formatter() + other
-
-
-class WildcardSelector(Selector):
-    def __init__(self, wildcard):
-        self.wildcard = wildcard
-
-
-class MemorySelector(InputSelector):
-    def __init__(self):
-        super().__init__("runtime_memory")
-
-
-class CpuSelector(InputSelector):
-    def __init__(self, default=1):
-        super().__init__("runtime_cpu")
-        self.default = default
-
-
-class StringFormatter(Selector):
     def __init__(self, format: str, **kwargs):
+        super().__init__([])
+        # ignore super().__init__ call
         self._format: str = format
 
         keywords, balance = get_keywords_between_braces(self._format)
@@ -76,6 +58,104 @@ class StringFormatter(Selector):
         self.kwargs = kwargs
 
     resolved_types = [str, int, float]
+
+    def to_cwl(self, unwrap_operator, *args):
+        raise Exception("Don't use this method")
+
+    def to_wdl(self, unwrap_operator, *args):
+        raise Exception("Don't use this method")
+
+    def evaluate(self, inputs):
+        resolvedvalues = {
+            k: self.evaluate_arg(v, inputs) for k, v in self.kwargs.items()
+        }
+
+        values_that_are_lists = {
+            k: v for k, v in resolvedvalues.items() if isinstance(v, list)
+        }
+
+        inp_combinations: List[dict] = [{}]
+
+        if len(values_that_are_lists) > 0:
+            l = len(first_value(values_that_are_lists))
+            list_values_that_are_different = sum(
+                0 if len(v) == l else 1 for v in values_that_are_lists.values()
+            )
+
+            if list_values_that_are_different == 0:
+                # dot product
+                inp_combinations = [
+                    {k: v[i] for k, v in values_that_are_lists.items()}
+                    for i in range(l)
+                ]
+            elif list_values_that_are_different == 1:
+                # cross product
+                inp_combinations = self.generate_combinations_of_input_dicts(
+                    values_that_are_lists=list(values_that_are_lists.items())
+                )
+            else:
+                l_lengths = ", ".join(
+                    f"{k}={len(v)}" for k, v in values_that_are_lists.items()
+                )
+                raise Exception(
+                    "String Formatter evaluation doesn't support scattering for list of "
+                )
+
+        evaluated_combinations = [
+            self.resolve_with_resolved_values(**{**resolvedvalues, **c})
+            for c in inp_combinations
+        ]
+        if len(evaluated_combinations) == 0:
+            raise Exception(
+                "Something happened when resolving inputs with input values "
+                + str(inputs)
+            )
+        elif len(evaluated_combinations) == 1:
+            return evaluated_combinations[0]
+        else:
+            return evaluated_combinations
+
+    def rewrite_operator(self, args_to_rewrite: dict):
+        return self.__class__(
+            self._format, **self.substitute_arg(args_to_rewrite, self.kwargs)
+        )
+
+    @staticmethod
+    def generate_combinations_of_input_dicts(
+        values_that_are_lists: List[Tuple[str, List[any]]]
+    ) -> List[Dict]:
+
+        if len(values_that_are_lists) == 0:
+            return []
+        key = values_that_are_lists[0][0]
+        values = values_that_are_lists[0][1]
+
+        if len(values_that_are_lists) == 1:
+            return [{key: v} for v in values]
+
+        combinations = []
+        for v in values:
+            for c in StringFormatter.generate_combinations_of_input_dicts(
+                values_that_are_lists[1:]
+            ):
+                combinations.append({**c, key: v})
+
+        return combinations
+
+    def __repr__(self):
+        val = self._format
+        for k, v in self.kwargs.items():
+            val = val.replace(f"{{{k}}}", f"{{{str(v)}}}")
+        return val
+
+    def get_leaves(self):
+        leaves = []
+        for a in self.kwargs.values():
+            if isinstance(a, Operator):
+                leaves.extend(a.get_leaves())
+            else:
+                leaves.append(a)
+        return leaves
 
     def resolve_with_resolved_values(self, **resolved_values):
 
@@ -122,6 +202,8 @@ class StringFormatter(Selector):
         return StringFormatter(other) + self
 
     def __add__(self, other):
+        from janis_core.operators.selectors import InputSelector
+
         if isinstance(other, str):
             # check if it has args in it
             keywords = get_keywords_between_braces(other)
@@ -174,3 +256,6 @@ class StringFormatter(Selector):
                 "Joining the input files (to '{new_format}') created the new params: "
                 + ", ".join(new_params)
             )
+
+    def to_string_formatter(self):
+        return self

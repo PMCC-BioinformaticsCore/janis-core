@@ -1,20 +1,70 @@
 import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
+import functools
 
-from janis_core.code.codetool import CodeTool
 from path import Path
 
+from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
+from janis_core.tool.tool import ToolType
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
 from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
+from janis_core.operators.selectors import Selector
+
+
+class TranslationError(Exception):
+    def __init__(self, message, inner: Exception):
+        super().__init__(message, inner)
+        # self.inner = inner
+
+
+kwargstoignore = {"container_override"}
+
+
+def try_catch_translate(type):
+    def try_catch_translate_inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except TranslationError:
+                raise
+            except Exception as e:
+
+                components = ", ".join(
+                    [
+                        *[repr(a) for a in args],
+                        *[
+                            f"{k}={v}"
+                            for k, v in kwargs.items()
+                            if k not in kwargstoignore
+                        ],
+                    ]
+                )
+                message = f"Couldn't translate {type or ''} with ({components})"
+                er = TranslationError(message, inner=e)
+                Logger.log_ex(er)
+                raise er
+
+        return wrapper
+
+    return try_catch_translate_inner
+
+
+class TranslatorMeta(type(ABC)):
+    def __repr__(cls):
+        return cls.__name__
+
+    def __str__(cls):
+        return cls.__name__
 
 
 class TranslatorBase(ABC):
     """
-    So you're thinking about adding a new translation :)
+    So you're thinking about adding a new tWranslation :)
 
     This class will hopefully give you a pretty good indication
     on what's required to add a new translation, however what I
@@ -41,6 +91,8 @@ class TranslatorBase(ABC):
     You can find these in /janis/tests/test_translation_*.py)
     """
 
+    __metaclass__ = TranslatorMeta
+
     def __init__(self, name):
         self.name = name
 
@@ -61,15 +113,15 @@ class TranslatorBase(ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         with_container=True,
         allow_empty_container=False,
         container_override=None,
     ):
-        from janis_core.workflow.workflow import Workflow
 
         str_tool, tr_tools = None, []
 
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             tr_tool, tr_tools = self.translate_workflow(
                 tool,
                 with_container=with_container,
@@ -103,6 +155,7 @@ class TranslatorBase(ABC):
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
         )
         tr_res = self.build_resources_input(tool, hints)
 
@@ -160,10 +213,10 @@ class TranslatorBase(ABC):
                 wf.write(str_tool)
                 Logger.log(f"Wrote {fn_workflow}  to disk")
 
-            for (fn_tool, str_tool) in str_tools:
+            for (fn_tool, disk_str_tool) in str_tools:
                 with open(os.path.join(d, fn_tool), "w+") as toolfp:
                     Logger.log(f"Writing {fn_tool} to disk")
-                    toolfp.write(str_tool)
+                    toolfp.write(disk_str_tool)
                     Logger.log(f"Written {fn_tool} to disk")
 
             if not merge_resources and with_resource_overrides:
@@ -177,14 +230,14 @@ class TranslatorBase(ABC):
             import subprocess
 
             if should_zip:
-                Logger.info("Zipping tools")
+                Logger.debug("Zipping tools")
                 with Path(d):
                     FNULL = open(os.devnull, "w")
                     zip_result = subprocess.run(
                         ["zip", "-r", "tools.zip", "tools/"], stdout=FNULL
                     )
                     if zip_result.returncode == 0:
-                        Logger.info("Zipped tools")
+                        Logger.debug("Zipped tools")
                     else:
                         Logger.critical(str(zip_result.stderr.decode()))
 
@@ -358,47 +411,97 @@ class TranslatorBase(ABC):
 
     @classmethod
     @abstractmethod
+    def unwrap_expression(cls, expression):
+        pass
+
+    @classmethod
     def build_inputs_file(
         cls,
-        workflow,
+        tool,
         recursive=False,
         merge_resources=False,
         hints=None,
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
-        pass
+
+        ad = additional_inputs or {}
+        values_provided_from_tool = {}
+        if tool.type() == ToolType.Workflow:
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or (i.default and not isinstance(i.default, Selector))
+            }
+
+        inp = {
+            i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
+            for i in tool.tool_inputs()
+            if i.default is not None
+            or not i.intype.optional
+            or i.id() in ad
+            or i.id() in values_provided_from_tool
+        }
+
+        if merge_resources:
+            for k, v in cls.build_resources_input(
+                tool,
+                hints,
+                max_cores=max_cores,
+                max_mem=max_mem,
+                max_duration=max_duration,
+            ).items():
+                inp[k] = ad.get(k, v)
+
+        return inp
 
     @classmethod
     def build_resources_input(
-        cls, tool, hints, max_cores=None, max_mem=None, inputs=None, prefix=""
+        cls,
+        tool,
+        hints,
+        max_cores=None,
+        max_mem=None,
+        max_duration=None,
+        inputs=None,
+        prefix="",
     ):
-        from janis_core.workflow.workflow import Workflow
 
         inputs = inputs or {}
 
-        if not isinstance(tool, Workflow):
+        if not tool.type() == ToolType.Workflow:
             cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
-            disk = inputs.get(f"{prefix}runtime_disks", "local-disk 60 SSD")
+            disk = inputs.get(f"{prefix}runtime_disks", 20)
+            seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
 
             if max_cores and cpus > max_cores:
                 Logger.info(
-                    f"Tool '{tool.tool()}' exceeded ({cpus}) max number of cores ({max_cores}), "
+                    f"Tool '{tool.id()}' exceeded ({cpus}) max number of cores ({max_cores}), "
                     "this was dropped to the new maximum"
                 )
                 cpus = max_cores
             if mem and max_mem and mem > max_mem:
                 Logger.info(
-                    f"Tool '{tool.tool()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
+                    f"Tool '{tool.id()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
                     "this was dropped to the new maximum"
                 )
                 mem = max_mem
+
+            if seconds and max_duration and seconds > max_duration:
+                Logger.info(
+                    f"Tool '{tool.id()}' exceeded ({seconds} secs) max duration in seconds ({max_duration} secs), "
+                    "this was dropped to the new maximum"
+                )
+                seconds = max_duration
+
             return {
                 prefix + "runtime_memory": mem,
                 prefix + "runtime_cpu": cpus,
                 prefix + "runtime_disks": disk,
+                prefix + "runtime_seconds": seconds,
             }
 
         new_inputs = {}
@@ -409,6 +512,7 @@ class TranslatorBase(ABC):
                     hints=hints,
                     max_cores=max_cores,
                     max_mem=max_mem,
+                    max_duration=max_duration,
                     prefix=prefix + s.id() + "_",
                     inputs=inputs,
                 )
@@ -429,8 +533,10 @@ class TranslatorBase(ABC):
     @staticmethod
     def get_resource_override_inputs() -> List[ToolInput]:
         return [
-            ToolInput("runtime_cpu", Int(optional=True), default=1),
-            ToolInput("runtime_memory", Int(optional=True), default=4),
+            ToolInput("runtime_cpu", Int(optional=True)),  # number of CPUs
+            ToolInput("runtime_memory", Int(optional=True)),  # GB of memory
+            ToolInput("runtime_seconds", Int(optional=True)),  # seconds of running time
+            ToolInput("runtime_disks", Int(optional=True)),  # GB of storage required
         ]
 
     # STRINGIFY
@@ -454,9 +560,8 @@ class TranslatorBase(ABC):
 
     @classmethod
     def filename(cls, tool):
-        from janis_core.workflow.workflow import Workflow
 
-        if isinstance(tool, Workflow):
+        if tool.type() == ToolType.Workflow:
             return cls.workflow_filename(tool)
         return cls.tool_filename(tool)
 
