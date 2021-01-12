@@ -52,12 +52,14 @@ setup(
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
         "importlib-metadata",
-        "illusional.wdlgen <= 0.3.0",
-        "ruamel.yaml >= 0.12.4, <= 0.16",
+        "illusional.wdlgen >= 0.3.0",
+        "ruamel.yaml >= 0.12.4, <= 0.16.5",
         "tabulate",
         "path",
         "cwlformat >= 2020.5.19",
-        "schema_salad",  # temporarily
+        "cwl-utils >= 0.7",
+        "graphviz",
+        "nose",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,

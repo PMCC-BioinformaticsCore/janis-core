@@ -1,5 +1,7 @@
 import unittest
 
+from janis_core.types import UnionType
+
 from janis_core import String, Array, File, Int, Stdout
 from janis_core.types.common_data_types import Filename
 
@@ -111,3 +113,15 @@ class TestRecieveFromStdout(unittest.TestCase):
         s1 = FileSubclass()
         s2 = Stdout(FileSubclass())
         self.assertTrue(s2.can_receive_from(s1))
+
+
+class TestReceiveFromUnion(unittest.TestCase):
+    def test_union_str_str(self):
+        s1 = UnionType(String, String)
+        s2 = String()
+        self.assertTrue(s2.can_receive_from(s1))
+
+    def test_union_str_int(self):
+        s1 = UnionType(String, Int)
+        s2 = String()
+        self.assertFalse(s2.can_receive_from(s1))
