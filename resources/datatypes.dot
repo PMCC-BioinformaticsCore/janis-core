@@ -1,0 +1,35 @@
+digraph "classes_janis_core" {
+charset="utf-8"
+rankdir=BT
+"74" [label="{NativeTypes|all : list\lkArray : str\lkBool : str\lkDirectory : str\lkDouble : str\lkFile : str\lkFloat : str\lkInt : str\lkLong : str\lkStderr : str\lkStdout : str\lkStr : str\l|is_primitive(t)\lis_valid(t)\lmap_to_cwl(t)\lmap_to_primitive(t)\lmap_to_wdl(t)\l}", shape="record"];
+
+"4" [label="{Array|optional : bool, NoneType\l|can_receive_from(other, source_has_default)\lcwl_input(value)\lcwl_type(has_default)\ldoc()\lfundamental_type()\lid()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lis_array()\lmap_cwl_type(parameter)\lname()\lparse_value(valuetoparse)\lprimitive()\lreceived_type()\lschema(cls)\lsubtype()\lvalidate_value(meta, allow_null_if_not_optional)\lwdl(has_default)\l}", shape="record"];
+"12" [label="{Boolean|optional : bool, NoneType\l|coerce_value_if_possible(value)\ldoc()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"22" [label="{DataType|is_prim\loptional : bool\l|can_receive_from(other, source_has_default)\lcoerce_value_if_possible(value)\lcopy()\lcwl_input(value)\lcwl_type(has_default)\ldoc()\lid()\lidentify()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lis_array()\lis_base_type(base_type)\lmap_cwl_type(parameter)\lname()\lparse_value(valuetoparse)\lprimitive()\lreceived_type()\lsecondary_files()\lvalidate_value(meta, allow_null_if_not_optional)\lwdl(has_default)\l}", shape="record"];
+"23" [label="{Directory|\l|cwl_input(value)\ldoc()\lget_value_from_meta(meta)\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"27" [label="{Double|\l|can_receive_from(other)\ldoc()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"34" [label="{File|alternate_extensions : NoneType\lextension : NoneType\loptional : bool, NoneType\l|can_receive_from(other, source_has_default)\lcwl_input(value)\ldoc()\lget_extensions()\lget_value_from_meta(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"36" [label="{Filename|extension : NoneType\lprefix : str\lsuffix : NoneType\l|can_receive_from(other, source_has_default)\lcwl_type(has_default)\ldoc()\lgenerated_filename(replacements)\lgenerated_filenamecwl()\linvalid_value_hint(meta)\lmap_cwl_type(parameter)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\lwdl(has_default)\l}", shape="record"];
+"40" [label="{Float|optional : bool, NoneType\l|coerce_value_if_possible(value)\ldoc()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"56" [label="{Int|optional : bool, NoneType\l|coerce_value_if_possible(value)\ldoc()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"97" [label="{Stderr|stderrname : NoneType\lsubtype : NoneType\l|id()\linvalid_value_hint(meta)\lname()\lprimitive()\lreceived_type()\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"98" [label="{Stdout|subtype : NoneType\l|id()\linvalid_value_hint(meta)\lname()\lprimitive()\lreceived_type()\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"102" [label="{String|optional : bool, NoneType\l|can_receive_from(other, source_has_default)\lcoerce_value_if_possible(value)\ldoc()\linput_field_from_input(meta)\linvalid_value_hint(meta)\lname()\lprimitive()\lschema(cls)\lvalidate_value(meta, allow_null_if_not_optional)\l}", shape="record"];
+"127" [label="{UnionType|optional : bool, NoneType\lsubtypes : list\l|can_receive_from(other)\lcwl_type(has_default)\ldoc()\lget_extensions()\lid()\linvalid_value_hint()\lis_array()\lis_base_type(base_type)\lname()\lprimitive()\lvalidate_value()\lwdl(has_default)\l}", shape="record"];
+
+"22" -> "74" [arrowhead="empty", arrowtail="none"];
+"23" -> "22" [arrowhead="empty", arrowtail="none"];
+"34" -> "22" [arrowhead="empty", arrowtail="none"];
+"56" -> "22" [arrowhead="empty", arrowtail="none"];
+"4" -> "22" [arrowhead="empty", arrowtail="none"];
+"12" -> "22" [arrowhead="empty", arrowtail="none"];
+"40" -> "22" [arrowhead="empty", arrowtail="none"];
+"56" -> "22" [arrowhead="empty", arrowtail="none"];
+"102" -> "22" [arrowhead="empty", arrowtail="none"];
+"127" -> "22" [arrowhead="empty", arrowtail="none"];
+"97" -> "34" [arrowhead="empty", arrowtail="none"];
+"98" -> "34" [arrowhead="empty", arrowtail="none"];
+"27" -> "40" [arrowhead="empty", arrowtail="none"];
+"36" -> "102" [arrowhead="empty", arrowtail="none"];
+
+}

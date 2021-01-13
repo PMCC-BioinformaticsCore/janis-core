@@ -158,6 +158,9 @@ class DataType(ABC):
     def __repr__(self):
         return self.id()
 
+    def is_base_type(self, base_type):
+        return isinstance(self, base_type)
+
     @staticmethod
     @abstractmethod
     def name() -> str:

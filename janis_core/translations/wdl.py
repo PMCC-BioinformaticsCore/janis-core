@@ -74,7 +74,6 @@ from janis_core.utils import (
 )
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
-from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.utils.validators import Validators
 from janis_core.utils.secondary import (

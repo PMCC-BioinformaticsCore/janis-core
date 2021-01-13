@@ -10,6 +10,7 @@ class TTestPreprocessor(Enum):
 
     Value = "value"
     FileDiff = "file-diff"
+    LinesDiff = "lines-diff"
     FileContent = "file-content"
     FileExists = "file-exists"
     FileSize = "file-size"

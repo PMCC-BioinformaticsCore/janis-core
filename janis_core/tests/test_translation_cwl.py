@@ -275,6 +275,16 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
         )
 
+    def test_alias_selector(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str)
+        w.step("echo", EchoTestTool(inp=w.inp.as_type(str)))
+        w.output("out", source=w.echo.out)
+        sn: List[cwlgen.WorkflowStep] = cwl.translate_step_node(
+            w.step_nodes["echo"], inputs_dict={"inp": ToolInput("inp", str)}
+        )
+        self.assertEqual("inp", sn[0].in_[0].source)
+
     # def test_input_value_filename_codeenv(self):
     #     import uuid
     #     fn = Filename(guid=str(uuid.uuid4()))

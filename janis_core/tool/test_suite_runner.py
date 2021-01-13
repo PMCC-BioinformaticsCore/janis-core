@@ -201,6 +201,12 @@ class ToolTestSuiteRunner:
                 expected_file_path=test_logic.file_diff_source,
                 output_file_path=output_value,
             )
+
+        elif test_logic.preprocessor == TTestPreprocessor.LinesDiff:
+            value = self.lines_diff(
+                expected_file_path=test_logic.file_diff_source,
+                output_file_path=output_value,
+            )
         elif test_logic.preprocessor == TTestPreprocessor.FileMd5:
             value = self.read_md5(output_value)
         elif test_logic.preprocessor == TTestPreprocessor.FileSize:
@@ -355,6 +361,22 @@ class ToolTestSuiteRunner:
             lineterm="",
         )
         return list(diff)
+
+    def lines_diff(
+        self,
+        expected_file_path: str,
+        output_file_path: Optional[str] = None,
+        output_content: Optional[str] = None,
+    ):
+        diff = self.file_diff(
+            expected_file_path=expected_file_path,
+            output_file_path=output_file_path,
+            output_content=output_content,
+        )[2:]
+
+        added = sum(1 for d in diff if d.startswith("+"))
+        removed = sum(1 for d in diff if d.startswith("-"))
+        return added, removed
 
     def line_count(self, output_value: Any, output_type: Any) -> int:
         """

@@ -829,6 +829,12 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         elif isinstance(value, InputSelector):
             return value.input_to_select
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_selector_for_reference(value.inner_selector)
+        else:
+            raise Exception(
+                f"Unknown type {type(value)} for unwrap_selector_for_reference: {value}"
+            )
 
     @classmethod
     def unwrap_expression(
@@ -1160,7 +1166,11 @@ def translate_tool_input(
     elif is_selector(default):
         default = None
         value_from = CwlTranslator.unwrap_expression(
-            toolinput.default, code_environment=False, tool=tool, toolId=tool.id()
+            toolinput.default,
+            code_environment=False,
+            tool=tool,
+            toolId=tool.id(),
+            inputs_dict=inputsdict,
         )
 
     data_type = toolinput.input_type.cwl_type(default is not None)
@@ -1319,6 +1329,7 @@ def prepare_tool_output_eval(tool, output: ToolOutput) -> Optional[str]:
     """
 
     if isinstance(output.selector, Operator):
+        return None
         return CwlTranslator.unwrap_expression(
             output.selector, code_environment=False, tool=tool, for_output=True
         )
@@ -1785,13 +1796,13 @@ def translate_input_selector(
                 f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
             )
 
-        tinp = inputs_dict[selector.input_to_select]
+        tinp: ToolInput = inputs_dict[selector.input_to_select]
 
         intype = tinp.input_type
         if selector.remove_file_extension:
-            if isinstance(intype, (File, Directory)):
+            if intype.is_base_type((File, Directory)):
                 potential_extensions = (
-                    intype.get_extensions() if isinstance(intype, File) else None
+                    intype.get_extensions() if intype.is_base_type(File) else None
                 )
                 if selector.remove_file_extension and potential_extensions:
                     sel = f"{sel}.basename"
@@ -1817,6 +1828,13 @@ def translate_input_selector(
                 Logger.warn(
                     f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
                 )
+        elif tinp.localise_file:
+            if intype.is_base_type((File, Directory)):
+                sel += ".basename"
+            elif intype.is_array() and isinstance(
+                intype.fundamental_type(), (File, Directory)
+            ):
+                sel = f"{sel}.map(function(el) {{ return el.basename; }})"
 
     return sel if code_environment else f"$({sel})"
 
@@ -1990,16 +2008,24 @@ def prepare_filename_replacements_for(
         tinp = inputsdict.get(inp.input_to_select)
         intype = tinp.input_type
 
-        if isinstance(intype, (File, Directory)):
+        if intype.is_base_type((File, Directory)):
             potential_extensions = (
-                intype.get_extensions() if isinstance(intype, File) else None
+                intype.get_extensions() if intype.is_base_type(File) else None
             )
             if inp.remove_file_extension and potential_extensions:
                 base = f"inputs.{tinp.id()}.basename"
                 for ext in potential_extensions:
                     base += f'.replace(/{ext}$/, "")'
-            else:
+            elif tinp.localise_file:
                 base = f"inputs.{tinp.id()}.basename"
+            else:
+                base = f"inputs.{tinp.id()}"
+        elif (
+            intype.is_array()
+            and isinstance(intype.fundamental_type(), (File, Directory))
+            and tinp.localise_file
+        ):
+            base = f"inputs.{tinp.id()}.map(function(el) {{ return el.basename; }})"
         else:
             base = "inputs." + tinp.id()
 

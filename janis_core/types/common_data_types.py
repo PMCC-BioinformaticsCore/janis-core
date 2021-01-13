@@ -47,6 +47,17 @@ class UnionType(DataType):
         self.subtypes = valid_types
         super().__init__(optional)
 
+    def is_base_type(self, base_type):
+        return all(s.is_base_type(base_type) for s in self.subtypes)
+
+    def get_extensions(self):
+        s = set()
+        for subtype in self.subtypes:
+            if hasattr(subtype, "get_extensions"):
+                s = s.union(subtype.get_extensions() or [])
+
+        return list(s)
+
     def is_array(self):
         return all(s.is_array() for s in self.subtypes)
 
