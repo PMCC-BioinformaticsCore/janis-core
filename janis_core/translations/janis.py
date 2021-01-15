@@ -532,3 +532,136 @@ from janis_core import *
         def version(self):
             return "{version}"
     """
+
+
+# extra templates
+
+
+class ToolTemplateType(Enum):
+    base = "regular"
+    gatk4 = "gatk4"
+
+
+def generate_gatk4_tooltemplatebase(gatk_command, inputs, outputs, metadata):
+    io_prefix = " " * 12
+
+    return gatk4_tool_template.format(
+        gatk_command=gatk_command,
+        inputs=",\n".join(io_prefix + s for s in inputs),
+        outputs=",\n".join(io_prefix + s for s in outputs),
+        metadata=metadata,
+    )
+
+
+def generate_regular_tooltemplatebase(
+    toolname: str,
+    name: str,
+    friendly_name: str,
+    tool_provider: str,
+    base_command: Union[str, List[str]],
+    inputs: List[str],  # =",\n".join((io_prefix + get_string_repr(i)) for i in ins),
+    outputs: List[str],  # =",\n".join((io_prefix + get_string_repr(o)) for o in outs),
+    metadata: str,  # =get_string_repr(metadata),
+    version: str,
+):
+    import re
+
+    io_prefix = " " * 12
+
+    escapedversion = re.sub("[\W]", "_", str(version)) if version else str(None)
+
+    return tool_template.format(
+        toolname=toolname,
+        name=name,
+        friendly_name=friendly_name,
+        tool_provider=tool_provider,
+        base_command=base_command,
+        inputs=",\n".join(io_prefix + s for s in inputs),
+        outputs=",\n".join(io_prefix + s for s in outputs),
+        metadata=metadata,
+        version=version,
+        escapedversion=escapedversion,
+    )
+
+
+tool_template = """
+from abc import ABC
+from datetime import datetime
+from janis_core import (
+    CommandTool, ToolInput, ToolOutput, File, Boolean, 
+    String, Int, Double, Float, InputSelector, Filename, 
+    ToolMetadata, InputDocumentation
+)
+
+class {name}Base(CommandTool, ABC):
+
+    def friendly_name(self) -> str:
+        return "{friendly_name}"
+
+    def tool_provider(self):
+        return "{tool_provider}"
+
+    def tool(self) -> str:
+        return "{toolname}"
+
+    def base_command(self):
+        return {base_command}
+
+    def inputs(self):
+        return [
+{inputs}
+        ]
+
+    def outputs(self):
+        return [
+{outputs}
+        ]
+
+    def metadata(self):
+        return {metadata}
+        
+
+class {name}_{escapedversion}({name}Base):
+    def version(self):
+        return "{version}"
+
+    def container(self):
+        return "{container}"
+"""
+
+gatk4_tool_template = """
+from abc import ABC
+from datetime import datetime
+from janis_bioinformatics.tools.gatk4.gatk4toolbase import Gatk4ToolBase
+
+from janis_core import (
+    CommandTool, ToolInput, ToolOutput, File, Boolean, 
+    String, Int, Double, Float, InputSelector, Filename, 
+    ToolMetadata, InputDocumentation
+)
+
+class Gatk{gatk_command}Base(Gatk4ToolBase, ABC):
+
+    @classmethod
+    def gatk_command(cls):
+        return "{gatk_command}"
+
+    def friendly_name(self) -> str:
+        return "GATK4: {gatk_command}"
+
+    def tool(self) -> str:
+        return "Gatk4{gatk_command}"
+
+    def inputs(self):
+        return [
+{inputs}
+        ]
+
+    def outputs(self):
+        return [
+{outputs}
+        ]
+
+    def metadata(self):
+        return {metadata}
+"""
