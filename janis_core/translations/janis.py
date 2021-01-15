@@ -346,7 +346,7 @@ from janis_core import *
 
     @staticmethod
     def convert_generic_class(
-        t, ignore_fields=None, get_string_repr_func=None, workflow_id: str = None,
+        t, ignore_fields=None, get_string_repr_func=None, workflow_id: str = None
     ):
         options = []
 
@@ -520,17 +520,17 @@ from janis_core import *
         return inner
 
     code_tool_format = """
-    class {tool_name}(PythonTool):
-    {code_block}
+class {tool_name}(PythonTool):
+{code_block}
 
-        def outputs(self) -> List[TOutput]:
-            return {outputs}
+    def outputs(self) -> List[TOutput]:
+        return {outputs}
 
-        def id(self) -> str:
-            return "{identifier}"
+    def id(self) -> str:
+        return "{identifier}"
 
-        def version(self):
-            return "{version}"
+    def version(self):
+        return "{version}"
     """
 
 
