@@ -173,6 +173,11 @@ class ToolInput(ToolArgument):
 
 # This should really be a CommandToolOutput
 class ToolOutput:
+    init_key_map = {
+        # Skip glob when building python string initialiser
+        "glob": None
+    }
+
     def __init__(
         self,
         tag: str,
@@ -643,6 +648,28 @@ OUTPUTS:
 
         return wf
 
+    def to_command_tool_builder(self):
+        return CommandToolBuilder(
+            tool=self.tool(),
+            base_command=self.base_command(),
+            inputs=self.inputs(),
+            outputs=self.outputs(),
+            container=self.container(),
+            version=self.version(),
+            friendly_name=self.friendly_name(),
+            arguments=self.arguments(),
+            env_vars=self.env_vars(),
+            tool_module=self.tool_module(),
+            tool_provider=self.tool_provider(),
+            metadata=self.bind_metadata() or self.metadata,
+            cpus=self.cpus({}),
+            memory=self.memory({}),
+            time=self.time({}),
+            disk=self.disk({}),
+            directories_to_create=self.directories_to_create(),
+            files_to_create=self.files_to_create(),
+        )
+
 
 SELECTOR_OR_VALUE = Union[Selector, str]
 POTENTIAL_LIST_SElECTOR = Union[SELECTOR_OR_VALUE, List[SELECTOR_OR_VALUE]]
@@ -683,16 +710,16 @@ class CommandToolBuilder(CommandTool):
         return self._env_vars
 
     def cpus(self, hints: Dict[str, Any]):
-        if self._cpu is None:
+        if self._cpus is None:
             return None
-        if isinstance(self._cpu, (int, float, Selector)):
-            return self._cpu
+        if isinstance(self._cpus, (int, float, Selector)):
+            return self._cpus
 
-        if callable(self._cpu):
-            return self._cpu(hints)
+        if callable(self._cpus):
+            return self._cpus(hints)
 
         raise Exception(
-            f"Janis does not recognise {type(self._cpu)} as a valid CPU type"
+            f"Janis does not recognise {type(self._cpus)} as a valid CPU type"
         )
 
     def memory(self, hints: Dict[str, Any]):
@@ -740,6 +767,27 @@ class CommandToolBuilder(CommandTool):
     def files_to_create(self) -> Dict[str, Union[str, Selector]]:
         return self._files_to_create
 
+    init_key_map = {
+        "tool": "_tool",
+        "base_command": "_base_command",
+        "inputs": "_inputs",
+        "outputs": "_outputs",
+        "container": "_container",
+        "version": "_version",
+        "friendly_name": "_friendly_name",
+        "arguments": "_arguments",
+        "env_vars": "_env_vars",
+        "tool_module": "_tool_module",
+        "tool_provider": "_tool_provider",
+        "metadata": "_metadata",
+        "cpus": "_cpus",
+        "memory": "_memory",
+        "time": "_time",
+        "disk": "_disk",
+        "directories_to_create": "_directories_to_create",
+        "files_to_create": "_files_to_create",
+    }
+
     def __init__(
         self,
         tool: str,
@@ -754,7 +802,7 @@ class CommandToolBuilder(CommandTool):
         tool_module: str = None,
         tool_provider: str = None,
         metadata: ToolMetadata = None,
-        cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        cpus: Union[int, Callable[[Dict[str, Any]], int]] = None,
         memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
         time: Union[int, Callable[[Dict[str, Any]], int]] = None,
         disk: Union[int, Callable[[Dict[str, Any]], int]] = None,
@@ -802,7 +850,7 @@ class CommandToolBuilder(CommandTool):
         self._tool_module = tool_module
         self._tool_provider = tool_provider
         self._metadata = metadata
-        self._cpu = cpu
+        self._cpus = cpus
         self._memory = memory
         self._time = time
         self._disk = disk

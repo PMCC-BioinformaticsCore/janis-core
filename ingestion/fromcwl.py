@@ -260,7 +260,7 @@ class CWlParser:
                 f"This script can't parse expressions in the step input {step_input}"
             )
 
-        source_str, tag_str = (
+        [*ignore, source_str, tag_str] = (
             parsed_step_input.split("/")
             if "/" in parsed_step_input
             else (parsed_step_input, None)
@@ -412,4 +412,4 @@ if __name__ == "__main__":
 
     tool = CWlParser.from_doc(toolname)
 
-    tool.translate("wdl")
+    tool.translate("janis")
