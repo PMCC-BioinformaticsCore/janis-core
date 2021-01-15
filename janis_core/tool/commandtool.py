@@ -648,6 +648,28 @@ OUTPUTS:
 
         return wf
 
+    def to_command_tool_builder(self):
+        return CommandToolBuilder(
+            tool=self.tool(),
+            base_command=self.base_command(),
+            inputs=self.inputs(),
+            outputs=self.outputs(),
+            container=self.container(),
+            version=self.version(),
+            friendly_name=self.friendly_name(),
+            arguments=self.arguments(),
+            env_vars=self.env_vars(),
+            tool_module=self.tool_module(),
+            tool_provider=self.tool_provider(),
+            metadata=self.bind_metadata() or self.metadata,
+            cpus=self.cpus({}),
+            memory=self.memory({}),
+            time=self.time({}),
+            disk=self.disk({}),
+            directories_to_create=self.directories_to_create(),
+            files_to_create=self.files_to_create(),
+        )
+
 
 SELECTOR_OR_VALUE = Union[Selector, str]
 POTENTIAL_LIST_SElECTOR = Union[SELECTOR_OR_VALUE, List[SELECTOR_OR_VALUE]]
@@ -688,16 +710,16 @@ class CommandToolBuilder(CommandTool):
         return self._env_vars
 
     def cpus(self, hints: Dict[str, Any]):
-        if self._cpu is None:
+        if self._cpus is None:
             return None
-        if isinstance(self._cpu, (int, float, Selector)):
-            return self._cpu
+        if isinstance(self._cpus, (int, float, Selector)):
+            return self._cpus
 
-        if callable(self._cpu):
-            return self._cpu(hints)
+        if callable(self._cpus):
+            return self._cpus(hints)
 
         raise Exception(
-            f"Janis does not recognise {type(self._cpu)} as a valid CPU type"
+            f"Janis does not recognise {type(self._cpus)} as a valid CPU type"
         )
 
     def memory(self, hints: Dict[str, Any]):
@@ -758,7 +780,7 @@ class CommandToolBuilder(CommandTool):
         "tool_module": "_tool_module",
         "tool_provider": "_tool_provider",
         "metadata": "_metadata",
-        "cpu": "_cpu",
+        "cpus": "_cpus",
         "memory": "_memory",
         "time": "_time",
         "disk": "_disk",
@@ -780,7 +802,7 @@ class CommandToolBuilder(CommandTool):
         tool_module: str = None,
         tool_provider: str = None,
         metadata: ToolMetadata = None,
-        cpu: Union[int, Callable[[Dict[str, Any]], int]] = None,
+        cpus: Union[int, Callable[[Dict[str, Any]], int]] = None,
         memory: Union[int, Callable[[Dict[str, Any]], int]] = None,
         time: Union[int, Callable[[Dict[str, Any]], int]] = None,
         disk: Union[int, Callable[[Dict[str, Any]], int]] = None,
@@ -828,7 +850,7 @@ class CommandToolBuilder(CommandTool):
         self._tool_module = tool_module
         self._tool_provider = tool_provider
         self._metadata = metadata
-        self._cpu = cpu
+        self._cpus = cpus
         self._memory = memory
         self._time = time
         self._disk = disk
