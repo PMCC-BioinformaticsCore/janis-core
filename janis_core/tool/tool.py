@@ -186,6 +186,9 @@ class Tool(ABC, object):
     def translate(
         self,
         translation: str,
+        to_console=True,
+        to_disk=False,
+        export_path=None,
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,

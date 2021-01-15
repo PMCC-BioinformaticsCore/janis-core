@@ -264,11 +264,22 @@ from janis_core import *
 
     @staticmethod
     def stringify_translated_workflow(wf):
-        return wf
+        try:
+            import black
+
+            return black.format_str(wf, mode=black.FileMode(line_length=82))
+        except ImportError:
+            return wf
+        # return wf
 
     @staticmethod
     def stringify_translated_tool(tool):
-        return tool
+        try:
+            import black
+
+            return black.format_str(tool, mode=black.FileMode(line_length=82))
+        except ImportError:
+            return tool
 
     @staticmethod
     def stringify_translated_inputs(inputs):
@@ -346,7 +357,7 @@ from janis_core import *
 
     @staticmethod
     def convert_generic_class(
-        t, ignore_fields=None, get_string_repr_func=None, workflow_id: str = None,
+        t, ignore_fields=None, get_string_repr_func=None, workflow_id: str = None
     ):
         options = []
 
@@ -520,17 +531,17 @@ from janis_core import *
         return inner
 
     code_tool_format = """
-    class {tool_name}(PythonTool):
-    {code_block}
+class {tool_name}(PythonTool):
+{code_block}
 
-        def outputs(self) -> List[TOutput]:
-            return {outputs}
+    def outputs(self) -> List[TOutput]:
+        return {outputs}
 
-        def id(self) -> str:
-            return "{identifier}"
+    def id(self) -> str:
+        return "{identifier}"
 
-        def version(self):
-            return "{version}"
+    def version(self):
+        return "{version}"
     """
 
 
