@@ -406,12 +406,9 @@ class CWlParser:
 if __name__ == "__main__":
     import sys
 
-    toolname = (
-        "/Users/franklinmichael/source/janis-core/ingestion/workflow/hello_v1_0_0.cwl"
-    )
-    # if len(sys.argv) != 2:
-    #     raise Exception("Expected 1 argument, the name of a CWL tool.")
-    # toolname = sys.argv[1]
+    if len(sys.argv) != 2:
+        raise Exception("Expected 1 argument, the name of a CWL tool.")
+    toolname = sys.argv[1]
 
     tool = CWlParser.from_doc(toolname)
 
