@@ -264,11 +264,22 @@ from janis_core import *
 
     @staticmethod
     def stringify_translated_workflow(wf):
-        return wf
+        try:
+            import black
+
+            return black.format_str(wf, mode=black.FileMode(line_length=82))
+        except ImportError:
+            return wf
+        # return wf
 
     @staticmethod
     def stringify_translated_tool(tool):
-        return tool
+        try:
+            import black
+
+            return black.format_str(tool, mode=black.FileMode(line_length=82))
+        except ImportError:
+            return tool
 
     @staticmethod
     def stringify_translated_inputs(inputs):
