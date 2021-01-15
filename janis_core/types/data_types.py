@@ -155,6 +155,9 @@ class DataType(ABC):
     def is_array(self):
         return False
 
+    def __hash__(self):
+        return hash(self.__class__.__name__)
+
     def __repr__(self):
         return self.id()
 
@@ -165,10 +168,6 @@ class DataType(ABC):
     @abstractmethod
     def name() -> str:
         raise Exception("Subclass MUST override name field")
-
-    @classmethod
-    def __hash__(cls):
-        return cls.name()
 
     @staticmethod
     def secondary_files() -> Optional[List[str]]:
