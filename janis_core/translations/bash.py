@@ -8,7 +8,6 @@ from janis_core.types import (
     InputSelector,
     WildcardSelector,
     CpuSelector,
-    StringFormatter,
     String,
     Selector,
     Directory,
@@ -91,6 +90,8 @@ class BashTranslator(TranslatorBase):
         return f"""
 #!/usr/bin/env sh
 
+source $1
+
 {doc}
 
 {command}
@@ -106,19 +107,6 @@ class BashTranslator(TranslatorBase):
     ):
         raise Exception("CodeTool is not currently supported in bash translation")
 
-    @classmethod
-    def build_inputs_file(
-        cls,
-        workflow,
-        recursive=False,
-        merge_resources=False,
-        hints=None,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-    ) -> Dict[str, any]:
-        return {}
-
     @staticmethod
     def stringify_translated_workflow(wf):
         return wf
@@ -129,7 +117,15 @@ class BashTranslator(TranslatorBase):
 
     @staticmethod
     def stringify_translated_inputs(inputs):
-        return str(inputs)
+        # return str(inputs)
+        lines = []
+        Logger.debug(f"inputs: {inputs}")
+        for key in inputs:
+            val = inputs[key]
+            lines.append(f"{key}='{val}'")
+
+        return "\n".join(lines)
+
 
     @staticmethod
     def workflow_filename(workflow):
@@ -150,6 +146,10 @@ class BashTranslator(TranslatorBase):
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         return None
+
+    @classmethod
+    def unwrap_expression(cls, expression):
+        pass
 
 
 def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugkwargs):
@@ -242,7 +242,7 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
         isinstance(intype, (String, File, Directory))
         and tool_input.shell_quote is not False
     ):
-        return f"{tprefix}'${name}'" if tprefix else f"'${name}'"
+        return f"{tprefix}\"${name}\"" if tprefix else f"\"${name}\""
         # if tprefix:
         #     # if optional:
         #     # else:
