@@ -123,7 +123,7 @@ from janis_core import *
 
 {str_wf}
 
-{self.get_class_name_from_tool(workflow)}().translate("wdl")
+{self.prepare_translate_command_at_bottom_of_generated_file(workflow)}
 """
         return bigger_file, {}
 
@@ -146,7 +146,7 @@ from janis_core import *
 
 {tool_str}
 
-{self.get_class_name_from_tool(tool)}().translate("wdl")
+{self.prepare_translate_command_at_bottom_of_generated_file(tool)}
 """
 
         return bigger_file
@@ -169,9 +169,22 @@ from janis_core import *
 
 {tool_str}
 
-{self.get_class_name_from_tool(tool)}().translate("wdl")
+{self.prepare_translate_command_at_bottom_of_generated_file(tool)}
 """
         return bigger_file
+
+    def prepare_translate_command_at_bottom_of_generated_file(self, tool: Tool):
+        extras = []
+        if tool.has_tool_with_no_container():
+            extras.append("allow_empty_container=True")
+
+        extra_params = "".join(f", {param}" for param in extras)
+
+        return f"""
+if __name__ == "__main__":
+    # or "cwl"
+    {self.get_class_name_from_tool(tool)}().translate("wdl"{extra_params})
+"""
 
     def prepare_imports(self):
         imports = []

@@ -346,6 +346,9 @@ class CommandTool(Tool, ABC):
 
     ## Other studd
 
+    def has_tool_with_no_container(self):
+        return self.container() is None
+
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}
 

@@ -106,6 +106,9 @@ class CodeTool(Tool):
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}
 
+    def has_tool_with_no_container(self):
+        return self.container() is None
+
     def tool_inputs(self) -> List[TInput]:
         return self.inputs()
 
