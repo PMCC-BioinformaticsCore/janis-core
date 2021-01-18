@@ -33,6 +33,7 @@ class InputDocumentation(DocumentationMeta):
     ):
         """
         Extended documentation for inputs
+
         :param doc: Documentation string
         :type doc: str
         :param quality: quality of input, whether the inputs are best classified by user (data), static (references), configuration (like constants, but tweakable)
