@@ -1,3 +1,5 @@
+import sys
+import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, List, Dict, Set
@@ -11,6 +13,8 @@ from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
+from janis_core.tool.test_classes import TTestCase
+from nose.tools import nottest
 
 
 class ToolType(Enum):
@@ -64,6 +68,8 @@ class Tool(ABC, object):
     """
     One of Workflow, CommandLineTool, ExpressionTool* (* unimplemented)
     """
+
+    TEST_DATA_FOLDER = "test_data"
 
     def __init__(self, metadata_class=Metadata, **connections):
         """
@@ -154,6 +160,10 @@ class Tool(ABC, object):
         return [t.id() for t in self.tool_inputs()]
 
     @abstractmethod
+    def has_tool_with_no_container(self):
+        pass
+
+    @abstractmethod
     def generate_inputs_override(
         self,
         additional_inputs=None,
@@ -180,6 +190,9 @@ class Tool(ABC, object):
     def translate(
         self,
         translation: str,
+        to_console=True,
+        to_disk=False,
+        export_path=None,
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,
@@ -244,3 +257,24 @@ INPUTS:
 OUTPUTS:
 {outputs}
 """
+
+    @nottest
+    def tests(self) -> Optional[List[TTestCase]]:
+        """
+        A list of test cases for this tool
+        """
+        return None
+
+    @classmethod
+    @nottest
+    def test_data_path(cls):
+        module_path = os.path.dirname(sys.modules[cls.__module__].__file__)
+        return os.path.join(module_path, cls.TEST_DATA_FOLDER)
+
+    @classmethod
+    @nottest
+    def skip_test(cls) -> bool:
+        """
+        Sometimes, we may want to skip tests for some tools because they are not ready yet
+        """
+        return False

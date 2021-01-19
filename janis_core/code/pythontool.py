@@ -159,7 +159,7 @@ def prepare_file_or_directory_type(file_or_directory, value):
     if value is None:
         return None
     if isinstance(value, list):
-        return [prepare_file_or_directory_type(v) for v in value]
+        return [prepare_file_or_directory_type(file_or_directory, v) for v in value]
     return {
         "class": file_or_directory,
         "path": path.join(cwd, value)
@@ -167,7 +167,7 @@ def prepare_file_or_directory_type(file_or_directory, value):
             for out in self.outputs():
                 st = (
                     out.outtype.fundamental_type()
-                    if isinstance(out.outtype, Array)
+                    if out.outtype.is_array()
                     else out.outtype
                 )
                 if not isinstance(st, (File, Directory)):
@@ -207,7 +207,7 @@ except Exception as e:
         bintype = inp.intype
         required = not inp.intype.optional
 
-        if isinstance(bintype, Array):
+        if bintype.is_array():
             bintype = bintype.fundamental_type()
             params.append("nargs='+'")
             if required:

@@ -44,7 +44,7 @@ def try_catch_translate(type):
                         ],
                     ]
                 )
-                message = f"Couldn't translate {type or ''} to WDL with ({components})"
+                message = f"Couldn't translate {type or ''} with ({components})"
                 er = TranslationError(message, inner=e)
                 Logger.log_ex(er)
                 raise er

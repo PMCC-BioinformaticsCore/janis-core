@@ -1,8 +1,10 @@
 import unittest
 from typing import List, Dict, Any, Optional
 
+from janis_core.tool.commandtool import ToolArgument
+
 from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import ReadContents
+from janis_core.operators.standard import ReadContents, FilterNullOperator
 
 from janis_core.tests.testtools import (
     SingleTestTool,
@@ -16,7 +18,7 @@ from janis_core.tests.testtools import (
     OperatorResourcesTestTool,
 )
 
-import cwl_utils.parser_v1_0 as cwlgen
+from janis_core.deps import cwlgen
 
 import janis_core.translations.cwl as cwl
 from janis_core import (
@@ -38,6 +40,17 @@ from janis_core.types import CpuSelector, MemorySelector, Stdout, UnionType, Fil
 from janis_core.workflow.workflow import InputNode
 
 
+class TestTypeWithAlternateAndSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(
+            optional=optional, extension=".txt", alternate_extensions={".text"}
+        )
+
+    @staticmethod
+    def secondary_files():
+        return ["^.file"]
+
+
 class TestCwlTypesConversion(unittest.TestCase):
     pass
 
@@ -46,6 +59,7 @@ class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
         t = TestTool()
         actual = t.translate("cwl", to_console=False)
+        self.maxDiff = None
         self.assertEqual(cwl_testtool, actual)
 
 
@@ -55,12 +69,12 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
 
     def test_stringify_WorkflowBuilder(self):
         cwlobj = cwlgen.Workflow(
-            id="wid", cwlVersion="v1.0", inputs={}, outputs={}, steps={}
+            id="wid", cwlVersion="v1.2", inputs={}, outputs={}, steps={}
         )
         expected = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -75,12 +89,12 @@ id: wid
 
     def test_stringify_tool(self):
         cwlobj = cwlgen.CommandLineTool(
-            id="tid", inputs={}, outputs={}, cwlVersion="v1.0"
+            id="tid", inputs={}, outputs={}, cwlVersion="v1.2"
         )
         expected = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -209,14 +223,24 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         input_sel = InputSelector("random")
         self.assertEqual(
             "$(inputs.random)",
-            cwl.translate_input_selector(input_sel, code_environment=False),
+            cwl.translate_input_selector(
+                input_sel,
+                code_environment=False,
+                inputs_dict={},
+                skip_inputs_lookup=True,
+            ),
         )
 
     def test_input_selector_base_codeenv(self):
         input_sel = InputSelector("random")
         self.assertEqual(
             "inputs.random",
-            cwl.translate_input_selector(input_sel, code_environment=True),
+            cwl.translate_input_selector(
+                input_sel,
+                code_environment=True,
+                inputs_dict={},
+                skip_inputs_lookup=True,
+            ),
         )
 
     def test_input_value_none_codeenv(self):
@@ -251,6 +275,16 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             "42", cwl.CwlTranslator.unwrap_expression(42, code_environment=False)
         )
 
+    def test_alias_selector(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str)
+        w.step("echo", EchoTestTool(inp=w.inp.as_type(str)))
+        w.output("out", source=w.echo.out)
+        sn: List[cwlgen.WorkflowStep] = cwl.translate_step_node(
+            w.step_nodes["echo"], inputs_dict={"inp": ToolInput("inp", str)}
+        )
+        self.assertEqual("inp", sn[0].in_[0].source)
+
     # def test_input_value_filename_codeenv(self):
     #     import uuid
     #     fn = Filename(guid=str(uuid.uuid4()))
@@ -271,14 +305,42 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
         inp = InputSelector("threads")
         self.assertEqual(
             "inputs.threads",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=True),
+            cwl.CwlTranslator.unwrap_expression(
+                inp,
+                code_environment=True,
+                inputs_dict={"threads": ToolInput("threads", int)},
+            ),
         )
 
     def test_input_value_inpselect_nocodeenv(self):
         inp = InputSelector("threads")
         self.assertEqual(
             "$(inputs.threads)",
-            cwl.CwlTranslator.unwrap_expression(inp, code_environment=False),
+            cwl.CwlTranslator.unwrap_expression(
+                inp,
+                code_environment=False,
+                inputs_dict={"threads": ToolInput("threads", int)},
+            ),
+        )
+
+    def test_input_value_removing_extension(self):
+        clt = CommandToolBuilder(
+            tool="dev",
+            base_command="echo",
+            inputs=[ToolInput("inp", File(extension=".txt"))],
+            outputs=[ToolOutput("out", str, selector=ReadContents(Stdout()))],
+            version="v1.0",
+            container="ubuntu",
+        )
+
+        arg = cwl.translate_tool_argument(
+            ToolArgument(InputSelector("inp", remove_file_extension=True) + ".bam"),
+            clt,
+            inputs_dict={t.id(): t for t in clt.inputs()},
+        )
+
+        self.assertEqual(
+            '$((inputs.inp.basename.replace(/.txt$/, "") + ".bam"))', arg.valueFrom
         )
 
     def test_input_value_wildcard(self):
@@ -347,7 +409,11 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_string_formatter_one_input_selector_param(self):
         b = StringFormatter("an input {arg}", arg=InputSelector("random_input"))
-        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
+        res = cwl.CwlTranslator.unwrap_expression(
+            b,
+            code_environment=False,
+            inputs_dict={"random_input": ToolInput("random_input", str)},
+        )
         self.assertEqual(
             '$("an input {arg}".replace(/\{arg\}/g, inputs.random_input))', res
         )
@@ -359,7 +425,13 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             tumorName=InputSelector("tumorInputName"),
             normalName=InputSelector("normalInputName"),
         )
-        res = cwl.CwlTranslator.unwrap_expression(b, code_environment=False)
+        inputs_dict = {
+            "tumorInputName": ToolInput("tumorInputName", str),
+            "normalInputName": ToolInput("normalInputName", str),
+        }
+        res = cwl.CwlTranslator.unwrap_expression(
+            b, code_environment=False, inputs_dict=inputs_dict
+        )
         self.assertEqual(
             '$("{tumorName}:{normalName}".replace(/\{tumorName\}/g, inputs.tumorInputName).replace(/\{normalName\}/g, inputs.normalInputName))',
             res,
@@ -414,7 +486,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         tinp = cwl.translate_workflow_input(inp, None)
 
         self.assertEqual("File", tinp.type)
-        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+        self.assertEqual("^.txt", tinp.secondaryFiles[0].pattern)
 
     def test_array_secondary_file_translation(self):
         inp = InputNode(
@@ -427,13 +499,24 @@ class TestCwlTranslateInput(unittest.TestCase):
         tinp = cwl.translate_workflow_input(inp, None)
         self.assertIsInstance(tinp.type, cwlgen.CommandInputArraySchema)
         self.assertEqual("File", tinp.type.items)
-        self.assertListEqual(["^.txt"], tinp.secondaryFiles)
+        self.assertEqual("^.txt", tinp.secondaryFiles[0].pattern)
 
 
 class TestCwlOutputGeneration(unittest.TestCase):
     def test_stdout_no_outputbinding(self):
         out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
+
+    def test_localised_out(self):
+
+        inps = {"inp": ToolInput("inp", File, position=1, localise_file=True)}
+        out = ToolOutput("out", File, selector=InputSelector("inp"))
+
+        cwlout = cwl.translate_tool_output(
+            out, inps, environment="dev-test_localised_out", tool=None
+        )
+        ob: cwlgen.CommandOutputBinding = cwlout.outputBinding
+        self.assertEqual("$(inputs.inp.basename)", ob.glob)
 
 
 class TestCwlGenerateInput(unittest.TestCase):
@@ -527,7 +610,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", ArrayTestTool(inputs=w.inp1))
+        w.step("stp1", ArrayTestTool(inps=w.inp1))
 
         c, _, _ = CwlTranslator().translate(
             w, to_console=False, allow_empty_container=True
@@ -538,7 +621,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
 class TestPackedWorkflow(unittest.TestCase):
     def test_simple(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
-        w.step("ech", SingleTestTool(inputs="Hello"), doc="Print 'Hello'")
+        w.step("ech", SingleTestTool(input1="Hello"), doc="Print 'Hello'")
         c = CwlTranslator.translate_workflow_to_all_in_one(
             w, allow_empty_container=True
         )
@@ -606,7 +689,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.step(
             "print",
             ArrayTestTool(
-                inputs=[
+                inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -616,7 +699,80 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.output("out", source=wf.print)
 
         ret, _, _ = wf.translate("cwl", allow_empty_container=True, to_console=False)
+        self.maxDiff = None
         self.assertEqual(cwl_arraystepinput, ret)
+
+
+class TestCreateFilesAndDirectories(unittest.TestCase):
+
+    initial_params = {
+        "tool": "testCreateFilesAndDirectries",
+        "version": "DEV",
+        "container": "ubuntu",
+        "base_command": "cat",
+        "inputs": [ToolInput("inp", File), ToolInput("name", str)],
+        "outputs": [ToolOutput("out", Stdout)],
+    }
+
+    def test_create_single_directory(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create="test-directory"
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: "test-directory", listing: [] })', req[0]
+        )
+
+    def test_create_single_directory_from_selector(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name")
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: inputs.name, listing: [] })', req[0]
+        )
+
+    def test_create_single_directory_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params, directories_to_create=InputSelector("name") + "-out"
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual(
+            '$({ class: "Directory", basename: (inputs.name + "-out"), listing: [] })',
+            req[0],
+        )
+
+    def test_create_single_file_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[("my-path.txt", InputSelector("inp").contents())],
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertEqual("my-path.txt", req[0].entryname)
+        self.assertEqual("$(inputs.inp.contents)", req[0].entry)
+
+    def test_create_single_file_path_from_operator(self):
+        command = CommandToolBuilder(
+            **self.initial_params,
+            files_to_create=[
+                (
+                    StringFormatter("{name}.txt", name=InputSelector("name")),
+                    "this is contents",
+                )
+            ],
+        )
+        req = CwlTranslator.build_initial_workdir_from_tool(command).listing
+        self.assertEqual(1, len(req))
+        self.assertIsInstance(req[0], cwlgen.Dirent)
+        self.assertEqual(
+            '$("{name}.txt".replace(/\{name\}/g, inputs.name))', req[0].entryname
+        )
+        self.assertEqual("this is contents", req[0].entry)
 
 
 class WorkflowCwlInputDefaultOperator(unittest.TestCase):
@@ -790,6 +946,44 @@ class TestCWLNotNullOperator(unittest.TestCase):
         print(cwltool)
 
 
+class TestCwlScatterExpression(unittest.TestCase):
+    def test_filter_null(self):
+        T = CommandToolBuilder(
+            tool="testsingleinput",
+            base_command="echo",
+            inputs=[ToolInput("inp", str, position=0)],
+            outputs=[ToolOutput("out", Stdout)],
+            version="v1",
+            container=None,
+        )
+        w = WorkflowBuilder("wf")
+        w.input("inp", Array(Optional[str], optional=True))
+        w.step("stp", T(inp=FilterNullOperator(w.inp)), scatter="inp")
+        w.output("out", source=w.stp.out)
+
+        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+        self.assertEqual(2, len(w_cwl.steps))
+        self.assertEqual(
+            "_evaluate_prescatter-stp-inp/out", w_cwl.steps[1].in_[0].source
+        )
+
+
+class TestWorkflowOutputExpression(unittest.TestCase):
+    def test_read_contents(self):
+        w = WorkflowBuilder("wf")
+        w.input("inp", str)
+        w.step("stp", EchoTestTool(inp=w.inp))
+        w.output("out", source=w.stp.out.contents())
+
+        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+
+        self.assertEqual(2, len(w_cwl.steps))
+        self.assertEqual(
+            "${return {out: inputs._stpout.contents }}", w_cwl.steps[1].run.expression
+        )
+        self.assertTrue(w_cwl.steps[1].run.inputs[0].loadContents)
+
+
 class TestCwlUnionType(unittest.TestCase):
     def test_file_file(self):
         utype = UnionType(File, File)
@@ -802,10 +996,34 @@ class TestCwlUnionType(unittest.TestCase):
         self.assertListEqual(["File", "int", "string"], cwl_utype)
 
 
+class TestCWLWhen(unittest.TestCase):
+    def test_basic(self):
+        w = WorkflowBuilder("my_conditional_workflow")
+
+        w.input("inp", String(optional=True))
+
+        w.step(
+            "print_if_has_value",
+            TestTool(testtool=w.inp),
+            # only print if the input "inp" is defined.
+            when=IsDefined(w.inp),
+        )
+
+        w.output("out", source=w.print_if_has_value)
+
+        inputs_dict = {"inp": ToolInput("inp", str)}
+
+        c = cwl.translate_step_node(w.print_if_has_value, inputs_dict=inputs_dict)[0]
+
+        self.assertEqual("$((inputs.__when_inp != null))", c.when)
+        extra_input: cwlgen.WorkflowStepInput = c.in_[-1]
+        self.assertEqual("__when_inp", extra_input.id)
+
+
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-cwlVersion: v1.0
+cwlVersion: v1.2
 label: Tool for testing translation
 
 requirements:
@@ -840,6 +1058,11 @@ baseCommand: echo
 arguments:
 - position: 0
   valueFrom: test:\\\\t:escaped:\\\\n:characters\\"
+
+hints:
+- class: ToolTimeLimit
+  timelimit: |-
+    $([inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0])
 id: TestTranslationtool
 """
 
@@ -847,7 +1070,7 @@ id: TestTranslationtool
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement
@@ -863,7 +1086,7 @@ outputs: []
 steps:
 - id: stp1
   in:
-  - id: inputs
+  - id: inps
     source:
     - inp1
     linkMerge: merge_nested
@@ -876,7 +1099,7 @@ id: test_add_single_to_array_edge
 cwl_stepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 label: 'TEST: WorkflowWithStepInputExpression'
 
 requirements:
@@ -917,7 +1140,7 @@ id: TestWorkflowWithStepInputExpression
 cwl_arraystepinput = """\
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement
@@ -944,13 +1167,13 @@ outputs:
 steps:
 - id: print
   in:
-  - id: _print_inputs_inp1
+  - id: _print_inps_inp1
     source: inp1
-  - id: _print_inputs_inp2
+  - id: _print_inps_inp2
     source: inp2
-  - id: inputs
+  - id: inps
     valueFrom: |-
-      $([(inputs._print_inputs_inp1 != null) ? inputs._print_inputs_inp1 : "default1", (inputs._print_inputs_inp2 != null) ? (inputs._print_inputs_inp2 + "_suffix") : ""])
+      $([(inputs._print_inps_inp1 != null) ? inputs._print_inps_inp1 : "default1", (inputs._print_inps_inp2 != null) ? (inputs._print_inps_inp2 + "_suffix") : ""])
   run: tools/ArrayStepTool.cwl
   out:
   - id: outs

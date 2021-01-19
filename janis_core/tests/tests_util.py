@@ -84,6 +84,11 @@ class Test2ItemMethodWrap(TestCase):
 
 # class testtranslate(TestCase):
 #     def test1(self):
+#         from janis_bioinformatics.tools.cutadapt import CutAdapt_2_6
+#
+#         CutAdapt_2_6().translate("wdl")
+
+
 # from janis_pipelines import WGSGermlineGATK
 
 # WGSGermlineGATK().translate("cwl")

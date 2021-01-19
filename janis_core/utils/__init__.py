@@ -121,3 +121,21 @@ def lowercase_dictkeys(d: Optional[Dict]) -> Optional[Dict]:
         return None
 
     return {k.lower(): v for k, v in d.items()}
+
+
+def generate_cat_command_from_statements(path, contents):
+    wrap_tags = "EOT"
+    potential_tags = ["EOF", "ENDOFFILE", "ENDOFTHISFILE"]
+    while wrap_tags in contents:
+        # generate new END tag
+        if len(potential_tags) == 0:
+            raise Exception(
+                "Couldn't determine UNIQUE start / end tags for CAT <<{tag} >> $PATH {{contents}} {tag}"
+            )
+        wrap_tags = potential_tags.pop(0)
+
+    return f"""\
+cat <<{wrap_tags} >> '{path}'
+{contents}
+{wrap_tags}\
+"""

@@ -65,7 +65,7 @@ class JoinOperator(Operator):
             )
         else:
             rettype = get_instantiated_type(iterable_arg.returntype())
-            if isinstance(rettype, Array):
+            if rettype.is_array():
                 is_optional = rettype.subtype().optional
             else:
                 is_optional = rettype.optional
@@ -184,7 +184,7 @@ class FlattenOperator(Operator):
         return [Array(Array(AnyType))]
 
     def returntype(self):
-        return Array(self.args[0].subtype().subtype())
+        return Array(self.args[0].returntype().subtype().subtype())
 
     def __str__(self):
         return f"flatten({self.args[0]})"
@@ -323,7 +323,7 @@ class FilterNullOperator(Operator):
         if isinstance(self.args[0], list):
             rettype = self.args[0][0].returntype()
         else:
-            rettype = self.args[0].subtype()
+            rettype = self.args[0].returntype().subtype()
 
         rettype = copy(get_instantiated_type(rettype))
         rettype.optional = False

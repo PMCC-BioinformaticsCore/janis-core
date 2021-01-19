@@ -1,7 +1,8 @@
 import copy
 import os
 from abc import abstractmethod, ABC
-from typing import List, Union, Optional, Dict, Tuple, Any, Set
+from inspect import isclass
+from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -12,6 +13,7 @@ from janis_core.operators import (
     StepOutputSelector,
     InputNodeSelector,
     Selector,
+    AliasSelector,
 )
 from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
 from janis_core.operators.standard import FirstOperator
@@ -44,13 +46,15 @@ ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 def verify_or_try_get_source(
     source: Union[ConnectionSource, List[ConnectionSource]]
-) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector]]:
+) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector], Operator]:
 
     if isinstance(source, StepOutputSelector):
         return source
-    if isinstance(source, InputNodeSelector):
+    elif isinstance(source, InputNodeSelector):
         return source
-    if isinstance(source, list):
+    elif isinstance(source, AliasSelector):
+        return source
+    elif isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
 
     if isinstance(source, Operator):
@@ -59,8 +63,10 @@ def verify_or_try_get_source(
     node, tag = None, None
     if isinstance(source, tuple):
         node, tag = source
-    else:
+    elif isinstance(source, Node):
         node = source
+    else:
+        raise Exception(f"Unrecognised source type: {source} ({type(source).__name__})")
 
     outs = node.outputs()
     if tag is None:
@@ -93,7 +99,7 @@ class InputNode(Node):
         super().__init__(wf, NodeType.INPUT, identifier)
         self.datatype = datatype
         self.default = default
-        self.doc = doc
+        self.doc: Optional[InputDocumentation] = doc
         self.value = value
 
     def as_operator(self):
@@ -266,7 +272,7 @@ class OutputNode(Node):
         return None
 
 
-class WorkflowBase(Tool, ABC):
+class WorkflowBase(Tool):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 
@@ -320,7 +326,7 @@ class WorkflowBase(Tool, ABC):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: Union[str, InputDocumentation] = None,
+        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
     ):
         """
         Create an input node on a workflow
@@ -333,16 +339,12 @@ class WorkflowBase(Tool, ABC):
         if default is not None:
             datatype.optional = True
 
-        doc = (
-            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
-        )
-
         inp = InputNode(
             self,
             identifier=identifier,
             datatype=datatype,
             default=default,
-            doc=doc,
+            doc=InputDocumentation.try_parse_from(doc),
             value=value,
         )
         self.nodes[identifier] = inp
@@ -455,7 +457,59 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
-    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+    def forward_inputs_from_tool(
+        self,
+        tool: Union[Tool, Type[Tool]],
+        inputs_to_forward: Optional[Iterable[str]] = None,
+        inputs_to_ignore: Iterable[str] = None,
+        input_prefix: str = "",
+    ) -> Dict[str, InputNodeSelector]:
+        """
+        Usage:
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, ["inp1", "inp2"])
+                OR
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, inputs_to_ignore=["inp2"])
+
+            self.step("yourstp", YourTool(**yourstp_inputs))
+
+        :param tool: The tool for which to forward the inputs for
+        :param inputs_to_forward: List of inputs to forward. You MUST specify ALL the inputs you want to forward.
+        :param inputs_to_ignore: You can choose _ALL_ inputs, except those specified here. This option is IGNORED if inputs_to_forward is defined
+        :param input_prefix: Add a prefix when forwarding it to the parent workflow (self)
+        :return:
+        """
+
+        itool = tool() if isclass(tool) else tool
+        qualified_inputs_to_forward = inputs_to_forward
+        tinps: Dict[str, TInput] = {t.id(): t for t in itool.tool_inputs()}
+
+        if inputs_to_forward is None and inputs_to_ignore is None:
+            raise Exception(
+                f"You must specify ONE of inputs_to_forward OR inputs_to_ignore when "
+                f"calling 'forward_inputs_from_tool' with tool {tool.id()})"
+            )
+        elif not inputs_to_forward:
+            qualified_inputs_to_forward = [
+                inpid for inpid in tinps.keys() if inpid not in inputs_to_ignore
+            ]
+
+        d = {}
+        for inp in qualified_inputs_to_forward:
+            if inp not in tinps:
+                raise Exception(
+                    f"Couldn't find the input {inp} in the tool {itool.id()}"
+                )
+            tinp = tinps[inp]
+            d[inp] = self.input(input_prefix + inp, tinp.intype, doc=tinp.doc)
+
+        return d
+
+    def capture_outputs_from_step(
+        self,
+        step: StepNode,
+        output_prefix=None,
+        default_output_name: Union[bool, str, Selector, ConnectionSource] = True,
+    ):
         op = output_prefix or ""
 
         tool = step.tool
@@ -532,7 +586,7 @@ class WorkflowBase(Tool, ABC):
 
         for out in tool.tool_outputs():
             output_folders = None
-            output_name = None
+            output_name = default_output_name
             ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
@@ -727,14 +781,9 @@ class WorkflowBase(Tool, ABC):
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(
-                    inp_identifier,
-                    inputs[k].intype,
-                    default=v,
-                    doc=InputDocumentation(
-                        doc=None, quality=InputQualityType.configuration
-                    ),
-                )
+                doc = copy.copy(InputDocumentation.try_parse_from(inputs[k].doc))
+                doc.quality = InputQualityType.configuration
+                v = self.input(inp_identifier, inputs[k].intype, default=v, doc=doc)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
@@ -970,6 +1019,11 @@ class WorkflowBase(Tool, ABC):
             tools.update(t.tool.containers())
         return tools
 
+    def has_tool_with_no_container(self):
+        return any(
+            t.tool.has_tool_with_no_container() for t in self.step_nodes.values()
+        )
+
     def report(self, to_console=True, tabulate_tablefmt=None):
         import tabulate
 
@@ -1177,8 +1231,47 @@ class WorkflowBase(Tool, ABC):
 
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
-        if meta:
+        if meta and meta.version:
             return meta.version
+
+    def apply_input_documentation(
+        self,
+        inputs: Dict[str, Union[InputDocumentation, str, Dict[str, any]]],
+        should_override=False,
+        strict=False,
+    ):
+        """
+        Apply a dictionary of input documentation to a number of input nodes
+
+        :param inputs: Dict[InputNode_ID, Union[InputDocumentation, str, Dict]]
+        :param should_override: Should override the doc on an input node.
+        :param strict: Ensure every key in the inputs dictionary is in the workflow, otherwise throw an error.
+        :return: None
+        """
+        missing, skipped = set(), set()
+        innodes = self.input_nodes
+        for inpid, doc in inputs.items():
+            if inpid not in innodes:
+                if strict:
+                    missing.add(inpid)
+                continue
+            node = innodes[inpid]
+            existing_doc = node.doc and node.doc.doc
+            if existing_doc is None or should_override:
+                node.doc = InputDocumentation.try_parse_from(doc)
+            else:
+                skipped.add(inpid)
+
+        if missing:
+            raise Exception(
+                "Couldn't find the following inputs to update: " + ", ".join(missing)
+            )
+
+        if skipped:
+            Logger.log(
+                "Skipped updating fields as they already had documentation: "
+                + ", ".join(skipped)
+            )
 
 
 class Workflow(WorkflowBase):
