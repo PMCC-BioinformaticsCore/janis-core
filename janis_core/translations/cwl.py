@@ -689,6 +689,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             cwlgen.CommandLineBinding(valueFrom="inputs.json", prefix="--json")
         )
 
+        tool_ins = tool.inputs()
+
         tool_cwl.inputs.extend(
             translate_tool_input(
                 ToolInput(
@@ -701,7 +703,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 inputsdict=inputsdict,
                 tool=tool,
             )
-            for t in tool.inputs()
+            for t in tool_ins
         )
 
         for output in tool.tool_outputs():
@@ -729,6 +731,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
+        ins = "[" + ", ".join(f'"{k.id()}"' for k in tool_ins) + "]"
+
         tool_cwl.requirements.append(
             cwlgen.InitialWorkDirRequirement(
                 listing=[
@@ -738,16 +742,16 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     ),
                     cwlgen.Dirent(
                         entryname="inputs.json",
-                        entry="""${
-var retval = {};
-for (var k of Object.keys(inputs)) { 
-    if (inputs[k].path) {
+                        entry=f"""${{
+var retval = {{}};
+{ins}.forEach(function(k) {{
+    if (inputs[k] != null && inputs[k].path) {{
         retval[k] = inputs[k].path;
-    } else {
+    }} else {{
         retval[k] = inputs[k];
-    }
-}
-return JSON.stringify(retval);\n}""",
+    }}
+}})
+return JSON.stringify(retval);\n}}""",
                     ),
                 ]
             )
