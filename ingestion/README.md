@@ -4,21 +4,31 @@ This script parses a CWL command line tool, and converts it into a Janis Command
 and then a pretty simple map back into Janis. This is a proof of concept, with the intent to turn this script into something
 more stable and useful (rather than just converting CWL -> WDL).
 
+This can also parse 
+
 ## Usage
 
 This will try to guess the CWLVersion from the `cwlVersion` field on the command line tool. It only recognises
 
 ```
-./fromcwl.py bwamem.cwl
+janisdk fromcwl bwamem.cwl
+
+# or 
+
+./janis_core/ingestion/fromcwl.py bwamem.cwl
 ```
 
-This will print the WDL representation of the tool. 
+This will print the JANIS source code for the parsed tool. You could also translate this to WDL with:
+
+```bash
+janisdk fromcwl bwamem.cwl wdl 
+``` 
 
 
 ### Requirements
 
 ```
-pip install 'cwl-utils >= 0.6' 'ruamel.yaml >= 0.12.4, <= 0.16.5'
+pip install janis-pipelines
 ```
 
 

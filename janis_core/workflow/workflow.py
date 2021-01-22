@@ -1019,6 +1019,11 @@ class WorkflowBase(Tool):
             tools.update(t.tool.containers())
         return tools
 
+    def has_tool_with_no_container(self):
+        return any(
+            t.tool.has_tool_with_no_container() for t in self.step_nodes.values()
+        )
+
     def report(self, to_console=True, tabulate_tablefmt=None):
         import tabulate
 

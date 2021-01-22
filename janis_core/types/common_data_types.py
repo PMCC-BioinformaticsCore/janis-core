@@ -515,6 +515,8 @@ class Directory(DataType):
 
 
 class Array(DataType):
+    init_key_map = {"t": "_t"}
+
     def __init__(self, t: ParseableType, optional=False):
         resolvedtype = get_instantiated_type(t)
         if not isinstance(resolvedtype, DataType):

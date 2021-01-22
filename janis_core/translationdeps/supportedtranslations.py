@@ -5,6 +5,7 @@ class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
     SHELL = "shell"
+    JANIS = "janis"
 
     def __str__(self):
         return self.value
@@ -26,10 +27,16 @@ class SupportedTranslation(Enum):
 
             return BashTranslator()
 
+        elif self == SupportedTranslation.JANIS:
+            from ..translations.janis import JanisTranslator
+
+            return JanisTranslator()
+
     @staticmethod
     def all():
         return [
             SupportedTranslation.CWL,
             SupportedTranslation.WDL,
             SupportedTranslation.SHELL,
+            SupportedTranslation.JANIS,
         ]

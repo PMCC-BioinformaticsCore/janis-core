@@ -160,6 +160,10 @@ class Tool(ABC, object):
         return [t.id() for t in self.tool_inputs()]
 
     @abstractmethod
+    def has_tool_with_no_container(self):
+        pass
+
+    @abstractmethod
     def generate_inputs_override(
         self,
         additional_inputs=None,
@@ -186,6 +190,9 @@ class Tool(ABC, object):
     def translate(
         self,
         translation: str,
+        to_console=True,
+        to_disk=False,
+        export_path=None,
         with_docker=True,
         with_resource_overrides=False,
         allow_empty_container=False,

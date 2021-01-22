@@ -1,1 +1,1 @@
-./fromcwl.py bwamem.cwl
+janisdk fromcwl bwamem.cwl
