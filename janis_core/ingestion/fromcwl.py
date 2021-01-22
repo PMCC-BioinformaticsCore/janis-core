@@ -385,7 +385,7 @@ class CWlParser:
 
         tag_str = self.get_tag_from_identifier(tag_str)
         if source_str not in wf.nodes:
-            raise Exception(f"Couldn't find input / step {source_str} in nodes")
+            raise KeyError(f"Couldn't find input / step {source_str} in nodes")
         source = wf[source_str]
         from janis_core.workflow.workflow import StepNode
 
@@ -490,8 +490,21 @@ class CWlParser:
         for inp in workflow.inputs:
             self.ingest_workflow_input(wf, inp)
 
-        for stp in workflow.steps:
-            self.ingest_workflow_step(wf, stp)
+        steps_to_process = workflow.steps
+        iters = len(steps_to_process) ** 2
+        while len(steps_to_process) > 0:
+            stp = steps_to_process.pop(0)
+            try:
+                self.ingest_workflow_step(wf, stp)
+            except KeyError as e:
+                steps_to_process.append(stp)
+                if iters < 0:
+                    print("")
+            iters -= 1
+            if iters < 0:
+                print("Oh god...")
+        # for stp in workflow.steps:
+        #     self.ingest_workflow_step(wf, stp)
 
         for out in workflow.outputs:
             self.ingest_workflow_output(wf, out)
