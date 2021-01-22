@@ -220,15 +220,35 @@ class CWlParser:
             for s in secondary_files
         ]
 
+    function_token_matcher = re.compile("^\$\{\s+?return\s+?(.+?)\s\}$")
     single_token_matcher = re.compile("^\$\((.+)\)$")
-    inline_expression_matcher = re.compile("\$\((.+)\)")
-    input_selector_matcher = re.compile("^inputs\.(A-z0-9)$")
+    inline_expression_matcher = re.compile("\$\((.+?)\)")
+    input_selector_matcher = re.compile("^inputs\.([A-z0-9_]+)$")
+    string_matcher = re.compile('^".+?"$')
+
+    @staticmethod
+    def parse_number_from_string(num):
+        """
+        Parse a string that is expected to contain a number.
+        :param num: str. the number in string.
+        :return: float or int. Parsed num.
+        """
+        if not isinstance(num, str):  # optional - check type
+            raise TypeError("num should be a str. Got {}.".format(type(num)))
+        if re.compile("^\s*\d+\s*$").search(num):
+            return int(num)
+        if re.compile("^\s*(\d*\.\d+)|(\d+\.\d*)\s*$").search(num):
+            return float(num)
+        raise ValueError("num is not a number. Got {}.".format(num))  # optional
 
     def parse_basic_expression(self, expr):
-
         match = self.single_token_matcher.match(expr)
         if match:
             return self.convert_javascript_token(match.groups()[0])
+
+        bigger_match = self.function_token_matcher.match(expr)
+        if bigger_match:
+            return self.convert_javascript_token(bigger_match.groups()[0])
 
         tokens = set(self.inline_expression_matcher.findall(expr))
 
@@ -237,7 +257,7 @@ class CWlParser:
 
         for token, idx in zip(tokens, range(len(tokens))):
             key = f"JANIS_CWL_TOKEN_{idx+1}"
-            string_format = string_format.replace(token, key)
+            string_format = string_format.replace(f"$({token})", f"{{{key}}}")
             token_replacers[key] = self.convert_javascript_token(token)
 
         return j.StringFormatter(string_format, **token_replacers)
@@ -245,7 +265,16 @@ class CWlParser:
     def convert_javascript_token(self, token: str):
         input_selector_match = self.input_selector_matcher.match(token)
         if input_selector_match:
-            return j.InputSelector(input_selector_match.group()[0])
+            return j.InputSelector(input_selector_match.groups()[0])
+
+        is_string = self.string_matcher.match(token)
+        if is_string:
+            return token[1:-1]
+
+        try:
+            return self.parse_number_from_string(token)
+        except ValueError:
+            pass
 
         j.Logger.warn(
             f"Couldn't translate javascript token, will use the placeholder '<expr>{token}</expr>'"
@@ -286,6 +315,21 @@ class CWlParser:
             default=inp.default,
         )
 
+    def ingest_expression_tool_input(self, inp):
+        inp_type = self.ingest_cwl_type(inp.type, secondary_files=inp.secondaryFiles)
+        return j.ToolInput(
+            tag=self.get_tag_from_identifier(inp.id), input_type=inp_type,
+        )
+
+    def ingest_expression_tool_output(self, out):
+        out_type = self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles)
+
+        return j.ToolOutput(
+            self.get_tag_from_identifier(out.id),
+            output_type=out_type,
+            skip_output_quality_check=True,
+        )
+
     def ingest_command_tool_output(
         self, out
     ):  # out: self.cwlgen.CommandOutputParameter
@@ -297,6 +341,8 @@ class CWlParser:
                 selector = j.WildcardSelector(
                     self.parse_basic_expression(outBinding.glob)
                 )
+            elif outBinding.outputEval:
+                selector = self.parse_basic_expression(outBinding.outputEval)
 
         return j.ToolOutput(
             tag=self.get_tag_from_identifier(out.id),
@@ -385,9 +431,18 @@ class CWlParser:
         for inp in stp.in_:
             inp: cwlgen.WorkflowStepInput = inp
             inp_identifier = self.get_tag_from_identifier(inp.id)
-            inputs[inp_identifier] = self.parse_workflow_source(
-                wf, inp.source, potential_prefix=step_identifier
-            )
+
+            source = None
+            if inp.source is not None:
+                source = self.parse_workflow_source(
+                    wf, inp.source, potential_prefix=step_identifier
+                )
+            elif inp.valueFrom is not None:
+                source = self.parse_basic_expression(inp.valueFrom)
+
+            if source is None:
+                print(f"Source is None from object: {inp.save()}")
+            inputs[inp_identifier] = source
 
         return wf.step(
             identifier=step_identifier,
