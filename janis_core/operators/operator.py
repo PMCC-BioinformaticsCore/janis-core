@@ -177,7 +177,7 @@ class IndexOperator(Operator, ABC):
         return f"{base}[{index}]"
 
     def to_cwl(self, unwrap_operator, *args):
-        base, index = self.args
+        base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
 
 
