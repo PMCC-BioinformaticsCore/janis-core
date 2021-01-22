@@ -20,7 +20,9 @@ class CWlParser:
     def __init__(self, cwl_version: str, base_uri: str = None):
         self.cwl_version = cwl_version
         self.base_uri = base_uri
-        self.cwlgen = self.load_cwlgen_from_version(cwl_version=cwl_version)
+        self.cwlgen, self.cwlgen_etool_to_cltool = self.load_cwlgen_from_version(
+            cwl_version=cwl_version
+        )
 
     def get_data_type_from_secondaries(cls, secondaries: List[str], optional: bool):
         def calcluate_hash_of_set(s):
@@ -272,6 +274,9 @@ class CWlParser:
             string_format = string_format.replace(f"$({token})", f"{{{key}}}")
             token_replacers[key] = self.convert_javascript_token(token)
 
+        if len(token_replacers) == 0:
+            return string_format
+
         return j.StringFormatter(string_format, **token_replacers)
 
     def convert_javascript_token(self, token: str):
@@ -355,6 +360,8 @@ class CWlParser:
                 )
             elif outBinding.outputEval:
                 selector = self.parse_basic_expression(outBinding.outputEval)
+        elif out.outputEval:
+            selector = self.parse_basic_expression(out.outputEval)
 
         return j.ToolOutput(
             tag=self.get_tag_from_identifier(out.id),
@@ -467,9 +474,16 @@ class CWlParser:
     def ingest_command_line_tool(self, clt):
 
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
+        files_to_create = {}
         for req in clt.requirements:
             if isinstance(req, self.cwlgen.DockerRequirement):
                 docker_requirement = req
+
+            elif isinstance(req, self.cwlgen.InitialWorkDirRequirement):
+                for dirent in req.listing:
+                    files_to_create[
+                        self.parse_basic_expression(dirent.entryname)
+                    ] = dirent.entry
 
         container = None
         if docker_requirement:
@@ -487,6 +501,7 @@ class CWlParser:
             version="v0.1.0",
             container=container or "ubuntu:latest",
             doc=clt.doc,
+            files_to_create=files_to_create or None,
         )
         return jclt
 
@@ -527,21 +542,25 @@ class CWlParser:
 
     @classmethod
     def load_cwlgen_from_version(cls, cwl_version: str):
-        global cwlgen
 
         if cwl_version == "v1.0":
             import cwl_utils.parser_v1_0 as cwlutils
+            from cwl_utils.cwl_v1_0_expression_refactor import etool_to_cltool
         elif cwl_version == "v1.1":
             import cwl_utils.parser_v1_1 as cwlutils
+            from cwl_utils.cwl_v1_0_expression_refactor import etool_to_cltool
         elif cwl_version == "v1.2":
             import cwl_utils.parser_v1_2 as cwlutils
+            from cwl_utils.cwl_v1_2_expression_refactor import etool_to_cltool
         else:
             print(
                 f"Didn't recognise CWL version {cwl_version}, loading default: {DEFAULT_PARSER_VERSION}"
             )
-            cwlutils = cls.load_cwlgen_from_version(DEFAULT_PARSER_VERSION)
+            cwlutils, etool_to_cltool = cls.load_cwlgen_from_version(
+                DEFAULT_PARSER_VERSION
+            )
 
-        return cwlutils
+        return cwlutils, etool_to_cltool
 
     @classmethod
     def load_cwl_version_from_doc(cls, doc: str) -> str:
@@ -559,18 +578,10 @@ class CWlParser:
         return tool_dict["cwlVersion"]
 
     def ingest_expression_tool(self, expr_tool):
-
-        return j.CommandToolBuilder(
-            base_command=["node", "expression.js"],
-            tool=self.get_tool_tag_from_identifier(expr_tool.id),
-            inputs=[self.ingest_expression_tool_input(inp) for inp in expr_tool.inputs],
-            outputs=[
-                self.ingest_expression_tool_output(out) for out in expr_tool.outputs
-            ],
-            files_to_create={"expression.js": expr_tool.expression},
-            container="node:slim",
-            version="v0.1.0",
-        )
+        clt = self.cwlgen_etool_to_cltool(expr_tool)
+        for out in clt.outputs:
+            out.outputEval = f"JANIS: stdout['{out.id}']"
+        return self.ingest_command_line_tool(clt)
 
 
 if __name__ == "__main__":
