@@ -226,7 +226,7 @@ class ToolOutput:
             )
         ):
             raise Exception(
-                "ToolOutput expects a glob when the output type is not Stdout / Stderr"
+                "ToolOutput expects a 'selector=' param when the output type is not Stdout / Stderr"
             )
 
         self.selector = selector
