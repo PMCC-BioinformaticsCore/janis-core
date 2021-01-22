@@ -280,9 +280,19 @@ if __name__ == "__main__":
         try:
             import black
 
-            return black.format_str(wf, mode=black.FileMode(line_length=82))
+            try:
+                return black.format_str(wf, mode=black.FileMode(line_length=82))
+            except black.InvalidInput:
+                Logger.warn(
+                    "Check the generated Janis code carefully, as there might be a syntax error. You should report this error along with the workflow you're trying to generate from"
+                )
         except ImportError:
-            return wf
+            Logger.debug(
+                "Janis can automatically format generated Janis code if you install black: https://github.com/psf/black"
+            )
+
+        return wf
+
         # return wf
 
     @staticmethod
@@ -439,6 +449,7 @@ if __name__ == "__main__":
             ("version", workflow.version()),
             ("tool_provider", workflow.tool_provider()),
             ("tool_module", workflow.tool_module()),
+            ("doc", workflow.doc()),
         ]
 
         tb = 4 * " "
