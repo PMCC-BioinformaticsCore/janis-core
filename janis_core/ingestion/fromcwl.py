@@ -57,6 +57,7 @@ class CWlParser:
         parser = CWlParser(cwl_version=cwl_version, base_uri=os.path.dirname(doc))
 
         tool = parser.from_document(doc)
+        CWlParser.parsed_cache[abs_path] = tool
         if initial:
             os.chdir(initial)
         return tool
