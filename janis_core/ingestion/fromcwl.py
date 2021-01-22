@@ -27,11 +27,21 @@ class CWlParser:
             return hash("|".join(sorted(set(s))))
 
         if not cls.file_datatype_cache:
+
+            FastaGzType = None
+            try:
+                from janis_bioinformatics.data_types import FastaGz
+
+                FastaGzType = FastaGz
+            except ImportError:
+                pass
             dts = j.JanisShed.get_all_datatypes()
             cls.file_datatype_cache = {
                 calcluate_hash_of_set(dt.secondary_files()): dt
                 for dt in dts
-                if issubclass(dt, j.File) and dt().secondary_files()
+                if issubclass(dt, j.File)
+                and dt().secondary_files()
+                and (FastaGzType is not None and not issubclass(dt, FastaGzType))
             }
 
         sec_hash = calcluate_hash_of_set(secondaries)
@@ -172,7 +182,7 @@ class CWlParser:
     def get_tool_tag_from_identifier(cls, identifier):
         i = cls.get_tag_from_identifier(identifier)
 
-        if not Validators.validate_identifier(i):
+        while not Validators.validate_identifier(i):
             i = str(
                 input(
                     f"The tag for tool: '{i}' (fullID: {identifier}) was invalid, please choose another: "
