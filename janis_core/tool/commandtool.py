@@ -789,7 +789,11 @@ class CommandToolBuilder(CommandTool):
         "disk": "_disk",
         "directories_to_create": "_directories_to_create",
         "files_to_create": "_files_to_create",
+        "doc": "_doc",
     }
+
+    def doc(self) -> Optional[str]:
+        return self._doc
 
     def __init__(
         self,
@@ -814,6 +818,7 @@ class CommandToolBuilder(CommandTool):
             Dict[str, SELECTOR_OR_VALUE],
             List[Tuple[SELECTOR_OR_VALUE, SELECTOR_OR_VALUE]],
         ] = None,
+        doc: str = None,
     ):
         """
         Builder for a CommandTool.
@@ -837,6 +842,7 @@ class CommandToolBuilder(CommandTool):
         :param directories_to_create: A list of directories to create, accepts an expression (selector / operator)
         :param files_to_create: Either a List of tuples [path: Selector, contents: Selector],
         or a dictionary {"path": contents}. The list of tuples allows you to use an operator for the pathname
+        :param doc: Documentation string
         """
 
         super().__init__()
@@ -859,3 +865,4 @@ class CommandToolBuilder(CommandTool):
         self._disk = disk
         self._directories_to_create = directories_to_create
         self._files_to_create = files_to_create
+        self._doc = doc

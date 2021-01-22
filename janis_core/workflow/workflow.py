@@ -1329,6 +1329,7 @@ class WorkflowBuilder(Workflow):
         metadata: WorkflowMetadata = None,
         tool_provider: str = None,
         tool_module: str = None,
+        doc: str = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
@@ -1336,6 +1337,7 @@ class WorkflowBuilder(Workflow):
         self._metadata = metadata
         self._tool_provider = tool_provider
         self._tool_module = tool_module
+        self._doc = doc
 
         super().__init__()
 
@@ -1370,6 +1372,9 @@ class WorkflowBuilder(Workflow):
 
     def __str__(self):
         return f'WorkflowBuilder("{self._identifier}")'
+
+    def doc(self) -> Optional[str]:
+        return self._doc
 
 
 def wrap_steps_in_workflow(
