@@ -453,7 +453,11 @@ if __name__ == "__main__":
         ]
 
         tb = 4 * " "
-        mapped_fields = "\n".join(f'{tb}{k}="{v}",' for k, v in fields if v is not None)
+        mapped_fields = "\n".join(
+            f"{tb}{k}={self.get_string_repr(v, workflow_id=workflow_identifier)},"
+            for k, v in fields
+            if v is not None
+        )
 
         return f"""{workflow_identifier} = WorkflowBuilder(
 {mapped_fields}
