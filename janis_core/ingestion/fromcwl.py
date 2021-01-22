@@ -222,7 +222,7 @@ class CWlParser:
             for s in secondary_files
         ]
 
-    function_token_matcher = re.compile("^\$\{\s+?return\s+?(.+?)\s\}$")
+    function_token_matcher = re.compile("^\$\{\s*?return\s+?(.+?);*?\s*?\}$")
     single_token_matcher = re.compile("^\$\((.+)\)$")
     inline_expression_matcher = re.compile("\$\((.+?)\)")
     input_selector_matcher = re.compile("^inputs\.([A-z0-9_]+)$")
