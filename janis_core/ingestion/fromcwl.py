@@ -4,26 +4,41 @@ import re
 import os
 from typing import Optional, Union, List
 
+from janis_core.utils.validators import Validators
+
 import janis_core as j
 
 
 DEFAULT_PARSER_VERSION = "v1.2"
 
 
-class GenericFileWithSecondaries(j.File):
-    def __init__(self, optional=False, secondaries: List[str] = None):
-        super().__init__(optional=optional)
-        self.secondaries = secondaries
-
-    def secondary_files(self) -> Optional[List[str]]:
-        return self.secondaries
-
-
 class CWlParser:
+
+    parsed_cache = {}
+    file_datatype_cache = {}
+
     def __init__(self, cwl_version: str, base_uri: str = None):
         self.cwl_version = cwl_version
         self.base_uri = base_uri
         self.cwlgen = self.load_cwlgen_from_version(cwl_version=cwl_version)
+
+    def get_data_type_from_secondaries(cls, secondaries: List[str], optional: bool):
+        def calcluate_hash_of_set(s):
+            return hash("|".join(sorted(set(s))))
+
+        if not cls.file_datatype_cache:
+            dts = j.JanisShed.get_all_datatypes()
+            cls.file_datatype_cache = {
+                calcluate_hash_of_set(dt.secondary_files()): dt
+                for dt in dts
+                if issubclass(dt, j.File) and dt().secondary_files()
+            }
+
+        sec_hash = calcluate_hash_of_set(secondaries)
+        if sec_hash in cls.file_datatype_cache:
+            return cls.file_datatype_cache[sec_hash](optional=optional)
+
+        return j.GenericFileWithSecondaries(secondaries=secondaries)
 
     @staticmethod
     def from_doc(doc, base_uri=None):
@@ -65,15 +80,16 @@ class CWlParser:
                 array_optional_layers.append(inp_type.optional)
                 inp_type = inp_type.subtype()
 
-            inp_type = GenericFileWithSecondaries(
-                secondaries=self.process_secondary_files(secondary_files)
+            inp_type = self.get_data_type_from_secondaries(
+                secondaries=self.process_secondary_files(secondary_files),
+                optional=inp_type.optional,
             )
             for is_optional in array_optional_layers[::-1]:
                 inp_type = j.Array(inp_type, optional=is_optional)
 
         return inp_type
 
-    def from_cwl_inner_type(self, cwl_type):
+    def from_cwl_inner_type(self, cwl_type) -> j.DataType:
         if isinstance(cwl_type, str):
             optional = "?" in cwl_type
             cwl_type = cwl_type.replace("?", "")
@@ -98,6 +114,10 @@ class CWlParser:
                 inner = j.Stdout
             elif cwl_type == "stderr":
                 inner = j.Stderr
+            elif cwl_type == "Any":
+                inner = j.String
+            elif cwl_type == "long":
+                inner = j.Int
             else:
                 raise Exception(f"Can't detect type {cwl_type}")
             return inner(optional=optional)
@@ -109,7 +129,7 @@ class CWlParser:
                 if c == "null":
                     optional = True
                 else:
-                    types.append(self.from_cwl_inner_type(c))
+                    types.append(self.ingest_cwl_type(c, []))
 
             if len(types) == 1:
                 if optional is not None:
@@ -126,6 +146,14 @@ class CWlParser:
 
         elif isinstance(cwl_type, self.cwlgen.CommandInputArraySchema):
             return j.Array(self.from_cwl_inner_type(cwl_type.items))
+        elif isinstance(cwl_type, self.cwlgen.InputArraySchema):
+            return j.Array(self.from_cwl_inner_type(cwl_type.items))
+        elif isinstance(cwl_type, self.cwlgen.CommandOutputArraySchema):
+            return j.Array(self.from_cwl_inner_type(cwl_type.items))
+        elif isinstance(cwl_type, self.cwlgen.OutputArraySchema):
+            return j.Array(self.from_cwl_inner_type(cwl_type.items))
+        elif isinstance(cwl_type, self.cwlgen.InputEnumSchema):
+            return j.String()
 
         else:
             raise Exception(f"Can't parse type {type(cwl_type).__name__}")
