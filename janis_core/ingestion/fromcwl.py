@@ -75,6 +75,8 @@ class CWlParser:
         elif isinstance(loaded_doc, self.cwlgen.Workflow):
             return self.ingest_workflow(loaded_doc)
 
+        elif isinstance(loaded_doc, self.cwlgen.ExpressionTool):
+            return self.ingest_expression_tool(loaded_doc)
         else:
             raise Exception(
                 f"Janis doesn't support ingesting from {type(loaded_doc).__name__}"
@@ -545,6 +547,20 @@ class CWlParser:
             raise Exception(f"Couldn't find cwlVersion in tool {doc}")
 
         return tool_dict["cwlVersion"]
+
+    def ingest_expression_tool(self, expr_tool):
+
+        return j.CommandToolBuilder(
+            base_command=["node", "expression.js"],
+            tool=self.get_tool_tag_from_identifier(expr_tool.id),
+            inputs=[self.ingest_expression_tool_input(inp) for inp in expr_tool.inputs],
+            outputs=[
+                self.ingest_expression_tool_output(out) for out in expr_tool.outputs
+            ],
+            files_to_create={"expression.js": expr_tool.expression},
+            container="node:slim",
+            version="v0.1.0",
+        )
 
 
 if __name__ == "__main__":
