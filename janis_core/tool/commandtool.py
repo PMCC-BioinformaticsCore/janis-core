@@ -187,6 +187,7 @@ class ToolOutput:
         secondaries_present_as: Dict[str, str] = None,
         doc: Optional[Union[str, OutputDocumentation]] = None,
         glob: Optional[Union[Selector, str]] = None,
+        _skip_output_quality_check=False,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -197,6 +198,7 @@ class ToolOutput:
         :param selector: How to collect this output, can accept any :class:`janis.Selector`.
         :param glob: (DEPRECATED) An alias for `selector`
         :param doc: Documentation on what the output is, used to generate docs.
+        :param _skip_output_quality_check: DO NOT USE THIS PARAMETER, it's a scapegoat for parsing CWL ExpressionTools when an cwl.output.json is generated
         """
 
         if not Validators.validate_identifier(tag):
@@ -206,6 +208,7 @@ class ToolOutput:
 
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
+        self._skip_output_quality_check = _skip_output_quality_check
 
         if selector is None and glob is not None:
             selector = glob
@@ -214,8 +217,13 @@ class ToolOutput:
                 f"ToolInput({tag}) received inputs for both selector and glob. Please only use glob"
             )
 
-        if selector is None and not (
-            isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
+        if (
+            not _skip_output_quality_check
+            and selector is None
+            and not (
+                isinstance(self.output_type, Stdout)
+                or isinstance(self.output_type, Stderr)
+            )
         ):
             raise Exception(
                 "ToolOutput expects a glob when the output type is not Stdout / Stderr"

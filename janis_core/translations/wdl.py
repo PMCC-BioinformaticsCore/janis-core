@@ -774,6 +774,9 @@ EOT"""
         else:
             stype = expression.__class__.__name__
 
+        if output._skip_output_quality_check and expression is None:
+            return "None"
+
         raise Exception(
             f"Tool ({debugkwargs}) has an unrecognised glob type: '{stype}' ({expression}), this is "
             f"deprecated. Please use the a Selector to build the outputs for '{output.id()}'"
@@ -1897,7 +1900,7 @@ def translate_wildcard_selector(
     override_select_first: Optional[bool] = None,
     is_optional: Optional[bool] = None,
 ):
-    if not selector.wildcard:
+    if selector.wildcard is None:
         raise Exception(
             "No wildcard was provided for wildcard selector: " + str(selector)
         )
