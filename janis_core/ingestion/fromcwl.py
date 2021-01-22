@@ -318,7 +318,7 @@ class CWlParser:
     def ingest_expression_tool_input(self, inp):
         inp_type = self.ingest_cwl_type(inp.type, secondary_files=inp.secondaryFiles)
         return j.ToolInput(
-            tag=self.get_tag_from_identifier(inp.id), input_type=inp_type,
+            tag=self.get_tag_from_identifier(inp.id), input_type=inp_type
         )
 
     def ingest_expression_tool_output(self, out):
@@ -474,6 +474,7 @@ class CWlParser:
             ],
             version="v0.1.0",
             container=container or "ubuntu:latest",
+            doc=clt.doc,
         )
         return jclt
 
@@ -485,6 +486,7 @@ class CWlParser:
         wf = j.WorkflowBuilder(
             identifier=self.get_tag_from_identifier(workflow.id),
             friendly_name=workflow.label,
+            doc=workflow.doc,
         )
 
         for inp in workflow.inputs:
@@ -508,8 +510,6 @@ class CWlParser:
 
         for out in workflow.outputs:
             self.ingest_workflow_output(wf, out)
-
-        wf.translate("wdl")
 
         return wf
 
