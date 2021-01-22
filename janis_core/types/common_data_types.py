@@ -2,8 +2,7 @@
 # Implementations #
 ###################
 from inspect import isclass
-from typing import Dict, Any, Set
-
+from typing import Dict, Any, Set, List, Optional
 
 from janis_core.deps import cwlgen, wdlgen
 
@@ -729,6 +728,15 @@ class Stderr(File):
 
     def invalid_value_hint(self, meta):
         return None
+
+
+class GenericFileWithSecondaries(File):
+    def __init__(self, optional=False, secondaries: List[str] = None):
+        super().__init__(optional=optional)
+        self.secondaries = secondaries
+
+    def secondary_files(self) -> Optional[List[str]]:
+        return self.secondaries
 
 
 all_types = [
