@@ -167,10 +167,30 @@ class CWlParser:
             raise Exception(f"Can't parse type {type(cwl_type).__name__}")
 
     @classmethod
+    def get_tool_tag_from_identifier(cls, identifier):
+        i = cls.get_tag_from_identifier(identifier)
+
+        if not Validators.validate_identifier(i):
+            i = str(
+                input(
+                    f"The tag for tool: '{i}' (fullID: {identifier}) was invalid, please choose another: "
+                )
+            )
+
+        return i
+
+    @classmethod
     def get_tag_from_identifier(cls, identifier: any):
         identifier = cls.get_source_from_identifier(identifier)
         if "/" in identifier:
             identifier = str(identifier.split("/")[-1])
+        while "-" in identifier:
+            identifier = identifier.replace("-", "_")
+
+        if identifier == "input":
+            return "inp"
+        if identifier == "output":
+            return "outp"
 
         return identifier
 
@@ -180,6 +200,14 @@ class CWlParser:
             identifier = str(identifier)
         if "#" in identifier:
             identifier = str(identifier.split("#")[-1])
+
+        while "-" in identifier:
+            identifier = identifier.replace("-", "_")
+
+        if identifier == "input":
+            return "inp"
+        if identifier == "output":
+            return "outp"
 
         return identifier
 
@@ -281,13 +309,20 @@ class CWlParser:
     def parse_workflow_source(
         self, wf: j.Workflow, step_input, potential_prefix: Optional[str] = None
     ):
+        if step_input is None:
+            return None
         if isinstance(step_input, list):
-            return list(map(self.parse_workflow_source, step_input))
+            return [
+                self.parse_workflow_source(wf, si, potential_prefix=potential_prefix)
+                for si in step_input
+            ]
 
         if not isinstance(step_input, str):
             raise Exception(f"Can't parse step_input {step_input}")
 
         parsed_step_input = self.get_source_from_identifier(step_input)
+        if parsed_step_input.startswith(wf.id() + "/"):
+            parsed_step_input = parsed_step_input[len(wf.id()) + 1 :]
         if potential_prefix and parsed_step_input.startswith(potential_prefix + "/"):
             parsed_step_input = parsed_step_input[len(potential_prefix) + 1 :]
 
@@ -301,6 +336,8 @@ class CWlParser:
             if "/" in parsed_step_input
             else (parsed_step_input, None)
         )
+
+        tag_str = self.get_tag_from_identifier(tag_str)
         if source_str not in wf.nodes:
             raise Exception(f"Couldn't find input / step {source_str} in nodes")
         source = wf[source_str]
@@ -371,12 +408,15 @@ class CWlParser:
         if docker_requirement:
             container = docker_requirement.dockerPull
 
+        tool_id = self.get_tool_tag_from_identifier(clt.id)
         jclt = j.CommandToolBuilder(
-            tool=self.get_tag_from_identifier(clt.id),
+            tool=tool_id,
             base_command=clt.baseCommand,
             inputs=[self.ingest_command_tool_input(inp) for inp in clt.inputs],
             outputs=[self.ingest_command_tool_output(out) for out in clt.outputs],
-            arguments=[self.ingest_command_tool_argument(arg) for arg in clt.arguments],
+            arguments=[
+                self.ingest_command_tool_argument(arg) for arg in (clt.arguments or [])
+            ],
             version="v0.1.0",
             container=container or "ubuntu:latest",
         )
