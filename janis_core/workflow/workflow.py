@@ -249,8 +249,14 @@ class OutputNode(Node):
             raise Exception("Unsupported output source type " + str(single_source))
 
         if not skip_typecheck and not datatype.can_receive_from(stype):
+            if isinstance(source, list):
+                source_str = (
+                    "['" + "', '".join(f"{s.node.id()}.{s.tag}" for s in source) + "']"
+                )
+            else:
+                source_str = f"'{source.node.id()}.{source.tag}'"
             Logger.critical(
-                f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
+                f"Mismatch of types when joining to output node {source_str} to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
