@@ -339,6 +339,12 @@ if __name__ == "__main__":
         if isinstance(obj, list):
             inner = ", ".join(map(get_string_repr_func2, obj))
             return f"[{inner}]"
+        elif isinstance(obj, dict):
+            inner = ", ".join(
+                f"{get_string_repr_func2(k)}: {get_string_repr_func2(v)}"
+                for k, v in obj.items()
+            )
+            return f"{{{inner}}}"
         if isinstance(obj, str):
             nlreplaced = obj.replace("\n", "\\n").replace('"', "'")
             return f'"{nlreplaced}"'
