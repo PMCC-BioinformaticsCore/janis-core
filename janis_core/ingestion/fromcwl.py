@@ -42,8 +42,15 @@ class CWlParser:
 
     @staticmethod
     def from_doc(doc, base_uri=None):
+        abs_path = os.path.relpath(doc)
+
+        if abs_path in CWlParser.parsed_cache:
+            return CWlParser.parsed_cache[abs_path]
+
         initial = None
         if base_uri:
+            if base_uri.startswith("file://"):
+                base_uri = base_uri[6:]
             initial = os.getcwd()
             os.chdir(base_uri)
         cwl_version = CWlParser.load_cwl_version_from_doc(doc)
