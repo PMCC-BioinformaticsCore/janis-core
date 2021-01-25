@@ -1,7 +1,9 @@
+import json
 from typing import Dict, Tuple, List
 
 from janis_core import Logger
-from janis_core.tool.commandtool import ToolArgument, ToolInput
+from janis_core.tool.commandtool import ToolArgument, ToolInput, Tool
+from janis_core.tool.tool import ToolType
 from janis_core.translations import TranslatorBase
 
 from janis_core.types import (
@@ -76,7 +78,7 @@ class BashTranslator(TranslatorBase):
                 )
 
         str_bc = " ".join(f"'{c}'" for c in bc)
-        command = " \\\n".join([str_bc, *["  " + a for a in output_args]])
+        command = " \\\n".join([str_bc, *[a for a in output_args]])
 
         doc = f"# {tool.id()} bash wrapper"
         meta = tool.bind_metadata() or tool.metadata
@@ -87,15 +89,48 @@ class BashTranslator(TranslatorBase):
                 "\n# " + l for l in meta.documentation.splitlines(keepends=False)
             )
 
+        outputs = cls.generate_outputs(tool)
+        esc = '\\"'
+
         return f"""
 #!/usr/bin/env sh
 
 source $1
 
+DIR=$(pwd)
+STDOUTPATH=$(pwd)/stdout
+STDERRPATH=$(pwd)/stderr
+
 {doc}
 
-{command}
-        """
+echo {command}
+{command} > $STDOUTPATH 2> $STDERRPATH
+
+outputs="{json.dumps(outputs).replace('"', esc)}"
+outputs="${{outputs/STDOUT/$STDOUTPATH}}"
+outputs="${{outputs/STDERR/$STDERRPATH}}"
+outputs="${{outputs/DIR/$DIR}}"
+echo $outputs
+"""
+
+    @classmethod
+    def generate_outputs(cls, tool: Tool):
+
+        outputs = {}
+        for out in tool.outputs():
+            if isinstance(out.output_type, Stdout):
+                outputs[out.tag] = "STDOUT"
+            elif isinstance(out.output_type, Stderr):
+                outputs[out.tag] = "STDERR"
+            elif isinstance(out.output_type, File):
+                if isinstance(out.selector, InputSelector):
+                    outputs[out.tag] = f"DIR/${out.selector.input_to_select}"
+                elif isinstance(out.glob, InputSelector):
+                    outputs[out.tag] = f"DIR/${out.selector.input_to_select}"
+            else:
+                outputs[out.tag] = "XXX"
+
+        return outputs
 
     @classmethod
     def translate_code_tool_internal(
@@ -107,6 +142,86 @@ source $1
     ):
         raise Exception("CodeTool is not currently supported in bash translation")
 
+    @classmethod
+    def build_inputs_file(
+            cls,
+            tool,
+            recursive=False,
+            merge_resources=False,
+            hints=None,
+            additional_inputs: Dict = None,
+            max_cores=None,
+            max_mem=None,
+            max_duration=None,
+    ) -> Dict[str, any]:
+
+        ad = additional_inputs or {}
+        values_provided_from_tool = {}
+        if tool.type() == ToolType.Workflow:
+            values_provided_from_tool = {
+                i.id(): i.value or i.default
+                for i in tool.input_nodes.values()
+                if i.value or (i.default and not isinstance(i.default, Selector))
+            }
+        elif tool.type() == ToolType.CommandTool:
+            values_provided_from_tool = {
+                i.id(): i.default
+                for i in tool.tool_inputs()
+            }
+
+        # inp = {
+        #     i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
+        #     for i in tool.tool_inputs()
+        #     if i.default is not None
+        #        or not i.intype.optional
+        #        or i.id() in ad
+        #        or i.id() in values_provided_from_tool
+        # }
+
+        # Build input variables and another copy of each input variable with its prefix attached
+        inp = {}
+        for i in tool.inputs():
+            if i.default is not None \
+               or not i.input_type.optional \
+               or i.tag in ad \
+               or i.tag in values_provided_from_tool:
+
+                prefix = i.prefix if i.prefix else ""
+                tprefix = prefix
+
+                if prefix and i.separate_value_from_prefix:
+                    tprefix += " "
+
+                ad.get(i.tag)
+                values_provided_from_tool.get(i.tag)
+
+                val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+
+                if not val:
+                    val = []
+
+                if not isinstance(val, list):
+                    val = [val]
+
+                inp[i.tag] = " ".join(v for v in val)
+
+                if len(val) > 0:
+                    inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
+                else:
+                    inp[i.tag + "WithPrefix"] = ""
+
+        if merge_resources:
+            for k, v in cls.build_resources_input(
+                    tool,
+                    hints,
+                    max_cores=max_cores,
+                    max_mem=max_mem,
+                    max_duration=max_duration,
+            ).items():
+                inp[k] = ad.get(k, v)
+
+        return inp
+
     @staticmethod
     def stringify_translated_workflow(wf):
         return wf
@@ -117,7 +232,6 @@ source $1
 
     @staticmethod
     def stringify_translated_inputs(inputs):
-        # return str(inputs)
         lines = []
         Logger.debug(f"inputs: {inputs}")
         for key in inputs:
@@ -137,7 +251,7 @@ source $1
 
     @staticmethod
     def inputs_filename(workflow):
-        return workflow.id() + ".json"
+        return workflow.id() + ".input.sh"
 
     @staticmethod
     def resources_filename(workflow):
@@ -150,6 +264,21 @@ source $1
     @classmethod
     def unwrap_expression(cls, expression):
         pass
+
+    @classmethod
+    def stdout_output_name(cls, tool):
+        stdout_outputs = []
+        for o in tool.outputs():
+            if isinstance(o.output_type, Stdout):
+                stdout_outputs.append(o.tag)
+
+        if not stdout_outputs:
+            return None
+
+        if len(stdout_outputs) != 1:
+            raise Exception("There is more than out one output with type Stdout")
+
+        return stdout_outputs[0]
 
 
 def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugkwargs):
@@ -165,10 +294,19 @@ def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugk
         tprefix += " "
 
     name = tool_arg.value
+    # if tool_arg.shell_quote is not False:
+    #     return f"{tprefix}'${name}'" if tprefix else f"'${name}'"
+    # else:
+    #     return f"{tprefix}${name}" if tprefix else f"${name}"
+    # if tool_arg.shell_quote is not False:
+    #     return f"'${name}'" if tprefix else f"'${name}'"
+    # else:
+    #     return f"${name}" if tprefix else f"${name}"
+
     if tool_arg.shell_quote is not False:
-        return f"{tprefix}'${name}'" if tprefix else f"'${name}'"
+        return f"'${name}WithPrefix'"
     else:
-        return f"{tprefix}${name}" if tprefix else f"${name}"
+        return f"${name}WithPrefix"
 
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
@@ -177,90 +315,98 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
         return None
 
     name = tool_input.id()
-    intype = tool_input.input_type
+    return f"${name}WithPrefix"
 
-    optional = (not isinstance(intype, Filename) and intype.optional) or (
-        isinstance(tool_input.default, CpuSelector) and tool_input.default is None
-    )
-    position = tool_input.position
-
-    separate_value_from_prefix = tool_input.separate_value_from_prefix is not False
-    prefix = tool_input.prefix if tool_input.prefix else ""
-    tprefix = prefix
-
-    intype = tool_input.input_type
-
-    is_flag = isinstance(intype, Boolean)
-
-    if prefix and separate_value_from_prefix and not is_flag:
-        tprefix += " "
-
-    if isinstance(intype, Boolean):
-        if tool_input.prefix:
-            return tool_input.prefix
-        return ""
-    elif isinstance(intype, Array):
-        Logger.critical("Can't bind arrays onto bash yet")
-        return ""
-
-        # expr = name
-        #
-        # separator = tool_input.separator if tool_input.separator is not None else " "
-        # should_quote = isinstance(intype.subtype(), (String, File, Directory))
-        # condition_for_binding = None
-        #
-        # if intype.optional:
-        #     expr = f"select_first([{expr}, []])"
-        #     condition_for_binding = (
-        #         f"(defined({name}) && length(select_first([{name}, []])) > 0)"
-        #     )
-        #
-        # if intype.subtype().optional:
-        #     expr = f"select_all({expr})"
-        #
-        # if should_quote:
-        #     if tool_input.prefix_applies_to_all_elements:
-        #         separator = f"'{separator}{tprefix} '"
-        #     else:
-        #         separator = f"'{separator}'"
-        #
-        #     if tprefix:
-        #         expr = f'"{tprefix}\'" + sep("{separator}", {expr}) + "\'"'
-        #     else:
-        #         expr = f'"\'" + sep("{separator}", {expr}) + "\'"'
-        #
-        # else:
-        #     if tprefix:
-        #         expr = f'"{tprefix}" + sep("{separator}", {expr})'
-        #     else:
-        #         expr = f'sep("{separator}", {expr})'
-        # if condition_for_binding is not None:
-        #     name = f'~{{if {condition_for_binding} then {expr} else ""}}'
-        # else:
-        #     name = f"~{{{expr}}}"
-    elif (
-        isinstance(intype, (String, File, Directory))
-        and tool_input.shell_quote is not False
-    ):
-        return f"{tprefix}\"${name}\"" if tprefix else f"\"${name}\""
-        # if tprefix:
-        #     # if optional:
-        #     # else:
-        #     name = f"{tprefix}'${name}'"
-        # else:
-        #     # if not optional:
-        #     # else:
-        #     name = f"'${name}'"
-
-    else:
-        return f"{tprefix}${name}" if tprefix else f"${name}"
-        # if prefix:
-        #     if optional:
-        #         name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
-        #     else:
-        #         name = f"{tprefix}~{{{name}}}"
-        # else:
-        #     name = f"~{{{name}}}"
+    # name = tool_input.id()
+    # intype = tool_input.input_type
+    #
+    # optional = (not isinstance(intype, Filename) and intype.optional) or (
+    #     isinstance(tool_input.default, CpuSelector) and tool_input.default is None
+    # )
+    # position = tool_input.position
+    #
+    # separate_value_from_prefix = tool_input.separate_value_from_prefix is not False
+    # prefix = tool_input.prefix if tool_input.prefix else ""
+    # tprefix = prefix
+    #
+    # intype = tool_input.input_type
+    #
+    # is_flag = isinstance(intype, Boolean)
+    #
+    # if prefix and separate_value_from_prefix and not is_flag:
+    #     tprefix += " "
+    #
+    # if isinstance(intype, Boolean):
+    #     # if tool_input.prefix:
+    #     #     return tool_input.prefix
+    #     # return ""
+    #     return f"${name}WithPrefix"
+    # elif isinstance(intype, Array):
+    #     # Logger.critical("Can't bind arrays onto bash yet")
+    #     # return ""
+    #
+    #     return f"${name}WithPrefix"
+    #
+    #     # expr = name
+    #     #
+    #     # separator = tool_input.separator if tool_input.separator is not None else " "
+    #     # should_quote = isinstance(intype.subtype(), (String, File, Directory))
+    #     # condition_for_binding = None
+    #     #
+    #     # if intype.optional:
+    #     #     expr = f"select_first([{expr}, []])"
+    #     #     condition_for_binding = (
+    #     #         f"(defined({name}) && length(select_first([{name}, []])) > 0)"
+    #     #     )
+    #     #
+    #     # if intype.subtype().optional:
+    #     #     expr = f"select_all({expr})"
+    #     #
+    #     # if should_quote:
+    #     #     if tool_input.prefix_applies_to_all_elements:
+    #     #         separator = f"'{separator}{tprefix} '"
+    #     #     else:
+    #     #         separator = f"'{separator}'"
+    #     #
+    #     #     if tprefix:
+    #     #         expr = f'"{tprefix}\'" + sep("{separator}", {expr}) + "\'"'
+    #     #     else:
+    #     #         expr = f'"\'" + sep("{separator}", {expr}) + "\'"'
+    #     #
+    #     # else:
+    #     #     if tprefix:
+    #     #         expr = f'"{tprefix}" + sep("{separator}", {expr})'
+    #     #     else:
+    #     #         expr = f'sep("{separator}", {expr})'
+    #     # if condition_for_binding is not None:
+    #     #     name = f'~{{if {condition_for_binding} then {expr} else ""}}'
+    #     # else:
+    #     #     name = f"~{{{expr}}}"
+    # elif (
+    #     isinstance(intype, (String, File, Directory))
+    #     and tool_input.shell_quote is not False
+    # ):
+    #     # return f"{tprefix}\"${name}\"" if tprefix else f"\"${name}\""
+    #     return f"'${name}WithPrefix'"
+    #     # if tprefix:
+    #     #     # if optional:
+    #     #     # else:
+    #     #     name = f"{tprefix}'${name}'"
+    #     # else:
+    #     #     # if not optional:
+    #     #     # else:
+    #     #     name = f"'${name}'"
+    #
+    # else:
+    #     # return f"{tprefix}${name}" if tprefix else f"${name}"
+    #     return f"${name}WithPrefix"
+    #     # if prefix:
+    #     #     if optional:
+    #     #         name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
+    #     #     else:
+    #     #         name = f"{tprefix}~{{{name}}}"
+    #     # else:
+    #     #     name = f"~{{{name}}}"
 
 
 if __name__ == "__main__":
