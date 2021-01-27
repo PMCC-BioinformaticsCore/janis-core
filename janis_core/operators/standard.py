@@ -30,6 +30,10 @@ class ReadContents(Operator):
         arg = unwrap_operator(args[0])
         return f"{arg}.contents"
 
+    def to_bash(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"cat {arg}"
+
     def returntype(self):
         return String()
 
@@ -95,6 +99,9 @@ class BasenameOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         return unwrap_operator(args[0]) + ".basename"
+
+    def to_bash(self, unwrap_operator, *args):
+        return f"basename {unwrap_operator(args[0])}"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
