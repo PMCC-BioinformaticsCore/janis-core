@@ -56,7 +56,7 @@ class BashTranslator(TranslatorBase):
         for tool_id in tool_commands:
             Logger.debug(tool_id)
             command += f"echo {tool_commands[tool_id]}\n"
-            command += f"{command} > $DIR/{tool_id}_stdout 2> $DIR/{tool_id}_stderr\n\n"
+            command += f"{tool_commands[tool_id]} > $DIR/{tool_id}_stdout 2> $DIR/{tool_id}_stderr\n\n"
 
         return (f"""
 #!/usr/bin/env sh
@@ -68,6 +68,9 @@ STDOUTPATH=$(pwd)/stdout
 STDERRPATH=$(pwd)/stderr
 
 {command}
+
+
+
 # END
 """, [])
 
@@ -229,14 +232,26 @@ echo $outputs
         # }
 
         # Build input variables and another copy of each input variable with its prefix attached
+        inp = {}
         #TODO: workflow input
         if tool.type() == ToolType.Workflow:
             for i in tool.tool_inputs():
-                return {}
+                if i.default is not None \
+                        or not i.intype.optional \
+                        or i.id() in ad \
+                        or i.id() in values_provided_from_tool:
+                    val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
 
+                    if not val:
+                        val = []
+
+                    if not isinstance(val, list):
+                        val = [val]
+
+                    inp[i.tag] = " ".join(str(v) for v in val)
+                    inp[i.tag + "WithPrefix"] = inp[i.tag]
 
         elif tool.type() == ToolType.CommandTool:
-            inp = {}
             for i in tool.inputs():
                 if i.default is not None \
                    or not i.input_type.optional \
@@ -260,13 +275,12 @@ echo $outputs
                     if not isinstance(val, list):
                         val = [val]
 
-                    inp[i.tag] = " ".join(v for v in val)
+                    inp[i.tag] = " ".join(str(v) for v in val)
 
                     if len(val) > 0:
                         inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
                     else:
                         inp[i.tag + "WithPrefix"] = ""
-
 
         if merge_resources:
             for k, v in cls.build_resources_input(
@@ -293,7 +307,7 @@ echo $outputs
         lines = []
         Logger.debug(f"inputs: {inputs}")
         for key in inputs:
-            val = inputs[key]
+            val = str(inputs[key])
             lines.append(f"{key}='{val}'")
 
         return "\n".join(lines)
@@ -361,10 +375,18 @@ def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugk
     # else:
     #     return f"${name}" if tprefix else f"${name}"
 
+    # if tool_arg.shell_quote is not False:
+    #     return f"'${name}WithPrefix'"
+    # else:
+    #     return f"${name}WithPrefix"
+
+    arg_val = f"{name}"
+    arg_val = arg_val.replace("inputs.", "$")
+
     if tool_arg.shell_quote is not False:
-        return f"'${name}WithPrefix'"
+        return f"'{arg_val}'"
     else:
-        return f"${name}WithPrefix"
+        return f"{arg_val}"
 
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
