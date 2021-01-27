@@ -53,7 +53,7 @@ class CWlParser:
         return j.GenericFileWithSecondaries(secondaries=secondaries)
 
     @staticmethod
-    def from_doc(doc, base_uri=None):
+    def from_doc(doc: str, base_uri=None):
         abs_path = os.path.relpath(doc)
 
         if abs_path in CWlParser.parsed_cache:
@@ -234,11 +234,17 @@ class CWlParser:
             for s in secondary_files
         ]
 
-    function_token_matcher = re.compile("^\$\{\s*?return\s+?(.+?);*?\s*?\}$")
-    single_token_matcher = re.compile("^\$\((.+)\)$")
-    inline_expression_matcher = re.compile("\$\((.+?)\)")
-    input_selector_matcher = re.compile("^inputs\.([A-z0-9_]+)$")
-    string_matcher = re.compile('^".+?"$')
+    function_token_matcher = re.compile(
+        "^\$\{\s*?return\s+?(.+?);*?\s*?\}$"
+    )  # ${ return "arriba" }
+    single_token_matcher = re.compile("^\$\((.+)\)$")  # "$(some value here)"
+    inline_expression_matcher = re.compile(
+        "\$\((.+?)\)"
+    )  # valueFrom: "Hello, my name is $(name)
+    input_selector_matcher = re.compile(
+        "^inputs\.([A-z0-9_]+)$"
+    )  # valueFrom: $(inputs.myName) -> InputSelector("myName")
+    string_matcher = re.compile('^".+?"$')  # literal strings
 
     @staticmethod
     def parse_number_from_string(num):
@@ -475,15 +481,29 @@ class CWlParser:
 
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
         files_to_create = {}
+        memory, cpus, time = None, None, None
         for req in clt.requirements:
             if isinstance(req, self.cwlgen.DockerRequirement):
                 docker_requirement = req
 
             elif isinstance(req, self.cwlgen.InitialWorkDirRequirement):
                 for dirent in req.listing:
+                    if isinstance(dirent, str):
+                        continue
                     files_to_create[
                         self.parse_basic_expression(dirent.entryname)
                     ] = dirent.entry
+
+            elif isinstance(req, self.cwlgen.ResourceRequirement):
+                # maybe convert mebibytes to megabytes?
+                memory = req.ramMin or req.ramMax
+                cpus = req.coresMin
+            elif (
+                hasattr(self.cwlgen, "ToolTimeLimit")
+                and isinstance(req, self.cwlgen.ToolTimeLimit)
+                and req.timelimit > 0
+            ):
+                time = req.timelimit
 
         container = None
         if docker_requirement:
@@ -501,14 +521,15 @@ class CWlParser:
             version="v0.1.0",
             container=container or "ubuntu:latest",
             doc=clt.doc,
+            friendly_name=clt.label,
             files_to_create=files_to_create or None,
+            memory=memory,
+            cpus=cpus,
+            time=time,
         )
         return jclt
 
     def ingest_workflow(self, workflow):
-        import cwl_utils.parser_v1_2 as cwlgen
-
-        workflow: cwlgen.Workflow = workflow
 
         wf = j.WorkflowBuilder(
             identifier=self.get_tag_from_identifier(workflow.id),
@@ -532,6 +553,8 @@ class CWlParser:
             iters -= 1
             if iters < 0:
                 print("Oh god...")
+            if iters < -len(steps_to_process) ** 2:
+                raise Exception("Probably stuck in some weird loop, we're ")
         # for stp in workflow.steps:
         #     self.ingest_workflow_step(wf, stp)
 
@@ -578,6 +601,7 @@ class CWlParser:
         return tool_dict["cwlVersion"]
 
     def ingest_expression_tool(self, expr_tool):
+        # https://github.com/common-workflow-language/cwl-utils/pull/5
         clt = self.cwlgen_etool_to_cltool(expr_tool)
         for out in clt.outputs:
             out.outputEval = f"JANIS: stdout['{out.id}']"
