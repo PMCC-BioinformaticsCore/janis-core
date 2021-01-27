@@ -21,6 +21,7 @@ from janis_core.types import (
     File,
 )
 
+from janis_core.operators import Operator
 
 class BashTranslator(TranslatorBase):
     def __init__(self):
@@ -35,7 +36,41 @@ class BashTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
-        raise Exception("Not supported for bash translation")
+
+        # raise Exception("Not supported for bash translation")
+
+        inputsdict = workflow.inputs_map()
+        toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
+
+        # Logger.debug(inputsdict)
+        # Logger.debug(toolinputs_dict)
+
+        Logger.debug(workflow.get_tools().items())
+
+        tool_commands = {}
+        for tool_id, tool in workflow.get_tools().items():
+            tool_commands[tool_id] = cls.generate_tool_command(tool)
+
+        Logger.debug(tool_commands)
+        command = ""
+        for tool_id in tool_commands:
+            Logger.debug(tool_id)
+            command += f"echo {tool_commands[tool_id]}\n"
+            command += f"{command} > $DIR/{tool_id}_stdout 2> $DIR/{tool_id}_stderr\n\n"
+
+        return (f"""
+#!/usr/bin/env sh
+
+source $1
+
+DIR=$(pwd)
+STDOUTPATH=$(pwd)/stdout
+STDERRPATH=$(pwd)/stderr
+
+{command}
+# END
+""", [])
+
 
     @classmethod
     def translate_tool_internal(
@@ -46,6 +81,47 @@ class BashTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ):
+        params_to_include = None
+        if tool.connections:
+            params_to_include = set(tool.connections.keys())
+
+        doc = f"# {tool.id()} bash wrapper"
+        meta = tool.bind_metadata() or tool.metadata
+        if params_to_include:
+            doc += "\n\tNB: this wrapper only contains a subset of the available parameters"
+        if meta and meta.documentation:
+            doc += "".join(
+                "\n# " + l for l in meta.documentation.splitlines(keepends=False)
+            )
+
+        outputs = cls.generate_outputs(tool)
+        esc = '\\"'
+
+        command = cls.generate_tool_command(tool)
+
+        return f"""
+#!/usr/bin/env sh
+
+source $1
+
+DIR=$(pwd)
+STDOUTPATH=$(pwd)/stdout
+STDERRPATH=$(pwd)/stderr
+
+{doc}
+
+echo {command}
+{command} > $STDOUTPATH 2> $STDERRPATH
+
+outputs="{json.dumps(outputs).replace('"', esc)}"
+outputs="${{outputs/STDOUT/$STDOUTPATH}}"
+outputs="${{outputs/STDERR/$STDERRPATH}}"
+outputs="${{outputs/DIR/$DIR}}"
+echo $outputs
+"""
+
+    @classmethod
+    def generate_tool_command(cls, tool):
         args: List[ToolArgument] = sorted(
             [*(tool.arguments() or []), *(tool.inputs() or [])],
             key=lambda a: (a.position or 0),
@@ -80,38 +156,7 @@ class BashTranslator(TranslatorBase):
         str_bc = " ".join(f"'{c}'" for c in bc)
         command = " \\\n".join([str_bc, *[a for a in output_args]])
 
-        doc = f"# {tool.id()} bash wrapper"
-        meta = tool.bind_metadata() or tool.metadata
-        if params_to_include:
-            doc += "\n\tNB: this wrapper only contains a subset of the available parameters"
-        if meta and meta.documentation:
-            doc += "".join(
-                "\n# " + l for l in meta.documentation.splitlines(keepends=False)
-            )
-
-        outputs = cls.generate_outputs(tool)
-        esc = '\\"'
-
-        return f"""
-#!/usr/bin/env sh
-
-source $1
-
-DIR=$(pwd)
-STDOUTPATH=$(pwd)/stdout
-STDERRPATH=$(pwd)/stderr
-
-{doc}
-
-echo {command}
-{command} > $STDOUTPATH 2> $STDERRPATH
-
-outputs="{json.dumps(outputs).replace('"', esc)}"
-outputs="${{outputs/STDOUT/$STDOUTPATH}}"
-outputs="${{outputs/STDERR/$STDERRPATH}}"
-outputs="${{outputs/DIR/$DIR}}"
-echo $outputs
-"""
+        return command
 
     @classmethod
     def generate_outputs(cls, tool: Tool):
@@ -123,10 +168,15 @@ echo $outputs
             elif isinstance(out.output_type, Stderr):
                 outputs[out.tag] = "STDERR"
             elif isinstance(out.output_type, File):
+                var_name = None
                 if isinstance(out.selector, InputSelector):
-                    outputs[out.tag] = f"DIR/${out.selector.input_to_select}"
+                    var_name = out.selector.input_to_select
                 elif isinstance(out.glob, InputSelector):
-                    outputs[out.tag] = f"DIR/${out.selector.input_to_select}"
+                    var_name = out.glob.input_to_select
+                elif isinstance(out.selector, Operator):
+                    var_name = "..."
+
+                outputs[out.tag] = f"DIR/${var_name}"
             else:
                 outputs[out.tag] = "XXX"
 
@@ -179,36 +229,44 @@ echo $outputs
         # }
 
         # Build input variables and another copy of each input variable with its prefix attached
-        inp = {}
-        for i in tool.inputs():
-            if i.default is not None \
-               or not i.input_type.optional \
-               or i.tag in ad \
-               or i.tag in values_provided_from_tool:
+        #TODO: workflow input
+        if tool.type() == ToolType.Workflow:
+            for i in tool.tool_inputs():
+                return {}
 
-                prefix = i.prefix if i.prefix else ""
-                tprefix = prefix
 
-                if prefix and i.separate_value_from_prefix:
-                    tprefix += " "
+        elif tool.type() == ToolType.CommandTool:
+            inp = {}
+            for i in tool.inputs():
+                if i.default is not None \
+                   or not i.input_type.optional \
+                   or i.tag in ad \
+                   or i.tag in values_provided_from_tool:
 
-                ad.get(i.tag)
-                values_provided_from_tool.get(i.tag)
+                    prefix = i.prefix if i.prefix else ""
+                    tprefix = prefix
 
-                val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+                    if prefix and i.separate_value_from_prefix:
+                        tprefix += " "
 
-                if not val:
-                    val = []
+                    ad.get(i.tag)
+                    values_provided_from_tool.get(i.tag)
 
-                if not isinstance(val, list):
-                    val = [val]
+                    val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
 
-                inp[i.tag] = " ".join(v for v in val)
+                    if not val:
+                        val = []
 
-                if len(val) > 0:
-                    inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
-                else:
-                    inp[i.tag + "WithPrefix"] = ""
+                    if not isinstance(val, list):
+                        val = [val]
+
+                    inp[i.tag] = " ".join(v for v in val)
+
+                    if len(val) > 0:
+                        inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
+                    else:
+                        inp[i.tag + "WithPrefix"] = ""
+
 
         if merge_resources:
             for k, v in cls.build_resources_input(
