@@ -845,6 +845,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         tool=None,
         for_output=False,
         inputs_dict=None,
+        add_path_suffix_to_input_selector_if_required=True,
         **debugkwargs,
     ):
         if value is None:
@@ -955,6 +956,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 code_environment=code_environment,
                 selector_override=selector_override,
                 inputs_dict=inputs_dict,
+                add_path_suffix_if_required=add_path_suffix_to_input_selector_if_required,
             )
         elif isinstance(value, WildcardSelector):
             return "self"
@@ -962,15 +964,21 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             #     f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
             # )
         elif isinstance(value, Operator):
-            unwrap_expression_wrap = lambda exp: CwlTranslator.unwrap_expression(
-                exp,
-                code_environment=True,
-                selector_override=selector_override,
-                tool=tool,
-                for_output=for_output,
-                inputs_dict=inputs_dict,
-                **debugkwargs,
-            )
+
+            def unwrap_expression_wrap(
+                exp, add_path_suffix_to_input_selector_if_required=True
+            ):
+                return CwlTranslator.unwrap_expression(
+                    exp,
+                    code_environment=True,
+                    selector_override=selector_override,
+                    tool=tool,
+                    for_output=for_output,
+                    inputs_dict=inputs_dict,
+                    add_path_suffix_to_input_selector_if_required=add_path_suffix_to_input_selector_if_required,
+                    **debugkwargs,
+                )
+
             return CwlTranslator.wrap_in_codeblock_if_required(
                 value.to_cwl(unwrap_expression_wrap, *value.args),
                 is_code_environment=code_environment,
@@ -1775,6 +1783,7 @@ def translate_input_selector(
     inputs_dict,
     selector_override=None,
     skip_inputs_lookup=False,
+    add_path_suffix_if_required=True,
 ):
     # TODO: Consider grabbing "path" of File
 
@@ -1839,6 +1848,13 @@ def translate_input_selector(
                 intype.fundamental_type(), (File, Directory)
             ):
                 sel = f"{sel}.map(function(el) {{ return el.basename; }})"
+        elif add_path_suffix_if_required:
+            if intype.is_base_type((File, Directory)):
+                sel += ".path"
+            elif intype.is_array() and isinstance(
+                intype.fundamental_type(), (File, Directory)
+            ):
+                sel = f"{sel}.map(function(el) {{ return el.path; }})"
 
     return sel if code_environment else f"$({sel})"
 

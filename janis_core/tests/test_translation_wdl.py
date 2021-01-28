@@ -1491,8 +1491,13 @@ class TestReadContentsOperator(unittest.TestCase):
         t = CommandToolBuilder(
             tool="test_readcontents",
             base_command=["echo", "1"],
-            inputs=[],
-            outputs=[ToolOutput("out", String, glob=ReadContents(Stdout()))],
+            inputs=[ToolInput("inp", File)],
+            outputs=[
+                ToolOutput("out", String, glob=ReadContents(Stdout())),
+                ToolOutput(
+                    "out_json", String, selector=InputSelector("inp").read_json()["out"]
+                ),
+            ],
             container=None,
             version="-1",
         )
@@ -1590,3 +1595,17 @@ class TestUnionType(unittest.TestCase):
     def test_file_int_fail(self):
         uniontype = UnionType(File, int)
         self.assertRaises(Exception, uniontype.wdl)
+
+
+t = CommandToolBuilder(
+    tool="test_readcontents",
+    base_command=["echo", "1"],
+    inputs=[ToolInput("inp", File)],
+    outputs=[
+        ToolOutput(
+            "out_json", String, selector=InputSelector("inp").read_json()["out"]
+        ),
+    ],
+    container=None,
+    version="-1",
+)
