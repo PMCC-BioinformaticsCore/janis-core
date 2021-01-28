@@ -472,6 +472,8 @@ class CWlParser:
                 )
             elif inp.valueFrom is not None:
                 source = self.parse_basic_expression(inp.valueFrom)
+            elif inp.default:
+                source = inp.default
 
             if source is None:
                 print(f"Source is None from object: {inp.save()}")
@@ -521,7 +523,7 @@ class CWlParser:
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
         files_to_create = {}
         memory, cpus, time = None, None, None
-        for req in clt.requirements:
+        for req in clt.requirements or []:
             if isinstance(req, self.cwlgen.DockerRequirement):
                 docker_requirement = req
 
