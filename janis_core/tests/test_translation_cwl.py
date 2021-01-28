@@ -343,10 +343,10 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
             '$((inputs.inp.basename.replace(/.txt$/, "") + ".bam"))', arg.valueFrom
         )
 
-    def test_input_value_wildcard(self):
-        self.assertRaises(
-            Exception, cwl.CwlTranslator.unwrap_expression, value=WildcardSelector("*")
-        )
+    # def test_input_value_wildcard(self):
+    #     self.assertRaises(
+    #         Exception, cwl.CwlTranslator.unwrap_expression, value=WildcardSelector("*")
+    #     )
 
     # def test_input_value_cpuselect_codeenv(self):
     #     inp = CpuSelector()
