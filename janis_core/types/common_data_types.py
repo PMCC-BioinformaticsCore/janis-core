@@ -733,10 +733,19 @@ class Stderr(File):
 class GenericFileWithSecondaries(File):
     def __init__(self, optional=False, secondaries: List[str] = None):
         super().__init__(optional=optional)
+        if not isinstance(secondaries, list):
+            secondaries = [secondaries]
         self.secondaries = secondaries
 
     def secondary_files(self) -> Optional[List[str]]:
         return self.secondaries
+
+    def id(self):
+        return f"{super().id()} [{', '.join(self.secondaries)}]"
+
+    @staticmethod
+    def name():
+        return "GenericFileWithSecondaries"
 
 
 all_types = [
