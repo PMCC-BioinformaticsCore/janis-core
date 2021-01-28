@@ -1949,6 +1949,16 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
         return translate_string_formatter(glob, None, tool=tool), None
 
     elif isinstance(glob, WildcardSelector):
+        return (
+            CwlTranslator.unwrap_expression(
+                glob.wildcard,
+                code_environment=False,
+                inputs_dict=inputsdict,
+                **debugkwargs,
+            ),
+            None,
+        )
+
         return glob.wildcard, None
 
     if isinstance(glob, Operator):
