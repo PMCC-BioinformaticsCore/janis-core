@@ -290,6 +290,14 @@ class CWlParser:
         if input_selector_match:
             return j.InputSelector(input_selector_match.groups()[0])
 
+        if token.endswith(".size"):
+            return j.FileSizeOperator(self.convert_javascript_token(token[:-5]))
+        if token.endswith(".basename"):
+            return j.BasenameOperator(self.convert_javascript_token(token[:-9]))
+        if token.endswith(".path"):
+            # Ignore it because Janis will automatically put this back in where relevant
+            return self.convert_javascript_token(token[:-5])
+
         is_string = self.string_matcher.match(token)
         if is_string:
             return token[1:-1]
@@ -464,25 +472,58 @@ class CWlParser:
                 )
             elif inp.valueFrom is not None:
                 source = self.parse_basic_expression(inp.valueFrom)
+            elif inp.default:
+                source = inp.default
 
             if source is None:
                 print(f"Source is None from object: {inp.save()}")
             inputs[inp_identifier] = source
 
+        scatter = None
+        if stp.scatter:
+            scatter_fields_raw = stp.scatter
+            if not isinstance(scatter_fields_raw, list):
+                scatter_fields_raw = [scatter_fields_raw]
+
+            scatter_fields = []
+            for field in scatter_fields_raw:
+                [*other_fields, input_to_scatter] = field.split("/")
+                scatter_fields.append(input_to_scatter)
+
+            scatter_method = stp.scatterMethod
+            scatter = j.ScatterDescription(
+                fields=scatter_fields, method=self.ingest_scatter_method(scatter_method)
+            )
+
         return wf.step(
             identifier=step_identifier,
             tool=tool(**inputs),
-            scatter=None,
+            scatter=scatter,
             when=None,
             doc=stp.doc,
         )
+
+    def ingest_scatter_method(self, scatter_method) -> j.ScatterMethod:
+        if scatter_method is None or scatter_method == "":
+            return None
+        elif scatter_method == "dotproduct":
+            return j.ScatterMethod.dot
+        elif scatter_method == "nested_crossproduct":
+            j.Logger.warn(
+                "Requesting nested_crossproduct, but Janis only supports flat_crossproduct. Will fallback to flat_crossproduct"
+            )
+            return j.ScatterMethod.cross
+        elif scatter_method == "flat_crossproduct":
+            return j.ScatterMethod.cross
+
+        raise Exception(f"Unrecognised scatter method '{scatter_method}'")
 
     def ingest_command_line_tool(self, clt):
 
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
         files_to_create = {}
         memory, cpus, time = None, None, None
-        for req in clt.requirements:
+        for req in clt.requirements or []:
             if isinstance(req, self.cwlgen.DockerRequirement):
                 docker_requirement = req
 

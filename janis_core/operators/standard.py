@@ -27,7 +27,9 @@ class ReadContents(Operator):
         return f"read_string({arg})"
 
     def to_cwl(self, unwrap_operator, *args):
-        arg = unwrap_operator(args[0])
+        arg = unwrap_operator(
+            args[0], add_path_suffix_to_input_selector_if_required=False
+        )
         return f"{arg}.contents"
 
     def returntype(self):
@@ -40,6 +42,39 @@ class ReadContents(Operator):
         file = self.evaluate_arg(self.args[0], inputs)
         with open(file) as f:
             return f.read()
+
+
+class ReadJsonOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return f"File -> Dict[str, any]"
+
+    def evaluate(self, inputs):
+        file = self.evaluate_arg(self.args[0], inputs)
+        from json import load
+
+        with open(file) as f:
+            return load(f)
+
+    def to_wdl(self, unwrap_operator, *args):
+        f = unwrap_operator(self.args[0])
+        return f"read_json({f})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        fp = unwrap_operator(
+            self.args[0], add_path_suffix_to_input_selector_if_required=False
+        )
+        return f"JSON.parse({fp}.contents)"
+
+    def requires_contents(self):
+        return True
+
+    def argtypes(self) -> List[DataType]:
+        return [File()]
+
+    def returntype(self):
+        # dictionary?
+        return String
 
 
 class JoinOperator(Operator):
@@ -94,7 +129,10 @@ class BasenameOperator(Operator):
         return f"basename({unwrap_operator(arg)})"
 
     def to_cwl(self, unwrap_operator, *args):
-        return unwrap_operator(args[0]) + ".basename"
+        arg = unwrap_operator(
+            args[0], add_path_suffix_to_input_selector_if_required=False
+        )
+        return arg + ".basename"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -263,7 +301,9 @@ class FileSizeOperator(Operator):
         return f'size({f}, "MB")'
 
     def to_cwl(self, unwrap_operator, *args):
-        f = unwrap_operator(self.args[0])
+        f = unwrap_operator(
+            self.args[0], add_path_suffix_to_input_selector_if_required=False
+        )
         return f"({f}.size / 1048576)"
 
     def evaluate(self, inputs):
@@ -347,3 +387,34 @@ class FilterNullOperator(Operator):
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)
         return [i for i in iterable if i is not None]
+
+
+# class Stdout(Operator):
+#     @staticmethod
+#     def friendly_signature():
+#         return "() -> File"
+#
+#     def argtypes(self) -> List[DataType]:
+#         return []
+#
+#     def evaluate(self, inputs):
+#         return ""
+#
+#     def to_wdl(self, unwrap_operator, *args):
+#         return "stdout()"
+#
+#     def to_cwl(self, unwrap_operator, *args):
+#         return "self[0]"
+#
+#     def __init__(self, return_type=File):
+#         super().__init__()
+#         self.return_type = get_instantiated_type(return_type)
+#
+#     def returntype(self):
+#         return self.return_type
+#
+#     def to_string_formatter(self):
+#         kwargs = {"stdout": self}
+#         from janis_core.operators.stringformatter import StringFormatter
+#
+#         return StringFormatter("{stdout}", **kwargs)

@@ -221,6 +221,13 @@ class Selector(ABC):
 
         return ReadContents(self)
 
+    def read_json(self):
+        # could always check self.returntype() and decide to use read_json or ParseJson
+
+        from janis_core.operators.standard import ReadJsonOperator
+
+        return ReadJsonOperator(self)
+
     def __getitem__(self, item):
         from janis_core.operators.operator import IndexOperator
 
