@@ -290,6 +290,14 @@ class CWlParser:
         if input_selector_match:
             return j.InputSelector(input_selector_match.groups()[0])
 
+        if token.endswith(".size"):
+            return j.FileSizeOperator(self.convert_javascript_token(token[:-5]))
+        if token.endswith(".basename"):
+            return j.BasenameOperator(self.convert_javascript_token(token[:-9]))
+        if token.endswith(".path"):
+            # Ignore it because Janis will automatically put this back in where relevant
+            return self.convert_javascript_token(token[:-5])
+
         is_string = self.string_matcher.match(token)
         if is_string:
             return token[1:-1]
