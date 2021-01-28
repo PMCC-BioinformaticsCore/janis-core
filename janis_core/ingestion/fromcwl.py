@@ -477,13 +477,44 @@ class CWlParser:
                 print(f"Source is None from object: {inp.save()}")
             inputs[inp_identifier] = source
 
+        scatter = None
+        if stp.scatter:
+            scatter_fields_raw = stp.scatter
+            if not isinstance(scatter_fields_raw, list):
+                scatter_fields_raw = [scatter_fields_raw]
+
+            scatter_fields = []
+            for field in scatter_fields_raw:
+                [*other_fields, input_to_scatter] = field.split("/")
+                scatter_fields.append(input_to_scatter)
+
+            scatter_method = stp.scatterMethod
+            scatter = j.ScatterDescription(
+                fields=scatter_fields, method=self.ingest_scatter_method(scatter_method)
+            )
+
         return wf.step(
             identifier=step_identifier,
             tool=tool(**inputs),
-            scatter=None,
+            scatter=scatter,
             when=None,
             doc=stp.doc,
         )
+
+    def ingest_scatter_method(self, scatter_method) -> j.ScatterMethod:
+        if scatter_method is None or scatter_method == "":
+            return None
+        elif scatter_method == "dotproduct":
+            return j.ScatterMethod.dot
+        elif scatter_method == "nested_crossproduct":
+            j.Logger.warn(
+                "Requesting nested_crossproduct, but Janis only supports flat_crossproduct. Will fallback to flat_crossproduct"
+            )
+            return j.ScatterMethod.cross
+        elif scatter_method == "flat_crossproduct":
+            return j.ScatterMethod.cross
+
+        raise Exception(f"Unrecognised scatter method '{scatter_method}'")
 
     def ingest_command_line_tool(self, clt):
 
