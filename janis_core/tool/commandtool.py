@@ -729,9 +729,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._cpus):
             return self._cpus(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._cpus)} as a valid CPU type"
+        Logger.warn(
+            f"Janis does not recognise {self._cpus} ({type(self._cpus)}) as a valid CPU value, returning 1"
         )
+        return 1
 
     def memory(self, hints: Dict[str, Any]):
         if self._memory is None:
@@ -742,9 +743,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._memory):
             return self._memory(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._memory)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {self._memory} ({type(self._memory)}) as a valid value for memory, returning 4GB"
         )
+        return 4
 
     def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
         if self._time is None:
@@ -755,9 +757,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._time):
             return self._time(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._time)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {self._memory} ({type(self._time)}) as a valid value for time, returning 86400 seconds"
         )
+        return 86400
 
     def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
         if self._disk is None:
@@ -768,9 +771,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._disk):
             return self._disk(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._disk)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {type(self._disk)} as a valid value for disk, returning None"
         )
+        return None
 
     def directories_to_create(self) -> Union[str, List[str]]:
         return self._directories_to_create

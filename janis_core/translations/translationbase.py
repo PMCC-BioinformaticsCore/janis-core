@@ -472,7 +472,9 @@ class TranslatorBase(ABC):
         inputs = inputs or {}
 
         if not tool.type() == ToolType.Workflow:
-            cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints) or 1)
+            cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints))
+            if cpus is None:
+                cpus = 1
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
             disk = inputs.get(f"{prefix}runtime_disks", 20)
             seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
