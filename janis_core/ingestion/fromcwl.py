@@ -262,6 +262,10 @@ class CWlParser:
         raise ValueError("num is not a number. Got {}.".format(num))  # optional
 
     def parse_basic_expression(self, expr):
+        if expr is None:
+            return None
+        if not isinstance(expr, str):
+            return expr
         match = self.single_token_matcher.match(expr)
         if match:
             return self.convert_javascript_token(match.groups()[0])
@@ -297,6 +301,8 @@ class CWlParser:
         if token.endswith(".path"):
             # Ignore it because Janis will automatically put this back in where relevant
             return self.convert_javascript_token(token[:-5])
+        if token.endswith(".contents"):
+            return j.ReadContents(self.convert_javascript_token(token[:-9]))
 
         is_string = self.string_matcher.match(token)
         if is_string:
@@ -537,8 +543,8 @@ class CWlParser:
 
             elif isinstance(req, self.cwlgen.ResourceRequirement):
                 # maybe convert mebibytes to megabytes?
-                memory = req.ramMin or req.ramMax
-                cpus = req.coresMin
+                memory = self.parse_basic_expression(req.ramMin or req.ramMax)
+                cpus = self.parse_basic_expression(req.coresMin)
             elif (
                 hasattr(self.cwlgen, "ToolTimeLimit")
                 and isinstance(req, self.cwlgen.ToolTimeLimit)
@@ -644,8 +650,13 @@ class CWlParser:
     def ingest_expression_tool(self, expr_tool):
         # https://github.com/common-workflow-language/cwl-utils/pull/5
         clt = self.cwlgen_etool_to_cltool(expr_tool)
+        j.Logger.warn(
+            f"Expression tools aren't well converted to Janis as they rely on unimplemented functionality: {clt.id}"
+        )
         for out in clt.outputs:
-            out.outputEval = f"JANIS: stdout['{out.id}']"
+            out_id = out.id.split(".")[-1]
+            out.outputEval = f"JANIS (potentially unimplemented): j.ReadJsonOperator(j.Stdout)[out_id]"
+
         return self.ingest_command_line_tool(clt)
 
 
