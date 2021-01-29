@@ -731,8 +731,10 @@ class Stderr(File):
 
 
 class GenericFileWithSecondaries(File):
-    def __init__(self, optional=False, secondaries: List[str] = None):
-        super().__init__(optional=optional)
+    def __init__(
+        self, optional=False, secondaries: List[str] = None, extension: str = None
+    ):
+        super().__init__(optional=optional, extension=extension)
         if not isinstance(secondaries, list):
             secondaries = [secondaries]
         self.secondaries = secondaries
