@@ -56,7 +56,7 @@ setup(
         "ruamel.yaml >= 0.12.4, <= 0.16.5",
         "tabulate",
         "path",
-        "cwlformat >= 2020.5.19",
+        "cwlformat == 2020.5.19",
         "cwl-utils >= 0.9",
         "graphviz",
         "nose",
