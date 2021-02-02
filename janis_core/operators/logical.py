@@ -413,6 +413,10 @@ class AddOperator(TwoValueOperator):
         return "+"
 
     @staticmethod
+    def shell_symbol():
+        return "+"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 + arg2
 

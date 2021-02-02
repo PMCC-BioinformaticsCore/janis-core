@@ -1,8 +1,10 @@
 import json
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 from janis_core import Logger
-from janis_core.tool.commandtool import ToolArgument, ToolInput, Tool
+from janis_core.tool.commandtool import ToolArgument, ToolInput, Tool, ToolOutput
+from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
+
 from janis_core.tool.tool import ToolType
 from janis_core.translations import TranslatorBase
 
@@ -42,20 +44,13 @@ class BashTranslator(TranslatorBase):
         inputsdict = workflow.inputs_map()
         toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
-        # Logger.debug(inputsdict)
-        # Logger.debug(toolinputs_dict)
-
-        Logger.debug(workflow.get_tools().items())
-
         tool_commands = {}
         for tool_id, tool in workflow.get_tools().items():
             tool_commands[tool_id] = cls.generate_tool_command(tool)
 
-        Logger.debug(tool_commands)
         command = ""
         for tool_id in tool_commands:
-            Logger.debug(tool_id)
-            command += f"echo {tool_commands[tool_id]}\n"
+            command += f"echo \"{tool_commands[tool_id]}\"\n"
             command += f"{tool_commands[tool_id]} > $DIR/{tool_id}_stdout 2> $DIR/{tool_id}_stderr\n\n"
 
         return (f"""
@@ -68,8 +63,6 @@ STDOUTPATH=$(pwd)/stdout
 STDERRPATH=$(pwd)/stderr
 
 {command}
-
-
 
 # END
 """, [])
@@ -117,9 +110,9 @@ echo {command}
 {command} > $STDOUTPATH 2> $STDERRPATH
 
 outputs="{json.dumps(outputs).replace('"', esc)}"
-outputs="${{outputs/STDOUT/$STDOUTPATH}}"
-outputs="${{outputs/STDERR/$STDERRPATH}}"
-outputs="${{outputs/DIR/$DIR}}"
+outputs="${{outputs//STDOUT/$STDOUTPATH}}"
+outputs="${{outputs//STDERR/$STDERRPATH}}"
+outputs="${{outputs//DIR/$DIR}}"
 echo $outputs
 """
 
@@ -164,26 +157,327 @@ echo $outputs
     @classmethod
     def generate_outputs(cls, tool: Tool):
 
+        inputsdict = tool.inputs_map()
+
         outputs = {}
         for out in tool.outputs():
-            if isinstance(out.output_type, Stdout):
-                outputs[out.tag] = "STDOUT"
-            elif isinstance(out.output_type, Stderr):
-                outputs[out.tag] = "STDERR"
-            elif isinstance(out.output_type, File):
-                var_name = None
-                if isinstance(out.selector, InputSelector):
-                    var_name = out.selector.input_to_select
-                elif isinstance(out.glob, InputSelector):
-                    var_name = out.glob.input_to_select
-                elif isinstance(out.selector, Operator):
-                    var_name = "..."
+            if isinstance(out.output_type, Array):
+                val = []
+                for sel in out.selector:
+                    val.append("DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict))
 
-                outputs[out.tag] = f"DIR/${var_name}"
+            elif isinstance(out.output_type, Stdout):
+                val = "STDOUT"
+            elif isinstance(out.output_type, Stderr):
+                val = "STDERR"
+            elif isinstance(out.output_type, File):
+                sel = out.selector
+                if not sel:
+                    sel = out.glob
+
+                val = "DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict)
+
             else:
-                outputs[out.tag] = "XXX"
+                val = "XXX"
+
+            outputs[out.tag] = val
 
         return outputs
+
+    @classmethod
+    def read_selector(cls, sel: Selector):
+        var_name = None
+        if isinstance(sel, InputSelector):
+            var_name = sel.input_to_select
+        # elif isinstance(out.glob, InputSelector):
+        #     var_name = out.glob.input_to_select
+        elif isinstance(sel, Operator):
+            var_name = "..."
+
+        return f"DIR/${var_name}"
+
+    @classmethod
+    def unwrap_expression(
+            cls,
+            value,
+            code_environment=True,
+            selector_override=None,
+            tool=None,
+            for_output=False,
+            inputs_dict=None,
+            **debugkwargs,
+    ):
+        if value is None:
+            if code_environment:
+                return "null"
+            return None
+
+        if isinstance(value, StepNode):
+            raise Exception(
+                f"The Step node '{value.id()}' was found when unwrapping an expression, "
+                f"you might not have selected an output."
+            )
+
+        if isinstance(value, list):
+            toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
+            inner = ", ".join(
+                cls.unwrap_expression(
+                    value[i],
+                    code_environment=True,
+                    selector_override=selector_override,
+                    tool=tool,
+                    tool_id=toolid + "." + str(i),
+                    inputs_dict=inputs_dict,
+                )
+                for i in range(len(value))
+            )
+            return cls.wrap_in_codeblock_if_required(
+                f"[{inner}]", is_code_environment=code_environment
+            )
+
+        if isinstance(value, str):
+            return value
+            # if not code_environment:
+            #     return value
+            # return cls.quote_values_if_code_environment(
+            #     cls.prepare_escaped_string(value), code_environment
+            # )
+        elif isinstance(value, int) or isinstance(value, float):
+            return str(value)
+        elif isinstance(value, Filename):
+            # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
+            return cls.quote_values_if_code_environment(
+                value.generated_filename(), code_environment
+            )
+        # elif isinstance(value, AliasSelector):
+        #     return cls.unwrap_expression(
+        #         value.inner_selector,
+        #         code_environment=code_environment,
+        #         selector_override=selector_override,
+        #         inputs_dict=inputs_dict,
+        #         for_output=for_output,
+        #         tool=tool,
+        #         **debugkwargs,
+        #     )
+        #
+        # elif isinstance(value, StringFormatter):
+        #     return translate_string_formatter(
+        #         value,
+        #         selector_override=selector_override,
+        #         code_environment=code_environment,
+        #         tool=tool,
+        #         inputs_dict=inputs_dict,
+        #         **debugkwargs,
+        #     )
+        # elif isinstance(value, InputNodeSelector):
+        #     return translate_input_selector(
+        #         InputSelector(value.id()),
+        #         code_environment=code_environment,
+        #         selector_override=selector_override,
+        #         inputs_dict=inputs_dict,
+        #         skip_inputs_lookup=True,
+        #     )
+        # elif isinstance(value, StepOutputSelector):
+        #     sel = f"{value.node.id()}/{value.tag}"
+        #     if sel in selector_override:
+        #         return selector_override[sel]
+        #     raise Exception(
+        #         "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
+        #     )
+        # elif isinstance(value, ResourceSelector):
+        #     if not tool:
+        #         raise Exception(
+        #             f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
+        #         )
+        #     operation = value.get_operation(tool, hints={})
+        #     return cls.unwrap_expression(
+        #         operation,
+        #         code_environment=code_environment,
+        #         tool=tool,
+        #         inputs_dict=inputs_dict,
+        #         **debugkwargs,
+        #     )
+        #
+        # elif for_output and isinstance(value, (Stderr, Stdout)):
+        #     # next few ones we rely on the globs being
+        #     if isinstance(value, Stdout):
+        #         return "self[0]"
+        #     elif isinstance(value, Stderr):
+        #         return "self[1]"
+
+        elif isinstance(value, InputSelector):
+            if for_output:
+                el = cls.prepare_filename_replacements_for(value, inputsdict=inputs_dict)
+                return cls.wrap_in_codeblock_if_required(
+                    el, is_code_environment=code_environment
+                )
+            return cls.translate_input_selector(
+                selector=value,
+                code_environment=code_environment,
+                selector_override=selector_override,
+                inputs_dict=inputs_dict,
+            )
+        elif isinstance(value, WildcardSelector):
+            raise Exception(
+                f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            )
+        elif isinstance(value, Operator):
+            unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
+                exp,
+                code_environment=True,
+                selector_override=selector_override,
+                tool=tool,
+                for_output=for_output,
+                inputs_dict=inputs_dict,
+                **debugkwargs,
+            )
+            return cls.wrap_in_codeblock_if_required(
+                value.to_shell(unwrap_expression_wrap, *value.args),
+                is_code_environment=code_environment,
+            )
+        elif callable(getattr(value, "cwl", None)):
+            return value.cwl()
+        # elif isinstance(value, Operator):
+
+        raise Exception(
+            "Could not detect type %s to convert to input value" % type(value)
+        )
+
+    @classmethod
+    def translate_input_selector(cls,
+            selector: InputSelector,
+            code_environment,
+            inputs_dict,
+            selector_override=None,
+            skip_inputs_lookup=False,
+    ):
+        # TODO: Consider grabbing "path" of File
+
+        sel: str = selector.input_to_select
+        if not sel:
+            raise Exception("No input was selected for input selector: " + str(selector))
+
+        skip_lookup = skip_inputs_lookup or sel.startswith("runtime_")
+
+        if selector_override and sel in selector_override:
+            sel = selector_override[sel]
+        else:
+            sel = f"${sel}"
+
+        if not skip_lookup:
+
+            if inputs_dict is None:
+                raise Exception(
+                    f"An internal error occurred when translating input selector '{sel}': the inputs dictionary was None"
+                )
+            if selector.input_to_select not in inputs_dict:
+                raise Exception(
+                    f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
+                )
+
+            tinp: ToolInput = inputs_dict[selector.input_to_select]
+
+            intype = tinp.intype
+            if selector.remove_file_extension:
+                if intype.is_base_type((File, Directory)):
+                    potential_extensions = (
+                        intype.get_extensions() if intype.is_base_type(File) else None
+                    )
+                    if selector.remove_file_extension and potential_extensions:
+                        sel = f"{sel}.basename"
+                        for ext in potential_extensions:
+                            sel += f'.replace(/{ext}$/, "")'
+
+                elif intype.is_array() and isinstance(
+                        intype.fundamental_type(), (File, Directory)
+                ):
+                    inner_type = intype.fundamental_type()
+                    extensions = (
+                        inner_type.get_extensions()
+                        if isinstance(inner_type, File)
+                        else None
+                    )
+
+                    inner_sel = f"el.basename"
+                    if extensions:
+                        for ext in extensions:
+                            inner_sel += f'.replace(/{ext}$/, "")'
+                    sel = f"{sel}.map(function(el) {{ return {inner_sel}; }})"
+                else:
+                    Logger.warn(
+                        f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
+                    )
+            # elif tinp.localise_file:
+            #     if intype.is_base_type((File, Directory)):
+            #         sel += ".basename"
+            #     elif intype.is_array() and isinstance(
+            #             intype.fundamental_type(), (File, Directory)
+            #     ):
+            #         sel = f"{sel}.map(function(el) {{ return el.basename; }})"
+
+        return sel if code_environment else f"$({sel})"
+
+    @classmethod
+    def prepare_filename_replacements_for(cls,
+            inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
+    ) -> Optional[str]:
+        if inp is None or not isinstance(inp, InputSelector):
+            return None
+
+        if not inputsdict:
+            return "inputs." + inp.input_to_select + ".basename"
+            # raise Exception(
+            #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+            # )
+
+        if isinstance(inp, InputSelector):
+            if inp.input_to_select not in inputsdict:
+                raise Exception(
+                    f"The InputSelector '{inp.input_to_select}' did not select a valid input"
+                )
+
+            tinp = inputsdict.get(inp.input_to_select)
+            intype = tinp.intype
+
+            if intype.is_base_type((File, Directory)):
+                potential_extensions = (
+                    intype.get_extensions() if intype.is_base_type(File) else None
+                )
+                if inp.remove_file_extension and potential_extensions:
+                    base = f"inputs.{tinp.id()}.basename"
+                    for ext in potential_extensions:
+                        base += f'.replace(/{ext}$/, "")'
+                elif tinp.localise_file:
+                    base = f"inputs.{tinp.id()}.basename"
+                else:
+                    base = f"inputs.{tinp.id()}"
+            elif (
+                    intype.is_array()
+                    and isinstance(intype.fundamental_type(), (File, Directory))
+                    and tinp.localise_file
+            ):
+                base = f"inputs.{tinp.id()}.map(function(el) {{ return el.basename; }})"
+            else:
+                base = "inputs." + tinp.id()
+
+            if intype.optional:
+                replacement = f'inputs.{tinp.id()} ? {base} : "generated"'
+            else:
+                replacement = f"{base}"
+
+            return replacement
+
+    @classmethod
+    def wrap_in_codeblock_if_required(cls, value, is_code_environment):
+        return value if is_code_environment else f"$({value})"
+
+    @classmethod
+    def quote_values_if_code_environment(cls, value, is_code_environment):
+        return f'"{value}"' if is_code_environment else value
+
+    @classmethod
+    def prepare_escaped_string(cls, value: str):
+        return json.dumps(value)[1:-1]
 
     @classmethod
     def translate_code_tool_internal(
@@ -216,6 +510,8 @@ echo $outputs
                 for i in tool.input_nodes.values()
                 if i.value or (i.default and not isinstance(i.default, Selector))
             }
+            # TODO: add mapping from inputdict
+
         elif tool.type() == ToolType.CommandTool:
             values_provided_from_tool = {
                 i.id(): i.default
@@ -267,9 +563,14 @@ echo $outputs
                     ad.get(i.tag)
                     values_provided_from_tool.get(i.tag)
 
-                    val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+                    inputsdict = tool.inputs_map()
 
-                    if not val:
+                    if isinstance(i.input_type, Filename):
+                        val = cls.unwrap_expression(i.input_type.generated_filename(), inputs_dict=inputsdict)
+                    else:
+                        val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+
+                    if val == "":
                         val = []
 
                     if not isinstance(val, list):
@@ -277,7 +578,7 @@ echo $outputs
 
                     inp[i.tag] = " ".join(str(v) for v in val)
 
-                    if len(val) > 0:
+                    if len(val) > 0 and (i.prefix or i.position):
                         inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
                     else:
                         inp[i.tag + "WithPrefix"] = ""
@@ -308,7 +609,7 @@ echo $outputs
         Logger.debug(f"inputs: {inputs}")
         for key in inputs:
             val = str(inputs[key])
-            lines.append(f"{key}='{val}'")
+            lines.append(f"{key}=\"{val}\"")
 
         return "\n".join(lines)
 
@@ -333,9 +634,6 @@ echo $outputs
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         return None
 
-    @classmethod
-    def unwrap_expression(cls, expression):
-        pass
 
     @classmethod
     def stdout_output_name(cls, tool):
@@ -391,8 +689,8 @@ def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugk
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
     # make sure it has some essence of a command line binding, else we'll skip it
-    if not (tool_input.position is not None or tool_input.prefix):
-        return None
+    # if not (tool_input.position is not None or tool_input.prefix):
+    #     return None
 
     name = tool_input.id()
     return f"${name}WithPrefix"
