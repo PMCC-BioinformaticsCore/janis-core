@@ -280,9 +280,19 @@ if __name__ == "__main__":
         try:
             import black
 
-            return black.format_str(wf, mode=black.FileMode(line_length=82))
+            try:
+                return black.format_str(wf, mode=black.FileMode(line_length=82))
+            except black.InvalidInput:
+                Logger.warn(
+                    "Check the generated Janis code carefully, as there might be a syntax error. You should report this error along with the workflow you're trying to generate from"
+                )
         except ImportError:
-            return wf
+            Logger.debug(
+                "Janis can automatically format generated Janis code if you install black: https://github.com/psf/black"
+            )
+
+        return wf
+
         # return wf
 
     @staticmethod
@@ -329,6 +339,12 @@ if __name__ == "__main__":
         if isinstance(obj, list):
             inner = ", ".join(map(get_string_repr_func2, obj))
             return f"[{inner}]"
+        elif isinstance(obj, dict):
+            inner = ", ".join(
+                f"{get_string_repr_func2(k)}: {get_string_repr_func2(v)}"
+                for k, v in obj.items()
+            )
+            return f"{{{inner}}}"
         if isinstance(obj, str):
             nlreplaced = obj.replace("\n", "\\n").replace('"', "'")
             return f'"{nlreplaced}"'
@@ -439,10 +455,15 @@ if __name__ == "__main__":
             ("version", workflow.version()),
             ("tool_provider", workflow.tool_provider()),
             ("tool_module", workflow.tool_module()),
+            ("doc", workflow.doc()),
         ]
 
         tb = 4 * " "
-        mapped_fields = "\n".join(f'{tb}{k}="{v}",' for k, v in fields if v is not None)
+        mapped_fields = "\n".join(
+            f"{tb}{k}={self.get_string_repr(v, workflow_id=workflow_identifier)},"
+            for k, v in fields
+            if v is not None
+        )
 
         return f"""{workflow_identifier} = WorkflowBuilder(
 {mapped_fields}

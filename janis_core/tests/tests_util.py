@@ -84,9 +84,9 @@ class Test2ItemMethodWrap(TestCase):
 
 # class testtranslate(TestCase):
 #     def test1(self):
-#         from janis_bioinformatics.tools.cutadapt import CutAdapt_2_6
+#         from janis_bioinformatics.tools.samtools.sort.sort import SamToolsSort_1_9
 #
-#         CutAdapt_2_6().translate("wdl")
+#         SamToolsSort_1_9().translate("cwl")
 
 
 # from janis_pipelines import WGSGermlineGATK

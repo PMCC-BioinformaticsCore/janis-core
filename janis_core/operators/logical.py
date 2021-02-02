@@ -440,13 +440,13 @@ class AddOperator(TwoValueOperator):
         if isinstance(lhs, (String, File, Directory)) or isinstance(
             rhs, (String, File, Directory)
         ):
-            return String
+            return String()
         if isinstance(lhs, Float) or isinstance(rhs, Float):
-            return Double
+            return Double()
         if isinstance(lhs, Float) or isinstance(rhs, Float):
-            return Float
+            return Float()
         if isinstance(lhs, Int) and isinstance(rhs, Int):
-            return Int
+            return Int()
 
         raise TypeError(f"Unsure how to derive returntype from {lhs.id()} + {rhs.id()}")
 

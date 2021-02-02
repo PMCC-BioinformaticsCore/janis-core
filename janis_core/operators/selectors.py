@@ -221,6 +221,13 @@ class Selector(ABC):
 
         return ReadContents(self)
 
+    def read_json(self):
+        # could always check self.returntype() and decide to use read_json or ParseJson
+
+        from janis_core.operators.standard import ReadJsonOperator
+
+        return ReadJsonOperator(self)
+
     def __getitem__(self, item):
         from janis_core.operators.operator import IndexOperator
 
@@ -270,6 +277,12 @@ class InputSelector(Selector):
         :param type_hint: Janis can't determine the type of the input to select until translation time,
             so providing a hint type might suppress false warnings. This is similar to using .as_type(dt)
         """
+
+        if not isinstance(input_to_select, str):
+            raise Exception(
+                f"Expected input_to_select to be string, not {type(input_to_select)}: {str(input_to_select)}"
+            )
+
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
         self.type_hint = get_instantiated_type(type_hint) or File()

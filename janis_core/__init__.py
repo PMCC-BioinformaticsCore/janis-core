@@ -59,6 +59,7 @@ from janis_core.types.common_data_types import (
     Filename,
     Stdout,
     Stderr,
+    GenericFileWithSecondaries,
 )
 from janis_core.operators import *
 

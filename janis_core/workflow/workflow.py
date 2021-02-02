@@ -249,8 +249,14 @@ class OutputNode(Node):
             raise Exception("Unsupported output source type " + str(single_source))
 
         if not skip_typecheck and not datatype.can_receive_from(stype):
+            if isinstance(source, list):
+                source_str = (
+                    "['" + "', '".join(f"{s.node.id()}.{s.tag}" for s in source) + "']"
+                )
+            else:
+                source_str = f"'{source.node.id()}.{source.tag}'"
             Logger.critical(
-                f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
+                f"Mismatch of types when joining to output node {source_str} to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
@@ -1323,6 +1329,7 @@ class WorkflowBuilder(Workflow):
         metadata: WorkflowMetadata = None,
         tool_provider: str = None,
         tool_module: str = None,
+        doc: str = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
@@ -1330,6 +1337,7 @@ class WorkflowBuilder(Workflow):
         self._metadata = metadata
         self._tool_provider = tool_provider
         self._tool_module = tool_module
+        self._doc = doc
 
         super().__init__()
 
@@ -1364,6 +1372,9 @@ class WorkflowBuilder(Workflow):
 
     def __str__(self):
         return f'WorkflowBuilder("{self._identifier}")'
+
+    def doc(self) -> Optional[str]:
+        return self._doc
 
 
 def wrap_steps_in_workflow(

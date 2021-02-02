@@ -845,6 +845,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         tool=None,
         for_output=False,
         inputs_dict=None,
+        add_path_suffix_to_input_selector_if_required=True,
         **debugkwargs,
     ):
         if value is None:
@@ -955,21 +956,29 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 code_environment=code_environment,
                 selector_override=selector_override,
                 inputs_dict=inputs_dict,
+                add_path_suffix_if_required=add_path_suffix_to_input_selector_if_required,
             )
         elif isinstance(value, WildcardSelector):
-            raise Exception(
-                f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
-            )
+            return "self"
+            # raise Exception(
+            #     f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            # )
         elif isinstance(value, Operator):
-            unwrap_expression_wrap = lambda exp: CwlTranslator.unwrap_expression(
-                exp,
-                code_environment=True,
-                selector_override=selector_override,
-                tool=tool,
-                for_output=for_output,
-                inputs_dict=inputs_dict,
-                **debugkwargs,
-            )
+
+            def unwrap_expression_wrap(
+                exp, add_path_suffix_to_input_selector_if_required=True
+            ):
+                return CwlTranslator.unwrap_expression(
+                    exp,
+                    code_environment=True,
+                    selector_override=selector_override,
+                    tool=tool,
+                    for_output=for_output,
+                    inputs_dict=inputs_dict,
+                    add_path_suffix_to_input_selector_if_required=add_path_suffix_to_input_selector_if_required,
+                    **debugkwargs,
+                )
+
             return CwlTranslator.wrap_in_codeblock_if_required(
                 value.to_cwl(unwrap_expression_wrap, *value.args),
                 is_code_environment=code_environment,
@@ -1308,13 +1317,17 @@ def prepare_tool_output_binding(
     loadcontents = requires_content(output.selector)
     requires_std = has_std(output.selector)
 
-    return cwlgen.CommandOutputBinding(
-        glob=[STDOUT_NAME, STDERR_NAME]
+    glob, value_from = (
+        [STDOUT_NAME, STDERR_NAME]
         if requires_std
         else translate_to_cwl_glob(
             output.selector, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
-        ),
-        outputEval=prepare_tool_output_eval(tool, output),
+        )
+    )
+
+    return cwlgen.CommandOutputBinding(
+        glob=glob,
+        outputEval=value_from or prepare_tool_output_eval(tool, output),
         loadContents=loadcontents,
     )
 
@@ -1328,12 +1341,6 @@ def prepare_tool_output_eval(tool, output: ToolOutput) -> Optional[str]:
     :return:
     """
 
-    if isinstance(output.selector, Operator):
-        return None
-        return CwlTranslator.unwrap_expression(
-            output.selector, code_environment=False, tool=tool, for_output=True
-        )
-
     if output.presents_as:
         return f"""\
 ${{
@@ -1341,6 +1348,11 @@ ${{
     return self
 $}}
 """
+    if isinstance(output.selector, Operator):
+        return None
+        return CwlTranslator.unwrap_expression(
+            output.selector, code_environment=False, tool=tool, for_output=True
+        )
     return None
 
 
@@ -1771,6 +1783,7 @@ def translate_input_selector(
     inputs_dict,
     selector_override=None,
     skip_inputs_lookup=False,
+    add_path_suffix_if_required=True,
 ):
     # TODO: Consider grabbing "path" of File
 
@@ -1835,6 +1848,13 @@ def translate_input_selector(
                 intype.fundamental_type(), (File, Directory)
             ):
                 sel = f"{sel}.map(function(el) {{ return el.basename; }})"
+        elif add_path_suffix_if_required:
+            if intype.is_base_type((File, Directory)):
+                sel += ".path"
+            elif intype.is_array() and isinstance(
+                intype.fundamental_type(), (File, Directory)
+            ):
+                sel = f"{sel}.map(function(el) {{ return el.path; }})"
 
     return sel if code_environment else f"$({sel})"
 
@@ -1868,17 +1888,18 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
         return None
 
     if isinstance(glob, list):
-        return [
-            translate_to_cwl_glob(g, inputsdict=inputsdict, tool=tool, **debugkwargs)
-            for g in glob
-        ]
+        return (
+            [
+                translate_to_cwl_glob(
+                    g, inputsdict=inputsdict, tool=tool, **debugkwargs
+                )[0]
+                for g in glob
+            ],
+            None,
+        )
 
     if not isinstance(glob, Selector):
-        Logger.critical(
-            "String globs are being phased out from tool output selections, please use the provided "
-            "Selector (InputSelector or WildcardSelector) classes. " + str(debugkwargs)
-        )
-        return glob
+        return glob, None
 
     if isinstance(glob, InputSelector):
 
@@ -1893,46 +1914,79 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
             intype = tinp.input_type
             if isinstance(intype, Filename):
                 if isinstance(intype.prefix, Selector):
-                    return intype.generated_filename(
-                        replacements={
-                            "prefix": CwlTranslator.unwrap_expression(
-                                intype.prefix,
-                                inputs_dict=inputsdict,
-                                for_output=True,
-                                code_environment=False,
-                            )
-                        }
+                    return (
+                        intype.generated_filename(
+                            replacements={
+                                "prefix": CwlTranslator.unwrap_expression(
+                                    intype.prefix,
+                                    inputs_dict=inputsdict,
+                                    for_output=True,
+                                    code_environment=False,
+                                )
+                            }
+                        ),
+                        None,
                     )
                 else:
-                    return intype.generated_filename()
+                    return intype.generated_filename(), None
 
             expr = glob
             if tinp.default:
                 expr = If(IsDefined(glob), expr, tinp.default)
 
-            return CwlTranslator.unwrap_expression(
-                expr,
-                inputs_dict=inputsdict,
-                code_environment=False,
-                for_output=True,
-                **debugkwargs,
+            return (
+                CwlTranslator.unwrap_expression(
+                    expr,
+                    inputs_dict=inputsdict,
+                    code_environment=False,
+                    for_output=True,
+                    **debugkwargs,
+                ),
+                None,
             )
 
     elif isinstance(glob, StringFormatter):
-        return translate_string_formatter(glob, None, tool=tool)
+        return translate_string_formatter(glob, None, tool=tool), None
 
     elif isinstance(glob, WildcardSelector):
-        return glob.wildcard
+        return (
+            CwlTranslator.unwrap_expression(
+                glob.wildcard,
+                code_environment=False,
+                inputs_dict=inputsdict,
+                **debugkwargs,
+            ),
+            None,
+        )
+
+        return glob.wildcard, None
 
     if isinstance(glob, Operator):
         # It's not terribly hard to do this, we'd have to change the output_eval
         # to use a combination of the presents_as AND
-        if any(isinstance(o, WildcardSelector) for o in glob.get_leaves()):
+
+        wild_card_selectors = [
+            o for o in glob.get_leaves() if isinstance(o, WildcardSelector)
+        ]
+        value_from = None
+        if len(wild_card_selectors) > 1:
             raise Exception(
-                f"Janis does NOT currently support operations on the output glob for output '{glob}' in tool '{tool.id()}'"
+                f"Janis only supports operating on 1 output glob, where this output had {len(wild_card_selectors)} on "
+                f"the output glob for output '{glob}' in tool '{tool.id()}'"
             )
-        return CwlTranslator.unwrap_expression(
-            glob, code_environment=False, inputs_dict=inputsdict, **debugkwargs
+        elif len(wild_card_selectors) == 1:
+            value_from = CwlTranslator.unwrap_expression(
+                glob, code_environment=False, inputs_dict=inputsdict, **debugkwargs
+            )
+            glob = wild_card_selectors[0].wildcard
+
+        # elif len(wild_card_selectors) == 0:
+
+        return (
+            CwlTranslator.unwrap_expression(
+                glob, code_environment=False, inputs_dict=inputsdict, **debugkwargs
+            ),
+            value_from,
         )
 
     raise Exception("Unimplemented selector type: " + glob.__class__.__name__)

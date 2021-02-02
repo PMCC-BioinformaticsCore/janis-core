@@ -730,9 +730,11 @@ EOT"""
                     select_first = True
 
             base_expression = translate_wildcard_selector(
-                expression,
+                output=output,
+                selector=expression,
                 override_select_first=select_first,
                 is_optional=is_single_optional,
+                inputsdict=inputsdict,
             )
 
             return base_expression
@@ -773,6 +775,9 @@ EOT"""
             warning = f", this is likely due to the '{stype}' not being initialised"
         else:
             stype = expression.__class__.__name__
+
+        if output._skip_output_quality_check and expression is None:
+            return "None"
 
         raise Exception(
             f"Tool ({debugkwargs}) has an unrecognised glob type: '{stype}' ({expression}), this is "
@@ -824,6 +829,7 @@ EOT"""
                     original_expression=o.selector,
                     expression=expression,
                     toolid=tool.id(),
+                    inputsdict=inputsmap,
                 )
             )
 
@@ -831,7 +837,12 @@ EOT"""
 
     @classmethod
     def prepare_secondary_tool_outputs(
-        cls, out: ToolOutput, original_expression: any, expression: str, toolid: str
+        cls,
+        out: ToolOutput,
+        original_expression: any,
+        expression: str,
+        toolid: str,
+        inputsdict,
     ) -> List[wdl.Output]:
         if not (
             isinstance(out.output_type, File) and out.output_type.secondary_files()
@@ -859,10 +870,12 @@ EOT"""
                         ftype,
                         get_secondary_tag_from_original_tag(out.id(), s),
                         translate_wildcard_selector(
-                            original_expression,
+                            output=out,
+                            selector=original_expression,
                             secondary_format=s,
                             override_select_first=select_first,
                             is_optional=is_single_optional,
+                            inputsdict=inputsdict,
                         ),
                     )
                     for s in out.output_type.subtype().secondary_files()
@@ -1892,12 +1905,14 @@ def translate_input_selector(
 
 
 def translate_wildcard_selector(
+    output: ToolOutput,
     selector: WildcardSelector,
     secondary_format: Optional[str] = None,
     override_select_first: Optional[bool] = None,
     is_optional: Optional[bool] = None,
+    inputsdict: Dict = None,
 ):
-    if not selector.wildcard:
+    if selector.wildcard is None:
         raise Exception(
             "No wildcard was provided for wildcard selector: " + str(selector)
         )
@@ -1906,7 +1921,11 @@ def translate_wildcard_selector(
     if secondary_format:
         wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
 
-    gl = f'glob("{wildcard}")'
+    unwrapped_wildcard = WdlTranslator.unwrap_expression_for_output(
+        output, wildcard, inputsdict=inputsdict, string_environment=False
+    )
+
+    gl = f"glob({unwrapped_wildcard})"
     if selector.select_first or override_select_first:
         if is_optional:
             gl = f"if length({gl}) > 0 then {gl}[0] else None"
@@ -2020,7 +2039,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
     if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
         return commands
 
-    if not issubclass(type(it), File):
+    if not it.is_base_type(File):
         Logger.critical(
             "Janis has temporarily removed support for localising array types"
         )

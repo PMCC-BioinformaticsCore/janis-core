@@ -187,6 +187,7 @@ class ToolOutput:
         secondaries_present_as: Dict[str, str] = None,
         doc: Optional[Union[str, OutputDocumentation]] = None,
         glob: Optional[Union[Selector, str]] = None,
+        _skip_output_quality_check=False,
     ):
         """
         A ToolOutput instructs the the engine how to collect an output and how
@@ -197,6 +198,7 @@ class ToolOutput:
         :param selector: How to collect this output, can accept any :class:`janis.Selector`.
         :param glob: (DEPRECATED) An alias for `selector`
         :param doc: Documentation on what the output is, used to generate docs.
+        :param _skip_output_quality_check: DO NOT USE THIS PARAMETER, it's a scapegoat for parsing CWL ExpressionTools when an cwl.output.json is generated
         """
 
         if not Validators.validate_identifier(tag):
@@ -206,6 +208,7 @@ class ToolOutput:
 
         self.tag = tag
         self.output_type: ParseableType = get_instantiated_type(output_type)
+        self._skip_output_quality_check = _skip_output_quality_check
 
         if selector is None and glob is not None:
             selector = glob
@@ -214,11 +217,16 @@ class ToolOutput:
                 f"ToolInput({tag}) received inputs for both selector and glob. Please only use glob"
             )
 
-        if selector is None and not (
-            isinstance(self.output_type, Stdout) or isinstance(self.output_type, Stderr)
+        if (
+            not _skip_output_quality_check
+            and selector is None
+            and not (
+                isinstance(self.output_type, Stdout)
+                or isinstance(self.output_type, Stderr)
+            )
         ):
             raise Exception(
-                "ToolOutput expects a glob when the output type is not Stdout / Stderr"
+                "ToolOutput expects a 'selector=' param when the output type is not Stdout / Stderr"
             )
 
         self.selector = selector
@@ -721,9 +729,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._cpus):
             return self._cpus(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._cpus)} as a valid CPU type"
+        Logger.warn(
+            f"Janis does not recognise {self._cpus} ({type(self._cpus)}) as a valid CPU value, returning 1"
         )
+        return 1
 
     def memory(self, hints: Dict[str, Any]):
         if self._memory is None:
@@ -734,9 +743,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._memory):
             return self._memory(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._memory)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {self._memory} ({type(self._memory)}) as a valid value for memory, returning 4GB"
         )
+        return 4
 
     def time(self, hints: Dict[str, Any]) -> Optional[Union[int, Selector]]:
         if self._time is None:
@@ -747,9 +757,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._time):
             return self._time(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._time)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {self._memory} ({type(self._time)}) as a valid value for time, returning 86400 seconds"
         )
+        return 86400
 
     def disk(self, hints: Dict[str, Any]) -> Optional[Union[float, Selector]]:
         if self._disk is None:
@@ -760,9 +771,10 @@ class CommandToolBuilder(CommandTool):
         if callable(self._disk):
             return self._disk(hints)
 
-        raise Exception(
-            f"Janis does not recognise {type(self._disk)} as a valid memory type"
+        Logger.warn(
+            f"Janis does not recognise {type(self._disk)} as a valid value for disk, returning None"
         )
+        return None
 
     def directories_to_create(self) -> Union[str, List[str]]:
         return self._directories_to_create
@@ -789,7 +801,11 @@ class CommandToolBuilder(CommandTool):
         "disk": "_disk",
         "directories_to_create": "_directories_to_create",
         "files_to_create": "_files_to_create",
+        "doc": "_doc",
     }
+
+    def doc(self) -> Optional[str]:
+        return self._doc
 
     def __init__(
         self,
@@ -814,6 +830,7 @@ class CommandToolBuilder(CommandTool):
             Dict[str, SELECTOR_OR_VALUE],
             List[Tuple[SELECTOR_OR_VALUE, SELECTOR_OR_VALUE]],
         ] = None,
+        doc: str = None,
     ):
         """
         Builder for a CommandTool.
@@ -837,6 +854,7 @@ class CommandToolBuilder(CommandTool):
         :param directories_to_create: A list of directories to create, accepts an expression (selector / operator)
         :param files_to_create: Either a List of tuples [path: Selector, contents: Selector],
         or a dictionary {"path": contents}. The list of tuples allows you to use an operator for the pathname
+        :param doc: Documentation string
         """
 
         super().__init__()
@@ -859,3 +877,4 @@ class CommandToolBuilder(CommandTool):
         self._disk = disk
         self._directories_to_create = directories_to_create
         self._files_to_create = files_to_create
+        self._doc = doc
