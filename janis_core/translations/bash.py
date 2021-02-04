@@ -23,7 +23,7 @@ from janis_core.types import (
     File,
 )
 
-from janis_core.operators import Operator
+from janis_core.operators import Operator, StringFormatter
 
 class BashTranslator(TranslatorBase):
     def __init__(self):
@@ -56,6 +56,8 @@ class BashTranslator(TranslatorBase):
         return (f"""
 #!/usr/bin/env sh
 
+# source twice so we do not need to worry about order of variables
+source $1
 source $1
 
 DIR=$(pwd)
@@ -98,6 +100,8 @@ STDERRPATH=$(pwd)/stderr
         return f"""
 #!/usr/bin/env sh
 
+# source twice so we do not need to worry about order of variables
+source $1
 source $1
 
 DIR=$(pwd)
@@ -106,7 +110,7 @@ STDERRPATH=$(pwd)/stderr
 
 {doc}
 
-echo {command}
+echo \"{command}\"
 {command} > $STDOUTPATH 2> $STDERRPATH
 
 outputs="{json.dumps(outputs).replace('"', esc)}"
@@ -118,10 +122,16 @@ echo $outputs
 
     @classmethod
     def generate_tool_command(cls, tool):
-        args: List[ToolArgument] = sorted(
-            [*(tool.arguments() or []), *(tool.inputs() or [])],
-            key=lambda a: (a.position or 0),
-        )
+        args = []
+        for a in tool.arguments():
+            if a.prefix is not None or a.position is not None:
+                args.append(a)
+
+        for a in tool.inputs():
+            if a.prefix is not None or a.position is not None:
+                args.append(a)
+
+        args = sorted(args, key=lambda a: (a.position or 0))
 
         params_to_include = None
         if tool.connections:
@@ -149,7 +159,7 @@ echo $outputs
                     translate_command_argument(tool_arg=a, inputsdict={})
                 )
 
-        str_bc = " ".join(f"'{c}'" for c in bc)
+        str_bc = " ".join(f"{c}" for c in bc)
         command = " \\\n".join([str_bc, *[a for a in output_args]])
 
         return command
@@ -172,7 +182,7 @@ echo $outputs
                 val = "STDERR"
             elif isinstance(out.output_type, File):
                 sel = out.selector
-                if not sel:
+                if sel is None:
                     sel = out.glob
 
                 val = "DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict)
@@ -183,18 +193,6 @@ echo $outputs
             outputs[out.tag] = val
 
         return outputs
-
-    @classmethod
-    def read_selector(cls, sel: Selector):
-        var_name = None
-        if isinstance(sel, InputSelector):
-            var_name = sel.input_to_select
-        # elif isinstance(out.glob, InputSelector):
-        #     var_name = out.glob.input_to_select
-        elif isinstance(sel, Operator):
-            var_name = "..."
-
-        return f"DIR/${var_name}"
 
     @classmethod
     def unwrap_expression(
@@ -557,7 +555,8 @@ echo $outputs
                     prefix = i.prefix if i.prefix else ""
                     tprefix = prefix
 
-                    if prefix and i.separate_value_from_prefix:
+                    separate_value_from_prefix = i.separate_value_from_prefix is not False
+                    if prefix and separate_value_from_prefix:
                         tprefix += " "
 
                     ad.get(i.tag)
@@ -678,13 +677,15 @@ def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugk
     # else:
     #     return f"${name}WithPrefix"
 
-    arg_val = f"{name}"
-    arg_val = arg_val.replace("inputs.", "$")
-
     if tool_arg.shell_quote is not False:
-        return f"'{arg_val}'"
-    else:
-        return f"{arg_val}"
+        name = f"'{name}'"
+
+    arg_val = f"{tprefix}{name}" if tprefix else f"{name}"
+    arg_val = arg_val.replace("inputs.", "$")
+    arg_val = arg_val.replace("{", "")
+    arg_val = arg_val.replace("}", "")
+
+    return arg_val
 
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
