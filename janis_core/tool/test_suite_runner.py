@@ -103,19 +103,28 @@ class ToolTestSuiteRunner:
         succeeded = set()
 
         for test_logic in t.output:
-            workflow_output = output[test_logic.tag]
-            self._download_remote_files(test_logic)
-            actual_output = self.get_value_to_compare(test_logic, workflow_output)
-            expected_value = self.get_expected_value(test_logic)
-            test_result = test_logic.operator(actual_output, expected_value)
+            error_interpreting_test_case = False
+            try:
+                workflow_output = output[test_logic.tag]
+                self._download_remote_files(test_logic)
+                actual_output = self.get_value_to_compare(test_logic, workflow_output)
+                expected_value = self.get_expected_value(test_logic)
+                test_result = test_logic.operator(actual_output, expected_value)
+            except Exception as e:
+                error_interpreting_test_case = str(e)
+            except SystemExit as e:
+                error_interpreting_test_case = str(e)
 
-            if test_result is False:
-                failed.add(
-                    f"{str(test_logic)} {type(expected_value)}"
-                    f" | actual output: {actual_output} {type(actual_output)}"
-                )
+            if error_interpreting_test_case:
+                failed.add(f"Error interpreting test case: {str(test_logic)} - {error_interpreting_test_case}")
             else:
-                succeeded.add(str(test_logic))
+                if test_result is False:
+                    failed.add(
+                        f"{str(test_logic)} {type(expected_value)}"
+                        f" | actual output: {actual_output} {type(actual_output)}"
+                    )
+                else:
+                    succeeded.add(str(test_logic))
 
         return failed, succeeded, output
 
