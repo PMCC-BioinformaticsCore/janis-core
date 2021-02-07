@@ -62,6 +62,10 @@ class IsDefined(Operator, ABC):
         arg = unwrap_operator(self.args[0])
         return f"defined({arg})"
 
+    def to_shell(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"! -z {arg}"
+
 
 class If(Operator, ABC):
     def __init__(self, condition, value_if_true, value_if_false):
@@ -102,6 +106,10 @@ class If(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"{cond} ? {v1} : {v2}"
+
+    def to_shell(self, unwrap_operator, *args):
+        cond, v1, v2 = [unwrap_operator(a) for a in self.args]
+        return f"if [[ {cond} ]]; then {v1}; else {v2}; fi"
 
 
 class AssertNotNull(Operator):
@@ -423,6 +431,14 @@ class AddOperator(TwoValueOperator):
     def argtypes(self):
         return [AnyType, AnyType]
 
+    def to_shell(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        if isinstance(arg1, str) and not arg1.isdigit() and isinstance(arg2, str) and not arg2.isdigit():
+            return f"{arg1}{arg2}"
+
+        return f"{arg1} {self.shell_symbol()} {arg2}"
+
     def returntype(self):
         lhs_val: DataType = self.args[0]
         rhs_val: DataType = self.args[1]
@@ -469,6 +485,10 @@ class SubtractOperator(TwoValueOperator):
         return "-"
 
     @staticmethod
+    def shell_symbol():
+        return "-"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 - arg2
 
@@ -501,6 +521,10 @@ class MultiplyOperator(TwoValueOperator):
         return "*"
 
     @staticmethod
+    def shell_symbol():
+        return "*"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 * arg2
 
@@ -530,6 +554,10 @@ class DivideOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "/"
+
+    @staticmethod
+    def shell_symbol():
         return "/"
 
     @staticmethod

@@ -256,10 +256,7 @@ class TwoValueOperator(Operator, ABC):
     def to_shell(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
 
-        if isinstance(arg1, str) and isinstance(arg1, str):
-            return f"{arg1}{arg2}"
-
-        return f"{arg1} {self.cwl_symbol()} {arg2}"
+        return f"({arg1} {self.shell_symbol()} {arg2})"
 
     def __str__(self):
         args = self.args

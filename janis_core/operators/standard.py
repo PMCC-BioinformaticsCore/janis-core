@@ -118,6 +118,10 @@ class JoinOperator(Operator):
         iterable, separator = [unwrap_operator(a) for a in self.args]
         return f"{iterable}.join({separator})"
 
+    def to_shell(self, unwrap_operator, *args):
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+        return f"$(join \"{separator}\" \"{iterable}\")"
+
     def evaluate(self, inputs):
         iterable, separator = self.evaluate_arg(self.args, inputs)
         return str(separator).join((str(el) for el in iterable))
@@ -352,6 +356,11 @@ class FirstOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
+
+    def to_shell(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+
+        return f"$(first \"{iterable}\")"
 
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)

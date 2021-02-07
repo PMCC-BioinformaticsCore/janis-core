@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Dict, Tuple, List, Optional
 
 from janis_core import Logger
@@ -96,9 +97,28 @@ STDERRPATH=$(pwd)/stderr
         esc = '\\"'
 
         command = cls.generate_tool_command(tool)
+        lib = """
+first()
+{   
+    for var in $@
+    do  
+        if [[ ! -z $var ]];
+        then
+            echo $var;
+            break;
+        fi
+    done
+    
+    exit;
+}
 
-        return f"""
-#!/usr/bin/env sh
+list() { echo "$1"; }
+join() { local IFS="$1"; shift; echo "$*"; }
+"""
+
+        return f"""#!/usr/bin/env sh
+
+{lib}
 
 # source twice so we do not need to worry about order of variables
 source $1
@@ -123,11 +143,11 @@ echo $outputs
     @classmethod
     def generate_tool_command(cls, tool):
         args = []
-        for a in tool.arguments():
+        for a in tool.arguments() or []:
             if a.prefix is not None or a.position is not None:
                 args.append(a)
 
-        for a in tool.inputs():
+        for a in tool.inputs() or []:
             if a.prefix is not None or a.position is not None:
                 args.append(a)
 
@@ -144,19 +164,20 @@ echo $outputs
             bc = [bc]
 
         output_args = []
+        inputsdict = tool.inputs_map()
         for a in args:
             if isinstance(a, ToolInput):
                 if params_to_include and a.id() not in params_to_include:
                     # skip if we're limiting to specific commands
                     continue
-                arg = translate_command_input(tool_input=a, inputsdict={})
+                arg = translate_command_input(tool_input=a, inputsdict=inputsdict)
                 if not arg:
                     Logger.warn(f"Parameter {a.id()} was skipped")
                     continue
                 output_args.append(arg)
             else:
                 output_args.append(
-                    translate_command_argument(tool_arg=a, inputsdict={})
+                    cls.translate_command_argument(tool_arg=a, inputsdict=inputsdict)
                 )
 
         str_bc = " ".join(f"{c}" for c in bc)
@@ -203,6 +224,7 @@ echo $outputs
             tool=None,
             for_output=False,
             inputs_dict=None,
+            skip_inputs_lookup=False,
             **debugkwargs,
     ):
         if value is None:
@@ -226,11 +248,13 @@ echo $outputs
                     tool=tool,
                     tool_id=toolid + "." + str(i),
                     inputs_dict=inputs_dict,
+                    skip_inputs_lookup=skip_inputs_lookup
                 )
                 for i in range(len(value))
             )
             return cls.wrap_in_codeblock_if_required(
-                f"[{inner}]", is_code_environment=code_environment
+                f"$(list \"{inner}\")"
+                f"", is_code_environment=code_environment
             )
 
         if isinstance(value, str):
@@ -258,15 +282,16 @@ echo $outputs
         #         **debugkwargs,
         #     )
         #
-        # elif isinstance(value, StringFormatter):
-        #     return translate_string_formatter(
-        #         value,
-        #         selector_override=selector_override,
-        #         code_environment=code_environment,
-        #         tool=tool,
-        #         inputs_dict=inputs_dict,
-        #         **debugkwargs,
-        #     )
+        elif isinstance(value, StringFormatter):
+            return cls.translate_string_formatter(
+                value,
+                selector_override=selector_override,
+                code_environment=code_environment,
+                tool=tool,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
+                **debugkwargs,
+            )
         # elif isinstance(value, InputNodeSelector):
         #     return translate_input_selector(
         #         InputSelector(value.id()),
@@ -314,6 +339,7 @@ echo $outputs
                 code_environment=code_environment,
                 selector_override=selector_override,
                 inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup
             )
         elif isinstance(value, WildcardSelector):
             raise Exception(
@@ -327,6 +353,7 @@ echo $outputs
                 tool=tool,
                 for_output=for_output,
                 inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
                 **debugkwargs,
             )
             return cls.wrap_in_codeblock_if_required(
@@ -359,8 +386,13 @@ echo $outputs
 
         if selector_override and sel in selector_override:
             sel = selector_override[sel]
-        else:
-            sel = f"${sel}"
+        # else:
+        #     # sel = f"${sel}"
+        #
+        #     Logger.debug("sel")
+        #     Logger.debug(sel)
+        #     # regex = r'.*\{inputs\.(\w+)\}.*'
+        #     # sel = re.sub(regex, r'$\1', sel)
 
         if not skip_lookup:
 
@@ -382,9 +414,13 @@ echo $outputs
                         intype.get_extensions() if intype.is_base_type(File) else None
                     )
                     if selector.remove_file_extension and potential_extensions:
-                        sel = f"{sel}.basename"
+                        # sel = f"{sel}.basename"
+                        # for ext in potential_extensions:
+                        #     sel += f'.replace(/{ext}$/, "")'
                         for ext in potential_extensions:
-                            sel += f'.replace(/{ext}$/, "")'
+                            sel = f"{{{sel}%{ext}}}"
+
+                        sel = f"(basename \"${sel}\")"
 
                 elif intype.is_array() and isinstance(
                         intype.fundamental_type(), (File, Directory)
@@ -413,7 +449,34 @@ echo $outputs
             #     ):
             #         sel = f"{sel}.map(function(el) {{ return el.basename; }})"
 
+
+        sel = f"${sel}"
         return sel if code_environment else f"$({sel})"
+
+    @classmethod
+    def translate_string_formatter(
+            cls,
+            selector: StringFormatter,
+            selector_override,
+            tool,
+            code_environment=True,
+            inputs_dict=None,
+            skip_inputs_lookup=False,
+            **debugkwargs,
+    ):
+        if len(selector.kwargs) == 0:
+            return str(selector)
+
+        kwargreplacements = {
+            k: f"{cls.unwrap_expression(v, selector_override=selector_override, code_environment=True, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
+            for k, v in selector.kwargs.items()
+        }
+
+        arg_val = selector._format
+        for k in selector.kwargs:
+            arg_val = arg_val.replace(f"{{{k}}}", f"{str(kwargreplacements[k])}")
+
+        return arg_val
 
     @classmethod
     def prepare_filename_replacements_for(cls,
@@ -577,8 +640,14 @@ echo $outputs
 
                     inp[i.tag] = " ".join(str(v) for v in val)
 
+                    # Logger.debug("val " + i.tag)
+                    # Logger.debug(val)
                     if len(val) > 0 and (i.prefix or i.position):
-                        inp[i.tag + "WithPrefix"] = " ".join(tprefix + v for v in val)
+                        for v in val:
+                            if isinstance(v, bool):
+                                inp[i.tag + "WithPrefix"] = tprefix
+                            else:
+                                inp[i.tag + "WithPrefix"] = " ".join(tprefix + str(v) for v in val)
                     else:
                         inp[i.tag + "WithPrefix"] = ""
 
@@ -650,142 +719,57 @@ echo $outputs
         return stdout_outputs[0]
 
 
-def translate_command_argument(tool_arg: ToolArgument, inputsdict=None, **debugkwargs):
-    # make sure it has some essence of a command line binding, else we'll skip it
-    if not (tool_arg.position is not None or tool_arg.prefix):
-        return None
+    @classmethod
+    def translate_command_argument(cls, tool_arg: ToolArgument, inputsdict=None, **debugkwargs):
+        # make sure it has some essence of a command line binding, else we'll skip it
+        if not (tool_arg.position is not None or tool_arg.prefix):
+            return None
 
-    separate_value_from_prefix = tool_arg.separate_value_from_prefix is not False
-    prefix = tool_arg.prefix if tool_arg.prefix else ""
-    tprefix = prefix
 
-    if prefix and separate_value_from_prefix:
-        tprefix += " "
 
-    name = tool_arg.value
-    # if tool_arg.shell_quote is not False:
-    #     return f"{tprefix}'${name}'" if tprefix else f"'${name}'"
-    # else:
-    #     return f"{tprefix}${name}" if tprefix else f"${name}"
-    # if tool_arg.shell_quote is not False:
-    #     return f"'${name}'" if tprefix else f"'${name}'"
-    # else:
-    #     return f"${name}" if tprefix else f"${name}"
+        separate_value_from_prefix = tool_arg.separate_value_from_prefix is not False
+        prefix = tool_arg.prefix if tool_arg.prefix else ""
+        tprefix = prefix
 
-    # if tool_arg.shell_quote is not False:
-    #     return f"'${name}WithPrefix'"
-    # else:
-    #     return f"${name}WithPrefix"
+        if prefix and separate_value_from_prefix:
+            tprefix += " "
 
-    if tool_arg.shell_quote is not False:
-        name = f"'{name}'"
+        arg_val = cls.unwrap_expression(tool_arg.value, inputsdict=inputsdict, skip_inputs_lookup=True)
 
-    arg_val = f"{tprefix}{name}" if tprefix else f"{name}"
-    arg_val = arg_val.replace("inputs.", "$")
-    arg_val = arg_val.replace("{", "")
-    arg_val = arg_val.replace("}", "")
+        if tool_arg.shell_quote is not False:
+            arg_val = f"'{arg_val}'"
 
-    return arg_val
+        arg_val = f"{tprefix}{arg_val}" if tprefix else f"{arg_val}"
+
+        return arg_val
 
 
 def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwargs):
     # make sure it has some essence of a command line binding, else we'll skip it
-    # if not (tool_input.position is not None or tool_input.prefix):
-    #     return None
+    if not (tool_input.position is not None or tool_input.prefix):
+        return None
 
-    name = tool_input.id()
-    return f"${name}WithPrefix"
-
-    # name = tool_input.id()
-    # intype = tool_input.input_type
-    #
-    # optional = (not isinstance(intype, Filename) and intype.optional) or (
-    #     isinstance(tool_input.default, CpuSelector) and tool_input.default is None
-    # )
-    # position = tool_input.position
-    #
     # separate_value_from_prefix = tool_input.separate_value_from_prefix is not False
     # prefix = tool_input.prefix if tool_input.prefix else ""
     # tprefix = prefix
     #
-    # intype = tool_input.input_type
-    #
-    # is_flag = isinstance(intype, Boolean)
-    #
-    # if prefix and separate_value_from_prefix and not is_flag:
+    # if prefix and separate_value_from_prefix:
     #     tprefix += " "
     #
-    # if isinstance(intype, Boolean):
-    #     # if tool_input.prefix:
-    #     #     return tool_input.prefix
-    #     # return ""
-    #     return f"${name}WithPrefix"
-    # elif isinstance(intype, Array):
-    #     # Logger.critical("Can't bind arrays onto bash yet")
-    #     # return ""
+    # name = tool_input.id()
     #
-    #     return f"${name}WithPrefix"
+    # if tool_input.shell_quote is not False:
+    #     name = f"'{name}'"
     #
-    #     # expr = name
-    #     #
-    #     # separator = tool_input.separator if tool_input.separator is not None else " "
-    #     # should_quote = isinstance(intype.subtype(), (String, File, Directory))
-    #     # condition_for_binding = None
-    #     #
-    #     # if intype.optional:
-    #     #     expr = f"select_first([{expr}, []])"
-    #     #     condition_for_binding = (
-    #     #         f"(defined({name}) && length(select_first([{name}, []])) > 0)"
-    #     #     )
-    #     #
-    #     # if intype.subtype().optional:
-    #     #     expr = f"select_all({expr})"
-    #     #
-    #     # if should_quote:
-    #     #     if tool_input.prefix_applies_to_all_elements:
-    #     #         separator = f"'{separator}{tprefix} '"
-    #     #     else:
-    #     #         separator = f"'{separator}'"
-    #     #
-    #     #     if tprefix:
-    #     #         expr = f'"{tprefix}\'" + sep("{separator}", {expr}) + "\'"'
-    #     #     else:
-    #     #         expr = f'"\'" + sep("{separator}", {expr}) + "\'"'
-    #     #
-    #     # else:
-    #     #     if tprefix:
-    #     #         expr = f'"{tprefix}" + sep("{separator}", {expr})'
-    #     #     else:
-    #     #         expr = f'sep("{separator}", {expr})'
-    #     # if condition_for_binding is not None:
-    #     #     name = f'~{{if {condition_for_binding} then {expr} else ""}}'
-    #     # else:
-    #     #     name = f"~{{{expr}}}"
-    # elif (
-    #     isinstance(intype, (String, File, Directory))
-    #     and tool_input.shell_quote is not False
-    # ):
-    #     # return f"{tprefix}\"${name}\"" if tprefix else f"\"${name}\""
-    #     return f"'${name}WithPrefix'"
-    #     # if tprefix:
-    #     #     # if optional:
-    #     #     # else:
-    #     #     name = f"{tprefix}'${name}'"
-    #     # else:
-    #     #     # if not optional:
-    #     #     # else:
-    #     #     name = f"'${name}'"
+    # # Replace all {inputs.VAR} with $VAR
+    # while "{inputs." in name:
+    #     regex = r'(.*)\{inputs\.(\w+)\}(.*)'
+    #     name = re.sub(regex, r'\1$\2\3', name)
     #
-    # else:
-    #     # return f"{tprefix}${name}" if tprefix else f"${name}"
-    #     return f"${name}WithPrefix"
-    #     # if prefix:
-    #     #     if optional:
-    #     #         name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
-    #     #     else:
-    #     #         name = f"{tprefix}~{{{name}}}"
-    #     # else:
-    #     #     name = f"~{{{name}}}"
+    # arg_val = f"{tprefix}{name}" if tprefix else f"{name}"
+
+    name = tool_input.id()
+    return f"${name}WithPrefix"
 
 
 if __name__ == "__main__":
