@@ -4,7 +4,7 @@ from typing import Dict, Tuple, List, Optional
 
 from janis_core import Logger
 from janis_core.tool.commandtool import ToolArgument, ToolInput, Tool, ToolOutput
-from janis_core.workflow.workflow import StepNode, InputNode, OutputNode
+from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, WorkflowBase
 
 from janis_core.tool.tool import ToolType
 from janis_core.translations import TranslatorBase
@@ -40,22 +40,82 @@ class BashTranslator(TranslatorBase):
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
 
-        # raise Exception("Not supported for bash translation")
-
         inputsdict = workflow.inputs_map()
         toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
+        step_keys = list(workflow.step_nodes.keys())
         tool_commands = {}
-        for tool_id, tool in workflow.get_tools().items():
-            tool_commands[tool_id] = cls.generate_tool_command(tool)
 
+        for step_id in workflow.step_nodes:
+            tool = workflow.step_nodes[step_id].tool
+            tool_commands[step_id] = cls.generate_tool_command(tool)
+
+        outputs = cls.generate_wf_tool_outputs(workflow)
+        esc = '\\"'
+
+        lib = cls.generate_generic_functions(tool)
         command = ""
-        for tool_id in tool_commands:
-            command += f"echo \"{tool_commands[tool_id]}\"\n"
-            command += f"{tool_commands[tool_id]} > $DIR/{tool_id}_stdout 2> $DIR/{tool_id}_stderr\n\n"
+        for step_id in tool_commands:
+            tool = workflow.step_nodes[step_id].tool
+
+            provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+            tool_outputs = cls.generate_outputs(tool)
+            tool_inputs = cls.build_inputs_file(
+                tool, merge_resources=True,
+                additional_inputs=provided_inputs)
+
+            output_vars = ""
+            for key in tool_outputs:
+                var_name = f"{step_id}{key}"
+                output_val = tool_outputs[key]
+                if isinstance(output_val, list):
+                    output_val = " ".join(output_val)
+
+                output_vars += f"""
+{var_name}="{output_val}"
+{var_name}="${{{var_name}//STDOUT/$STDOUTPATH}}"
+{var_name}="${{{var_name}//STDERR/$STDERRPATH}}"
+{var_name}="${{{var_name}//DIR/$DIR}}"
+"""
+
+            input_vars = ""
+            for key in tool_inputs:
+                val = tool_inputs[key] if not None else ""
+
+                if key.endswith("WithPrefix"):
+                    var_no_prefix = key.split("WithPrefix")[0]
+
+                    input_vars +=f"""
+if [[ ! -z "${var_no_prefix}" ]]
+then
+    {key}="{val}"
+else
+    {key}=""
+fi
+"""
+                else:
+                    input_vars += f"{key}=\"{val}\"\n"
+
+            command += f"""
+# Inputs
+{input_vars}
+
+# Print out full command for debugging purpose
+echo "{tool_commands[step_id]}"
+
+# Executing command
+# Redirect stdout to a file
+# Redirect stderr to another file and stderr
+{tool_commands[step_id]} > $DIR/{step_id}_stdout 2> >(tee -a $DIR/{step_id}_stderr >&2) 
+
+#Outputs
+{output_vars}
+"""
 
         return (f"""
-#!/usr/bin/env sh
+#!/usr/bin/env bash
+
+{lib}
 
 # source twice so we do not need to worry about order of variables
 source $1
@@ -66,6 +126,12 @@ STDOUTPATH=$(pwd)/stdout
 STDERRPATH=$(pwd)/stderr
 
 {command}
+
+outputs="{json.dumps(outputs).replace('"', esc)}"
+outputs="${{outputs//STDOUT/$STDOUTPATH}}"
+outputs="${{outputs//STDERR/$STDERRPATH}}"
+outputs="${{outputs//DIR/$DIR}}"
+echo $outputs
 
 # END
 """, [])
@@ -97,24 +163,7 @@ STDERRPATH=$(pwd)/stderr
         esc = '\\"'
 
         command = cls.generate_tool_command(tool)
-        lib = """
-first()
-{   
-    for var in $@
-    do  
-        if [[ ! -z $var ]];
-        then
-            echo $var;
-            break;
-        fi
-    done
-    
-    exit;
-}
-
-list() { echo "$1"; }
-join() { local IFS="$1"; shift; echo "$*"; }
-"""
+        lib = cls.generate_generic_functions(tool)
 
         return f"""#!/usr/bin/env sh
 
@@ -130,8 +179,13 @@ STDERRPATH=$(pwd)/stderr
 
 {doc}
 
-echo \"{command}\"
-{command} > $STDOUTPATH 2> $STDERRPATH
+# Print out full command for debugging purpose
+echo "{command}"
+
+# Executing command
+# Redirect stdout to a file
+# Redirect stderr to another file and stderr
+{command} > $STDOUTPATH 2> >(tee -a $STDERRPATH >&2)
 
 outputs="{json.dumps(outputs).replace('"', esc)}"
 outputs="${{outputs//STDOUT/$STDOUTPATH}}"
@@ -151,6 +205,7 @@ echo $outputs
             if a.prefix is not None or a.position is not None:
                 args.append(a)
 
+        args = sorted(args, key=lambda a: (a.prefix is None))
         args = sorted(args, key=lambda a: (a.position or 0))
 
         params_to_include = None
@@ -167,23 +222,53 @@ echo $outputs
         inputsdict = tool.inputs_map()
         for a in args:
             if isinstance(a, ToolInput):
-                if params_to_include and a.id() not in params_to_include:
-                    # skip if we're limiting to specific commands
-                    continue
+                # if params_to_include and a.id() not in params_to_include:
+                #     # skip if we're limiting to specific commands
+                #     continue
                 arg = translate_command_input(tool_input=a, inputsdict=inputsdict)
                 if not arg:
                     Logger.warn(f"Parameter {a.id()} was skipped")
                     continue
                 output_args.append(arg)
             else:
-                output_args.append(
-                    cls.translate_command_argument(tool_arg=a, inputsdict=inputsdict)
-                )
+                arg = cls.translate_command_argument(tool_arg=a, inputsdict=inputsdict)
+                if not arg:
+                    Logger.warn(f"Argument {a} was skipped")
+                    continue
+                output_args.append(arg)
 
         str_bc = " ".join(f"{c}" for c in bc)
         command = " \\\n".join([str_bc, *[a for a in output_args]])
 
         return command
+
+    @classmethod
+    def generate_generic_functions(cls, tool):
+        return """
+first()
+{   
+    for var in $@
+    do  
+        if [[ ! -z $var ]];
+        then
+            echo $var;
+            break;
+        fi
+    done
+
+    exit;
+}
+
+list() { 
+    echo "$1"; 
+}
+
+join() { 
+    local IFS="$1"; 
+    shift; 
+    echo "$*"; 
+}
+"""
 
     @classmethod
     def generate_outputs(cls, tool: Tool):
@@ -216,6 +301,57 @@ echo $outputs
         return outputs
 
     @classmethod
+    def generate_wf_tool_inputs(cls, tool: Tool, step_keys: List[str]):
+        inputs = {}
+        for key in tool.connections:
+            val = str(tool.connections[key])
+
+            if val == "None":
+                val = None
+            else:
+                if "inputs." in val:
+                    # e.g. replace inputs.fastq to $fastq
+                    val = val.replace("inputs.", "$")
+
+                # e.g. replace bwamem.out to $bwamemout
+                for tool_id in step_keys:
+                    keyword = f"{tool_id}."
+                    if keyword in val:
+                        val = val.replace(keyword, f"${tool_id}")
+
+            inputs[key] = val
+
+        return inputs
+
+
+    @classmethod
+    def generate_wf_tool_outputs(cls, wf: WorkflowBase):
+        step_keys = wf.step_nodes.keys()
+
+        outputs = {}
+        for o in wf.output_nodes:
+            val = str(wf.output_nodes[o].source)
+
+            if "inputs." in val:
+                # e.g. replace inputs.fastq to $fastq
+                val = val.replace("inputs.", "$")
+
+            # e.g. replace bwamem.out to $bwamemout
+            for tool_id in step_keys:
+                keyword = f"{tool_id}."
+                if keyword in val:
+                    val = val.replace(keyword, f"${tool_id}")
+
+            outputs[o] = val
+
+        return outputs
+
+    @staticmethod
+    def snake_to_camel_case(string: str):
+        parts = string.split("_")
+        return parts[0] + "".join(x.title() for x in parts[1:])
+
+    @classmethod
     def unwrap_expression(
             cls,
             value,
@@ -240,7 +376,7 @@ echo $outputs
 
         if isinstance(value, list):
             toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
-            inner = ", ".join(
+            inner = " ".join(
                 cls.unwrap_expression(
                     value[i],
                     code_environment=True,
@@ -252,10 +388,12 @@ echo $outputs
                 )
                 for i in range(len(value))
             )
-            return cls.wrap_in_codeblock_if_required(
-                f"$(list \"{inner}\")"
-                f"", is_code_environment=code_environment
-            )
+            # return cls.wrap_in_codeblock_if_required(
+            #     f"$(list \"{inner}\")"
+            #     f"", is_code_environment=code_environment
+            # )
+
+            return f"$(list \"{inner}\")"
 
         if isinstance(value, str):
             return value
@@ -386,13 +524,6 @@ echo $outputs
 
         if selector_override and sel in selector_override:
             sel = selector_override[sel]
-        # else:
-        #     # sel = f"${sel}"
-        #
-        #     Logger.debug("sel")
-        #     Logger.debug(sel)
-        #     # regex = r'.*\{inputs\.(\w+)\}.*'
-        #     # sel = re.sub(regex, r'$\1', sel)
 
         if not skip_lookup:
 
@@ -599,7 +730,7 @@ echo $outputs
                         or i.id() in values_provided_from_tool:
                     val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
 
-                    if not val:
+                    if val == "" or val is None:
                         val = []
 
                     if not isinstance(val, list):
@@ -629,10 +760,16 @@ echo $outputs
 
                     if isinstance(i.input_type, Filename):
                         val = cls.unwrap_expression(i.input_type.generated_filename(), inputs_dict=inputsdict)
+                    elif isinstance(i.input_type, Boolean):
+                        val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+                        if val == "True":
+                            val = True
+                        if val == "False":
+                            val = False
                     else:
                         val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
 
-                    if val == "":
+                    if val == "" or val is None:
                         val = []
 
                     if not isinstance(val, list):
@@ -640,8 +777,6 @@ echo $outputs
 
                     inp[i.tag] = " ".join(str(v) for v in val)
 
-                    # Logger.debug("val " + i.tag)
-                    # Logger.debug(val)
                     if len(val) > 0 and (i.prefix or i.position):
                         for v in val:
                             if isinstance(v, bool):
@@ -725,8 +860,6 @@ echo $outputs
         if not (tool_arg.position is not None or tool_arg.prefix):
             return None
 
-
-
         separate_value_from_prefix = tool_arg.separate_value_from_prefix is not False
         prefix = tool_arg.prefix if tool_arg.prefix else ""
         tprefix = prefix
@@ -737,7 +870,7 @@ echo $outputs
         arg_val = cls.unwrap_expression(tool_arg.value, inputsdict=inputsdict, skip_inputs_lookup=True)
 
         if tool_arg.shell_quote is not False:
-            arg_val = f"'{arg_val}'"
+            arg_val = f"\"{arg_val}\""
 
         arg_val = f"{tprefix}{arg_val}" if tprefix else f"{arg_val}"
 
