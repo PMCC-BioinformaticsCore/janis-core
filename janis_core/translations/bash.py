@@ -30,6 +30,9 @@ class BashTranslator(TranslatorBase):
     def __init__(self):
         super().__init__(name="bash")
 
+    SHEBANG = "#!/usr/bin/env bash"
+    LIB_FILENAME = "lib"
+
     @classmethod
     def translate_workflow(
         cls,
@@ -44,98 +47,74 @@ class BashTranslator(TranslatorBase):
         toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
         step_keys = list(workflow.step_nodes.keys())
-        tool_commands = {}
+        tool_scripts = {}
+        tools = {}
 
+        tool_scripts[cls.LIB_FILENAME] = cls.generate_generic_functions()
         for step_id in workflow.step_nodes:
             tool = workflow.step_nodes[step_id].tool
-            tool_commands[step_id] = cls.generate_tool_command(tool)
+            tools[tool.versioned_id()] = tool
+            input_file_prefix = f"{tool.versioned_id()}.input"
+            tool_scripts[input_file_prefix] = cls.generate_wf_step_input_vars(tool, step_keys)
+            tool_scripts[tool.versioned_id()] = cls.tool_script(tool, step_id, input_file_prefix)
 
-        outputs = cls.generate_wf_tool_outputs(workflow)
+        return cls.workflow_script(workflow, tools), tool_scripts
+
+
+    @classmethod
+    def workflow_script(cls, workflow: WorkflowBase, tools: Dict[str, Tool]):
+        lib = cls.generate_generic_functions()
         esc = '\\"'
-
-        lib = cls.generate_generic_functions(tool)
+        outputs = cls.generate_wf_tool_outputs(workflow)
         command = ""
-        for step_id in tool_commands:
-            tool = workflow.step_nodes[step_id].tool
+        for tool_id in tools:
+            command += f"source $TOOLDIR/{cls.tool_filename(tool_id)}\n"
 
-            provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
-            tool_outputs = cls.generate_outputs(tool)
-            tool_inputs = cls.build_inputs_file(
-                tool, merge_resources=True,
-                additional_inputs=provided_inputs)
+        return f"""{cls.SHEBANG}
+export DIR=$(pwd)
+export STDOUTPATH=$(pwd)/stdout
+export STDERRPATH=$(pwd)/stderr
+export TOOLDIR=$2
 
-            output_vars = ""
-            for key in tool_outputs:
-                var_name = f"{step_id}{key}"
-                output_val = tool_outputs[key]
-                if isinstance(output_val, list):
-                    output_val = " ".join(output_val)
+# Load functions
+source $TOOLDIR/{cls.tool_filename(cls.LIB_FILENAME)}
 
-                output_vars += f"""
-{var_name}="{output_val}"
-{var_name}="${{{var_name}//STDOUT/$STDOUTPATH}}"
-{var_name}="${{{var_name}//STDERR/$STDERRPATH}}"
-{var_name}="${{{var_name}//DIR/$DIR}}"
-"""
-
-            input_vars = ""
-            for key in tool_inputs:
-                val = tool_inputs[key] if not None else ""
-
-                if key.endswith("WithPrefix"):
-                    var_no_prefix = key.split("WithPrefix")[0]
-
-                    input_vars +=f"""
-if [[ ! -z "${var_no_prefix}" ]]
-then
-    {key}="{val}"
-else
-    {key}=""
-fi
-"""
-                else:
-                    input_vars += f"{key}=\"{val}\"\n"
-
-            command += f"""
-# Inputs
-{input_vars}
-
-# Print out full command for debugging purpose
-echo "{tool_commands[step_id]}"
-
-# Executing command
-# Redirect stdout to a file
-# Redirect stderr to another file and stderr
-{tool_commands[step_id]} > $DIR/{step_id}_stdout 2> >(tee -a $DIR/{step_id}_stderr >&2) 
-
-#Outputs
-{output_vars}
-"""
-
-        return (f"""
-#!/usr/bin/env bash
-
-{lib}
-
-# source twice so we do not need to worry about order of variables
+# source twice so we do not need to worry about order of variables (no self referenced variables here)
 source $1
 source $1
-
-DIR=$(pwd)
-STDOUTPATH=$(pwd)/stdout
-STDERRPATH=$(pwd)/stderr
 
 {command}
 
 outputs="{json.dumps(outputs).replace('"', esc)}"
 outputs="${{outputs//STDOUT/$STDOUTPATH}}"
 outputs="${{outputs//STDERR/$STDERRPATH}}"
-outputs="${{outputs//DIR/$DIR}}"
+export outputs="${{outputs//DIR/$DIR}}"
 echo $outputs
 
 # END
-""", [])
+"""
 
+    @classmethod
+    def tool_script(cls, tool: Tool, step_id: str, input_file_prefix: str):
+        command = cls.generate_tool_command(tool)
+        output_vars = cls.generate_wf_step_output_vars(tool, step_id)
+        input_filename = cls.tool_filename(input_file_prefix)
+
+        return f"""{cls.SHEBANG}
+# Inputs
+source $TOOLDIR/{input_filename}
+
+# Print out full command for debugging purpose
+echo "{command}"
+
+# Executing command
+# Redirect stdout to a file
+# Redirect stderr to another file and stderr
+{command} > $DIR/{step_id}_stdout 2> >(tee -a $DIR/{step_id}_stderr >&2) 
+
+#Outputs
+{output_vars}
+"""
 
     @classmethod
     def translate_tool_internal(
@@ -163,19 +142,19 @@ echo $outputs
         esc = '\\"'
 
         command = cls.generate_tool_command(tool)
-        lib = cls.generate_generic_functions(tool)
+        lib = cls.generate_generic_functions()
 
-        return f"""#!/usr/bin/env sh
+        return f"""{cls.SHEBANG}
+export DIR=$(pwd)
+export STDOUTPATH=$(pwd)/stdout
+export STDERRPATH=$(pwd)/stderr
+export TOOLDIR=$2
 
 {lib}
 
 # source twice so we do not need to worry about order of variables
 source $1
 source $1
-
-DIR=$(pwd)
-STDOUTPATH=$(pwd)/stdout
-STDERRPATH=$(pwd)/stderr
 
 {doc}
 
@@ -243,7 +222,57 @@ echo $outputs
         return command
 
     @classmethod
-    def generate_generic_functions(cls, tool):
+    def generate_wf_step_input_vars(cls, tool: Tool, step_keys: List[str]):
+        provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+        tool_inputs = cls.build_inputs_file(
+            tool, merge_resources=True,
+            additional_inputs=provided_inputs
+        )
+
+        input_vars = ""
+        for key in tool_inputs:
+            val = tool_inputs[key] if not None else ""
+
+            if key.endswith("WithPrefix"):
+                var_no_prefix = key.split("WithPrefix")[0]
+
+                input_vars += f"""{cls.SHEBANG}
+
+if [[ ! -z "${var_no_prefix}" ]]
+then
+    {key}="{val}"
+else
+    {key}=""
+fi
+"""
+            else:
+                input_vars += f"export {key}=\"{val}\"\n"
+
+        return input_vars
+
+    @classmethod
+    def generate_wf_step_output_vars(cls, tool: Tool, step_id: str):
+        tool_outputs = cls.generate_outputs(tool)
+
+        output_vars = ""
+        for key in tool_outputs:
+            var_name = f"{step_id}{key}"
+            output_val = tool_outputs[key]
+            if isinstance(output_val, list):
+                output_val = " ".join(output_val)
+
+            output_vars += f"""
+{var_name}="{output_val}"
+{var_name}="${{{var_name}//STDOUT/$STDOUTPATH}}"
+{var_name}="${{{var_name}//STDERR/$STDERRPATH}}"
+export {var_name}="${{{var_name}//DIR/$DIR}}"
+echo "OUTPUT {var_name}: ${var_name}"
+"""
+
+        return output_vars
+
+    @classmethod
+    def generate_generic_functions(cls):
         return """
 first()
 {   
@@ -823,7 +852,11 @@ join() {
 
     @staticmethod
     def tool_filename(tool):
-        return tool.versioned_id() + ".sh"
+        prefix = tool
+        if isinstance(tool, Tool):
+            prefix = tool.versioned_id()
+
+        return prefix + ".sh"
 
     @staticmethod
     def inputs_filename(workflow):
