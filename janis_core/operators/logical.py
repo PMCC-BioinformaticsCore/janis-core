@@ -109,7 +109,7 @@ class If(Operator, ABC):
 
     def to_shell(self, unwrap_operator, *args):
         cond, v1, v2 = [unwrap_operator(a) for a in self.args]
-        return f"if [[ {cond} ]]; then {v1}; else {v2}; fi"
+        return f"$(if [[ {cond} ]]; then \"{v1}\"; else \"{v2}\"; fi)"
 
 
 class AssertNotNull(Operator):
@@ -437,7 +437,7 @@ class AddOperator(TwoValueOperator):
         if isinstance(arg1, str) and not arg1.isdigit() and isinstance(arg2, str) and not arg2.isdigit():
             return f"{arg1}{arg2}"
 
-        return f"{arg1} {self.shell_symbol()} {arg2}"
+        return f"$(expr {arg1} {self.shell_symbol()} {arg2})"
 
     def returntype(self):
         lhs_val: DataType = self.args[0]
@@ -502,6 +502,11 @@ class SubtractOperator(TwoValueOperator):
             return Float
         return Int
 
+    def to_shell(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        return f"$(expr {arg1} {self.shell_symbol()} {arg2})"
+
 
 class MultiplyOperator(TwoValueOperator):
     @staticmethod
@@ -522,7 +527,7 @@ class MultiplyOperator(TwoValueOperator):
 
     @staticmethod
     def shell_symbol():
-        return "*"
+        return "\*"
 
     @staticmethod
     def apply_to(arg1, arg2):
@@ -537,6 +542,11 @@ class MultiplyOperator(TwoValueOperator):
         if any(isinstance(t, Float) for t in self.args):
             return Float
         return Int
+
+    def to_shell(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        return f"$(expr {arg1} {self.shell_symbol()} {arg2})"
 
 
 class DivideOperator(TwoValueOperator):
@@ -571,6 +581,11 @@ class DivideOperator(TwoValueOperator):
         if any(isinstance(t, Double) for t in self.args):
             return Double
         return Float
+
+    def to_shell(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        return f"$(expr {arg1} {self.shell_symbol()} {arg2})"
 
 
 class FloorOperator(Operator):
