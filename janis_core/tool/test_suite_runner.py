@@ -253,17 +253,25 @@ class ToolTestSuiteRunner:
         :rtype: Any
         """
         # Convert array to element of array
-        if isinstance(output_type, Array):
-            if test_logic.array_index is not None:
+        if test_logic.array_index is not None:
+            if isinstance(output_type, Array):
                 output_list = output_value.split("|")
                 output_value = output_list[test_logic.array_index]
 
+                # For further processing within this function
+                output_type = output_type.subtype()
+            else:
+                raise Exception("array_index parameter can only be used of Array output type")
+
+        # Now, handle individual element of an array
         # Add extension to a filename (when testing secondary files)
-        if isinstance(output_type, File):
-            if test_logic.suffix is not None:
+        if test_logic.suffix is not None:
+            if isinstance(output_type, File):
                 output_value = apply_secondary_file_format_to_filename(
                     output_value, test_logic.suffix
                 )
+            else:
+                raise Exception("suffix parameter can only be used of File or Array<File> output type")
 
         return output_value
 
@@ -399,6 +407,9 @@ class ToolTestSuiteRunner:
         :return: number of lines
         :rtype: int
         """
+        if isinstance(output_type, Array):
+            output_type = output_type.subtype()
+
         if isinstance(output_type, File):
             # text file only here
             with open(output_value) as fp:
