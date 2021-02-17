@@ -1,6 +1,6 @@
 import os
 from types import LambdaType
-from typing import List, Union
+from typing import List, Union, Optional
 import WDL
 
 import janis_core as j
@@ -32,7 +32,7 @@ class WdlParser:
                 for i in obj.inputs
                 if not i.name.startswith("runtime_")
             ],
-            outputs=[],
+            outputs=[self.parse_command_tool_output(o) for o in obj.outputs],
             files_to_create={"script.sh": self.translate_expr(obj.command)},
         )
 
@@ -40,7 +40,9 @@ class WdlParser:
 
     def translate_expr(
         self, expr: WDL.Expr.Base
-    ) -> Union[j.Selector, List[j.Selector], int, str, float, bool]:
+    ) -> Optional[Union[j.Selector, List[j.Selector], int, str, float, bool]]:
+        if expr is None:
+            return None
 
         tp = self.translate_expr
 
@@ -78,7 +80,7 @@ class WdlParser:
             _format.replace(str(placeholder), token)
             elements[token] = self.translate_expr(placeholder)
 
-        if len(elements) > 0:
+        if len(elements) == 0:
             return str(s)
 
         _format.replace("\\n", "\n")
@@ -106,7 +108,9 @@ class WdlParser:
             "_gt": j.GtOperator,
             "_gte": j.GteOperator,
             "sep": j.JoinOperator,
+            "_add": j.AddOperator,
             "_interpolation_add": j.AddOperator,
+            "stdout": j.Stdout
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -135,16 +139,20 @@ class WdlParser:
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")
 
     def parse_command_tool_input(self, inp: WDL.Decl):
+        default = None
         if inp.expr:
-            print(
-                f"Input {inp.name} has expression, need to work out how to parse this: '{inp.expr}'"
-            )
+            default = self.translate_expr(inp.expr)
 
         # explicitly skip "runtime_*" inputs because they're from janis
         if inp.name.startswith("runtime_"):
             return None
 
-        return j.ToolInput(inp.name, self.parse_wdl_type(inp.type))
+        return j.ToolInput(inp.name, self.parse_wdl_type(inp.type), default=default)
+
+    def parse_command_tool_output(self, outp: WDL.Decl):
+        sel = self.translate_expr(outp.expr)
+
+        return j.ToolOutput(outp.name, self.parse_wdl_type(outp.type), selector=sel)
 
 
 if __name__ == "__main__":
