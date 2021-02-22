@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional
+
+from janis_core.types.data_types import ParseableType
+
+from janis_core.types import get_instantiated_type, DataType
 
 from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
 from janis_core.utils import first_value
+from janis_core.utils.logger import Logger
 
 
 class Selector(ABC):
@@ -12,7 +17,7 @@ class Selector(ABC):
         return True
 
     @abstractmethod
-    def returntype(self):
+    def returntype(self) -> DataType:
         pass
 
     def requires_contents(self):
@@ -23,6 +28,9 @@ class Selector(ABC):
         return False
 
     def __neg__(self):
+        self.negate()
+
+    def negate(self):
         from janis_core.operators.logical import NotOperator
 
         return NotOperator(self)
@@ -36,60 +44,87 @@ class Selector(ABC):
 
         return AssertNotNull(self)
 
-    def __and__(self, other):
+    def is_null(self):
+        return self.is_not_null().negate()
+
+    def is_not_null(self):
+        from janis_core.operators.logical import IsDefined
+
+        return IsDefined(self)
+
+    def and_(self, other):
         from janis_core.operators.logical import AndOperator
 
         return AndOperator(self, other)
+
+    def __and__(self, other):
+        return self.and_(other)
 
     def __rand__(self, other):
         from janis_core.operators.logical import AndOperator
 
         return AndOperator(other, self)
 
-    def __or__(self, other):
+    def or_(self, other):
         from janis_core.operators.logical import OrOperator
 
         return OrOperator(self, other)
+
+    def __or__(self, other):
+        return self.or_(other)
 
     def __ror__(self, other):
         from janis_core.operators.logical import OrOperator
 
         return OrOperator(other, self)
 
-    def __add__(self, other):
+    def add(self, other):
         from janis_core.operators.logical import AddOperator
 
         return AddOperator(self, other)
+
+    def __add__(self, other):
+        return self.add(other)
 
     def __radd__(self, other):
         from janis_core.operators.logical import AddOperator
 
         return AddOperator(other, self)
 
-    def __sub__(self, other):
+    def subtract(self, other):
         from janis_core.operators.logical import SubtractOperator
 
         return SubtractOperator(self, other)
+
+    def __sub__(self, other):
+        return self.subtract(other)
 
     def __rsub__(self, other):
         from janis_core.operators.logical import SubtractOperator
 
         return SubtractOperator(other, self)
 
-    def __mul__(self, other):
+    def multiply(self, other):
         from janis_core.operators.logical import MultiplyOperator
 
         return MultiplyOperator(self, other)
+
+    def __mul__(self, other):
+        return self.multiply(other)
 
     def __rmul__(self, other):
         from janis_core.operators.logical import MultiplyOperator
 
         return MultiplyOperator(other, self)
 
-    def __truediv__(self, other):
+    def divide(self, other):
+
         from janis_core.operators.logical import DivideOperator
 
         return DivideOperator(self, other)
+
+    def __truediv__(self, other):
+        return self.divide(other)
 
     def __rtruediv__(self, other):
         from janis_core.operators.logical import DivideOperator
@@ -102,39 +137,54 @@ class Selector(ABC):
 
         return EqualityOperator(self, other)
 
-    def __ne__(self, other):
+    def not_equals(self, other):
+
         from janis_core.operators.logical import EqualityOperator
 
         return EqualityOperator(self, other)
 
-    def __gt__(self, other):
+    def __ne__(self, other):
+        return self.not_equals(other)
+
+    def greater_than(self, other):
         from janis_core.operators.logical import GtOperator
 
         return GtOperator(self, other)
 
-    def __ge__(self, other):
+    def __gt__(self, other):
+        return self.greater_than(other)
+
+    def greater_than_or_equals(self, other):
         from janis_core.operators.logical import GteOperator
 
         return GteOperator(self, other)
 
-    def __lt__(self, other):
+    def __ge__(self, other):
+        return self.greater_than_or_equals(other)
+
+    def less_than(self, other):
         from janis_core.operators.logical import LtOperator
 
         return LtOperator(self, other)
 
-    def __le__(self, other):
+    def __lt__(self, other):
+        return self.less_than(other)
+
+    def less_than_or_equals(self, other):
         from janis_core.operators.logical import LteOperator
 
         return LteOperator(self, other)
-
-    def __len__(self):
-
-        return self.length()
 
     def length(self):
         from janis_core.operators.standard import LengthOperator
 
         return LengthOperator(self)
+
+    def __len__(self):
+
+        raise Exception(
+            f"Calling the len function on a Janis selector, ie:'len({str(self)})' is not supported, please use '{str(self)}.length)'"
+        )
 
     def as_str(self):
         from janis_core.operators.operator import AsStringOperator
@@ -166,6 +216,18 @@ class Selector(ABC):
 
         return OrOperator(self, other)
 
+    def contents(self):
+        from janis_core.operators.standard import ReadContents
+
+        return ReadContents(self)
+
+    def read_json(self):
+        # could always check self.returntype() and decide to use read_json or ParseJson
+
+        from janis_core.operators.standard import ReadJsonOperator
+
+        return ReadJsonOperator(self)
+
     def __getitem__(self, item):
         from janis_core.operators.operator import IndexOperator
 
@@ -174,7 +236,7 @@ class Selector(ABC):
     def basename(self):
         from .standard import BasenameOperator
 
-        outtype = self.returntype()
+        outtype = get_instantiated_type(self.returntype()).received_type()
         if not isinstance(outtype, (File, Directory)):
             raise Exception(
                 "Basename operator can only be applied to steps of File / Directory type, received: "
@@ -188,19 +250,57 @@ class Selector(ABC):
 
         return FileSizeOperator(self)
 
+    def flattened(self):
+        from .standard import FlattenOperator
+
+        return FlattenOperator(self)
+
+    def joined(self, separator: str):
+        from .standard import JoinOperator
+
+        return JoinOperator(self, separator)
+
+    def as_type(self, data_type: ParseableType):
+        return AliasSelector(self, data_type)
+
 
 SelectorOrValue = Union[Selector, int, str, float]
 
 
 class InputSelector(Selector):
-    def __init__(self, input_to_select, use_basename=None):
+    def __init__(
+        self, input_to_select, remove_file_extension=None, type_hint=File, **kwargs
+    ):
+        """
+        :param input_to_select: The name of the input to select
+        :param remove_file_extension: Call basename() and remove the file extension
+        :param type_hint: Janis can't determine the type of the input to select until translation time,
+            so providing a hint type might suppress false warnings. This is similar to using .as_type(dt)
+        """
+
+        if not isinstance(input_to_select, str):
+            raise Exception(
+                f"Expected input_to_select to be string, not {type(input_to_select)}: {str(input_to_select)}"
+            )
+
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
-        self.use_basename = use_basename
+        self.type_hint = get_instantiated_type(type_hint) or File()
+
+        if "use_basename" in kwargs:
+            use_basename = kwargs["use_basename"]
+            if remove_file_extension is None:
+                remove_file_extension = use_basename
+            Logger.warn(
+                f"The 'use_basename' key is deprecated, please use 'remove_file_extension' instead: "
+                f'InputSelector("{self.input_to_select}", remove_file_extension={str(use_basename)})'
+            )
+
+        self.remove_file_extension = remove_file_extension
 
     def returntype(self):
         # Todo: Work out how this can be achieved
-        return File
+        return self.type_hint
 
     def to_string_formatter(self):
         kwarg = {self.input_to_select: self}
@@ -289,8 +389,9 @@ class StepOutputSelector(Selector):
 
 
 class WildcardSelector(Selector):
-    def __init__(self, wildcard):
+    def __init__(self, wildcard, select_first=False):
         self.wildcard = wildcard
+        self.select_first = select_first
 
     def returntype(self):
         return Array(Union[File, Directory])
@@ -299,63 +400,99 @@ class WildcardSelector(Selector):
         raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
 
 
-class MemorySelector(InputSelector):
-    def __init__(self):
-        super().__init__("runtime_memory")
+class AliasSelector(Selector):
+    """
+    Simply a way to silence the Janis type system
+    """
 
-    def returntype(self):
-        return Int(optional=True)
+    def __init__(self, inner: Selector, dt: ParseableType):
+        self.inner_selector = inner
+        self.data_type = get_instantiated_type(dt)
 
-    def __str__(self):
-        return "runtime_memory"
+    def returntype(self) -> DataType:
+        return self.data_type
 
-    def __repr__(self):
-        return str(self)
+    def to_string_formatter(self):
+        return f"({self.inner_selector} as {self.data_type})"
 
 
-class CpuSelector(InputSelector):
-    def __init__(self, default=1):
-        super().__init__("runtime_cpu")
+class ResourceSelector(InputSelector):
+    def __init__(
+        self,
+        resource_to_select: str,
+        resource_type: DataType,
+        default: Optional[any] = None,
+    ):
+        super().__init__(resource_to_select)
+
+        self.resource_type = resource_type
         self.default = default
 
-    def returntype(self):
-        return Int(optional=bool(self.default is None))
+    def get_operation(self, tool, hints):
+        value_from_defined_method = self.get_value_from_tool(tool, hints)
+        # can't do a check for is_opera
+        if (
+            value_from_defined_method is not None
+            and hasattr(value_from_defined_method, "get_leaves")
+            and any(
+                isinstance(l, type(self))
+                for l in value_from_defined_method.get_leaves()
+            )
+        ):
+            raise Exception(
+                f"{type(self).__name__}() should not be used for when building {self.input_to_select} method for '{tool.id()}'"
+            )
 
-    def __str__(self):
-        return "runtime_cpu"
+        ops = [InputSelector(self.input_to_select)]
+        if value_from_defined_method is not None:
+            ops.append(value_from_defined_method)
+        if self.default is not None:
+            ops.append(self.default)
 
-    def __repr__(self):
-        return str(self)
+        if len(ops) == 1:
+            return ops[0]
+
+        from .standard import FirstOperator
+
+        return FirstOperator(ops)
+
+    @abstractmethod
+    def get_value_from_tool(self, tool, hints):
+        pass
 
 
-class DiskSelector(InputSelector):
+class MemorySelector(ResourceSelector):
     def __init__(self):
-        super().__init__("runtime_disks")
+        super().__init__("runtime_memory", Int(optional=False), 4)
 
-    def returntype(self):
-        return Int(optional=True)
-
-    def __str__(self):
-        return "runtime_disks"
-
-    def __repr__(self):
-        return str(self)
+    def get_value_from_tool(self, tool, hints):
+        return tool.memory(hints)
 
 
-class TimeSelector(InputSelector):
+class CpuSelector(ResourceSelector):
+    def __init__(self, default=1):
+        super().__init__("runtime_cpu", Int(optional=bool(default is None)), default)
+
+    def get_value_from_tool(self, tool, hints):
+        return tool.cpus(hints)
+
+
+class DiskSelector(ResourceSelector):
+    def __init__(self, default=20):
+        super().__init__("runtime_disks", Int(optional=True), default)
+
+    def get_value_from_tool(self, tool, hints):
+        return tool.disk(hints)
+
+
+class TimeSelector(ResourceSelector):
     def __init__(self, default=86400):
         """
         Specified in seconds
         :param default:
         """
-        super().__init__("runtime_seconds")
+        super().__init__("runtime_seconds", Int(optional=False), default)
         self.default = default
 
-    def returntype(self):
-        return Int(optional=bool(self.default is None))
-
-    def __str__(self):
-        return "runtime_seconds"
-
-    def __repr__(self):
-        return str(self)
+    def get_value_from_tool(self, tool, hints):
+        return tool.time(hints)

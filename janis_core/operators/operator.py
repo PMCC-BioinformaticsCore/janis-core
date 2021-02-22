@@ -6,7 +6,7 @@ from janis_core.types import DataType, get_instantiated_type, Float
 from janis_core.types.common_data_types import String, Boolean, Int, AnyType, Array
 
 
-class Operator(Selector, ABC):
+class Operator(Selector):
     def __init__(self, *args):
         self.args: List[Union[Selector, any]] = list(args)
 
@@ -39,7 +39,7 @@ class Operator(Selector, ABC):
             if isinstance(a, Operator):
                 leaves.extend(a.get_leaves())
             else:
-                leaves.append(a)
+                (leaves.extend if isinstance(a, list) else leaves.append)(a)
         return leaves
 
     @abstractmethod
@@ -106,6 +106,21 @@ class Operator(Selector, ABC):
 
         raise Exception(f"Janis cannot evaluate '{arg.__class__.__name__}'")
 
+    def rewrite_operator(self, args_to_rewrite: dict):
+        return self.__class__(*self.substitute_arg(args_to_rewrite, self.args))
+
+    @staticmethod
+    def substitute_arg(args_to_rewrite: dict, arg: any):
+        if isinstance(arg, list):
+            return [Operator.substitute_arg(args_to_rewrite, a) for a in arg]
+        elif isinstance(arg, dict):
+            return {
+                k: Operator.substitute_arg(args_to_rewrite, a) for k, a in arg.items()
+            }
+        if arg in args_to_rewrite:
+            return args_to_rewrite[arg]
+        return arg
+
     @abstractmethod
     def evaluate(self, inputs):
         # I need each operator to define this method
@@ -126,6 +141,9 @@ class Operator(Selector, ABC):
         key = re.sub(r"\W+", "", str(self))
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({', '.join(repr(a) for a in self.args)})"
 
 
 class IndexOperator(Operator, ABC):
@@ -159,7 +177,7 @@ class IndexOperator(Operator, ABC):
         return f"{base}[{index}]"
 
     def to_cwl(self, unwrap_operator, *args):
-        base, index = self.args
+        base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
 
 
@@ -187,6 +205,9 @@ class SingleValueOperator(Operator, ABC):
     def __str__(self):
         internal = self.args[0]
         return f"{self.symbol()}({internal})"
+
+    def __repr__(self):
+        return str(self)
 
     def evaluate(self, inputs):
         result = self.evaluate_arg(self.args[0], inputs)
@@ -235,6 +256,9 @@ class TwoValueOperator(Operator, ABC):
     def __str__(self):
         args = self.args
         return f"({args[0]} {self.symbol()} {args[1]})"
+
+    def __repr__(self):
+        return str(self)
 
 
 class AsStringOperator(SingleValueOperator):
@@ -315,6 +339,10 @@ class AsIntOperator(SingleValueOperator):
 
     def returntype(self):
         return Int
+
+    @staticmethod
+    def apply_to(value):
+        return int(value)
 
 
 class AsFloatOperator(SingleValueOperator):

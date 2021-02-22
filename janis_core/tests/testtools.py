@@ -84,7 +84,7 @@ class SingleTestTool(CommandTool):
 
     def inputs(self):
         return [
-            ToolInput("inputs", String(), position=0),
+            ToolInput("input1", String(), position=0),
             ToolInput("input2", String(optional=True), position=1),
             ToolInput("input3", String(optional=True), position=2),
             ToolInput("input4", String(optional=True), position=3),
@@ -126,7 +126,7 @@ class FilenameGeneratedTool(SingleTestTool):
             ToolInput(
                 "generatedFileInp",
                 Filename(
-                    prefix=InputSelector("fileInp"),
+                    prefix=InputSelector("fileInp", remove_file_extension=True),
                     suffix=".transformed",
                     extension=".fnp",
                 ),
@@ -135,7 +135,7 @@ class FilenameGeneratedTool(SingleTestTool):
             ToolInput(
                 "generatedFileInpOptional",
                 Filename(
-                    prefix=InputSelector("fileInpOptional"),
+                    prefix=InputSelector("fileInpOptional", remove_file_extension=True),
                     suffix=".optional",
                     extension=".txt",
                 ),
@@ -145,29 +145,25 @@ class FilenameGeneratedTool(SingleTestTool):
 
 
 class ArrayTestTool(CommandTool):
-    @staticmethod
-    def tool():
+    def tool(self):
         return "ArrayStepTool"
 
     def friendly_name(self):
         return None
 
-    @staticmethod
-    def base_command():
+    def base_command(self):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inputs", Array(String()), position=1)]
+        return [ToolInput("inps", Array(String()), position=1)]
 
     def outputs(self):
         return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]
 
-    @staticmethod
-    def container():
+    def container(self):
         return None
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
 
@@ -229,6 +225,9 @@ class TestToolWithSecondaryInput(CatTestTool):
 
 
 class TestTypeWithSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".txt")
+
     @staticmethod
     def secondary_files():
         return ["^.txt"]
@@ -294,3 +293,20 @@ class TestWorkflowWithStepInputExpression(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+class TestWorkflowThatOutputsArraysOfSecondaryFiles(Workflow):
+    def id(self) -> str:
+        return "TestWorkflowThatOutputsArraysOfSecondaryFiles"
+
+    def friendly_name(self):
+        return "Test Workflow That outputs ararys of secondary files"
+
+    def constructor(self):
+        self.input("inp", Array(String))
+
+        self.step(
+            "stp", TestToolWithSecondaryOutput(testtool=self.inp), scatter="testtool"
+        )
+
+        self.output("out", source=self.stp.out)

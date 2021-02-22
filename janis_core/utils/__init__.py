@@ -24,6 +24,27 @@ def get_value_for_hints_and_ordered_resource_tuple(
     return None
 
 
+def fully_qualify_filename(fn):
+    """
+    The theory is, if the user types in a relative path (from the cwd), we should fully qualify this path.
+    We'd also want to resolve `~` / `.` and other operators too.
+    :param fn:
+    :return:
+    """
+    from re import compile
+    import os.path
+
+    uri_prefix = compile("^[A-z0-9]{2,}:\/\/")
+
+    if fn is None:
+        return None
+    if isinstance(fn, list):
+        return [fully_qualify_filename(f) for f in fn]
+    if uri_prefix.match(fn):
+        return fn
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(fn)))
+
+
 def zip_directory(parent_dir, dir_name):
     import subprocess
     from .logger import Logger
@@ -100,3 +121,21 @@ def lowercase_dictkeys(d: Optional[Dict]) -> Optional[Dict]:
         return None
 
     return {k.lower(): v for k, v in d.items()}
+
+
+def generate_cat_command_from_statements(path, contents):
+    wrap_tags = "EOT"
+    potential_tags = ["EOF", "ENDOFFILE", "ENDOFTHISFILE"]
+    while wrap_tags in contents:
+        # generate new END tag
+        if len(potential_tags) == 0:
+            raise Exception(
+                "Couldn't determine UNIQUE start / end tags for CAT <<{tag} >> $PATH {{contents}} {tag}"
+            )
+        wrap_tags = potential_tags.pop(0)
+
+    return f"""\
+cat <<{wrap_tags} >> '{path}'
+{contents}
+{wrap_tags}\
+"""

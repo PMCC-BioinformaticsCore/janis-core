@@ -119,7 +119,7 @@ class TestPythonAnnotations(unittest.TestCase):
     def test_2(self):
         t = get_from_python_type(List[str])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertFalse(st.optional)
         self.assertIsInstance(st, String)
@@ -127,10 +127,10 @@ class TestPythonAnnotations(unittest.TestCase):
     def test_3(self):
         t = get_from_python_type(List[List[str]])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertFalse(st.optional)
-        self.assertIsInstance(st, Array)
+        self.assertTrue(st.is_array())
         sst = st.subtype()
         self.assertFalse(sst.optional)
         self.assertIsInstance(sst, String)
@@ -139,7 +139,7 @@ class TestPythonAnnotations(unittest.TestCase):
         # Might be a fun python 3.6 thing here...
         t = get_from_python_type(List[Optional[str]])
         self.assertFalse(t.optional)
-        self.assertIsInstance(t, Array)
+        self.assertTrue(t.is_array())
         st = t.subtype()
         self.assertTrue(st.optional)
         self.assertIsInstance(st, String)

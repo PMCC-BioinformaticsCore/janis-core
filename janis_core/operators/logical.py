@@ -421,7 +421,7 @@ class AddOperator(TwoValueOperator):
 
     def returntype(self):
         lhs_val: DataType = self.args[0]
-        rhs_val: DataType = self.args[0]
+        rhs_val: DataType = self.args[1]
 
         if isinstance(lhs_val, Selector):
             lhs = get_instantiated_type(lhs_val.returntype())
@@ -436,13 +436,13 @@ class AddOperator(TwoValueOperator):
         if isinstance(lhs, (String, File, Directory)) or isinstance(
             rhs, (String, File, Directory)
         ):
-            return String
+            return String()
         if isinstance(lhs, Float) or isinstance(rhs, Float):
-            return Double
+            return Double()
         if isinstance(lhs, Float) or isinstance(rhs, Float):
-            return Float
+            return Float()
         if isinstance(lhs, Int) and isinstance(rhs, Int):
-            return Int
+            return Int()
 
         raise TypeError(f"Unsure how to derive returntype from {lhs.id()} + {rhs.id()}")
 

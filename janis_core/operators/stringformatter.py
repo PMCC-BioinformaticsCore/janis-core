@@ -25,7 +25,11 @@ class StringFormatter(Operator):
     def friendly_signature():
         return "String, **kwargs -> String"
 
+    def validate(self, perform_typecheck=False):
+        return True
+
     def __init__(self, format: str, **kwargs):
+        super().__init__([])
         # ignore super().__init__ call
         self._format: str = format
 
@@ -110,6 +114,11 @@ class StringFormatter(Operator):
             return evaluated_combinations[0]
         else:
             return evaluated_combinations
+
+    def rewrite_operator(self, args_to_rewrite: dict):
+        return self.__class__(
+            self._format, **self.substitute_arg(args_to_rewrite, self.kwargs)
+        )
 
     @staticmethod
     def generate_combinations_of_input_dicts(

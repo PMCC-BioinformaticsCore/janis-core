@@ -1,7 +1,13 @@
 from enum import Enum
 from typing import List, Union
 
-from janis_core.operators.selectors import InputSelector, InputNodeSelector
+from janis_core.operators.selectors import (
+    Selector,
+    InputNodeSelector,
+    StepOutputSelector,
+    InputSelector,
+)
+from janis_core.operators.operator import Operator
 
 
 class ScatterMethod(Enum):
@@ -35,7 +41,7 @@ class ScatterDescription:
         self,
         fields: List[str],
         method: ScatterMethod = None,
-        labels: Union[InputSelector, InputNodeSelector, List[str]] = None,
+        labels: Union[Selector, List[str]] = None,
     ):
         """
 
@@ -52,13 +58,19 @@ class ScatterDescription:
             if isinstance(labels, list):
                 self.labels = map(str, labels)
             elif isinstance(labels, InputNodeSelector):
-                self.labels = InputSelector(labels.id())
-            elif isinstance(labels, InputSelector):
-                self.labels = labels
-            else:
+                labels = InputSelector(labels.id())
+            elif isinstance(labels, StepOutputSelector):
                 raise Exception(
-                    f"Unrecognised type '{type(labels).__name__} for scatter labels, expected InputSelector, InputNodeSelector, List[str]"
+                    f"Forbidden: Unable to use StepOutputSelector '{str(labels)}' for scatter label."
                 )
+            elif isinstance(labels, Operator):
+                if any(isinstance(l, StepOutputSelector) for l in labels.get_leaves()):
+                    raise Exception(
+                        f"Forbidden: There was a StepOutputSelector as a parameter to the scatter "
+                        f"label operator '{str(labels)}' which is not allowed."
+                    )
+
+            self.labels = labels
 
         if len(fields) > 1 and method is None:
             raise Exception(

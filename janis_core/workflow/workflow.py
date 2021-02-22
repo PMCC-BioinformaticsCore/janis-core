@@ -1,7 +1,8 @@
 import copy
 import os
 from abc import abstractmethod, ABC
-from typing import List, Union, Optional, Dict, Tuple, Any, Set
+from inspect import isclass
+from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -12,6 +13,7 @@ from janis_core.operators import (
     StepOutputSelector,
     InputNodeSelector,
     Selector,
+    AliasSelector,
 )
 from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
 from janis_core.operators.standard import FirstOperator
@@ -33,7 +35,7 @@ from janis_core.types import (
     Filename,
 )
 from janis_core.types.data_types import is_python_primitive
-from janis_core.utils import first_value
+from janis_core.utils import first_value, fully_qualify_filename
 from janis_core.utils.logger import Logger
 from janis_core.utils.metadata import WorkflowMetadata
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -44,13 +46,15 @@ ConnectionSource = Union[Node, StepOutputSelector, Tuple[Node, str]]
 
 def verify_or_try_get_source(
     source: Union[ConnectionSource, List[ConnectionSource]]
-) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector]]:
+) -> Union[StepOutputSelector, InputNodeSelector, List[StepOutputSelector], Operator]:
 
     if isinstance(source, StepOutputSelector):
         return source
-    if isinstance(source, InputNodeSelector):
+    elif isinstance(source, InputNodeSelector):
         return source
-    if isinstance(source, list):
+    elif isinstance(source, AliasSelector):
+        return source
+    elif isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
 
     if isinstance(source, Operator):
@@ -59,8 +63,10 @@ def verify_or_try_get_source(
     node, tag = None, None
     if isinstance(source, tuple):
         node, tag = source
-    else:
+    elif isinstance(source, Node):
         node = source
+    else:
+        raise Exception(f"Unrecognised source type: {source} ({type(source).__name__})")
 
     outs = node.outputs()
     if tag is None:
@@ -93,7 +99,7 @@ class InputNode(Node):
         super().__init__(wf, NodeType.INPUT, identifier)
         self.datatype = datatype
         self.default = default
-        self.doc = doc
+        self.doc: Optional[InputDocumentation] = doc
         self.value = value
 
     def as_operator(self):
@@ -243,8 +249,14 @@ class OutputNode(Node):
             raise Exception("Unsupported output source type " + str(single_source))
 
         if not skip_typecheck and not datatype.can_receive_from(stype):
+            if isinstance(source, list):
+                source_str = (
+                    "['" + "', '".join(f"{s.node.id()}.{s.tag}" for s in source) + "']"
+                )
+            else:
+                source_str = f"'{source.node.id()}.{source.tag}'"
             Logger.critical(
-                f"Mismatch of types when joining to output node '{source.node.id()}.{source.tag}' to '{identifier}' "
+                f"Mismatch of types when joining to output node {source_str} to '{identifier}' "
                 f"({stype.id()} -/→ {datatype.id()})"
             )
 
@@ -266,7 +278,7 @@ class OutputNode(Node):
         return None
 
 
-class WorkflowBase(Tool, ABC):
+class WorkflowBase(Tool):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
 
@@ -320,7 +332,7 @@ class WorkflowBase(Tool, ABC):
         datatype: ParseableType,
         default: any = None,
         value: any = None,
-        doc: Union[str, InputDocumentation] = None,
+        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
     ):
         """
         Create an input node on a workflow
@@ -333,16 +345,12 @@ class WorkflowBase(Tool, ABC):
         if default is not None:
             datatype.optional = True
 
-        doc = (
-            doc if isinstance(doc, InputDocumentation) else InputDocumentation(doc=doc)
-        )
-
         inp = InputNode(
             self,
             identifier=identifier,
             datatype=datatype,
             default=default,
-            doc=doc,
+            doc=InputDocumentation.try_parse_from(doc),
             value=value,
         )
         self.nodes[identifier] = inp
@@ -356,10 +364,8 @@ class WorkflowBase(Tool, ABC):
         source: Union[
             List[Union[Selector, ConnectionSource]], Union[Selector, ConnectionSource]
         ] = None,
-        output_folder: Union[
-            str, InputSelector, InputNode, List[Union[str, InputSelector, InputNode]]
-        ] = None,
-        output_name: Union[str, InputSelector, ConnectionSource] = None,
+        output_folder: Union[str, Selector, List[Union[str, Selector]]] = None,
+        output_name: Union[bool, str, Selector, ConnectionSource] = True,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
     ):
@@ -369,14 +375,23 @@ class WorkflowBase(Tool, ABC):
         :param identifier: The identifier for the output
         :param datatype: Optional data type of the output to check. This will be automatically inferred if not provided.
         :param source: The source of the output, must be an output to a step node
-        :param output_folder: A janis annotation for grouping outputs by this value.  If a list is passed, it represents
-        a structure of nested directories, the first element being the root directory.
-        At most, one InputSelector can resolve to an array, and this behaviour is only defined if the output
-        scattered source, and the number of elements is equal.
-        :param output_name: Decides the prefix that an output will have, or acts as a map if the InputSelector
-        resolves to an array with equal length to the number of shards (scatters). Any other behaviour is defined and
-        may result in an unexpected termination.
-        :return:
+        :param output_folder: Decides the output folder(s) where the output will reside. If a list is passed, it
+            represents a structure of nested directories, the first element being the root directory.
+                - None (default): the assistant will copy to the root of the output directory
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+            also resolves to an array, which the assistant can unwrap multiple dimensions of arrays ONLY if the number
+            of elements in the output_scattered source and the number of resolved elements is equal.
+
+        :param output_name: Decides the name of the output (without extension) that an output will have:
+                - True (default): the assistant will choose an output name based on output identifier (tag),
+                - None / False: the assistant will use the original filename (this might cause filename conflicts)
+                - Type[Selector]: will be resolved before the workflow is run, this means it may only depend on the inputs
+            NB: If the output_source is an array, a "shard_n" will be appended to the output_name UNLESS the output_source
+                also resolves to an array, which the assistant can unwrap multiple dimensions of arrays.
+        :param extension: The extension to use if janis renames the output. By default, it will pull the extension
+            from the inherited data type (eg: CSV -> ".csv"), or it will attempt to pull the extension from the file.
+        :return: janis.WorkflowOutputNode
         """
         self.verify_identifier(identifier, repr(datatype))
 
@@ -402,7 +417,9 @@ class WorkflowBase(Tool, ABC):
             while isinstance(sourceoperator, list):
                 sourceoperator: Selector = sourceoperator[0]
 
-            datatype: DataType = copy.copy(sourceoperator.returntype())
+            datatype: DataType = copy.copy(
+                get_instantiated_type(sourceoperator.returntype()).received_type()
+            )
             if (
                 isinstance(sourceoperator, InputNodeSelector)
                 and sourceoperator.input_node.default is not None
@@ -446,55 +463,157 @@ class WorkflowBase(Tool, ABC):
         self.output_nodes[identifier] = otp
         return otp
 
-    def capture_outputs_from_step(self, step: StepNode, output_prefix=None):
+    def forward_inputs_from_tool(
+        self,
+        tool: Union[Tool, Type[Tool]],
+        inputs_to_forward: Optional[Iterable[str]] = None,
+        inputs_to_ignore: Iterable[str] = None,
+        input_prefix: str = "",
+    ) -> Dict[str, InputNodeSelector]:
+        """
+        Usage:
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, ["inp1", "inp2"])
+                OR
+            yourstp_inputs = self.forward_inputs_from_tool(YourTool, inputs_to_ignore=["inp2"])
+
+            self.step("yourstp", YourTool(**yourstp_inputs))
+
+        :param tool: The tool for which to forward the inputs for
+        :param inputs_to_forward: List of inputs to forward. You MUST specify ALL the inputs you want to forward.
+        :param inputs_to_ignore: You can choose _ALL_ inputs, except those specified here. This option is IGNORED if inputs_to_forward is defined
+        :param input_prefix: Add a prefix when forwarding it to the parent workflow (self)
+        :return:
+        """
+
+        itool = tool() if isclass(tool) else tool
+        qualified_inputs_to_forward = inputs_to_forward
+        tinps: Dict[str, TInput] = {t.id(): t for t in itool.tool_inputs()}
+
+        if inputs_to_forward is None and inputs_to_ignore is None:
+            raise Exception(
+                f"You must specify ONE of inputs_to_forward OR inputs_to_ignore when "
+                f"calling 'forward_inputs_from_tool' with tool {tool.id()})"
+            )
+        elif not inputs_to_forward:
+            qualified_inputs_to_forward = [
+                inpid for inpid in tinps.keys() if inpid not in inputs_to_ignore
+            ]
+
+        d = {}
+        for inp in qualified_inputs_to_forward:
+            if inp not in tinps:
+                raise Exception(
+                    f"Couldn't find the input {inp} in the tool {itool.id()}"
+                )
+            tinp = tinps[inp]
+            d[inp] = self.input(input_prefix + inp, tinp.intype, doc=tinp.doc)
+
+        return d
+
+    def capture_outputs_from_step(
+        self,
+        step: StepNode,
+        output_prefix=None,
+        default_output_name: Union[bool, str, Selector, ConnectionSource] = True,
+    ):
         op = output_prefix or ""
 
         tool = step.tool
         input_ids = set(self.input_nodes.keys())
 
-        def check_is_valid_selector(selector, output_id: str):
-            if isinstance(selector, list):
-                return all(check_is_valid_selector(sel, output_id) for sel in selector)
-            if isinstance(selector, str):
+        # Selector with 3 possibilities
+        #   1. Valid - no requirements -> return true
+        #   2. Almost valid - requires a transformation -> {}
+        #   3. Invalid - uses an invalid type -> return false
+
+        def check_selector_and_get_transformation(
+            selector, output_id: str
+        ) -> Union[Selector, bool]:
+            """
+            :return:
+                - True if no transformation is required
+                - None if the selector is invalid
+                - Selector if the transformation is required
+            """
+
+            if is_python_primitive(selector):
                 return True
             elif isinstance(selector, InputSelector):
-                if selector.input_to_select in input_ids:
-                    return True
-                else:
+                if selector.input_to_select not in input_ids:
                     Logger.warn(
-                        f"Couldn't port through the output_folder for {step.id()}.{output_id} as the input "
+                        f"Couldn't port the through selector for for {step.id()}.{output_id} as the input "
                         f"'{selector.input_to_select}' was not found in the current inputs"
                     )
                     return False
-            elif isinstance(selector, Operator):
-                return all(
-                    check_is_valid_selector(sel, output_id)
-                    for sel in selector.get_leaves()
-                )
+                return True
 
+            elif isinstance(selector, InputNodeSelector):
+                if selector.id() not in input_ids:
+                    Logger.warn(
+                        f"Couldn't port the through selector for for {step.id()}.{output_id} as an input node with ID"
+                        f"'{selector.id()}' was not found in the current inputs"
+                    )
+                    return False
+                return InputSelector(selector.id())
+
+            Logger.warn(
+                f"The selector {selector} ({type(selector)}) could not be transformed and cannot be used as an output/name folder for {self.id()}.{output_id}"
+            )
             return False
+
+        def get_transformed_selector(selector, output_id: str):
+
+            if isinstance(selector, list):
+                return [get_transformed_selector(sel, output_id) for sel in selector]
+
+            if isinstance(selector, Operator):
+                transformation = {}
+                for sel in selector.get_leaves():
+                    tr = check_selector_and_get_transformation(sel, output_id)
+                    if tr is True:
+                        continue
+                    if tr is False:
+                        # something was invalid and couldn't be transformed
+                        # it's been logged though
+                        return None
+                    transformation[sel] = tr
+
+                if len(transformation) > 0:
+                    return selector.rewrite_operator(transformation)
+                return selector
+
+            tr = check_selector_and_get_transformation(selector, output_id)
+            if tr is False:
+                return None
+            elif tr is True:
+                return selector
+            else:
+                return tr
 
         for out in tool.tool_outputs():
             output_folders = None
-            output_name = None
+            output_name = default_output_name
+            ext = None
             if isinstance(tool, Workflow):
                 outnode = tool.output_nodes[out.id()]
+                ext = outnode.extension
 
-                if outnode.output_folder is not None and check_is_valid_selector(
-                    outnode.output_folder, out.id()
-                ):
-                    output_folders = outnode.output_folder
+                if outnode.output_folder is not None:
+                    output_folders = get_transformed_selector(
+                        outnode.output_folder, out.id()
+                    )
 
-                if outnode.output_name is not None and check_is_valid_selector(
-                    outnode.output_name, out.id()
-                ):
-                    output_name = outnode.output_name
+                if outnode.output_name is not None:
+                    output_name = get_transformed_selector(
+                        outnode.output_name, out.id()
+                    )
 
             self.output(
                 op + out.id(),
                 source=step[out.id()],
                 output_name=output_name,
                 output_folder=output_folders or [],
+                extension=ext,
             )
 
     def all_input_keys(self):
@@ -517,8 +636,9 @@ class WorkflowBase(Tool, ABC):
     ):
         if isinstance(out, list):
             return [self.verify_output_source_type(identifier, o, outtype) for o in out]
-
-        if isinstance(out, (str, bool, float, int)):
+        if isinstance(out, bool):
+            return out
+        if isinstance(out, (str, float, int)):
             return str(out)
 
         if isinstance(out, tuple):
@@ -571,7 +691,7 @@ class WorkflowBase(Tool, ABC):
         :param scatter: Indicate whether a scatter should occur, on what, and how.
         :type scatter: Union[str, ScatterDescription]
         :param when: An operator / condition that determines whether the step should run
-        : type when: Optional[Operator]
+        :type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
         :return:
         """
@@ -667,14 +787,9 @@ class WorkflowBase(Tool, ABC):
                 )
             if v is None:
                 inp_identifier = f"{identifier}_{k}"
-                v = self.input(
-                    inp_identifier,
-                    inputs[k].intype,
-                    default=v,
-                    doc=InputDocumentation(
-                        doc=None, quality=InputQualityType.configuration
-                    ),
-                )
+                doc = copy.copy(InputDocumentation.try_parse_from(inputs[k].doc))
+                doc.quality = InputQualityType.configuration
+                v = self.input(inp_identifier, inputs[k].intype, default=v, doc=doc)
 
             verifiedsource = verify_or_try_get_source(v)
             if isinstance(verifiedsource, list):
@@ -805,6 +920,7 @@ class WorkflowBase(Tool, ABC):
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         allow_empty_container=False,
         container_override: dict = None,
     ):
@@ -828,6 +944,7 @@ class WorkflowBase(Tool, ABC):
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
         )
@@ -891,11 +1008,27 @@ class WorkflowBase(Tool, ABC):
                 tools[tl.id()] = tl
         return tools
 
+    def get_subworkflows(self):
+        tools: Dict[str, WorkflowBase] = {}
+        for t in self.step_nodes.values():
+            tl = t.tool
+            if not isinstance(tl, WorkflowBase):
+                continue
+            tools[self.versioned_id()] = self
+            tools.update(tl.get_subworkflows())
+
+        return tools
+
     def containers(self) -> Dict[str, str]:
         tools: Dict[str, str] = {}
         for t in self.step_nodes.values():
             tools.update(t.tool.containers())
         return tools
+
+    def has_tool_with_no_container(self):
+        return any(
+            t.tool.has_tool_with_no_container() for t in self.step_nodes.values()
+        )
 
     def report(self, to_console=True, tabulate_tablefmt=None):
         import tabulate
@@ -965,10 +1098,186 @@ class WorkflowBase(Tool, ABC):
 
         return data
 
+    @staticmethod
+    def get_step_ids_from_selector(selector: Selector) -> Set[str]:
+        if isinstance(selector, StepOutputSelector):
+            return {selector.node.id()}
+        elif isinstance(selector, Operator):
+            from itertools import chain
+
+            return set(
+                chain.from_iterable(
+                    Workflow.get_step_ids_from_selector(s)
+                    for s in selector.get_leaves()
+                )
+            )
+        return set()
+
+    @staticmethod
+    def get_dot_plot_internal(
+        tool,
+        graph: Optional = None,
+        default_base_connection=None,
+        prefix="",
+        expand_subworkflows=True,
+        depth=0,
+    ):
+
+        if graph is None:
+            from graphviz import Digraph
+
+            graph = Digraph(
+                name=tool.id(),
+                comment=tool.friendly_name(),
+                node_attr={"shape": "record"},
+            )
+
+        add_later: Dict[str, Set[str]] = {}
+
+        pref = f"{prefix}_" if prefix else ""
+
+        for stp in tool.step_nodes.values():
+            tool = stp.tool
+
+            fn = stp.id()
+            if tool.friendly_name():
+                fn += f" ({tool.friendly_name()})"
+            elif stp.doc and stp.doc.doc:
+                fn += f" ({stp.doc.doc})"
+            is_subworkflow = isinstance(tool, WorkflowBase)
+            if expand_subworkflows and is_subworkflow:
+                subid = pref + stp.id()
+                bgcolor = f"grey{(9 - depth) * 10}"
+                with graph.subgraph(name="cluster_" + subid, comment=stp.doc.doc) as g:
+                    g.attr(color=bgcolor, label=fn, style="filled")
+                    # if prefix:
+                    g.node(subid, shape="Msquare")
+                    WorkflowBase.get_dot_plot_internal(
+                        tool=tool,
+                        graph=g,
+                        default_base_connection=subid,
+                        prefix=subid,
+                        depth=depth + 1,
+                    )
+
+            else:
+                bgcolor = "grey80" if is_subworkflow else None
+                graph.node(
+                    pref + stp.id(),
+                    fn,
+                    style="filled" if is_subworkflow else None,
+                    color=bgcolor,
+                )
+
+            if stp.sources:
+                to_add = set()
+                for srcId, steptaginput in stp.sources.items():
+                    sti: StepTagInput = steptaginput
+                    src = sti.source()
+                    if src is None:
+                        continue
+                    if isinstance(src, list):
+                        for s in src:
+                            to_add.update(Workflow.get_step_ids_from_selector(s.source))
+                    else:
+
+                        to_add.update(Workflow.get_step_ids_from_selector(src.source))
+                # if len(to_add) == 0 and default_base_connection is not None:
+                #     to_add.add(default_base_connection)
+                if to_add:
+                    if stp.id() in add_later:
+                        add_later[stp.id()].update(to_add)
+                    else:
+                        add_later[stp.id()] = to_add
+
+        for (src, finals) in add_later.items():
+            for f in finals:
+                graph.edge(pref + f, pref + src)
+
+        return graph
+
+    def get_dot_plot(
+        self,
+        show=False,
+        log_to_stdout=True,
+        expand_subworkflows=False,
+        persist_subworkflows=False,
+        output_directory: Optional[str] = None
+        # these options are primarily for the recu
+    ):
+
+        tools = [self]
+        if persist_subworkflows:
+            tools = [self] + [t for t in self.get_subworkflows().values()]
+
+        Logger.info(f"Generating graphs for {len(tools)} workflows")
+        if output_directory:
+            output_directory = fully_qualify_filename(output_directory)
+            Logger.info(f"Persisting to '{output_directory}'")
+
+        graphs = {}
+        for tool in tools:
+            graph = self.get_dot_plot_internal(
+                tool, expand_subworkflows=expand_subworkflows
+            )
+            graphs[tool.versioned_id()] = graph
+
+            if output_directory:
+                pb = os.path.join(output_directory, tool.versioned_id()) + ".dot"
+                Logger.debug(f"Outputting workflow to '{pb}'")
+                graph.render(filename=pb, format="png", view=False)
+
+        primary_graph = graphs[self.versioned_id()]
+        if log_to_stdout:
+            print(primary_graph.source)
+        if show:
+            primary_graph.render(view=True)
+
+        return graphs
+
     def version(self):
         meta: WorkflowMetadata = self.bind_metadata() or self.metadata
-        if meta:
+        if meta and meta.version:
             return meta.version
+
+    def apply_input_documentation(
+        self,
+        inputs: Dict[str, Union[InputDocumentation, str, Dict[str, any]]],
+        should_override=False,
+        strict=False,
+    ):
+        """
+        Apply a dictionary of input documentation to a number of input nodes
+
+        :param inputs: Dict[InputNode_ID, Union[InputDocumentation, str, Dict]]
+        :param should_override: Should override the doc on an input node.
+        :param strict: Ensure every key in the inputs dictionary is in the workflow, otherwise throw an error.
+        :return: None
+        """
+        missing, skipped = set(), set()
+        innodes = self.input_nodes
+        for inpid, doc in inputs.items():
+            if inpid not in innodes:
+                if strict:
+                    missing.add(inpid)
+                continue
+            node = innodes[inpid]
+            existing_doc = node.doc and node.doc.doc
+            if existing_doc is None or should_override:
+                node.doc = InputDocumentation.try_parse_from(doc)
+            else:
+                skipped.add(inpid)
+
+        if missing:
+            raise Exception(
+                "Couldn't find the following inputs to update: " + ", ".join(missing)
+            )
+
+        if skipped:
+            Logger.log(
+                "Skipped updating fields as they already had documentation: "
+                + ", ".join(skipped)
+            )
 
 
 class Workflow(WorkflowBase):
@@ -1020,6 +1329,7 @@ class WorkflowBuilder(Workflow):
         metadata: WorkflowMetadata = None,
         tool_provider: str = None,
         tool_module: str = None,
+        doc: str = None,
     ):
         self._identifier = identifier
         self._name = friendly_name
@@ -1027,6 +1337,7 @@ class WorkflowBuilder(Workflow):
         self._metadata = metadata
         self._tool_provider = tool_provider
         self._tool_module = tool_module
+        self._doc = doc
 
         super().__init__()
 
@@ -1061,6 +1372,9 @@ class WorkflowBuilder(Workflow):
 
     def __str__(self):
         return f'WorkflowBuilder("{self._identifier}")'
+
+    def doc(self) -> Optional[str]:
+        return self._doc
 
 
 def wrap_steps_in_workflow(

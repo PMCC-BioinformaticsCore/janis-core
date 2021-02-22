@@ -20,8 +20,9 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
-import wdlgen as wdl
+from janis_core.deps import wdlgen as wdl
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators.logical import If, IsDefined
 from janis_core.operators.standard import FirstOperator
 from janis_core.types import get_instantiated_type, DataType
@@ -49,6 +50,8 @@ from janis_core.operators import (
     InputNodeSelector,
     TimeSelector,
     DiskSelector,
+    ResourceSelector,
+    AliasSelector,
 )
 from janis_core.types.common_data_types import (
     Stdout,
@@ -63,10 +66,14 @@ from janis_core.types.common_data_types import (
     Double,
     String,
 )
-from janis_core.utils import first_value, recursive_2param_wrap, find_duplicates
+from janis_core.utils import (
+    first_value,
+    recursive_2param_wrap,
+    find_duplicates,
+    generate_cat_command_from_statements,
+)
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
-from janis_core.utils.pickvalue import PickValue
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.utils.validators import Validators
 from janis_core.utils.secondary import (
@@ -127,7 +134,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_nested_tool=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[any, Dict[str, any]]:
+    ) -> Tuple[wdl.Workflow, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
 
@@ -183,7 +190,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-            is_array = isinstance(i.datatype, Array)
+            is_array = i.datatype.is_array()
             if i.datatype.secondary_files() or (
                 is_array and i.datatype.subtype().secondary_files()
             ):
@@ -227,7 +234,10 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             w.outputs.append(wdl.Output(o.datatype.wdl(), o.id(), outtag))
 
-            if o.datatype.secondary_files():
+            fundamental_outtype = o.datatype
+            if fundamental_outtype.is_array():
+                fundamental_outtype = fundamental_outtype.fundamental_type()
+            if fundamental_outtype.secondary_files():
                 if isinstance(o.source, InputNodeSelector):
                     src = [o.source.id()]
                 elif isinstance(o.source, StepOutputSelector):
@@ -244,7 +254,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                             [*src[:-1], get_secondary_tag_from_original_tag(src[-1], s)]
                         ),
                     )
-                    for s in o.datatype.secondary_files()
+                    for s in fundamental_outtype.secondary_files()
                 )
 
         # Generate import statements (relative tool dir is later?)
@@ -359,7 +369,10 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         )
         command_ins = cls.build_command_from_inputs(tool.inputs())
 
-        commands = []
+        commands = [wdl.Task.Command("set -e")]
+
+        # generate directories / file to create commands
+        commands.extend(cls.build_commands_for_file_to_create(tool))
 
         env = tool.env_vars()
         if env:
@@ -460,7 +473,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             wdl.Task.Command(
                 f"""
 cat <<EOT >> {scriptname}
-    {tool.prepared_script()}
+    {tool.prepared_script(SupportedTranslation.WDL)}
 EOT"""
             )
         )
@@ -534,7 +547,11 @@ EOT"""
             return f"[{joined_values}]"
         if is_python_primitive(expression):
             if isinstance(expression, str):
-                return cls.wrap_if_string_environment(expression, string_environment)
+                if string_environment:
+                    return expression
+                return cls.wrap_if_string_environment(
+                    prepare_escaped_string(expression), string_environment
+                )
             if isinstance(expression, bool):
                 return "true" if expression else "false"
 
@@ -546,11 +563,22 @@ EOT"""
                         expression.prefix,
                         inputsdict=inputsdict,
                         string_environment=True,
-                        for_output=True,
+                        for_output=for_output,
                     )
                 }
             )
             return cls.wrap_if_string_environment(gen_filename, string_environment)
+
+        elif isinstance(expression, AliasSelector):
+            return cls.unwrap_expression(
+                expression.inner_selector,
+                string_environment=string_environment,
+                inputsdict=inputsdict,
+                tool=tool,
+                for_output=for_output,
+                **debugkwargs,
+            )
+
         elif isinstance(expression, StringFormatter):
             return translate_string_formatter(
                 selector=expression,
@@ -564,100 +592,19 @@ EOT"""
                 f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
             )
 
-        elif isinstance(expression, MemorySelector):
+        elif isinstance(expression, ResourceSelector):
+
             if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolmem = tool.memory({})
-
-            if isinstance(toolmem, Operator) and any(
-                isinstance(l, MemorySelector) for l in toolmem.get_leaves()
-            ):
                 raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
+                    f"Tool must be provided when unwrapping ResourceSelector: {type(expression).__name__}"
                 )
-
-            ops = [InputSelector("runtime_memory")]
-            if toolmem is not None:
-                ops.append(toolmem)
-            ops.append(4)
-
+            operation = expression.get_operation(tool, hints={})
             return cls.unwrap_expression(
-                FirstOperator(ops),
+                operation,
                 string_environment=string_environment,
                 inputsdict=inputsdict,
                 tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, CpuSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping MemorySelector")
-            toolcpu = tool.cpus({})
-
-            if isinstance(toolcpu, Operator) and any(
-                isinstance(l, CpuSelector) for l in toolcpu.get_leaves()
-            ):
-                raise Exception(
-                    f"MemorySelector() should not be use used in tool.memory() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_cpu")]
-            if toolcpu is not None:
-                ops.append(toolcpu)
-            ops.append(1)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, TimeSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping TimeSelector")
-            tooltime = tool.time({})
-
-            if isinstance(tooltime, Operator) and any(
-                isinstance(l, TimeSelector) for l in tooltime.get_leaves()
-            ):
-                raise Exception(
-                    f"TimeSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_seconds")]
-            if tooltime is not None:
-                ops.append(tooltime)
-            ops.append(86400)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
-                **debugkwargs,
-            )
-
-        elif isinstance(expression, DiskSelector):
-            if not tool:
-                raise Exception("Tool must be provided when unwrapping DiskSelector")
-            tooldisk = tool.disk({})
-
-            if isinstance(tooldisk, Operator) and any(
-                isinstance(l, DiskSelector) for l in tooldisk.get_leaves()
-            ):
-                raise Exception(
-                    f"DiskSelector() should not be use used in tool.time() for '{tool.id()}'"
-                )
-
-            ops = [InputSelector("runtime_disks")]
-            if tooldisk is not None:
-                ops.append(tooldisk)
-            ops.append(20)
-            return cls.unwrap_expression(
-                FirstOperator(ops),
-                string_environment=string_environment,
-                inputsdict=inputsdict,
-                tool=tool,
+                for_output=for_output,
                 **debugkwargs,
             )
 
@@ -710,7 +657,7 @@ EOT"""
         else:
             stype = expression.__class__.__name__
         raise Exception(
-            f"Could not detect type '{stype}' to convert to input value{warning}"
+            f"Could not convert expression '{expression}' as could detect type '{stype}' to convert to input value{warning}"
         )
 
     @classmethod
@@ -743,8 +690,9 @@ EOT"""
             joined_values = ", ".join(
                 str(
                     cls.unwrap_expression_for_output(
-                        expression[i],
-                        inputsdict,
+                        output=output,
+                        expression=expression[i],
+                        inputsdict=inputsdict,
                         string_environment=False,
                         tool_id=toolid + "." + str(i),
                     )
@@ -768,14 +716,27 @@ EOT"""
                 **debugkwargs,
             )
         elif isinstance(expression, WildcardSelector):
-            base_expression = translate_wildcard_selector(expression)
-            if not isinstance(output.output_type, Array):
-                Logger.info(
-                    f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
-                    f"but the return type was not an array. For WDL, the first element will be used, "
-                    f"ie: '{base_expression}[0]'"
-                )
-                base_expression += "[0]"
+            is_single = not output.output_type.is_array()
+            select_first = None
+            is_single_optional = None
+            if is_single:
+                is_single_optional = output.output_type.optional
+                if not expression.select_first:
+                    Logger.info(
+                        f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
+                        f"but the return type was not an array. For WDL, the first element will be used, "
+                        f"ie: 'glob(\"{expression.wildcard}\")[0]'"
+                    )
+                    select_first = True
+
+            base_expression = translate_wildcard_selector(
+                output=output,
+                selector=expression,
+                override_select_first=select_first,
+                is_optional=is_single_optional,
+                inputsdict=inputsdict,
+            )
+
             return base_expression
 
         elif isinstance(expression, InputSelector):
@@ -815,6 +776,9 @@ EOT"""
         else:
             stype = expression.__class__.__name__
 
+        if output._skip_output_quality_check and expression is None:
+            return "None"
+
         raise Exception(
             f"Tool ({debugkwargs}) has an unrecognised glob type: '{stype}' ({expression}), this is "
             f"deprecated. Please use the a Selector to build the outputs for '{output.id()}'"
@@ -837,7 +801,7 @@ EOT"""
 
                 sec = value_or_default(
                     i.input_type.subtype().secondary_files()
-                    if isinstance(i.input_type, Array)
+                    if i.input_type.is_array()
                     else i.input_type.secondary_files(),
                     default=[],
                 )
@@ -865,6 +829,7 @@ EOT"""
                     original_expression=o.selector,
                     expression=expression,
                     toolid=tool.id(),
+                    inputsdict=inputsmap,
                 )
             )
 
@@ -872,7 +837,12 @@ EOT"""
 
     @classmethod
     def prepare_secondary_tool_outputs(
-        cls, out: ToolOutput, original_expression: any, expression: str, toolid: str
+        cls,
+        out: ToolOutput,
+        original_expression: any,
+        expression: str,
+        toolid: str,
+        inputsdict,
     ) -> List[wdl.Output]:
         if not (
             isinstance(out.output_type, File) and out.output_type.secondary_files()
@@ -882,18 +852,31 @@ EOT"""
         islist = isinstance(expression, list)
 
         if (
-            isinstance(out.output_type, Array)
+            out.output_type.is_array()
             and isinstance(out.output_type.subtype(), File)
             and out.output_type.subtype().secondary_files()
         ):
             if isinstance(original_expression, WildcardSelector):
                 # do custom override for wildcard selector
+                is_single = not out.output_type.is_array()
+                select_first = None
+                is_single_optional = None
+                if is_single and not original_expression.select_first:
+                    select_first = True
+                    is_single_optional = out.output_type.optional
                 ftype = out.output_type.subtype().wdl()
                 return [
                     wdl.Output(
                         ftype,
                         get_secondary_tag_from_original_tag(out.id(), s),
-                        translate_wildcard_selector(original_expression, s),
+                        translate_wildcard_selector(
+                            output=out,
+                            selector=original_expression,
+                            secondary_format=s,
+                            override_select_first=select_first,
+                            is_optional=is_single_optional,
+                            inputsdict=inputsdict,
+                        ),
                     )
                     for s in out.output_type.subtype().secondary_files()
                 ]
@@ -914,21 +897,30 @@ EOT"""
             for s in ot.secondary_files():
                 tag = get_secondary_tag_from_original_tag(out.id(), s)
                 ar_exp = expression if islist else [expression]
+                potential_extensions = ot.get_extensions()
                 if "^" not in s:
                     exp = [(ex + f' + "{s}"') for ex in ar_exp]
-                elif ot.extension:
-                    exp = [
-                        'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                            inp=ex, old_ext=ot.extension, new_ext=s.replace("^", "")
-                        )
-                        for ex in ar_exp
-                    ]
+                elif potential_extensions:
+                    exp = []
+                    for ex in ar_exp:
+                        inner_exp = ex
+                        for ext in potential_extensions:
+                            inner_exp = 'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+                                inp=inner_exp, old_ext=ext, new_ext=s.replace("^", "")
+                            )
+                        exp.append(inner_exp)
+
                 else:
                     raise Exception(
                         f"Unsure how to handle secondary file '{s}' for the tool output '{out.id()}' (ToolId={toolid})"
                         f" as it uses the escape characater '^' but Janis can't determine the extension of the output."
                         f"This could be resolved by ensuring the definition for '{ot.__class__.__name__}' contains an extension."
                     )
+
+                if ot.optional:
+                    exp = [
+                        f"if defined({expression}) then ({e}) else None" for e in exp
+                    ]
 
                 outs.append(wdl.Output(ftype, tag, exp if islist else exp[0]))
 
@@ -969,6 +961,41 @@ EOT"""
             if cmd:
                 command_ins.append(cmd)
         return command_ins
+
+    @classmethod
+    def build_commands_for_file_to_create(
+        cls, tool: CommandTool
+    ) -> List[wdl.Task.Command]:
+        commands = []
+        inputsdict = {t.id(): t for t in tool.inputs()}
+
+        directories = tool.directories_to_create()
+        files = tool.files_to_create()
+
+        if directories is not None:
+            directories = (
+                directories if isinstance(directories, list) else [directories]
+            )
+            for directory in directories:
+                unwrapped_dir = cls.unwrap_expression(
+                    directory, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                commands.append(f"mkdir -p '{unwrapped_dir}'")
+        if files:
+            for path, contents in files if isinstance(files, list) else files.items():
+                unwrapped_path = cls.unwrap_expression(
+                    path, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                unwrapped_contents = cls.unwrap_expression(
+                    contents, inputsdict=inputsdict, tool=tool, string_environment=True
+                )
+                commands.append(
+                    generate_cat_command_from_statements(
+                        path=unwrapped_path, contents=unwrapped_contents
+                    )
+                )
+
+        return list(map(wdl.Task.Command, commands))
 
     @classmethod
     def add_runtimefield_overrides_for_wdl(
@@ -1014,6 +1041,7 @@ EOT"""
         additional_inputs: Dict = None,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
     ) -> Dict[str, any]:
         """
         Recursive is currently unused, but eventually input overrides could be generated the whole way down
@@ -1054,7 +1082,7 @@ EOT"""
                     inp[
                         get_secondary_tag_from_original_tag(inp_key, sec)
                     ] = apply_secondary_file_format_to_filename(inp_val, sec)
-            elif isinstance(i.intype, Array) and i.intype.subtype().secondary_files():
+            elif i.intype.is_array() and i.intype.subtype().secondary_files():
                 # handle array of secondary files
                 for sec in i.intype.subtype().secondary_files():
                     inp[get_secondary_tag_from_original_tag(inp_key, sec)] = (
@@ -1069,7 +1097,13 @@ EOT"""
         if merge_resources:
             inp.update(
                 cls.build_resources_input(
-                    tool, hints, max_cores, max_mem, inputs=ad, is_root=True
+                    tool,
+                    hints,
+                    max_cores=max_cores,
+                    max_mem=max_mem,
+                    max_duration=max_duration,
+                    inputs=ad,
+                    is_root=True,
                 )
             )
 
@@ -1082,6 +1116,7 @@ EOT"""
         hints,
         max_cores=None,
         max_mem=None,
+        max_duration=None,
         inputs=None,
         prefix=None,
         is_root=False,
@@ -1094,6 +1129,7 @@ EOT"""
             hints=hints,
             max_cores=max_cores,
             max_mem=max_mem,
+            max_duration=max_duration,
             prefix=prefix or "",
             inputs=inputs,
         )
@@ -1118,6 +1154,10 @@ EOT"""
         return workflow.id() + "-resources.json"
 
 
+def prepare_escaped_string(value: str):
+    return json.dumps(value)[1:-1]
+
+
 def resolve_tool_input_value(
     tool_input: ToolInput, inputsdict, string_environment=False, **debugkwargs
 ):
@@ -1129,11 +1169,14 @@ def resolve_tool_input_value(
     )
 
     default = None
-    if isinstance(indefault, CpuSelector):
+    if isinstance(indefault, ResourceSelector):
+
         if indefault.default:
-            default = f"select_first([runtime_cpu, {str(indefault.default)}])"
+            default = (
+                f"select_first([{indefault.input_to_select}, {str(indefault.default)}])"
+            )
         else:
-            default = "runtime_cpu"
+            default = indefault.input_to_select
 
     elif isinstance(indefault, InputSelector):
         Logger.critical(
@@ -1154,7 +1197,7 @@ def resolve_tool_input_value(
         name = f"select_first([{name}, {default}])"
 
     if tool_input.localise_file:
-        if isinstance(tool_input.input_type, Array):
+        if tool_input.input_type.is_array():
             raise Exception(
                 "Localising files through `basename(x)` is unavailable for arrays of files: https://github.com/openwdl/wdl/issues/333"
             )
@@ -1201,29 +1244,37 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
     if prefix and separate_value_from_prefix and not is_flag:
         tprefix += " "
 
+    expr = name
+
     if isinstance(intype, Boolean):
         if tool_input.prefix:
-            name = f'~{{if defined({name}) then "{tprefix}" else ""}}'
-    elif isinstance(intype, Array):
-
-        expr = name
+            if tool_input.default is not None or not intype.optional:
+                condition = expr
+            else:
+                condition = f"(defined({expr}) && select_first([{expr}]))"
+            expr = f'~{{if {condition} then "{tprefix}" else ""}}'
+    elif intype.is_array():
 
         separator = tool_input.separator if tool_input.separator is not None else " "
-        should_quote = isinstance(intype.subtype(), (String, File, Directory))
+        should_quote = (
+            isinstance(intype.subtype(), (String, File, Directory))
+            and tool_input.shell_quote is not False
+        )
         condition_for_binding = None
 
         if intype.optional:
+            rexpr = expr
             expr = f"select_first([{expr}])"
-            condition_for_binding = (
-                f"(defined({name}) && length(select_first([{name}])) > 0)"
-            )
+            condition_for_binding = f"(defined({rexpr}) && length({expr}) > 0)"
+        else:
+            condition_for_binding = f"length({expr}) > 0"
 
         if intype.subtype().optional:
             expr = f"select_all({expr})"
 
         if should_quote:
             if tool_input.prefix_applies_to_all_elements:
-                separator = f"'{separator}{tprefix} '"
+                separator = f"'{separator}{tprefix}'"
             else:
                 separator = f"'{separator}'"
 
@@ -1242,35 +1293,35 @@ def translate_command_input(tool_input: ToolInput, inputsdict=None, **debugkwarg
                 expr = f'sep("{separator}", {expr})'
 
         if condition_for_binding is not None:
-            name = f'~{{if {condition_for_binding} then {expr} else ""}}'
+            expr = f'~{{if {condition_for_binding} then {expr} else ""}}'
         else:
-            name = f"~{{{expr}}}"
+            expr = f"~{{{expr}}}"
     elif (
         isinstance(intype, (String, File, Directory))
         and tool_input.shell_quote is not False
     ):
         if tprefix:
             if optional:
-                name = f'~{{if defined({name}) then ("{tprefix}\'" + {name} + "\'") else ""}}'
+                expr = f'~{{if defined({expr}) then ("{tprefix}\'" + {expr} + "\'") else ""}}'
             else:
-                name = f"{tprefix}'~{{{name}}}'"
+                expr = f"{tprefix}'~{{{expr}}}'"
         else:
-            if not optional:
-                name = f"~{{{name}}}"
+            if optional:
+                expr = f'~{{if defined({expr}) then ("\'" + {expr} + "\'") else ""}}'
             else:
-                name = f'~{{if defined({name}) then ("\'" + {name} + "\'") else ""}}'
+                expr = f"'~{{{expr}}}'"
 
     else:
         if prefix:
             if optional:
-                name = f"~{{if defined({name}) then (\"{tprefix}\" + {name}) else ''}}"
+                expr = f"~{{if defined({expr}) then (\"{tprefix}\" + {expr}) else ''}}"
             else:
-                name = f"{tprefix}~{{{name}}}"
+                expr = f"{tprefix}~{{{expr}}}"
         else:
-            name = f"~{{{name}}}"
+            expr = f"~{{{expr}}}"
 
     # there used to be a whole lot of login in the wdl.Task.Command.CommandInput but it's been moved to here now
-    return wdl.Task.Command.CommandInput(value=name, position=tool_input.position)
+    return wdl.Task.Command.CommandInput(value=expr, position=tool_input.position)
 
 
 def translate_input_selector_for_output(
@@ -1313,7 +1364,11 @@ def translate_input_selector_for_secondary_output(
 
 
 def translate_string_formatter_for_output(
-    out, selector: StringFormatter, inputsdict: Dict[str, ToolInput], **debugkwargs
+    out,
+    selector: StringFormatter,
+    inputsdict: Dict[str, ToolInput],
+    string_environment,
+    **debugkwargs,
 ) -> str:
     """
     The output glob was a string formatter, so we'll need to build the correct glob
@@ -1384,10 +1439,10 @@ def translate_step_node(
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
-    
+
     This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
     and tbh it's pretty confusing.
-    
+
     :param node:
     :param step_identifier:
     :param step_alias:
@@ -1407,7 +1462,8 @@ def translate_step_node(
     missing_keys = [
         k
         for k in ins.keys()
-        if k not in node.sources and not (ins[k].intype.optional or ins[k].default)
+        if k not in node.sources
+        and not (ins[k].intype.optional is True or ins[k].default is not None)
     ]
     if missing_keys:
         raise Exception(
@@ -1433,13 +1489,11 @@ def translate_step_node(
         invalid_sources = [
             si
             for si in scatterable
-            if si.multiple_inputs or isinstance(si.source(), list)
+            if si.multiple_inputs
+            or (isinstance(si.source(), list) and len(si.source()) > 1)
         ]
         if len(invalid_sources) > 0:
-            invalid_sources_str = ", ".join(
-                WdlTranslator.unwrap_expression(si.source(), inputsdict=inputsdict)
-                for si in invalid_sources
-            )
+            invalid_sources_str = ", ".join(f"{si.source()}" for si in invalid_sources)
             raise NotImplementedError(
                 f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
                 f"on multiple inputs, this behaviour has not been implemented"
@@ -1482,11 +1536,7 @@ def translate_step_node(
             source = ar_source[0]
 
             ot = source.source.returntype()
-            if (
-                isinstance(intype, Array)
-                and not isinstance(ot, Array)
-                and not source.scatter
-            ):
+            if intype.is_array() and not ot.is_array() and not source.scatter:
                 array_input_from_single_source = True
         else:
             Logger.critical(
@@ -1499,7 +1549,7 @@ def translate_step_node(
 
         secondaries = (
             intype.secondary_files()
-            if not isinstance(intype, Array)
+            if not intype.is_array()
             else intype.subtype().secondary_files()
         ) or []
         # place to put the processed_sources:
@@ -1524,7 +1574,7 @@ def translate_step_node(
                 sec_out = set(
                     value_or_default(
                         ot.subtype().secondary_files()
-                        if isinstance(ot, Array)
+                        if ot.is_array()
                         else ot.secondary_files(),
                         default=[],
                     )
@@ -1653,10 +1703,10 @@ def generate_scatterable_details(
             # We asserted earlier that the source_map only has one value (through multipleInputs)
             e: Edge = s.source_map[0]
 
-            if isinstance(e.source, Operator):
-                raise Exception(
-                    "Currently, Janis doesn't support operating on a value to be scattered"
-                )
+            # if isinstance(e.source, Operator):
+            #     raise Exception(
+            #         "Currently, Janis doesn't support operating on a value to be scattered"
+            #     )
 
             original_expr = WdlTranslator.unwrap_expression(s.source().source)
             newid = generate_new_id_from(original_expr, forbiddenidentifierscopy)
@@ -1820,6 +1870,25 @@ def translate_input_selector(
 
     inp = inputsdict[selector.input_to_select]
     name = resolve_tool_input_value(inp, inputsdict, **debugkwargs)
+
+    intype = inp.input_type
+    if selector.remove_file_extension and (
+        File().can_receive_from(intype) or Directory().can_receive_from(intype)
+    ):
+        if isinstance(intype, File):
+            extensions = {
+                e
+                for e in [intype.extension, *(intype.alternate_extensions or [])]
+                if e is not None
+            }
+            if extensions:
+                for ext in extensions:
+                    name = f'basename({name}, "{ext}")'
+            else:
+                name = f"basename({name})"
+        else:
+            name = f"basename({name})"
+
     if string_environment:
 
         return f"~{{{name}}}"
@@ -1836,9 +1905,14 @@ def translate_input_selector(
 
 
 def translate_wildcard_selector(
-    selector: WildcardSelector, secondary_format: Optional[str] = None
+    output: ToolOutput,
+    selector: WildcardSelector,
+    secondary_format: Optional[str] = None,
+    override_select_first: Optional[bool] = None,
+    is_optional: Optional[bool] = None,
+    inputsdict: Dict = None,
 ):
-    if not selector.wildcard:
+    if selector.wildcard is None:
         raise Exception(
             "No wildcard was provided for wildcard selector: " + str(selector)
         )
@@ -1847,7 +1921,18 @@ def translate_wildcard_selector(
     if secondary_format:
         wildcard = apply_secondary_file_format_to_filename(wildcard, secondary_format)
 
-    return f'glob("{wildcard}")'
+    unwrapped_wildcard = WdlTranslator.unwrap_expression_for_output(
+        output, wildcard, inputsdict=inputsdict, string_environment=False
+    )
+
+    gl = f"glob({unwrapped_wildcard})"
+    if selector.select_first or override_select_first:
+        if is_optional:
+            gl = f"if length({gl}) > 0 then {gl}[0] else None"
+        else:
+            gl += "[0]"
+
+    return gl
 
 
 ## HELPER METHODS
@@ -1954,7 +2039,7 @@ def prepare_move_statements_for_input(ti: ToolInput):
     if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
         return commands
 
-    if not issubclass(type(it), File):
+    if not it.is_base_type(File):
         Logger.critical(
             "Janis has temporarily removed support for localising array types"
         )
@@ -1968,23 +2053,27 @@ def prepare_move_statements_for_input(ti: ToolInput):
         if ti.localise_file and not ti.presents_as:
             newlocation = "."
         elif not ti.localise_file and ti.presents_as:
-            newlocation = f'"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"'
+            newlocation = f"`dirname ~{{{ti.id()}}}`/{ti.presents_as}"
             base = newlocation
         else:
             newlocation = ti.presents_as
-            base = f'"{ti.presents_as}"'
+            base = ti.presents_as
 
-        commands.append(wdl.Task.Command(f"cp -f ~{{{ti.id()}}} {newlocation}"))
+        commands.append(wdl.Task.Command(f"cp -f '~{{{ti.id()}}}' '{newlocation}'"))
 
     if it.secondary_files():
+        sec_presents_as = ti.secondaries_present_as or {}
+
         for s in it.secondary_files():
             sectag = get_secondary_tag_from_original_tag(ti.id(), s)
+            if ti.localise_file and not ti.presents_as:
+                # move into the current directory
+                dest = "."
+            else:
+                newext, iters = split_secondary_file_carats(sec_presents_as.get(s, s))
+                dest = REMOVE_EXTENSION(base, iters) + newext
 
-            newext, iters = split_secondary_file_carats(
-                ti.secondaries_present_as.get(s, s)
-            )
-            newpath = REMOVE_EXTENSION(base, iters) + newext
-            commands.append(wdl.Task.Command(f"cp -f ~{{{sectag}}} {newpath}"))
+            commands.append(wdl.Task.Command(f"cp -f '~{{{sectag}}}' {dest}"))
 
     return commands
 

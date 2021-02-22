@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Set
 
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.operators import Selector
 from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String
 
 
-class CodeTool(Tool, ABC):
+class CodeTool(Tool):
 
     # User should inherit from these blocks
 
@@ -86,10 +87,17 @@ class CodeTool(Tool, ABC):
         pass
 
     @abstractmethod
-    def prepared_script(self):
+    def prepared_script(self, translation: SupportedTranslation):
         pass
 
     # Other internal methods
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+    def version(self):
+        #
+        return None
 
     @classmethod
     def type(cls) -> ToolType:
@@ -97,6 +105,9 @@ class CodeTool(Tool, ABC):
 
     def containers(self) -> Dict[str, str]:
         return {self.versioned_id(): self.container()}
+
+    def has_tool_with_no_container(self):
+        return self.container() is None
 
     def tool_inputs(self) -> List[TInput]:
         return self.inputs()
@@ -110,17 +121,21 @@ class CodeTool(Tool, ABC):
         with_resource_overrides=False,
         hints=None,
         include_defaults=True,
+        values_to_ignore: Set[str] = None,
+        quality_type: List = None,
     ):
         from janis_core.operators.selectors import Selector
 
         d, ad = {}, additional_inputs or {}
         for i in self.inputs():
+            if values_to_ignore and i.id() in values_to_ignore and i.id() not in ad:
+                continue
             if (
-                not i.intype.optional
-                or i.id() in ad
-                or (include_defaults and i.default)
+                not i.intype.optional  # not optional
+                or i.id() in ad  # OR you supplied a value
+                or (include_defaults and i.default)  # OR we are including a default
             ):
-                d[i] = ad.get(i.id(), i.default)
+                d[i.id()] = ad.get(i.id(), i.default)
 
         if with_resource_overrides:
             cpus = self.cpus(hints)
@@ -148,6 +163,7 @@ class CodeTool(Tool, ABC):
                     "runtime_seconds": secs,
                 }
             )
+        return d
 
     def translate(
         self,

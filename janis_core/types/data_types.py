@@ -14,8 +14,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
-import cwl_utils.parser_v1_0 as cwlgen
-from wdlgen import WdlType
+from janis_core.deps import cwlgen, wdlgen
 
 from janis_core.utils import is_array_prefix
 from janis_core.utils.logger import Logger
@@ -115,7 +114,7 @@ class NativeTypes:
 
     @staticmethod
     def map_to_wdl(t: NativeType):
-        import wdlgen as wdl
+        from janis_core.deps import wdlgen as wdl
 
         if t == NativeTypes.kBool:
             return wdl.PrimitiveType.kBoolean
@@ -153,14 +152,22 @@ class DataType(ABC):
         self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
 
+    def is_array(self):
+        return False
+
+    def __hash__(self):
+        return hash(self.__class__.__name__)
+
+    def __repr__(self):
+        return self.id()
+
+    def is_base_type(self, base_type):
+        return isinstance(self, base_type)
+
     @staticmethod
     @abstractmethod
     def name() -> str:
         raise Exception("Subclass MUST override name field")
-
-    @classmethod
-    def __hash__(cls):
-        return cls.name()
 
     @staticmethod
     def secondary_files() -> Optional[List[str]]:
@@ -257,7 +264,9 @@ class DataType(ABC):
     def _question_mark_if_optional(self, has_default: bool = False):
         return "?" if self.optional or has_default else ""
 
-    def cwl_type(self, has_default=False):
+    def cwl_type(
+        self, has_default=False
+    ) -> Union[str, cwlgen.Type, List[Union[str, cwlgen.Type]]]:
         tp = NativeTypes.map_to_cwl(self.primitive())
         return (
             [tp, "null"] if self.optional and not has_default else tp
@@ -278,9 +287,9 @@ class DataType(ABC):
     def cwl_input(self, value: Any):
         return value
 
-    def wdl(self, has_default=False) -> WdlType:
+    def wdl(self, has_default=False) -> wdlgen.WdlType:
         qm = self._question_mark_if_optional(has_default)
-        return WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()) + qm)
+        return wdlgen.WdlType.parse_type(NativeTypes.map_to_wdl(self.primitive()) + qm)
 
     def parse_value(self, valuetoparse):
         """

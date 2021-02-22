@@ -35,6 +35,7 @@ def translate_workflow(
     additional_inputs: Dict = None,
     max_cores=None,
     max_mem=None,
+    max_duration=None,
     allow_empty_container=False,
     container_override: dict = None,
 ):
@@ -56,6 +57,7 @@ def translate_workflow(
         additional_inputs=additional_inputs,
         max_cores=max_cores,
         max_mem=max_mem,
+        max_duration=max_duration,
         allow_empty_container=allow_empty_container,
         container_override=lowercase_dictkeys(container_override),
     )

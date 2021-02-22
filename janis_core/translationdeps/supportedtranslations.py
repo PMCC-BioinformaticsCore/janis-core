@@ -5,6 +5,7 @@ class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
     Nextflow = "nf"
+    JANIS = "janis"
 
     def __str__(self):
         return self.value
@@ -26,6 +27,15 @@ class SupportedTranslation(Enum):
 
             return NextflowTranslator()
 
+        elif self == SupportedTranslation.JANIS:
+            from ..translations.janis import JanisTranslator
+
+            return JanisTranslator()
+
     @staticmethod
     def all():
-        return [SupportedTranslation.CWL, SupportedTranslation.WDL]
+        return [
+            SupportedTranslation.CWL,
+            SupportedTranslation.WDL,
+            SupportedTranslation.JANIS,
+        ]
