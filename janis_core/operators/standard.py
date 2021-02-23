@@ -213,6 +213,36 @@ class LengthOperator(Operator):
         return len(ar)
 
 
+class RangeOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Int -> Array[Int]"
+
+    def argtypes(self):
+        return [Int]
+
+    def returntype(self):
+        return Array(Int())
+
+    def __str__(self):
+        return f"0...{self.args[0]}"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"range({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"Array.from({{ length: {arg} + 1 }}, (_, i) => i)"
+        # return f"{arg}.length"
+
+    def evaluate(self, inputs):
+        ar = self.evaluate_arg(self.args[0], inputs)
+        return list(range(ar))
+
 class FlattenOperator(Operator):
     @staticmethod
     def friendly_signature():

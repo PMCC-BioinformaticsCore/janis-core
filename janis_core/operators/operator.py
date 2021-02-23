@@ -158,7 +158,10 @@ class IndexOperator(Operator, ABC):
         return [Array(AnyType), Int]
 
     def returntype(self):
-        return self.args[0].returntype().subtype()
+        inner = get_instantiated_type(self.args[0].returntype())
+        if isinstance(inner, Array):
+            return inner.subtype()
+        return inner
 
     def __str__(self):
         base, index = self.args
