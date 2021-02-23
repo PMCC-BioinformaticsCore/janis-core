@@ -1,12 +1,13 @@
 import os
 from types import LambdaType
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Callable
 import WDL
 
 import janis_core as j
 
 
 class WdlParser:
+
     @staticmethod
     def from_doc(doc: str, base_uri=None):
         abs_path = os.path.relpath(doc)
@@ -14,14 +15,87 @@ class WdlParser:
 
         parser = WdlParser()
 
+        if d.workflow:
+            return parser.from_loaded_object(d.workflow)
+
         tasks = []
         for t in d.tasks:
             tasks.append(parser.from_loaded_object(t))
 
         return tasks[0]
 
-    def from_loaded_object(self, obj: WDL.Task):
+    def from_loaded_object(self, obj: WDL.SourceNode):
+        if isinstance(obj, WDL.Task):
+            return self.from_loaded_task(obj)
+        elif isinstance(obj, WDL.Workflow):
+            return self.from_loaded_workflow(obj)
+
+
+    def from_loaded_workflow(self, obj: WDL.Workflow):
+        wf = j.WorkflowBuilder(identifier=obj.name)
+
+        for inp in obj.inputs:
+            self.add_decl_to_wf_input(wf, inp)
+
+        for call in obj.body:
+            self.add_call_to_wf(wf, call)
+
+        return wf
+
+    def workflow_selector_getter(self, wf, exp: str):
+        if "." in exp:
+            node, *tag = exp.split(".")
+            if len(tag) > 1:
+                raise Exception(f"Couldn't parse source ID: {exp} - too many '.'")
+            return wf[node][tag[0]]
+
+        return wf[exp]
+
+    def add_call_to_wf(self, wf: j.WorkflowBase, call: WDL.WorkflowNode, condition=None, scatter=None):
+        selector_getter = lambda exp: self.workflow_selector_getter(wf, exp)
+
+        if isinstance(call, WDL.Call):
+            task = self.from_loaded_object(call.callee)
+            inp_map = {k: self.translate_expr(v, input_selector_getter=selector_getter) for k, v in call.inputs.items()}
+            return wf.step(call.name, task(**inp_map), when=condition, scatter=scatter)
+
+        elif isinstance(call, WDL.Conditional):
+            # if len(call.body) > 1:
+            #     raise NotImplementedError(
+            #         f"Janis can't currently support more than one call inside the conditional: {', '.join(str(c) for c in call.body)}")
+            for inner_call in call.body:
+                inner_call = call.body[0]
+                self.add_call_to_wf(wf, inner_call, condition=self.translate_expr(call.expr, input_selector_getter=selector_getter))
+        elif isinstance(call, WDL.Scatter):
+            scatter = None # self.translate_expr(call.expr)
+            scar_var_type = self.parse_wdl_type(call.expr.type)
+            if isinstance(scar_var_type, WDL.Type.Array):
+                scar_var_type = scar_var_type.item_type
+
+            if call.variable not in wf.input_nodes:
+                wf.input(call.variable, scar_var_type)
+            for inner_call in call.body:
+                self.add_call_to_wf(wf, inner_call, scatter=scatter)
+
+
+        elif isinstance(call, WDL.Decl):
+            self.add_decl_to_wf_input(wf, call)
+        else:
+            raise NotImplementedError(f"body type: {type(call)}")
+
+    def add_decl_to_wf_input(self, wf: j.WorkflowBase, inp: WDL.Decl):
+        default = None
+        if inp.expr:
+            default = self.translate_expr(inp.expr)
+
+        return wf.input(inp.name, self.parse_wdl_type(inp.type), default=default)
+
+
+
+
+    def from_loaded_task(self, obj: WDL.Task):
         rt = obj.runtime
+        translated_script = self.translate_expr(obj.command)
         c = j.CommandToolBuilder(
             tool=obj.name,
             base_command=["sh", "script.sh"],
@@ -33,18 +107,18 @@ class WdlParser:
                 if not i.name.startswith("runtime_")
             ],
             outputs=[self.parse_command_tool_output(o) for o in obj.outputs],
-            files_to_create={"script.sh": self.translate_expr(obj.command)},
+            files_to_create={"script.sh": translated_script},
         )
 
         return c
 
     def translate_expr(
-        self, expr: WDL.Expr.Base
+        self, expr: WDL.Expr.Base, input_selector_getter: Callable[[str], any]=None
     ) -> Optional[Union[j.Selector, List[j.Selector], int, str, float, bool]]:
         if expr is None:
             return None
 
-        tp = self.translate_expr
+        tp = lambda exp: self.translate_expr(exp, input_selector_getter=input_selector_getter)
 
         if isinstance(expr, WDL.Expr.Array):
             # a literal array
@@ -58,7 +132,10 @@ class WdlParser:
         if isinstance(expr, WDL.Expr.IfThenElse):
             return j.If(tp(expr.condition), tp(expr.consequent), tp(expr.alternative))
         elif isinstance(expr, WDL.Expr.Get):
-            return j.InputSelector(str(expr.expr))
+            n = str(expr.expr)
+            if input_selector_getter:
+                return input_selector_getter(n)
+            return j.InputSelector(n)
         elif isinstance(expr, WDL.Expr.Apply):
             return self.translate_apply(expr)
 
@@ -66,7 +143,7 @@ class WdlParser:
 
     def translate_wdl_string(self, s: WDL.Expr.String):
         if not s.command:
-            return str(s.literal)
+            return str(s.literal).lstrip('"').rstrip('"')
 
         elements = {}
         counter = 1
@@ -77,7 +154,7 @@ class WdlParser:
                 continue
 
             token = f"JANIS_WDL_TOKEN_{counter}"
-            _format.replace(str(placeholder), token)
+            _format = _format.replace(str(placeholder), f"{{{token}}}")
             elements[token] = self.translate_expr(placeholder)
 
         if len(elements) == 0:
@@ -110,7 +187,14 @@ class WdlParser:
             "sep": j.JoinOperator,
             "_add": j.AddOperator,
             "_interpolation_add": j.AddOperator,
-            "stdout": j.Stdout
+            "stdout": j.Stdout,
+            "_mul": j.MultiplyOperator,
+            "_div": j.DivideOperator,
+            "glob": j.WildcardSelector,
+            "range": j.RangeOperator,
+            "_at": j.IndexOperator,
+            "_negate": j.NotOperator,
+            "write_lines": lambda exp: f"write_lines({exp})"
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -159,4 +243,4 @@ if __name__ == "__main__":
     doc = "path/to/doc.wdl"
     t = WdlParser.from_doc(doc)
 
-    t.translate("wdl")
+    t.translate("janis")
