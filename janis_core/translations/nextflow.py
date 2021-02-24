@@ -42,7 +42,8 @@ class NextflowTranslator(TranslatorBase):
             name=tool.id(),
             script=script,
             script_type=nfgen.ProcessScriptType.script,
-            pre_script=pre_script
+            pre_script=pre_script,
+            outputs_metadata=cls.prepare_tool_output(tool)
         )
 
         inputs: List[ToolInput] = tool.inputs()
@@ -237,27 +238,11 @@ class NextflowTranslator(TranslatorBase):
             else:
                 raise Exception("unknown input type")
 
-            # if isinstance(a, ToolInput):
-            #     pargs.append(prefix + f"{a.prefix or ''} !{{{a.id()}}}")
-            # elif isinstance(a, ToolArgument):
-            #     pargs.append(prefix + f"{a.prefix or ''} !{{{a.value}}}")
-
         main_script = " \\\n".join(pargs)
-        outputs = cls.prepare_tool_output(tool)
-        esc = '\\\\"'
 
         return f"""
-{main_script}
+{main_script} > {nfgen.Process.TOOL_STDOUT_FILENAME}
 
-export DIR=\$(pwd)
-export STDOUTPATH=\$(pwd)/.command.out
-export STDERRPATH=\$(pwd)/.command.err
-
-outputs="{json.dumps(outputs).replace('"', esc)}"
-outputs="\${{outputs//STDOUT/\$STDOUTPATH}}"
-outputs="\${{outputs//STDERR/\$STDERRPATH}}"
-outputs="\${{outputs//DIR/\$DIR}}"
-echo \$outputs > .janis.out
 """
 
     @classmethod
@@ -303,7 +288,7 @@ echo \$outputs > .janis.out
                 raise Exception("unknown input type")
 
             code = f"""
-def {arg_name}WithPrefix =  params.{arg_name} && ( params.{arg_name} != 'None' ) && (! params.{arg_name}.contains('/no_file')) ? "{a.prefix or ''} $params.{arg_name}" : ''
+def {arg_name}WithPrefix =  optional({arg_name})
 """
 
             pre_script_lines.append(code)

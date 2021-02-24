@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 from textwrap import indent
 
@@ -76,9 +77,14 @@ class ProcessOutput(NFBase):
         self.attributes = attributes
 
     def get_string(self):
-        els = [self.qualifier.value]
-        if self.qualifier.value != OutputProcessQualifier.stdout.value:
-            els.append(self.name)
+        # els = [self.qualifier.value]
+        # if self.qualifier.value != OutputProcessQualifier.stdout.value:
+        #     els.append(self.name)
+
+        if self.qualifier.value == OutputProcessQualifier.stdout.value:
+            els = [OutputProcessQualifier.path.value, f"'{Process.TOOL_STDOUT_FILENAME}'"]
+        else:
+            els = [self.qualifier.value, self.name]
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -96,10 +102,14 @@ class ProcessOutput(NFBase):
             else:
                 els.append(str(self.attributes))
 
+        els.append(f", emit: {self.name}")
+
         return " ".join(str(e) for e in els).strip()
 
 
 class Process(NFBase):
+    TOOL_STDOUT_FILENAME = "janisstdout"
+
     def __init__(
         self,
         name: Optional[str],
@@ -110,7 +120,8 @@ class Process(NFBase):
         outputs: List[ProcessOutput] = None,
         when: Optional[str] = None,
         directives: List[ProcessDirective] = None,
-        pre_script: Optional[str] = None
+        pre_script: Optional[str] = None,
+        outputs_metadata: Optional[dict] = {}
     ):
 
         self.name = name
@@ -123,6 +134,7 @@ class Process(NFBase):
         self.outputs: List[ProcessOutput] = outputs or []
         self.directives: List[ProcessDirective] = directives or []
         self.pre_script = pre_script
+        self.outputs_metadata = outputs_metadata
 
     def prepare_script(self, prefix="  "):
         script = str(self.script).strip()
@@ -162,13 +174,64 @@ class Process(NFBase):
             return None
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
+
+    def prepare_helper_functions(self):
+        return f"""
+def optional(var)
+{{
+  return var && ( var != 'None' ) && (! var.contains('/no_file')) ? ' ' + var : ''
+}}
+"""
+
+    def prepare_outputs_process(self):
+        input_vars = []
+        for o in self.outputs:
+            qual = o.qualifier
+            if o.qualifier == OutputProcessQualifier.stdout:
+                qual = OutputProcessQualifier.path
+
+            inp = ProcessInput(qualifier=qual, name=self.name + o.name)
+            input_vars.append(inp.get_string())
+
+        input_vars_str = "\n".join(input_vars)
+
+        outputs = self.outputs_metadata
+        esc = '\\\\"'
+
+        return f"""
+process outputs 
+{{
+    input:
+        {input_vars_str}
+
+    output:
+        path "janis.outputs.metadata", emit: janis_output_metadata
+
+    script:
+        \"\"\"
+        export DIR=\$(pwd)
+        export STDOUTPATH=\$(pwd)/{self.TOOL_STDOUT_FILENAME}
+        export STDERRPATH=\$(pwd)/.command.err
+    
+        outputs="{json.dumps(outputs).replace('"', esc)}"
+        outputs="\${{outputs//STDOUT/\$STDOUTPATH}}"
+        outputs="\${{outputs//STDERR/\$STDERRPATH}}"
+        outputs="\${{outputs//DIR/\$DIR}}"
+        echo \$outputs > janis.outputs.metadata
+        \"\"\"
+}}
+"""
+
     def prepare_execution(self):
         args = ", ".join(f"params.{i.name}" for i in self.inputs)
+
+        outputs_args = ", ".join(f"{self.name}.out.{o.name}" for o in self.outputs)
 
         return f"""
 workflow
 {{
     {self.name}({args})
+    outputs({outputs_args})
 }}
 """
 
@@ -183,16 +246,20 @@ workflow
             ]
         )
         name = self.name or ""
-        components_str = (2 * nl).join(components)
+        tool_definition = (2 * nl).join(components)
 
         return f"""\
 nextflow.enable.dsl=2
 
-process {name} {{
+{self.prepare_helper_functions()}
 
-{components_str}
-
+process {name} 
+{{
+{tool_definition}
 }}
+
+{self.prepare_outputs_process()}
 
 {self.prepare_execution()}
 """
+
