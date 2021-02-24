@@ -1,11 +1,13 @@
 import json
 from typing import Tuple, Dict, List, Optional, Union
 
-from janis_core.types import DataType, Array, String, File, Int, Directory, Stdout, Stderr
+from janis_core.types import DataType, Array, String, File, Int, Directory, Stdout, Stderr, Filename, InputSelector, WildcardSelector
+from janis_core.operators import Operator, StringFormatter
 
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput, ToolArgument, Tool, ToolType
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core import Logger
+from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, WorkflowBase
 
 import janis_core.translations.nfgen as nfgen
 
@@ -109,6 +111,83 @@ class NextflowTranslator(TranslatorBase):
         )
 
     @classmethod
+    def translate_input_selector(cls,
+                                 selector: InputSelector,
+                                 code_environment,
+                                 inputs_dict,
+                                 selector_override=None,
+                                 skip_inputs_lookup=False,
+                                 ):
+        # TODO: Consider grabbing "path" of File
+
+        sel: str = selector.input_to_select
+        if not sel:
+            raise Exception("No input was selected for input selector: " + str(selector))
+
+        skip_lookup = skip_inputs_lookup or sel.startswith("runtime_")
+
+        if selector_override and sel in selector_override:
+            sel = selector_override[sel]
+
+        if not skip_lookup:
+
+            if inputs_dict is None:
+                raise Exception(
+                    f"An internal error occurred when translating input selector '{sel}': the inputs dictionary was None"
+                )
+            if selector.input_to_select not in inputs_dict:
+                raise Exception(
+                    f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
+                )
+
+            tinp: ToolInput = inputs_dict[selector.input_to_select]
+
+            intype = tinp.intype
+            if selector.remove_file_extension:
+                if intype.is_base_type((File, Directory)):
+                    potential_extensions = (
+                        intype.get_extensions() if intype.is_base_type(File) else None
+                    )
+                    if selector.remove_file_extension and potential_extensions:
+                        # sel = f"{sel}.basename"
+                        # for ext in potential_extensions:
+                        #     sel += f'.replace(/{ext}$/, "")'
+                        for ext in potential_extensions:
+                            sel = f"{{{sel}%{ext}}}"
+
+                        sel = f"(basename \"${sel}\")"
+
+                elif intype.is_array() and isinstance(
+                        intype.fundamental_type(), (File, Directory)
+                ):
+                    inner_type = intype.fundamental_type()
+                    extensions = (
+                        inner_type.get_extensions()
+                        if isinstance(inner_type, File)
+                        else None
+                    )
+
+                    inner_sel = f"el.basename"
+                    if extensions:
+                        for ext in extensions:
+                            inner_sel += f'.replace(/{ext}$/, "")'
+                    sel = f"{sel}.map(function(el) {{ return {inner_sel}; }})"
+                else:
+                    Logger.warn(
+                        f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
+                    )
+            # elif tinp.localise_file:
+            #     if intype.is_base_type((File, Directory)):
+            #         sel += ".basename"
+            #     elif intype.is_array() and isinstance(
+            #             intype.fundamental_type(), (File, Directory)
+            #     ):
+            #         sel = f"{sel}.map(function(el) {{ return el.basename; }})"
+
+        sel = f"${sel}"
+        return sel if code_environment else f"$({sel})"
+
+    @classmethod
     def build_inputs_file(
             cls,
             tool,
@@ -130,21 +209,6 @@ class NextflowTranslator(TranslatorBase):
         #         if i.value or (i.default and not isinstance(i.default, Selector))
         #     }
 
-        # inp = {
-        #     i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
-        #     for i in tool.tool_inputs()
-        #     if i.default is not None
-        #        or not i.intype.optional
-        #        or i.id() in ad
-        #        or i.id() in values_provided_from_tool
-        # }
-
-        # inp = {
-        #     i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
-        #     for i in
-        #     tool.tool_inputs()
-        # }
-
         count = 0
         inp = {}
         for i in tool.tool_inputs():
@@ -153,10 +217,11 @@ class NextflowTranslator(TranslatorBase):
             if val is None:
                 if isinstance(i.intype, (File, Directory)):
                     count += 1
-                    val = f"$baseDir/no_file{count}"
+                    val = f"{nfgen.Process.NO_FILE_PATH_PREFIX}{count}"
+                else:
+                    val = ''
 
             inp[i.id()] = val
-
 
         # if merge_resources:
         #     for k, v in cls.build_resources_input(
@@ -288,7 +353,7 @@ class NextflowTranslator(TranslatorBase):
                 raise Exception("unknown input type")
 
             code = f"""
-def {arg_name}WithPrefix =  optional({arg_name})
+def {arg_name}WithPrefix =  optional({arg_name}, '{a.prefix or ''}')
 """
 
             pre_script_lines.append(code)

@@ -109,6 +109,7 @@ class ProcessOutput(NFBase):
 
 class Process(NFBase):
     TOOL_STDOUT_FILENAME = "janisstdout"
+    NO_FILE_PATH_PREFIX = f"$baseDir/JANIS_NO_FILE"
 
     def __init__(
         self,
@@ -177,9 +178,16 @@ class Process(NFBase):
 
     def prepare_helper_functions(self):
         return f"""
-def optional(var)
+def optional(var, prefix)
 {{
-  return var && ( var != 'None' ) && (! var.contains('/no_file')) ? ' ' + var : ''
+  if (var && ( var != 'None' ) && (! var.contains('/no_file')))
+  {{
+    return prefix + ' ' + var
+  }}
+  else
+  {{
+    return ''
+  }}
 }}
 """
 
