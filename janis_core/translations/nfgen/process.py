@@ -109,6 +109,7 @@ class ProcessOutput(NFBase):
 
 class Process(NFBase):
     TOOL_STDOUT_FILENAME = "janisstdout"
+    OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
     NO_FILE_PATH_PREFIX = f"$baseDir/JANIS_NO_FILE"
 
     def __init__(
@@ -213,7 +214,7 @@ process outputs
         {input_vars_str}
 
     output:
-        path "janis.outputs.metadata", emit: janis_output_metadata
+        path "{self.OUTPUT_METADATA_FILENAME}", emit: janis_output_metadata
 
     script:
         \"\"\"
@@ -225,7 +226,7 @@ process outputs
         outputs="\${{outputs//STDOUT/\$STDOUTPATH}}"
         outputs="\${{outputs//STDERR/\$STDERRPATH}}"
         outputs="\${{outputs//DIR/\$DIR}}"
-        echo \$outputs > janis.outputs.metadata
+        echo \$outputs > {self.OUTPUT_METADATA_FILENAME}
         \"\"\"
 }}
 """
