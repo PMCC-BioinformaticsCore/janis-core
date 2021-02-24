@@ -76,7 +76,9 @@ class ProcessOutput(NFBase):
         self.attributes = attributes
 
     def get_string(self):
-        els = [self.qualifier.value, self.name]
+        els = [self.qualifier.value]
+        if self.qualifier.value != OutputProcessQualifier.stdout.value:
+            els.append(self.name)
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -108,6 +110,7 @@ class Process(NFBase):
         outputs: List[ProcessOutput] = None,
         when: Optional[str] = None,
         directives: List[ProcessDirective] = None,
+        pre_script: Optional[str] = None
     ):
 
         self.name = name
@@ -119,6 +122,7 @@ class Process(NFBase):
         self.inputs: List[ProcessInput] = inputs or []
         self.outputs: List[ProcessOutput] = outputs or []
         self.directives: List[ProcessDirective] = directives or []
+        self.pre_script = pre_script
 
     def prepare_script(self, prefix="  "):
         script = str(self.script).strip()
@@ -128,8 +132,14 @@ class Process(NFBase):
 
         script = indent(script, prefix)
 
+        if self.pre_script:
+            pre_script = indent(self.pre_script, prefix)
+        else:
+            pre_script = ''
+
         if self.script_type:
-            script = indent(f"{self.script_type.value}:\n" + script, "  ")
+            script = indent(f"{self.script_type.value}:\n{pre_script}" + script, "  ")
+
         return script
 
     def prepare_inputs(self, prefix="  "):
@@ -152,6 +162,16 @@ class Process(NFBase):
             return None
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
+    def prepare_execution(self):
+        args = ", ".join(f"params.{i.name}" for i in self.inputs)
+
+        return f"""
+workflow
+{{
+    {self.name}({args})
+}}
+"""
+
     def get_string(self):
         nl = "\n"
         components = filter_null(
@@ -166,9 +186,13 @@ class Process(NFBase):
         components_str = (2 * nl).join(components)
 
         return f"""\
+nextflow.enable.dsl=2
+
 process {name} {{
 
 {components_str}
 
 }}
+
+{self.prepare_execution()}
 """
