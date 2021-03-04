@@ -34,17 +34,21 @@ class OutputProcessQualifier(Enum):
 
 
 class ProcessInput(NFBase):
+    PARAM_VAR = "%PARAM%"
+
     def __init__(
         self,
         qualifier: InputProcessQualifier,
         name: str,
         from_: Optional[str] = None,
         attributes: Optional[Union[str, List[str]]] = None,
+        as_process_param: Optional[str] = None
     ):
         self.qualifier = qualifier
         self.name = name
         self.from_ = from_
         self.attributes = attributes
+        self.as_process_param = as_process_param
 
     def get_string(self):
         els = [self.qualifier.value, self.name]
@@ -65,6 +69,7 @@ class ProcessOutput(NFBase):
         self,
         qualifier: OutputProcessQualifier,
         name: str,
+        expression: str,
         is_optional=False,
         into: Optional[Union[str, List[str]]] = None,
         attributes: Optional[Union[str, List[str]]] = None,
@@ -72,6 +77,7 @@ class ProcessOutput(NFBase):
 
         self.qualifier = qualifier
         self.name = name
+        self.expression = expression
         self.into = into
         self.optional = is_optional
         self.attributes = attributes
@@ -84,7 +90,7 @@ class ProcessOutput(NFBase):
         if self.qualifier.value == OutputProcessQualifier.stdout.value:
             els = [OutputProcessQualifier.path.value, f"'{Process.TOOL_STDOUT_FILENAME}'"]
         else:
-            els = [self.qualifier.value, self.name]
+            els = [self.qualifier.value, self.expression]
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -176,7 +182,6 @@ class Process(NFBase):
             return None
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
-
     def prepare_helper_functions(self):
         return f"""
 def optional(var, prefix)
@@ -195,17 +200,20 @@ def optional(var, prefix)
     def prepare_outputs_process(self):
         input_vars = []
         for o in self.outputs:
-            qual = o.qualifier
-            if o.qualifier == OutputProcessQualifier.stdout:
-                qual = OutputProcessQualifier.path
+            # qual = o.qualifier
+            # if o.qualifier == OutputProcessQualifier.stdout:
+            #     qual = OutputProcessQualifier.path
 
-            inp = ProcessInput(qualifier=qual, name=self.name + o.name)
+            # Always use 'val' qualifier
+            inp = ProcessInput(qualifier=InputProcessQualifier.val, name=self.name + o.name)
             input_vars.append(inp.get_string())
 
         input_vars_str = "\n".join(input_vars)
 
         outputs = self.outputs_metadata
-        esc = '\\\\"'
+        script = ""
+        for key, val in outputs.items():
+            script += f"echo {key}={val} >> {self.OUTPUT_METADATA_FILENAME}"
 
         return f"""
 process outputs 
@@ -218,21 +226,23 @@ process outputs
 
     script:
         \"\"\"
-        export DIR=\$(pwd)
-        export STDOUTPATH=\$(pwd)/{self.TOOL_STDOUT_FILENAME}
-        export STDERRPATH=\$(pwd)/.command.err
-    
-        outputs="{json.dumps(outputs).replace('"', esc)}"
-        outputs="\${{outputs//STDOUT/\$STDOUTPATH}}"
-        outputs="\${{outputs//STDERR/\$STDERRPATH}}"
-        outputs="\${{outputs//DIR/\$DIR}}"
-        echo \$outputs > {self.OUTPUT_METADATA_FILENAME}
+        {script}
         \"\"\"
 }}
 """
 
     def prepare_execution(self):
-        args = ", ".join(f"params.{i.name}" for i in self.inputs)
+        args_list = []
+        for i in self.inputs:
+
+            p = f"params.{i.name}"
+            if i.as_process_param:
+                p = i.as_process_param.replace(i.PARAM_VAR, p)
+
+            args_list.append(p)
+
+        # args = ", ".join(f"params.{i.name}" for i in self.inputs)
+        args = ", ".join(args_list)
 
         outputs_args = ", ".join(f"{self.name}.out.{o.name}" for o in self.outputs)
 

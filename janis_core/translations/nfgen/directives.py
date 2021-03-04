@@ -45,7 +45,7 @@ class CondaDirective(ProcessDirective):
 
 class ContainerDirective(ProcessDirective):
     def __init__(self, container):
-        super().__init__("container", container)
+        super().__init__("container", f"\"{container}\"")
 
 
 class ContainerOptionsDirective(ProcessDirective):

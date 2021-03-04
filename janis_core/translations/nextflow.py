@@ -2,7 +2,7 @@ import json
 from typing import Tuple, Dict, List, Optional, Union
 
 from janis_core.types import DataType, Array, String, File, Int, Directory, Stdout, Stderr, Filename, InputSelector, WildcardSelector
-from janis_core.operators import Operator, StringFormatter
+from janis_core.operators import Operator, StringFormatter, Selector
 
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput, ToolArgument, Tool, ToolType
 from janis_core.translations.translationbase import TranslatorBase
@@ -38,7 +38,8 @@ class NextflowTranslator(TranslatorBase):
     ) -> nfgen.process:
         # construct script
         script = cls.prepare_script_for_tool(tool)
-        pre_script = cls.prepare_optional_inputs(tool)
+        pre_script = cls.prepare_expression_inputs(tool)
+        pre_script += cls.prepare_optional_inputs(tool)
 
         process = nfgen.Process(
             name=tool.id(),
@@ -55,12 +56,20 @@ class NextflowTranslator(TranslatorBase):
         for i in inputs:
             qual = get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
+            if isinstance(i.input_type, Array) and isinstance(i.input_type.subtype(), File):
+                inp.as_process_param = f"Channel.fromPath({nfgen.ProcessInput.PARAM_VAR}).collect()"
+
             process.inputs.append(inp)
 
         for o in outputs:
+            Logger.debug(o.id())
             qual = get_output_qualifier_for_outtype(o.output_type)
+            expression = cls.unwrap_expression(o.selector, inputs_dict=tool.inputs_map(), for_output=True)
             out = nfgen.ProcessOutput(
-                qualifier=qual, name=o.id(), is_optional=o.output_type.optional
+                qualifier=qual,
+                name=o.id(),
+                expression=expression,
+                is_optional=o.output_type.optional
             )
             process.outputs.append(out)
 
@@ -101,14 +110,256 @@ class NextflowTranslator(TranslatorBase):
     def prepare_string_if_required(cls, value, is_code_environment):
         return f'"{value}"' if is_code_environment else value
 
+    # @classmethod
+    # def unwrap_expression(cls, expression, is_code_environment=True):
+    #     if isinstance(expression, str):
+    #         return cls.prepare_string_if_required(expression, is_code_environment)
+    #
+    #     raise Exception(
+    #         f"Could not detect type '{type(expression)}' to unwrap to nextflow"
+    #     )
+
     @classmethod
-    def unwrap_expression(cls, expression, is_code_environment=True):
-        if isinstance(expression, str):
-            return cls.prepare_string_if_required(expression, is_code_environment)
+    def unwrap_expression(
+            cls,
+            value,
+            code_environment=True,
+            selector_override=None,
+            tool=None,
+            for_output=False,
+            inputs_dict=None,
+            skip_inputs_lookup=False,
+            **debugkwargs,
+    ):
+        if value is None:
+            if code_environment:
+                return "null"
+            return None
+
+        if isinstance(value, StepNode):
+            raise Exception(
+                f"The Step node '{value.id()}' was found when unwrapping an expression, "
+                f"you might not have selected an output."
+            )
+
+        if isinstance(value, list):
+            toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
+            elements = []
+            for i in range(len(value)):
+                el = cls.unwrap_expression(
+                    value[i],
+                    code_environment=True,
+                    selector_override=selector_override,
+                    tool=tool,
+                    tool_id=toolid + "." + str(i),
+                    inputs_dict=inputs_dict,
+                    skip_inputs_lookup=skip_inputs_lookup,
+                    for_output=for_output
+                )
+
+                # if isinstance(value, Array):
+                #     if value.subtype() is File:
+                if for_output:
+                    # if isinstance(value[i], File):
+                    el = f"path({el})"
+
+                elements.append(el)
+
+            list_representation = ", ".join(elements)
+
+            # inner = ", ".join(
+            #     cls.unwrap_expression(
+            #         value[i],
+            #         code_environment=True,
+            #         selector_override=selector_override,
+            #         tool=tool,
+            #         tool_id=toolid + "." + str(i),
+            #         inputs_dict=inputs_dict,
+            #         skip_inputs_lookup=skip_inputs_lookup,
+            #         for_output=for_output
+            #     )
+            #     for i in range(len(value))
+            # )
+            # return cls.wrap_in_codeblock_if_required(
+            #     f"$(list \"{inner}\")"
+            #     f"", is_code_environment=code_environment
+            # )
+
+            # return f"$(list \"{inner}\")"
+            return list_representation
+
+        if isinstance(value, str):
+            return f"'{value}'"
+            # if not code_environment:
+            #     return value
+            # return cls.quote_values_if_code_environment(
+            #     cls.prepare_escaped_string(value), code_environment
+            # )
+        elif isinstance(value, int) or isinstance(value, float):
+            return str(value)
+        elif isinstance(value, Filename):
+            # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
+            formatted = cls.quote_values_if_code_environment(
+                value.generated_filename(), code_environment
+            )
+
+            # if for_output:
+            #     formatted = f"path({formatted})"
+
+            return formatted
+
+        # elif isinstance(value, AliasSelector):
+        #     return cls.unwrap_expression(
+        #         value.inner_selector,
+        #         code_environment=code_environment,
+        #         selector_override=selector_override,
+        #         inputs_dict=inputs_dict,
+        #         for_output=for_output,
+        #         tool=tool,
+        #         **debugkwargs,
+        #     )
+        #
+        elif isinstance(value, StringFormatter):
+            return cls.translate_string_formatter(
+                value,
+                selector_override=selector_override,
+                code_environment=code_environment,
+                tool=tool,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
+                **debugkwargs,
+            )
+        # elif isinstance(value, InputNodeSelector):
+        #     return translate_input_selector(
+        #         InputSelector(value.id()),
+        #         code_environment=code_environment,
+        #         selector_override=selector_override,
+        #         inputs_dict=inputs_dict,
+        #         skip_inputs_lookup=True,
+        #     )
+        # elif isinstance(value, StepOutputSelector):
+        #     sel = f"{value.node.id()}/{value.tag}"
+        #     if sel in selector_override:
+        #         return selector_override[sel]
+        #     raise Exception(
+        #         "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
+        #     )
+        # elif isinstance(value, ResourceSelector):
+        #     if not tool:
+        #         raise Exception(
+        #             f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
+        #         )
+        #     operation = value.get_operation(tool, hints={})
+        #     return cls.unwrap_expression(
+        #         operation,
+        #         code_environment=code_environment,
+        #         tool=tool,
+        #         inputs_dict=inputs_dict,
+        #         **debugkwargs,
+        #     )
+        #
+        # elif for_output and isinstance(value, (Stderr, Stdout)):
+        #     # next few ones we rely on the globs being
+        #     if isinstance(value, Stdout):
+        #         return "self[0]"
+        #     elif isinstance(value, Stderr):
+        #         return "self[1]"
+
+        elif isinstance(value, InputSelector):
+            if for_output:
+                el = cls.prepare_filename_replacements_for(value, inputsdict=inputs_dict)
+                return cls.wrap_in_codeblock_if_required(
+                    el, is_code_environment=code_environment
+                )
+            return cls.translate_input_selector(
+                selector=value,
+                code_environment=code_environment,
+                selector_override=selector_override,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup
+            )
+        elif isinstance(value, WildcardSelector):
+            raise Exception(
+                f"A wildcard selector cannot be used as an argument value for '{debugkwargs}'"
+            )
+        elif isinstance(value, Operator):
+            unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
+                exp,
+                code_environment=True,
+                selector_override=selector_override,
+                tool=tool,
+                for_output=for_output,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
+                **debugkwargs,
+            )
+
+            # if for_output:
+            #     return value.to_nextflow_output_var(unwrap_expression_wrap, *value.args)
+
+            return value.to_nextflow(unwrap_expression_wrap, *value.args)
+
+            # return cls.wrap_in_codeblock_if_required(
+            #     value.to_nextflow(unwrap_expression_wrap, *value.args),
+            #     is_code_environment=code_environment,
+            # )
+        elif callable(getattr(value, "cwl", None)):
+            return value.cwl()
+        # elif isinstance(value, Operator):
 
         raise Exception(
-            f"Could not detect type '{type(expression)}' to unwrap to nextflow"
+            "Could not detect type %s to convert to input value" % type(value)
         )
+
+    @classmethod
+    def prepare_filename_replacements_for(cls,
+                                          inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
+                                          ) -> Optional[str]:
+        if inp is None or not isinstance(inp, InputSelector):
+            return None
+
+        if not inputsdict:
+            return "inputs." + inp.input_to_select + ".basename"
+            # raise Exception(
+            #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
+            # )
+
+        if isinstance(inp, InputSelector):
+            if inp.input_to_select not in inputsdict:
+                raise Exception(
+                    f"The InputSelector '{inp.input_to_select}' did not select a valid input"
+                )
+
+            tinp = inputsdict.get(inp.input_to_select)
+            intype = tinp.intype
+
+            if intype.is_base_type((File, Directory)):
+                potential_extensions = (
+                    intype.get_extensions() if intype.is_base_type(File) else None
+                )
+                if inp.remove_file_extension and potential_extensions:
+                    base = f"inputs.{tinp.id()}.basename"
+                    for ext in potential_extensions:
+                        base += f'.replace(/{ext}$/, "")'
+                elif tinp.localise_file:
+                    base = f"inputs.{tinp.id()}.basename"
+                else:
+                    base = f"inputs.{tinp.id()}"
+            elif (
+                    intype.is_array()
+                    and isinstance(intype.fundamental_type(), (File, Directory))
+                    and tinp.localise_file
+            ):
+                base = f"inputs.{tinp.id()}.map(function(el) {{ return el.basename; }})"
+            else:
+                base = f"\"${{{tinp.id()}}}\""
+
+            if intype.optional:
+                replacement = f'inputs.{tinp.id()} ? {base} : "generated"'
+            else:
+                replacement = f"{base}"
+
+            return replacement
 
     @classmethod
     def translate_input_selector(cls,
@@ -184,8 +435,10 @@ class NextflowTranslator(TranslatorBase):
             #     ):
             #         sel = f"{sel}.map(function(el) {{ return el.basename; }})"
 
-        sel = f"${sel}"
-        return sel if code_environment else f"$({sel})"
+        # sel = f"${sel}"
+        # return sel if code_environment else f"$({sel})"
+
+        return sel
 
     @classmethod
     def build_inputs_file(
@@ -213,6 +466,11 @@ class NextflowTranslator(TranslatorBase):
         inp = {}
         for i in tool.tool_inputs():
             val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
+
+            inputsdict = tool.inputs_map()
+
+            if isinstance(i.intype, Filename):
+                val = cls.unwrap_expression(i.intype.generated_filename(), inputs_dict=inputsdict)
 
             if val is None:
                 if isinstance(i.intype, (File, Directory)):
@@ -247,8 +505,12 @@ class NextflowTranslator(TranslatorBase):
     def stringify_translated_inputs(inputs):
         formatted = {}
         for key in inputs:
+            # We want list to be formatted as ["xxx", "yyy"] instead of "['xxx', 'yyy']"
             if inputs[key] is not None:
-                val = str(inputs[key])
+                if type(inputs[key]) is list:
+                    val = inputs[key]
+                else:
+                    val = str(inputs[key])
             else:
                 val = ''
 
@@ -272,7 +534,6 @@ class NextflowTranslator(TranslatorBase):
 
         return prefix + ".nf"
 
-
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.json"
@@ -282,6 +543,18 @@ class NextflowTranslator(TranslatorBase):
         pass
 
     @classmethod
+    def wrap_in_codeblock_if_required(cls, value, is_code_environment):
+        return value if is_code_environment else f"$({value})"
+
+    @classmethod
+    def quote_values_if_code_environment(cls, value, is_code_environment):
+        return f'"{value}"' if is_code_environment else value
+
+    @classmethod
+    def prepare_escaped_string(cls, value: str):
+        return json.dumps(value)[1:-1]
+
+    @classmethod
     def prepare_script_for_tool(cls, tool: CommandTool):
         bc = tool.base_command()
         pargs = []
@@ -289,10 +562,14 @@ class NextflowTranslator(TranslatorBase):
         if bc:
             pargs.append(" ".join(bc) if isinstance(bc, list) else str(bc))
 
-        args = sorted(
-            [*(tool.arguments() or []), *(tool.inputs() or [])],
-            key=lambda a: a.position,
-        )
+        # args = sorted(
+        #     [*(tool.arguments() or []), *(tool.inputs() or [])],
+        #     key=lambda a: a.position or 0,
+        # )
+
+        args = [a for a in tool.arguments() or [] if a.position is not None or a.prefix is not None]
+        args += [a for a in tool.inputs() or [] if a.position is not None or a.prefix is not None]
+        args = sorted(args, key=lambda a: a.position or 0)
 
         prefix = "  "
         for a in args:
@@ -316,29 +593,49 @@ class NextflowTranslator(TranslatorBase):
 
         outputs = {}
         for out in tool.outputs():
-            if isinstance(out.output_type, Array):
-                val = []
-                for sel in out.selector:
-                    val.append("DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict))
+            # if isinstance(out.output_type, Array):
+            #     val = []
+            #     for sel in out.selector:
+            #         val.append("DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict))
+            #
+            # elif isinstance(out.output_type, Stdout):
+            #     val = "STDOUT"
+            # elif isinstance(out.output_type, Stderr):
+            #     val = "STDERR"
+            # elif isinstance(out.output_type, File):
+            #     sel = out.selector
+            #     if sel is None:
+            #         sel = out.glob
+            #
+            #     val = "DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict)
 
-            elif isinstance(out.output_type, Stdout):
+            if isinstance(out.output_type, Stdout):
                 val = "STDOUT"
             elif isinstance(out.output_type, Stderr):
                 val = "STDERR"
-            elif isinstance(out.output_type, File):
-                sel = out.selector
-                if sel is None:
-                    sel = out.glob
-
-                val = "DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict)
-
             else:
-                val = "XXX"
+                val = f"${tool.id()}{out.tag}"
 
             outputs[out.tag] = val
 
         return outputs
 
+    @classmethod
+    def prepare_expression_inputs(cls, tool):
+
+        inputsdict = tool.inputs_map()
+
+        script_lines = []
+        for i in tool.tool_inputs():
+            if isinstance(i.intype, Filename):
+                val = cls.unwrap_expression(i.intype.generated_filename(), inputs_dict=inputsdict)
+
+                code = f"""
+def {i.id()} = {val}
+"""
+                script_lines.append(code)
+
+        return "".join(script_lines)
 
     @classmethod
     def prepare_optional_inputs(self, tool):
@@ -352,8 +649,16 @@ class NextflowTranslator(TranslatorBase):
             else:
                 raise Exception("unknown input type")
 
+            if isinstance(a.input_type, Array):
+                arg_value = f"{arg_name}.join(' ')"
+            else:
+                arg_value = arg_name
+
+            if a.input_type.optional:
+                arg_value = f"optional({arg_value}, '{a.prefix or ''}')"
+
             code = f"""
-def {arg_name}WithPrefix =  optional({arg_name}, '{a.prefix or ''}')
+def {arg_name}WithPrefix =  {arg_value}
 """
 
             pre_script_lines.append(code)
@@ -374,12 +679,21 @@ def get_input_qualifier_for_inptype(inp_type: DataType) -> nfgen.InputProcessQua
 def get_output_qualifier_for_outtype(
     out_type: DataType,
 ) -> nfgen.OutputProcessQualifier:
-    if isinstance(out_type, Array):
-        out_type = out_type.fundamental_type()
+    # if isinstance(out_type, Array):
+    #     out_type = out_type.fundamental_type()
 
-    if isinstance(out_type, Stdout):
+    Logger.debug(out_type)
+    if isinstance(out_type, Array):
+        return nfgen.OutputProcessQualifier.tuple
+
+    # if hasattr(out_type, 'subtype'):
+    #     if callable(out_type.subtype):
+    #         return nfgen.OutputProcessQualifier.tuple
+
+    elif isinstance(out_type, Stdout):
         return nfgen.OutputProcessQualifier.stdout
 
-    if isinstance(out_type, (File, Directory)):
+    elif isinstance(out_type, (File, Directory)):
         return nfgen.OutputProcessQualifier.path
+
     return nfgen.OutputProcessQualifier.val
