@@ -71,10 +71,17 @@ class NextflowTranslator(TranslatorBase):
             # #TODO: make this tidier
             if isinstance(o.output_type, Array):
                 if isinstance(o.output_type.subtype(), (File, Directory)):
-                    elements = expression.strip("][").split(",")
-                    formatted_list = [f"path({e})" for e in elements]
+                    sub_qual = nfgen.OutputProcessQualifier.path
+                else:
+                    sub_qual = nfgen.OutputProcessQualifier.val
 
-                    expression = ", ".join(formatted_list)
+                tuple_elements = expression.strip("][").split(",")
+                formatted_list = []
+                for expression in tuple_elements:
+                    sub_exp = nfgen.TupleElementForOutput(qualifier=sub_qual, expression=expression)
+                    formatted_list.append(sub_exp.get_string())
+
+                expression = ", ".join(formatted_list)
 
             out = nfgen.ProcessOutput(
                 qualifier=qual,
@@ -118,19 +125,6 @@ class NextflowTranslator(TranslatorBase):
         raise Exception("CodeTool is not currently supported in Nextflow translation")
 
     @classmethod
-    def prepare_string_if_required(cls, value, is_code_environment):
-        return f'"{value}"' if is_code_environment else value
-
-    # @classmethod
-    # def unwrap_expression(cls, expression, is_code_environment=True):
-    #     if isinstance(expression, str):
-    #         return cls.prepare_string_if_required(expression, is_code_environment)
-    #
-    #     raise Exception(
-    #         f"Could not detect type '{type(expression)}' to unwrap to nextflow"
-    #     )
-
-    @classmethod
     def unwrap_expression(
             cls,
             value,
@@ -160,7 +154,7 @@ class NextflowTranslator(TranslatorBase):
             for i in range(len(value)):
                 el = cls.unwrap_expression(
                     value[i],
-                    quote_string=True,
+                    quote_string=quote_string,
                     selector_override=selector_override,
                     tool=tool,
                     tool_id=toolid + "." + str(i),
@@ -180,36 +174,12 @@ class NextflowTranslator(TranslatorBase):
                 return f"'{value}'"
             else:
                 return value
-            # if not code_environment:
-            #     return value
-            # return cls.quote_values_if_code_environment(
-            #     cls.prepare_escaped_string(value), code_environment
-            # )
         elif isinstance(value, int) or isinstance(value, float):
             return str(value)
         elif isinstance(value, Filename):
-            # value.generated_filenamecwl() if code_environment else f"$({value.generated_filenamecwl()})"
-            # formatted = cls.quote_values_if_code_environment(
-            #     value.generated_filename(), quote_string
-            # )
-
             formatted = value.generated_filename()
-            # if for_output:
-            #     formatted = f"path({formatted})"
-
             return formatted
 
-        # elif isinstance(value, AliasSelector):
-        #     return cls.unwrap_expression(
-        #         value.inner_selector,
-        #         code_environment=code_environment,
-        #         selector_override=selector_override,
-        #         inputs_dict=inputs_dict,
-        #         for_output=for_output,
-        #         tool=tool,
-        #         **debugkwargs,
-        #     )
-        #
         elif isinstance(value, StringFormatter):
             return cls.translate_string_formatter(
                 value,
@@ -220,42 +190,6 @@ class NextflowTranslator(TranslatorBase):
                 skip_inputs_lookup=skip_inputs_lookup,
                 **debugkwargs,
             )
-        # elif isinstance(value, InputNodeSelector):
-        #     return translate_input_selector(
-        #         InputSelector(value.id()),
-        #         code_environment=code_environment,
-        #         selector_override=selector_override,
-        #         inputs_dict=inputs_dict,
-        #         skip_inputs_lookup=True,
-        #     )
-        # elif isinstance(value, StepOutputSelector):
-        #     sel = f"{value.node.id()}/{value.tag}"
-        #     if sel in selector_override:
-        #         return selector_override[sel]
-        #     raise Exception(
-        #         "An internal error occurred when unwrapping an operator, found StepOutputSelector with no alias"
-        #     )
-        # elif isinstance(value, ResourceSelector):
-        #     if not tool:
-        #         raise Exception(
-        #             f"Tool must be provided when unwrapping ResourceSelector: {type(value).__name__}"
-        #         )
-        #     operation = value.get_operation(tool, hints={})
-        #     return cls.unwrap_expression(
-        #         operation,
-        #         code_environment=code_environment,
-        #         tool=tool,
-        #         inputs_dict=inputs_dict,
-        #         **debugkwargs,
-        #     )
-        #
-        # elif for_output and isinstance(value, (Stderr, Stdout)):
-        #     # next few ones we rely on the globs being
-        #     if isinstance(value, Stdout):
-        #         return "self[0]"
-        #     elif isinstance(value, Stderr):
-        #         return "self[1]"
-
         elif isinstance(value, InputSelector):
             if for_output:
                 el = cls.prepare_filename_replacements_for(value, inputsdict=inputs_dict)
@@ -285,18 +219,10 @@ class NextflowTranslator(TranslatorBase):
                 **debugkwargs,
             )
 
-            # if for_output:
-            #     return value.to_nextflow_output_var(unwrap_expression_wrap, *value.args)
-
             return value.to_nextflow(unwrap_expression_wrap, *value.args)
 
-            # return cls.wrap_in_codeblock_if_required(
-            #     value.to_nextflow(unwrap_expression_wrap, *value.args),
-            #     is_code_environment=code_environment,
-            # )
         elif callable(getattr(value, "nextflow", None)):
             return value.nextflow()
-        # elif isinstance(value, Operator):
 
         raise Exception(
             "Could not detect type %s to convert to input value" % type(value)
@@ -317,7 +243,7 @@ class NextflowTranslator(TranslatorBase):
             return str(selector)
 
         kwargreplacements = {
-            k: f"{cls.unwrap_expression(v, selector_override=selector_override, quote_string=True, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
+            k: f"{cls.unwrap_expression(v, selector_override=selector_override, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
             for k, v in selector.kwargs.items()
         }
 
@@ -357,9 +283,6 @@ class NextflowTranslator(TranslatorBase):
                     intype.get_extensions() if intype.is_base_type(File) else None
                 )
                 if inp.remove_file_extension and potential_extensions:
-                    # base = f"{tinp.id()}.name"
-                    # for ext in potential_extensions:
-                    #     base += f'.replace(/{ext}$/, "")'
                     base = f"{tinp.id()}.simpleName"
                 elif tinp.localise_file:
                     base = f"{tinp.id()}.name"
@@ -424,15 +347,6 @@ class NextflowTranslator(TranslatorBase):
                         intype.get_extensions() if intype.is_base_type(File) else None
                     )
                     if selector.remove_file_extension and potential_extensions:
-                        # sel = f"{sel}.basename"
-                        # for ext in potential_extensions:
-                        #     sel += f'.replace(/{ext}$/, "")'
-
-                        # for ext in potential_extensions:
-                        #     sel = f"{{{sel}%{ext}}}"
-                        #
-                        # sel = f"(basename \"${sel}\")"
-
                         sel = f"{sel}.simpleName"
 
                 elif intype.is_array() and isinstance(
@@ -454,23 +368,6 @@ class NextflowTranslator(TranslatorBase):
                     Logger.warn(
                         f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
                     )
-            # elif tinp.localise_file:
-            #     if intype.is_base_type((File, Directory)):
-            #         sel += ".basename"
-            #     elif intype.is_array() and isinstance(
-            #             intype.fundamental_type(), (File, Directory)
-            #     ):
-            #         sel = f"{sel}.map(function(el) {{ return el.basename; }})"
-
-        # sel = f"${sel}"
-        # return sel if code_environment else f"$({sel})"
-
-        # if in_shell_script:
-        #     sel = f"${sel}"
-        # elif for_output:
-        #     sel = sel
-        # else:
-        #     sel = f"params.{sel}"
 
         if in_shell_script:
             sel = f"${sel}"
@@ -491,14 +388,6 @@ class NextflowTranslator(TranslatorBase):
     ) -> Dict[str, any]:
 
         ad = additional_inputs or {}
-        values_provided_from_tool = {}
-        # if tool.type() == ToolType.Workflow:
-        #     values_provided_from_tool = {
-        #         i.id(): i.value or i.default
-        #         for i in tool.input_nodes.values()
-        #         if i.value or (i.default and not isinstance(i.default, Selector))
-        #     }
-
         values_provided_from_tool = {
             i.id(): i.default
             for i in tool.tool_inputs()
@@ -531,16 +420,6 @@ class NextflowTranslator(TranslatorBase):
                     val = ''
 
             inp[i.id()] = val
-
-        # all_keys = [key for key in inp.keys()]
-        # inp_formatted = {}
-        # for key, val in inp.items():
-        #     new_val = val
-        #     for k in all_keys:
-        #         if f"params.{k}" in val:
-        #             new_val = val.replace(f"params.{k}", inp[k])
-        #
-        #     inp_formatted[key] = new_val
 
         if merge_resources:
             for k, v in cls.build_resources_input(
@@ -669,22 +548,6 @@ echo "{main_script}" > {nfgen.Process.TOOL_EXECUTED_COMMAND_FILENAME}
 
         outputs = {}
         for out in tool.outputs():
-            # if isinstance(out.output_type, Array):
-            #     val = []
-            #     for sel in out.selector:
-            #         val.append("DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict))
-            #
-            # elif isinstance(out.output_type, Stdout):
-            #     val = "STDOUT"
-            # elif isinstance(out.output_type, Stderr):
-            #     val = "STDERR"
-            # elif isinstance(out.output_type, File):
-            #     sel = out.selector
-            #     if sel is None:
-            #         sel = out.glob
-            #
-            #     val = "DIR/" + cls.unwrap_expression(sel, inputs_dict=inputsdict)
-
             if isinstance(out.output_type, Stdout):
                 val = "STDOUT"
             elif isinstance(out.output_type, Stderr):
@@ -784,16 +647,8 @@ def get_input_qualifier_for_inptype(inp_type: DataType) -> nfgen.InputProcessQua
 def get_output_qualifier_for_outtype(
     out_type: DataType,
 ) -> nfgen.OutputProcessQualifier:
-    # if isinstance(out_type, Array):
-    #     out_type = out_type.fundamental_type()
-
-    Logger.debug(out_type)
     if isinstance(out_type, Array):
         return nfgen.OutputProcessQualifier.tuple
-
-    # if hasattr(out_type, 'subtype'):
-    #     if callable(out_type.subtype):
-    #         return nfgen.OutputProcessQualifier.tuple
 
     elif isinstance(out_type, Stdout):
         return nfgen.OutputProcessQualifier.stdout

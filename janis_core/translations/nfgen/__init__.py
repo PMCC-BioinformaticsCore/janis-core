@@ -15,6 +15,7 @@ from .process import (
     ProcessScriptType,
     InputProcessQualifier,
     OutputProcessQualifier,
+    TupleElementForOutput
 )
 
 from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish

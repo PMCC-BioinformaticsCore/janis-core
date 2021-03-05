@@ -83,14 +83,13 @@ class ProcessOutput(NFBase):
         self.attributes = attributes
 
     def get_string(self):
-        # els = [self.qualifier.value]
-        # if self.qualifier.value != OutputProcessQualifier.stdout.value:
-        #     els.append(self.name)
+        if self.qualifier.value != OutputProcessQualifier.tuple.value:
+            self.expression = f"\"${{{self.expression}}}\""
 
         if self.qualifier.value == OutputProcessQualifier.stdout.value:
             els = [OutputProcessQualifier.path.value, f"'{Process.TOOL_STDOUT_FILENAME}'"]
         else:
-            els = [self.qualifier.value, f"\"${{{self.expression}}}\""]
+            els = [self.qualifier.value, f"{self.expression}"]
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -111,6 +110,20 @@ class ProcessOutput(NFBase):
         els.append(f", emit: {self.name}")
 
         return " ".join(str(e) for e in els).strip()
+
+
+class TupleElementForOutput(NFBase):
+    def __init__(
+        self,
+        qualifier: OutputProcessQualifier,
+        expression: str,
+    ):
+
+        self.qualifier = qualifier
+        self.expression = expression
+
+    def get_string(self):
+        return f"{self.qualifier.value}(\"${{{self.expression}}}\")"
 
 
 class Process(NFBase):
