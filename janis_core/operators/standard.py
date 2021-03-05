@@ -32,6 +32,10 @@ class ReadContents(Operator):
         )
         return f"{arg}.contents"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"{arg}.text"
+
     def returntype(self):
         return String()
 
@@ -65,6 +69,9 @@ class ReadJsonOperator(Operator):
             self.args[0], add_path_suffix_to_input_selector_if_required=False
         )
         return f"JSON.parse({fp}.contents)"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def requires_contents(self):
         return True
@@ -114,6 +121,10 @@ class JoinOperator(Operator):
         iterable, separator = [unwrap_operator(a) for a in self.args]
         return f"{iterable}.join({separator})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+        return f"{iterable}.join({separator})"
+
     def evaluate(self, inputs):
         iterable, separator = self.evaluate_arg(self.args, inputs)
         return str(separator).join((str(el) for el in iterable))
@@ -133,6 +144,9 @@ class BasenameOperator(Operator):
             args[0], add_path_suffix_to_input_selector_if_required=False
         )
         return arg + ".basename"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        return f"{unwrap_operator(args[0])}.name"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -178,6 +192,9 @@ class TransposeOperator(Operator):
             + ".reduce(function(prev, next) { return next.map(function(item, i) { return (prev[i] || []).concat(next[i]); }) }, [])"
         )
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
         return [[ar[i][j] for i in range(len(ar))] for j in range(len(ar[0]))]
@@ -207,6 +224,9 @@ class LengthOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"{arg}.length"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -238,6 +258,9 @@ class FlattenOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"{arg}.flat()"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
         return [el for sl in ar for el in sl]
@@ -268,6 +291,9 @@ class ApplyPrefixOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
         return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def evaluate(self, inputs):
         prefix, iterable = self.evaluate_arg(self.args, inputs)
@@ -305,6 +331,9 @@ class FileSizeOperator(Operator):
             self.args[0], add_path_suffix_to_input_selector_if_required=False
         )
         return f"({f}.size / 1048576)"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def evaluate(self, inputs):
         from os.path import getsize
@@ -346,6 +375,14 @@ class FirstOperator(Operator):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+
+    def to_nextflow(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+
+        return f"{iterable}.first()"
+
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)
         return [i for i in iterable if i is not None][0]
@@ -383,6 +420,9 @@ class FilterNullOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)

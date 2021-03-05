@@ -134,6 +134,10 @@ class Operator(Selector):
     def to_cwl(self, unwrap_operator, *args):
         pass
 
+    @abstractmethod
+    def to_nextflow(self, unwrap_operator, *args):
+        pass
+
     def to_string_formatter(self):
         import re
         from janis_core.operators.stringformatter import StringFormatter
@@ -238,6 +242,11 @@ class TwoValueOperator(Operator, ABC):
 
     @staticmethod
     @abstractmethod
+    def nextflow_symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
     def apply_to(arg1, arg2):
         pass
 
@@ -252,6 +261,19 @@ class TwoValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
         return f"({arg1} {self.cwl_symbol()} {arg2})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        return f"{arg1} {self.nextflow_symbol()} {arg2}"
+
+    def to_nextflow_output_var(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+        if isinstance(arg1, str) and not arg1.isdigit() and isinstance(arg2, str) and not arg2.isdigit():
+            return f"{arg1}{arg2}"
+        else:
+            return self.to_nextflow(unwrap_operator, *args)
+
 
     def __str__(self):
         args = self.args
