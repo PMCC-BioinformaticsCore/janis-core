@@ -496,7 +496,11 @@ if __name__ == "__main__":
             extras.append(f"scatter={self.convert_generic_class(node.scatter)}")
         if node.when is not None:
             extras.append(
-                f"when=${self.get_string_repr(node.when, workflow_id=workflow_id)}"
+                f"when={self.get_string_repr(node.when, workflow_id=workflow_id)}"
+            )
+        if node.foreach is not None:
+            extras.append(
+                f"foreach={self.get_string_repr(node.foreach, workflow_id=workflow_id)}"
             )
 
         csp = 8 * " "
@@ -530,7 +534,8 @@ if __name__ == "__main__":
     "{node.id()}",
     {self.get_class_name_from_tool(node.tool)}(
 {nl.join(connections)}
-    )
+    ),
+{nl.join(4 * ' ' + e for e in extras)}
 )
     """
 
