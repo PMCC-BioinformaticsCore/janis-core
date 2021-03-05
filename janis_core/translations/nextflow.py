@@ -1,7 +1,7 @@
 import json
 from typing import Tuple, Dict, List, Optional, Union
 
-from janis_core.types import DataType, Array, String, File, Int, Directory, Stdout, Stderr, Filename, InputSelector, WildcardSelector
+from janis_core.types import DataType, Array, String, File, Int, Directory, Stdout, Stderr, Filename, InputSelector, WildcardSelector, Boolean
 from janis_core.operators import Operator, StringFormatter, Selector
 
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolOutput, ToolArgument, Tool, ToolType
@@ -39,7 +39,8 @@ class NextflowTranslator(TranslatorBase):
         # construct script
         script = cls.prepare_script_for_tool(tool)
         pre_script = cls.prepare_expression_inputs(tool)
-        pre_script += cls.prepare_optional_inputs(tool)
+        pre_script += cls.prepare_input_vars(tool)
+        pre_script += cls.prepare_resources_var(tool)
 
         process = nfgen.Process(
             name=tool.id(),
@@ -57,21 +58,6 @@ class NextflowTranslator(TranslatorBase):
             qual = get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
-            # if isinstance(i.input_type, File):
-            #     if hasattr(i.input_type, 'secondary_files') and callable(i.input_type.secondary_files):
-            #         if i.input_type.secondary_files():
-            #             file_path = f"Path({nfgen.ProcessInput.PARAM_VAR})"
-            #             file_path = f"{file_path}.baseName + '*'"
-            #             inp.as_process_param = f"Channel.fromPath({file_path}).collect()"
-            #
-            # elif isinstance(i.input_type, Array) and isinstance(i.input_type.subtype(), File):
-            #     file_path = nfgen.ProcessInput.PARAM_VAR
-            #     if hasattr(i.input_type, 'secondary_files') and callable(i.input_type.secondary_files):
-            #         if i.input_type.secondary_files():
-            #             file_path = f"{nfgen.ProcessInput.PARAM_VAR}.baseName + '*'"
-            #
-            #     inp.as_process_param = f"Channel.fromPath({file_path}).collect()"
-
             if isinstance(i.input_type, File):
                 inp.as_process_param = f"Channel.fromPath({nfgen.ProcessInput.PARAM_VAR}).collect()"
 
@@ -85,7 +71,7 @@ class NextflowTranslator(TranslatorBase):
             # #TODO: make this tidier
             if isinstance(o.output_type, Array):
                 if isinstance(o.output_type.subtype(), (File, Directory)):
-                    elements = expression.split(",")
+                    elements = expression.strip("][").split(",")
                     formatted_list = [f"path({e})" for e in elements]
 
                     expression = ", ".join(formatted_list)
@@ -183,46 +169,10 @@ class NextflowTranslator(TranslatorBase):
                     for_output=for_output
                 )
 
-                # if for_output:
-                #     if isinstance(value, Array):
-                #         Logger.debug(value.subtype())
-                #         if isinstance(value.subtype(), File):
-                #             el = f"path({el})"
-
-                # if for_output:
-                #     Logger.debug("CLASS")
-                #     Logger.debug(value[i].__class__)
-                #     raise Exception("lalla")
-                #
-                # if for_output:
-                #     el = f"path({el})"
-
                 elements.append(el)
 
-                # if for_output:
-                #     return elements
+            list_representation = f"[{', '.join(elements)}]"
 
-            list_representation = ", ".join(elements)
-
-            # inner = ", ".join(
-            #     cls.unwrap_expression(
-            #         value[i],
-            #         code_environment=True,
-            #         selector_override=selector_override,
-            #         tool=tool,
-            #         tool_id=toolid + "." + str(i),
-            #         inputs_dict=inputs_dict,
-            #         skip_inputs_lookup=skip_inputs_lookup,
-            #         for_output=for_output
-            #     )
-            #     for i in range(len(value))
-            # )
-            # return cls.wrap_in_codeblock_if_required(
-            #     f"$(list \"{inner}\")"
-            #     f"", is_code_environment=code_environment
-            # )
-
-            # return f"$(list \"{inner}\")"
             return list_representation
 
         if isinstance(value, str):
@@ -344,8 +294,8 @@ class NextflowTranslator(TranslatorBase):
             #     value.to_nextflow(unwrap_expression_wrap, *value.args),
             #     is_code_environment=code_environment,
             # )
-        elif callable(getattr(value, "cwl", None)):
-            return value.cwl()
+        elif callable(getattr(value, "nextflow", None)):
+            return value.nextflow()
         # elif isinstance(value, Operator):
 
         raise Exception(
@@ -373,10 +323,9 @@ class NextflowTranslator(TranslatorBase):
 
         arg_val = selector._format
         for k in selector.kwargs:
-            arg_val = arg_val.replace(f"{{{k}}}", f"{str(kwargreplacements[k])}")
+            arg_val = arg_val.replace(f"{{{k}}}", f"${{{str(kwargreplacements[k])}}}")
 
         if in_shell_script:
-            Logger.debug("IN SHELL SCRIPT")
             arg_val = arg_val.replace("\\", "\\\\")
 
         return arg_val
@@ -408,15 +357,16 @@ class NextflowTranslator(TranslatorBase):
                     intype.get_extensions() if intype.is_base_type(File) else None
                 )
                 if inp.remove_file_extension and potential_extensions:
-                    base = f"{tinp.id()}.name"
-                    for ext in potential_extensions:
-                        base += f'.replace(/{ext}$/, "")'
+                    # base = f"{tinp.id()}.name"
+                    # for ext in potential_extensions:
+                    #     base += f'.replace(/{ext}$/, "")'
+                    base = f"{tinp.id()}.simpleName"
                 elif tinp.localise_file:
                     base = f"{tinp.id()}.name"
                 else:
                     base = f"{tinp.id()}"
             elif isinstance(intype, Filename):
-                base = str(cls.unwrap_expression(intype.generated_filename(), inputs_dict=inputsdict))
+                base = str(cls.unwrap_expression(intype.generated_filename(), inputs_dict=inputsdict, for_output=True))
             elif (
                     intype.is_array()
                     and isinstance(intype.fundamental_type(), (File, Directory))
@@ -431,7 +381,8 @@ class NextflowTranslator(TranslatorBase):
             else:
                 replacement = f"{base}"
 
-            return f"\"${{{replacement}}}\""
+            # return f"\"${{{replacement}}}\""
+            return replacement
 
     @classmethod
     def translate_input_selector(cls,
@@ -439,7 +390,8 @@ class NextflowTranslator(TranslatorBase):
                                  inputs_dict,
                                  selector_override=None,
                                  skip_inputs_lookup=False,
-                                 in_shell_script=False
+                                 in_shell_script=False,
+                                 for_output=False
                                  ):
         # TODO: Consider grabbing "path" of File
 
@@ -475,10 +427,13 @@ class NextflowTranslator(TranslatorBase):
                         # sel = f"{sel}.basename"
                         # for ext in potential_extensions:
                         #     sel += f'.replace(/{ext}$/, "")'
-                        for ext in potential_extensions:
-                            sel = f"{{{sel}%{ext}}}"
 
-                        sel = f"(basename \"${sel}\")"
+                        # for ext in potential_extensions:
+                        #     sel = f"{{{sel}%{ext}}}"
+                        #
+                        # sel = f"(basename \"${sel}\")"
+
+                        sel = f"{sel}.simpleName"
 
                 elif intype.is_array() and isinstance(
                         intype.fundamental_type(), (File, Directory)
@@ -510,7 +465,13 @@ class NextflowTranslator(TranslatorBase):
         # sel = f"${sel}"
         # return sel if code_environment else f"$({sel})"
 
-        sel = f"params.{sel}"
+        # if in_shell_script:
+        #     sel = f"${sel}"
+        # elif for_output:
+        #     sel = sel
+        # else:
+        #     sel = f"params.{sel}"
+
         if in_shell_script:
             sel = f"${sel}"
 
@@ -538,8 +499,15 @@ class NextflowTranslator(TranslatorBase):
         #         if i.value or (i.default and not isinstance(i.default, Selector))
         #     }
 
+        values_provided_from_tool = {
+            i.id(): i.default
+            for i in tool.tool_inputs()
+        }
+
         count = 0
         inp = {}
+        Logger.debug("values_provided_from_tool")
+        Logger.debug(values_provided_from_tool)
         for i in tool.tool_inputs():
             val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
 
@@ -547,6 +515,12 @@ class NextflowTranslator(TranslatorBase):
 
             if isinstance(i.intype, Filename):
                 val = cls.unwrap_expression(i.intype.generated_filename(), inputs_dict=inputsdict)
+            elif isinstance(i.intype, Boolean):
+                val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+                if val == "True":
+                    val = True
+                if val == "False":
+                    val = False
 
             if val is None:
                 if isinstance(i.intype, (File, Directory)) \
@@ -594,7 +568,7 @@ class NextflowTranslator(TranslatorBase):
         for key in inputs:
             # We want list to be formatted as ["xxx", "yyy"] instead of "['xxx', 'yyy']"
             if inputs[key] is not None:
-                if type(inputs[key]) is list:
+                if type(inputs[key]) is list or type(inputs[key]) is int or type(inputs[key]) is float:
                     val = inputs[key]
                 else:
                     val = str(inputs[key])
@@ -659,7 +633,7 @@ class NextflowTranslator(TranslatorBase):
                 pargs.append(f"${a.id()}WithPrefix")
             elif isinstance(a, ToolArgument):
                 inputsdict = tool.inputs_map()
-                arg_val = cls.unwrap_expression(
+                expression = cls.unwrap_expression(
                     a.value,
                     inputsdict=inputsdict,
                     skip_inputs_lookup=True,
@@ -672,9 +646,9 @@ class NextflowTranslator(TranslatorBase):
                     if a.separate_value_from_prefix is not False:
                         space = ' '
 
-                    cmd_arg = f"{a.prefix}{space}\"{arg_val}\""
+                    cmd_arg = f"{a.prefix}{space}\"{expression}\""
                 else:
-                    cmd_arg = arg_val
+                    cmd_arg = expression
 
                 pargs.append(cmd_arg)
             else:
@@ -683,6 +657,8 @@ class NextflowTranslator(TranslatorBase):
         main_script = " \\\n".join(pargs)
 
         return f"""
+echo "{main_script}" > {nfgen.Process.TOOL_EXECUTED_COMMAND_FILENAME}
+
 {main_script} > {nfgen.Process.TOOL_STDOUT_FILENAME}
 
 """
@@ -738,7 +714,7 @@ def {i.id()} = {val}
         return "".join(script_lines)
 
     @classmethod
-    def prepare_optional_inputs(self, tool):
+    def prepare_input_vars(self, tool):
         pre_script_lines = []
         for a in tool.inputs():
             arg_name = ""
@@ -751,29 +727,45 @@ def {i.id()} = {val}
 
             if isinstance(a.input_type, Array):
                 arg_value = f"{arg_name}.join(' ')"
-            # elif isinstance(a.input_type, (File)) and \
-            #         hasattr(a.input_type, 'secondary_files') and \
-            #         callable(a.input_type.secondary_files) and \
-            #         a.input_type.secondary_files():
-            #
-            #     arg_value = f"params.{arg_name}"
-            #
-            # elif isinstance(a.input_type, (File)):
-            #     arg_value = f"{arg_name}.parent + 'File.separator' + {arg_name}.name"
-
             elif isinstance(a.input_type, (File)):
                 arg_value = f"params.{arg_name}"
-
             else:
                 arg_value = arg_name
 
-            if a.input_type.optional:
-                arg_value = f"optional({arg_value}, '{a.prefix or ''}')"
+            prefix = ''
+            if a.prefix is not None:
+                prefix = a.prefix
+
+            space = ''
+            if a.separate_value_from_prefix is not False:
+                space = ' '
+
+            if isinstance(a.input_type, Boolean):
+                arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
+            else:
+                if a.input_type.optional:
+                    arg = f"optional({arg_value}, '{prefix}{space}')"
+                else:
+                    arg = f"'{prefix}{space}' + {arg_value}"
 
             code = f"""
-def {arg_name}WithPrefix =  {arg_value}
+def {arg_name}WithPrefix =  {arg}
 """
 
+            pre_script_lines.append(code)
+
+        return "".join(pre_script_lines)
+
+    @classmethod
+    def prepare_resources_var(cls, tool):
+        pre_script_lines = []
+        for k, v in cls.build_resources_input(
+                tool,
+                hints=None,
+        ).items():
+            code = f"""
+def {k} =  params.{k}
+"""
             pre_script_lines.append(code)
 
         return "".join(pre_script_lines)

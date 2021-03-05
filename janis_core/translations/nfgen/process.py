@@ -90,7 +90,7 @@ class ProcessOutput(NFBase):
         if self.qualifier.value == OutputProcessQualifier.stdout.value:
             els = [OutputProcessQualifier.path.value, f"'{Process.TOOL_STDOUT_FILENAME}'"]
         else:
-            els = [self.qualifier.value, self.expression]
+            els = [self.qualifier.value, f"\"${{{self.expression}}}\""]
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -115,6 +115,7 @@ class ProcessOutput(NFBase):
 
 class Process(NFBase):
     TOOL_STDOUT_FILENAME = "janisstdout"
+    TOOL_EXECUTED_COMMAND_FILENAME = "janiscommand"
     OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
     NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
 
@@ -186,9 +187,24 @@ class Process(NFBase):
         return f"""
 def optional(var, prefix)
 {{
+  var = var.toString()
   if (var && ( var != 'None' ) && (! var.contains('{self.NO_FILE_PATH_PREFIX}')))
   {{
-    return prefix + ' ' + var
+    return prefix.toString() + var
+  }}
+  else
+  {{
+    return ''
+  }}
+}}
+
+
+def boolean_flag(var, prefix)
+{{
+  var = var.toString()
+  if (var == 'True')
+  {{
+    return prefix.toString()
   }}
   else
   {{
