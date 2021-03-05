@@ -433,7 +433,7 @@ class TranslatorBase(ABC):
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value or (i.default and not isinstance(i.default, Selector))
+                if i.value is not None or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         inp = {
