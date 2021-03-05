@@ -5,9 +5,7 @@ import WDL
 
 import janis_core as j
 
-
 class WdlParser:
-
     @staticmethod
     def from_doc(doc: str, base_uri=None):
         abs_path = os.path.relpath(doc)
@@ -30,7 +28,6 @@ class WdlParser:
         elif isinstance(obj, WDL.Workflow):
             return self.from_loaded_workflow(obj)
 
-
     def from_loaded_workflow(self, obj: WDL.Workflow):
         wf = j.WorkflowBuilder(identifier=obj.name)
 
@@ -51,32 +48,56 @@ class WdlParser:
 
         return wf[exp]
 
-    def add_call_to_wf(self, wf: j.WorkflowBase, call: WDL.WorkflowNode, condition=None, scatter=None):
-        selector_getter = lambda exp: self.workflow_selector_getter(wf, exp)
+    def add_call_to_wf(
+        self, wf: j.WorkflowBase, call: WDL.WorkflowNode, condition=None, foreach=None, expr_alias: str=None
+    ):
+        def selector_getter(exp):
+            if exp == expr_alias:
+                return j.ForEachSelector()
+
+            return self.workflow_selector_getter(wf, exp)
 
         if isinstance(call, WDL.Call):
             task = self.from_loaded_object(call.callee)
-            inp_map = {k: self.translate_expr(v, input_selector_getter=selector_getter) for k, v in call.inputs.items()}
-            return wf.step(call.name, task(**inp_map), when=condition, scatter=scatter)
+            inp_map = {}
+            for k, v in call.inputs.items():
+                new_expr = self.translate_expr(v, input_selector_getter=selector_getter)
+
+                inp_map[k] = new_expr
+
+
+            return wf.step(call.name, task(**inp_map), when=condition, foreach=foreach)
 
         elif isinstance(call, WDL.Conditional):
             # if len(call.body) > 1:
             #     raise NotImplementedError(
             #         f"Janis can't currently support more than one call inside the conditional: {', '.join(str(c) for c in call.body)}")
             for inner_call in call.body:
-                inner_call = call.body[0]
-                self.add_call_to_wf(wf, inner_call, condition=self.translate_expr(call.expr, input_selector_getter=selector_getter))
+                # inner_call = call.body[0]
+                self.add_call_to_wf(
+                    wf,
+                    inner_call,
+                    condition=self.translate_expr(
+                        call.expr, input_selector_getter=selector_getter
+                    ),
+                    expr_alias=expr_alias,
+
+                )
         elif isinstance(call, WDL.Scatter):
-            scatter = None # self.translate_expr(call.expr)
+            # for scatter, we want to take the call.expr, and pass it to a step.foreach
+
+            foreach = self.translate_expr(call.expr)
+
             scar_var_type = self.parse_wdl_type(call.expr.type)
             if isinstance(scar_var_type, WDL.Type.Array):
                 scar_var_type = scar_var_type.item_type
 
-            if call.variable not in wf.input_nodes:
-                wf.input(call.variable, scar_var_type)
+            # when we unwrap each step-input to the workflow, we want to replace 'call.variable' with
+            #       lambda el: <operation with call.variable substituted for {el}>
+            # if call.variable not in wf.input_nodes:
+            #     wf.input(call.variable, scar_var_type)
             for inner_call in call.body:
-                self.add_call_to_wf(wf, inner_call, scatter=scatter)
-
+                self.add_call_to_wf(wf, inner_call, foreach=foreach, expr_alias=call.variable)
 
         elif isinstance(call, WDL.Decl):
             self.add_decl_to_wf_input(wf, call)
@@ -86,12 +107,11 @@ class WdlParser:
     def add_decl_to_wf_input(self, wf: j.WorkflowBase, inp: WDL.Decl):
         default = None
         if inp.expr:
-            default = self.translate_expr(inp.expr)
+            def selector_getter(exp):
+                return self.workflow_selector_getter(wf, exp)
+            default = self.translate_expr(inp.expr, input_selector_getter=selector_getter)
 
         return wf.input(inp.name, self.parse_wdl_type(inp.type), default=default)
-
-
-
 
     def from_loaded_task(self, obj: WDL.Task):
         rt = obj.runtime
@@ -113,12 +133,14 @@ class WdlParser:
         return c
 
     def translate_expr(
-        self, expr: WDL.Expr.Base, input_selector_getter: Callable[[str], any]=None
+        self, expr: WDL.Expr.Base, input_selector_getter: Callable[[str], any] = None
     ) -> Optional[Union[j.Selector, List[j.Selector], int, str, float, bool]]:
         if expr is None:
             return None
 
-        tp = lambda exp: self.translate_expr(exp, input_selector_getter=input_selector_getter)
+        tp = lambda exp: self.translate_expr(
+            exp, input_selector_getter=input_selector_getter
+        )
 
         if isinstance(expr, WDL.Expr.Array):
             # a literal array
@@ -137,7 +159,7 @@ class WdlParser:
                 return input_selector_getter(n)
             return j.InputSelector(n)
         elif isinstance(expr, WDL.Expr.Apply):
-            return self.translate_apply(expr)
+            return self.translate_apply(expr, input_selector_getter=input_selector_getter)
 
         raise Exception(f"Unsupported WDL expression type: {expr} ({type(expr)})")
 
@@ -154,8 +176,13 @@ class WdlParser:
                 continue
 
             token = f"JANIS_WDL_TOKEN_{counter}"
+            if str(placeholder) not in _format:
+                # if the placeholder came up again
+                continue
+
             _format = _format.replace(str(placeholder), f"{{{token}}}")
             elements[token] = self.translate_expr(placeholder)
+            counter += 1
 
         if len(elements) == 0:
             return str(s)
@@ -165,7 +192,7 @@ class WdlParser:
         return j.StringFormatter(_format, **elements)
 
     def translate_apply(
-        self, expr: WDL.Expr.Apply
+        self, expr: WDL.Expr.Apply, **expr_kwargs
     ) -> Union[j.Selector, List[j.Selector]]:
 
         # special case for select_first of array with one element
@@ -174,7 +201,7 @@ class WdlParser:
             if isinstance(inner, WDL.Expr.Array) and len(inner.items) == 1:
                 return self.translate_expr(inner.items[0]).assert_not_null()
 
-        args = [self.translate_expr(e) for e in expr.arguments]
+        args = [self.translate_expr(e, **expr_kwargs) for e in expr.arguments]
 
         fn_map = {
             "_land": j.AndOperator,
@@ -194,7 +221,7 @@ class WdlParser:
             "range": j.RangeOperator,
             "_at": j.IndexOperator,
             "_negate": j.NotOperator,
-            "write_lines": lambda exp: f"write_lines({exp})"
+            "write_lines": lambda exp: f"write_lines({exp})",
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
