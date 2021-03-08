@@ -6,8 +6,9 @@
     DSL2: https://www.nextflow.io/docs/latest/dsl2.html
 
 """
+CONFIG_FILENAME = "nextflow.config"
 
-from .common import Channel, NFFile, Import
+from .common import Channel, NFFile, Import, ImportItem, Function
 from .process import (
     Process,
     ProcessInput,

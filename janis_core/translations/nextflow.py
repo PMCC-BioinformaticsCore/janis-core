@@ -1,3 +1,4 @@
+import os
 import json
 from typing import Tuple, Dict, List, Optional, Union
 
@@ -13,6 +14,11 @@ import janis_core.translations.nfgen as nfgen
 
 
 class NextflowTranslator(TranslatorBase):
+    LIB_FILENAME = "lib.nf"
+    OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
+    NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
+    PARAM_VAR = "%PARAM%"
+
     def __init__(self):
         super().__init__(name="nextflow")
 
@@ -25,7 +31,29 @@ class NextflowTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
-        pass
+        # inputsdict = workflow.inputs_map()
+        # toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
+        #
+        # step_keys = list(workflow.step_nodes.keys())
+        # tool_scripts = {}
+        # tools = {}
+        #
+        # tool_scripts[cls.LIB_FILENAME] = cls.generate_generic_functions()
+        # for step_id in workflow.step_nodes:
+        #     tool = workflow.step_nodes[step_id].tool
+        #     tools[tool.versioned_id()] = tool
+        #     input_file_prefix = f"{tool.versioned_id()}.input"
+        #     # tool_scripts[input_file_prefix] = cls.generate_wf_step_input_vars(tool, step_keys)
+        #     tool_scripts[tool.versioned_id()] = cls.tool_script(tool, step_id, input_file_prefix)
+        #
+        # return cls.workflow_script(workflow, tools), tool_scripts
+
+        imports = [
+            cls.init_helper_functions_import()
+        ]
+        nf_file = nfgen.NFFile(imports=imports, items=[w])
+
+        return nf_file.get_string()
 
     @classmethod
     def translate_tool_internal(
@@ -36,6 +64,91 @@ class NextflowTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> nfgen.process:
+
+        process = cls.init_process(tool)
+
+        if with_container:
+            container = (
+                    NextflowTranslator.get_container_override_for_tool(
+                        tool, container_override
+                    )
+                    or tool.container()
+            )
+
+        if container is not None:
+            process.directives.append(
+                nfgen.ContainerDirective(
+                    cls.unwrap_expression(container, is_code_environment=True)
+                )
+            )
+        elif not allow_empty_container:
+            raise Exception(
+                f"The tool '{tool.id()}' did not have a container and no container override was specified. "
+                f"Although not recommended, Janis can export empty docker containers with the parameter "
+                f"'allow_empty_container=True' or --allow-empty-container"
+            )
+
+        imports = [
+            cls.init_helper_functions_import()
+        ]
+
+        items = [
+            process,
+            cls.init_output_process(tool=tool, nf_process=process),
+            cls.init_execution(nf_process=process)
+        ]
+        nf_file = nfgen.NFFile(imports=imports, items=items)
+
+        return nf_file.get_string()
+
+    @classmethod
+    def translate_helper_files(cls, tool):
+        helpers = {}
+
+        lib_file = nfgen.NFFile(imports=[], items=cls.generate_generic_functions())
+
+        helpers[cls.LIB_FILENAME] = lib_file.get_string()
+        helpers[nfgen.CONFIG_FILENAME] = cls.generate_config()
+
+        return helpers
+
+    @classmethod
+    def init_output_process(cls, tool, nf_process: nfgen.NFBase):
+        inputs = []
+        for o in nf_process.outputs:
+            # Always use 'val' qualifier
+            inp = nfgen.ProcessInput(qualifier=nfgen.InputProcessQualifier.val, name=nf_process.name + o.name)
+            inputs.append(inp)
+
+        tool_outputs = cls.prepare_tool_output(tool)
+
+        script = ""
+        for key, val in tool_outputs.items():
+            script += f"echo {key}={val} >> {cls.OUTPUT_METADATA_FILENAME}"
+
+        outputs = [nfgen.ProcessOutput(
+            qualifier=nfgen.OutputProcessQualifier.path,
+            name="janis_output_metadata",
+            expression=f"'{cls.OUTPUT_METADATA_FILENAME}'",
+        )]
+
+        process = nfgen.Process(
+            name="outputs",
+            script=script,
+            script_type=nfgen.ProcessScriptType.script,
+            inputs=inputs,
+            outputs=outputs
+        )
+
+        return process
+
+    @classmethod
+    def init_helper_functions_import(cls):
+        items = [nfgen.ImportItem(name=f.name) for f in cls.generate_generic_functions()]
+        return nfgen.Import(items, os.path.join(".", cls.DIR_TOOLS, cls.LIB_FILENAME))
+
+    @classmethod
+    def init_process(cls, tool):
         # construct script
         script = cls.prepare_script_for_tool(tool)
         pre_script = cls.prepare_expression_inputs(tool)
@@ -47,19 +160,17 @@ class NextflowTranslator(TranslatorBase):
             script=script,
             script_type=nfgen.ProcessScriptType.script,
             pre_script=pre_script,
-            outputs_metadata=cls.prepare_tool_output(tool)
         )
 
         inputs: List[ToolInput] = tool.inputs()
         outputs: List[ToolOutput] = tool.outputs()
-        inpmap = {i.id(): i for i in inputs}
 
         for i in inputs:
             qual = get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
             if isinstance(i.input_type, File):
-                inp.as_process_param = f"Channel.fromPath({nfgen.ProcessInput.PARAM_VAR}).collect()"
+                inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
 
             process.inputs.append(inp)
 
@@ -91,28 +202,77 @@ class NextflowTranslator(TranslatorBase):
             )
             process.outputs.append(out)
 
-        if with_container:
-            container = (
-                NextflowTranslator.get_container_override_for_tool(
-                    tool, container_override
-                )
-                or tool.container()
-            )
+        return process
 
-            if container is not None:
-                process.directives.append(
-                    nfgen.ContainerDirective(
-                        cls.unwrap_expression(container, is_code_environment=True)
-                    )
-                )
-            elif not allow_empty_container:
-                raise Exception(
-                    f"The tool '{tool.id()}' did not have a container and no container override was specified. "
-                    f"Although not recommended, Janis can export empty docker containers with the parameter "
-                    f"'allow_empty_container=True' or --allow-empty-container"
-                )
+    @classmethod
+    def init_execution(cls, nf_process: nfgen.NFBase):
+        args_list = []
+        for i in nf_process.inputs:
 
-        return process.get_string()
+            p = f"params.{i.name}"
+            if i.as_process_param:
+                p = i.as_process_param.replace(cls.PARAM_VAR, p)
+
+            args_list.append(p)
+
+        args = ", ".join(args_list)
+        outputs_args = ", ".join(f"{nf_process.name}.out.{o.name}" for o in nf_process.outputs)
+
+        main = [
+            f"{nf_process.name}({args})",
+            f"outputs({outputs_args})"
+        ]
+
+        return nfgen.Workflow(name="", main=main)
+
+    @classmethod
+    def workflow_script(cls, workflow: WorkflowBase, tools: Dict[str, Tool]):
+        w = nfgen.workflow()
+
+    @classmethod
+    def generate_config(cls):
+        return f"""
+docker.enabled = true
+"""
+
+    @classmethod
+    def generate_generic_functions(cls):
+
+        functions = [
+            nfgen.Function(
+                name="optional",
+                parameters=["var", "prefix"],
+                definition=f"""
+var = var.toString()
+if (var && ( var != 'None' ) && (! var.contains('{cls.NO_FILE_PATH_PREFIX}')))
+{{
+    return prefix.toString() + var
+}}
+else
+{{
+    return ''
+}}
+"""
+            ),
+            nfgen.Function(
+                name="boolean_flag",
+                parameters=["var", "prefix"],
+                definition=f"""
+var = var.toString()
+if (var == 'True')
+{{
+    return prefix.toString()
+}}
+else
+{{
+    return ''
+}}
+"""
+            ),
+        ]
+
+        return functions
+
 
     @classmethod
     def translate_code_tool_internal(
@@ -129,7 +289,6 @@ class NextflowTranslator(TranslatorBase):
             cls,
             value,
             quote_string=True,
-            selector_override=None,
             tool=None,
             for_output=False,
             inputs_dict=None,
@@ -155,7 +314,6 @@ class NextflowTranslator(TranslatorBase):
                 el = cls.unwrap_expression(
                     value[i],
                     quote_string=quote_string,
-                    selector_override=selector_override,
                     tool=tool,
                     tool_id=toolid + "." + str(i),
                     inputs_dict=inputs_dict,
@@ -183,7 +341,6 @@ class NextflowTranslator(TranslatorBase):
         elif isinstance(value, StringFormatter):
             return cls.translate_string_formatter(
                 value,
-                selector_override=selector_override,
                 in_shell_script=in_shell_script,
                 tool=tool,
                 inputs_dict=inputs_dict,
@@ -193,12 +350,9 @@ class NextflowTranslator(TranslatorBase):
         elif isinstance(value, InputSelector):
             if for_output:
                 el = cls.prepare_filename_replacements_for(value, inputsdict=inputs_dict)
-                return cls.wrap_in_codeblock_if_required(
-                    el, is_code_environment=quote_string
-                )
+                return el
             return cls.translate_input_selector(
                 selector=value,
-                selector_override=selector_override,
                 inputs_dict=inputs_dict,
                 skip_inputs_lookup=skip_inputs_lookup,
                 in_shell_script=in_shell_script
@@ -211,7 +365,6 @@ class NextflowTranslator(TranslatorBase):
             unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
                 exp,
                 quote_string=quote_string,
-                selector_override=selector_override,
                 tool=tool,
                 for_output=for_output,
                 inputs_dict=inputs_dict,
@@ -232,7 +385,6 @@ class NextflowTranslator(TranslatorBase):
     def translate_string_formatter(
             cls,
             selector: StringFormatter,
-            selector_override,
             tool,
             in_shell_script=False,
             inputs_dict=None,
@@ -243,7 +395,7 @@ class NextflowTranslator(TranslatorBase):
             return str(selector)
 
         kwargreplacements = {
-            k: f"{cls.unwrap_expression(v, selector_override=selector_override, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
+            k: f"{cls.unwrap_expression(v, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
             for k, v in selector.kwargs.items()
         }
 
@@ -311,7 +463,6 @@ class NextflowTranslator(TranslatorBase):
     def translate_input_selector(cls,
                                  selector: InputSelector,
                                  inputs_dict,
-                                 selector_override=None,
                                  skip_inputs_lookup=False,
                                  in_shell_script=False,
                                  for_output=False
@@ -323,9 +474,6 @@ class NextflowTranslator(TranslatorBase):
             raise Exception("No input was selected for input selector: " + str(selector))
 
         skip_lookup = skip_inputs_lookup or sel.startswith("runtime_")
-
-        if selector_override and sel in selector_override:
-            sel = selector_override[sel]
 
         if not skip_lookup:
 
@@ -415,7 +563,7 @@ class NextflowTranslator(TranslatorBase):
                 if isinstance(i.intype, (File, Directory)) \
                         or (isinstance(i.intype, (Array)) and isinstance(i.intype.subtype(), (File, Directory))):
                     count += 1
-                    val = f"/{nfgen.Process.NO_FILE_PATH_PREFIX}{count}"
+                    val = f"/{cls.NO_FILE_PATH_PREFIX}{count}"
                 else:
                     val = ''
 
@@ -481,18 +629,6 @@ class NextflowTranslator(TranslatorBase):
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         pass
-
-    @classmethod
-    def wrap_in_codeblock_if_required(cls, value, is_code_environment):
-        return value if is_code_environment else f"$({value})"
-
-    @classmethod
-    def quote_values_if_code_environment(cls, value, is_code_environment):
-        return f'"{value}"' if is_code_environment else value
-
-    @classmethod
-    def prepare_escaped_string(cls, value: str):
-        return json.dumps(value)[1:-1]
 
     @classmethod
     def prepare_script_for_tool(cls, tool: CommandTool):

@@ -1,6 +1,7 @@
 from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Optional, List
+from textwrap import indent
 
 
 def filter_null(iterable):
@@ -33,17 +34,18 @@ class NFBase(ABC):
         raise Exception("Subclass must override .get_string() method")
 
 
+class ImportItem(NFBase):
+    def __init__(self, name: str, alias: Optional[str] = None):
+        self.name = name
+        self.alias = alias
+
+    def get_string(self):
+        if self.alias:
+            return f"{self.name} as {self.alias}"
+        return self.name
+
+
 class Import(NFBase):
-    class ImportItem(NFBase):
-        def __init__(self, name: str, alias: Optional[str] = None):
-            self.name = name
-            self.alias = alias
-
-        def get_string(self):
-            if self.alias:
-                return f"{self.name} as {self.alias}"
-            return self.name
-
     def __init__(self, items: List[ImportItem], source: str):
         self.items = items
         self.source = source
@@ -87,3 +89,17 @@ class Channel(NFBase):
     @classmethod
     def from_(cls, value):
         return cls("from", value)
+
+
+class Function(NFBase):
+    def __init__(self, name: str, parameters: List[str], definition: str):
+        self.name = name
+        self.definition = definition
+        self.parameters = parameters
+
+    def get_string(self):
+        return f"""
+def {self.name}({", ".join(self.parameters)}) {{
+  {indent(self.definition, '  ')}
+}}
+"""
