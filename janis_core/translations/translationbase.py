@@ -93,6 +93,8 @@ class TranslatorBase(ABC):
 
     __metaclass__ = TranslatorMeta
 
+    DIR_TOOLS = "tools"
+
     def __init__(self, name):
         self.name = name
 
@@ -119,7 +121,7 @@ class TranslatorBase(ABC):
         container_override=None,
     ):
 
-        str_tool, tr_tools = None, []
+        str_tool, tr_tools, tr_helpers = None, [], {}
 
         if tool.type() == ToolType.Workflow:
             tr_tool, tr_tools = self.translate_workflow(
@@ -147,6 +149,8 @@ class TranslatorBase(ABC):
             )
             str_tool = self.stringify_translated_tool(tr_tool)
 
+        tr_helpers = self.translate_helper_files(tool)
+
         tr_inp = self.build_inputs_file(
             tool,
             recursive=False,
@@ -162,12 +166,20 @@ class TranslatorBase(ABC):
         str_inp = self.stringify_translated_inputs(tr_inp)
         str_tools = [
             (
-                "tools/" + self.tool_filename(t),
+                os.path.join(self.DIR_TOOLS, self.tool_filename(t)),
                 self.stringify_translated_workflow(tr_tools[t]),
             )
             for t in tr_tools
         ]
         str_resources = self.stringify_translated_inputs(tr_res)
+
+        str_helpers = [
+            (
+                os.path.join(self.DIR_TOOLS, filename),
+                tr_helpers[filename]
+
+            ) for filename, file_content in tr_helpers.items()
+        ]
 
         if to_console:
             print("=== WORKFLOW ===")
@@ -202,7 +214,7 @@ class TranslatorBase(ABC):
 
         if to_disk:
 
-            toolsdir = os.path.join(d, "tools")
+            toolsdir = os.path.join(d, self.DIR_TOOLS)
             if not os.path.isdir(toolsdir):
                 os.makedirs(toolsdir)
 
@@ -212,6 +224,12 @@ class TranslatorBase(ABC):
                 Logger.log(f"Writing {fn_workflow} to disk")
                 wf.write(str_tool)
                 Logger.log(f"Wrote {fn_workflow}  to disk")
+
+            for (fn_helper, disk_str_helper) in str_helpers:
+                with open(os.path.join(d, fn_helper), "w+") as helperfp:
+                    Logger.log(f"Writing {fn_helper} to disk")
+                    helperfp.write(disk_str_helper)
+                    Logger.log(f"Written {fn_helper} to disk")
 
             for (fn_tool, disk_str_tool) in str_tools:
                 with open(os.path.join(d, fn_tool), "w+") as toolfp:
@@ -408,6 +426,10 @@ class TranslatorBase(ABC):
         container_override: dict = None,
     ):
         pass
+
+    @classmethod
+    def translate_helper_files(cls, tool) -> Dict[str, str]:
+        return {}
 
     @classmethod
     @abstractmethod
