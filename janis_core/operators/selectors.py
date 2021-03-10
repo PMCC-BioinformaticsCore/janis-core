@@ -308,6 +308,14 @@ class InputSelector(Selector):
 
         return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
 
+    def init_dictionary(self):
+        d = {"input_to_select": self.input_to_select}
+        if self.remove_file_extension is not None:
+            d["remove_file_extension"] = self.remove_file_extension
+        if not isinstance(self.type_hint, File):
+            d["type_hint"] = self.type_hint
+        return d
+
     def __str__(self):
         return "inputs." + self.input_to_select
 
