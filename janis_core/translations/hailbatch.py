@@ -1,3 +1,4 @@
+import inspect
 from textwrap import indent
 from typing import Tuple, Dict, Union
 
@@ -15,7 +16,8 @@ from janis_core import (
     If,
     JoinOperator,
     FirstOperator, BasenameOperator, AliasSelector, ForEachSelector, FilterNullOperator, WildcardSelector,
-    IndexOperator, RangeOperator, LengthOperator,
+    IndexOperator, RangeOperator, LengthOperator, AssertNotNull, Operator, NotOperator,
+    apply_secondary_file_format_to_filename,
 )
 from janis_core.translations.janis import JanisTranslator
 from janis_core.types.common_data_types import *
@@ -23,16 +25,49 @@ from janis_core.tool.commandtool import CommandTool
 from janis_core.workflow.workflow import WorkflowBase, InputNode
 from janis_core.translations import TranslatorBase
 
+SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
+REMOVE_EXTENSION = (
+    lambda x, iterations: f"$(echo '{x}' {iterations * SED_REMOVE_EXTENSION})" if iterations > 0 else x
+)
+
 # TO avoid format errors when unwrapping StringFormatter, we'll use the following dictionary
 # that returns the key if it's missing:
 class DefaultDictionary(dict):
     def __missing__(self, key):
-        return key
+        return "{{" + str(key) + "}}"
+
 
 class HailBatchTranslator:
     @classmethod
     def get_method_name_for_id(cls, identifier):
         return f"add_{identifier}_step"
+
+    @classmethod
+    def janis_type_to_py_annotation(cls, dt: DataType):
+        annotation = None
+        if isinstance(dt, Array):
+            annotation = f"List[{cls.janis_type_to_py_annotation(dt.subtype())}]"
+        elif isinstance(dt, UnionType):
+            inner = set(cls.janis_type_to_py_annotation(t) for t in dt.subtypes)
+            if len(inner) == 1:
+                annotation = list(inner)[0]
+            else:
+                annotation = f"Union[{', '.join(inner)}]"
+        elif dt.is_base_type((File, String, Directory)):
+            annotation = "str"
+        elif dt.is_base_type(Int):
+            annotation = "int"
+        elif dt.is_base_type((Float, Double)):
+            annotation = "float"
+        elif dt.is_base_type(Boolean):
+            annotation = "bool"
+
+        if annotation is None:
+            Logger.info(f"Couldn't generate python type annotation for {dt.name}")
+        elif dt.optional:
+            annotation = f"Optional[{annotation}]"
+        return annotation
+
 
     @classmethod
     def translate_workflow(
@@ -42,15 +77,24 @@ class HailBatchTranslator:
         container_override: dict = None,
     ) -> str:
 
-        kwargs, kwargs_with_defaults = [], []
+        kwargs_no_annotations, kwargs, kwargs_with_defaults = [], [], []
         step_definitions = []
         step_calls = []
         inputs_to_read = []
+        additional_expressions = []
 
         for inp in workflow.input_nodes.values():
             dt = inp.datatype
-            kwarg, has_default = cls.get_kwarg_from_value(inp.id(), dt, inp.default)
-            (kwargs_with_defaults if has_default else kwargs).append(kwarg)
+            kwarg, has_default, ad_expr = cls.get_kwarg_from_value(inp.id(), dt, inp.default)
+            additional_expressions.extend(ad_expr)
+
+            if not has_default:
+                kwargs.append(kwarg)
+                kwarg_no_annotation, _, _ = cls.get_kwarg_from_value(inp.id(), dt, None, include_annotation=False)
+                kwargs_no_annotations.append(kwarg_no_annotation)
+            else:
+                kwargs_with_defaults.append(kwarg)
+
             if dt.is_base_type(File) or (
                 isinstance(dt, Array) and dt.fundamental_type().is_base_type(File)
             ):
@@ -62,7 +106,7 @@ class HailBatchTranslator:
             if isinstance(stp.tool, CodeTool):
                 raise NotImplementedError("No support for code tool yet")
 
-            connections = stp.tool.connections
+            connections = stp.sources
             foreach = stp.foreach
             if stp.scatter:
                 if len(stp.scatter.fields) == 1:
@@ -74,8 +118,9 @@ class HailBatchTranslator:
             step_definitions.append(cls.translate_tool_internal(stp.tool, stp.id()))
 
             inner_connections = {}
-            for k, con in stp.tool.connections.items():
-                inner_connections[k] = cls.unwrap_expression(con)
+            for k, con in connections.items():
+                src = con.source().source
+                inner_connections[k] = cls.unwrap_expression(src, code_environment=True)
 
             inner_connection_str = ", ".join(
                 f"{k}={v}" for k, v in inner_connections.items()
@@ -83,19 +128,28 @@ class HailBatchTranslator:
             inner_call = f"{cls.get_method_name_for_id(stp.id())}(b, {inner_connection_str})"
             if foreach is not None:
 
-                foreach_str = cls.unwrap_expression(foreach)
+                foreach_str = cls.unwrap_expression(foreach, code_environment=True)
                 call = f"""
 {stp.id()} = []
 for idx in {foreach_str}:
     {stp.id()}.append({inner_call})"""
             else:
                 call = f"{stp.id()} = {inner_call}"
+
+            if stp.when is not None:
+                when_str = cls.unwrap_expression(stp.when, code_environment=True)
+                call = f"""\
+{stp.id()} = None
+if {when_str}:
+{indent(call, 4 * ' ')}
+"""
             step_calls.append(call)
 
         # for outp in workflow.output_nodes.values():
         #     step_calls.append("b.write_output({source}, {name})")
 
         pd = 4 * " "
+        additional_preparation_expressions_str = "\n".join(indent(t, pd) for t in additional_expressions)
         inputs_to_read_str = "\n".join(
             f"{pd}{inp.id()} = "
             + cls.prepare_input_read_for_inp(inp.datatype, inp.id())
@@ -103,12 +157,15 @@ for idx in {foreach_str}:
         )
         step_calls_str = "\n".join(indent(s, pd) for s in step_calls)
         step_definitions_str = "\n\n".join(step_definitions)
+
+
         retval = f"""\
 import hailtop.batch as hb
+from typing import Union, Optional, List
 
 def main({', '.join([*kwargs, *kwargs_with_defaults])}):
     b = hb.Batch('{workflow.id()}')
-
+{additional_preparation_expressions_str}
 {inputs_to_read_str}
 
 {step_calls_str}
@@ -116,8 +173,10 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
     
 {step_definitions_str}
 
+{inspect.getsource(apply_secondary_file_format_to_filename)}
+
 if __name__ == "__main__":
-    main({", ".join(k + "=None" for k in kwargs)})
+    main({", ".join(k + "=None" for k in kwargs_no_annotations)})
 """
 
         try:
@@ -125,9 +184,9 @@ if __name__ == "__main__":
 
             try:
                 return black.format_str(retval, mode=black.FileMode(line_length=82))
-            except black.InvalidInput:
+            except black.InvalidInput as e:
                 Logger.warn(
-                    "Check the generated Janis code carefully, as there might be a syntax error. You should report this error along with the workflow you're trying to generate from"
+                    f"Couldn't format python code due to Black error: {e}"
                 )
         except ImportError:
             Logger.debug(
@@ -147,6 +206,8 @@ if __name__ == "__main__":
         if isinstance(dt, File) and dt.secondary_files():
             # we need to build a reference group
             ext = (dt.extension or "root").replace(".", "")
+            exts = [a for a in [dt.extension, *(dt.alternate_extensions or [])] if a]
+            base = f'{reference_var}' + "".join(f'.replace("{e}", "")' for e in exts)
             dsec = {}
             for sec in dt.secondary_files():
                 sec_key = sec.replace("^", "").replace(".", "")
@@ -154,7 +215,7 @@ if __name__ == "__main__":
                     sec_without_pattern = sec.replace("^", "")
                     dsec[
                         sec_key
-                    ] = f'{reference_var}[:-{len(ext) + 1}] + "{sec_without_pattern}"'
+                    ] = f'{base} + "{sec_without_pattern}"'
                 else:
                     dsec[sec_key] = f'{reference_var} + "{sec}"'
 
@@ -162,6 +223,45 @@ if __name__ == "__main__":
             return f"{batch_var}.read_input_group({ext}={reference_var}, {dsec_str})"
         else:
             return f"{batch_var}.read_input({reference_var})"
+
+
+    @classmethod
+    def prepare_read_group_dictionary_from_dt(cls, datatype: DataType):
+        if not isinstance(datatype, File):
+            return None
+        secs = datatype.secondary_files()
+        if not secs:
+            return None
+        # if all extension are just additions, like ".vcf" and ".vcf.idx", it's:
+        #   {"vcf": "{root}", "idx": "{root}.idx"}
+        # else for example if it's ref.fasta and ref.dict, it's:
+        #   {"fasta": "{root}.fasta", "dict": "{root}.dict"}
+
+        extension = datatype.extension or ""
+        extension_without_dot = extension.replace(".", "")
+        nameroot_value = "{root}"
+
+        # this only works if there's one hat
+        d = {}
+        if any(s.startswith("^") for s in secs):
+            # nameroot_value = "{root}.fasta"
+            nameroot_value = "{root}" + extension_without_dot
+
+            if any(s.startswith("^^") for s in secs):
+                Logger.warn(f"Secondary file patterns in '{datatype.name}' ({secs}) with two carats (^^) are not supported in Batch, will ")
+
+            for s in secs:
+                sname = s.replace("^", "").replace(".", "")
+                if "^" in s:
+                    d[sname] = "{root}" + s.replace("^", "")
+                else:
+                    d[sname] = nameroot_value + s
+        else:
+            d = {s.replace(".", ""): nameroot_value + s for s in secs}
+
+        d[extension_without_dot or "root"] = nameroot_value
+
+        return d
 
     @classmethod
     def translate_tool_internal(
@@ -176,12 +276,30 @@ if __name__ == "__main__":
 
         kwargs = []
         kwargs_with_defaults = []
+        additional_expressions = []
         pd = 4 * " "
 
         args_to_bind: List[ToolArgument] = [*(tool.arguments() or [])]
+        inputs_specified_in_arguments = set()
+        args_to_check = [tool.cpus({}), tool.memory({}), tool.disk({})]
+        for arg in (tool.arguments() or []):
+            args_to_check.append(arg)
+        filestocreate = tool.files_to_create() or {}
+        for fn, file in filestocreate.items():
+            args_to_check.extend([fn, file])
+
+        while len(args_to_check) > 0:
+            arg = args_to_check.pop(0)
+            if arg is None:
+                continue
+            elif isinstance(arg, InputSelector):
+                inputs_specified_in_arguments.add(arg.input_to_select)
+            elif isinstance(arg, Operator):
+                args_to_check.extend(arg.get_leaves())
+
         for inp in tool.inputs():
             is_required = not inp.input_type.optional
-            is_specified = tool.connections and inp.id() in tool.connections
+            is_specified = inp.id() in tool.connections or inp.id() in inputs_specified_in_arguments
             has_default = inp.default is not None
             is_filename = isinstance(inp.input_type, Filename)
 
@@ -192,32 +310,34 @@ if __name__ == "__main__":
                 args_to_bind.append(inp)
 
             if not is_filename or is_specified:
-                kwarg, has_default = cls.get_kwarg_from_value(
-                    inp.id(), inp.input_type, inp.default
+                kwarg, has_default, ad_expr = cls.get_kwarg_from_value(
+                    inp.id(), inp.input_type, inp.default, include_annotation=False
                 )
+                additional_expressions.extend(ad_expr)
                 (kwargs_with_defaults if has_default else kwargs).append(kwarg)
 
         # outputs
         command_extras = ""
         output_collectors = []
         for outp in tool.outputs():
-            if isinstance(outp.selector, Stdout):
-                command_extras += f"> {{j.{outp.id()}}}"
-            if isinstance(outp.selector, Stderr):
-                command_extras += f"2> {{j.{outp.id()}}}"
-            if isinstance(outp.selector, Selector):
-                value = cls.unwrap_expression(outp.selector)
-                output_collectors.append(f'ln "{{{value}}}" {{j.{outp.id()}}}')
+            out_command_extras, outputs_to_collect, out_additional_expressions = cls.translate_tool_output(outp)
+            if out_command_extras:
+                command_extras += out_command_extras
+            if outputs_to_collect:
+                output_collectors.extend(outputs_to_collect)
+            if out_additional_expressions:
+                additional_expressions.extend(out_additional_expressions)
 
-        if tool.base_command() == ["sh", "script.sh"] and tool.files_to_create().get("script.sh") is not None:
+        if tool.base_command() == ["sh", "script.sh"] and filestocreate.get("script.sh") is not None:
             # In the WDL converter, instead of breaking down the script, we
             # just write it as StringFormatter to the files_to_create["script.sh"]
             # we can unwrap it here manually I think.
             script_str_formatter = tool.files_to_create().get("script.sh")
+            code_block = cls.unwrap_expression(script_str_formatter, code_environment=False)\
+                .strip()\
+                .replace("\\n", "\\\\\n")
             command_constructor_str = f'''\
-    j.command(f"""\
-{cls.unwrap_expression(script_str_formatter).strip()}
-""")
+    j.command(f"""{code_block}""")
 '''
         else:
             command = ""
@@ -263,25 +383,90 @@ if __name__ == "__main__":
 """
         # command += "".join(f" \\\\\\n    {s}" for s in command_args)
 
+        # container
         kwargs_with_defaults.append(f'container="{tool.container()}"')
+        additional_expressions.append("j.image(container)")
 
+        # memory
+        tmemory = tool.memory({})
+        if tmemory is not None:
+            tmemory = cls.unwrap_expression(tmemory, code_environment=False)
+            additional_expressions.append(
+                f"j.memory(f'{tmemory}G')"
+            )
+        tdisk = tool.disk({})
+        if tdisk is not None:
+            tdisk = cls.unwrap_expression(tdisk, code_environment=False)
+            additional_expressions.append(
+                f"j.storage(f'{tdisk}G')"
+            )
 
-
+        additional_expressions_str = "\n".join(indent(t, pd) for t in additional_expressions)
         output_collectors_str = "\n".join(
-            f'{pd}j.command(f\'{o}\')' for o in output_collectors
+            f'{pd}j.command({o})' for o in output_collectors
         )
 
         return f"""\
 def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *kwargs_with_defaults])}):
-    j = b.new_job('{tool.id()}')
+    j = b.new_job('{step_id}')
+{additional_expressions_str}
     
-    j.image(container)
 {command_constructor_str}
 {output_collectors_str}
-    j.memory("4Gb")
     
     return j
 """
+
+    @classmethod
+    def translate_tool_output(cls, outp) -> Tuple[Optional[str], List[str], List[str]]:
+        command_extras = None
+        output_collectors, additional_expressions = [], []
+        secs = (outp.output_type.secondary_files() if isinstance(outp.output_type, File) else None) or []
+        if secs:
+            # prepare resource group
+            sec = JanisTranslator.get_string_repr(cls.prepare_read_group_dictionary_from_dt(outp.output_type))
+            additional_expressions.append(f"j.declare_resource_group({outp.id()}={sec})")
+
+        values = []
+        dests = [f"j.{outp.id()}"]
+        sec_presents_as = outp.secondaries_present_as or {}
+        if isinstance(outp.selector, Stdout):
+            command_extras += f" > {{j.{outp.id()}}}"
+        elif isinstance(outp.selector, Stderr):
+            command_extras += f" 2> {{j.{outp.id()}}}"
+        elif isinstance(outp.selector, WildcardSelector):
+            gl = cls.unwrap_expression(outp.selector.wildcard, code_environment=True)
+            values.append(gl)
+            for s in secs:
+                initial_sec = sec_presents_as.get(s, s).replace("^", "")
+                final_ext, final_iters = cls.split_secondary_file_carats(s)
+                values.append(gl + initial_sec)
+                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+        elif isinstance(outp.selector, Operator):
+            # maybe check leaves for wildcard, because that won't be supported
+            value = cls.unwrap_expression(outp.selector, code_environment=True)
+            values = [value]
+            for s in secs:
+                initial_ext, initial_iters = cls.split_secondary_file_carats(sec_presents_as.get(s, s))
+                final_ext, final_iters = cls.split_secondary_file_carats(s)
+                values.append(REMOVE_EXTENSION(value, initial_iters) + initial_ext)
+                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+        elif isinstance(outp.selector, Selector):
+            value = cls.unwrap_expression(outp.selector, code_environment=True)
+            values = [value]
+            for s in secs:
+                initial_ext, initial_iters = cls.split_secondary_file_carats(sec_presents_as.get(s, s))
+                final_ext, final_iters = cls.split_secondary_file_carats(s)
+                values.append(REMOVE_EXTENSION(value, initial_iters) + initial_ext)
+                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+        else:
+            Logger.warn("Couldn't translate output selector ")
+
+        if values and dests:
+            for value, dest in zip(values, dests):
+                output_collectors.append(f'\'ln "{{value}}" {{dest}}\'.format(value={value}, dest={dest})')
+
+        return command_extras, output_collectors, additional_expressions
 
     @classmethod
     def get_command_argument_for_tool_input(
@@ -350,7 +535,7 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
                     inner_value = FirstOperator(InputSelector(tool_input.id(), intype))
 
                 check_condition = None
-                expr = cls.unwrap_expression(inner_value, quote_strings=False)
+                expr = cls.unwrap_expression(inner_value, code_environment=False)
                 other_required_statements.append(
                     f'{tool_input.id()} = f"{escape_quotes(expr)}"'
                 )
@@ -379,17 +564,17 @@ if {check_condition}:
 
     @classmethod
     def get_command_argument_for_tool_argument(cls, arg: ToolArgument):
-        if "--java" in str(arg):
-            return None, []
+
         requires_quotes = arg.shell_quote is not False
+
+        from shlex import quote
 
         # quote entire string
         q, sq = '"', '\\"'
         escape_quotes = lambda el: el.replace(q, sq)
         quote_value_if_required = lambda el: f"{q}{escape_quotes(el)}{q}" if requires_quotes else el
 
-
-        value = cls.unwrap_expression(arg.value, quote_strings=False).replace("\\t",  "\\\\t")
+        value = cls.unwrap_expression(arg.value, code_environment=False).replace("\\t",  "\\\\t")
 
         # we're quoting early, so we don't need to do any quoting later
         if isinstance(value, list):
@@ -409,40 +594,47 @@ if {check_condition}:
 
     @classmethod
     def get_kwarg_from_value(
-        cls, identifier: str, datatype: DataType, default: any
-    ) -> Tuple[str, bool]:
+        cls, identifier: str, datatype: DataType, default: any, include_annotation=True
+    ) -> Tuple[str, bool, List[str]]:
         has_default = default is not None
         kwarg = identifier
-        if isinstance(datatype, (String, Float, Int, Double)):
-            # kwarg += ": {inp.input_type.toPythonPrim()}"
+        extra_statements = []
+
+        annotation = cls.janis_type_to_py_annotation(datatype)
+        if include_annotation and annotation is not None:
+            kwarg += f": {annotation}"
             pass
         if has_default:
             inner_default = None
             if isinstance(default, Selector):
                 # can't
-                Logger.warn(
-                    f"Can't calculate default for identifier '{identifier}': '{default}' as batch won't support this"
-                )
-                has_default = False
+                if isinstance(default, StepOutputSelector) or (isinstance(default, Operator) and any(isinstance(l, StepOutputSelector) for l in default.get_leaves())):
+                    Logger.warn(
+                        f"Can't calculate default for identifier '{identifier}': '{default}' as it relies on "
+                        f"the output of a step, and batch won't support this"
+                    )
+                else:
+                    # insert extra statement to start of function to evaluate this value
+                    extra_statements.append(
+                        f"{identifier} = {identifier} if {identifier} is not None else {cls.unwrap_expression(default, code_environment=True)}"
+                    )
             else:
                 # useful to get_string_repr
-                from janis_core.translations.janis import JanisTranslator
-
-                inner_default = JanisTranslator.get_string_repr(default)
+                inner_default = cls.unwrap_expression(default, code_environment=True)
 
             if has_default:
                 kwarg += f"={inner_default}"
 
-        return kwarg, has_default
+        return kwarg, has_default, extra_statements
 
     @classmethod
-    def unwrap_expression(cls, value, quote_strings=True) -> Union[str, List[str]]:
+    def unwrap_expression(cls, value, code_environment=False) -> Union[str, List[str]]:
         if value is None:
             return "None"
         elif isinstance(value, list):
-            return [cls.unwrap_expression(e) for e in value]
+            return [cls.unwrap_expression(e, code_environment=True) for e in value]
         elif isinstance(value, (str, int, float)):
-            if quote_strings:
+            if code_environment:
                 return JanisTranslator.get_string_repr(value)
             else:
                 return str(value)
@@ -461,56 +653,81 @@ if {check_condition}:
                 prefix = "generated"
             return value.generated_filename({"prefix": prefix})
         elif isinstance(value, StringFormatter):
-            retval = value._format.format_map(
-                DefaultDictionary({
-                    k: f"{{{cls.unwrap_expression(v)}}}"
+            d = DefaultDictionary({
+                    # keep in curly braces for the
+                    str(k): f"{{{cls.unwrap_expression(v, code_environment=False)}}}"
                     for k, v in value.kwargs.items()
                 })
-            )
+            f = value._format
+            retval = f.format_map(d)
+            if code_environment:
+                return f'f"{retval}"'
             return retval
-        # i don't know about this, might need to be moved to somewhere later
-        elif isinstance(value, TwoValueOperator):
-            arg1, arg2 = [cls.unwrap_expression(a) for a in value.args]
-            return f"({arg1} {value.symbol()} {arg2})"
-        elif isinstance(value, IsDefined):
-            return f"({cls.unwrap_expression(value.args[0])} is not None)"
-        elif isinstance(value, If):
-            condition, iftrue, iffalse = [cls.unwrap_expression(a) for a in value.args]
-            return f"({iftrue} if {condition} else {iffalse})"
-        elif isinstance(value, JoinOperator):
-            iterable, sep = [cls.unwrap_expression(a) for a in value.args]
-            return f"{sep}.join({iterable})"
-        elif isinstance(value, FilterNullOperator):
-            iterable = JanisTranslator.get_string_repr(cls.unwrap_expression(value.args[0]))
-            return f"[a for a in {iterable} if a is not None]"
-        elif isinstance(value, FirstOperator):
-            iterable = JanisTranslator.get_string_repr(cls.unwrap_expression(value.args[0]))
-            return f"[a for a in {iterable} if a is not None][0]"
         elif isinstance(value, AliasSelector):
-            return cls.unwrap_expression(value.inner_selector)
-        elif isinstance(value, BasenameOperator):
-            val = JanisTranslator.get_string_repr(cls.unwrap_expression(value.args[0]))
-
-            return f"os.path.basename({val})"
+            return cls.unwrap_expression(value.inner_selector, code_environment=code_environment)
         elif isinstance(value, WildcardSelector):
-            gl = cls.unwrap_expression(value.wildcard)
-            return f"glob({gl})"
-        elif isinstance(value, IndexOperator):
-            iterable, idx = [cls.unwrap_expression(a) for a in value.args]
-            return f"{iterable}[{idx}]"
-        elif isinstance(value, RangeOperator):
-            iterable = cls.unwrap_expression(value.args[0])
-            return f"range({iterable})"
-        elif isinstance(value, LengthOperator):
-            iterable = cls.unwrap_expression(value.args[0])
-            return f"len({iterable})"
+            raise Exception("Wildcard selectors are not valid within operators")
+
+        # i don't know about this, might need to be moved to somewhere later
+        elif isinstance(value, Operator):
+            val = cls.unwrap_operator(value)
+            if not code_environment:
+                val = "{" + str(val) + "}"
+            return val
         elif isinstance(value, ForEachSelector):
-            return "idx"
-
-
-
+            if code_environment:
+                return "idx"
+            return "{idx}"
         else:
             # return str(value)
             raise NotImplementedError(
                 f"Can't unwrap value '{value}' of type {type(value)}"
             )
+
+    @classmethod
+    def unwrap_operator(cls, value, **kwargs):
+        # assume code_environment is True
+        args = [cls.unwrap_expression(a, code_environment=True, **kwargs) for a in value.args]
+        if isinstance(value, TwoValueOperator):
+            arg1, arg2 = args
+            return f"({arg1} {value.symbol()} {arg2})"
+        elif isinstance(value, IsDefined):
+            return f"({args[0]} is not None)"
+        elif isinstance(value, If):
+            condition, iftrue, iffalse = args
+            return f"({iftrue} if {condition} else {iffalse})"
+        elif isinstance(value, JoinOperator):
+            iterable, sep = args
+            return f"{sep}.join({iterable})"
+        elif isinstance(value, FilterNullOperator):
+            iterable = JanisTranslator.get_string_repr(args[0])
+            return f"[a for a in {iterable} if a is not None]"
+        elif isinstance(value, FirstOperator):
+            iterable = JanisTranslator.get_string_repr(args[0])
+            return f"[a for a in {iterable} if a is not None][0]"
+        elif isinstance(value, BasenameOperator):
+            val = JanisTranslator.get_string_repr(args[0])
+            return f"os.path.basename({val})"
+        elif isinstance(value, IndexOperator):
+            iterable, idx = args
+            return f"{iterable}[{idx}]"
+        elif isinstance(value, RangeOperator):
+            iterable = args[0]
+            return f"range({iterable})"
+        elif isinstance(value, LengthOperator):
+            iterable = args[0]
+            return f"len({iterable})"
+        elif isinstance(value, AssertNotNull):
+            return args[0]
+        elif isinstance(value, NotOperator):
+            return f"(not {args[0]})"
+
+        raise NotImplementedError(
+                f"Can't unwrap value '{value}' of type {type(value)}"
+            )
+
+    @staticmethod
+    def split_secondary_file_carats(secondary_annotation: str):
+        fixed_sec = secondary_annotation.lstrip("^")
+        leading = len(secondary_annotation) - len(fixed_sec)
+        return secondary_annotation[leading:], leading
