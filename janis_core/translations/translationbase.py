@@ -479,20 +479,20 @@ class TranslatorBase(ABC):
             disk = inputs.get(f"{prefix}runtime_disks", 20)
             seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
 
-            if max_cores and cpus > max_cores:
+            if max_cores is not None and cpus > max_cores:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({cpus}) max number of cores ({max_cores}), "
                     "this was dropped to the new maximum"
                 )
                 cpus = max_cores
-            if mem and max_mem and mem > max_mem:
+            if mem is not None and max_mem and mem > max_mem:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
                     "this was dropped to the new maximum"
                 )
                 mem = max_mem
 
-            if seconds and max_duration and seconds > max_duration:
+            if seconds is not None and max_duration and seconds > max_duration:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({seconds} secs) max duration in seconds ({max_duration} secs), "
                     "this was dropped to the new maximum"
