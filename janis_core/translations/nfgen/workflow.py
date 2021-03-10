@@ -89,7 +89,8 @@ class Workflow(NFBase):
         components_str = (2 * nl).join(components)
 
         return f"""\
-workflow {name} {{
+workflow {name} 
+{{
 
 {components_str}
 
