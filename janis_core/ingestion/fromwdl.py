@@ -1,4 +1,5 @@
 import os
+import re
 from types import LambdaType
 from typing import List, Union, Optional, Callable
 import WDL
@@ -113,13 +114,93 @@ class WdlParser:
 
         return wf.input(inp.name, self.parse_wdl_type(inp.type), default=default)
 
+    @classmethod
+    def container_from_runtime(cls, runtime, inputs: List[WDL.Decl]):
+        container = runtime.get("container", runtime.get("docker"))
+        if isinstance(container, WDL.Expr.Get):
+            # relevant input
+            inp = [i.expr for i in inputs if i.name == str(container.expr)]
+            if len(inp) > 0:
+                container = inp[0]
+            else:
+                j.Logger.warn(
+                    f"Expression for determining containers was '{container}' "
+                    f"but couldn't find input called {str(container.expr)}"
+                )
+        if isinstance(container, WDL.Expr.String):
+            container = container.literal
+        if isinstance(container, WDL.Value.String):
+            container = container.value
+        if container is None:
+            container = "ubuntu:latest"
+        if not isinstance(container, str):
+            j.Logger.warn(f"Expression for determining containers ({container}) are not supported in Janis, using ubuntu:latest")
+            container = "ubuntu:latest"
+        return container
+
+    def parse_memory_requirement(self, value):
+        s = self.translate_expr(value)
+        if isinstance(s, str):
+            if s.lower().endswith("gb"):
+                return float(s[:-2].strip())
+            elif s.lower().endswith("gib"):
+                return float(s[:-3].strip()) * 0.931323
+            elif s.lower().endswith("mb"):
+                return float(s[:-2].strip()) / 1000
+            elif s.lower().endswith("mib"):
+                return float(s[:-3].strip()) / 1024
+            raise Exception(f"Memory type {s}")
+        elif isinstance(s, (float, int)):
+            # in bytes?
+            return s / (1024**3)
+        elif isinstance(s, j.Selector):
+            return s
+        raise Exception(f"Couldn't recognise memory requirement '{value}'")
+
+    def parse_disk_requirement(self, value):
+        s = self.translate_expr(value)
+        if isinstance(s, str):
+            try:
+                return int(s)
+            except ValueError:
+                pass
+            pattern_matcher = re.match(r"local-disk (\d+) .*", s)
+            if not pattern_matcher:
+                raise Exception(f"Couldn't recognise disk type '{value}'")
+            s = pattern_matcher.groups()[0]
+            try:
+                return int(s)
+            except ValueError:
+                pass
+            if s.lower().endswith("gb"):
+                return float(s[:-2].strip())
+            elif s.lower().endswith("gib"):
+                return float(s[:-3].strip()) * 0.931323
+            elif s.lower().endswith("mb"):
+                return float(s[:-2].strip()) / 1000
+            elif s.lower().endswith("mib"):
+                return float(s[:-3].strip()) / 1024
+            raise Exception(f"Disk type type {s}")
+        elif isinstance(s, (float, int)):
+            # in bytes?
+            return s / (1024**3)
+        elif isinstance(s, j.Selector):
+            return s
+        raise Exception(f"Couldn't recognise memory requirement '{value}'")
+
     def from_loaded_task(self, obj: WDL.Task):
         rt = obj.runtime
         translated_script = self.translate_expr(obj.command)
+        inputs = obj.inputs
+
+        cpus = self.translate_expr(rt.get("cpu"))
+        if cpus is not None and not isinstance(cpus, (int, float)):
+            cpus = int(cpus)
+
         c = j.CommandToolBuilder(
             tool=obj.name,
             base_command=["sh", "script.sh"],
-            container=rt.get("container", "ubuntu:latest"),
+            container=self.container_from_runtime(rt, inputs=inputs),
             version="DEV",
             inputs=[
                 self.parse_command_tool_input(i)
@@ -128,6 +209,9 @@ class WdlParser:
             ],
             outputs=[self.parse_command_tool_output(o) for o in obj.outputs],
             files_to_create={"script.sh": translated_script},
+            memory=self.parse_memory_requirement(rt.get("memory")),
+            cpus=cpus,
+            disk=self.parse_disk_requirement(rt.get("disks"))
         )
 
         return c
@@ -164,12 +248,12 @@ class WdlParser:
         raise Exception(f"Unsupported WDL expression type: {expr} ({type(expr)})")
 
     def translate_wdl_string(self, s: WDL.Expr.String):
-        if not s.command:
+        if s.literal is not None:
             return str(s.literal).lstrip('"').rstrip('"')
 
         elements = {}
         counter = 1
-        _format = str(s)
+        _format = str(s).lstrip('"').rstrip('"')
 
         for placeholder in s.children:
             if isinstance(placeholder, (str, bool, int, float)):
@@ -211,6 +295,8 @@ class WdlParser:
             "length": j.LengthOperator,
             "_gt": j.GtOperator,
             "_gte": j.GteOperator,
+            "_lt": j.LtOperator,
+            "_lte": j.LteOperator,
             "sep": j.JoinOperator,
             "_add": j.AddOperator,
             "_interpolation_add": j.AddOperator,
@@ -221,7 +307,11 @@ class WdlParser:
             "range": j.RangeOperator,
             "_at": j.IndexOperator,
             "_negate": j.NotOperator,
-            "write_lines": lambda exp: f"write_lines({exp})",
+            "_sub": j.SubtractOperator,
+            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
+            "size": j.FileSizeOperator,
+            "ceil": j.CeilOperator,
+
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
