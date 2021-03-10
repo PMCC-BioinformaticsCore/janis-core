@@ -443,6 +443,29 @@ class FilterNullOperator(Operator):
         return [i for i in iterable if i is not None]
 
 
+class CeilOperator(Operator):
+
+    @staticmethod
+    def friendly_signature():
+        return "Float -> Int"
+
+    def argtypes(self) -> List[DataType]:
+        return [UnionType(Int, Float)]
+
+    def evaluate(self, inputs):
+        from math import ceil
+        return ceil(self.evaluate_arg(self.args[0], inputs))
+
+    def to_wdl(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"ceil({iterable})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"Math.ceil({iterable})"
+
+    def returntype(self) -> DataType:
+        return Int()
 # class Stdout(Operator):
 #     @staticmethod
 #     def friendly_signature():
