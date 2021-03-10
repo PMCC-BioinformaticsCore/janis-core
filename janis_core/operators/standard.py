@@ -1,5 +1,7 @@
 from copy import copy
 from typing import List
+
+from janis_core.utils.logger import Logger
 from janis_core.types import (
     DataType,
     UnionType,
@@ -308,6 +310,28 @@ class FileSizeOperator(Operator):
     """
     Returned in MB: Note that this does NOT include the reference files (yet)
     """
+    def __new__(cls, *args, **kwargs):
+        multiplier = None
+        if len(args) == 2:
+            f = args[1].lower()
+            multiplier_heirarchy = [
+                ("ki" in f, 1024),
+                ("k" in f, 1000),
+                ("mi" in f, 1.024),
+                ("gi" in f, 0.001024),
+                ("g" in f, 0.001),
+            ]
+            if not any(m[0] for m in multiplier_heirarchy):
+                Logger.warn(f"Couldn't determine prefix {f} for FileSizeOperator, defaulting to MB")
+            else:
+                multiplier = [m[1] for m in multiplier_heirarchy if m[0] is True][0]
+
+        instance = super(FileSizeOperator, cls).__new__(cls)
+        instance.__init__(args[0])
+
+        if multiplier is not None and multiplier != 1:
+            return instance * multiplier
+        return instance
 
     @staticmethod
     def friendly_signature():
