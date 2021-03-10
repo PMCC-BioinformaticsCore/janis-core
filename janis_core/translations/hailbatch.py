@@ -30,12 +30,6 @@ REMOVE_EXTENSION = (
     lambda x, iterations: f"$(echo '{x}' {iterations * SED_REMOVE_EXTENSION})" if iterations > 0 else x
 )
 
-# TO avoid format errors when unwrapping StringFormatter, we'll use the following dictionary
-# that returns the key if it's missing:
-class DefaultDictionary(dict):
-    def __missing__(self, key):
-        return "{{" + str(key) + "}}"
-
 
 class HailBatchTranslator:
     @classmethod
@@ -160,8 +154,10 @@ if {when_str}:
 
 
         retval = f"""\
-import hailtop.batch as hb
+import math, os
 from typing import Union, Optional, List
+
+import hailtop.batch as hb
 
 def main({', '.join([*kwargs, *kwargs_with_defaults])}):
     b = hb.Batch('{workflow.id()}')
@@ -596,14 +592,15 @@ if {check_condition}:
     def get_kwarg_from_value(
         cls, identifier: str, datatype: DataType, default: any, include_annotation=True
     ) -> Tuple[str, bool, List[str]]:
-        has_default = default is not None
+        has_default = default is not None or datatype.optional
         kwarg = identifier
         extra_statements = []
 
-        annotation = cls.janis_type_to_py_annotation(datatype)
-        if include_annotation and annotation is not None:
-            kwarg += f": {annotation}"
-            pass
+        if include_annotation:
+            annotation = cls.janis_type_to_py_annotation(datatype)
+            if annotation is not None:
+                kwarg += f": {annotation}"
+
         if has_default:
             inner_default = None
             if isinstance(default, Selector):
@@ -620,6 +617,7 @@ if {check_condition}:
                     )
             else:
                 # useful to get_string_repr
+                has_default = True
                 inner_default = cls.unwrap_expression(default, code_environment=True)
 
             if has_default:
@@ -653,13 +651,7 @@ if {check_condition}:
                 prefix = "generated"
             return value.generated_filename({"prefix": prefix})
         elif isinstance(value, StringFormatter):
-            d = DefaultDictionary({
-                    # keep in curly braces for the
-                    str(k): f"{{{cls.unwrap_expression(v, code_environment=False)}}}"
-                    for k, v in value.kwargs.items()
-                })
-            f = value._format
-            retval = f.format_map(d)
+            retval = value.to_python(unwrap_operator=lambda val: cls.unwrap_expression(val, code_environment=False))
             if code_environment:
                 return f'f"{retval}"'
             return retval
@@ -685,46 +677,10 @@ if {check_condition}:
             )
 
     @classmethod
-    def unwrap_operator(cls, value, **kwargs):
+    def unwrap_operator(cls, value: Operator, **kwargs):
         # assume code_environment is True
-        args = [cls.unwrap_expression(a, code_environment=True, **kwargs) for a in value.args]
-        if isinstance(value, TwoValueOperator):
-            arg1, arg2 = args
-            return f"({arg1} {value.symbol()} {arg2})"
-        elif isinstance(value, IsDefined):
-            return f"({args[0]} is not None)"
-        elif isinstance(value, If):
-            condition, iftrue, iffalse = args
-            return f"({iftrue} if {condition} else {iffalse})"
-        elif isinstance(value, JoinOperator):
-            iterable, sep = args
-            return f"{sep}.join({iterable})"
-        elif isinstance(value, FilterNullOperator):
-            iterable = JanisTranslator.get_string_repr(args[0])
-            return f"[a for a in {iterable} if a is not None]"
-        elif isinstance(value, FirstOperator):
-            iterable = JanisTranslator.get_string_repr(args[0])
-            return f"[a for a in {iterable} if a is not None][0]"
-        elif isinstance(value, BasenameOperator):
-            val = JanisTranslator.get_string_repr(args[0])
-            return f"os.path.basename({val})"
-        elif isinstance(value, IndexOperator):
-            iterable, idx = args
-            return f"{iterable}[{idx}]"
-        elif isinstance(value, RangeOperator):
-            iterable = args[0]
-            return f"range({iterable})"
-        elif isinstance(value, LengthOperator):
-            iterable = args[0]
-            return f"len({iterable})"
-        elif isinstance(value, AssertNotNull):
-            return args[0]
-        elif isinstance(value, NotOperator):
-            return f"(not {args[0]})"
-
-        raise NotImplementedError(
-                f"Can't unwrap value '{value}' of type {type(value)}"
-            )
+        inner_unwrap = lambda a: cls.unwrap_expression(a, code_environment=True, **kwargs)
+        return value.to_python(inner_unwrap, *value.args)
 
     @staticmethod
     def split_secondary_file_carats(secondary_annotation: str):
