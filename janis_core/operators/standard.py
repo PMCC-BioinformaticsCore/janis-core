@@ -24,6 +24,9 @@ class ReadContents(Operator):
     def argtypes(self) -> List[DataType]:
         return [File()]
 
+    def to_python(self, unwrap_operator, *args):
+        raise NotImplementedError("Determine _safe_ one line solution for ReadContents")
+
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(args[0])
         return f"read_string({arg})"
@@ -57,6 +60,10 @@ class ReadJsonOperator(Operator):
 
         with open(file) as f:
             return load(f)
+
+    def to_python(self, unwrap_operator, *args):
+        raise NotImplementedError("Determine _safe_ one line solution for ReadContents")
+
 
     def to_wdl(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
@@ -93,6 +100,10 @@ class JoinOperator(Operator):
     def returntype(self):
         return String()
 
+    def to_python(self, unwrap_operator, *args):
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+        return f"{separator}.join({iterable})"
+
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
         iterable_arg = self.args[0]
@@ -126,8 +137,12 @@ class BasenameOperator(Operator):
     def friendly_signature():
         return "Union[File, Directory] -> String"
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"os.path.basename({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
-        arg = args[0]
+        arg = unwrap_operator(args[0])
         return f"basename({unwrap_operator(arg)})"
 
     def to_cwl(self, unwrap_operator, *args):
@@ -171,6 +186,10 @@ class TransposeOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[[{iterable}[j][i] for j in range(len({iterable}))] for i in range(len({iterable}[0]))]"
+
     def to_wdl(self, unwrap_operator, *args):
         return f"transform({unwrap_operator(args[0])})"
 
@@ -202,6 +221,10 @@ class LengthOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"len({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"length({arg})"
@@ -232,6 +255,10 @@ class RangeOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"range({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"range({arg})"
@@ -244,6 +271,7 @@ class RangeOperator(Operator):
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
         return list(range(ar))
+
 
 class FlattenOperator(Operator):
     @staticmethod
@@ -261,6 +289,10 @@ class FlattenOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"[el for sublist in {arg} for el in sublist]"
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
@@ -292,6 +324,10 @@ class ApplyPrefixOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        prefix, iterable = [unwrap_operator(a) for a in self.args]
+        return f"[{prefix} + i for i in {iterable}]"
 
     def to_wdl(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
@@ -350,6 +386,10 @@ class FileSizeOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        f = unwrap_operator(self.args[0])
+        return f"os.stat({f}).st_size / 1000"
+
     def to_wdl(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
         return f'size({f}, "MB")'
@@ -392,6 +432,10 @@ class FirstOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[a for a in {iterable} if a is not None][0]"
+
     def to_wdl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"select_first({iterable})"
@@ -430,6 +474,10 @@ class FilterNullOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[a for a in {iterable} if a is not None]"
+
     def to_wdl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"select_all({iterable})"
@@ -443,29 +491,6 @@ class FilterNullOperator(Operator):
         return [i for i in iterable if i is not None]
 
 
-class CeilOperator(Operator):
-
-    @staticmethod
-    def friendly_signature():
-        return "Float -> Int"
-
-    def argtypes(self) -> List[DataType]:
-        return [UnionType(Int, Float)]
-
-    def evaluate(self, inputs):
-        from math import ceil
-        return ceil(self.evaluate_arg(self.args[0], inputs))
-
-    def to_wdl(self, unwrap_operator, *args):
-        iterable = unwrap_operator(self.args[0])
-        return f"ceil({iterable})"
-
-    def to_cwl(self, unwrap_operator, *args):
-        iterable = unwrap_operator(self.args[0])
-        return f"Math.ceil({iterable})"
-
-    def returntype(self) -> DataType:
-        return Int()
 # class Stdout(Operator):
 #     @staticmethod
 #     def friendly_signature():
