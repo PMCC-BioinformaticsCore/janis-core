@@ -348,8 +348,10 @@ class FileSizeOperator(Operator):
     """
     def __new__(cls, *args, **kwargs):
         multiplier = None
-        if len(args) == 2:
-            f = args[1].lower()
+        src, *otherargs = args
+
+        if len(otherargs) == 1:
+            f = otherargs[0].lower()
             multiplier_heirarchy = [
                 ("ki" in f, 1024),
                 ("k" in f, 1000),
