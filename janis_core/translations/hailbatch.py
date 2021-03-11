@@ -25,6 +25,8 @@ from janis_core.tool.commandtool import CommandTool
 from janis_core.workflow.workflow import WorkflowBase, InputNode
 from janis_core.translations import TranslatorBase
 
+
+
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
     lambda x, iterations: f"$(echo '{x}' {iterations * SED_REMOVE_EXTENSION})" if iterations > 0 else x
@@ -255,7 +257,7 @@ if __name__ == "__main__":
         else:
             d = {s.replace(".", ""): nameroot_value + s for s in secs}
 
-        d[extension_without_dot or "root"] = nameroot_value
+        d["root"] = nameroot_value
 
         return d
 
@@ -437,7 +439,12 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
                 initial_sec = sec_presents_as.get(s, s).replace("^", "")
                 final_ext, final_iters = cls.split_secondary_file_carats(s)
                 values.append(gl + initial_sec)
-                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+
+                if final_iters:
+                    dest_pattern = REMOVE_EXTENSION(f'j.{outp.id()}', final_iters)
+                    dests.append(f'"{dest_pattern + final_ext}"')
+                else:
+                    dests.append(f"f'{{j.{outp.id()}}}{final_ext}")
         elif isinstance(outp.selector, Operator):
             # maybe check leaves for wildcard, because that won't be supported
             value = cls.unwrap_expression(outp.selector, code_environment=True)
@@ -445,16 +452,34 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
             for s in secs:
                 initial_ext, initial_iters = cls.split_secondary_file_carats(sec_presents_as.get(s, s))
                 final_ext, final_iters = cls.split_secondary_file_carats(s)
-                values.append(REMOVE_EXTENSION(value, initial_iters) + initial_ext)
-                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+                if initial_iters:
+                    escaped_value = f"{{{value}}}"
+                    values.append(f'f"{REMOVE_EXTENSION(escaped_value, initial_iters)}{initial_ext}"')
+                else:
+                    values.append(f"f'{{{value}}}{initial_ext}")
+
+                if final_iters:
+                    GET_BASE_OP = REMOVE_EXTENSION(f'{{j.{outp.id()}}}', final_iters)
+                    dests.append(f'f"{GET_BASE_OP}{final_ext}"')
+                else:
+                    dests.append(f"f'{{j.{outp.id()}}}{final_ext}'")
         elif isinstance(outp.selector, Selector):
             value = cls.unwrap_expression(outp.selector, code_environment=True)
             values = [value]
             for s in secs:
                 initial_ext, initial_iters = cls.split_secondary_file_carats(sec_presents_as.get(s, s))
                 final_ext, final_iters = cls.split_secondary_file_carats(s)
-                values.append(REMOVE_EXTENSION(value, initial_iters) + initial_ext)
-                dests.append(f"{REMOVE_EXTENSION(f'j.{outp.id}', final_iters) + final_ext}")
+                if initial_iters:
+                    escaped_value = f"{{{value}}}"
+                    values.append(f'f"{REMOVE_EXTENSION(escaped_value, initial_iters)}{initial_ext}"')
+                else:
+                    values.append(f'f"{{{value}}}{initial_ext}"')
+
+                if final_iters:
+                    GET_BASE_OP = REMOVE_EXTENSION(f'{{j.{outp.id()}}}', final_iters)
+                    dests.append(f'f"{GET_BASE_OP}{final_ext}"')
+                else:
+                    dests.append(f'f"{{j.{outp.id()}}}{final_ext}"')
         else:
             Logger.warn("Couldn't translate output selector ")
 
@@ -626,11 +651,14 @@ if {check_condition}:
         return kwarg, has_default, extra_statements
 
     @classmethod
-    def unwrap_expression(cls, value, code_environment=False) -> Union[str, List[str]]:
+    def unwrap_expression(cls, value, code_environment=False, stringify_list=True) -> Union[str, List[str]]:
         if value is None:
             return "None"
         elif isinstance(value, list):
-            return [cls.unwrap_expression(e, code_environment=True) for e in value]
+            values = [cls.unwrap_expression(e, code_environment=True) for e in value]
+            if stringify_list:
+                return "[" + ", ".join(values) + "]"
+            return values
         elif isinstance(value, (str, int, float)):
             if code_environment:
                 return JanisTranslator.get_string_repr(value)
