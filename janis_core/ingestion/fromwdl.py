@@ -275,6 +275,30 @@ class WdlParser:
 
         return j.StringFormatter(_format, **elements)
 
+    def file_size_operator(self, src, *args):
+        multiplier = None
+        if len(args) > 1:
+            f = args[1].lower()
+            multiplier_heirarchy = [
+                ("ki" in f, 1024),
+                ("k" in f, 1000),
+                ("mi" in f, 1.024),
+                ("gi" in f, 0.001024),
+                ("g" in f, 0.001),
+            ]
+            if not any(m[0] for m in multiplier_heirarchy):
+                j.Logger.warn(f"Couldn't determine prefix {f} for FileSizeOperator, defaulting to MB")
+            else:
+                multiplier = [m[1] for m in multiplier_heirarchy if m[0] is True][0]
+
+        if isinstance(src, list):
+            return multiplier * sum(j.FileSizeOperator(s) for s in src)
+
+        base = j.FileSizeOperator(src, *args)
+        if multiplier is not None and multiplier != 1:
+            return multiplier * base
+        return base
+
     def translate_apply(
         self, expr: WDL.Expr.Apply, **expr_kwargs
     ) -> Union[j.Selector, List[j.Selector]]:
@@ -309,7 +333,7 @@ class WdlParser:
             "_negate": j.NotOperator,
             "_sub": j.SubtractOperator,
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
-            "size": j.FileSizeOperator,
+            "size": self.file_size_operator,
             "ceil": j.CeilOperator,
 
         }
