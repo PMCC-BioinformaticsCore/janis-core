@@ -352,12 +352,14 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
             if inp.input_type.is_base_type(File) and inp.localise_file:
                 additional_expressions.append(f"j.command(f\"mv {{{inp.id()}}} .\")")
                 # do same with secondary files
-                for sec in inp.input_type.secondary_files():
-                    initial_ext, n_carats = cls.split_secondary_file_carats(sec)
-                    src = f"{{{inp.id()}}}"
-                    if n_carats:
-                        src = REMOVE_EXTENSION(src, n_carats)
-                    additional_expressions.append(f"j.command(f\"{src}{initial_ext} .\")")
+                secs = inp.input_type.secondary_files()
+                if secs:
+                    for sec in secs:
+                        initial_ext, n_carats = cls.split_secondary_file_carats(sec)
+                        src = f"{{{inp.id()}}}"
+                        if n_carats:
+                            src = REMOVE_EXTENSION(src, n_carats)
+                        additional_expressions.append(f"j.command(f\"{src}{initial_ext} .\")")
 
         # outputs
         command_extras = ""
