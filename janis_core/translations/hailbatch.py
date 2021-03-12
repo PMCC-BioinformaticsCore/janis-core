@@ -1,6 +1,15 @@
+"""
+Not implemented yet:
+
+- present_as
+- secondaries_present_as
+
+"""
+
+
 import inspect
 from textwrap import indent
-from typing import Tuple, Dict, Union, Callable
+from typing import Tuple, Union, Callable
 
 from janis_core import (
     Selector,
@@ -11,30 +20,17 @@ from janis_core import (
     StepOutputSelector,
     StringFormatter,
     InputSelector,
-    TwoValueOperator,
-    IsDefined,
-    If,
-    JoinOperator,
     FirstOperator,
-    BasenameOperator,
     AliasSelector,
     ForEachSelector,
-    FilterNullOperator,
     WildcardSelector,
-    IndexOperator,
-    RangeOperator,
-    LengthOperator,
-    AssertNotNull,
     Operator,
-    NotOperator,
     apply_secondary_file_format_to_filename, TInput,
 )
+from janis_core.tool.commandtool import CommandTool
 from janis_core.translations.janis import JanisTranslator
 from janis_core.types.common_data_types import *
-from janis_core.tool.commandtool import CommandTool
-from janis_core.workflow.workflow import WorkflowBase, InputNode
-from janis_core.translations import TranslatorBase
-
+from janis_core.workflow.workflow import WorkflowBase
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -352,6 +348,16 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
                 )
                 additional_expressions.extend(ad_expr)
                 (kwargs_with_defaults if has_default else kwargs).append(kwarg)
+
+            if inp.input_type.is_base_type(File) and inp.localise_file:
+                additional_expressions.append(f"j.command(f\"mv {{{inp.id()}}} .\")")
+                # do same with secondary files
+                for sec in inp.secondary_files():
+                    initial_ext, n_carats = cls.split_secondary_file_carats(sec)
+                    src = f"{{{inp.id()}}}"
+                    if n_carats:
+                        src = REMOVE_EXTENSION(src, n_carats)
+                    additional_expressions.append(f"j.command(f\"{src}{initial_ext} .\")")
 
         # outputs
         command_extras = ""
@@ -674,8 +680,6 @@ if {check_condition}:
     def get_command_argument_for_tool_argument(cls, arg: ToolArgument):
 
         requires_quotes = arg.shell_quote is not False
-
-        from shlex import quote
 
         # quote entire string
         q, sq = '"', '\\"'
