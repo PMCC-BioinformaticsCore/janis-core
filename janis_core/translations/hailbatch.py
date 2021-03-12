@@ -235,7 +235,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
 
         if isinstance(dt, File) and dt.secondary_files():
             # we need to build a reference group
-            ext = (dt.extension or "root").replace(".", "")
+            ext = (dt.extension or "").replace(".", "")
             exts = [a for a in [dt.extension, *(dt.alternate_extensions or [])] if a]
             base = f"{reference_var}" + "".join(f'.replace("{e}", "")' for e in exts)
             dsec = {}
@@ -248,7 +248,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
                     dsec[sec_key] = f'{reference_var} + "{sec}"'
 
             dsec_str = ", ".join(f"{k}={v}" for k, v in dsec.items())
-            return f"{batch_var}.read_input_group({ext}={reference_var}, {dsec_str})"
+            return f"{batch_var}.read_input_group(base={reference_var}, {dsec_str})"
         else:
             return f"{batch_var}.read_input({reference_var})"
 
@@ -288,7 +288,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
         else:
             d = {s.replace(".", ""): nameroot_value + s for s in secs}
 
-        d["root"] = nameroot_value
+        d["base"] = nameroot_value
 
         return d
 
