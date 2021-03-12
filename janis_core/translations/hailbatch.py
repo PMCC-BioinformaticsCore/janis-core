@@ -838,7 +838,7 @@ if {check_condition}:
         help_if_relevant = f'help="{escape_string(help)}' if help else ""
         options = []
         for inp in inputs:
-            inner_args = [f'"--{inp.id()}"', f'"{inp.id()}']
+            inner_args = [f'"--{inp.id()}"', f'"{inp.id()}"']
             inner_annotation = inp.intype
             if isinstance(inp.intype, Boolean):
                 inner_args.append("is_flag=True")
