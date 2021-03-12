@@ -50,13 +50,14 @@ class HailBatchTranslator:
         return f"add_{identifier}_step"
 
     @classmethod
-    def janis_type_to_py_annotation(cls, dt: DataType, skip_optional=False):
+    def janis_type_to_py_annotation(cls, dt: DataType, skip_typing=False):
         annotation = None
         if isinstance(dt, Array):
-            annotation = f"List[{cls.janis_type_to_py_annotation(dt.subtype())}]"
+            inner = cls.janis_type_to_py_annotation(dt.subtype())
+            annotation = f"List[{inner}]"
         elif isinstance(dt, UnionType):
             inner = set(cls.janis_type_to_py_annotation(t) for t in dt.subtypes)
-            if len(inner) == 1:
+            if len(inner) == 1 or skip_typing:
                 annotation = list(inner)[0]
             else:
                 annotation = f"Union[{', '.join(inner)}]"
@@ -71,7 +72,7 @@ class HailBatchTranslator:
 
         if annotation is None:
             Logger.info(f"Couldn't generate python type annotation for {dt.name}")
-        elif dt.optional and not skip_optional:
+        elif dt.optional and not skip_typing:
             annotation = f"Optional[{annotation}]"
         return annotation
 
@@ -837,7 +838,7 @@ if {check_condition}:
         help_if_relevant = f'help="{escape_string(help)}' if help else ""
         options = []
         for inp in inputs:
-            inner_args = [f'"--{inp.id()}"']
+            inner_args = [f'"--{inp.id()}"', f'"{inp.id()}']
             inner_annotation = inp.intype
             if isinstance(inp.intype, Boolean):
                 inner_args.append("is_flag=True")
@@ -847,7 +848,10 @@ if {check_condition}:
                 inner_args.append("multiple=True")
                 inner_annotation = inp.intype.subtype()
             if inner_annotation is not None:
-                annotation = cls.janis_type_to_py_annotation(inp.intype, skip_optional=True)
+                intype = inp.intype
+                if intype.is_array():
+                    intype = intype.fundamental_type()
+                annotation = cls.janis_type_to_py_annotation(intype, skip_typing=True)
                 inner_args.append(f"type={annotation}")
             if not inp.intype.optional:
                 inner_args.append("required=True")
