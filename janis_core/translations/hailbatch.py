@@ -1,6 +1,9 @@
 """
-Not implemented yet:
 
+Does not support:
+
+- subworkflows
+- code tool
 - present_as
 - secondaries_present_as
 
@@ -42,36 +45,6 @@ REMOVE_EXTENSION = (
 
 
 class HailBatchTranslator:
-    @classmethod
-    def get_method_name_for_id(cls, identifier):
-        return f"add_{identifier}_step"
-
-    @classmethod
-    def janis_type_to_py_annotation(cls, dt: DataType, skip_typing=False):
-        annotation = None
-        if isinstance(dt, Array):
-            inner = cls.janis_type_to_py_annotation(dt.subtype())
-            annotation = f"List[{inner}]"
-        elif isinstance(dt, UnionType):
-            inner = set(cls.janis_type_to_py_annotation(t) for t in dt.subtypes)
-            if len(inner) == 1 or skip_typing:
-                annotation = list(inner)[0]
-            else:
-                annotation = f"Union[{', '.join(inner)}]"
-        elif dt.is_base_type((File, String, Directory)):
-            annotation = "str"
-        elif dt.is_base_type(Int):
-            annotation = "int"
-        elif dt.is_base_type((Float, Double)):
-            annotation = "float"
-        elif dt.is_base_type(Boolean):
-            annotation = "bool"
-
-        if annotation is None:
-            Logger.info(f"Couldn't generate python type annotation for {dt.name}")
-        elif dt.optional and not skip_typing:
-            annotation = f"Optional[{annotation}]"
-        return annotation
 
     @classmethod
     def translate_workflow(
@@ -225,72 +198,11 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
 
         return retval
 
-    @classmethod
-    def prepare_input_read_for_inp(cls, dt: DataType, reference_var, batch_var="b"):
-        if isinstance(dt, Array):
-            inner_ref = f"inner_{reference_var}"
-            return f"[{cls.prepare_input_read_for_inp(dt._t, inner_ref)} for {inner_ref} in {reference_var}]"
-        if not dt.is_base_type(File):
-            return reference_var
-
-        if isinstance(dt, File) and dt.secondary_files():
-            # we need to build a reference group
-            ext = (dt.extension or "").replace(".", "")
-            exts = [a for a in [dt.extension, *(dt.alternate_extensions or [])] if a]
-            base = f"{reference_var}" + "".join(f'.replace("{e}", "")' for e in exts)
-            dsec = {}
-            for sec in dt.secondary_files():
-                sec_key = sec.replace("^", "").replace(".", "")
-                if "^" in sec:
-                    sec_without_pattern = sec.replace("^", "")
-                    dsec[sec_key] = f'{base} + "{sec_without_pattern}"'
-                else:
-                    dsec[sec_key] = f'{reference_var} + "{sec}"'
-
-            dsec_str = ", ".join(f"{k}={v}" for k, v in dsec.items())
-            return f"{batch_var}.read_input_group(base={reference_var}, {dsec_str})"
-        else:
-            return f"{batch_var}.read_input({reference_var})"
+    # internal translators
 
     @classmethod
-    def prepare_read_group_dictionary_from_dt(cls, datatype: DataType):
-        if not isinstance(datatype, File):
-            return None
-        secs = datatype.secondary_files()
-        if not secs:
-            return None
-        # if all extension are just additions, like ".vcf" and ".vcf.idx", it's:
-        #   {"vcf": "{root}", "idx": "{root}.idx"}
-        # else for example if it's ref.fasta and ref.dict, it's:
-        #   {"fasta": "{root}.fasta", "dict": "{root}.dict"}
-
-        extension = datatype.extension or ""
-        extension_without_dot = extension.replace(".", "")
-        nameroot_value = "{root}"
-
-        # this only works if there's one hat
-        d = {}
-        if any(s.startswith("^") for s in secs):
-            # nameroot_value = "{root}.fasta"
-            nameroot_value = "{root}" + extension_without_dot
-
-            if any(s.startswith("^^") for s in secs):
-                Logger.warn(
-                    f"Secondary file patterns in '{datatype.name}' ({secs}) with two carats (^^) are not supported in Batch, will "
-                )
-
-            for s in secs:
-                sname = s.replace("^", "").replace(".", "")
-                if "^" in s:
-                    d[sname] = "{root}" + s.replace("^", "")
-                else:
-                    d[sname] = nameroot_value + s
-        else:
-            d = {s.replace(".", ""): nameroot_value + s for s in secs}
-
-        d["base"] = nameroot_value
-
-        return d
+    def translate_workflow_internal(cls, workflow: WorkflowBase, allow_empty_container=False, container_override: dict=None):
+        pass
 
     @classmethod
     def translate_tool_internal(
@@ -393,7 +305,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
                 return default
 
             dt = tinputs_map[inp.input_to_select].input_type
-            if not isinstance(dt, File) and not dt.secondary_files():
+            if not isinstance(dt, File) or not dt.secondary_files():
                 return default
 
             return f"{default}.base"
@@ -495,6 +407,104 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
     
     return j
 """
+
+    @classmethod
+    def get_method_name_for_id(cls, identifier):
+        return f"add_{identifier}_step"
+
+    @classmethod
+    def janis_type_to_py_annotation(cls, dt: DataType, skip_typing=False):
+        annotation = None
+        if isinstance(dt, Array):
+            inner = cls.janis_type_to_py_annotation(dt.subtype())
+            annotation = f"List[{inner}]"
+        elif isinstance(dt, UnionType):
+            inner = set(cls.janis_type_to_py_annotation(t) for t in dt.subtypes)
+            if len(inner) == 1 or skip_typing:
+                annotation = list(inner)[0]
+            else:
+                annotation = f"Union[{', '.join(inner)}]"
+        elif dt.is_base_type((File, String, Directory)):
+            annotation = "str"
+        elif dt.is_base_type(Int):
+            annotation = "int"
+        elif dt.is_base_type((Float, Double)):
+            annotation = "float"
+        elif dt.is_base_type(Boolean):
+            annotation = "bool"
+
+        if annotation is None:
+            Logger.info(f"Couldn't generate python type annotation for {dt.name}")
+        elif dt.optional and not skip_typing:
+            annotation = f"Optional[{annotation}]"
+        return annotation
+
+    @classmethod
+    def prepare_input_read_for_inp(cls, dt: DataType, reference_var, batch_var="b"):
+        if isinstance(dt, Array):
+            inner_ref = f"inner_{reference_var}"
+            return f"[{cls.prepare_input_read_for_inp(dt._t, inner_ref)} for {inner_ref} in {reference_var}]"
+        if not dt.is_base_type(File):
+            return reference_var
+
+        if isinstance(dt, File) and dt.secondary_files():
+            # we need to build a reference group
+            ext = (dt.extension or "").replace(".", "")
+            exts = [a for a in [dt.extension, *(dt.alternate_extensions or [])] if a]
+            base = f"{reference_var}" + "".join(f'.replace("{e}", "")' for e in exts)
+            dsec = {}
+            for sec in dt.secondary_files():
+                sec_key = sec.replace("^", "").replace(".", "")
+                if "^" in sec:
+                    sec_without_pattern = sec.replace("^", "")
+                    dsec[sec_key] = f'{base} + "{sec_without_pattern}"'
+                else:
+                    dsec[sec_key] = f'{reference_var} + "{sec}"'
+
+            dsec_str = ", ".join(f"{k}={v}" for k, v in dsec.items())
+            return f"{batch_var}.read_input_group(base={reference_var}, {dsec_str})"
+        else:
+            return f"{batch_var}.read_input({reference_var})"
+
+    @classmethod
+    def prepare_read_group_dictionary_from_dt(cls, datatype: DataType):
+        if not isinstance(datatype, File):
+            return None
+        secs = datatype.secondary_files()
+        if not secs:
+            return None
+        # if all extension are just additions, like ".vcf" and ".vcf.idx", it's:
+        #   {"vcf": "{root}", "idx": "{root}.idx"}
+        # else for example if it's ref.fasta and ref.dict, it's:
+        #   {"fasta": "{root}.fasta", "dict": "{root}.dict"}
+
+        extension = datatype.extension or ""
+        extension_without_dot = extension.replace(".", "")
+        nameroot_value = "{root}"
+
+        # this only works if there's one hat
+        d = {}
+        if any(s.startswith("^") for s in secs):
+            # nameroot_value = "{root}.fasta"
+            nameroot_value = "{root}" + extension_without_dot
+
+            if any(s.startswith("^^") for s in secs):
+                Logger.warn(
+                    f"Secondary file patterns in '{datatype.name}' ({secs}) with two carats (^^) are not supported in Batch, will "
+                )
+
+            for s in secs:
+                sname = s.replace("^", "").replace(".", "")
+                if "^" in s:
+                    d[sname] = "{root}" + s.replace("^", "")
+                else:
+                    d[sname] = nameroot_value + s
+        else:
+            d = {s.replace(".", ""): nameroot_value + s for s in secs}
+
+        d["base"] = nameroot_value
+
+        return d
 
     @classmethod
     def translate_tool_output(cls, outp) -> Tuple[Optional[str], List[str], List[str]]:
