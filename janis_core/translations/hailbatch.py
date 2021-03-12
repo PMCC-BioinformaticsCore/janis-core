@@ -352,7 +352,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
             if inp.input_type.is_base_type(File) and inp.localise_file:
                 additional_expressions.append(f"j.command(f\"mv {{{inp.id()}}} .\")")
                 # do same with secondary files
-                for sec in inp.secondary_files():
+                for sec in inp.input_type.secondary_files():
                     initial_ext, n_carats = cls.split_secondary_file_carats(sec)
                     src = f"{{{inp.id()}}}"
                     if n_carats:
