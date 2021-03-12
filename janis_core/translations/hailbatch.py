@@ -25,7 +25,8 @@ from janis_core import (
     ForEachSelector,
     WildcardSelector,
     Operator,
-    apply_secondary_file_format_to_filename, TInput,
+    apply_secondary_file_format_to_filename,
+    TInput,
 )
 from janis_core.tool.commandtool import CommandTool
 from janis_core.translations.janis import JanisTranslator
@@ -78,7 +79,7 @@ class HailBatchTranslator:
         workflow: WorkflowBase,
         allow_empty_container=False,
         container_override: dict = None,
-            generate_click_cli=True,
+        generate_click_cli=True,
     ) -> str:
 
         kwargs_no_annotations, kwargs, kwargs_with_defaults = [], [], []
@@ -350,7 +351,7 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
                 (kwargs_with_defaults if has_default else kwargs).append(kwarg)
 
             if inp.input_type.is_base_type(File) and inp.localise_file:
-                additional_expressions.append(f"j.command(f\"mv {{{inp.id()}}} .\")")
+                additional_expressions.append(f'j.command(f"mv {{{inp.id()}}} .")')
                 # do same with secondary files
                 secs = inp.input_type.secondary_files()
                 if secs:
@@ -359,7 +360,9 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
                         src = f"{{{inp.id()}}}"
                         if n_carats:
                             src = REMOVE_EXTENSION(src, n_carats)
-                        additional_expressions.append(f"j.command(f\"{src}{initial_ext} .\")")
+                        additional_expressions.append(
+                            f'j.command(f"{src}{initial_ext} .")'
+                        )
 
         # outputs
         command_extras = ""
@@ -760,12 +763,18 @@ if {check_condition}:
         stringify_list=True,
         input_selector_overrider: Callable[[InputSelector], str] = None,
     ) -> Union[str, List[str]]:
-        uwkwargs = {"input_selector_overrider": input_selector_overrider, "stringify_list": stringify_list}
+        uwkwargs = {
+            "input_selector_overrider": input_selector_overrider,
+            "stringify_list": stringify_list,
+        }
 
         if value is None:
             return "None"
         elif isinstance(value, list):
-            values = [cls.unwrap_expression(e, code_environment=True, **uwkwargs) for e in value]
+            values = [
+                cls.unwrap_expression(e, code_environment=True, **uwkwargs)
+                for e in value
+            ]
             if stringify_list:
                 return "[" + ", ".join(values) + "]"
             return values
@@ -838,7 +847,13 @@ if {check_condition}:
         return secondary_annotation[leading:], leading
 
     @classmethod
-    def generate_click_function(cls, inputs: List[TInput], to_call="main", click_function_name="main_from_click", help=None):
+    def generate_click_function(
+        cls,
+        inputs: List[TInput],
+        to_call="main",
+        click_function_name="main_from_click",
+        help=None,
+    ):
 
         escape_string = lambda s: s.replace("\n", "\\n").replace('"', '\\"')
         help_if_relevant = f'help="{escape_string(help)}' if help else ""
@@ -861,6 +876,17 @@ if {check_condition}:
                 inner_args.append(f"type={annotation}")
             if not inp.intype.optional:
                 inner_args.append("required=True")
+
+            if inp.default is not None and not (
+                isinstance(inp.default, Selector)
+                or (
+                    isinstance(inp.default, list)
+                    and any(isinstance(a, Selector) for a in inp.default)
+                )
+            ):
+                inner_args.append(
+                    f"default={JanisTranslator.get_string_repr(inp.default)}"
+                )
             if inp.doc and inp.doc.doc:
                 safer = escape_string(inp.doc.doc)
                 inner_args.append(f'help="{safer}"')
