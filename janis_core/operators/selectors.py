@@ -340,7 +340,7 @@ class InputNodeSelector(Selector):
     def returntype(self):
         out = first_value(self.input_node.outputs()).outtype
 
-        if self.input_node is not None:
+        if self.input_node is not None and self.input_node.default is not None:
             import copy
 
             out = copy.copy(out)
@@ -375,8 +375,14 @@ class StepOutputSelector(Selector):
     def returntype(self):
         retval = self.node.outputs()[self.tag].outtype
 
-        if hasattr(self.node, "scatter") and self.node.scatter:
+        if self.node.node_type != NodeType.STEP:
+            return retval
+
+        if hasattr(self.node, "scatter") and self.node.scatter is not None:
             retval = Array(retval)
+        elif hasattr(self.node, "foreach") and self.node.foreach is not None:
+            retval = Array(retval)
+
         return retval
 
     @staticmethod

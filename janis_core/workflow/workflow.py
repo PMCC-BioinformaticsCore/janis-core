@@ -14,6 +14,7 @@ from janis_core.operators import (
     InputNodeSelector,
     Selector,
     AliasSelector,
+    ForEachSelector,
 )
 from janis_core.operators.logical import AndOperator, NotOperator, or_prev_conds
 from janis_core.operators.standard import FirstOperator
@@ -53,6 +54,8 @@ def verify_or_try_get_source(
     elif isinstance(source, InputNodeSelector):
         return source
     elif isinstance(source, AliasSelector):
+        return source
+    elif isinstance(source, ForEachSelector):
         return source
     elif isinstance(source, list):
         return [verify_or_try_get_source(s) for s in source]
@@ -122,7 +125,7 @@ class StepNode(Node):
         doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
         when: Operator = None,
-        _foreach=None
+        _foreach=None,
     ):
         super().__init__(wf, NodeType.STEP, identifier)
         self.tool = tool
@@ -419,17 +422,9 @@ class WorkflowBase(Tool):
             while isinstance(sourceoperator, list):
                 sourceoperator: Selector = sourceoperator[0]
 
-            datatype: DataType = copy.copy(
-                get_instantiated_type(sourceoperator.returntype()).received_type()
-            )
-            if (
-                isinstance(sourceoperator, InputNodeSelector)
-                and sourceoperator.input_node.default is not None
-            ):
-                datatype.optional = False
-
-            elif isinstance(sourceoperator, StepNode) and sourceoperator.scatter:
-                datatype = Array(datatype)
+            datatype: DataType = get_instantiated_type(
+                sourceoperator.returntype()
+            ).received_type()
 
             skip_typecheck = True
 
@@ -681,7 +676,7 @@ class WorkflowBase(Tool):
         identifier: str,
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
-        _foreach: Union[Selector, List[Selector]]=None,
+        _foreach: Union[Selector, List[Selector]] = None,
         when: Optional[Operator] = None,
         ignore_missing=False,
         doc: str = None,
@@ -720,7 +715,9 @@ class WorkflowBase(Tool):
             scatter = ScatterDescription(fields, method=ScatterMethod.dot)
 
         if scatter is not None and _foreach is not None:
-            raise Exception(f"Can't supply 'scatter' and 'foreach' value to step with id: {identifier} for tool: {tool.id()}")
+            raise Exception(
+                f"Can't supply 'scatter' and 'foreach' value to step with id: {identifier} for tool: {tool.id()}"
+            )
 
         # verify scatter
         if scatter:
@@ -766,7 +763,13 @@ class WorkflowBase(Tool):
 
         d = doc if isinstance(doc, DocumentationMeta) else DocumentationMeta(doc=doc)
         stp = StepNode(
-            self, identifier=identifier, tool=tool, scatter=scatter, when=when, doc=d, _foreach=_foreach
+            self,
+            identifier=identifier,
+            tool=tool,
+            scatter=scatter,
+            when=when,
+            doc=d,
+            _foreach=_foreach,
         )
 
         added_edges = []
@@ -813,7 +816,9 @@ class WorkflowBase(Tool):
             si = e.finish.sources[e.ftag] if e.ftag else first_value(e.finish.sources)
             self.has_multiple_inputs = self.has_multiple_inputs or si.multiple_inputs
 
-        self.has_scatter = self.has_scatter or scatter is not None
+        self.has_scatter = (
+            self.has_scatter or scatter is not None or _foreach is not None
+        )
         self.has_subworkflow = self.has_subworkflow or isinstance(tool, WorkflowBase)
         self.nodes[identifier] = stp
         self.step_nodes[identifier] = stp
