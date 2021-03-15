@@ -182,6 +182,7 @@ class IndexOperator(Operator, ABC):
     def to_python(self, unwrap_operator, *args):
         base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
+
     def to_wdl(self, unwrap_operator, *args):
         base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
@@ -231,7 +232,6 @@ class SingleValueOperator(Operator, ABC):
 
     def to_python(self, unwrap_operator, *args):
         return f"{self.symbol()}({unwrap_operator(*args)})"
-
 
 
 class TwoValueOperator(Operator, ABC):

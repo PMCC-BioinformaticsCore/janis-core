@@ -183,8 +183,6 @@ class NotOperator(SingleValueOperator):
         arg = unwrap_operator(self.args[0])
         return f"not {arg}"
 
-
-
     # Two value operators
 
 

@@ -6,6 +6,7 @@ import WDL
 
 import janis_core as j
 
+
 class WdlParser:
     @staticmethod
     def from_doc(doc: str, base_uri=None):
@@ -50,7 +51,12 @@ class WdlParser:
         return wf[exp]
 
     def add_call_to_wf(
-        self, wf: j.WorkflowBase, call: WDL.WorkflowNode, condition=None, foreach=None, expr_alias: str=None
+        self,
+        wf: j.WorkflowBase,
+        call: WDL.WorkflowNode,
+        condition=None,
+        foreach=None,
+        expr_alias: str = None,
     ):
         def selector_getter(exp):
             if exp == expr_alias:
@@ -65,7 +71,6 @@ class WdlParser:
                 new_expr = self.translate_expr(v, input_selector_getter=selector_getter)
 
                 inp_map[k] = new_expr
-
 
             return wf.step(call.name, task(**inp_map), when=condition, _foreach=foreach)
 
@@ -82,7 +87,6 @@ class WdlParser:
                         call.expr, input_selector_getter=selector_getter
                     ),
                     expr_alias=expr_alias,
-
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -98,7 +102,9 @@ class WdlParser:
             # if call.variable not in wf.input_nodes:
             #     wf.input(call.variable, scar_var_type)
             for inner_call in call.body:
-                self.add_call_to_wf(wf, inner_call, foreach=foreach, expr_alias=call.variable)
+                self.add_call_to_wf(
+                    wf, inner_call, foreach=foreach, expr_alias=call.variable
+                )
 
         elif isinstance(call, WDL.Decl):
             self.add_decl_to_wf_input(wf, call)
@@ -108,9 +114,13 @@ class WdlParser:
     def add_decl_to_wf_input(self, wf: j.WorkflowBase, inp: WDL.Decl):
         default = None
         if inp.expr:
+
             def selector_getter(exp):
                 return self.workflow_selector_getter(wf, exp)
-            default = self.translate_expr(inp.expr, input_selector_getter=selector_getter)
+
+            default = self.translate_expr(
+                inp.expr, input_selector_getter=selector_getter
+            )
 
         return wf.input(inp.name, self.parse_wdl_type(inp.type), default=default)
 
@@ -134,7 +144,9 @@ class WdlParser:
         if container is None:
             container = "ubuntu:latest"
         if not isinstance(container, str):
-            j.Logger.warn(f"Expression for determining containers ({container}) are not supported in Janis, using ubuntu:latest")
+            j.Logger.warn(
+                f"Expression for determining containers ({container}) are not supported in Janis, using ubuntu:latest"
+            )
             container = "ubuntu:latest"
         return container
 
@@ -152,7 +164,7 @@ class WdlParser:
             raise Exception(f"Memory type {s}")
         elif isinstance(s, (float, int)):
             # in bytes?
-            return s / (1024**3)
+            return s / (1024 ** 3)
         elif isinstance(s, j.Selector):
             return s
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
@@ -183,7 +195,7 @@ class WdlParser:
             raise Exception(f"Disk type type {s}")
         elif isinstance(s, (float, int)):
             # in bytes?
-            return s / (1024**3)
+            return s / (1024 ** 3)
         elif isinstance(s, j.Selector):
             return s
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
@@ -211,7 +223,7 @@ class WdlParser:
             files_to_create={"script.sh": translated_script},
             memory=self.parse_memory_requirement(rt.get("memory")),
             cpus=cpus,
-            disk=self.parse_disk_requirement(rt.get("disks"))
+            disk=self.parse_disk_requirement(rt.get("disks")),
         )
 
         return c
@@ -243,7 +255,9 @@ class WdlParser:
                 return input_selector_getter(n)
             return j.InputSelector(n)
         elif isinstance(expr, WDL.Expr.Apply):
-            return self.translate_apply(expr, input_selector_getter=input_selector_getter)
+            return self.translate_apply(
+                expr, input_selector_getter=input_selector_getter
+            )
 
         raise Exception(f"Unsupported WDL expression type: {expr} ({type(expr)})")
 
@@ -287,7 +301,9 @@ class WdlParser:
                 ("g" in f, 0.001),
             ]
             if not any(m[0] for m in multiplier_heirarchy):
-                j.Logger.warn(f"Couldn't determine prefix {f} for FileSizeOperator, defaulting to MB")
+                j.Logger.warn(
+                    f"Couldn't determine prefix {f} for FileSizeOperator, defaulting to MB"
+                )
             else:
                 multiplier = [m[1] for m in multiplier_heirarchy if m[0] is True][0]
 
@@ -335,7 +351,6 @@ class WdlParser:
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "size": self.file_size_operator,
             "ceil": j.CeilOperator,
-
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:

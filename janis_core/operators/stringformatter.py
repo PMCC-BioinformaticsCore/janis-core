@@ -72,11 +72,13 @@ class StringFormatter(Operator):
             def __missing__(self, key):
                 return "{{" + str(key) + "}}"
 
-        d = DefaultDictionary({
-            # keep in curly braces for the
-            str(k): f"{{{unwrap_operator(v)}}}"
-            for k, v in self.kwargs.items()
-        })
+        d = DefaultDictionary(
+            {
+                # keep in curly braces for the
+                str(k): f"{{{unwrap_operator(v)}}}"
+                for k, v in self.kwargs.items()
+            }
+        )
         return self._format.format_map(d)
 
     def evaluate(self, inputs):
