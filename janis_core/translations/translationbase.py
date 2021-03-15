@@ -433,7 +433,8 @@ class TranslatorBase(ABC):
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value is not None or (i.default is not None and not isinstance(i.default, Selector))
+                if i.value is not None
+                or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         inp = {
@@ -500,10 +501,18 @@ class TranslatorBase(ABC):
                 seconds = max_duration
 
             return {
-                prefix + "runtime_memory": mem if not isinstance(mem, Selector) else None,
-                prefix + "runtime_cpu": cpus if not isinstance(cpus, Selector) else None,
-                prefix + "runtime_disks": disk if not isinstance(disk, Selector) else None,
-                prefix + "runtime_seconds": seconds if not isinstance(seconds, Selector) else None,
+                prefix + "runtime_memory": mem
+                if not isinstance(mem, Selector)
+                else None,
+                prefix + "runtime_cpu": cpus
+                if not isinstance(cpus, Selector)
+                else None,
+                prefix + "runtime_disks": disk
+                if not isinstance(disk, Selector)
+                else None,
+                prefix + "runtime_seconds": seconds
+                if not isinstance(seconds, Selector)
+                else None,
             }
 
         new_inputs = {}
