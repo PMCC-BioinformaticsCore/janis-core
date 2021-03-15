@@ -22,15 +22,15 @@ class TestOperators(unittest.TestCase):
 class TestAndOperator(unittest.TestCase):
     def test_add_operator(self):
         op = AndOperator("cond1", "cond2")
-        self.assertEqual("(cond1 && cond2)", str(op))
+        self.assertEqual("(cond1 and cond2)", str(op))
 
     def test_nested_add_operator(self):
         op = AndOperator("cond1", AndOperator("cond2", "cond3"))
-        self.assertEqual("(cond1 && (cond2 && cond3))", str(op))
+        self.assertEqual("(cond1 and (cond2 and cond3))", str(op))
 
-    def test_and_to_operator(self):
+    def test_and_two_operator(self):
         op = AndOperator("cond1", "cond2").op_and("cond3")
-        self.assertEqual("((cond1 && cond2) && cond3)", str(op))
+        self.assertEqual("((cond1 and cond2) and cond3)", str(op))
 
 
 class TestAddOperator(unittest.TestCase):

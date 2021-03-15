@@ -53,6 +53,10 @@ class IsDefined(Operator, ABC):
     def evaluate(self, inputs):
         return self.evaluate_arg(self.args[0], inputs) is not None
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"{arg} is not None"
+
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         # 2 equals (!=) in javascript will coerce undefined to equal null
@@ -103,6 +107,10 @@ class If(Operator, ABC):
         cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"{cond} ? {v1} : {v2}"
 
+    def to_python(self, unwrap_operator, *args):
+        condition, iftrue, iffalse = [unwrap_operator(a) for a in self.args]
+        return f"({iftrue} if {condition} else {iffalse})"
+
 
 class AssertNotNull(Operator):
     @staticmethod
@@ -116,6 +124,9 @@ class AssertNotNull(Operator):
         result = self.evaluate_arg(self.args[0], inputs)
         assert result is not None
         return result
+
+    def to_python(self, unwrap_operator, *args):
+        return unwrap_operator(unwrap_operator(args[0]))
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
@@ -168,6 +179,12 @@ class NotOperator(SingleValueOperator):
     def apply_to(value):
         return not value
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"not {arg}"
+
+
+
     # Two value operators
 
 
@@ -178,7 +195,7 @@ class AndOperator(TwoValueOperator):
 
     @staticmethod
     def symbol():
-        return "&&"
+        return "and"
 
     @staticmethod
     def wdl_symbol():
@@ -206,7 +223,7 @@ class OrOperator(TwoValueOperator):
 
     @staticmethod
     def symbol():
-        return "||"
+        return "or"
 
     @staticmethod
     def wdl_symbol():
@@ -559,6 +576,10 @@ class FloorOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"math.floor({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"floor({arg})"
@@ -577,7 +598,7 @@ class FloorOperator(Operator):
 class CeilOperator(Operator):
     @staticmethod
     def friendly_signature():
-        return "Numeric, NumericType -> Int"
+        return "Numeric -> Int"
 
     def argtypes(self) -> List[DataType]:
         return [NumericType]
@@ -591,6 +612,10 @@ class CeilOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"math.ceil({arg})"
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
@@ -624,6 +649,10 @@ class RoundOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"math.round({arg})"
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])

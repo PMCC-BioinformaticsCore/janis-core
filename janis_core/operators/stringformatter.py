@@ -65,6 +65,20 @@ class StringFormatter(Operator):
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
 
+    def to_python(self, unwrap_operator, *args):
+        # TO avoid format errors when unwrapping StringFormatter, we'll use the following dictionary
+        # that returns the key if it's missing:
+        class DefaultDictionary(dict):
+            def __missing__(self, key):
+                return "{{" + str(key) + "}}"
+
+        d = DefaultDictionary({
+            # keep in curly braces for the
+            str(k): f"{{{unwrap_operator(v)}}}"
+            for k, v in self.kwargs.items()
+        })
+        return self._format.format_map(d)
+
     def evaluate(self, inputs):
         resolvedvalues = {
             k: self.evaluate_arg(v, inputs) for k, v in self.kwargs.items()

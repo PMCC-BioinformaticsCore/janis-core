@@ -1,5 +1,7 @@
 from copy import copy
 from typing import List
+
+from janis_core.utils.logger import Logger
 from janis_core.types import (
     DataType,
     UnionType,
@@ -21,6 +23,9 @@ class ReadContents(Operator):
 
     def argtypes(self) -> List[DataType]:
         return [File()]
+
+    def to_python(self, unwrap_operator, *args):
+        raise NotImplementedError("Determine _safe_ one line solution for ReadContents")
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(args[0])
@@ -55,6 +60,10 @@ class ReadJsonOperator(Operator):
 
         with open(file) as f:
             return load(f)
+
+    def to_python(self, unwrap_operator, *args):
+        raise NotImplementedError("Determine _safe_ one line solution for ReadContents")
+
 
     def to_wdl(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
@@ -91,6 +100,10 @@ class JoinOperator(Operator):
     def returntype(self):
         return String()
 
+    def to_python(self, unwrap_operator, *args):
+        iterable, separator = [unwrap_operator(a) for a in self.args]
+        return f"{separator}.join({iterable})"
+
     def to_wdl(self, unwrap_operator, *args):
         iterable, separator = [unwrap_operator(a) for a in self.args]
         iterable_arg = self.args[0]
@@ -124,8 +137,12 @@ class BasenameOperator(Operator):
     def friendly_signature():
         return "Union[File, Directory] -> String"
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"os.path.basename({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
-        arg = args[0]
+        arg = unwrap_operator(args[0])
         return f"basename({unwrap_operator(arg)})"
 
     def to_cwl(self, unwrap_operator, *args):
@@ -169,6 +186,10 @@ class TransposeOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[[{iterable}[j][i] for j in range(len({iterable}))] for i in range(len({iterable}[0]))]"
+
     def to_wdl(self, unwrap_operator, *args):
         return f"transform({unwrap_operator(args[0])})"
 
@@ -200,6 +221,10 @@ class LengthOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"len({arg})"
+
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"length({arg})"
@@ -211,6 +236,41 @@ class LengthOperator(Operator):
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
         return len(ar)
+
+
+class RangeOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Int -> Array[Int]"
+
+    def argtypes(self):
+        return [Int]
+
+    def returntype(self):
+        return Array(Int())
+
+    def __str__(self):
+        return f"0...{self.args[0]}"
+
+    def __repr__(self):
+        return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"range({arg})"
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"range({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"Array.from({{ length: {arg} + 1 }}, (_, i) => i)"
+        # return f"{arg}.length"
+
+    def evaluate(self, inputs):
+        ar = self.evaluate_arg(self.args[0], inputs)
+        return list(range(ar))
 
 
 class FlattenOperator(Operator):
@@ -229,6 +289,10 @@ class FlattenOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"[el for sublist in {arg} for el in sublist]"
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
@@ -261,6 +325,10 @@ class ApplyPrefixOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        prefix, iterable = [unwrap_operator(a) for a in self.args]
+        return f"[{prefix} + i for i in {iterable}]"
+
     def to_wdl(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
         return f"prefix({prefix}, {iterable})"
@@ -278,6 +346,30 @@ class FileSizeOperator(Operator):
     """
     Returned in MB: Note that this does NOT include the reference files (yet)
     """
+    def __new__(cls, *args, **kwargs):
+        multiplier = None
+        src, *otherargs = args
+
+        if len(otherargs) == 1:
+            f = otherargs[0].lower()
+            multiplier_heirarchy = [
+                ("ki" in f, 1024),
+                ("k" in f, 1000),
+                ("mi" in f, 1.024),
+                ("gi" in f, 0.001024),
+                ("g" in f, 0.001),
+            ]
+            if not any(m[0] for m in multiplier_heirarchy):
+                Logger.warn(f"Couldn't determine prefix {f} for FileSizeOperator, defaulting to MB")
+            else:
+                multiplier = [m[1] for m in multiplier_heirarchy if m[0] is True][0]
+
+        instance = super(FileSizeOperator, cls).__new__(cls)
+        instance.__init__(args[0])
+
+        if multiplier is not None and multiplier != 1:
+            return instance * multiplier
+        return instance
 
     @staticmethod
     def friendly_signature():
@@ -295,6 +387,10 @@ class FileSizeOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        f = unwrap_operator(self.args[0])
+        return f"os.stat({f}).st_size / 1000"
 
     def to_wdl(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
@@ -338,6 +434,10 @@ class FirstOperator(Operator):
     def __repr__(self):
         return str(self)
 
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[a for a in {iterable} if a is not None][0]"
+
     def to_wdl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"select_first({iterable})"
@@ -375,6 +475,10 @@ class FilterNullOperator(Operator):
 
     def __repr__(self):
         return str(self)
+
+    def to_python(self, unwrap_operator, *args):
+        iterable = unwrap_operator(self.args[0])
+        return f"[a for a in {iterable} if a is not None]"
 
     def to_wdl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
