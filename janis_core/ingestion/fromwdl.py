@@ -67,7 +67,7 @@ class WdlParser:
                 inp_map[k] = new_expr
 
 
-            return wf.step(call.name, task(**inp_map), when=condition, foreach=foreach)
+            return wf.step(call.name, task(**inp_map), when=condition, _foreach=foreach)
 
         elif isinstance(call, WDL.Conditional):
             # if len(call.body) > 1:
