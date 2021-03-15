@@ -413,7 +413,19 @@ class AliasSelector(Selector):
         return self.data_type
 
     def to_string_formatter(self):
-        return f"({self.inner_selector} as {self.data_type})"
+        from janis_core.operators.stringformatter import StringFormatter
+
+        return StringFormatter("{value}", value=self.inner_selector)
+
+
+class ForEachSelector(Selector):
+    def returntype(self) -> DataType:
+        return File()
+
+    def to_string_formatter(self):
+        from janis_core.operators.stringformatter import StringFormatter
+
+        return StringFormatter("{inp}", inp=self)
 
 
 class ResourceSelector(InputSelector):
