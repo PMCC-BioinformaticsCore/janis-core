@@ -122,12 +122,14 @@ class StepNode(Node):
         doc: DocumentationMeta = None,
         scatter: ScatterDescription = None,
         when: Operator = None,
+        _foreach=None
     ):
         super().__init__(wf, NodeType.STEP, identifier)
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
         self.when = when
+        self.foreach = _foreach
 
         self.parent_has_conditionals = False
         self.has_conditionals = when is not None
@@ -679,6 +681,7 @@ class WorkflowBase(Tool):
         identifier: str,
         tool: Tool,
         scatter: Union[str, List[str], ScatterDescription] = None,
+        _foreach: Union[Selector, List[Selector]]=None,
         when: Optional[Operator] = None,
         ignore_missing=False,
         doc: str = None,
@@ -693,6 +696,10 @@ class WorkflowBase(Tool):
         :param when: An operator / condition that determines whether the step should run
         :type when: Optional[Operator]
         :param ignore_missing: Don't throw an error if required params are missing from this function
+        :param _foreach: NB: this is unimplemented. Iterate for each value of this resolves list, where
+                    you should use the "ForEachSelector" to select each value in this iterable.
+
+
         :return:
         """
 
@@ -711,6 +718,9 @@ class WorkflowBase(Tool):
                 )
 
             scatter = ScatterDescription(fields, method=ScatterMethod.dot)
+
+        if scatter is not None and _foreach is not None:
+            raise Exception(f"Can't supply 'scatter' and 'foreach' value to step with id: {identifier} for tool: {tool.id()}")
 
         # verify scatter
         if scatter:
@@ -756,7 +766,7 @@ class WorkflowBase(Tool):
 
         d = doc if isinstance(doc, DocumentationMeta) else DocumentationMeta(doc=doc)
         stp = StepNode(
-            self, identifier=identifier, tool=tool, scatter=scatter, when=when, doc=d
+            self, identifier=identifier, tool=tool, scatter=scatter, when=when, doc=d, _foreach=_foreach
         )
 
         added_edges = []
