@@ -20,25 +20,9 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
-from janis_core import ForEachSelector
-from janis_core.deps import wdlgen as wdl
-
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
-from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import FirstOperator
-from janis_core.types import get_instantiated_type, DataType
-
-from janis_core.types.data_types import is_python_primitive
-
 from janis_core.code.codetool import CodeTool
+from janis_core.deps import wdlgen as wdl
 from janis_core.graph.steptaginput import Edge, StepTagInput
-from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
-from janis_core.tool.tool import Tool, TOutput, ToolType
-from janis_core.translations.translationbase import (
-    TranslatorBase,
-    TranslatorMeta,
-    try_catch_translate,
-)
 from janis_core.operators import (
     InputSelector,
     WildcardSelector,
@@ -53,7 +37,17 @@ from janis_core.operators import (
     DiskSelector,
     ResourceSelector,
     AliasSelector,
+    ForEachSelector,
 )
+from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
+from janis_core.tool.tool import Tool, ToolType
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translations.translationbase import (
+    TranslatorBase,
+    TranslatorMeta,
+    try_catch_translate,
+)
+from janis_core.types import get_instantiated_type, DataType
 from janis_core.types.common_data_types import (
     Stdout,
     Stderr,
@@ -62,11 +56,9 @@ from janis_core.types.common_data_types import (
     Filename,
     File,
     Directory,
-    Int,
-    Float,
-    Double,
     String,
 )
+from janis_core.types.data_types import is_python_primitive
 from janis_core.utils import (
     first_value,
     recursive_2param_wrap,
@@ -76,17 +68,16 @@ from janis_core.utils import (
 from janis_core.utils.generators import generate_new_id_from
 from janis_core.utils.logger import Logger
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
-from janis_core.utils.validators import Validators
 from janis_core.utils.secondary import (
     split_secondary_file_carats,
     apply_secondary_file_format_to_filename,
 )
-
-# from janis_core.tool.step import StepNode
-
+from janis_core.utils.validators import Validators
 
 ## PRIMARY TRANSLATION METHODS
-from janis_core.workflow.workflow import InputNode, StepNode
+from janis_core.workflow.workflow import StepNode
+
+# from janis_core.tool.step import StepNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -907,8 +898,12 @@ EOT"""
                     for ex in ar_exp:
                         inner_exp = ex
                         for ext in potential_extensions:
-                            inner_exp = 'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
-                                inp=inner_exp, old_ext=ext, new_ext=s.replace("^", "")
+                            inner_exp = (
+                                'sub({inp}, "\\\\{old_ext}$", "{new_ext}")'.format(
+                                    inp=inner_exp,
+                                    old_ext=ext,
+                                    new_ext=s.replace("^", ""),
+                                )
                             )
                         exp.append(inner_exp)
 
@@ -1053,7 +1048,6 @@ EOT"""
         :param tool:
         :return:
         """
-        from janis_core.workflow.workflow import Workflow
 
         inp = {}
         values_provided_from_tool = {}
@@ -1123,7 +1117,6 @@ EOT"""
         prefix=None,
         is_root=False,
     ):
-        from janis_core.workflow.workflow import Workflow
 
         is_workflow = tool.type() == ToolType.Workflow
         d = super().build_resources_input(
@@ -1451,7 +1444,7 @@ def translate_step_node(
     :param resource_overrides:
     :return:
     """
-    from janis_core.workflow.workflow import StepNode, InputNode
+    from janis_core.workflow.workflow import StepNode
 
     node: StepNode = node2
     step_alias: str = node.id()
@@ -1639,11 +1632,13 @@ def translate_step_node(
             call, node.scatter, scatterable, scattered_old_to_new_identifier
         )
     if node2.foreach is not None:
-        expr = WdlTranslator.unwrap_expression(node2.foreach, inputsdict=inputsdict,
+        expr = WdlTranslator.unwrap_expression(
+            node2.foreach,
+            inputsdict=inputsdict,
             string_environment=False,
-            stepid=step_identifier,)
+            stepid=step_identifier,
+        )
         call = wdl.WorkflowScatter("idx", expr, [call])
-
 
     if node.when is not None:
         condition = WdlTranslator.unwrap_expression(
