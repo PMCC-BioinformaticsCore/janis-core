@@ -6,7 +6,7 @@ Does not support:
 - code tool
 - present_as
 - secondaries_present_as
-
+- scattering by multiple fields
 """
 
 
@@ -34,7 +34,7 @@ from janis_core import (
 from janis_core.tool.commandtool import CommandTool
 from janis_core.translations.janis import JanisTranslator
 from janis_core.types.common_data_types import *
-from janis_core.workflow.workflow import WorkflowBase
+from janis_core.workflow.workflow import WorkflowBase, StepNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -55,99 +55,9 @@ class HailBatchTranslator:
         generate_click_cli=True,
     ) -> str:
 
-        kwargs_no_annotations, kwargs, kwargs_with_defaults = [], [], []
-        step_definitions = []
-        step_calls = []
-        inputs_to_read = []
-        additional_expressions = []
         extra_imports = []
+        wf_str = cls.translate_workflow_internal(workflow, allow_empty_container=allow_empty_container, container_override=container_override)
 
-        for inp in workflow.input_nodes.values():
-            dt = inp.datatype
-            kwarg, has_default, ad_expr = cls.get_kwarg_from_value(
-                inp.id(), dt, inp.default
-            )
-            additional_expressions.extend(ad_expr)
-
-            if not has_default:
-                kwargs.append(kwarg)
-                kwarg_no_annotation, _, _ = cls.get_kwarg_from_value(
-                    inp.id(), dt, None, include_annotation=False
-                )
-                kwargs_no_annotations.append(kwarg_no_annotation)
-            else:
-                kwargs_with_defaults.append(kwarg)
-
-            if dt.is_base_type(File) or (
-                isinstance(dt, Array) and dt.fundamental_type().is_base_type(File)
-            ):
-                inputs_to_read.append(inp)
-
-        for stp in workflow.step_nodes.values():
-            if isinstance(stp.tool, WorkflowBase):
-                raise NotImplementedError("Hail Batch doesn't support subworkflows yet")
-            if isinstance(stp.tool, CodeTool):
-                raise NotImplementedError("No support for code tool yet")
-
-            connections = stp.sources
-            foreach = stp.foreach
-            if stp.scatter:
-                if len(stp.scatter.fields) == 1:
-                    foreach = stp.scatter.fields[0]
-                    connections[foreach] = ForEachSelector()
-                else:
-                    Logger.warn(
-                        "Batch doesn't support scattering by fields at the moment"
-                    )
-
-            step_definitions.append(cls.translate_tool_internal(stp.tool, stp.id()))
-
-            inner_connections = {}
-            for k, con in connections.items():
-                src = con.source().source
-                inner_connections[k] = cls.unwrap_expression(src, code_environment=True)
-
-            inner_connection_str = ", ".join(
-                f"{k}={v}" for k, v in inner_connections.items()
-            )
-            inner_call = (
-                f"{cls.get_method_name_for_id(stp.id())}(b, {inner_connection_str})"
-            )
-            if foreach is not None:
-
-                foreach_str = cls.unwrap_expression(foreach, code_environment=True)
-                call = f"""
-{stp.id()} = []
-for idx in {foreach_str}:
-    {stp.id()}.append({inner_call})"""
-            else:
-                call = f"{stp.id()} = {inner_call}"
-
-            if stp.when is not None:
-                when_str = cls.unwrap_expression(stp.when, code_environment=True)
-                call = f"""\
-{stp.id()} = None
-if {when_str}:
-{indent(call, 4 * ' ')}
-"""
-            step_calls.append(call)
-
-        # for outp in workflow.output_nodes.values():
-        #     step_calls.append("b.write_output({source}, {name})")
-
-        pd = 4 * " "
-        additional_preparation_expressions_str = "\n".join(
-            indent(t, pd) for t in additional_expressions
-        )
-        inputs_to_read_str = "\n".join(
-            f"{pd}{inp.id()} = "
-            + cls.prepare_input_read_for_inp(inp.datatype, inp.id())
-            for inp in inputs_to_read
-        )
-        step_calls_str = "\n".join(indent(s, pd) for s in step_calls)
-        step_definitions_str = "\n\n".join(step_definitions)
-
-        name_equals_main_arg = None
         if generate_click_cli:
             function_name = "main_from_click"
             extra_imports.append("import click")
@@ -157,27 +67,22 @@ if __name__ == "__main__":
     {function_name}()
 """
         else:
+            kwargs = [inp.id() for inp in workflow.tool_inputs() if not (inp.intype.optional or inp.default)]
             name_equals_main_arg = f"""\
 if __name__ == "__main__":
-    main({", ".join(k + "=None" for k in kwargs_no_annotations)})
+    main({", ".join(k + "=None" for k in kwargs)})
 """
         extra_imports_str = "\n" + "\n".join(extra_imports)
+
+        # Final script generation!
         retval = f"""\
-import math, os
+import os, re, math
 from typing import Union, Optional, List
 {extra_imports_str}
 
 import hailtop.batch as hb
 
-def main({', '.join([*kwargs, *kwargs_with_defaults])}):
-    b = hb.Batch('{workflow.id()}')
-{additional_preparation_expressions_str}
-{inputs_to_read_str}
-
-{step_calls_str}
-    return b
-    
-{step_definitions_str}
+{wf_str}
 
 {inspect.getsource(apply_secondary_file_format_to_filename)}
 
@@ -201,8 +106,82 @@ def main({', '.join([*kwargs, *kwargs_with_defaults])}):
     # internal translators
 
     @classmethod
-    def translate_workflow_internal(cls, workflow: WorkflowBase, allow_empty_container=False, container_override: dict=None):
-        pass
+    def translate_workflow_internal(cls, workflow: WorkflowBase, allow_empty_container=False, container_override: dict=None, function_name="main"):
+        kwargs, kwargs_with_defaults = [], []
+        step_definitions = []
+        step_calls = []
+        inputs_to_read = []
+        additional_expressions = []
+
+        # This is hard to refactor into an individual method as it relies on:
+        #   - additional_expressions: used for determining default if it's an operation
+        #       **  if the expression relies on another pre-computed default,
+        #           this might not work correctly.
+        #   - kwargs && kwargs_with_defaults:
+        #       for building main(**kwargs, **kwargs_with_defaults)
+        #       function definition in correct order
+        #   - inputs_to_read: we need to call 'prepare_input_read_for_inp' on these inputs as
+        #       for file inputs, we'll call 'read_input' (files) or 'read_input_group' (files+secondaries)
+        for inp in workflow.input_nodes.values():
+            dt = inp.datatype
+            kwarg, has_default, ad_expr = cls.get_kwarg_from_value(
+                inp.id(), dt, inp.default
+            )
+            additional_expressions.extend(ad_expr)
+
+            if not has_default:
+                kwargs.append(kwarg)
+                kwarg_no_annotation, _, _ = cls.get_kwarg_from_value(
+                    inp.id(), dt, None, include_annotation=False
+                )
+            else:
+                kwargs_with_defaults.append(kwarg)
+
+            if dt.is_base_type(File) or (
+                    isinstance(dt, Array) and dt.fundamental_type().is_base_type(File)
+            ):
+                inputs_to_read.append(inp)
+
+        for stp in workflow.step_nodes.values():
+
+            if isinstance(stp.tool, WorkflowBase):
+                raise NotImplementedError("Hail Batch doesn't support subworkflows")
+            if isinstance(stp.tool, CodeTool):
+                raise NotImplementedError("Janis -> Hail Batch does not support CodeTool")
+            step_definitions.append(cls.translate_tool_internal(stp.tool, stp.id()))
+
+            call = cls.prepare_step_definition_and_call(stp)
+            step_calls.append(call)
+
+        # for outp in workflow.output_nodes.values():
+        #     step_calls.append("b.write_output({source}, {name})")
+
+        pd = 4 * " "
+        additional_preparation_expressions_str = "\n".join(
+            indent(t, pd) for t in additional_expressions
+        )
+        inputs_to_read_str = "\n".join(
+            f"{pd}{inp.id()} = "
+            + cls.prepare_input_read_for_inp(inp.datatype, inp.id())
+            for inp in inputs_to_read
+        )
+        step_calls_str = "\n".join(indent(s, pd) for s in step_calls)
+        step_definitions_str = "\n\n".join(step_definitions)
+
+        # TODO: in the future, when subworkflows are supported, the step_definitions
+        #       should be embedded IN the main definition
+        wf_str = f"""\
+def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
+    b = hb.Batch('{workflow.id()}')
+{additional_preparation_expressions_str}
+{inputs_to_read_str}
+
+{step_calls_str}
+    return b
+    
+{step_definitions_str}
+"""
+        return wf_str
 
     @classmethod
     def translate_tool_internal(
@@ -450,8 +429,8 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
         if isinstance(dt, File) and dt.secondary_files():
             # we need to build a reference group
             ext = (dt.extension or "").replace(".", "")
-            exts = [a for a in [dt.extension, *(dt.alternate_extensions or [])] if a]
-            base = f"{reference_var}" + "".join(f'.replace("{e}", "")' for e in exts)
+            exts = "|".join(a.replace(".", "\\\\.") for a in [dt.extension, *(dt.alternate_extensions or [])] if a)
+            base = f're.sub({reference_var}, r"({exts})$", "")'
             dsec = {}
             for sec in dt.secondary_files():
                 sec_key = sec.replace("^", "").replace(".", "")
@@ -507,8 +486,51 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
         return d
 
     @classmethod
+    def prepare_step_definition_and_call(cls, stp: StepNode):
+        connections = stp.sources
+        foreach = stp.foreach
+        if stp.scatter:
+            if len(stp.scatter.fields) == 1:
+                foreach = stp.scatter.fields[0]
+                connections[foreach] = ForEachSelector()
+            else:
+                raise NotImplementedError(
+                    "Batch doesn't support scattering by multiple fields at the moment"
+                )
+
+        inner_connections = {}
+        for k, con in connections.items():
+            src = con.source().source
+            inner_connections[k] = cls.unwrap_expression(src, code_environment=True)
+
+        inner_connection_str = ", ".join(
+            f"{k}={v}" for k, v in inner_connections.items()
+        )
+        inner_call = (
+            f"{cls.get_method_name_for_id(stp.id())}(b, {inner_connection_str})"
+        )
+        if foreach is not None:
+
+            foreach_str = cls.unwrap_expression(foreach, code_environment=True)
+            call = f"""
+        {stp.id()} = []
+        for idx in {foreach_str}:
+            {stp.id()}.append({inner_call})"""
+        else:
+            call = f"{stp.id()} = {inner_call}"
+
+        if stp.when is not None:
+            when_str = cls.unwrap_expression(stp.when, code_environment=True)
+            call = f"""\
+        {stp.id()} = None
+        if {when_str}:
+        {indent(call, 4 * ' ')}
+        """
+
+        return call
+    @classmethod
     def translate_tool_output(cls, outp) -> Tuple[Optional[str], List[str], List[str]]:
-        command_extras = None
+        command_extras = ""
         output_collectors, additional_expressions = [], []
         secs = (
             outp.output_type.secondary_files()
@@ -527,9 +549,9 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
         values = []
         dests = [f"j.{outp.id()}"]
         sec_presents_as = outp.secondaries_present_as or {}
-        if isinstance(outp.selector, Stdout):
+        if any(isinstance(o, Stdout) for o in [outp.selector, outp.output_type]):
             command_extras += f" > {{j.{outp.id()}}}"
-        elif isinstance(outp.selector, Stderr):
+        elif any(isinstance(o, Stderr) for o in [outp.selector, outp.output_type]):
             command_extras += f" 2> {{j.{outp.id()}}}"
         elif isinstance(outp.selector, WildcardSelector):
             gl = cls.unwrap_expression(outp.selector.wildcard, code_environment=True)
@@ -588,7 +610,7 @@ def {cls.get_method_name_for_id(step_id or tool.id())}(b, {", ".join([*kwargs, *
                 else:
                     dests.append(f'f"{{j.{outp.id()}}}{final_ext}"')
         else:
-            Logger.warn("Couldn't translate output selector ")
+            Logger.warn(f"Couldn't translate output selector for '{outp.id()}' as it's an unrecognised type {outp.selector} ({type(outp.selector)})")
 
         if values and dests:
             for value, dest in zip(values, dests):
