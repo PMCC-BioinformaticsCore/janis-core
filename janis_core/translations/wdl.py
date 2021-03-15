@@ -20,6 +20,7 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
+from janis_core import ForEachSelector
 from janis_core.deps import wdlgen as wdl
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
@@ -568,7 +569,8 @@ EOT"""
                 }
             )
             return cls.wrap_if_string_environment(gen_filename, string_environment)
-
+        elif isinstance(expression, ForEachSelector):
+            return wrap_in_code_block("idx")
         elif isinstance(expression, AliasSelector):
             return cls.unwrap_expression(
                 expression.inner_selector,
@@ -1636,6 +1638,12 @@ def translate_step_node(
         call = wrap_scatter_call(
             call, node.scatter, scatterable, scattered_old_to_new_identifier
         )
+    if node2.foreach is not None:
+        expr = WdlTranslator.unwrap_expression(node2.foreach, inputsdict=inputsdict,
+            string_environment=False,
+            stepid=step_identifier,)
+        call = wdl.WorkflowScatter("idx", expr, [call])
+
 
     if node.when is not None:
         condition = WdlTranslator.unwrap_expression(
