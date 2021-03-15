@@ -16,6 +16,7 @@ from janis_core.tests.testtools import (
     EchoTestTool,
     FilenameGeneratedTool,
     OperatorResourcesTestTool,
+    TestForEach,
 )
 
 from janis_core.deps import cwlgen
@@ -1018,6 +1019,17 @@ class TestCWLWhen(unittest.TestCase):
         self.assertEqual("$((inputs.__when_inp != null))", c.when)
         extra_input: cwlgen.WorkflowStepInput = c.in_[-1]
         self.assertEqual("__when_inp", extra_input.id)
+
+
+class TestForEachSelectors(unittest.TestCase):
+    def test_minimal(self):
+        tool = TestForEach()
+        # tool.translate("cwl", export_path="~/Desktop/tmp", to_disk=True)
+        w, _ = CwlTranslator.translate_workflow(tool)
+
+        stp = w.steps[0]
+        self.assertEqual("inp", stp.in_[0].source)
+        self.assertEqual('$((inputs._idx + "-hello"))', stp.in_[1].valueFrom)
 
 
 cwl_testtool = """\

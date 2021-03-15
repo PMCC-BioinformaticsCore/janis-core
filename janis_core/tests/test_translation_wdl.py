@@ -39,6 +39,7 @@ from janis_core.tests.testtools import (
     ArrayTestTool,
     OperatorResourcesTestTool,
     TestWorkflowThatOutputsArraysOfSecondaryFiles,
+    TestForEach,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -1595,6 +1596,32 @@ class TestUnionType(unittest.TestCase):
     def test_file_int_fail(self):
         uniontype = UnionType(File, int)
         self.assertRaises(Exception, uniontype.wdl)
+
+
+class TestForEachSelectors(unittest.TestCase):
+    def test_minimal(self):
+        TestForEach().translate("wdl", to_disk=True, export_path="~/Desktop/tmp")
+        w, _ = WdlTranslator.translate_workflow(TestForEach())
+        expected = """\
+version development
+
+import "tools/EchoTestTool_TEST.wdl" as E
+
+workflow TestForEach {
+  input {
+    Array[String] inp
+  }
+  scatter (idx in inp) {
+     call E.EchoTestTool as print {
+      input:
+        inp=(idx + "-hello")
+    }
+  }
+  output {
+    Array[File] out = print.out
+  }
+}"""
+        self.assertEqual(expected.strip(), w.get_string().strip())
 
 
 t = CommandToolBuilder(
