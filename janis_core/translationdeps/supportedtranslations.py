@@ -5,6 +5,7 @@ class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
     JANIS = "janis"
+    HAILBATCH = "hail"
 
     def __str__(self):
         return self.value
@@ -27,10 +28,15 @@ class SupportedTranslation(Enum):
 
             return JanisTranslator()
 
+        elif self == SupportedTranslation.HAILBATCH:
+            from ..translations.hailbatch import HailBatchTranslator
+
+            return HailBatchTranslator()
+
     @staticmethod
     def all():
         return [
             SupportedTranslation.CWL,
             SupportedTranslation.WDL,
-            SupportedTranslation.JANIS,
+            SupportedTranslation.JANIS
         ]
