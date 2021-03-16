@@ -54,6 +54,7 @@ from janis_core.tool.tool import Tool, ToolType
 from janis_core.translations.translationbase import (
     TranslatorBase,
     TranslatorMeta,
+    WorkflowTranslationOutput,
     try_catch_translate,
 )
 from janis_core.types.common_data_types import (
@@ -84,14 +85,14 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
     def __init__(self):
         super().__init__(name="cwl")
 
-    @staticmethod
-    def stringify_commentedmap(m):
+    @classmethod
+    def stringify_commentedmap(cls, m):
         io = StringIO()
         yaml.dump(m, io)
         return io.getvalue()
 
-    @staticmethod
-    def stringify_translated_workflow(
+    @classmethod
+    def stringify_translated_workflow(cls, 
         wf: cwlgen.Savable, should_format=True, as_json=False
     ):
         saved = wf.save()
@@ -107,8 +108,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         return formatted
 
-    @staticmethod
-    def stringify_translated_tool(
+    @classmethod
+    def stringify_translated_tool(cls, 
         tool: cwlgen.Savable, should_format=True, as_json=False
     ):
         saved = tool.save()
@@ -124,17 +125,17 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         return formatted
 
-    @staticmethod
-    def stringify_translated_inputs(inputs):
+    @classmethod
+    def stringify_translated_inputs(cls, inputs):
         return ruamel.yaml.dump(inputs, default_flow_style=False)
 
-    @staticmethod
-    def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
+    @classmethod
+    def validate_command_for(cls, wfpath, inppath, tools_dir_path, tools_zip_path):
         return ["cwltool", "--validate", wfpath]
 
     @classmethod
     @try_catch_translate(type="workflow")
-    def translate_workflow(
+    def translate_workflow_internal(
         cls,
         wf,
         with_container=True,
@@ -143,7 +144,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_packed=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
+    ) -> WorkflowTranslationOutput:
 
         metadata = wf.metadata
         w = cwlgen.Workflow(
@@ -213,7 +214,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         for t in tools_to_build:
             tool: Tool = tools_to_build[t]
             if tool.type() == ToolType.Workflow:
-                wf_cwl, subtools = cls.translate_workflow(
+                wf_cwl, subtools = cls.translate_workflow_internal(
                     tool,
                     is_nested_tool=True,
                     with_container=with_container,
@@ -224,7 +225,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 tools[tool.versioned_id()] = wf_cwl
                 tools.update(subtools)
             elif isinstance(tool, CommandTool):
-                tool_cwl = cls.translate_tool_internal(
+                tool_cwl = cls.translate_command_tool_internal(
                     tool,
                     with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
@@ -243,7 +244,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             else:
                 raise Exception(f"Unknown tool type: '{type(tool)}'")
 
-        return w, tools
+        return WorkflowTranslationOutput(workflow_obj=w, tools_dict=tools)
 
     @classmethod
     def convert_operator_to_commandtool(
@@ -475,7 +476,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @classmethod
     @try_catch_translate(type="tool")
-    def translate_tool_internal(
+    def translate_command_tool_internal(
         cls,
         tool: CommandTool,
         with_container=True,
@@ -756,8 +757,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         return tool_cwl
 
-    @staticmethod
-    def prepare_output_eval_for_python_codetool(tag: str, outtype: DataType):
+    @classmethod
+    def prepare_output_eval_for_python_codetool(cls, tag: str, outtype: DataType):
         return None
 
         requires_obj_capture = isinstance(outtype, (File, Directory))
@@ -1033,20 +1034,20 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             return cwlgen.InitialWorkDirRequirement(listing=listing)
         return None
 
-    @staticmethod
-    def workflow_filename(workflow):
+    @classmethod
+    def workflow_filename(cls, workflow):
         return workflow.versioned_id() + ".cwl"
 
-    @staticmethod
-    def inputs_filename(workflow):
+    @classmethod
+    def inputs_filename(cls, workflow):
         return workflow.id() + "-inp.yml"
 
-    @staticmethod
-    def tool_filename(tool):
+    @classmethod
+    def tool_filename(cls, tool):
         return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".cwl"
 
-    @staticmethod
-    def resources_filename(workflow):
+    @classmethod
+    def resources_filename(cls, workflow):
         return workflow.id() + "-resources.yml"
 
 
@@ -1500,7 +1501,7 @@ def get_run_ref_from_subtool(
                 tool, allow_empty_container=allow_empty_container
             )
         else:
-            return CwlTranslator.translate_tool_internal(
+            return CwlTranslator.translate_command_tool_internal(
                 tool,
                 True,
                 with_resource_overrides=has_resources_overrides,
@@ -1608,9 +1609,6 @@ def translate_step_node(
         scatter_fields = set(cwlstep.scatter or [])
 
     elif step.foreach is not None:
-        new_source = CwlTranslator.unwrap_selector_for_reference(
-            step.foreach,
-        )
         if isinstance(step.foreach, Operator):
             additional_step_id = f"_evaluate_preforeach-{step.id()}"
 
@@ -1622,6 +1620,10 @@ def translate_step_node(
             )
             extra_steps.append(tool)
             new_source = f"{additional_step_id}/out"
+        else:
+            new_source = CwlTranslator.unwrap_selector_for_reference(
+                step.foreach,
+            )
 
         d = cwlgen.WorkflowStepInput(
             id="_idx",
