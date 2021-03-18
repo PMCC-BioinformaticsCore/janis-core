@@ -379,7 +379,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         inp = {
             i.id(): i.intype.cwl_input(
-                ad.get(i.id(), values_provided_from_tool.get(i.id()))
+                ad.get(i.id(), values_provided_from_tool.get(i.id())), input_name=i.id()
             )
             for i in tool.tool_inputs()
             if i.default is not None

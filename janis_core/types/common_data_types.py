@@ -438,7 +438,7 @@ class File(DataType):
     def get_value_from_meta(self, meta):
         return meta.get("path")
 
-    def cwl_input(self, value: Any):
+    def cwl_input(self, value: Any, input_name=None):
         return {"class": "File", "path": value}
 
     def validate_value(self, meta: Any, allow_null_if_not_optional: bool) -> bool:
@@ -496,7 +496,7 @@ class Directory(DataType):
     def input_field_from_input(self, meta):
         return meta["path"]
 
-    def cwl_input(self, value: Any):
+    def cwl_input(self, value: Any, input_name=None):
         # WDL: "{workflowName}.label" = meta["path"}
         return {"class": "Directory", "path": value}
 
@@ -567,13 +567,14 @@ class Array(DataType):
         parameter.type = cwlgen.CommandInputArraySchema(items=None, type="array")
         return parameter
 
-    def cwl_input(self, value: Any):
+    def cwl_input(self, value: Any, input_name: str=None):
         if isinstance(value, list):
             return [self._t.cwl_input(v) for v in value]
         if value is None:
             return None
         else:
-            raise Exception(f"Input value for input '{self.id()}' was not an array")
+            input_name_extra = f" for input '{input_name}'" if input_name else ""
+            raise Exception(f"Input value{input_name_extra} ({value}) did not match expected type '{self.name()}'")
 
     def wdl(self, has_default=False) -> wdlgen.WdlType:
         ar = wdlgen.ArrayType(self._t.wdl(has_default=False), requires_multiple=False)
