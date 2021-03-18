@@ -128,7 +128,7 @@ class HailBatchTranslator(TranslatorBase):
             + cls.prepare_input_read_for_inp(inp.datatype, inp.id())
             for inp in inputs_to_read
         )
-        step_calls_str = "\n".join(indent(s, pd) for s in step_calls)
+        step_calls_str = "\n".join(indent(s.strip(), pd) for s in step_calls)
         step_definitions_str = "\n\n".join(step_definitions)
 
         # TODO: in the future, when subworkflows are supported, the step_definitions
@@ -138,8 +138,9 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
     b = hb.Batch('{workflow.id()}')
 {additional_preparation_expressions_str}
 {inputs_to_read_str}
-
+    
 {step_calls_str}
+    
     return b
     
 {step_definitions_str}
@@ -271,6 +272,8 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
                 )
                 .strip()
                 .replace("\\n", "\\\\\n")
+                .replace("{", "{{")
+                .replace("}", "}}")
             )
             command_constructor_str = f'''\
     j.command(f"""{code_block}""")
@@ -624,17 +627,16 @@ import hailtop.batch as hb
             call = f"""
 {stp.id()} = []
 for idx in {foreach_str}:
-
-    {stp.id()}.append({inner_call})"""
+    {stp.id()}.append({inner_call})\n"""
         else:
             call = f"{stp.id()} = {inner_call}"
 
         if stp.when is not None:
             when_str = cls.unwrap_expression(stp.when, code_environment=True)
             call = f"""\
-        {stp.id()} = None
-        if {when_str}:
-        {indent(call, 4 * ' ')}
+{stp.id()} = None
+if {when_str}:
+{indent(call, 4 * ' ')}
         """
 
         return call
