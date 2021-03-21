@@ -223,6 +223,9 @@ class SingleValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         return f"{self.cwl_symbol()}({unwrap_operator(*args)})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        return f"{self.to_nextflow()}({unwrap_operator(*args)})"
+
 
 class TwoValueOperator(Operator, ABC):
     @staticmethod

@@ -38,4 +38,5 @@ class SupportedTranslation(Enum):
             SupportedTranslation.CWL,
             SupportedTranslation.WDL,
             SupportedTranslation.JANIS,
+            SupportedTranslation.Nextflow
         ]
