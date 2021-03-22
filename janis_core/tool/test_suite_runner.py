@@ -321,7 +321,7 @@ class ToolTestSuiteRunner:
                             f"Skip downloading remote file. File {source} already exists in {local_file_path}"
                         )
 
-                setattr(test_logic, att, local_file_path)
+                    setattr(test_logic, att, local_file_path)
 
     def read_md5(self, file_path: str) -> str:
         """
