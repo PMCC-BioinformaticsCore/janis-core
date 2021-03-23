@@ -14,7 +14,7 @@ from janis_core import Logger
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, WorkflowBase
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
-
+from janis_core.types import get_instantiated_type
 
 import janis_core.translations.nfgen as nfgen
 
@@ -54,36 +54,55 @@ class NextflowTranslator(TranslatorBase):
         # Logger.debug("wf_outputs")
         # Logger.debug(wf_outputs)
 
+        # for step_id in workflow.step_nodes:
+        #     tool = workflow.step_nodes[step_id].tool
+        #     tools[tool.versioned_id()] = tool
+        #
+        #     subworkflow_nf_items = []
+        #     provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+        #     # Logger.debug(f"{step_id}: provided_inputs")
+        #     # Logger.debug(provided_inputs)
+        #
+        #     if isinstance(tool, CommandTool):
+        #         nf_item = cls.generate_nf_process_for_command_tool(tool, step_id, provided_inputs)
+        #         nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
+        #     elif isinstance(tool, PythonTool):
+        #         nf_item = cls.generate_nf_process_for_python_code_tool(tool, step_id, provided_inputs)
+        #         nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
+        #     elif isinstance(tool, WorkflowBase):
+        #         nf_item, subworkflow_nf_items = cls.init_subworkflow(tool, step_id, provided_inputs)
+        #     elif isinstance(tool, CodeTool):
+        #         raise Exception("Only PythonTool code tool is supported for the moment")
+        #
+        #     nf_items[tool.versioned_id()] = nf_item
+
+        items_to_import = {}
+        main_items = {}
         for step_id in workflow.step_nodes:
             tool = workflow.step_nodes[step_id].tool
             tools[tool.versioned_id()] = tool
 
-            provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
-            # Logger.debug(f"{step_id}: provided_inputs")
-            # Logger.debug(provided_inputs)
-
-            if isinstance(tool, CommandTool):
-                nf_item = cls.init_process_command_tool(tool, step_id, provided_inputs)
-                nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
-            if isinstance(tool, PythonTool):
-                nf_item = cls.init_process_python_code_tool(tool, step_id, provided_inputs)
-                nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
-            elif isinstance(tool, WorkflowBase):
-                nf_item = cls.init_subworkflow(tool, step_id, provided_inputs)
-            elif isinstance(tool, CodeTool):
-                raise Exception("Only PythonTool code tool is supported for the moment")
-
-            nf_items[tool.versioned_id()] = nf_item
-
-            nf_file = nfgen.NFFile(imports=[cls.init_helper_functions_import(".")], items=[nf_item])
+            nf_items = cls.generate_nf_items_for_workflow_step(tool, step_id, step_keys,
+                                                               with_container=with_container,
+                                                               with_resource_overrides=with_resource_overrides,
+                                                               allow_empty_container=allow_empty_container,
+                                                               container_override=container_override
+                                                               )
+            nf_file = nfgen.NFFile(imports=[cls.init_helper_functions_import(".")],
+                                   items=nf_items)
             process_files[tool.versioned_id()] = nf_file
+            items_to_import[tool.versioned_id()] = nf_items
+
+            # for subworkflow, we only want the workflow object
+            for i in nf_items:
+                main_items[tool.versioned_id()] = nf_items[0]
 
         out_process_inp, out_process_out = cls.prepare_output_process_params_for_worfklow(workflow)
 
-        imports = [cls.init_helper_functions_import()] + cls.init_tool_steps_import(nf_items)
+        imports = [cls.init_helper_functions_import()] + cls.init_tool_steps_import(items_to_import)
         items = [
-            cls.init_output_process(out_process_inp, out_process_out),
-            cls.init_workflow(workflow=workflow, nf_items=nf_items)
+            cls.generate_nf_output_process(out_process_inp, out_process_out),
+            cls.generate_nf_workflow(workflow=workflow, nf_items=main_items)
         ]
         nf_file = nfgen.NFFile(imports=imports, items=items)
 
@@ -92,8 +111,178 @@ class NextflowTranslator(TranslatorBase):
         return (nf_file.get_string(), tool_scripts)
 
     @classmethod
-    def init_subworkflow(cls, worfklow: WorkflowBase, step_id: str, provided_inputs):
-        pass
+    def generate_nf_items_for_workflow_step(cls, tool: Tool, step_id: str, step_keys: List[str],
+                                            with_container=True,
+                                            with_resource_overrides=False,
+                                            allow_empty_container=False,
+                                            container_override: dict = None,
+                                            ) -> List[nfgen.NFBase]:
+        provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+        # Logger.debug(f"{step_id}: provided_inputs")
+        # Logger.debug(provided_inputs)
+
+        if isinstance(tool, CommandTool):
+            nf_item = cls.generate_nf_process_for_command_tool(tool, step_id, provided_inputs)
+            nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
+
+            return [nf_item]
+        elif isinstance(tool, PythonTool):
+            nf_item = cls.generate_nf_process_for_python_code_tool(tool, step_id, provided_inputs)
+            nf_item = cls.handle_container(tool, nf_item, with_container, allow_empty_container, container_override)
+
+            return [nf_item]
+        elif isinstance(tool, WorkflowBase):
+            # nf_item, subworkflow_nf_items = cls.init_subworkflow(tool, step_id, provided_inputs)
+            sub_step_keys = list(tool.step_nodes.keys())
+            nf_items = []
+            Logger.debug("sub_step_keys")
+            Logger.debug(sub_step_keys)
+            Logger.debug(tool.step_nodes)
+            for sub_step_id in tool.step_nodes:
+                step_tool = tool.step_nodes[sub_step_id].tool
+                nf_items += cls.generate_nf_items_for_workflow_step(step_tool, f"{step_id}_{sub_step_id}", sub_step_keys,
+                                                                    with_container=with_container,
+                                                                    with_resource_overrides=with_resource_overrides,
+                                                                    allow_empty_container=allow_empty_container,
+                                                                    container_override=container_override)
+
+            nf_items = [cls.generate_nf_subworkflow(tool, step_id, nf_items)] + nf_items
+
+            return nf_items
+        elif isinstance(tool, CodeTool):
+            raise Exception("Only PythonTool code tool is supported for the moment")
+
+        # nf_items[tool.versioned_id()] = nf_item
+
+        # return nf_items
+
+    @classmethod
+    def translate_tool_internal(
+            cls,
+            tool,
+            with_container=True,
+            with_resource_overrides=False,
+            allow_empty_container=False,
+            container_override: dict = None,
+    ) -> nfgen.process:
+
+        process = cls.generate_nf_process_for_command_tool(tool)
+        process = cls.handle_container(tool, process, with_container, allow_empty_container, container_override)
+
+        imports = [
+            cls.init_helper_functions_import()
+        ]
+
+        out_process_inp, out_process_out = cls.prepare_output_process_params_for_tool(tool, process)
+
+        items = [
+            process,
+            cls.generate_nf_output_process(inputs=out_process_inp, tool_outputs=out_process_out),
+            cls.generate_nf_execution_workflow(tool, nf_process=process)
+        ]
+        nf_file = nfgen.NFFile(imports=imports, items=items)
+
+        return nf_file.get_string()
+
+    @classmethod
+    def translate_code_tool_internal(
+            cls,
+            tool,
+            with_container=True,
+            allow_empty_container=False,
+            container_override: dict = None,
+    ):
+        # raise Exception("CodeTool is not currently supported in Nextflow translation")
+
+        if isinstance(tool, PythonTool):
+            process = cls.generate_nf_process_for_python_code_tool(tool)
+            process = cls.handle_container(tool, process, with_container, allow_empty_container, container_override)
+
+            imports = [
+                cls.init_helper_functions_import()
+            ]
+
+            out_process_inp, out_process_out = cls.prepare_output_process_params_for_tool(tool, process)
+
+            items = [
+                process,
+                cls.generate_nf_output_process(inputs=out_process_inp, tool_outputs=out_process_out),
+                cls.generate_nf_execution_workflow(tool, nf_process=process)
+            ]
+            nf_file = nfgen.NFFile(imports=imports, items=items)
+
+            return nf_file.get_string()
+        else:
+            raise Exception("Only PythonTool code tool is supported for the moment.")
+
+    @classmethod
+    def generate_nf_subworkflow(cls, workflow: WorkflowBase, name: str, nf_items: List[nfgen.NFBase]):
+        main = []
+        take = []
+
+        inputsdict = workflow.inputs_map()
+        step_keys = list(workflow.step_nodes.keys())
+        provided_inputs = cls.generate_wf_tool_inputs(workflow, step_keys, inputs_replacement="", tool_id_prefix=f"{name}_")
+
+        Logger.debug("workflow.connections")
+        Logger.debug(workflow.connections)
+        for key in workflow.connections:
+            as_param = None
+            input_type = inputsdict.get(key).intype
+            if isinstance(input_type, File):
+                # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
+                as_param = cls.CHANNEL_PARAM
+
+            take.append(nfgen.WorkflowInput(name=key, as_param=as_param))
+
+        for step_id in workflow.step_nodes:
+            #TODO: check this
+            nf_item = [i for i in nf_items if i.name == f"{name}_{step_id}"][0]
+            tool = workflow.step_nodes[step_id].tool
+            tool_inp_dict = tool.inputs_map()
+            # Logger.debug("tool.connections")
+            # Logger.debug(tool.connections)
+
+            # arg_list = []
+            # for inp in nf_item.inputs:
+            #     arg = ""
+            #     if inp.name in tool.connections:
+            #         arg = tool.connections[inp.name]
+            #     elif inp.name in tool_inp_dict:
+            #         arg = tool_inp_dict[inp.name].default
+            #
+            #     arg = arg.replace("inputs.", "")
+            #
+            #     arg_list.append(arg)
+            #
+            # args = ", ".join(arg_list)
+
+            provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys, inputs_replacement="$",
+                                                          tool_id_prefix=f"{name}_")
+            args = cls.handle_nf_process_args(tool, nf_item, tool_inp_dict, provided_inputs)
+
+            main.append(f"{name}_{step_id}({args})")
+
+        # for step_id in workflow.step_nodes:
+        #     tool = workflow.step_nodes[step_id].tool
+        #     provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+        #     inputsdict = tool.inputs_map()
+        #     #
+        #     # # TODO: fetch process or a subworkflow
+        #     # item = nf_items.get(tool.versioned_id())
+        #     #
+        #     if isinstance(tool, (CommandTool, CodeTool)):
+        #         args = cls.handle_nf_process_args(item, inputsdict, provided_inputs)
+        #     elif isinstance(tool, WorkflowBase):
+        #         args = cls.handle_nf_workflow_args(item, inputsdict, provided_inputs)
+        #
+        #     main.append(f"{step_id}({args})")
+
+        # # calling outputs process for Janis to be able to find output files
+        # args_list = ", ".join([val for val in cls.generate_wf_tool_outputs(workflow).values()])
+        # main.append(f"outputs({args_list})")
+
+        return nfgen.Workflow(name=name, main=main, take=take)
 
     @classmethod
     def handle_container(
@@ -127,64 +316,7 @@ class NextflowTranslator(TranslatorBase):
 
         return process
 
-    @classmethod
-    def translate_tool_internal(
-        cls,
-        tool,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override: dict = None,
-    ) -> nfgen.process:
 
-        process = cls.init_process_command_tool(tool)
-        process = cls.handle_container(tool, process, with_container, allow_empty_container, container_override)
-
-        imports = [
-            cls.init_helper_functions_import()
-        ]
-
-        out_process_inp, out_process_out = cls.prepare_output_process_params_for_tool(tool, process)
-
-        items = [
-            process,
-            cls.init_output_process(inputs=out_process_inp, tool_outputs=out_process_out),
-            cls.init_tool_execution(tool, nf_process=process)
-        ]
-        nf_file = nfgen.NFFile(imports=imports, items=items)
-
-        return nf_file.get_string()
-
-    @classmethod
-    def translate_code_tool_internal(
-            cls,
-            tool,
-            with_container=True,
-            allow_empty_container=False,
-            container_override: dict = None,
-    ):
-        # raise Exception("CodeTool is not currently supported in Nextflow translation")
-
-        if isinstance(tool, PythonTool):
-            process = cls.init_process_python_code_tool(tool)
-            process = cls.handle_container(tool, process, with_container, allow_empty_container, container_override)
-
-            imports = [
-                cls.init_helper_functions_import()
-            ]
-
-            out_process_inp, out_process_out = cls.prepare_output_process_params_for_tool(tool, process)
-
-            items = [
-                process,
-                cls.init_output_process(inputs=out_process_inp, tool_outputs=out_process_out),
-                cls.init_tool_execution(tool, nf_process=process)
-            ]
-            nf_file = nfgen.NFFile(imports=imports, items=items)
-
-            return nf_file.get_string()
-        else:
-            raise Exception("Only PythonTool code tool is supported for the moment.")
 
     @classmethod
     def generate_python_script(cls, tool: PythonTool):
@@ -219,7 +351,7 @@ class NextflowTranslator(TranslatorBase):
         return inputs, tool_outputs
 
     @classmethod
-    def init_output_process(cls, inputs: List[nfgen.ProcessInput], tool_outputs: Dict):
+    def generate_nf_output_process(cls, inputs: List[nfgen.ProcessInput], tool_outputs: Dict):
         script = ""
         for key, val in tool_outputs.items():
             script += f"echo {key}={val} >> {cls.OUTPUT_METADATA_FILENAME}\n"
@@ -251,15 +383,19 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def init_tool_steps_import(cls, processes: Dict[str, nfgen.Process]) -> List[nfgen.Import]:
         imports = []
-        for filename, p in processes.items():
-            item = nfgen.ImportItem(name=p.name)
-            imp = nfgen.Import([item], os.path.join(".", cls.DIR_TOOLS, filename))
+        for filename, nf_items in processes.items():
+            items_in_one_file = []
+            for p in nf_items:
+                item = nfgen.ImportItem(name=p.name)
+                items_in_one_file.append(item)
+
+            imp = nfgen.Import(items_in_one_file, os.path.join(".", cls.DIR_TOOLS, filename))
             imports.append(imp)
 
         return imports
 
     @classmethod
-    def init_process_command_tool(cls, tool: CommandTool, name: Optional[str] = None, provided_inputs: Optional = None) -> nfgen.Process:
+    def generate_nf_process_for_command_tool(cls, tool: CommandTool, name: Optional[str] = None, provided_inputs: Optional = None) -> nfgen.Process:
         inputs: List[ToolInput] = []
         outputs: List[ToolOutput] = tool.outputs()
 
@@ -269,13 +405,13 @@ class NextflowTranslator(TranslatorBase):
                 optional = i.input_type.optional is None or i.input_type.optional is True
                 if i.id() in provided_inputs or i.default is not None or not optional:
                     inputs.append(i)
-                if isinstance(i.input_type, Filename):
+                elif isinstance(i.input_type, Filename):
                     inputs.append(i)
             else:
                 inputs.append(i)
 
         script = cls.prepare_script_for_command_tool(tool, inputs)
-        pre_script += cls.prepare_expression_inputs(tool, inputs)
+        pre_script = cls.prepare_expression_inputs(tool, inputs)
         pre_script += cls.prepare_input_vars(tool, inputs)
 
         resources_var, resource_var_names = cls.prepare_resources_var(tool, name)
@@ -336,8 +472,49 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def init_process_python_code_tool(cls, tool: CodeTool, name: Optional[str] = None,
-                                      provided_inputs: Optional = None) -> nfgen.Process:
+    def generate_nf_output_expression(cls, tool: Tool, o: Union[TOutput, ToolOutput]):
+        if isinstance(o, TOutput):
+            output_type = o.outtype
+
+            if isinstance(output_type, File):
+                expression = f"'*{output_type.extension}'"
+                qual = nfgen.OutputProcessQualifier.path
+            elif isinstance(output_type, Array) and isinstance(output_type.subtype(), File):
+                expression = f"'*{output_type.subtype().extension}'"
+                qual = nfgen.OutputProcessQualifier.path
+            else:
+                qual = nfgen.OutputProcessQualifier.val
+                expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
+        elif isinstance(o, ToolOutput):
+            qual, expression = cls.generate_nf_output_expression(tool, o)
+            # output_type = o.output_type
+            # expression = cls.unwrap_expression(o.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True)
+            #
+            # qual = get_output_qualifier_for_outtype(output_type)
+            #
+            # # #TODO: make this tidier
+            # if isinstance(output_type, Array):
+            #     if isinstance(output_type.subtype(), (File, Directory)):
+            #         sub_qual = nfgen.OutputProcessQualifier.path
+            #     else:
+            #         sub_qual = nfgen.OutputProcessQualifier.val
+            #
+            #     tuple_elements = expression.strip("][").split(",")
+            #     formatted_list = []
+            #     for expression in tuple_elements:
+            #         sub_exp = nfgen.TupleElementForOutput(qualifier=sub_qual, expression=expression)
+            #         formatted_list.append(sub_exp.get_string())
+            #
+            #     expression = ", ".join(formatted_list)
+
+        else:
+            raise Exception("Unknown output object")
+
+        return qual, expression
+
+    @classmethod
+    def generate_nf_process_for_python_code_tool(cls, tool: CodeTool, name: Optional[str] = None,
+                                                 provided_inputs: Optional = None) -> nfgen.Process:
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
 
@@ -388,15 +565,27 @@ class NextflowTranslator(TranslatorBase):
             process.inputs.append(inp)
 
         for o in outputs:
-            qual = nfgen.OutputProcessQualifier.val
-            expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
-
+            # qual = nfgen.OutputProcessQualifier.val
+            qual, expression = cls.generate_nf_output_expression(tool, o)
             out = nfgen.ProcessOutput(
                 qualifier=qual,
                 name=o.id(),
                 expression=expression
             )
             process.outputs.append(out)
+
+            # if isinstance(o.outtype, File) or \
+            #     (isinstance(o.outtype, Array) and isinstance(o.outtype.subtype(), File)):
+            #
+            # elif qual == nfgen.OutputProcessQualifier.val:
+            #     expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
+            #
+            # out = nfgen.ProcessOutput(
+            #     qualifier=qual,
+            #     name=o.id(),
+            #     expression=expression
+            # )
+            # process.outputs.append(out)
 
 
         # for o in outputs:
@@ -432,9 +621,44 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def handle_nf_process_args(cls, nf_process: nfgen.Process, inputsdict: Dict[str, ToolInput], provided_inputs: Dict[str, Any]) -> str:
+    def handle_nf_process_args(cls, tool: Tool, nf_process: nfgen.Process, inputsdict: Dict[str, ToolInput], provided_inputs: Dict[str, Any]) -> str:
         args_list = []
+        Logger.debug("provided_inputs")
+        Logger.debug(provided_inputs)
+
         for i in nf_process.inputs:
+            if i.name in provided_inputs:
+                p = provided_inputs[i.name]
+                if p is None:
+                    p = "''"
+                elif p.startswith("$"):
+                    p = p.replace("$", "")
+                else:
+                    p = f"'{p}'"
+            elif i.name in inputsdict:
+                p = f"'{inputsdict[i.name].default}'" or "''"
+            else:
+                p = i.as_process_param
+
+            if i.as_process_param:
+                # p = i.as_process_param.replace(cls.PARAM_VAR, p)
+                # Note: only need to do this for string type input (directly from json file)
+                if p.startswith("params."):
+                    p = i.as_process_param.replace(cls.CHANNEL_PARAM, f"Channel.fromPath({p}).collect()")
+
+                path_to_python_code_file = posixpath.join("$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py")
+                p = p.replace(cls.PYTHON_CODE_FILE_PATH_PARAM, f"\"{path_to_python_code_file}\"")
+
+            args_list.append(p)
+
+        args = ", ".join(args_list)
+
+        return args
+
+    @classmethod
+    def handle_nf_workflow_args(cls, workflow: WorkflowBase, nf_workflow: nfgen.Workflow, inputsdict: Dict[str, ToolInput], provided_inputs: Dict[str, Any]) -> str:
+        args_list = []
+        for i in nf_workflow.take:
             if i.name in provided_inputs:
                 p = provided_inputs[i.name]
                 if p is None:
@@ -446,11 +670,11 @@ class NextflowTranslator(TranslatorBase):
             else:
                 p = f"'{inputsdict[i.name].default}'" or "''"
 
-            if i.as_process_param:
+            if i.as_param:
                 # p = i.as_process_param.replace(cls.PARAM_VAR, p)
                 # Note: only need to do this for string type input (directly from json file)
                 if p.startswith("params."):
-                    p = i.as_process_param.replace(cls.CHANNEL_PARAM, f"Channel.fromPath({p}).collect()")
+                    p = i.as_param.replace(cls.CHANNEL_PARAM, f"Channel.fromPath({p}).collect()")
 
             args_list.append(p)
 
@@ -459,11 +683,7 @@ class NextflowTranslator(TranslatorBase):
         return args
 
     @classmethod
-    def handle_nf_workflow_args(cls, nf_workflow: nfgen.Workflow, inputsdict: Dict[str, ToolInput], provided_inputs: Dict[str, Any]) -> str:
-        pass
-
-    @classmethod
-    def init_workflow(cls, workflow, nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]], nf_workflow_name: str = ''):
+    def generate_nf_workflow(cls, workflow, nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]], nf_workflow_name: str = ''):
         main = []
 
         # inputsdict = workflow.inputs_map()
@@ -472,10 +692,10 @@ class NextflowTranslator(TranslatorBase):
         Logger.info("nf_processes")
         Logger.info(nf_items.keys())
 
-        for p in nf_items.values():
-            Logger.info("process inputs " + p.name)
-            for i in p.inputs:
-                Logger.info(i.name)
+        # for p in nf_items.values():
+        #     Logger.info("process inputs " + p.name)
+        #     for i in p.inputs:
+        #         Logger.info(i.name)
 
         for step_id in workflow.step_nodes:
             tool = workflow.step_nodes[step_id].tool
@@ -488,18 +708,20 @@ class NextflowTranslator(TranslatorBase):
             # Logger.info(inputsdict.keys())
 
             #TODO: fetch process or a subworkflow
-            item = nf_items.get(tool.versioned_id())
+            item = nf_items[tool.versioned_id()]
 
             if isinstance(item, nfgen.Process):
-                args = cls.handle_nf_process_args(item, inputsdict, provided_inputs)
+                args = cls.handle_nf_process_args(tool, item, inputsdict, provided_inputs)
             elif isinstance(item, nfgen.Workflow):
-                args = cls.handle_nf_workflow_args(item, inputsdict, provided_inputs)
+                args = cls.handle_nf_workflow_args(tool, item, inputsdict, provided_inputs)
 
             main.append(f"{item.name}({args})")
 
+
         # calling outputs process for Janis to be able to find output files
-        args_list = ", ".join([val for val in cls.generate_wf_tool_outputs(workflow).values()])
-        main.append(f"outputs({args_list})")
+        #TODO: RE-ENABLE THIS!!!
+        #args_list = ", ".join([val for val in cls.generate_wf_tool_outputs(workflow).values()])
+        #main.append(f"outputs({args_list})")
 
         return nfgen.Workflow(name=nf_workflow_name, main=main)
 
@@ -520,7 +742,7 @@ class NextflowTranslator(TranslatorBase):
 
 
     @classmethod
-    def init_tool_execution(cls, tool, nf_process: nfgen.Process):
+    def generate_nf_execution_workflow(cls, tool, nf_process: nfgen.Process):
         args_list = []
         for i in nf_process.inputs:
 
@@ -546,7 +768,9 @@ class NextflowTranslator(TranslatorBase):
         return nfgen.Workflow(name="", main=main)
 
     @classmethod
-    def generate_wf_tool_inputs(cls, tool: Tool, step_keys: List[str]):
+    def generate_wf_tool_inputs(cls, tool: Tool, step_keys: List[str],
+                                inputs_replacement: str = "$params.",
+                                tool_id_prefix: str = ""):
         inputs = {}
         for key in tool.connections:
             if tool.connections[key] is None:
@@ -556,14 +780,14 @@ class NextflowTranslator(TranslatorBase):
 
                 if "inputs." in val:
                     # e.g. replace inputs.fastq to params.
-                    val = val.replace("inputs.", "$params.")
+                    val = val.replace("inputs.", inputs_replacement)
 
                 # e.g. replace bwamem.var to bwamem.out.var
                 # bwamem.out is nextflow variable to fetch all output from bwamem process
                 for tool_id in step_keys:
                     keyword = f"{tool_id}."
                     if keyword in val:
-                        val = val.replace(keyword, f"${tool_id}.out.")
+                        val = val.replace(keyword, f"${tool_id_prefix}{tool_id}.out.")
 
             inputs[key] = val
 
@@ -826,7 +1050,7 @@ else
                                  ):
         # TODO: Consider grabbing "path" of File
 
-        if tool.id() not in cls.INPUT_IN_SELECTORS:
+        if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
             cls.INPUT_IN_SELECTORS[tool.versioned_id()] = set()
 
         cls.INPUT_IN_SELECTORS[tool.versioned_id()].add(selector.input_to_select)
@@ -921,15 +1145,18 @@ else
                 if val == "False":
                     val = False
             if isinstance(i.intype, File):
-                if hasattr(i.intype, 'secondary_files') and callable(i.intype.secondary_files):
-                    if i.intype.secondary_files() is not None:
-                        primary_file = val
-                        secondary_files = []
-                        for suffix in i.intype.secondary_files():
-                            sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
-                            secondary_files.append(sec_file)
+                # if hasattr(i.intype, 'secondary_files') and callable(i.intype.secondary_files):
+                #     if i.intype.secondary_files() is not None:
 
-                        val = [primary_file] + secondary_files
+                if cls.has_secondary_files(i):
+                    primary_file = val
+                    secondary_files = []
+                    for suffix in i.intype.secondary_files():
+                        sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
+                        secondary_files.append(sec_file)
+
+                    # Note: we want primary file to always be the first item in the array
+                    val = [primary_file] + secondary_files
 
             if val is None:
                 if isinstance(i.intype, (File, Directory)) \
@@ -1003,9 +1230,14 @@ else
         pass
 
     @classmethod
-    def has_secondary_files(cls, i: ToolInput):
-        if hasattr(i.input_type, 'secondary_files') and callable(i.input_type.secondary_files):
-            if i.input_type.secondary_files() is not None:
+    def has_secondary_files(cls, i: Union[ToolInput, TInput]):
+        if isinstance(i, ToolInput):
+            input_type = i.input_type
+        elif isinstance(i, TInput):
+            input_type = i.intype
+
+        if hasattr(input_type, 'secondary_files') and callable(input_type.secondary_files):
+            if input_type.secondary_files() is not None:
                 return True
         return False
 
@@ -1027,9 +1259,13 @@ else
         all_args = []
         for i in inputs:
             arg_value = f"${i.tag}"
-            if isinstance(i.intype, Array) and not isinstance(i.intype.subtype(), (Int, Float, Double)):
-                # arg_value = f"\"{arg_value}\".strip(\"][\").split(\", \")"
+            if isinstance(i.intype, Array):
                 arg_value = f"\"{arg_value}\".split(\" \")"
+            elif isinstance(i.intype, File) and cls.has_secondary_files(i):
+                arg_value = f"\"{arg_value}\".split(\" \")[0]"
+
+            # if isinstance(i.intype, Array) and not isinstance(i.intype.subtype(), (Int, Float, Double)):
+                # arg_value = f"\"{arg_value}\".strip(\"][\").split(\", \")"
 
             elif not isinstance(i.intype, (Array, Int, Float, Double)):
                 arg_value = f"\"{arg_value}\""
