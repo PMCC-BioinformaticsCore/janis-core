@@ -184,6 +184,10 @@ class IndexOperator(Operator, ABC):
         base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        base, index = [unwrap_operator(a) for a in self.args]
+        return f"{base}[{index}]"
+
 
 class SingleValueOperator(Operator, ABC):
     @staticmethod
@@ -272,11 +276,15 @@ class TwoValueOperator(Operator, ABC):
 
     def to_nextflow_output_var(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
-        if isinstance(arg1, str) and not arg1.isdigit() and isinstance(arg2, str) and not arg2.isdigit():
+        if (
+            isinstance(arg1, str)
+            and not arg1.isdigit()
+            and isinstance(arg2, str)
+            and not arg2.isdigit()
+        ):
             return f"{arg1}{arg2}"
         else:
             return self.to_nextflow(unwrap_operator, *args)
-
 
     def __str__(self):
         args = self.args

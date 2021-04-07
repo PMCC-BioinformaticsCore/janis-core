@@ -37,12 +37,12 @@ from janis_core.types import CpuSelector, MemorySelector, Stdout
 from janis_core.workflow.workflow import InputNode
 
 
-class TestNextflowIntegration(unittest.TestCase):
-    def test_echo(self):
-        nf = NextflowTranslator.translate_tool_internal(EchoTestTool())
-        print(nf.get_string())
-
-
+# class TestNextflowIntegration(unittest.TestCase):
+#     def test_echo(self):
+#         nf = NextflowTranslator.translate_tool_internal(EchoTestTool())
+#         print(nf.get_string())
+#
+#
 # class TestCwlTypesConversion(unittest.TestCase):
 #     pass
 #
