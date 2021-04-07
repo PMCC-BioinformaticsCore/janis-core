@@ -5,18 +5,23 @@ from janis_core.translations.nfgen.common import NFBase, filter_null
 
 
 class WorkflowInput(NFBase):
-    def __init__(self, name):
+    def __init__(self, name: str, as_param: Optional[str] = None):
         self.name = name
+        self.as_param = as_param
 
     def get_string(self):
         return self.name
 
 
 class WorkflowOutput(NFBase):
-    def __init__(self, name):
+    def __init__(self, name, expression: Optional[str] = None):
         self.name = name
+        self.expression = expression
 
     def get_string(self):
+        if self.expression is not None:
+            return f"{self.name} = {self.expression}"
+
         return self.name
 
 
