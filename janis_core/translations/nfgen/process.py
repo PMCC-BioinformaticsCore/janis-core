@@ -34,14 +34,13 @@ class OutputProcessQualifier(Enum):
 
 
 class ProcessInput(NFBase):
-
     def __init__(
         self,
         qualifier: InputProcessQualifier,
         name: str,
         from_: Optional[str] = None,
         attributes: Optional[Union[str, List[str]]] = None,
-        as_process_param: Optional[str] = None
+        as_process_param: Optional[str] = None,
     ):
         self.qualifier = qualifier
         self.name = name
@@ -82,13 +81,10 @@ class ProcessOutput(NFBase):
         self.attributes = attributes
 
     def get_string(self):
-        if self.qualifier.value != OutputProcessQualifier.tuple.value:
-            self.expression = f"\"${{{self.expression}}}\""
+        if self.qualifier != OutputProcessQualifier.tuple:
+            self.expression = f'"${{{self.expression}}}"'
 
-        if self.qualifier.value == OutputProcessQualifier.stdout.value:
-            els = [OutputProcessQualifier.path.value, f"'{Process.TOOL_STDOUT_FILENAME}'"]
-        else:
-            els = [self.qualifier.value, f"{self.expression}"]
+        els = [self.qualifier.value, f"{self.expression}"]
 
         if self.optional is True:
             els.extend(["optional", "true"])
@@ -122,7 +118,7 @@ class TupleElementForOutput(NFBase):
         self.expression = expression
 
     def get_string(self):
-        return f"{self.qualifier.value}(\"${{{self.expression}}}\")"
+        return f'{self.qualifier.value}("${{{self.expression}}}")'
 
 
 class Process(NFBase):
@@ -164,7 +160,7 @@ class Process(NFBase):
         if self.pre_script:
             pre_script = indent(self.pre_script, prefix)
         else:
-            pre_script = ''
+            pre_script = ""
 
         if self.script_type:
             script = indent(f"{self.script_type.value}:\n{pre_script}" + script, "  ")
@@ -191,92 +187,92 @@ class Process(NFBase):
             return None
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
-#     def prepare_helper_functions(self):
-#         return f"""
-# def optional(var, prefix)
-# {{
-#   var = var.toString()
-#   if (var && ( var != 'None' ) && (! var.contains('{self.NO_FILE_PATH_PREFIX}')))
-#   {{
-#     return prefix.toString() + var
-#   }}
-#   else
-#   {{
-#     return ''
-#   }}
-# }}
-#
-#
-# def boolean_flag(var, prefix)
-# {{
-#   var = var.toString()
-#   if (var == 'True')
-#   {{
-#     return prefix.toString()
-#   }}
-#   else
-#   {{
-#     return ''
-#   }}
-# }}
-# """
+    #     def prepare_helper_functions(self):
+    #         return f"""
+    # def optional(var, prefix)
+    # {{
+    #   var = var.toString()
+    #   if (var && ( var != 'None' ) && (! var.contains('{self.NO_FILE_PATH_PREFIX}')))
+    #   {{
+    #     return prefix.toString() + var
+    #   }}
+    #   else
+    #   {{
+    #     return ''
+    #   }}
+    # }}
+    #
+    #
+    # def boolean_flag(var, prefix)
+    # {{
+    #   var = var.toString()
+    #   if (var == 'True')
+    #   {{
+    #     return prefix.toString()
+    #   }}
+    #   else
+    #   {{
+    #     return ''
+    #   }}
+    # }}
+    # """
 
-#     def prepare_outputs_process(self):
-#         input_vars = []
-#         for o in self.outputs:
-#             # qual = o.qualifier
-#             # if o.qualifier == OutputProcessQualifier.stdout:
-#             #     qual = OutputProcessQualifier.path
-#
-#             # Always use 'val' qualifier
-#             inp = ProcessInput(qualifier=InputProcessQualifier.val, name=self.name + o.name)
-#             input_vars.append(inp.get_string())
-#
-#         input_vars_str = "\n".join(input_vars)
-#
-#         outputs = self.outputs_metadata
-#         script = ""
-#         for key, val in outputs.items():
-#             script += f"echo {key}={val} >> {self.OUTPUT_METADATA_FILENAME}"
-#
-#         return f"""
-# process outputs
-# {{
-#     input:
-#         {input_vars_str}
-#
-#     output:
-#         path "{self.OUTPUT_METADATA_FILENAME}", emit: janis_output_metadata
-#
-#     script:
-#         \"\"\"
-#         {script}
-#         \"\"\"
-# }}
-# """
+    #     def prepare_outputs_process(self):
+    #         input_vars = []
+    #         for o in self.outputs:
+    #             # qual = o.qualifier
+    #             # if o.qualifier == OutputProcessQualifier.stdout:
+    #             #     qual = OutputProcessQualifier.path
+    #
+    #             # Always use 'val' qualifier
+    #             inp = ProcessInput(qualifier=InputProcessQualifier.val, name=self.name + o.name)
+    #             input_vars.append(inp.get_string())
+    #
+    #         input_vars_str = "\n".join(input_vars)
+    #
+    #         outputs = self.outputs_metadata
+    #         script = ""
+    #         for key, val in outputs.items():
+    #             script += f"echo {key}={val} >> {self.OUTPUT_METADATA_FILENAME}"
+    #
+    #         return f"""
+    # process outputs
+    # {{
+    #     input:
+    #         {input_vars_str}
+    #
+    #     output:
+    #         path "{self.OUTPUT_METADATA_FILENAME}", emit: janis_output_metadata
+    #
+    #     script:
+    #         \"\"\"
+    #         {script}
+    #         \"\"\"
+    # }}
+    # """
 
-#     def prepare_execution(self):
-#         args_list = []
-#         for i in self.inputs:
-#
-#             p = f"params.{i.name}"
-#             if i.as_process_param:
-#                 p = i.as_process_param.replace(i.PARAM_VAR, p)
-#
-#             args_list.append(p)
-#
-#         # args = ", ".join(f"params.{i.name}" for i in self.inputs)
-#         args = ", ".join(args_list)
-#
-#         outputs_args = ", ".join(f"{self.name}.out.{o.name}" for o in self.outputs)
-#
-#         return f"""
-# workflow
-# {{
-#     {self.name}({args})
-#     outputs({outputs_args})
-# }}
-# """
+    #     def prepare_execution(self):
+    #         args_list = []
+    #         for i in self.inputs:
+    #
+    #             p = f"params.{i.name}"
+    #             if i.as_process_param:
+    #                 p = i.as_process_param.replace(i.PARAM_VAR, p)
+    #
+    #             args_list.append(p)
+    #
+    #         # args = ", ".join(f"params.{i.name}" for i in self.inputs)
+    #         args = ", ".join(args_list)
+    #
+    #         outputs_args = ", ".join(f"{self.name}.out.{o.name}" for o in self.outputs)
+    #
+    #         return f"""
+    # workflow
+    # {{
+    #     {self.name}({args})
+    #     outputs({outputs_args})
+    # }}
+    # """
 
     def get_string(self):
         nl = "\n"
@@ -300,4 +296,3 @@ process {name}
 
 
 """
-
