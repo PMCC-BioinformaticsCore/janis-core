@@ -71,7 +71,9 @@ class ReadJsonOperator(Operator):
         return f"JSON.parse({fp}.contents)"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def requires_contents(self):
         return True
@@ -193,7 +195,9 @@ class TransposeOperator(Operator):
         )
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -226,7 +230,9 @@ class LengthOperator(Operator):
         return f"{arg}.length"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -259,7 +265,9 @@ class FlattenOperator(Operator):
         return f"{arg}.flat()"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -293,7 +301,9 @@ class ApplyPrefixOperator(Operator):
         return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         prefix, iterable = self.evaluate_arg(self.args, inputs)
@@ -333,7 +343,9 @@ class FileSizeOperator(Operator):
         return f"({f}.size / 1048576)"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         from os.path import getsize
@@ -374,9 +386,6 @@ class FirstOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
         return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
-
-    def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
 
     def to_nextflow(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
@@ -422,7 +431,9 @@ class FilterNullOperator(Operator):
         return f"{iterable}.filter(function (inner) {{ return inner != null }})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(f"There is no Nextflow translation for {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)
