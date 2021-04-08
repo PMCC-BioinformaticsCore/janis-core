@@ -40,13 +40,13 @@ class ProcessInput(NFBase):
         name: str,
         from_: Optional[str] = None,
         attributes: Optional[Union[str, List[str]]] = None,
-        as_process_param: Optional[str] = None,
+        as_param: Optional[str] = None,
     ):
         self.qualifier = qualifier
         self.name = name
         self.from_ = from_
         self.attributes = attributes
-        self.as_process_param = as_process_param
+        self.as_param = as_param
 
     def get_string(self):
         els = [self.qualifier.value, self.name]

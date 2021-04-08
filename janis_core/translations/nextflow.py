@@ -1,4 +1,5 @@
 import os
+import re
 import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
@@ -18,6 +19,8 @@ from janis_core.types import (
     InputSelector,
     WildcardSelector,
     Boolean,
+    InputNodeSelector,
+    StepOutputSelector,
 )
 from janis_core.operators import Operator, StringFormatter, Selector
 
@@ -290,8 +293,9 @@ class NextflowTranslator(TranslatorBase):
             provided_inputs = cls.apply_outer_workflow_inputs(
                 subworkflow, provided_inputs, wf_provided_inputs
             )
+
             args = cls.handle_nf_process_args(
-                tool, nf_item, tool_inp_dict, provided_inputs
+                tool, nf_item.inputs, tool_inp_dict, provided_inputs
             )
 
             main.append(f"{name}_{step_id}({args})")
@@ -304,8 +308,22 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def apply_outer_workflow_inputs(
-        cls, subworkflow, provided_inputs, wf_provided_inputs
+        cls,
+        subworkflow: WorkflowBase,
+        provided_inputs: Dict[str, Any],
+        wf_provided_inputs: Dict[str, Any],
     ):
+        """
+
+        :param subworkflow:
+        :type subworkflow:
+        :param provided_inputs:
+        :type provided_inputs:
+        :param wf_provided_inputs:
+        :type wf_provided_inputs:
+        :return:
+        :rtype:
+        """
         # Apply value from subworkflow that is calling it
         wf_input_names = subworkflow.connections.keys()
         for key in provided_inputs:
@@ -491,7 +509,7 @@ class NextflowTranslator(TranslatorBase):
 
             if isinstance(i.input_type, File):
                 # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
-                inp.as_process_param = cls.LIST_OF_FILES_PARAM
+                inp.as_param = cls.LIST_OF_FILES_PARAM
             # elif isinstance(i.input_type, Array) and \
             #     isinstance(i.input_type.subtype(), File):
             #     inp.as_process_param = cls.LIST_OF_FILE_PAIRS_PARAM
@@ -554,26 +572,6 @@ class NextflowTranslator(TranslatorBase):
                 expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
         elif isinstance(o, ToolOutput):
             qual, expression = cls.generate_nf_output_expression(tool, o)
-            # output_type = o.output_type
-            # expression = cls.unwrap_expression(o.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True)
-            #
-            # qual = get_output_qualifier_for_outtype(output_type)
-            #
-            # # #TODO: make this tidier
-            # if isinstance(output_type, Array):
-            #     if isinstance(output_type.subtype(), (File, Directory)):
-            #         sub_qual = nfgen.OutputProcessQualifier.path
-            #     else:
-            #         sub_qual = nfgen.OutputProcessQualifier.val
-            #
-            #     tuple_elements = expression.strip("][").split(",")
-            #     formatted_list = []
-            #     for expression in tuple_elements:
-            #         sub_exp = nfgen.TupleElementForOutput(qualifier=sub_qual, expression=expression)
-            #         formatted_list.append(sub_exp.get_string())
-            #
-            #     expression = ", ".join(formatted_list)
-
         else:
             raise Exception("Unknown output object")
 
@@ -588,12 +586,6 @@ class NextflowTranslator(TranslatorBase):
     ) -> nfgen.Process:
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
-
-        if tool.id() == "GenerateIntervalsByChromosome":
-            Logger.debug("tool inputs")
-            for i in tool.inputs():
-                Logger.debug(i.id())
-                Logger.debug(i.intype.optional)
 
         # construct script
         for i in tool.inputs():
@@ -619,7 +611,7 @@ class NextflowTranslator(TranslatorBase):
         python_file_input = nfgen.ProcessInput(
             qualifier=nfgen.InputProcessQualifier.path,
             name=cls.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-            as_process_param=cls.PYTHON_CODE_FILE_PATH_PARAM,
+            as_param=cls.PYTHON_CODE_FILE_PATH_PARAM,
         )
         process.inputs.append(python_file_input)
         for i in inputs:
@@ -629,153 +621,51 @@ class NextflowTranslator(TranslatorBase):
             if isinstance(i.intype, File) or (
                 isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
             ):
-                # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
-                inp.as_process_param = cls.LIST_OF_FILES_PARAM
-            # elif isinstance(i.intype, Array) and \
-            #     isinstance(i.input_type.subtype(), File):
-            #     inp.as_process_param = cls.LIST_OF_FILE_PAIRS_PARAM
+                inp.as_param = cls.LIST_OF_FILES_PARAM
 
             process.inputs.append(inp)
 
         for o in outputs:
-            # qual = nfgen.OutputProcessQualifier.val
             qual, expression = cls.generate_nf_output_expression(tool, o)
             out = nfgen.ProcessOutput(
                 qualifier=qual, name=o.id(), expression=expression
             )
             process.outputs.append(out)
 
-            # if isinstance(o.outtype, File) or \
-            #     (isinstance(o.outtype, Array) and isinstance(o.outtype.subtype(), File)):
-            #
-            # elif qual == nfgen.OutputProcessQualifier.val:
-            #     expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
-            #
-            # out = nfgen.ProcessOutput(
-            #     qualifier=qual,
-            #     name=o.id(),
-            #     expression=expression
-            # )
-            # process.outputs.append(out)
-
-        # for o in outputs:
-        #     output_type = o.output_type
-        #     selector = o.selector
-        #
-        #     qual = get_output_qualifier_for_outtype(output_type)
-        #     expression = cls.unwrap_expression(selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True)
-        #
-        #     # #TODO: make this tidier
-        #     if isinstance(output_type, Array):
-        #         if isinstance(output_type.subtype(), (File, Directory)):
-        #             sub_qual = nfgen.OutputProcessQualifier.path
-        #         else:
-        #             sub_qual = nfgen.OutputProcessQualifier.val
-        #
-        #         tuple_elements = expression.strip("][").split(",")
-        #         formatted_list = []
-        #         for expression in tuple_elements:
-        #             sub_exp = nfgen.TupleElementForOutput(qualifier=sub_qual, expression=expression)
-        #             formatted_list.append(sub_exp.get_string())
-        #
-        #         expression = ", ".join(formatted_list)
-        #
-        #     out = nfgen.ProcessOutput(
-        #         qualifier=qual,
-        #         name=o.id(),
-        #         expression=expression,
-        #         is_optional=output_type.optional
-        #     )
-        #     process.outputs.append(out)
-
         return process
+
+    @classmethod
+    def is_nf_variable(cls, val: str):
+        if val.startswith("$"):
+            return True
+
+        return False
 
     @classmethod
     def handle_nf_process_args(
         cls,
         tool: Tool,
-        nf_process: nfgen.Process,
+        nfgen_inputs: Union[List[nfgen.ProcessInput], List[nfgen.WorkflowInput]],
         inputsdict: Dict[str, ToolInput],
         provided_inputs: Dict[str, Any],
+        step_keys: List[str] = [],
         scatter: Optional[str] = None,
     ) -> str:
 
-        if tool.id() == "GenerateIntervalsByChromosome":
-            Logger.debug("process inputs")
-            for i in nf_process.inputs:
-                Logger.debug(i.name)
-
         args_list = []
-        for i in nf_process.inputs:
+        for i in nfgen_inputs:
             if i.name in provided_inputs:
                 p = provided_inputs[i.name]
                 if p is None:
                     p = "''"
-                elif p.startswith("$"):
+                elif "$" in p:
                     p = p.replace("$", "")
                 else:
                     p = f"'{p}'"
             elif i.name in inputsdict:
                 p = f"'{inputsdict[i.name].default}'" or "''"
             else:
-                p = i.as_process_param
-
-            if i.as_process_param:
-                # p = i.as_process_param.replace(cls.PARAM_VAR, p)
-                # Note: only need to do this for string type input (directly from json file)
-                if p.startswith("params."):
-                    if cls.LIST_OF_FILES_PARAM in i.as_process_param:
-                        p = i.as_process_param.replace(
-                            cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
-                        )
-                    elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_process_param:
-                        p = i.as_process_param.replace(
-                            cls.LIST_OF_FILE_PAIRS_PARAM,
-                            f"Channel.from({p}).map{{ pair -> pair }}",
-                        )
-
-                path_to_python_code_file = posixpath.join(
-                    "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
-                )
-                p = p.replace(
-                    cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
-                )
-
-            if scatter is not None and i.name in scatter.fields:
-                # p = f"{p}.flatten()"
-                if p.startswith("params."):
-                    p = f"Channel.from({p}).map{{ pair -> pair }}"
-                else:
-                    p = f"{p}.flatten()"
-
-            args_list.append(p)
-
-        args = ", ".join(args_list)
-
-        return args
-
-    @classmethod
-    def handle_nf_workflow_args(
-        cls,
-        workflow: WorkflowBase,
-        nf_workflow: nfgen.Workflow,
-        inputsdict: Dict[str, ToolInput],
-        provided_inputs: Dict[str, Any],
-        scatter: Optional[str] = None,
-    ) -> str:
-        args_list = []
-
-        for i in nf_workflow.take:
-            if i.name in provided_inputs:
-                p = provided_inputs[i.name]
-                if p is None:
-                    p = "''"
-                elif p.startswith("$"):
-                    p = p.replace("$", "")
-                else:
-                    p = f"'{p}'"
-            else:
-                p = f"'{inputsdict[i.name].default}'" or "''"
+                p = i.as_param
 
             if i.as_param:
                 # p = i.as_process_param.replace(cls.PARAM_VAR, p)
@@ -791,18 +681,106 @@ class NextflowTranslator(TranslatorBase):
                             f"Channel.from({p}).map{{ pair -> pair }}",
                         )
 
+                if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
+                    path_to_python_code_file = posixpath.join(
+                        "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
+                    )
+                    p = p.replace(
+                        cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                    )
+
             if scatter is not None and i.name in scatter.fields:
-                # p = f"{p}.flatten()"
-                if p.startswith("params."):
-                    p = f"Channel.from({p}).map{{ pair -> pair }}"
-                else:
-                    p = f"{p}.flatten()"
+                p = cls.handle_scatter_argument(p, step_keys)
 
             args_list.append(p)
 
         args = ", ".join(args_list)
 
         return args
+
+    # @classmethod
+    # def handle_nf_workflow_args(
+    #     cls,
+    #     workflow: WorkflowBase,
+    #     nf_workflow: nfgen.Workflow,
+    #     inputsdict: Dict[str, ToolInput],
+    #     provided_inputs: Dict[str, Any],
+    #     step_keys: List[str] = [],
+    #     scatter: Optional[str] = None,
+    # ) -> str:
+    #     args_list = []
+    #
+    #     for i in nf_workflow.take:
+    #         if i.name in provided_inputs:
+    #             p = provided_inputs[i.name]
+    #             if p is None:
+    #                 p = "''"
+    #             elif "$" in p:
+    #                 p = p.replace("$", "")
+    #             else:
+    #                 p = f"'{p}'"
+    #         else:
+    #             p = f"'{inputsdict[i.name].default}'" or "''"
+    #
+    #         if i.as_param:
+    #             # p = i.as_process_param.replace(cls.PARAM_VAR, p)
+    #             # Note: only need to do this for string type input (directly from json file)
+    #             if p.startswith("params."):
+    #                 if cls.LIST_OF_FILES_PARAM in i.as_param:
+    #                     p = i.as_param.replace(
+    #                         cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
+    #                     )
+    #                 elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
+    #                     p = i.as_param.replace(
+    #                         cls.LIST_OF_FILE_PAIRS_PARAM,
+    #                         f"Channel.from({p}).map{{ pair -> pair }}",
+    #                     )
+    #
+    #         if scatter is not None and i.name in scatter.fields:
+    #             p = cls.handle_scatter_argument(p, step_keys)
+    #
+    #         args_list.append(p)
+    #
+    #     args = ", ".join(args_list)
+    #
+    #     return args
+
+    @classmethod
+    def handle_scatter_argument(cls, p: str, step_keys: List[str] = []):
+        """
+
+        :param p: string to represent the argument
+        :type p: str
+        :param step_keys: List of worfklow step names
+        :type step_keys: List[str]
+
+        :return:
+        :rtype:
+        """
+        matches = []
+        pattern = r"\b(params(\..+?)+)\b"
+        found = re.findall(pattern, p)
+        # found is in this format
+        # [('params.intervals', '.intervals'), ('step_id.out.test', '.test')]
+        if found is not None:
+            matches += [t[0] for t in found]
+
+        for m in matches:
+            p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
+
+        matches = []
+        for step_id in step_keys:
+            pattern = rf"\b({step_id}(\..+?)+)\b"
+            found = re.findall(pattern, p)
+            # found is in this format
+            # [('params.intervals', '.intervals'), ('step_id.out.test', '.test')]
+            if found is not None:
+                matches += [t[0] for t in found]
+
+        for m in matches or []:
+            p = p.replace(m, f"{m}.flatten()")
+
+        return p
 
     @classmethod
     def generate_nf_workflow(
@@ -818,27 +796,25 @@ class NextflowTranslator(TranslatorBase):
         for step_id in workflow.step_nodes:
             tool = workflow.step_nodes[step_id].tool
             provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+
             inputsdict = tool.inputs_map()
 
             # TODO: fetch process or a subworkflow
             nf_process = nf_items[tool.versioned_id()]
 
             if isinstance(nf_process, nfgen.Process):
-                args = cls.handle_nf_process_args(
-                    tool,
-                    nf_process,
-                    inputsdict,
-                    provided_inputs,
-                    workflow.step_nodes[step_id].scatter,
-                )
+                nf_inputs = nf_process.inputs
             elif isinstance(nf_process, nfgen.Workflow):
-                args = cls.handle_nf_workflow_args(
-                    tool,
-                    nf_process,
-                    inputsdict,
-                    provided_inputs,
-                    workflow.step_nodes[step_id].scatter,
-                )
+                nf_inputs = nf_process.take
+
+            args = cls.handle_nf_process_args(
+                tool,
+                nf_inputs,
+                inputsdict,
+                provided_inputs,
+                step_keys=step_keys,
+                scatter=workflow.step_nodes[step_id].scatter,
+            )
 
             main.append(f"{nf_process.name}({args})")
 
@@ -887,13 +863,13 @@ class NextflowTranslator(TranslatorBase):
             p = f"params.{i.name}"
 
             # Extra processing when we need to set up the process input parameters
-            if i.as_process_param:
-                if cls.LIST_OF_FILES_PARAM in i.as_process_param:
-                    p = i.as_process_param.replace(
+            if i.as_param:
+                if cls.LIST_OF_FILES_PARAM in i.as_param:
+                    p = i.as_param.replace(
                         cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
                     )
-                elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_process_param:
-                    p = i.as_process_param.replace(
+                elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
+                    p = i.as_param.replace(
                         cls.LIST_OF_FILE_PAIRS_PARAM,
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
@@ -933,7 +909,12 @@ class NextflowTranslator(TranslatorBase):
             elif type(tool.connections[key]) == StepNode:
                 val = f"${tool.connections[key].id()}.out"
             else:
-                val = str(tool.connections[key])
+                if isinstance(tool.connections[key], Operator):
+                    val = cls.unwrap_expression(
+                        tool.connections[key], tool=tool, inputs_dict=tool.inputs_map()
+                    )
+                else:
+                    val = str(tool.connections[key])
 
                 if val.startswith("inputs."):
                     wf_key = val.replace("inputs.", "")
@@ -943,13 +924,18 @@ class NextflowTranslator(TranslatorBase):
                         val = str(inp_val_from_workflow)
 
                 # e.g. replace inputs.fastq to params.
-                val = val.replace("inputs.", inputs_replacement)
+                keyword = f"inputs."
+                pattern = r"\binputs\.\b"
+                if re.search(pattern, str(val)) is not None:
+                    val = val.replace(keyword, inputs_replacement)
 
                 # e.g. replace bwamem.var to bwamem.out.var
                 # bwamem.out is nextflow variable to fetch all output from bwamem process
                 for tool_id in step_keys:
                     keyword = f"{tool_id}."
-                    if val.startswith(keyword):
+                    pattern = rf"\b{tool_id}\.\b"
+
+                    if re.search(pattern, str(val)) is not None:
                         val = val.replace(keyword, f"${tool_id_prefix}{tool_id}.out.")
 
             inputs[key] = val
@@ -1102,6 +1088,12 @@ else
                 in_shell_script=in_shell_script,
                 tool=tool,
             )
+        if isinstance(value, InputNodeSelector):
+            return f"inputs.{value.id()}"
+
+        if isinstance(value, StepOutputSelector):
+            return f"{value.node.id()}.{value.tag}"
+
         elif isinstance(value, WildcardSelector):
             # raise Exception(
             #     f"A wildcard selector cannot be used as an argument value for '{debugkwargs}' {tool.id()}"
