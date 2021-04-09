@@ -45,7 +45,7 @@ class TInput(object):
         items = ["{self.id()}", self.intype.id()]
         if self.default is not None:
             items.append("default=" + str(self.default))
-        return f"ToolOutput({', '.join(items)})"
+        return f"ToolInput({', '.join(items)})"
 
     def id(self):
         return self.tag
