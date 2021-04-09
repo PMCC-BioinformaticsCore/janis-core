@@ -460,6 +460,16 @@ class File(DataType):
             return True
         return super().can_receive_from(o)
 
+    def has_secondary_files(self):
+        if (
+            hasattr(self, "secondary_files")
+            and callable(self.secondary_files)
+            and self.secondary_files()
+        ):
+            return True
+
+        return False
+
     # def cwl_type(self, has_default=False):
     #     secs = self.secondary_files()
     #     if secs:
