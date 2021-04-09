@@ -651,7 +651,6 @@ class NextflowTranslator(TranslatorBase):
         step_keys: List[str] = [],
         scatter: Optional[str] = None,
     ) -> str:
-
         args_list = []
         for i in nfgen_inputs:
             if i.name in provided_inputs:
@@ -667,27 +666,57 @@ class NextflowTranslator(TranslatorBase):
             else:
                 p = i.as_param
 
-            if i.as_param:
-                # p = i.as_process_param.replace(cls.PARAM_VAR, p)
-                # Note: only need to do this for string type input (directly from json file)
-                if p.startswith("params."):
-                    if cls.LIST_OF_FILES_PARAM in i.as_param:
-                        p = i.as_param.replace(
-                            cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
-                        )
-                    elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
-                        p = i.as_param.replace(
-                            cls.LIST_OF_FILE_PAIRS_PARAM,
-                            f"Channel.from({p}).map{{ pair -> pair }}",
-                        )
+            # Extra processing
+            if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
+                path_to_python_code_file = posixpath.join(
+                    "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
+                )
+                p = p.replace(
+                    cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                )
+            elif i.name in inputsdict:
+                toolinput = inputsdict.get(i.name)
 
-                if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
-                    path_to_python_code_file = posixpath.join(
-                        "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
-                    )
-                    p = p.replace(
-                        cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
-                    )
+                if isinstance(toolinput, ToolInput):
+                    input_type = toolinput.input_type
+                elif isinstance(toolinput, TInput):
+                    input_type = toolinput.intype
+
+                if isinstance(input_type, File):
+                    if p.startswith("params."):
+                        p = f"Channel.fromPath({p}).collect()"
+                elif isinstance(input_type, Array) and isinstance(
+                    input_type.subtype(), Array
+                ):
+                    if p.startswith("params."):
+                        p = f"Channel.from({p}).map{{ pair -> pair }}"
+                elif isinstance(input_type, Array) and isinstance(
+                    input_type.subtype(), File
+                ):
+                    if input_type.subtype().has_secondary_files():
+                        p = p.strip("][").replace(",", " + ")
+
+            # if i.as_param:
+            #     # p = i.as_process_param.replace(cls.PARAM_VAR, p)
+            #     # Note: only need to do this for string type input (directly from json file)
+            #     if p.startswith("params."):
+            #         if cls.LIST_OF_FILES_PARAM in i.as_param:
+            #             p = i.as_param.replace(
+            #                 cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
+            #             )
+            #         elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
+            #             p = i.as_param.replace(
+            #                 cls.LIST_OF_FILE_PAIRS_PARAM,
+            #                 f"Channel.from({p}).map{{ pair -> pair }}",
+            #             )
+            #
+            #     if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
+            #         path_to_python_code_file = posixpath.join(
+            #             "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
+            #         )
+            #         p = p.replace(
+            #             cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+            #         )
 
             if scatter is not None and i.name in scatter.fields:
                 p = cls.handle_scatter_argument(p, step_keys)
@@ -697,53 +726,6 @@ class NextflowTranslator(TranslatorBase):
         args = ", ".join(args_list)
 
         return args
-
-    # @classmethod
-    # def handle_nf_workflow_args(
-    #     cls,
-    #     workflow: WorkflowBase,
-    #     nf_workflow: nfgen.Workflow,
-    #     inputsdict: Dict[str, ToolInput],
-    #     provided_inputs: Dict[str, Any],
-    #     step_keys: List[str] = [],
-    #     scatter: Optional[str] = None,
-    # ) -> str:
-    #     args_list = []
-    #
-    #     for i in nf_workflow.take:
-    #         if i.name in provided_inputs:
-    #             p = provided_inputs[i.name]
-    #             if p is None:
-    #                 p = "''"
-    #             elif "$" in p:
-    #                 p = p.replace("$", "")
-    #             else:
-    #                 p = f"'{p}'"
-    #         else:
-    #             p = f"'{inputsdict[i.name].default}'" or "''"
-    #
-    #         if i.as_param:
-    #             # p = i.as_process_param.replace(cls.PARAM_VAR, p)
-    #             # Note: only need to do this for string type input (directly from json file)
-    #             if p.startswith("params."):
-    #                 if cls.LIST_OF_FILES_PARAM in i.as_param:
-    #                     p = i.as_param.replace(
-    #                         cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
-    #                     )
-    #                 elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
-    #                     p = i.as_param.replace(
-    #                         cls.LIST_OF_FILE_PAIRS_PARAM,
-    #                         f"Channel.from({p}).map{{ pair -> pair }}",
-    #                     )
-    #
-    #         if scatter is not None and i.name in scatter.fields:
-    #             p = cls.handle_scatter_argument(p, step_keys)
-    #
-    #         args_list.append(p)
-    #
-    #     args = ", ".join(args_list)
-    #
-    #     return args
 
     @classmethod
     def handle_scatter_argument(cls, p: str, step_keys: List[str] = []):
@@ -978,13 +960,29 @@ docker.enabled = true
 
         functions = [
             nfgen.Function(
+                name="apply_prefix",
+                parameters=["var", "prefix", "prefix_applies_to_all_elements"],
+                definition=f"""
+if (prefix_applies_to_all_elements == 'True') {{
+    def l = var.split(' ')
+    
+    prefix = prefix.toString() 
+    
+    return prefix + l.join(' ' + prefix)
+}}
+else {{
+    return prefix.toString() + var.toString()
+}}
+""",
+            ),
+            nfgen.Function(
                 name="optional",
-                parameters=["var", "prefix"],
+                parameters=["var", "prefix", "prefix_applies_to_all_elements"],
                 definition=f"""
 var = var.toString()
 if (var && ( var != 'None' ) && (! var.contains('{cls.NO_FILE_PATH_PREFIX}')))
 {{
-    return prefix.toString() + var
+    return apply_prefix(var, prefix, "prefix_applies_to_all_elements")
 }}
 else
 {{
@@ -1005,6 +1003,22 @@ else
 {{
     return ''
 }}
+""",
+            ),
+            nfgen.Function(
+                name="get_primary_files",
+                parameters=["var"],
+                definition=f"""
+def primary = []
+
+var.eachWithIndex {{item, index -> 
+    if (index % 2 == 0) {{
+        primary.add(item)
+    }}
+}}
+
+return primary
+
 """,
             ),
         ]
@@ -1572,7 +1586,14 @@ def {i.id()} = {val}
                 raise Exception("unknown input type")
 
             if isinstance(a.input_type, Array):
-                arg_value = f"{arg_name}.join(' ')"
+                if (
+                    isinstance(a.input_type.subtype(), File)
+                    and a.input_type.subtype().has_secondary_files()
+                ):
+                    arg_value = f"get_primary_files({arg_name}).join(' ')"
+                else:
+                    arg_value = f"{arg_name}.join(' ')"
+
             elif isinstance(a.input_type, (File)) and self.has_secondary_files(a):
                 arg_value = f"{arg_name}[0]"
             else:
@@ -1586,13 +1607,18 @@ def {i.id()} = {val}
             if a.separate_value_from_prefix is not False:
                 space = " "
 
+            prefix_applies_to_all_elements = "False"
+            if a.prefix_applies_to_all_elements is True:
+                prefix_applies_to_all_elements = "True"
+
             if isinstance(a.input_type, Boolean):
                 arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
             else:
                 if a.input_type.optional:
-                    arg = f"optional({arg_value}, '{prefix}{space}')"
+                    arg = f"optional({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
                 else:
-                    arg = f"'{prefix}{space}' + {arg_value}"
+                    arg = f"apply_prefix({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
+                    # arg = f"'{prefix}{space}' + {arg_value}"
 
             code = f"""
 def {arg_name}WithPrefix =  {arg}
