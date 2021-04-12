@@ -57,6 +57,22 @@ class UnionType(DataType):
 
         return list(s)
 
+    def has_secondary_files(self):
+        for subtype in self.subtypes:
+            if hasattr(subtype, "has_secondary_files"):
+                if subtype.has_secondary_files():
+                    return True
+
+        return False
+
+    def is_paired(self):
+        for subtype in self.subtypes:
+            if hasattr(subtype, "is_paired"):
+                if subtype.is_paired():
+                    return True
+
+        return False
+
     def is_array(self):
         return all(s.is_array() for s in self.subtypes)
 
@@ -212,6 +228,7 @@ concerned what the filename should be. The Filename DataType should NOT be used 
         repl = replacements or {}
         prefix = repl.get("prefix", self.prefix)
         suffix = repl.get("suffix", self.suffix)
+        ex = repl.get("ex", "" if self.extension is None else self.extension)
 
         suf = ""
         if suffix:
@@ -219,7 +236,7 @@ concerned what the filename should be. The Filename DataType should NOT be used 
                 suf = str(suffix)
             else:
                 suf = "-" + str(suffix)
-        ex = "" if self.extension is None else self.extension
+
         return prefix + suf + ex
 
     def generated_filenamecwl(self) -> str:
@@ -470,6 +487,9 @@ class File(DataType):
 
         return False
 
+    def is_paired(self):
+        return False
+
     # def cwl_type(self, has_default=False):
     #     secs = self.secondary_files()
     #     if secs:
@@ -641,6 +661,18 @@ class Array(DataType):
 
     def received_type(self):
         return Array(self._t.received_type(), optional=self.optional)
+
+    def has_secondary_files(self):
+        if hasattr(self.subtype(), "has_secondary_files"):
+            return self.subtype().has_secondary_files()
+
+        return False
+
+    def is_paired(self):
+        if hasattr(self.subtype(), "is_paired"):
+            return self.subtype().is_paired()
+
+        return False
 
 
 class Stdout(File):
