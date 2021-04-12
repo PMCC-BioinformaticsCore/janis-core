@@ -116,7 +116,9 @@ class ToolTestSuiteRunner:
                 error_interpreting_test_case = str(e)
 
             if error_interpreting_test_case:
-                failed.add(f"Error interpreting test case: {str(test_logic)} - {error_interpreting_test_case}")
+                failed.add(
+                    f"Error interpreting test case: {str(test_logic)} - {error_interpreting_test_case}"
+                )
             else:
                 if test_result is False:
                     failed.add(
@@ -172,7 +174,7 @@ class ToolTestSuiteRunner:
         # Convert the output value to a format that we want to apply our test (e.g. md5, file content, etc)
         # Use a user-provided preprocessor or our predefined list of preprocessors
         if callable(test_logic.preprocessor):
-            return test_logic.preprocessor(output_value)
+            return test_logic.preprocessor(output_value, **test_logic.additional_paras)
         else:
             return self._apply_preprocessor(
                 test_logic=test_logic,
@@ -261,7 +263,9 @@ class ToolTestSuiteRunner:
                 # For further processing within this function
                 output_type = output_type.subtype()
             else:
-                raise Exception("array_index parameter can only be used of Array output type")
+                raise Exception(
+                    "array_index parameter can only be used of Array output type"
+                )
 
         # Now, handle individual element of an array
         # Add extension to a filename (when testing secondary files)
@@ -271,7 +275,9 @@ class ToolTestSuiteRunner:
                     output_value, test_logic.suffix
                 )
             else:
-                raise Exception("suffix parameter can only be used of File or Array<File> output type")
+                raise Exception(
+                    "suffix parameter can only be used of File or Array<File> output type"
+                )
 
         return output_value
 
