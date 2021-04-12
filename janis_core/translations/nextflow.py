@@ -21,6 +21,7 @@ from janis_core.types import (
     Boolean,
     InputNodeSelector,
     StepOutputSelector,
+    AliasSelector,
 )
 from janis_core.operators import Operator, StringFormatter, Selector
 
@@ -55,6 +56,7 @@ class NextflowTranslator(TranslatorBase):
     LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
     PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
     PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
+    FINAL_STEP_NAME = "janis_outputs"
 
     INPUT_IN_SELECTORS = {}
 
@@ -291,11 +293,15 @@ class NextflowTranslator(TranslatorBase):
             )
 
             provided_inputs = cls.apply_outer_workflow_inputs(
-                subworkflow, provided_inputs, wf_provided_inputs
+                subworkflow, tool, provided_inputs, wf_provided_inputs
             )
 
             args = cls.handle_nf_process_args(
-                tool, nf_item.inputs, tool_inp_dict, provided_inputs
+                tool,
+                nf_item.inputs,
+                tool_inp_dict,
+                provided_inputs,
+                workflow=subworkflow,
             )
 
             main.append(f"{name}_{step_id}({args})")
@@ -309,28 +315,83 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def apply_outer_workflow_inputs(
         cls,
-        subworkflow: WorkflowBase,
+        workflow: WorkflowBase,
+        tool: Tool,
         provided_inputs: Dict[str, Any],
         wf_provided_inputs: Dict[str, Any],
     ):
         """
 
-        :param subworkflow:
-        :type subworkflow:
-        :param provided_inputs:
+        :param workflow:
+        :type workflow:
+        :param provided_inputs: inputs provided to this tool
         :type provided_inputs:
-        :param wf_provided_inputs:
+        :param wf_provided_inputs: inputs provided to the outer workflow this tool is called from
         :type wf_provided_inputs:
         :return:
         :rtype:
         """
-        # Apply value from subworkflow that is calling it
-        wf_input_names = subworkflow.connections.keys()
+        # Apply value from workflow that is calling it
+        wf_input_names = workflow.connections.keys()
+        step_keys = workflow.step_nodes.keys()
+        wf_inputsdict = workflow.inputs_map()
+        tool_inputsdict = tool.inputs_map()
+
         for key in provided_inputs:
             val = provided_inputs[key]
+
+            # Here, we are looking for input variables that are not an input of the subworkflow
+            # but, it is pointing to a variable of the outer workflow that calls this workflow
             if key not in wf_input_names and val is not None and val.startswith("$"):
                 if key in wf_provided_inputs:
                     provided_inputs[key] = str(wf_provided_inputs[key])
+
+            # if we are just using the variable name from the nextflow subworkflow
+            for wf_input in wf_inputsdict:
+                if val is not None and val == f"${wf_input}":
+                    wf_inp_type = wf_inputsdict.get(wf_input).intype
+                    tool_inp_type = (
+                        tool_inputsdict.get(key).intype
+                        or tool_inputsdict.get(key).input_type
+                    )
+                    if (
+                        isinstance(wf_inp_type, File)
+                        and wf_inp_type.has_secondary_files()
+                    ):
+                        if (
+                            tool_inp_type.is_base_type(File)
+                            and not tool_inp_type.has_secondary_files()
+                        ) or (
+                            isinstance(tool_inp_type, Array)
+                            and isinstance(tool_inp_type.subtype(), File)
+                            and not tool_inp_type.subtype().has_secondary_files()
+                        ):
+                            provided_inputs[key] += ".map{ tuple -> tuple[0] }"
+
+            for step_key in step_keys:
+                # TODO: handle variable in the middle??
+                if val is not None and f"{step_key}.out." in val:
+                    parts = val.split(f"{step_key}.out.")
+                    step_output_var = parts[1]
+                    step_outputs = workflow.step_nodes.get(step_key).outputs()
+
+                    src_type = step_outputs.get(step_output_var).outtype
+                    tool_inp_type = (
+                        tool_inputsdict.get(key).intype
+                        or tool_inputsdict.get(key).input_type
+                    )
+
+                    # any file types or array of files
+                    if src_type.is_base_type(File) and src_type.has_secondary_files():
+                        if (
+                            tool_inp_type.is_base_type(File)
+                            and not tool_inp_type.has_secondary_files()
+                        ) or (
+                            isinstance(tool_inp_type, Array)
+                            and isinstance(tool_inp_type.subtype(), File)
+                            and not tool_inp_type.subtype().has_secondary_files()
+                        ):
+                            provided_inputs[key] += ".map{ tuple -> tuple[0] }"
 
         return provided_inputs
 
@@ -426,7 +487,7 @@ class NextflowTranslator(TranslatorBase):
         ]
 
         process = nfgen.Process(
-            name="outputs",
+            name=cls.FINAL_STEP_NAME,
             script=script,
             script_type=nfgen.ProcessScriptType.script,
             inputs=inputs,
@@ -489,7 +550,7 @@ class NextflowTranslator(TranslatorBase):
         process_name = name or tool.id()
         script = cls.prepare_script_for_command_tool(process_name, tool, inputs)
         pre_script = cls.prepare_expression_inputs(tool, inputs)
-        pre_script += cls.prepare_input_vars(tool, inputs)
+        pre_script += cls.prepare_input_vars(inputs)
 
         resources_var, resource_var_names = cls.prepare_resources_var(tool, name)
         pre_script += resources_var
@@ -507,6 +568,7 @@ class NextflowTranslator(TranslatorBase):
             qual = get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
+            # TODO: this is probably no longer needed now
             if isinstance(i.input_type, File):
                 # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
                 inp.as_param = cls.LIST_OF_FILES_PARAM
@@ -525,6 +587,7 @@ class NextflowTranslator(TranslatorBase):
                 selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
             )
 
+            # TODO: handle secondary files
             # #TODO: make this tidier
             if isinstance(output_type, Array):
                 if isinstance(output_type.subtype(), (File, Directory)):
@@ -543,6 +606,47 @@ class NextflowTranslator(TranslatorBase):
                 expression = ", ".join(formatted_list)
             elif isinstance(output_type, Stdout):
                 expression = f"'{nfgen.Process.TOOL_STDOUT_FILENAME}_{process_name}'"
+            elif isinstance(output_type, File) and output_type.has_secondary_files():
+                sub_qual = nfgen.OutputProcessQualifier.path
+                tuple_elements = [expression]
+
+                primary_ext = output_type.extension
+                secondary_ext = []
+
+                if o.secondaries_present_as is not None:
+                    secondaries_present_as = o.secondaries_present_as
+                else:
+                    secondaries_present_as = {}
+
+                for ext in output_type.secondary_files():
+                    if ext in secondaries_present_as:
+                        secondary_ext.append(secondaries_present_as[ext])
+                    else:
+                        secondary_ext.append(ext)
+
+                for ext in secondary_ext:
+                    replacement = primary_ext + ext
+                    if ext.startswith("^"):
+                        replacement = ext[1:]
+
+                    if primary_ext in expression:
+                        sec_exp = expression.replace(primary_ext, replacement)
+                    elif ".name" in expression:
+                        sec_exp = expression.replace(
+                            ".name", f".baseName + '{replacement}'"
+                        )
+
+                    tuple_elements.append(sec_exp)
+
+                formatted_list = []
+                for sec_exp in tuple_elements:
+                    tuple_el = nfgen.TupleElementForOutput(
+                        qualifier=sub_qual, expression=sec_exp
+                    )
+                    formatted_list.append(tuple_el.get_string())
+
+                expression = ", ".join(formatted_list)
+                qual = nfgen.OutputProcessQualifier.tuple
 
             out = nfgen.ProcessOutput(
                 qualifier=qual,
@@ -648,9 +752,11 @@ class NextflowTranslator(TranslatorBase):
         nfgen_inputs: Union[List[nfgen.ProcessInput], List[nfgen.WorkflowInput]],
         inputsdict: Dict[str, ToolInput],
         provided_inputs: Dict[str, Any],
-        step_keys: List[str] = [],
+        workflow: WorkflowBase,
         scatter: Optional[str] = None,
     ) -> str:
+        step_keys = list(workflow.step_nodes.keys())
+
         args_list = []
         for i in nfgen_inputs:
             if i.name in provided_inputs:
@@ -690,11 +796,18 @@ class NextflowTranslator(TranslatorBase):
                 ):
                     if p.startswith("params."):
                         p = f"Channel.from({p}).map{{ pair -> pair }}"
+                # we need to concat multiple list of channels
                 elif isinstance(input_type, Array) and isinstance(
                     input_type.subtype(), File
                 ):
                     if input_type.subtype().has_secondary_files():
                         p = p.strip("][").replace(",", " + ")
+
+                # # Convert type from
+                # source_data_type =
+                # if isinstance(source_data_type, File) and source_data_type.has_secondary_files() and \
+                #         isinstance(input_type, File) and not input_type.has_secondary_files():
+                #     p += ".map{ tuple -> tuple[0] }"
 
             # if i.as_param:
             #     # p = i.as_process_param.replace(cls.PARAM_VAR, p)
@@ -719,7 +832,7 @@ class NextflowTranslator(TranslatorBase):
             #         )
 
             if scatter is not None and i.name in scatter.fields:
-                p = cls.handle_scatter_argument(p, step_keys)
+                p = cls.handle_scatter_argument(p, inputsdict[i.name], step_keys)
 
             args_list.append(p)
 
@@ -728,7 +841,9 @@ class NextflowTranslator(TranslatorBase):
         return args
 
     @classmethod
-    def handle_scatter_argument(cls, p: str, step_keys: List[str] = []):
+    def handle_scatter_argument(
+        cls, p: str, input: ToolInput, step_keys: List[str] = []
+    ):
         """
 
         :param p: string to represent the argument
@@ -739,6 +854,13 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        if isinstance(input, ToolInput):
+            input_type = input.input_type
+        elif isinstance(input, TInput):
+            input_type = input.intype
+        else:
+            raise Exception("Unkown input object")
+
         matches = []
         pattern = r"\b(params(\..+?)+)\b"
         found = re.findall(pattern, p)
@@ -748,7 +870,10 @@ class NextflowTranslator(TranslatorBase):
             matches += [t[0] for t in found]
 
         for m in matches:
-            p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
+            if input_type.has_secondary_files() or input_type.is_paired():
+                p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
+            else:
+                p = p.replace(m, f"Channel.from({m}).flatten()")
 
         matches = []
         for step_id in step_keys:
@@ -760,7 +885,10 @@ class NextflowTranslator(TranslatorBase):
                 matches += [t[0] for t in found]
 
         for m in matches or []:
-            p = p.replace(m, f"{m}.flatten()")
+            if input_type.has_secondary_files() or input_type.is_paired():
+                p = p.replace(m, f"{m}.map{{ pair -> pair }}")
+            else:
+                p = p.replace(m, f"{m}.flatten()")
 
         return p
 
@@ -794,7 +922,7 @@ class NextflowTranslator(TranslatorBase):
                 nf_inputs,
                 inputsdict,
                 provided_inputs,
-                step_keys=step_keys,
+                workflow=workflow,
                 scatter=workflow.step_nodes[step_id].scatter,
             )
 
@@ -802,11 +930,11 @@ class NextflowTranslator(TranslatorBase):
 
         # calling outputs process for Janis to be able to find output files
         # #TODO: RE-ENABLE THIS!!!
-        # args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
-        # # args_list += [f"Channel.from({step_id}.out).collect()" for step_id in workflow.step_nodes]
-        #
-        # args = ", ".join(args_list)
-        # main.append(f"outputs({args})")
+        args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
+        # args_list += [f"Channel.from({step_id}.out).collect()" for step_id in workflow.step_nodes]
+
+        args = ", ".join(args_list)
+        main.append(f"{cls.FINAL_STEP_NAME}({args})")
 
         return nfgen.Workflow(name=nf_workflow_name, main=main)
 
@@ -870,7 +998,7 @@ class NextflowTranslator(TranslatorBase):
             f"{nf_process.name}.out.{o.name}" for o in nf_process.outputs
         )
 
-        main = [f"{nf_process.name}({args})", f"outputs({outputs_args})"]
+        main = [f"{nf_process.name}({args})", f"{cls.FINAL_STEP_NAME}({outputs_args})"]
 
         return nfgen.Workflow(name="", main=main)
 
@@ -891,7 +1019,9 @@ class NextflowTranslator(TranslatorBase):
             elif type(tool.connections[key]) == StepNode:
                 val = f"${tool.connections[key].id()}.out"
             else:
-                if isinstance(tool.connections[key], Operator):
+                if isinstance(tool.connections[key], Operator) or isinstance(
+                    tool.connections[key], AliasSelector
+                ):
                     val = cls.unwrap_expression(
                         tool.connections[key], tool=tool, inputs_dict=tool.inputs_map()
                     )
@@ -932,7 +1062,14 @@ class NextflowTranslator(TranslatorBase):
 
         outputs = {}
         for o in wf.output_nodes:
-            val = str(wf.output_nodes[o].source)
+            # val = str(wf.output_nodes[o].source)
+
+            if isinstance(wf.output_nodes[o].source, AliasSelector):
+                val = wf.output_nodes[o].source.inner_selector
+            else:
+                val = str(wf.output_nodes[o].source)
+
+            val = str(val)
 
             if "inputs." in val:
                 # e.g. replace inputs.fastq to $fastq
@@ -982,7 +1119,7 @@ else {{
 var = var.toString()
 if (var && ( var != 'None' ) && (! var.contains('{cls.NO_FILE_PATH_PREFIX}')))
 {{
-    return apply_prefix(var, prefix, "prefix_applies_to_all_elements")
+    return apply_prefix(var, prefix, prefix_applies_to_all_elements)
 }}
 else
 {{
@@ -1102,11 +1239,22 @@ return primary
                 in_shell_script=in_shell_script,
                 tool=tool,
             )
-        if isinstance(value, InputNodeSelector):
+        elif isinstance(value, InputNodeSelector):
             return f"inputs.{value.id()}"
 
-        if isinstance(value, StepOutputSelector):
+        elif isinstance(value, StepOutputSelector):
             return f"{value.node.id()}.{value.tag}"
+
+        elif isinstance(value, AliasSelector):
+            return cls.unwrap_expression(
+                value.inner_selector,
+                quote_string=quote_string,
+                tool=tool,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
+                for_output=for_output,
+                in_shell_script=in_shell_script,
+            )
 
         elif isinstance(value, WildcardSelector):
             # raise Exception(
@@ -1187,12 +1335,16 @@ return primary
                 potential_extensions = (
                     intype.get_extensions() if intype.is_base_type(File) else None
                 )
+
+                base = f"{tinp.id()}"
+                if intype.has_secondary_files():
+                    base = f"{tinp.id()}[0]"
+
                 if inp.remove_file_extension and potential_extensions:
-                    base = f"{tinp.id()}.simpleName"
+                    base = f"{base}.simpleName"
                 elif hasattr(tinp, "localise_file") and tinp.localise_file:
-                    base = f"{tinp.id()}.name"
-                else:
-                    base = f"{tinp.id()}"
+                    base = f"{base}.name"
+
             elif isinstance(intype, Filename):
                 base = str(
                     cls.unwrap_expression(
@@ -1206,12 +1358,16 @@ return primary
                 and isinstance(intype.fundamental_type(), (File, Directory))
                 and tinp.localise_file
             ):
-                base = f"{tinp.id()}.map(function(el) {{ return el.basename; }})"
+                base = f"{tinp.id()}.map{{ el.name }}"
             else:
                 base = f"{tinp.id()}"
 
             if intype.optional:
-                replacement = f"({base} ? {base} : 'generated')"
+                default = "'generated'"
+                if isinstance(intype, Filename):
+                    default = base
+
+                replacement = f"({inp.input_to_select} != 'None' ? {inp.input_to_select} : {default})"
             else:
                 replacement = f"{base}"
 
@@ -1259,6 +1415,9 @@ return primary
             intype = tinp.intype
             if selector.remove_file_extension:
                 if intype.is_base_type((File, Directory)):
+                    if intype.has_secondary_files():
+                        sel = f"{sel}[0]"
+
                     potential_extensions = (
                         intype.get_extensions() if intype.is_base_type(File) else None
                     )
@@ -1519,7 +1678,7 @@ for key in result:
         main_script = " \\\n".join(pargs)
 
         return f"""
-{main_script} > {nfgen.Process.TOOL_STDOUT_FILENAME}_{process_name}
+{main_script} | tee {nfgen.Process.TOOL_STDOUT_FILENAME}_{process_name}
 
 """
 
@@ -1566,6 +1725,9 @@ for key in result:
                     input_type.generated_filename(), inputs_dict=inputsdict, tool=tool
                 )
 
+                if input_type.optional:
+                    val = f"{i.id()} != 'None' ? {i.id()} : {val}"
+
                 code = f"""
 def {i.id()} = {val}
 """
@@ -1574,7 +1736,48 @@ def {i.id()} = {val}
         return "".join(script_lines)
 
     @classmethod
-    def prepare_input_vars(self, tool, inputs):
+    def generate_input_var_definition(cls, inp: ToolInput, arg_name: str):
+        if isinstance(inp.input_type, Array):
+            if (
+                isinstance(inp.input_type.subtype(), File)
+                and inp.input_type.subtype().has_secondary_files()
+            ):
+                arg_value = f"get_primary_files({arg_name}).join(' ')"
+            else:
+                arg_value = f"{arg_name}.join(' ')"
+
+        elif (
+            isinstance(inp.input_type, (File)) and inp.input_type.has_secondary_files()
+        ):
+            arg_value = f"{arg_name}[0]"
+        else:
+            arg_value = arg_name
+
+        prefix = ""
+        if inp.prefix is not None:
+            prefix = inp.prefix
+
+        space = ""
+        if inp.separate_value_from_prefix is not False:
+            space = " "
+
+        prefix_applies_to_all_elements = "False"
+        if inp.prefix_applies_to_all_elements is True:
+            prefix_applies_to_all_elements = "True"
+
+        if isinstance(inp.input_type, Boolean):
+            arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
+        else:
+            if inp.input_type.optional:
+                arg = f"optional({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
+            else:
+                arg = f"apply_prefix({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
+                # arg = f"'{prefix}{space}' + {arg_value}"
+
+        return arg
+
+    @classmethod
+    def prepare_input_vars(cls, inputs):
         pre_script_lines = []
         for a in inputs:
             arg_name = ""
@@ -1585,43 +1788,10 @@ def {i.id()} = {val}
             else:
                 raise Exception("unknown input type")
 
-            if isinstance(a.input_type, Array):
-                if (
-                    isinstance(a.input_type.subtype(), File)
-                    and a.input_type.subtype().has_secondary_files()
-                ):
-                    arg_value = f"get_primary_files({arg_name}).join(' ')"
-                else:
-                    arg_value = f"{arg_name}.join(' ')"
-
-            elif isinstance(a.input_type, (File)) and self.has_secondary_files(a):
-                arg_value = f"{arg_name}[0]"
-            else:
-                arg_value = arg_name
-
-            prefix = ""
-            if a.prefix is not None:
-                prefix = a.prefix
-
-            space = ""
-            if a.separate_value_from_prefix is not False:
-                space = " "
-
-            prefix_applies_to_all_elements = "False"
-            if a.prefix_applies_to_all_elements is True:
-                prefix_applies_to_all_elements = "True"
-
-            if isinstance(a.input_type, Boolean):
-                arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
-            else:
-                if a.input_type.optional:
-                    arg = f"optional({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
-                else:
-                    arg = f"apply_prefix({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
-                    # arg = f"'{prefix}{space}' + {arg_value}"
+            arg = cls.generate_input_var_definition(a, arg_name)
 
             code = f"""
-def {arg_name}WithPrefix =  {arg}
+def {arg_name}WithPrefix = {arg}
 """
 
             pre_script_lines.append(code)
