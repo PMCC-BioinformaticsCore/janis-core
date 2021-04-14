@@ -99,8 +99,8 @@ class ToolTestSuiteRunner:
         if output is None:
             output = self.run(input=t.input, engine=engine)
 
-        failed = set()
-        succeeded = set()
+        failed = []
+        succeeded = []
 
         for test_logic in t.output:
             error_interpreting_test_case = False
@@ -116,17 +116,17 @@ class ToolTestSuiteRunner:
                 error_interpreting_test_case = str(e)
 
             if error_interpreting_test_case:
-                failed.add(
+                failed.append(
                     f"Error interpreting test case: {str(test_logic)} - {error_interpreting_test_case}"
                 )
             else:
                 if test_result is False:
-                    failed.add(
+                    failed.append(
                         f"{str(test_logic)} {type(expected_value)}"
                         f" | actual output: {actual_output} {type(actual_output)}"
                     )
                 else:
-                    succeeded.add(str(test_logic))
+                    succeeded.append(str(test_logic))
 
         return failed, succeeded, output
 
