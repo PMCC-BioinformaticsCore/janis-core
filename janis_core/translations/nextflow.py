@@ -1473,32 +1473,6 @@ return primary
 
             inputsdict = tool.inputs_map()
 
-            if isinstance(i.intype, Filename):
-                val = cls.unwrap_expression(
-                    i.intype.generated_filename(), inputs_dict=inputsdict, tool=tool
-                )
-            elif isinstance(i.intype, Boolean):
-                val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
-                if val == "True":
-                    val = True
-                if val == "False":
-                    val = False
-            if isinstance(i.intype, File):
-                # if hasattr(i.intype, 'secondary_files') and callable(i.intype.secondary_files):
-                #     if i.intype.secondary_files() is not None:
-
-                if cls.has_secondary_files(i):
-                    primary_file = val
-                    secondary_files = []
-                    for suffix in i.intype.secondary_files():
-                        sec_file = apply_secondary_file_format_to_filename(
-                            primary_file, suffix
-                        )
-                        secondary_files.append(sec_file)
-
-                    # Note: we want primary file to always be the first item in the array
-                    val = [primary_file] + secondary_files
-
             if val is None:
                 if isinstance(i.intype, (File, Directory)) or (
                     isinstance(i.intype, (Array))
@@ -1508,6 +1482,32 @@ return primary
                     val = f"/{cls.NO_FILE_PATH_PREFIX}{count}"
                 else:
                     val = ""
+            else:
+                if isinstance(i.intype, Filename):
+                    val = cls.unwrap_expression(
+                        i.intype.generated_filename(), inputs_dict=inputsdict, tool=tool
+                    )
+                elif isinstance(i.intype, Boolean):
+                    val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
+                    if val == "True":
+                        val = True
+                    if val == "False":
+                        val = False
+                elif isinstance(i.intype, File):
+                    # if hasattr(i.intype, 'secondary_files') and callable(i.intype.secondary_files):
+                    #     if i.intype.secondary_files() is not None:
+
+                    if cls.has_secondary_files(i):
+                        primary_file = val
+                        secondary_files = []
+                        for suffix in i.intype.secondary_files():
+                            sec_file = apply_secondary_file_format_to_filename(
+                                primary_file, suffix
+                            )
+                            secondary_files.append(sec_file)
+
+                        # Note: we want primary file to always be the first item in the array
+                        val = [primary_file] + secondary_files
 
             inp[i.id()] = val
 
