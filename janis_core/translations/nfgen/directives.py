@@ -10,7 +10,7 @@ class ProcessDirective(NFBase, ABC):
 
     def get_string(self):
 
-        return " ".join([self.name, str(self.value)])
+        return f'{self.name} "{self.value}"'
 
 
 class AcceleratorDirective(ProcessDirective):
@@ -45,7 +45,7 @@ class CondaDirective(ProcessDirective):
 
 class ContainerDirective(ProcessDirective):
     def __init__(self, container):
-        super().__init__("container", f"\"{container}\"")
+        super().__init__("container", f"{container}")
 
 
 class ContainerOptionsDirective(ProcessDirective):

@@ -57,6 +57,7 @@ class NextflowTranslator(TranslatorBase):
     PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
     PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
     FINAL_STEP_NAME = "janis_outputs"
+    TOOL_STDOUT_FILENAME = "janisstdout"
 
     INPUT_IN_SELECTORS = {}
 
@@ -73,7 +74,6 @@ class NextflowTranslator(TranslatorBase):
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
         inputsdict = workflow.inputs_map()
-        toolinputs_dict = {k: ToolInput(k, v.intype) for k, v in inputsdict.items()}
 
         step_keys = list(workflow.step_nodes.keys())
         nf_items = {}
@@ -415,9 +415,7 @@ class NextflowTranslator(TranslatorBase):
         if container is not None:
             process.directives.append(
                 nfgen.ContainerDirective(
-                    cls.unwrap_expression(
-                        container, is_code_environment=True, tool=tool
-                    )
+                    cls.unwrap_expression(container, quote_string=False, tool=tool)
                 )
             )
         elif not allow_empty_container:
@@ -605,7 +603,7 @@ class NextflowTranslator(TranslatorBase):
 
                 expression = ", ".join(formatted_list)
             elif isinstance(output_type, Stdout):
-                expression = f"'{nfgen.Process.TOOL_STDOUT_FILENAME}_{process_name}'"
+                expression = f"'{cls.TOOL_STDOUT_FILENAME}_{process_name}'"
             elif isinstance(output_type, File) and output_type.has_secondary_files():
                 sub_qual = nfgen.OutputProcessQualifier.path
                 tuple_elements = [expression]
@@ -654,7 +652,12 @@ class NextflowTranslator(TranslatorBase):
                 expression=expression,
                 is_optional=output_type.optional,
             )
+
             process.outputs.append(out)
+
+            process.directives.append(
+                nfgen.PublishDirDirective(f"$launchDir/{process_name}")
+            )
 
         return process
 
@@ -1678,7 +1681,7 @@ for key in result:
         main_script = " \\\n".join(pargs)
 
         return f"""
-{main_script} | tee {nfgen.Process.TOOL_STDOUT_FILENAME}_{process_name}
+{main_script} | tee {cls.TOOL_STDOUT_FILENAME}_{process_name}
 
 """
 
