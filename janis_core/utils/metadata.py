@@ -1,5 +1,5 @@
 import json
-from _sha1 import sha1
+from hashlib import sha3_224 as sha3
 from datetime import date
 
 
@@ -71,7 +71,7 @@ class Metadata(object):
 
     def get_dict(self, object_to_checksum):
 
-        checksum = sha1(
+        checksum = sha3(
             json.dumps(object_to_checksum, sort_keys=True).encode("utf-8")
         ).hexdigest()
         # https://stackoverflow.com/q/5884066
