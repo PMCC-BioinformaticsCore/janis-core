@@ -873,10 +873,11 @@ class NextflowTranslator(TranslatorBase):
             matches += [t[0] for t in found]
 
         for m in matches:
-            if input_type.has_secondary_files() or input_type.is_paired():
-                p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
-            else:
-                p = p.replace(m, f"Channel.from({m}).flatten()")
+            p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
+            # if input_type.has_secondary_files() or input_type.is_paired():
+            #     p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
+            # else:
+            #     p = p.replace(m, f"Channel.from({m}).flatten()")
 
         matches = []
         for step_id in step_keys:
