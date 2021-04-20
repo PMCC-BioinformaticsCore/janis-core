@@ -36,6 +36,7 @@ class TTestExpectedOutput(object):
         file_diff_source: Optional[str] = None,
         array_index: Optional[int] = None,
         suffix_secondary_file: Optional[str] = None,
+        preprocessor_params: Optional[Dict] = {},
     ):
         """
 
@@ -55,6 +56,8 @@ class TTestExpectedOutput(object):
         :type array_index: Optional[int]
         :param suffix_secondary_file: additional file
         :type suffix_secondary_file: Optional[str]
+        :param preprocessor_params: additional parameters for preprocessors
+        :type preprocessor_params: Optional[Dict]
         """
         self.tag = tag
         self.preprocessor = preprocessor
@@ -78,6 +81,8 @@ class TTestExpectedOutput(object):
         # if the compared object is a file, we can add suffix to test secondary files of this file
         self.suffix = suffix_secondary_file
 
+        self.preprocessor_params = preprocessor_params
+
         self._validate_input()
 
     def __repr__(self):
@@ -89,7 +94,7 @@ class TTestExpectedOutput(object):
         if isinstance(self.preprocessor, TTestPreprocessor):
             repr_preprocessor = self.preprocessor.value
 
-        return f"{self.tag}: {repr_preprocessor} {str(self.operator.__name__)} {repr_expected_value}"
+        return f"{self.tag}: {repr_preprocessor} {str(self.array_index)+' ' if self.array_index is not None else ''}{self.suffix+' ' if self.suffix is not None else ''}{str(self.operator.__name__)} {repr_expected_value}"
 
     def _validate_input(self):
         if self.expected_value is None and self.expected_file is None:
