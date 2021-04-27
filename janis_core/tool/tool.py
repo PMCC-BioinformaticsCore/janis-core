@@ -1,9 +1,11 @@
+import operator
 import sys
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, List, Dict, Set
 
+from janis_core.types.common_data_types import Array
 from janis_core.tool.documentation import (
     InputDocumentation,
     OutputDocumentation,
@@ -13,7 +15,11 @@ from janis_core.types import get_instantiated_type, DataType
 from janis_core.utils import find_duplicates
 from janis_core.utils.metadata import Metadata
 from janis_core.utils.validators import Validators
-from janis_core.tool.test_classes import TTestCase
+from janis_core.tool.test_classes import (
+    TTestCase,
+    TTestExpectedOutput,
+    TTestPreprocessor,
+)
 from nose.tools import nottest
 
 
@@ -264,6 +270,47 @@ OUTPUTS:
         A list of test cases for this tool
         """
         return None
+
+    def minimal_test(self):
+        outcome = []
+        for i in self.tool_outputs():
+            # print("check file tag: "+i.tag)
+            # print(i.outtype)
+            # print("Array: " + str(i.outtype.is_base_type(Array)))
+            # print(str(i.outtype.fundamental_type())) if i.outtype.is_base_type(Array) else print("no base type")
+            preprocessor = (
+                TTestPreprocessor.ListOfFilesExist
+                if i.outtype.is_base_type(Array)
+                else TTestPreprocessor.FileSize
+            )
+            comparison = operator.eq if i.outtype.is_base_type(Array) else operator.gt
+            expected_value = True if i.outtype.is_base_type(Array) else 0
+            secondary_files_suffixes = (
+                i.outtype.fundamental_type().secondary_files()
+                if i.outtype.is_base_type(Array)
+                else i.outtype.secondary_files()
+            )
+            # print(secondary_files_suffixes)
+            outcome += [
+                TTestExpectedOutput(
+                    tag=i.tag,
+                    preprocessor=preprocessor,
+                    operator=comparison,
+                    expected_value=expected_value,
+                )
+            ]
+            if secondary_files_suffixes is not None:
+                for suffix in secondary_files_suffixes:
+                    outcome += [
+                        TTestExpectedOutput(
+                            tag=i.tag,
+                            suffix_secondary_file=suffix,
+                            preprocessor=preprocessor,
+                            operator=comparison,
+                            expected_value=expected_value,
+                        )
+                    ]
+        return outcome
 
     @classmethod
     @nottest
