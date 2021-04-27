@@ -314,6 +314,9 @@ class InputSelector(Selector):
     def __repr__(self):
         return str(self)
 
+    def nextflow(self):
+        return "params." + self.input_to_select
+
 
 class InputNodeSelector(Selector):
     def __init__(self, input_node):
@@ -349,6 +352,9 @@ class InputNodeSelector(Selector):
         key = self.input_node.id()
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
+
+    def nextflow(self):
+        return "params." + self.input_node.id()
 
 
 class StepOutputSelector(Selector):
@@ -387,6 +393,9 @@ class StepOutputSelector(Selector):
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
 
+    def nextflow(self):
+        return f"{self.node.id()}.out.{self.tag}"
+
 
 class WildcardSelector(Selector):
     def __init__(self, wildcard, select_first=False):
@@ -398,6 +407,9 @@ class WildcardSelector(Selector):
 
     def to_string_formatter(self):
         raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
+
+    def nextflow(self):
+        return str(self.wildcard)
 
 
 class AliasSelector(Selector):
@@ -414,6 +426,9 @@ class AliasSelector(Selector):
 
     def to_string_formatter(self):
         return f"({self.inner_selector} as {self.data_type})"
+
+    def nextflow(self):
+        return str(self.inner_selector)
 
 
 class ResourceSelector(InputSelector):

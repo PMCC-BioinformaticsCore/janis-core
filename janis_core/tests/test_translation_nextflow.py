@@ -14,10 +14,13 @@ from janis_core.tests.testtools import (
     EchoTestTool,
     FilenameGeneratedTool,
     OperatorResourcesTestTool,
+    TestWorkflowWithConditionStep,
+    TestWorkflowThatOutputsArraysOfSecondaryFiles,
+    TestWorkflowWithAliasSelectorWorkflow,
 )
 
 
-import janis_core.translations.nextflow as nf
+from janis_core.translations.nextflow import NextflowTranslator
 from janis_core import (
     WorkflowBuilder,
     ToolInput,
@@ -32,9 +35,73 @@ from janis_core import (
     Float,
 )
 from janis_core.tool.documentation import InputDocumentation
-from janis_core.translations import NextflowTranslator
+from janis_core.translations import NextflowTranslator as translator
 from janis_core.types import CpuSelector, MemorySelector, Stdout
 from janis_core.workflow.workflow import InputNode
+
+from janis_core.operators.standard import FirstOperator
+from janis_core import Array, String, Stdout, File, Int, Float, Boolean
+
+
+class DataTypeWithSecondary(File):
+    @staticmethod
+    def name() -> str:
+        return "test_secondary"
+
+    @staticmethod
+    def secondary_files():
+        return [".txt"]
+
+
+class TestNextflowWfToolInputs(unittest.TestCase):
+    def test_first_selector(self):
+
+        workflow = TestWorkflowWithConditionStep()
+        step_keys = list(workflow.step_nodes.keys())
+
+        step_id = "print"
+        tool = workflow.step_nodes[step_id].tool
+        inputs = translator.generate_wf_tool_inputs(tool, step_keys)
+
+        print(inputs)
+        assert inputs == {"inp": "[$params.mystring, $get_string.out.out].first()"}
+
+
+class TestNextflowPrepareInputVars(unittest.TestCase):
+    def test_secondary_files(self):
+        inp = ToolInput("bam", DataTypeWithSecondary(), prefix="-I")
+
+        res = translator.generate_input_var_definition(inp, "bam")
+        expected = "apply_prefix(bam[0], '-I ', 'False')"
+        self.assertEqual(res, expected)
+
+    def test_array_with_secondary_files(self):
+
+        inp = ToolInput("bams", Array(DataTypeWithSecondary()), prefix="-I")
+
+        res = translator.generate_input_var_definition(inp, "bams")
+        expected = "apply_prefix(get_primary_files(bams).join(' '), '-I ', 'False')"
+
+        self.assertEqual(res, expected)
+
+
+class TestGenerateWfToolOutputs(unittest.TestCase):
+    w1 = TestWorkflowThatOutputsArraysOfSecondaryFiles()
+    w2 = TestWorkflowWithStepInputExpression()
+    w3 = TestWorkflowWithAliasSelectorWorkflow()
+
+    def test_without_prefix(self):
+        assert translator.generate_wf_tool_outputs(self.w1) == {"out": "stp.out.out"}
+        assert translator.generate_wf_tool_outputs(self.w2) == {"out": "print.out.out"}
+        assert translator.generate_wf_tool_outputs(self.w3) == {"out": "stp1.out.out"}
+
+    def test_with_prefix(self):
+        assert translator.generate_wf_tool_outputs(self.w1, "subworkflow_") == {
+            "out": "subworkflow_stp.out.out"
+        }
+        assert translator.generate_wf_tool_outputs(self.w2, "subworkflow") == {
+            "out": "subworkflowprint.out.out"
+        }
 
 
 # class TestNextflowIntegration(unittest.TestCase):

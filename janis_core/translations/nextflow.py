@@ -1062,29 +1062,17 @@ class NextflowTranslator(TranslatorBase):
     def generate_wf_tool_outputs(
         cls, wf: WorkflowBase, tool_var_prefix: str = ""
     ) -> Dict[str, str]:
-        step_keys = wf.step_nodes.keys()
 
         outputs = {}
         for o in wf.output_nodes:
-            # val = str(wf.output_nodes[o].source)
-
-            if isinstance(wf.output_nodes[o].source, AliasSelector):
-                val = wf.output_nodes[o].source.inner_selector
+            if hasattr(wf.output_nodes[o].source, "nextflow"):
+                val = wf.output_nodes[o].source.nextflow()
             else:
-                val = str(wf.output_nodes[o].source)
+                val = str(val)
 
-            val = str(val)
-
-            if "inputs." in val:
-                # e.g. replace inputs.fastq to $fastq
-                val = val.replace("inputs.", "params.")
-
-            # e.g. replace bwamem.var to bwamem.out.var
-            # bwamem.out is nextflow variable to fetch all output from bwamem process
-            for tool_id in step_keys:
-                keyword = f"{tool_id}."
-                if val.startswith(keyword):
-                    val = val.replace(keyword, f"{tool_var_prefix}{tool_id}.out.")
+            if tool_var_prefix:
+                if isinstance(wf.output_nodes[o].source, StepOutputSelector):
+                    val = f"{tool_var_prefix}{val}"
 
             outputs[o] = val
 
@@ -1280,7 +1268,7 @@ return primary
             return value.to_nextflow(unwrap_expression_wrap, *value.args)
 
         elif callable(getattr(value, "nextflow", None)):
-            return value.Nextflow()
+            return value.nextflow()
 
         raise Exception(
             "Could not detect type %s to convert to input value" % type(value)

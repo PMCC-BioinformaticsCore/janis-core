@@ -18,6 +18,7 @@ from janis_core import (
     InputDocumentation,
     InputQualityType,
     Workflow,
+    FirstOperator,
 )
 
 
@@ -310,3 +311,48 @@ class TestWorkflowThatOutputsArraysOfSecondaryFiles(Workflow):
         )
 
         self.output("out", source=self.stp.out)
+
+
+class TestWorkflowWithConditionStep(Workflow):
+    def constructor(self):
+        self.input("mystring", Optional[str], value=None)
+
+        someString = FirstOperator(
+            [
+                self.mystring,
+                self.step(
+                    "get_string",
+                    EchoTestTool(inp="Some default value"),
+                    when=self.mystring.is_null(),
+                ).out,
+            ]
+        )
+
+        self.step(
+            "print",
+            EchoTestTool(inp=someString),
+        )
+
+        self.output("out", source=self.print)
+
+    def friendly_name(self):
+        return "TEST: TestWorkflowWithConditionStep"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class TestWorkflowWithAliasSelectorWorkflow(Workflow):
+    def id(self) -> str:
+        return "TestWorkflowWithAliasSelectorWorkflow"
+
+    def friendly_name(self):
+        return "Test Workflow with alias selector in the output"
+
+    def constructor(self):
+        self.input("inp", Array(String), value=["abc", "def"])
+
+        self.step("stp1", TestToolWithSecondaryOutput(testtool=self.inp))
+        self.step("stp2", CatTestTool(inp=self.stp1.out.as_type(File)))
+
+        self.output("out", source=self.stp1.out)
