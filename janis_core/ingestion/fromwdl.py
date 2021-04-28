@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import re
 from types import LambdaType
@@ -153,6 +155,8 @@ class WdlParser:
     def parse_memory_requirement(self, value):
         s = self.translate_expr(value)
         if isinstance(s, str):
+            if s.lower().endswith("g"):
+                return float(s[:-1].strip())
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
@@ -315,6 +319,13 @@ class WdlParser:
             return multiplier * base
         return base
 
+    def basename_operator(self, src, *args):
+        retval = j.BasenameOperator(src)
+        if len(args) > 0:
+            retval = retval.replace(args[0], "")
+
+        return retval
+
     def translate_apply(
         self, expr: WDL.Expr.Apply, **expr_kwargs
     ) -> Union[j.Selector, List[j.Selector]]:
@@ -331,7 +342,7 @@ class WdlParser:
             "_land": j.AndOperator,
             "defined": j.IsDefined,
             "select_first": j.FilterNullOperator,
-            "basename": j.BasenameOperator,
+            "basename": self.basename_operator,
             "length": j.LengthOperator,
             "_gt": j.GtOperator,
             "_gte": j.GteOperator,
@@ -351,6 +362,8 @@ class WdlParser:
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "size": self.file_size_operator,
             "ceil": j.CeilOperator,
+            "select_all": j.FilterNullOperator,
+            "sub": j.ReplaceOperator
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -396,7 +409,8 @@ class WdlParser:
 
 
 if __name__ == "__main__":
-    doc = "path/to/doc.wdl"
+    # doc = "path/to/doc.wdl"
+    doc = "/Users/michael.franklin/source/wdlz/cramqc.wdl"
     t = WdlParser.from_doc(doc)
-
-    t.translate("janis")
+    t.get_dot_plot(log_to_stdout=True)
+    t.translate("hail")
