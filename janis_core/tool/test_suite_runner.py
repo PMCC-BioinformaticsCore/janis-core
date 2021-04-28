@@ -234,9 +234,7 @@ class ToolTestSuiteRunner:
             if not output_value:
                 return False
             files = output_value.split("|")
-            count = 0
             for file in files:
-                count += 1
                 if test_logic.suffix is None:
                     if not (os.path.getsize(file) > 0):
                         return False

@@ -271,13 +271,17 @@ OUTPUTS:
         """
         return None
 
-    def minimal_test(self):
+    def minimal_test(self) -> List[TTestExpectedOutput]:
+        """
+        A minimal test simply checks if output files exist (if their sizes are bigger than 0).
+        It should be used when we don't know what outputs we can expect from a tool. It should
+        be called within a TTestCase. Be aware that we still need to know the inputs.
+
+        :return: List of expected outputs
+        :rtype: List[TTestExpectedOutput]
+        """
         outcome = []
         for i in self.tool_outputs():
-            # print("check file tag: "+i.tag)
-            # print(i.outtype)
-            # print("Array: " + str(i.outtype.is_base_type(Array)))
-            # print(str(i.outtype.fundamental_type())) if i.outtype.is_base_type(Array) else print("no base type")
             preprocessor = (
                 TTestPreprocessor.ListOfFilesExist
                 if i.outtype.is_base_type(Array)
@@ -290,7 +294,6 @@ OUTPUTS:
                 if i.outtype.is_base_type(Array)
                 else i.outtype.secondary_files()
             )
-            # print(secondary_files_suffixes)
             outcome += [
                 TTestExpectedOutput(
                     tag=i.tag,
