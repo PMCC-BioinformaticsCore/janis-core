@@ -17,6 +17,7 @@ class TTestPreprocessor(Enum):
     FileMd5 = "file-md5"
     LineCount = "line-count"
     ListSize = "list-size"
+    ListOfFilesExist = "list-of-files-exist"
 
 
 class TTestExpectedOutput(object):
