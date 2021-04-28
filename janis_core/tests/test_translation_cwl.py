@@ -73,8 +73,8 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: Workflow
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -93,8 +93,8 @@ id: wid
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: CommandLineTool
+cwlVersion: v1.2
 
 inputs: {}
 
@@ -675,6 +675,7 @@ class TestContainerOverride(unittest.TestCase):
 
 class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
+        self.maxDiff = None
 
         ret, _, _ = TestWorkflowWithStepInputExpression().translate(
             "cwl", to_console=False
@@ -1022,8 +1023,8 @@ class TestCWLWhen(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: CommandLineTool
+cwlVersion: v1.2
 label: Tool for testing translation
 
 requirements:
@@ -1069,8 +1070,8 @@ id: TestTranslationtool
 
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: Workflow
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement
@@ -1098,8 +1099,8 @@ id: test_add_single_to_array_edge
 
 cwl_stepinput = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: Workflow
+cwlVersion: v1.2
 label: 'TEST: WorkflowWithStepInputExpression'
 
 requirements:
@@ -1139,8 +1140,8 @@ id: TestWorkflowWithStepInputExpression
 
 cwl_arraystepinput = """\
 #!/usr/bin/env cwl-runner
-cwlVersion: v1.2
 class: Workflow
+cwlVersion: v1.2
 
 requirements:
 - class: InlineJavascriptRequirement
