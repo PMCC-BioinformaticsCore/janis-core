@@ -73,8 +73,8 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 
 inputs: {}
 
@@ -93,8 +93,8 @@ id: wid
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-class: CommandLineTool
 cwlVersion: v1.2
+class: CommandLineTool
 
 inputs: {}
 
@@ -1022,8 +1022,8 @@ class TestCWLWhen(unittest.TestCase):
 
 cwl_testtool = """\
 #!/usr/bin/env cwl-runner
-class: CommandLineTool
 cwlVersion: v1.2
+class: CommandLineTool
 label: Tool for testing translation
 
 requirements:
@@ -1069,8 +1069,8 @@ id: TestTranslationtool
 
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 
 requirements:
 - class: InlineJavascriptRequirement
@@ -1098,8 +1098,8 @@ id: test_add_single_to_array_edge
 
 cwl_stepinput = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 label: 'TEST: WorkflowWithStepInputExpression'
 
 requirements:
@@ -1139,8 +1139,8 @@ id: TestWorkflowWithStepInputExpression
 
 cwl_arraystepinput = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 
 requirements:
 - class: InlineJavascriptRequirement

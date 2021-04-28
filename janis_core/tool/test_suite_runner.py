@@ -230,6 +230,18 @@ class ToolTestSuiteRunner:
             if not output_value:
                 return 0
             value = len(output_value.split("|"))
+        elif test_logic.preprocessor == TTestPreprocessor.ListOfFilesExist:
+            if not output_value:
+                return False
+            files = output_value.split("|")
+            for file in files:
+                if test_logic.suffix is None:
+                    if not (os.path.getsize(file) > 0):
+                        return False
+                else:
+                    if not (os.path.getsize(file + test_logic.suffix) > 0):
+                        return False
+            return True
         else:
             raise Exception(
                 f"{test_logic.preprocessor} comparison type is not supported"
