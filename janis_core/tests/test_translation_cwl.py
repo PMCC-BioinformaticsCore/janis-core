@@ -73,8 +73,8 @@ class TestCwlTranslatorOverrides(unittest.TestCase):
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 
 inputs: {}
 
@@ -93,8 +93,8 @@ id: wid
         )
         expected = """\
 #!/usr/bin/env cwl-runner
-class: CommandLineTool
 cwlVersion: v1.2
+class: CommandLineTool
 
 inputs: {}
 
@@ -1069,8 +1069,8 @@ id: TestTranslationtool
 
 cwl_multiinput = """\
 #!/usr/bin/env cwl-runner
-class: Workflow
 cwlVersion: v1.2
+class: Workflow
 
 requirements:
 - class: InlineJavascriptRequirement
