@@ -245,6 +245,10 @@ class Selector(ABC):
 
         return BasenameOperator(self)
 
+    def replace(self, pattern, replacement):
+        from .standard import ReplaceOperator
+        return ReplaceOperator(self, pattern, replacement)
+
     def file_size(self):
         from .standard import FileSizeOperator
 

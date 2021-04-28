@@ -495,6 +495,36 @@ class FilterNullOperator(Operator):
         return [i for i in iterable if i is not None]
 
 
+class ReplaceOperator(Operator):
+
+    @staticmethod
+    def friendly_signature():
+        return "Base: String, Pattern: String, Replacement: String -> String"
+
+    def argtypes(self) -> List[DataType]:
+        return [String(), String(), String()]
+
+    def evaluate(self, inputs):
+        base, pattern, replacement = [self.evaluate_arg(a, inputs) for a in self.args]
+        import re
+        return re.sub(pattern, replacement, base)
+
+    def to_wdl(self, unwrap_operator, *args):
+        base, pattern, replacement = [unwrap_operator(a) for a in self.args]
+        return f"sub({base}, {pattern}, {replacement})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        base, pattern, replacement = [unwrap_operator(a) for a in self.args]
+        return f"{base}.replace(new RegExp({pattern}), {replacement})"
+
+    def to_python(self, unwrap_operator, *args):
+        base, pattern, replacement = [unwrap_operator(a) for a in self.args]
+        return f"re.sub({pattern}, {replacement}, {base})"
+
+    def returntype(self) -> DataType:
+        return String()
+
+
 # class Stdout(Operator):
 #     @staticmethod
 #     def friendly_signature():
