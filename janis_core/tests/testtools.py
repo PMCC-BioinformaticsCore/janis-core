@@ -350,7 +350,7 @@ class TestWorkflowWithAliasSelectorWorkflow(Workflow):
         return "Test Workflow with alias selector in the output"
 
     def constructor(self):
-        self.input("inp", Array(String), value=["abc", "def"])
+        self.input("inp", String, value="abc")
 
         self.step("stp1", TestToolWithSecondaryOutput(testtool=self.inp))
         self.step("stp2", CatTestTool(inp=self.stp1.out.as_type(File)))

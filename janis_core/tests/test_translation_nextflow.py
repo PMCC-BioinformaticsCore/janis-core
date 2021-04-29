@@ -62,9 +62,53 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         step_id = "print"
         tool = workflow.step_nodes[step_id].tool
         inputs = translator.generate_wf_tool_inputs(tool, step_keys)
+        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
 
-        print(inputs)
-        assert inputs == {"inp": "[$params.mystring, $get_string.out.out].first()"}
+        self.assertEqual(expected, inputs)
+
+    def test_simple(self):
+        w1 = TestWorkflowThatOutputsArraysOfSecondaryFiles()
+        w1_step_keys = list(w1.step_nodes.keys())
+
+        expected = {"testtool": "$params.inp"}
+        self.assertEqual(
+            expected,
+            translator.generate_wf_tool_inputs(w1.step_nodes["stp"].tool, w1_step_keys),
+        )
+
+    def test_with_expression(self):
+        w2 = TestWorkflowWithStepInputExpression()
+        w2_step_keys = list(w2.step_nodes.keys())
+
+        expected = {
+            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
+        }
+        self.assertEqual(
+            expected,
+            translator.generate_wf_tool_inputs(
+                w2.step_nodes["print"].tool, w2_step_keys
+            ),
+        )
+
+    def test_multi_steps(self):
+        w3 = TestWorkflowWithAliasSelectorWorkflow()
+        w3_step_keys = list(w3.step_nodes.keys())
+
+        expected1 = {"testtool": "$params.inp"}
+        self.assertEqual(
+            expected1,
+            translator.generate_wf_tool_inputs(
+                w3.step_nodes["stp1"].tool, w3_step_keys
+            ),
+        )
+
+        expected2 = {"inp": "$stp1.out.out"}
+        self.assertEqual(
+            expected2,
+            translator.generate_wf_tool_inputs(
+                w3.step_nodes["stp2"].tool, w3_step_keys
+            ),
+        )
 
 
 class TestNextflowPrepareInputVars(unittest.TestCase):
@@ -96,12 +140,15 @@ class TestGenerateWfToolOutputs(unittest.TestCase):
         assert translator.generate_wf_tool_outputs(self.w3) == {"out": "stp1.out.out"}
 
     def test_with_prefix(self):
-        assert translator.generate_wf_tool_outputs(self.w1, "subworkflow_") == {
-            "out": "subworkflow_stp.out.out"
-        }
-        assert translator.generate_wf_tool_outputs(self.w2, "subworkflow") == {
-            "out": "subworkflowprint.out.out"
-        }
+        expected1 = {"out": "subworkflow_stp.out.out"}
+        self.assertEqual(
+            expected1, translator.generate_wf_tool_outputs(self.w1, "subworkflow_")
+        )
+
+        expected2 = {"out": "subworkflowprint.out.out"}
+        self.assertEqual(
+            expected2, translator.generate_wf_tool_outputs(self.w2, "subworkflow")
+        )
 
 
 # class TestNextflowIntegration(unittest.TestCase):

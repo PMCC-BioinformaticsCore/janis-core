@@ -806,34 +806,6 @@ class NextflowTranslator(TranslatorBase):
                     if input_type.subtype().has_secondary_files():
                         p = p.strip("][").replace(",", " + ")
 
-                # # Convert type from
-                # source_data_type =
-                # if isinstance(source_data_type, File) and source_data_type.has_secondary_files() and \
-                #         isinstance(input_type, File) and not input_type.has_secondary_files():
-                #     p += ".map{ tuple -> tuple[0] }"
-
-            # if i.as_param:
-            #     # p = i.as_process_param.replace(cls.PARAM_VAR, p)
-            #     # Note: only need to do this for string type input (directly from json file)
-            #     if p.startswith("params."):
-            #         if cls.LIST_OF_FILES_PARAM in i.as_param:
-            #             p = i.as_param.replace(
-            #                 cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
-            #             )
-            #         elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
-            #             p = i.as_param.replace(
-            #                 cls.LIST_OF_FILE_PAIRS_PARAM,
-            #                 f"Channel.from({p}).map{{ pair -> pair }}",
-            #             )
-            #
-            #     if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
-            #         path_to_python_code_file = posixpath.join(
-            #             "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
-            #         )
-            #         p = p.replace(
-            #             cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
-            #         )
-
             if scatter is not None and i.name in scatter.fields:
                 p = cls.handle_scatter_argument(p, inputsdict[i.name], step_keys)
 
@@ -1013,46 +985,18 @@ class NextflowTranslator(TranslatorBase):
         step_keys: List[str],
         inputs_replacement: str = "$params.",
         tool_id_prefix: str = "",
-        workflow_inputs: Dict = {},
     ):
 
         inputs = {}
         for key in tool.connections:
             if tool.connections[key] is None:
                 val = None
-            elif type(tool.connections[key]) == StepNode:
-                val = f"${tool.connections[key].id()}.out"
+            elif hasattr(tool.connections[key], "nextflow"):
+                val = tool.connections[key].nextflow()
             else:
-                if isinstance(tool.connections[key], Operator) or isinstance(
-                    tool.connections[key], AliasSelector
-                ):
-                    val = cls.unwrap_expression(
-                        tool.connections[key], tool=tool, inputs_dict=tool.inputs_map()
-                    )
-                else:
-                    val = str(tool.connections[key])
-
-                if val.startswith("inputs."):
-                    wf_key = val.replace("inputs.", "")
-                    inp_val_from_workflow = workflow_inputs.get(wf_key)
-
-                    if inp_val_from_workflow is not None:
-                        val = str(inp_val_from_workflow)
-
-                # e.g. replace inputs.fastq to params.
-                keyword = f"inputs."
-                pattern = r"\binputs\.\b"
-                if re.search(pattern, str(val)) is not None:
-                    val = val.replace(keyword, inputs_replacement)
-
-                # e.g. replace bwamem.var to bwamem.out.var
-                # bwamem.out is nextflow variable to fetch all output from bwamem process
-                for tool_id in step_keys:
-                    keyword = f"{tool_id}."
-                    pattern = rf"\b{tool_id}\.\b"
-
-                    if re.search(pattern, str(val)) is not None:
-                        val = val.replace(keyword, f"${tool_id_prefix}{tool_id}.out.")
+                val = cls.unwrap_expression(
+                    tool.connections[key], tool=tool, inputs_dict=tool.inputs_map()
+                )
 
             inputs[key] = val
 
@@ -1066,13 +1010,16 @@ class NextflowTranslator(TranslatorBase):
         outputs = {}
         for o in wf.output_nodes:
             if hasattr(wf.output_nodes[o].source, "nextflow"):
-                val = wf.output_nodes[o].source.nextflow()
+                if isinstance(wf.output_nodes[o].source, StepOutputSelector):
+                    val = wf.output_nodes[o].source.nextflow(tool_var_prefix)
+                else:
+                    val = wf.output_nodes[o].source.nextflow()
             else:
                 val = str(val)
 
-            if tool_var_prefix:
-                if isinstance(wf.output_nodes[o].source, StepOutputSelector):
-                    val = f"{tool_var_prefix}{val}"
+            # if tool_var_prefix:
+            #     if isinstance(wf.output_nodes[o].source, StepOutputSelector):
+            #         val = f"{tool_var_prefix}{val}"
 
             outputs[o] = val
 
@@ -1224,18 +1171,19 @@ return primary
                     value, inputsdict=inputs_dict
                 )
                 return el
-            return cls.translate_input_selector(
-                selector=value,
-                inputs_dict=inputs_dict,
-                skip_inputs_lookup=skip_inputs_lookup,
-                in_shell_script=in_shell_script,
-                tool=tool,
-            )
-        elif isinstance(value, InputNodeSelector):
-            return f"inputs.{value.id()}"
+            # return cls.translate_input_selector(
+            #     selector=value,
+            #     inputs_dict=inputs_dict,
+            #     skip_inputs_lookup=skip_inputs_lookup,
+            #     in_shell_script=in_shell_script,
+            #     tool=tool,
+            # )
+            return value.nextflow()
+        # elif isinstance(value, InputNodeSelector):
+        #     return f"inputs.{value.id()}"
 
-        elif isinstance(value, StepOutputSelector):
-            return f"{value.node.id()}.{value.tag}"
+        # elif isinstance(value, StepOutputSelector):
+        #     return f"{value.node.id()}.{value.tag}"
 
         elif isinstance(value, AliasSelector):
             return cls.unwrap_expression(
