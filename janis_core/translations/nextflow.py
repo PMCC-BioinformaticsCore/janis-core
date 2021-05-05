@@ -259,6 +259,7 @@ class NextflowTranslator(TranslatorBase):
         step_keys = list(subworkflow.step_nodes.keys())
 
         wf_provided_inputs = cls.generate_wf_tool_inputs(subworkflow, step_keys)
+
         for i in subworkflow.input_nodes:
             if (
                 i not in wf_provided_inputs
@@ -289,7 +290,7 @@ class NextflowTranslator(TranslatorBase):
                 tool,
                 step_keys,
                 inputs_replacement="$",
-                tool_id_prefix=f"{name}_",
+                tool_id_prefix=f"${name}_",
             )
 
             provided_inputs = cls.apply_outer_workflow_inputs(
@@ -342,7 +343,11 @@ class NextflowTranslator(TranslatorBase):
 
             # Here, we are looking for input variables that are not an input of the subworkflow
             # but, it is pointing to a variable of the outer workflow that calls this workflow
-            if key not in wf_input_names and val is not None and val.startswith("$"):
+            if (
+                key not in wf_input_names
+                and isinstance(val, str)
+                and val.startswith("$")
+            ):
                 if key in wf_provided_inputs:
                     provided_inputs[key] = str(wf_provided_inputs[key])
 
@@ -370,7 +375,7 @@ class NextflowTranslator(TranslatorBase):
 
             for step_key in step_keys:
                 # TODO: handle variable in the middle??
-                if val is not None and f"{step_key}.out." in val:
+                if isinstance(val, str) and f"{step_key}.out." in val:
                     parts = val.split(f"{step_key}.out.")
                     step_output_var = parts[1]
                     step_outputs = workflow.step_nodes.get(step_key).outputs()
@@ -627,6 +632,7 @@ class NextflowTranslator(TranslatorBase):
                     if ext.startswith("^"):
                         replacement = ext[1:]
 
+                    sec_exp = None
                     if primary_ext in expression:
                         sec_exp = expression.replace(primary_ext, replacement)
                     elif ".name" in expression:
@@ -634,7 +640,8 @@ class NextflowTranslator(TranslatorBase):
                             ".name", f".baseName + '{replacement}'"
                         )
 
-                    tuple_elements.append(sec_exp)
+                    if sec_exp is not None:
+                        tuple_elements.append(sec_exp)
 
                 formatted_list = []
                 for sec_exp in tuple_elements:
@@ -766,6 +773,8 @@ class NextflowTranslator(TranslatorBase):
                 p = provided_inputs[i.name]
                 if p is None:
                     p = "''"
+                elif isinstance(p, bool):
+                    p = f"'{p}'"
                 elif "$" in p:
                     p = p.replace("$", "")
                 else:
@@ -984,7 +993,7 @@ class NextflowTranslator(TranslatorBase):
         tool: Tool,
         step_keys: List[str],
         inputs_replacement: str = "$params.",
-        tool_id_prefix: str = "",
+        tool_id_prefix: str = "$",
     ):
 
         inputs = {}
@@ -992,10 +1001,18 @@ class NextflowTranslator(TranslatorBase):
             if tool.connections[key] is None:
                 val = None
             elif hasattr(tool.connections[key], "nextflow"):
-                val = tool.connections[key].nextflow()
+                # if isinstance(tool.connections[key], StepOutputSelector):
+                #     val = tool.connections[key].nextflow(tool_id_prefix)
+                # else:
+                val = tool.connections[key].nextflow(
+                    var_indicator=inputs_replacement, step_indicator=tool_id_prefix
+                )
             else:
                 val = cls.unwrap_expression(
-                    tool.connections[key], tool=tool, inputs_dict=tool.inputs_map()
+                    tool.connections[key],
+                    tool=tool,
+                    inputs_dict=tool.inputs_map(),
+                    quote_string=False,
                 )
 
             inputs[key] = val
@@ -1010,10 +1027,11 @@ class NextflowTranslator(TranslatorBase):
         outputs = {}
         for o in wf.output_nodes:
             if hasattr(wf.output_nodes[o].source, "nextflow"):
-                if isinstance(wf.output_nodes[o].source, StepOutputSelector):
-                    val = wf.output_nodes[o].source.nextflow(tool_var_prefix)
-                else:
-                    val = wf.output_nodes[o].source.nextflow()
+                # if isinstance(wf.output_nodes[o].source, StepOutputSelector):
+                #     val = wf.output_nodes[o].source.nextflow(tool_var_prefix)
+                # else:
+                #     val = wf.output_nodes[o].source.nextflow()
+                val = wf.output_nodes[o].source.nextflow(step_indicator=tool_var_prefix)
             else:
                 val = str(val)
 
@@ -1150,6 +1168,12 @@ return primary
                 return f"'{value}'"
             else:
                 return value
+        if isinstance(value, bool):
+            # return value
+            if quote_string:
+                return f"'{value}'"
+            else:
+                return value
         elif isinstance(value, int) or isinstance(value, float):
             return str(value)
         elif isinstance(value, Filename):
@@ -1171,19 +1195,13 @@ return primary
                     value, inputsdict=inputs_dict
                 )
                 return el
-            # return cls.translate_input_selector(
-            #     selector=value,
-            #     inputs_dict=inputs_dict,
-            #     skip_inputs_lookup=skip_inputs_lookup,
-            #     in_shell_script=in_shell_script,
-            #     tool=tool,
-            # )
-            return value.nextflow()
-        # elif isinstance(value, InputNodeSelector):
-        #     return f"inputs.{value.id()}"
-
-        # elif isinstance(value, StepOutputSelector):
-        #     return f"{value.node.id()}.{value.tag}"
+            return cls.translate_input_selector(
+                selector=value,
+                inputs_dict=inputs_dict,
+                skip_inputs_lookup=skip_inputs_lookup,
+                in_shell_script=in_shell_script,
+                tool=tool,
+            )
 
         elif isinstance(value, AliasSelector):
             return cls.unwrap_expression(
@@ -1624,7 +1642,7 @@ for key in result:
 
     @classmethod
     def prepare_tool_output(cls, tool: Tool):
-        inputsdict = tool.inputs_map()
+        # inputsdict = tool.inputs_map()
 
         outputs = {}
         for out in tool.outputs():
@@ -1635,14 +1653,21 @@ for key in result:
             else:
                 raise Exception("unknown output object type")
 
-            if isinstance(output_type, Stdout):
-                val = "STDOUT"
-            elif isinstance(output_type, Stderr):
-                val = "STDERR"
-            else:
-                val = f"${tool.id()}{out.tag}"
+            val = f"{tool.id()}{out.tag}"
 
-            outputs[out.tag] = val
+            # if output_type.has_secondary_files():
+            #     val = f"{val}[0]"
+            # elif output_type.is_array() and output_type.subtype().has_secondary_files():
+            #     val = f"{val}.map{{ val -> val[0]}}"
+
+            # if isinstance(output_type, Stdout):
+            #     val = f"{cls.TOOL_STDOUT_FILENAME}_{tool.id()}"
+            # elif isinstance(output_type, Stderr):
+            #     val = "STDERR"
+            # else:
+            #     val = f"${tool.id()}{out.tag}"
+
+            outputs[out.tag] = f"${{{val}}}"
 
         return outputs
 

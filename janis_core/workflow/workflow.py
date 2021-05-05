@@ -216,6 +216,13 @@ class StepNode(Node):
 
         self.__dict__[key] = value
 
+    def nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        if len(self.outputs().keys()) >= 1:
+            first_tag = list(self.outputs().keys())[0]
+            return self.get_item(first_tag).nextflow()
+
+        return None
+
 
 class OutputNode(Node):
     def __init__(
