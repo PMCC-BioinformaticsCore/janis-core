@@ -925,23 +925,33 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def prepare_output_process_params_for_worfklow(
-        cls, workflow
+        cls, workflow: WorkflowBase
     ) -> Tuple[List[nfgen.ProcessInput], Dict]:
         wf_outputs = cls.generate_wf_tool_outputs(workflow)
+        output_dict = workflow.outputs_map()
 
         inputs = []
         outputs = {}
 
-        process_in_output = set()
         for key, val in wf_outputs.items():
-            process_in_output.add(key.split(".")[0])
             inp_var_name = key.replace(".", "")
             # Always use 'val' qualifier
             inp = nfgen.ProcessInput(
                 qualifier=nfgen.InputProcessQualifier.val, name=inp_var_name
             )
             inputs.append(inp)
-            outputs[key] = f"${inp_var_name}"
+
+            output_var = inp_var_name
+            if key in output_dict:
+                if (
+                    output_dict[key].outtype.is_array()
+                    and output_dict[key].outtype.subtype().has_secondary_files()
+                ):
+                    output_var = f"{inp_var_name}.map{{ item -> item[0] }}"
+                elif output_dict[key].outtype.has_secondary_files():
+                    output_var = f"{inp_var_name}[0]"
+
+            outputs[key] = f"${{{output_var}}}"
 
         # # dummy input to make sure this process is run last
         # for step_id in workflow.step_nodes:
