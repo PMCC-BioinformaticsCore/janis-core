@@ -9,6 +9,7 @@ from janis_core.tests.testtools import (
     ArrayTestTool,
     TestTool,
     TestToolV2,
+    TestInputQualityTool,
     TestTypeWithSecondary,
     TestWorkflowWithStepInputExpression,
     EchoTestTool,
@@ -33,6 +34,7 @@ from janis_core import (
     ToolOutput,
     DataType,
     Float,
+    JoinOperator,
 )
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import NextflowTranslator as translator
@@ -149,6 +151,72 @@ class TestGenerateWfToolOutputs(unittest.TestCase):
         self.assertEqual(
             expected2, translator.generate_wf_tool_outputs(self.w2, "subworkflow")
         )
+
+
+class TestTranslateStringFormatter(unittest.TestCase):
+    any_tool = TestTool()
+
+    def test_string_formatter(self):
+        b = StringFormatter("no format")
+        res = translator.translate_string_formatter(b, self.any_tool)
+        self.assertEqual("no format", res)
+
+    def test_string_formatter_one_string_param(self):
+        b = StringFormatter("there's {one} arg", one="a string")
+        res = translator.translate_string_formatter(b, self.any_tool)
+        self.assertEqual("there's ${'a string'} arg", res)
+
+    def test_string_formatter_one_input_selector_param(self):
+        b = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        res = translator.translate_string_formatter(
+            b, self.any_tool, inputs_dict=self.any_tool.inputs_map()
+        )
+        self.assertEqual("an input ${testtool}", res)
+
+    def test_string_formatter_two_param(self):
+        tool = TestInputQualityTool()
+        b = StringFormatter(
+            "{username}:{password}",
+            username=InputSelector("user"),
+            password=InputSelector("static"),
+        )
+        res = translator.translate_string_formatter(
+            b, tool, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual(
+            "${user}:${static}",
+            res,
+        )
+
+    def test_escaped_characters(self):
+        tool = TestInputQualityTool()
+        b = StringFormatter(
+            "{username}\\t{password}",
+            username=InputSelector("user"),
+            password=InputSelector("static"),
+        )
+        res = translator.translate_string_formatter(
+            b, tool, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual("${user}\\t${static}", res)
+
+        res2 = translator.translate_string_formatter(
+            b, tool, inputs_dict=tool.inputs_map(), in_shell_script=True
+        )
+        self.assertEqual("${user}\\\\t${static}", res2)
+
+    def test_expression_arg(self):
+        tool = TestTool()
+        b = StringFormatter(
+            "{name}:{items}",
+            name=InputSelector("testtool"),
+            items=JoinOperator(InputSelector("arrayInp"), separator=";"),
+        )
+
+        res = translator.translate_string_formatter(
+            b, tool, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual("${testtool}:${arrayInp.join(';')}", res)
 
 
 # class TestNextflowIntegration(unittest.TestCase):
