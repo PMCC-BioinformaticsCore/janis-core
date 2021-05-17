@@ -80,8 +80,6 @@ class NextflowTranslator(TranslatorBase):
         process_files = {}
         tools = {}
 
-        wf_outputs = cls.generate_wf_tool_outputs(workflow)
-
         items_to_import = {}
         main_items = {}
         for step_id in workflow.step_nodes:
@@ -157,7 +155,6 @@ class NextflowTranslator(TranslatorBase):
 
             return [nf_item]
         elif isinstance(tool, WorkflowBase):
-            # nf_item, subworkflow_nf_items = cls.init_subworkflow(tool, step_id, provided_inputs)
             sub_step_keys = list(tool.step_nodes.keys())
             nf_items = []
 
@@ -219,7 +216,6 @@ class NextflowTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ):
-        # raise Exception("CodeTool is not currently supported in Nextflow translation")
 
         if isinstance(tool, PythonTool):
             process = cls.generate_nf_process_for_python_code_tool(tool)
@@ -568,7 +564,7 @@ class NextflowTranslator(TranslatorBase):
         )
 
         for i in inputs:
-            qual = get_input_qualifier_for_inptype(i.input_type)
+            qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
             # TODO: this is probably no longer needed now
@@ -585,7 +581,7 @@ class NextflowTranslator(TranslatorBase):
             output_type = o.output_type
             selector = o.selector
 
-            qual = get_output_qualifier_for_outtype(output_type)
+            qual = cls.get_output_qualifier_for_outtype(output_type)
             expression = cls.unwrap_expression(
                 selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
             )
@@ -729,7 +725,7 @@ class NextflowTranslator(TranslatorBase):
         )
         process.inputs.append(python_file_input)
         for i in inputs:
-            qual = get_input_qualifier_for_inptype(i.intype)
+            qual = cls.get_input_qualifier_for_inptype(i.intype)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
             if isinstance(i.intype, File) or (
@@ -747,13 +743,6 @@ class NextflowTranslator(TranslatorBase):
             process.outputs.append(out)
 
         return process
-
-    @classmethod
-    def is_nf_variable(cls, val: str):
-        if val.startswith("$"):
-            return True
-
-        return False
 
     @classmethod
     def handle_nf_process_args(
@@ -1011,9 +1000,6 @@ class NextflowTranslator(TranslatorBase):
             if tool.connections[key] is None:
                 val = None
             elif hasattr(tool.connections[key], "nextflow"):
-                # if isinstance(tool.connections[key], StepOutputSelector):
-                #     val = tool.connections[key].nextflow(tool_id_prefix)
-                # else:
                 val = tool.connections[key].nextflow(
                     var_indicator=inputs_replacement, step_indicator=tool_id_prefix
                 )
@@ -1037,17 +1023,9 @@ class NextflowTranslator(TranslatorBase):
         outputs = {}
         for o in wf.output_nodes:
             if hasattr(wf.output_nodes[o].source, "nextflow"):
-                # if isinstance(wf.output_nodes[o].source, StepOutputSelector):
-                #     val = wf.output_nodes[o].source.nextflow(tool_var_prefix)
-                # else:
-                #     val = wf.output_nodes[o].source.nextflow()
                 val = wf.output_nodes[o].source.nextflow(step_indicator=tool_var_prefix)
             else:
                 val = str(val)
-
-            # if tool_var_prefix:
-            #     if isinstance(wf.output_nodes[o].source, StepOutputSelector):
-            #         val = f"{tool_var_prefix}{val}"
 
             outputs[o] = val
 
@@ -1815,32 +1793,35 @@ def {k} =  {val}
 
         return "".join(pre_script_lines)
 
+    @classmethod
+    def get_input_qualifier_for_inptype(
+        cls, inp_type: DataType
+    ) -> nfgen.InputProcessQualifier:
 
-def get_input_qualifier_for_inptype(inp_type: DataType) -> nfgen.InputProcessQualifier:
+        if isinstance(inp_type, Array):
+            inp_type = inp_type.fundamental_type()
 
-    if isinstance(inp_type, Array):
-        inp_type = inp_type.fundamental_type()
+        if isinstance(inp_type, (File, Directory)):
+            return nfgen.InputProcessQualifier.path
 
-    if isinstance(inp_type, (File, Directory)):
-        return nfgen.InputProcessQualifier.path
+        # Handle UnionType
+        if inp_type.is_base_type(File) or inp_type.is_base_type(Directory):
+            return nfgen.InputProcessQualifier.path
 
-    # Handle UnionType
-    if inp_type.is_base_type(File) or inp_type.is_base_type(Directory):
-        return nfgen.InputProcessQualifier.path
+        return nfgen.InputProcessQualifier.val
 
-    return nfgen.InputProcessQualifier.val
+    @classmethod
+    def get_output_qualifier_for_outtype(
+        cls,
+        out_type: DataType,
+    ) -> nfgen.OutputProcessQualifier:
+        if isinstance(out_type, Array):
+            return nfgen.OutputProcessQualifier.tuple
 
+        # elif isinstance(out_type, Stdout):
+        #     return nfgen.OutputProcessQualifier.stdout
 
-def get_output_qualifier_for_outtype(
-    out_type: DataType,
-) -> nfgen.OutputProcessQualifier:
-    if isinstance(out_type, Array):
-        return nfgen.OutputProcessQualifier.tuple
+        elif isinstance(out_type, (File, Directory, Stdout)):
+            return nfgen.OutputProcessQualifier.path
 
-    # elif isinstance(out_type, Stdout):
-    #     return nfgen.OutputProcessQualifier.stdout
-
-    elif isinstance(out_type, (File, Directory, Stdout)):
-        return nfgen.OutputProcessQualifier.path
-
-    return nfgen.OutputProcessQualifier.val
+        return nfgen.OutputProcessQualifier.val
