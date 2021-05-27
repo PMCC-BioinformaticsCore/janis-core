@@ -1,10 +1,12 @@
 ###################
 # Implementations #
 ###################
+import os.path
 from inspect import isclass
 from typing import Dict, Any, Set, List, Optional
 
 from janis_core.deps import cwlgen, wdlgen
+from janis_core.tool.test_classes import TTestExpectedOutput
 
 from janis_core.utils.logger import Logger
 from janis_core.__meta__ import GITHUB_URL
@@ -631,6 +633,15 @@ class Array(DataType):
 
     def received_type(self):
         return Array(self._t.received_type(), optional=self.optional)
+
+    @classmethod
+    def array_wrapper(cls, expected_outputs: List[List[TTestExpectedOutput]]):
+        result = []
+        for i in range(len(expected_outputs)):
+            for expected_output in expected_outputs[i]:
+                expected_output.array_index = i
+                result.append(expected_output)
+        return result
 
 
 class Stdout(File):

@@ -676,6 +676,7 @@ class TestContainerOverride(unittest.TestCase):
 
 class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
+        self.maxDiff = None
 
         ret, _, _ = TestWorkflowWithStepInputExpression().translate(
             "cwl", to_console=False
