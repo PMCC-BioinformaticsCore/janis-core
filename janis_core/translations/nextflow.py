@@ -1417,6 +1417,12 @@ return primary
         for i in tool.tool_inputs():
             val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
 
+            # Filename always has default value
+            if isinstance(i.intype, Filename):
+                val = cls.unwrap_expression(
+                    i.intype.generated_filename(), inputs_dict=inputsdict, tool=tool
+                )
+
             inputsdict = tool.inputs_map()
 
             if val is None:
@@ -1429,21 +1435,15 @@ return primary
                 else:
                     val = ""
             else:
-                if isinstance(i.intype, Filename):
-                    val = cls.unwrap_expression(
-                        i.intype.generated_filename(), inputs_dict=inputsdict, tool=tool
-                    )
-                elif isinstance(i.intype, Boolean):
+                if isinstance(i.intype, Boolean):
                     val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
                     if val == "True":
                         val = True
-                    if val == "False":
+                    if val == "False" or val == "":
                         val = False
                 elif isinstance(i.intype, File):
-                    # if hasattr(i.intype, 'secondary_files') and callable(i.intype.secondary_files):
-                    #     if i.intype.secondary_files() is not None:
 
-                    if cls.has_secondary_files(i):
+                    if i.intype.has_secondary_files():
                         primary_file = val
                         secondary_files = []
                         for suffix in i.intype.secondary_files():
