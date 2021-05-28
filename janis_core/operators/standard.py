@@ -301,9 +301,8 @@ class ApplyPrefixOperator(Operator):
         return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        prefix, iterable = [unwrap_operator(a) for a in self.args]
+        return f"{iterable}.map{{item -> {prefix} + item}}"
 
     def evaluate(self, inputs):
         prefix, iterable = self.evaluate_arg(self.args, inputs)
@@ -343,9 +342,8 @@ class FileSizeOperator(Operator):
         return f"({f}.size / 1048576)"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        f = unwrap_operator(self.args[0])
+        return f"({f}.size / 1048576)"
 
     def evaluate(self, inputs):
         from os.path import getsize
@@ -431,9 +429,8 @@ class FilterNullOperator(Operator):
         return f"{iterable}.filter(function (inner) {{ return inner != null }})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.filter{{item -> item != null}}"
 
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)
