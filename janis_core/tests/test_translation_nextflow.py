@@ -25,15 +25,12 @@ from janis_core.translations.nextflow import NextflowTranslator
 from janis_core import (
     WorkflowBuilder,
     ToolInput,
-    String,
     InputSelector,
-    Array,
     WildcardSelector,
     StringFormatter,
     CommandToolBuilder,
     ToolOutput,
     DataType,
-    Float,
     JoinOperator,
 )
 from janis_core.tool.documentation import InputDocumentation
@@ -42,7 +39,7 @@ from janis_core.types import CpuSelector, MemorySelector, Stdout
 from janis_core.workflow.workflow import InputNode
 
 from janis_core.operators.standard import FirstOperator
-from janis_core import Array, String, Stdout, File, Int, Float, Boolean
+from janis_core import Array, String, Stdout, File, Int, Float, Boolean, Filename
 
 
 class DataTypeWithSecondary(File):
@@ -52,7 +49,13 @@ class DataTypeWithSecondary(File):
 
     @staticmethod
     def secondary_files():
-        return [".txt"]
+        return [".txt", ".csv"]
+
+
+class DataTypeNoSecondary(File):
+    @staticmethod
+    def name() -> str:
+        return "test_no_secondary"
 
 
 class TestNextflowWfToolInputs(unittest.TestCase):
@@ -217,6 +220,151 @@ class TestTranslateStringFormatter(unittest.TestCase):
             b, tool, inputs_dict=tool.inputs_map()
         )
         self.assertEqual("${testtool}:${arrayInp.join(';')}", res)
+
+
+class TestNextflowGenerateInput(unittest.TestCase):
+    def setUp(self):
+        self.translator = translator
+
+    def test_input_in_input_value_nooptional_nodefault(self):
+        wf = WorkflowBuilder(
+            "test_nf_input_in_input_value_nooptional_nodefault",
+        )
+        wf.input("inpId", String())
+        ai = {"inpId": "2"}
+        self.assertDictEqual(
+            {"inpId": "2"}, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_input_in_input_value_nooptional_default(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_value_nooptional_default")
+        wf.input("inpId", String(), default="1")
+        ai = {"inpId": "2"}
+        self.assertDictEqual(
+            {"inpId": "2"}, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_input_in_input_value_optional_nodefault(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_value_optional_nodefault")
+        wf.input("inpId", String(optional=True))
+        ai = {"inpId": "2"}
+        self.assertDictEqual(
+            {"inpId": "2"}, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_input_in_input_value_optional_default(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_value_optional_default")
+        wf.input("inpId", String(optional=True), default="1")
+        ai = {"inpId": "2"}
+        self.assertDictEqual(
+            {"inpId": "2"}, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_input_in_input_novalue_nooptional_nodefault(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_novalue_nooptional_nodefault")
+        wf.input("inpId", String())
+        # included because no value, no default, and not optional
+        self.assertDictEqual({"inpId": ""}, self.translator.build_inputs_file(wf))
+
+    def test_input_in_input_novalue_nooptional_default(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_novalue_nooptional_default")
+        wf.input("inpId", String(), default="1")
+        self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
+
+    def test_input_in_input_novalue_optional_nodefault(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_novalue_optional_nodefault")
+        wf.input("inpId", String(optional=True))
+        self.assertDictEqual({"inpId": ""}, self.translator.build_inputs_file(wf))
+
+    def test_input_in_input_novalue_optional_default(self):
+        wf = WorkflowBuilder("test_nf_input_in_input_novalue_optional_default")
+        wf.input("inpId", String(optional=True), default="1")
+        self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
+
+    def test_bool_input_type_value(self):
+        wf = WorkflowBuilder("test_bool_input")
+        wf.input("inpBool", Boolean())
+        ai = {"inpBool": True}
+        self.assertDictEqual(
+            ai, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_bool_input_type_novalue_default(self):
+        wf = WorkflowBuilder("test_bool_input")
+        wf.input("inpBool", Boolean(), default=False)
+        self.assertDictEqual({"inpBool": False}, self.translator.build_inputs_file(wf))
+
+    def test_bool_input_type_value_default(self):
+        wf = WorkflowBuilder("test_bool_input")
+        wf.input("inpBool", Boolean(), default=False)
+        ai = {"inpBool": True}
+        self.assertDictEqual(
+            ai, self.translator.build_inputs_file(wf, additional_inputs=ai)
+        )
+
+    def test_file_type_with_secondary_value(self):
+        wf = WorkflowBuilder("test_file_input")
+        wf.input("inp", DataTypeWithSecondary())
+        ai = {"inp": "/my/path/filename.doc"}
+        self.assertDictEqual(
+            {
+                "inp": [
+                    "/my/path/filename.doc",
+                    "/my/path/filename.doc.txt",
+                    "/my/path/filename.doc.csv",
+                ]
+            },
+            self.translator.build_inputs_file(wf, additional_inputs=ai),
+        )
+
+    def test_file_type_no_secondary_value(self):
+        wf = WorkflowBuilder("test_file_input")
+        wf.input("inp", DataTypeNoSecondary())
+        ai = {"inp": "/my/path/filename.doc"}
+        self.assertDictEqual(
+            {"inp": "/my/path/filename.doc"},
+            self.translator.build_inputs_file(wf, additional_inputs=ai),
+        )
+
+    def test_file_type_with_secondary_no_value(self):
+        wf = WorkflowBuilder("test_file_input")
+        wf.input("inp", DataTypeWithSecondary())
+        self.assertDictEqual(
+            {"inp": f"/{translator.NO_FILE_PATH_PREFIX}1"},
+            self.translator.build_inputs_file(wf),
+        )
+
+    def test_file_type_no_secondary_no_value(self):
+        wf = WorkflowBuilder("test_file_input")
+        wf.input("inp", DataTypeNoSecondary())
+        self.assertDictEqual(
+            {"inp": f"/{translator.NO_FILE_PATH_PREFIX}1"},
+            self.translator.build_inputs_file(wf),
+        )
+
+    def test_file_type_no_secondary_multiple_inputs(self):
+        wf = WorkflowBuilder("test_file_input")
+        wf.input("inp", DataTypeNoSecondary())
+        wf.input("inp2", DataTypeNoSecondary())
+        self.assertDictEqual(
+            {
+                "inp": f"/{translator.NO_FILE_PATH_PREFIX}1",
+                "inp2": f"/{translator.NO_FILE_PATH_PREFIX}2",
+            },
+            self.translator.build_inputs_file(wf),
+        )
+
+    def test_bool_filename_type_no_value(self):
+        wf = WorkflowBuilder("test_filename_input")
+        wf.input("inp", String(), default="somefancyname")
+        wf.input(
+            "inpFile",
+            Filename(prefix=InputSelector("inp"), suffix="part1", extension=".doc"),
+        )
+        self.assertDictEqual(
+            {"inp": "somefancyname", "inpFile": "inp + '-part1' + '.doc'"},
+            self.translator.build_inputs_file(wf),
+        )
 
 
 # class TestNextflowIntegration(unittest.TestCase):
@@ -623,53 +771,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
 #         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 #
 #
-# class TestCwlGenerateInput(unittest.TestCase):
-#     def setUp(self):
-#         self.translator = cwl.CwlTranslator()
-#
-#     def test_input_in_input_value_nooptional_nodefault(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_value_nooptional_nodefault")
-#         wf.input("inpId", String(), default="1")
-#         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_value_nooptional_default(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_value_nooptional_default")
-#         wf.input("inpId", String(), default="1")
-#         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_value_optional_nodefault(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_value_optional_nodefault")
-#         wf.input("inpId", String(optional=True), default="1")
-#         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_value_optional_default(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_value_optional_default")
-#         wf.input("inpId", String(optional=True), default="1")
-#         self.assertDictEqual({"inpId": "1"}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_novalue_nooptional_nodefault(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_nodefault")
-#         wf.input("inpId", String())
-#         # included because no value, no default, and not optional
-#         self.assertDictEqual({"inpId": None}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_novalue_nooptional_default(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_nooptional_default")
-#         wf.input("inpId", String(), default="2")
-#         self.assertDictEqual({"inpId": "2"}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_novalue_optional_nodefault(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_optional_nodefault")
-#         wf.input("inpId", String(optional=True))
-#         # self.assertDictEqual({'inpId': None}, self.translator.build_inputs_file(wf))
-#         self.assertDictEqual({}, self.translator.build_inputs_file(wf))
-#
-#     def test_input_in_input_novalue_optional_default(self):
-#         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_optional_default")
-#         wf.input("inpId", String(optional=True), default="2")
-#         self.assertDictEqual({"inpId": "2"}, self.translator.build_inputs_file(wf))
-#
-#
+
 # class TestCwlMaxResources(unittest.TestCase):
 #     def test_cores(self):
 #         tool = TestTool()
