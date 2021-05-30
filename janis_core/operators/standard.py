@@ -142,7 +142,7 @@ class BasenameOperator(Operator):
 
     def to_wdl(self, unwrap_operator, *args):
         arg = unwrap_operator(args[0])
-        return f"basename({unwrap_operator(arg)})"
+        return f"basename({arg})"
 
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(
