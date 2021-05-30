@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import functools
 import os
 import re
 from types import LambdaType
@@ -110,6 +110,7 @@ class WdlParser:
                         call.expr, input_selector_getter=selector_getter
                     ),
                     expr_alias=expr_alias,
+                    foreach=foreach
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -380,11 +381,16 @@ class WdlParser:
             "_at": j.IndexOperator,
             "_negate": j.NotOperator,
             "_sub": j.SubtractOperator,
-            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "size": self.file_size_operator,
             "ceil": j.CeilOperator,
             "select_all": j.FilterNullOperator,
-            "sub": j.ReplaceOperator
+            "sub": j.ReplaceOperator,
+            "round": j.RoundOperator,
+            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
+            "read_tsv": lambda exp: f'JANIS: j.read_tsv({exp})',
+            "read_boolean": lambda exp: f'JANIS: j.read_boolean({exp})',
+            'read_lines': lambda exp: f'JANIS: j.read_lines({exp})',
+
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
