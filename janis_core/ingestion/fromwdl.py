@@ -9,7 +9,27 @@ import WDL
 import janis_core as j
 
 
+def error_boundary(return_value=None):
+    def try_catch_translate_inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not WdlParser.allow_errors:
+                return func(*args, **kwargs)
+            else:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    j.Logger.log_ex(e)
+                    return return_value
+
+        return wrapper
+
+    return try_catch_translate_inner
+
 class WdlParser:
+
+    allow_errors = False
+
     @staticmethod
     def from_doc(doc: str, base_uri=None):
         abs_path = os.path.relpath(doc)
@@ -52,6 +72,7 @@ class WdlParser:
 
         return wf[exp]
 
+    @error_boundary()
     def add_call_to_wf(
         self,
         wf: j.WorkflowBase,
