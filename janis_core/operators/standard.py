@@ -13,7 +13,7 @@ from janis_core.types import (
 )
 
 from janis_core.types.common_data_types import String, Array, AnyType
-from janis_core.operators.operator import Operator
+from janis_core.operators.operator import Operator, InputSelector
 
 
 class ReadContents(Operator):
@@ -465,7 +465,17 @@ class FilterNullOperator(Operator):
         if isinstance(self.args[0], list):
             rettype = self.args[0][0].returntype()
         else:
-            rettype = self.args[0].returntype().subtype()
+            outer_rettype = get_instantiated_type(self.args[0].returntype())
+            if not isinstance(outer_rettype, Array):
+                # hmmm, this could be a bad input selector
+                rettype = outer_rettype
+                if not isinstance(self.args[0], InputSelector):
+                    Logger.warn(
+                        f'Expected return type of "{self.args[0]}" to be an array, '
+                        f'but found {outer_rettype}, will return this as a returntype.'
+                    )
+            else:
+                rettype = outer_rettype.subtype()
 
         rettype = copy(get_instantiated_type(rettype))
         rettype.optional = False
