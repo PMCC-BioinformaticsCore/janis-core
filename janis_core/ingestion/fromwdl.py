@@ -436,8 +436,12 @@ class WdlParser:
 
 
 if __name__ == "__main__":
-    # doc = "path/to/doc.wdl"
-    doc = "/Users/michael.franklin/source/wdlz/cramqc.wdl"
-    t = WdlParser.from_doc(doc)
-    t.get_dot_plot(log_to_stdout=True)
-    t.translate("hail")
+    import sys
+    if len(sys.argv) != 2:
+        raise Exception("Expected 1 argument, the name of a CWL tool.")
+        
+    toolname = sys.argv[1]
+
+    tool = WdlParser.from_doc(toolname)
+
+    tool.translate("janis")
