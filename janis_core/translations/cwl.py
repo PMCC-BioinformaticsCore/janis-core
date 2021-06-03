@@ -45,6 +45,7 @@ from janis_core.operators import (
     DiskSelector,
     ResourceSelector,
     AliasSelector,
+    ForEachSelector,
 )
 from janis_core.operators.logical import IsDefined, If, RoundOperator
 from janis_core.operators.standard import FirstOperator
@@ -829,6 +830,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         elif isinstance(value, InputSelector):
             return value.input_to_select
+        elif isinstance(value, ForEachSelector):
+            return "inputs._idx"
         elif isinstance(value, AliasSelector):
             return cls.unwrap_selector_for_reference(value.inner_selector)
         else:
@@ -889,6 +892,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             return CwlTranslator.quote_values_if_code_environment(
                 value.generated_filename(), code_environment
             )
+        elif isinstance(value, ForEachSelector):
+            return "inputs._idx" if code_environment else "$(inputs._idx)"
         elif isinstance(value, AliasSelector):
             return cls.unwrap_expression(
                 value.inner_selector,
@@ -1591,14 +1596,41 @@ def translate_step_node(
         in_=[],
         out=[],
     )
+    extra_steps: List[cwlgen.WorkflowStep] = []
 
     ## SCATTER
 
+    scatter_fields = set()
     if step.scatter:
         if len(step.scatter.fields) > 1:
             cwlstep.scatterMethod = step.scatter.method.cwl()
         cwlstep.scatter = step.scatter.fields
-    scatter_fields = set(cwlstep.scatter or [])
+        scatter_fields = set(cwlstep.scatter or [])
+
+    elif step.foreach is not None:
+        new_source = CwlTranslator.unwrap_selector_for_reference(
+            step.foreach,
+        )
+        if isinstance(step.foreach, Operator):
+            additional_step_id = f"_evaluate_preforeach-{step.id()}"
+
+            tool = CwlTranslator.convert_operator_to_commandtool(
+                step_id=additional_step_id,
+                operators=[step.foreach],
+                tool=tool,
+                select_first_element=True,
+            )
+            extra_steps.append(tool)
+            new_source = f"{additional_step_id}/out"
+
+        d = cwlgen.WorkflowStepInput(
+            id="_idx",
+            source=new_source,
+        )
+
+        cwlstep.in_.append(d)
+        cwlstep.scatter = "_idx"
+        scatter_fields = {"_idx"}
 
     ## OUTPUTS
 
@@ -1607,8 +1639,6 @@ def translate_step_node(
     ]
 
     ## INPUTS
-
-    extra_steps: List[cwlgen.WorkflowStep] = []
 
     for k, inp in step.inputs().items():
         if k not in step.sources:
@@ -1654,7 +1684,10 @@ def translate_step_node(
         link_merge = None
         default = None
 
-        if not has_operator:
+        if hasattr(src, "source") and isinstance(src.source, ForEachSelector):
+            valuefrom = "$(_idx)"
+
+        elif not has_operator:
             unwrapped_sources: List[str] = []
             for stepinput in ar_source:
                 src = stepinput.source
@@ -1717,6 +1750,9 @@ def translate_step_node(
                         if not isinstance(leaf, Selector):
                             # probably a python literal
                             continue
+                        if isinstance(leaf, ForEachSelector):
+                            continue
+
                         sel = CwlTranslator.unwrap_selector_for_reference(leaf)
                         alias = prepare_alias(sel)
                         param_aliasing[sel] = "inputs." + alias
@@ -1946,7 +1982,10 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
             )
 
     elif isinstance(glob, StringFormatter):
-        return translate_string_formatter(glob, None, tool=tool), None
+        return (
+            translate_string_formatter(glob, None, tool=tool, inputs_dict=inputsdict),
+            None,
+        )
 
     elif isinstance(glob, WildcardSelector):
         return (

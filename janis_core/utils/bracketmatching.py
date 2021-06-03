@@ -22,7 +22,7 @@ def get_keywords_between_braces(
     for i in range(len(text)):
 
         char = text[i]
-        if char == "{":
+        if char == "{" and (i < 0 or text[i-1] != "$"):
             counter += 1
             highest_level = max(highest_level, counter)
             if start_idx is None:

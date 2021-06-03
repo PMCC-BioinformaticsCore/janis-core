@@ -65,6 +65,12 @@ class StringFormatter(Operator):
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
 
+    def to_python(self, unwrap_operator, *args):
+        f = self._format
+        for k, v in self.kwargs.items():
+            f = f.replace(f"{{{str(k)}}}", unwrap_operator(v))
+        return f
+
     def evaluate(self, inputs):
         resolvedvalues = {
             k: self.evaluate_arg(v, inputs) for k, v in self.kwargs.items()

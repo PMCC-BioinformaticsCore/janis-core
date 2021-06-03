@@ -134,6 +134,10 @@ class Operator(Selector):
     def to_cwl(self, unwrap_operator, *args):
         pass
 
+    @abstractmethod
+    def to_python(self, unwrap_operator, *args):
+        pass
+
     def to_string_formatter(self):
         import re
         from janis_core.operators.stringformatter import StringFormatter
@@ -158,7 +162,10 @@ class IndexOperator(Operator, ABC):
         return [Array(AnyType), Int]
 
     def returntype(self):
-        return self.args[0].returntype().subtype()
+        inner = get_instantiated_type(self.args[0].returntype())
+        if isinstance(inner, Array):
+            return inner.subtype()
+        return inner
 
     def __str__(self):
         base, index = self.args
@@ -171,6 +178,10 @@ class IndexOperator(Operator, ABC):
         iterable, idx = self.evaluate_arg(self.args, inputs)
 
         return iterable[idx]
+
+    def to_python(self, unwrap_operator, *args):
+        base, index = [unwrap_operator(a) for a in self.args]
+        return f"{base}[{index}]"
 
     def to_wdl(self, unwrap_operator, *args):
         base, index = [unwrap_operator(a) for a in self.args]
@@ -219,6 +230,9 @@ class SingleValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         return f"{self.cwl_symbol()}({unwrap_operator(*args)})"
 
+    def to_python(self, unwrap_operator, *args):
+        return f"{self.symbol()}({unwrap_operator(*args)})"
+
 
 class TwoValueOperator(Operator, ABC):
     @staticmethod
@@ -252,6 +266,10 @@ class TwoValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
         return f"({arg1} {self.cwl_symbol()} {arg2})"
+
+    def to_python(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+        return f"({arg1} {self.symbol()} {arg2})"
 
     def __str__(self):
         args = self.args
