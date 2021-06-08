@@ -5,7 +5,8 @@ repos:
     - id: black
 - repo: local
   hooks:
-    - id: nosetests
-      name: nosetests
-      entry: sh -ec 'nosetests -w janis_core'
+    - id: pytest
+      name: pytest
+      entry: python -m pytest -qq ./janis_core/tests
+      pass_filenames: false
       language: system

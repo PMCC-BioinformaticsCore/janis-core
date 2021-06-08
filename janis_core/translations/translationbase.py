@@ -174,11 +174,8 @@ class TranslatorBase(ABC):
         str_resources = self.stringify_translated_inputs(tr_res)
 
         str_helpers = [
-            (
-                os.path.join(self.DIR_TOOLS, filename),
-                tr_helpers[filename]
-
-            ) for filename, file_content in tr_helpers.items()
+            (os.path.join(self.DIR_TOOLS, filename), tr_helpers[filename])
+            for filename, file_content in tr_helpers.items()
         ]
 
         if to_console:
@@ -455,13 +452,14 @@ class TranslatorBase(ABC):
             values_provided_from_tool = {
                 i.id(): i.value or i.default
                 for i in tool.input_nodes.values()
-                if i.value or (i.default and not isinstance(i.default, Selector))
+                if i.value is not None
+                or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         inp = {
             i.id(): ad.get(i.id(), values_provided_from_tool.get(i.id()))
             for i in tool.tool_inputs()
-            if i.default is not None
+            if (i.default is not None and not isinstance(i.default, Selector))
             or not i.intype.optional
             or i.id() in ad
             or i.id() in values_provided_from_tool
@@ -501,20 +499,20 @@ class TranslatorBase(ABC):
             disk = inputs.get(f"{prefix}runtime_disks", 20)
             seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
 
-            if max_cores and cpus > max_cores:
+            if max_cores is not None and cpus > max_cores:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({cpus}) max number of cores ({max_cores}), "
                     "this was dropped to the new maximum"
                 )
                 cpus = max_cores
-            if mem and max_mem and mem > max_mem:
+            if mem is not None and max_mem and mem > max_mem:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({mem} GB) max amount of memory ({max_mem} GB), "
                     "this was dropped to the new maximum"
                 )
                 mem = max_mem
 
-            if seconds and max_duration and seconds > max_duration:
+            if seconds is not None and max_duration and seconds > max_duration:
                 Logger.info(
                     f"Tool '{tool.id()}' exceeded ({seconds} secs) max duration in seconds ({max_duration} secs), "
                     "this was dropped to the new maximum"
@@ -522,10 +520,18 @@ class TranslatorBase(ABC):
                 seconds = max_duration
 
             return {
-                prefix + "runtime_memory": mem,
-                prefix + "runtime_cpu": cpus,
-                prefix + "runtime_disks": disk,
-                prefix + "runtime_seconds": seconds,
+                prefix + "runtime_memory": mem
+                if not isinstance(mem, Selector)
+                else None,
+                prefix + "runtime_cpu": cpus
+                if not isinstance(cpus, Selector)
+                else None,
+                prefix + "runtime_disks": disk
+                if not isinstance(disk, Selector)
+                else None,
+                prefix + "runtime_seconds": seconds
+                if not isinstance(seconds, Selector)
+                else None,
             }
 
         new_inputs = {}
