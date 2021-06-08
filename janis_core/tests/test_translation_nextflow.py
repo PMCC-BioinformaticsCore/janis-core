@@ -18,6 +18,10 @@ from janis_core.tests.testtools import (
     TestWorkflowWithConditionStep,
     TestWorkflowThatOutputsArraysOfSecondaryFiles,
     TestWorkflowWithAliasSelectorWorkflow,
+    TestToolWithSecondaryInput,
+    TestToolWithAppendedSecondaryOutput,
+    TestToolWithReplacedSecondaryOutput,
+    TestTypeWithAppendedSecondary,
 )
 
 
@@ -365,6 +369,269 @@ class TestNextflowGenerateInput(unittest.TestCase):
             {"inp": "somefancyname", "inpFile": "inp + '-part1' + '.doc'"},
             self.translator.build_inputs_file(wf),
         )
+
+
+class TestGenerateNfProcessForPythonCodeTool(unittest.TestCase):
+    def test_simple_tool(self):
+        pass
+
+
+class TestGenerateNfProcessForCommandTool(unittest.TestCase):
+    def test_stdout_out_tool(self):
+        p = translator.generate_nf_process_for_command_tool(EchoTestTool())
+
+        expected = f"""
+process EchoTestTool 
+{{
+  input:
+    val inp
+
+  output:
+    path "${{'janisstdout_EchoTestTool'}}" , emit: out
+
+  publishDir "$launchDir/EchoTestTool"
+
+  script:
+
+    def inpWithPrefix = apply_prefix(inp, ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    echo \\
+    $inpWithPrefix | tee janisstdout_EchoTestTool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_operator_resource_tool(self):
+        p = translator.generate_nf_process_for_command_tool(OperatorResourcesTestTool())
+        expected = f"""
+process EchoTestTool 
+{{
+  input:
+    path inputFile
+    val outputFiles
+
+  output:
+    path "${{'janisstdout_EchoTestTool'}}" , emit: out
+
+  publishDir "$launchDir/EchoTestTool"
+
+  script:
+
+    def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
+
+    def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    echo \\
+    $inputFileWithPrefix | tee janisstdout_EchoTestTool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_filename_generated_tool(self):
+        p = translator.generate_nf_process_for_command_tool(FilenameGeneratedTool())
+
+        expected = f"""
+process filenamegeneratedtool 
+{{
+  input:
+    val inp
+    val inpOptional
+    path fileInp
+    path fileInpOptional
+    val generatedInp
+    val generatedInpOptional
+    val generatedFileInp
+    val generatedFileInpOptional
+
+  output:
+    val "${{'*'}}" , emit: out
+
+  publishDir "$launchDir/filenamegeneratedtool"
+
+  script:
+
+    def generatedInp = generatedInp != 'None' ? generatedInp : inp + '' + ''
+
+    def generatedInpOptional = generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
+
+    def generatedFileInp = generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
+
+    def generatedFileInpOptional = generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
+
+    def inpWithPrefix = apply_prefix(inp, ' ', 'False')
+
+    def inpOptionalWithPrefix = optional(inpOptional, ' ', 'False')
+
+    def fileInpWithPrefix = apply_prefix(fileInp, ' ', 'False')
+
+    def fileInpOptionalWithPrefix = optional(fileInpOptional, ' ', 'False')
+
+    def generatedInpWithPrefix = optional(generatedInp, ' ', 'False')
+
+    def generatedInpOptionalWithPrefix = optional(generatedInpOptional, ' ', 'False')
+
+    def generatedFileInpWithPrefix = optional(generatedFileInp, ' ', 'False')
+
+    def generatedFileInpOptionalWithPrefix = optional(generatedFileInpOptional, ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    echo \\
+    $generatedInpWithPrefix \\
+    $generatedInpOptionalWithPrefix \\
+    $generatedFileInpWithPrefix \\
+    $generatedFileInpOptionalWithPrefix | tee janisstdout_filenamegeneratedtool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_tool_with_secondary_input(self):
+        p = translator.generate_nf_process_for_command_tool(
+            TestToolWithSecondaryInput()
+        )
+
+        expected = f"""
+process CatTestTool 
+{{
+  input:
+    path inp
+
+  output:
+    path "${{'janisstdout_CatTestTool'}}" , emit: out
+
+  publishDir "$launchDir/CatTestTool"
+
+  script:
+
+    def inpWithPrefix = apply_prefix(inp[0], ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    cat \\
+    $inpWithPrefix | tee janisstdout_CatTestTool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_tool_with_secondary_output(self):
+        p = translator.generate_nf_process_for_command_tool(
+            TestToolWithAppendedSecondaryOutput()
+        )
+
+        expected = f"""
+process TestTranslationtool 
+{{
+  input:
+    val testtool
+    val arrayInp
+
+  output:
+    tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bam.bai'}}") , emit: out
+
+  publishDir "$launchDir/TestTranslationtool"
+
+  script:
+
+    def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
+
+    def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    echo \\
+    test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_tool_with_replaced_secondary_output(self):
+        p = translator.generate_nf_process_for_command_tool(
+            TestToolWithReplacedSecondaryOutput()
+        )
+        expected = f"""
+process TestTranslationtool 
+{{
+  input:
+    val testtool
+    val arrayInp
+
+  output:
+    tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bai'}}") , emit: out
+
+  publishDir "$launchDir/TestTranslationtool"
+
+  script:
+
+    def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
+
+    def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
+
+    def runtime_memory =  params.runtime_memory
+
+    def runtime_cpu =  params.runtime_cpu
+
+    def runtime_disks =  params.runtime_disks
+
+    def runtime_seconds =  params.runtime_seconds
+    \"\"\"
+    echo \\
+    test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
+    \"\"\"
+}}
+
+
+"""
+
+        self.assertEqual(expected, p.get_string())
 
 
 # class TestNextflowIntegration(unittest.TestCase):

@@ -221,6 +221,28 @@ class TestToolWithSecondaryOutput(TestTool):
         ]
 
 
+class TestToolWithAppendedSecondaryOutput(TestTool):
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                TestTypeWithAppendedSecondary(),
+                selector=InputSelector("testtool") + ".bam",
+            )
+        ]
+
+
+class TestToolWithReplacedSecondaryOutput(TestTool):
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                TestTypeWithReplacedSecondary(),
+                selector=InputSelector("testtool") + ".bam",
+            )
+        ]
+
+
 class TestToolWithSecondaryInput(CatTestTool):
     def inputs(self) -> List[ToolInput]:
         return [ToolInput("inp", TestTypeWithSecondary, position=0)]
@@ -233,6 +255,24 @@ class TestTypeWithSecondary(File):
     @staticmethod
     def secondary_files():
         return ["^.txt"]
+
+
+class TestTypeWithAppendedSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".bam")
+
+    @staticmethod
+    def secondary_files():
+        return [".bai"]
+
+
+class TestTypeWithReplacedSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".bam")
+
+    @staticmethod
+    def secondary_files():
+        return ["^.bai"]
 
 
 class TestTypeWithNonEscapedSecondary(File):
