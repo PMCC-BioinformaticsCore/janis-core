@@ -1,10 +1,13 @@
 ###################
 # Implementations #
 ###################
+import operator
+import os.path
 from inspect import isclass
 from typing import Dict, Any, Set, List, Optional
 
 from janis_core.deps import cwlgen, wdlgen
+from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
 
 from janis_core.utils.logger import Logger
 from janis_core.__meta__ import GITHUB_URL
@@ -467,6 +470,32 @@ class File(DataType):
     #         return [tp, "null"] if self.optional and not has_default else tp
     #     return super().cwl_type(has_default=has_default)
 
+    @classmethod
+    def basic_test(
+        cls,
+        tag: str,
+        min_size: int,
+        md5: Optional[str] = None,
+    ) -> List[TTestExpectedOutput]:
+        outcome = [
+            TTestExpectedOutput(
+                tag=tag,
+                preprocessor=TTestPreprocessor.FileSize,
+                operator=operator.ge,
+                expected_value=min_size,
+            ),
+        ]
+        if md5 is not None:
+            outcome += [
+                TTestExpectedOutput(
+                    tag=tag,
+                    preprocessor=TTestPreprocessor.FileMd5,
+                    operator=operator.eq,
+                    expected_value=md5,
+                ),
+            ]
+        return outcome
+
 
 class Directory(DataType):
     def __init__(self, optional=False):
@@ -632,6 +661,15 @@ class Array(DataType):
 
     def received_type(self):
         return Array(self._t.received_type(), optional=self.optional)
+
+    @classmethod
+    def array_wrapper(cls, expected_outputs: List[List[TTestExpectedOutput]]):
+        result = []
+        for i in range(len(expected_outputs)):
+            for expected_output in expected_outputs[i]:
+                expected_output.array_index = i
+                result.append(expected_output)
+        return result
 
 
 class Stdout(File):

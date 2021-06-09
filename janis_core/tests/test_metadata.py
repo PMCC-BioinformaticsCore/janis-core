@@ -16,7 +16,7 @@ class TestMetadata(unittest.TestCase):
         m = Metadata(contributors=["Michael Franklin"])
         d = m.get_dict({"calculateChecksum": "ofThisDictionary"})
         self.assertIn("contributors", d)
-        self.assertEqual("e7443fb68e7ecf065100f014b2a2c16d9e357752", d["checksum"])
+        self.assertEqual("86a02269745ef99ac7e4999f8f66491a20a2d4ba26123f70e47cf0f4", d["checksum"])
 
         # Check for all attributes that are none, and check they're not in the output
         for k, v in vars(m).items():

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import functools
 import os
 import re
 from types import LambdaType
@@ -9,7 +10,27 @@ import WDL
 import janis_core as j
 
 
+def error_boundary(return_value=None):
+    def try_catch_translate_inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not WdlParser.allow_errors:
+                return func(*args, **kwargs)
+            else:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    j.Logger.log_ex(e)
+                    return return_value
+
+        return wrapper
+
+    return try_catch_translate_inner
+
 class WdlParser:
+
+    allow_errors = False
+
     @staticmethod
     def from_doc(doc: str, base_uri=None):
         abs_path = os.path.relpath(doc)
@@ -52,6 +73,7 @@ class WdlParser:
 
         return wf[exp]
 
+    @error_boundary()
     def add_call_to_wf(
         self,
         wf: j.WorkflowBase,
@@ -89,6 +111,7 @@ class WdlParser:
                         call.expr, input_selector_getter=selector_getter
                     ),
                     expr_alias=expr_alias,
+                    foreach=foreach
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -359,11 +382,15 @@ class WdlParser:
             "_at": j.IndexOperator,
             "_negate": j.NotOperator,
             "_sub": j.SubtractOperator,
-            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "size": self.file_size_operator,
             "ceil": j.CeilOperator,
             "select_all": j.FilterNullOperator,
-            "sub": j.ReplaceOperator
+            "sub": j.ReplaceOperator,
+            "round": j.RoundOperator,
+            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
+            "read_tsv": lambda exp: f'JANIS: j.read_tsv({exp})',
+            "read_boolean": lambda exp: f'JANIS: j.read_boolean({exp})',
+            'read_lines': lambda exp: f'JANIS: j.read_lines({exp})',
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -414,3 +441,13 @@ if __name__ == "__main__":
     t = WdlParser.from_doc(doc)
     t.get_dot_plot(log_to_stdout=True)
     t.translate("hail")
+
+    import sys
+    if len(sys.argv) != 2:
+        raise Exception("Expected 1 argument, the name of a CWL tool.")
+        
+    toolname = sys.argv[1]
+
+    tool = WdlParser.from_doc(toolname)
+
+    tool.translate("janis")
