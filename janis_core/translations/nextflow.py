@@ -567,13 +567,13 @@ class NextflowTranslator(TranslatorBase):
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
-            # TODO: this is probably no longer needed now
-            if isinstance(i.input_type, File):
-                # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
-                inp.as_param = cls.LIST_OF_FILES_PARAM
-            # elif isinstance(i.input_type, Array) and \
-            #     isinstance(i.input_type.subtype(), File):
-            #     inp.as_process_param = cls.LIST_OF_FILE_PAIRS_PARAM
+            # # TODO: this is probably no longer needed now
+            # if isinstance(i.input_type, File):
+            #     # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
+            #     inp.as_param = cls.LIST_OF_FILES_PARAM
+            # # elif isinstance(i.input_type, Array) and \
+            # #     isinstance(i.input_type.subtype(), File):
+            # #     inp.as_process_param = cls.LIST_OF_FILE_PAIRS_PARAM
 
             process.inputs.append(inp)
 
@@ -586,8 +586,6 @@ class NextflowTranslator(TranslatorBase):
                 selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
             )
 
-            # TODO: handle secondary files
-            # #TODO: make this tidier
             if isinstance(output_type, Array):
                 if isinstance(output_type.subtype(), (File, Directory)):
                     sub_qual = nfgen.OutputProcessQualifier.path
@@ -668,22 +666,20 @@ class NextflowTranslator(TranslatorBase):
     def generate_nf_output_expression(cls, tool: Tool, o: Union[TOutput, ToolOutput]):
         if isinstance(o, TOutput):
             output_type = o.outtype
-
-            if isinstance(output_type, File):
-                expression = f"'*{output_type.extension}'"
-                qual = nfgen.OutputProcessQualifier.path
-            elif isinstance(output_type, Array) and isinstance(
-                output_type.subtype(), File
-            ):
-                expression = f"'*{output_type.subtype().extension}'"
-                qual = nfgen.OutputProcessQualifier.path
-            else:
-                qual = nfgen.OutputProcessQualifier.val
-                expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
         elif isinstance(o, ToolOutput):
-            qual, expression = cls.generate_nf_output_expression(tool, o)
+            output_type = o.output_type
         else:
             raise Exception("Unknown output object")
+
+        if isinstance(output_type, File):
+            expression = f"'*{output_type.extension}'"
+            qual = nfgen.OutputProcessQualifier.path
+        elif isinstance(output_type, Array) and isinstance(output_type.subtype(), File):
+            expression = f"'*{output_type.subtype().extension}'"
+            qual = nfgen.OutputProcessQualifier.path
+        else:
+            qual = nfgen.OutputProcessQualifier.val
+            expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
 
         return qual, expression
 
@@ -704,7 +700,7 @@ class NextflowTranslator(TranslatorBase):
                 if i.id() in provided_inputs or i.default is not None or not optional:
                     inputs.append(i)
                 # TODO: handle input type that works more like arguments
-                # note: is Filename set to optional=True, but they have a default value that is not set to i.default
+                # note: Filename is set to optional=True, but they have a default value that is not set to i.default
                 if isinstance(i.intype, Filename):
                     inputs.append(i)
             else:
