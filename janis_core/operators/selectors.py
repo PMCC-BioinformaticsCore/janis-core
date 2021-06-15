@@ -245,6 +245,10 @@ class Selector(ABC):
 
         return BasenameOperator(self)
 
+    def replace(self, pattern, replacement):
+        from .standard import ReplaceOperator
+        return ReplaceOperator(self, pattern, replacement)
+
     def file_size(self):
         from .standard import FileSizeOperator
 
@@ -308,6 +312,14 @@ class InputSelector(Selector):
 
         return StringFormatter(f"{{{self.input_to_select}}}", **kwarg)
 
+    def init_dictionary(self):
+        d = {"input_to_select": self.input_to_select}
+        if self.remove_file_extension is not None:
+            d["remove_file_extension"] = self.remove_file_extension
+        if not isinstance(self.type_hint, File):
+            d["type_hint"] = self.type_hint
+        return d
+
     def __str__(self):
         return "inputs." + self.input_to_select
 
@@ -332,7 +344,7 @@ class InputNodeSelector(Selector):
     def returntype(self):
         out = first_value(self.input_node.outputs()).outtype
 
-        if self.input_node is not None:
+        if self.input_node is not None and self.input_node.default is not None:
             import copy
 
             out = copy.copy(out)
@@ -367,8 +379,14 @@ class StepOutputSelector(Selector):
     def returntype(self):
         retval = self.node.outputs()[self.tag].outtype
 
-        if hasattr(self.node, "scatter") and self.node.scatter:
+        if self.node.node_type != NodeType.STEP:
+            return retval
+
+        if hasattr(self.node, "scatter") and self.node.scatter is not None:
             retval = Array(retval)
+        elif hasattr(self.node, "foreach") and self.node.foreach is not None:
+            retval = Array(retval)
+
         return retval
 
     @staticmethod
@@ -412,8 +430,23 @@ class AliasSelector(Selector):
     def returntype(self) -> DataType:
         return self.data_type
 
-    def to_string_formatter(self):
+    def __repr__(self):
         return f"({self.inner_selector} as {self.data_type})"
+
+    def to_string_formatter(self):
+        from janis_core.operators.stringformatter import StringFormatter
+
+        return StringFormatter("{value}", value=self.inner_selector)
+
+
+class ForEachSelector(Selector):
+    def returntype(self) -> DataType:
+        return File()
+
+    def to_string_formatter(self):
+        from janis_core.operators.stringformatter import StringFormatter
+
+        return StringFormatter("{inp}", inp=self)
 
 
 class ResourceSelector(InputSelector):

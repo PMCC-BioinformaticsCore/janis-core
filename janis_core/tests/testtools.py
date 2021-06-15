@@ -18,6 +18,7 @@ from janis_core import (
     InputDocumentation,
     InputQualityType,
     Workflow,
+    ForEachSelector,
 )
 
 
@@ -312,3 +313,18 @@ class TestWorkflowThatOutputsArraysOfSecondaryFiles(Workflow):
         )
 
         self.output("out", source=self.stp.out)
+
+
+class TestForEach(Workflow):
+    def constructor(self):
+        self.input("inp", Array(str))
+        self.step(
+            "print", EchoTestTool(inp=ForEachSelector() + "-hello"), _foreach=self.inp
+        )
+        self.output("out", source=self.print.out)
+
+    def friendly_name(self):
+        return self.id()
+
+    def id(self) -> str:
+        return "TestForEach"
