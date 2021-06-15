@@ -199,7 +199,7 @@ class Process(NFBase):
 
         return f"""\
 
-process {name} 
+process {name}
 {{
 {tool_definition}
 }}

@@ -22,6 +22,11 @@ from janis_core.tests.testtools import (
     TestToolWithAppendedSecondaryOutput,
     TestToolWithReplacedSecondaryOutput,
     TestTypeWithAppendedSecondary,
+    TestSplitTextTool,
+    TestSumTool,
+    TestJoinArrayTool,
+    TestFileInput,
+    TestFileWithSecondaryInput,
 )
 
 
@@ -371,17 +376,12 @@ class TestNextflowGenerateInput(unittest.TestCase):
         )
 
 
-class TestGenerateNfProcessForPythonCodeTool(unittest.TestCase):
-    def test_simple_tool(self):
-        pass
-
-
 class TestGenerateNfProcessForCommandTool(unittest.TestCase):
     def test_stdout_out_tool(self):
         p = translator.generate_nf_process_for_command_tool(EchoTestTool())
 
         expected = f"""
-process EchoTestTool 
+process EchoTestTool
 {{
   input:
     val inp
@@ -415,7 +415,7 @@ process EchoTestTool
     def test_operator_resource_tool(self):
         p = translator.generate_nf_process_for_command_tool(OperatorResourcesTestTool())
         expected = f"""
-process EchoTestTool 
+process EchoTestTool
 {{
   input:
     path inputFile
@@ -453,7 +453,7 @@ process EchoTestTool
         p = translator.generate_nf_process_for_command_tool(FilenameGeneratedTool())
 
         expected = f"""
-process filenamegeneratedtool 
+process filenamegeneratedtool
 {{
   input:
     val inp
@@ -522,7 +522,7 @@ process filenamegeneratedtool
         )
 
         expected = f"""
-process CatTestTool 
+process CatTestTool
 {{
   input:
     path inp
@@ -559,7 +559,7 @@ process CatTestTool
         )
 
         expected = f"""
-process TestTranslationtool 
+process TestTranslationtool
 {{
   input:
     val testtool
@@ -598,7 +598,7 @@ process TestTranslationtool
             TestToolWithReplacedSecondaryOutput()
         )
         expected = f"""
-process TestTranslationtool 
+process TestTranslationtool
 {{
   input:
     val testtool
@@ -631,6 +631,171 @@ process TestTranslationtool
 
 """
 
+        self.assertEqual(expected, p.get_string())
+
+
+class TestGenerateNfProcessForPythonCodeTool(unittest.TestCase):
+    def test_str_input(self):
+        p = translator.generate_nf_process_for_python_code_tool(TestSplitTextTool())
+        expected = f"""
+process TestSplitTextTool
+{{
+  input:
+    path PYTHON_CODE_FILE_PATH
+    val inp
+
+  output:
+    val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  script:
+    \"\"\"
+    #!/usr/bin/env python
+    from TestSplitTextTool import code_block
+    import os
+    import json
+
+    result = code_block(inp="$inp")
+
+    work_dir = os.getenv("PYENV_DIR")
+    for key in result:
+        with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
+            f.write(json.dumps(result[key]))
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_int_input(self):
+        p = translator.generate_nf_process_for_python_code_tool(TestSumTool())
+        expected = f"""
+process TestSumTool
+{{
+  input:
+    path PYTHON_CODE_FILE_PATH
+    val inp1
+    val inp2
+
+  output:
+    val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  script:
+    \"\"\"
+    #!/usr/bin/env python
+    from TestSumTool import code_block
+    import os
+    import json
+
+    result = code_block(inp1=$inp1, inp2=$inp2)
+
+    work_dir = os.getenv("PYENV_DIR")
+    for key in result:
+        with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
+            f.write(json.dumps(result[key]))
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_array_input(self):
+        p = translator.generate_nf_process_for_python_code_tool(TestJoinArrayTool())
+        expected = f"""
+process TestJoinArrayTool
+{{
+  input:
+    path PYTHON_CODE_FILE_PATH
+    val inp
+
+  output:
+    val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  script:
+    \"\"\"
+    #!/usr/bin/env python
+    from TestJoinArrayTool import code_block
+    import os
+    import json
+
+    result = code_block(inp="$inp".split(" "))
+
+    work_dir = os.getenv("PYENV_DIR")
+    for key in result:
+        with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
+            f.write(json.dumps(result[key]))
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_file_input(self):
+        p = translator.generate_nf_process_for_python_code_tool(TestFileInput())
+        expected = f"""
+process TestFileInput
+{{
+  input:
+    path PYTHON_CODE_FILE_PATH
+    path inp
+
+  output:
+    val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  script:
+    \"\"\"
+    #!/usr/bin/env python
+    from TestFileInput import code_block
+    import os
+    import json
+
+    result = code_block(inp="$inp")
+
+    work_dir = os.getenv("PYENV_DIR")
+    for key in result:
+        with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
+            f.write(json.dumps(result[key]))
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+    def test_file_with_secondary_input(self):
+        p = translator.generate_nf_process_for_python_code_tool(
+            TestFileWithSecondaryInput()
+        )
+        expected = f"""
+process TestFileWithSecondaryInput
+{{
+  input:
+    path PYTHON_CODE_FILE_PATH
+    path inp
+
+  output:
+    val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  script:
+    \"\"\"
+    #!/usr/bin/env python
+    from TestFileWithSecondaryInput import code_block
+    import os
+    import json
+
+    result = code_block(inp="$inp".split(" ")[0])
+
+    work_dir = os.getenv("PYENV_DIR")
+    for key in result:
+        with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
+            f.write(json.dumps(result[key]))
+    \"\"\"
+}}
+
+
+"""
         self.assertEqual(expected, p.get_string())
 
 
