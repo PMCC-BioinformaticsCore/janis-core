@@ -134,7 +134,27 @@ class NextflowTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> List[nfgen.NFBase]:
-        provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+        """
+        For each of the workflow step, we need to generate a Nextflow subworkflow or process object
+
+        :param tool:
+        :type tool:
+        :param step_id:
+        :type step_id:
+        :param step_keys:
+        :type step_keys:
+        :param with_container:
+        :type with_container:
+        :param with_resource_overrides:
+        :type with_resource_overrides:
+        :param allow_empty_container:
+        :type allow_empty_container:
+        :param container_override:
+        :type container_override:
+        :return:
+        :rtype:
+        """
+        provided_inputs = cls.generate_wf_tool_inputs(tool)
 
         if isinstance(tool, CommandTool):
             nf_item = cls.generate_nf_process_for_command_tool(
@@ -175,16 +195,36 @@ class NextflowTranslator(TranslatorBase):
             return nf_items
         elif isinstance(tool, CodeTool):
             raise Exception("Only PythonTool code tool is supported for the moment")
+        else:
+            raise Exception(
+                f"Nextflow translation for this {tool.__class__} is not yet supported"
+            )
 
     @classmethod
     def translate_tool_internal(
         cls,
-        tool,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
+        tool: CommandTool,
+        with_container: bool = True,
+        with_resource_overrides: bool = False,
+        allow_empty_container: bool = False,
         container_override: dict = None,
-    ) -> nfgen.process:
+    ) -> str:
+        """
+        Generate Nextflow translation for Janis command line tool
+
+        :param tool:
+        :type tool:
+        :param with_container:
+        :type with_container:
+        :param with_resource_overrides:
+        :type with_resource_overrides:
+        :param allow_empty_container:
+        :type allow_empty_container:
+        :param container_override:
+        :type container_override:
+        :return:
+        :rtype:
+        """
 
         process = cls.generate_nf_process_for_command_tool(tool)
         process = cls.handle_container(
@@ -211,11 +251,25 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def translate_code_tool_internal(
         cls,
-        tool,
+        tool: CodeTool,
         with_container=True,
         allow_empty_container=False,
         container_override: dict = None,
-    ):
+    ) -> str:
+        """
+        Generate Nextflow translation for Janis code tool
+
+        :param tool:
+        :type tool:
+        :param with_container:
+        :type with_container:
+        :param allow_empty_container:
+        :type allow_empty_container:
+        :param container_override:
+        :type container_override:
+        :return:
+        :rtype:
+        """
 
         if isinstance(tool, PythonTool):
             process = cls.generate_nf_process_for_python_code_tool(tool)
@@ -246,7 +300,19 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def generate_nf_subworkflow(
         cls, subworkflow: WorkflowBase, name: str, nf_items: List[nfgen.NFBase]
-    ):
+    ) -> nfgen.Workflow:
+        """
+        Generate a Nextflow Workflow object for a Janis subworkflow inside a workflow
+
+        :param subworkflow:
+        :type subworkflow:
+        :param name:
+        :type name:
+        :param nf_items:
+        :type nf_items:
+        :return:
+        :rtype:
+        """
         main = []
         take = []
         emit = []
@@ -254,7 +320,7 @@ class NextflowTranslator(TranslatorBase):
         inputsdict = subworkflow.inputs_map()
         step_keys = list(subworkflow.step_nodes.keys())
 
-        wf_provided_inputs = cls.generate_wf_tool_inputs(subworkflow, step_keys)
+        wf_provided_inputs = cls.generate_wf_tool_inputs(subworkflow)
 
         for i in subworkflow.input_nodes:
             if (
@@ -277,14 +343,12 @@ class NextflowTranslator(TranslatorBase):
             take.append(nfgen.WorkflowInput(name=key, as_param=as_param))
 
         for step_id in subworkflow.step_nodes:
-            # TODO: check this
             nf_item = [i for i in nf_items if i.name == f"{name}_{step_id}"][0]
             tool = subworkflow.step_nodes[step_id].tool
             tool_inp_dict = tool.inputs_map()
 
             provided_inputs = cls.generate_wf_tool_inputs(
                 tool,
-                step_keys,
                 inputs_replacement="$",
                 tool_id_prefix=f"${name}_",
             )
@@ -316,8 +380,10 @@ class NextflowTranslator(TranslatorBase):
         tool: Tool,
         provided_inputs: Dict[str, Any],
         wf_provided_inputs: Dict[str, Any],
-    ):
+    ) -> dict:
         """
+        Generate a dictionary of user provided inputs for a tool by
+        taking into considerations inputs provided to its parent workflow
 
         :param workflow:
         :type workflow:
@@ -404,7 +470,23 @@ class NextflowTranslator(TranslatorBase):
         with_container: bool = True,
         allow_empty_container=False,
         container_override: dict = None,
-    ):
+    ) -> nfgen.Process:
+        """
+        Add container information to a Nexflow Process object
+
+        :param tool:
+        :type tool:
+        :param process:
+        :type process:
+        :param with_container:
+        :type with_container:
+        :param allow_empty_container:
+        :type allow_empty_container:
+        :param container_override:
+        :type container_override:
+        :return:
+        :rtype:
+        """
         if with_container:
             container = (
                 NextflowTranslator.get_container_override_for_tool(
@@ -429,18 +511,38 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def generate_python_script(cls, tool: PythonTool):
+    def generate_python_script(cls, tool: PythonTool) -> str:
+        """
+        Generate python script to be included inside a Nextflow process
+
+        :param tool:
+        :type tool:
+        :return:
+        :rtype:
+        """
         return tool.prepared_script(SupportedTranslation.Nextflow)
 
     @classmethod
-    def translate_helper_files(cls, tool):
+    def translate_helper_files(cls, tool) -> Dict[str, str]:
+        """
+        Generate a dictionary of helper files to run Nextflow.
+        Key of the dictionary is the filename, the value is the file content
+
+        :param tool:
+        :type tool:
+        :return:
+        :rtype:
+        """
         helpers = {}
 
+        # Groovy helper functions
         lib_file = nfgen.NFFile(imports=[], items=cls.generate_generic_functions())
-
         helpers[cls.LIB_FILENAME] = lib_file.get_string()
+
+        # Nextflow config file
         helpers[nfgen.CONFIG_FILENAME] = cls.generate_config()
 
+        # Python files for Python code tools
         if isinstance(tool, PythonTool):
             helpers["__init__.py"] = ""
             helpers[f"{tool.versioned_id()}.py"] = cls.generate_python_script(tool)
@@ -456,7 +558,23 @@ class NextflowTranslator(TranslatorBase):
         return helpers
 
     @classmethod
-    def prepare_output_process_params_for_tool(cls, tool, nf_process: nfgen.NFBase):
+    def prepare_output_process_params_for_tool(
+        cls, tool: Tool, nf_process: nfgen.NFBase
+    ):
+        """
+        Every one of our tools will call a Nextflow process named "janis_outputs".
+        This process will collect all the final outputs for this tool or workflow.
+        This allows Janis to process outputs more easily.
+
+        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow process.
+
+        :param tool:
+        :type tool:
+        :param nf_process: This is the Nextflow Process of the actual tool
+        :type nf_process:
+        :return:
+        :rtype:
+        """
         inputs = []
         for o in nf_process.outputs:
             # Always use 'val' qualifier
@@ -472,7 +590,23 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def generate_nf_output_process(
         cls, inputs: List[nfgen.ProcessInput], tool_outputs: Dict
-    ):
+    ) -> nfgen.Process:
+        """
+        Every one of our tools will call a Nextflow process named "janis_outputs".
+        This process will collect all the final outputs for this tool or workflow.
+        This allows Janis to process outputs more easily.
+
+        This function creates this "janis_outputs" Nextflow process.
+
+        :param inputs:
+        :type inputs:
+        :param tool_outputs:
+        :type tool_outputs:
+        :return:
+        :rtype:
+        """
+
+        # The script is simply adding tool outputs as key-value pairs into a text file
         script = ""
         for key, val in tool_outputs.items():
             script += f"echo {key}={val} >> {cls.OUTPUT_METADATA_FILENAME}\n"
@@ -496,7 +630,15 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def init_helper_functions_import(cls, path: Optional[str] = None):
+    def init_helper_functions_import(cls, path: Optional[str] = None) -> nfgen.Import:
+        """
+        Generate Nextflow Import object to import our Groovy helper functions
+
+        :param path:
+        :type path:
+        :return:
+        :rtype:
+        """
         if path is None:
             path = os.path.join(".", cls.DIR_TOOLS)
 
@@ -509,6 +651,14 @@ class NextflowTranslator(TranslatorBase):
     def init_tool_steps_import(
         cls, processes: Dict[str, nfgen.Process]
     ) -> List[nfgen.Import]:
+        """
+        Generate a list of Nextflow Import objects for each of the steps in a workflow.
+
+        :param processes:
+        :type processes:
+        :return:
+        :rtype:
+        """
         imports = []
         for filename, nf_items in processes.items():
             items_in_one_file = []
@@ -530,6 +680,18 @@ class NextflowTranslator(TranslatorBase):
         name: Optional[str] = None,
         provided_inputs: Optional = None,
     ) -> nfgen.Process:
+        """
+        Generate a Nextflow Process object for a Janis Command line tool
+
+        :param tool:
+        :type tool:
+        :param name:
+        :type name:
+        :param provided_inputs:
+        :type provided_inputs:
+        :return:
+        :rtype:
+        """
         inputs: List[ToolInput] = []
         outputs: List[ToolOutput] = tool.outputs()
 
@@ -566,14 +728,6 @@ class NextflowTranslator(TranslatorBase):
         for i in inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
-
-            # # TODO: this is probably no longer needed now
-            # if isinstance(i.input_type, File):
-            #     # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
-            #     inp.as_param = cls.LIST_OF_FILES_PARAM
-            # # elif isinstance(i.input_type, Array) and \
-            # #     isinstance(i.input_type.subtype(), File):
-            # #     inp.as_process_param = cls.LIST_OF_FILE_PAIRS_PARAM
 
             process.inputs.append(inp)
 
@@ -663,7 +817,17 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def generate_nf_output_expression(cls, tool: Tool, o: Union[TOutput, ToolOutput]):
+    def generate_nf_output_expression(cls, o: Union[TOutput, ToolOutput]):
+        """
+        Based on the Janis output type, we generate string expression to represent outputs in Nextflow Process.
+
+        :param tool:
+        :type tool:
+        :param o:
+        :type o:
+        :return:
+        :rtype:
+        """
         if isinstance(o, TOutput):
             output_type = o.outtype
         elif isinstance(o, ToolOutput):
@@ -690,6 +854,18 @@ class NextflowTranslator(TranslatorBase):
         name: Optional[str] = None,
         provided_inputs: Optional = None,
     ) -> nfgen.Process:
+        """
+        Generate a Nextflow Process object for Janis python code tool
+
+        :param tool:
+        :type tool:
+        :param name:
+        :type name:
+        :param provided_inputs:
+        :type provided_inputs:
+        :return:
+        :rtype:
+        """
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
 
@@ -732,7 +908,7 @@ class NextflowTranslator(TranslatorBase):
             process.inputs.append(inp)
 
         for o in outputs:
-            qual, expression = cls.generate_nf_output_expression(tool, o)
+            qual, expression = cls.generate_nf_output_expression(o)
             out = nfgen.ProcessOutput(
                 qualifier=qual, name=o.id(), expression=expression
             )
@@ -750,6 +926,24 @@ class NextflowTranslator(TranslatorBase):
         workflow: WorkflowBase,
         scatter: Optional[str] = None,
     ) -> str:
+        """
+        Generate a string to represent a Nextflow process arguments
+
+        :param tool:
+        :type tool:
+        :param nfgen_inputs:
+        :type nfgen_inputs:
+        :param inputsdict:
+        :type inputsdict:
+        :param provided_inputs:
+        :type provided_inputs:
+        :param workflow:
+        :type workflow:
+        :param scatter:
+        :type scatter:
+        :return:
+        :rtype:
+        """
         step_keys = list(workflow.step_nodes.keys())
 
         args_list = []
@@ -828,8 +1022,10 @@ class NextflowTranslator(TranslatorBase):
         elif isinstance(input, TInput):
             input_type = input.intype
         else:
-            raise Exception("Unkown input object")
+            raise Exception("Unknown input object")
 
+        # If it comes from our input files, it is already properly formatted
+        # e.g array of array are in the correct formats
         matches = []
         pattern = r"\b(params(\..+?)+)\b"
         found = re.findall(pattern, p)
@@ -839,12 +1035,9 @@ class NextflowTranslator(TranslatorBase):
             matches += [t[0] for t in found]
 
         for m in matches:
-            p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
-            # if input_type.has_secondary_files() or input_type.is_paired():
-            #     p = p.replace(m, f"Channel.from({m}).map{{ pair -> pair }}")
-            # else:
-            #     p = p.replace(m, f"Channel.from({m}).flatten()")
+            p = p.replace(m, f"Channel.from({m}).map{{ item -> item }}")
 
+        # Handling outputs from internal workflow steps
         matches = []
         for step_id in step_keys:
             pattern = rf"\b({step_id}(\..+?)+)\b"
@@ -868,14 +1061,26 @@ class NextflowTranslator(TranslatorBase):
         workflow,
         nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]],
         nf_workflow_name: str = "",
-    ):
+    ) -> nfgen.Workflow:
+        """
+        Generate a Nextflow Workflow object
+
+        :param workflow:
+        :type workflow:
+        :param nf_items:
+        :type nf_items:
+        :param nf_workflow_name:
+        :type nf_workflow_name:
+        :return:
+        :rtype:
+        """
         main = []
 
         step_keys = list(workflow.step_nodes.keys())
 
         for step_id in workflow.step_nodes:
             tool = workflow.step_nodes[step_id].tool
-            provided_inputs = cls.generate_wf_tool_inputs(tool, step_keys)
+            provided_inputs = cls.generate_wf_tool_inputs(tool)
 
             inputsdict = tool.inputs_map()
 
@@ -912,6 +1117,18 @@ class NextflowTranslator(TranslatorBase):
     def prepare_output_process_params_for_worfklow(
         cls, workflow: WorkflowBase
     ) -> Tuple[List[nfgen.ProcessInput], Dict]:
+        """
+        Every one of our tools will call a Nextflow process named "janis_outputs".
+        This process will collect all the final outputs for this tool or workflow.
+        This allows Janis to process outputs more easily.
+
+        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow workflow.
+
+        :param workflow:
+        :type workflow:
+        :return:
+        :rtype:
+        """
         wf_outputs = cls.generate_wf_tool_outputs(workflow)
         output_dict = workflow.outputs_map()
 
@@ -938,15 +1155,23 @@ class NextflowTranslator(TranslatorBase):
 
             outputs[key] = f"${{{output_var}}}"
 
-        # # dummy input to make sure this process is run last
-        # for step_id in workflow.step_nodes:
-        #     inp = nfgen.ProcessInput(qualifier=nfgen.InputProcessQualifier.val, name=step_id)
-        #     inputs.append(inp)
-
         return inputs, outputs
 
     @classmethod
-    def generate_nf_execution_workflow(cls, tool, nf_process: nfgen.Process):
+    def generate_nf_execution_workflow(
+        cls, tool, nf_process: nfgen.Process
+    ) -> nfgen.Workflow:
+        """
+        In the main translation file, we call a Nextflow Workflow even if it is only for a tool.
+        This function generates this Nextflow Workflow object.
+
+        :param tool:
+        :type tool:
+        :param nf_process:
+        :type nf_process:
+        :return:
+        :rtype:
+        """
         args_list = []
         for i in nf_process.inputs:
 
@@ -986,10 +1211,23 @@ class NextflowTranslator(TranslatorBase):
     def generate_wf_tool_inputs(
         cls,
         tool: Tool,
-        step_keys: List[str],
         inputs_replacement: str = "$params.",
         tool_id_prefix: str = "$",
-    ):
+    ) -> dict:
+        """
+        Generate a dictionary to represent the input values provided to a tool
+        key is the input name
+        value is the input expression
+
+        :param tool:
+        :type tool:
+        :param inputs_replacement:
+        :type inputs_replacement:
+        :param tool_id_prefix:
+        :type tool_id_prefix:
+        :return:
+        :rtype:
+        """
 
         inputs = {}
         for key in tool.connections:
@@ -1015,6 +1253,18 @@ class NextflowTranslator(TranslatorBase):
     def generate_wf_tool_outputs(
         cls, wf: WorkflowBase, tool_var_prefix: str = ""
     ) -> Dict[str, str]:
+        """
+        Generate a dictionary containing values of tool output expressions
+        key is the output tag name
+        value is the output expression
+
+        :param wf:
+        :type wf:
+        :param tool_var_prefix:
+        :type tool_var_prefix:
+        :return:
+        :rtype:
+        """
 
         outputs = {}
         for o in wf.output_nodes:
@@ -1034,7 +1284,13 @@ docker.enabled = true
 """
 
     @classmethod
-    def generate_generic_functions(cls):
+    def generate_generic_functions(cls) -> List[nfgen.Function]:
+        """
+        Generate Groovy helper functions to run our Nextflow processes
+
+        :return:
+        :rtype:
+        """
 
         functions = [
             nfgen.Function(
@@ -1115,6 +1371,28 @@ return primary
         in_shell_script=False,
         **debugkwargs,
     ):
+        """
+        The main logic to unwrap a janis expression and represent it in Nextflow translation
+
+        :param value:
+        :type value:
+        :param quote_string:
+        :type quote_string:
+        :param tool:
+        :type tool:
+        :param for_output:
+        :type for_output:
+        :param inputs_dict:
+        :type inputs_dict:
+        :param skip_inputs_lookup:
+        :type skip_inputs_lookup:
+        :param in_shell_script:
+        :type in_shell_script:
+        :param debugkwargs:
+        :type debugkwargs:
+        :return:
+        :rtype:
+        """
         if value is None:
             if quote_string:
                 return "null"
@@ -1234,6 +1512,24 @@ return primary
         skip_inputs_lookup=False,
         **debugkwargs,
     ):
+        """
+        Translate Janis StringFormatter data type to Nextflow
+
+        :param selector:
+        :type selector:
+        :param tool:
+        :type tool:
+        :param in_shell_script:
+        :type in_shell_script:
+        :param inputs_dict:
+        :type inputs_dict:
+        :param skip_inputs_lookup:
+        :type skip_inputs_lookup:
+        :param debugkwargs:
+        :type debugkwargs:
+        :return:
+        :rtype:
+        """
         if len(selector.kwargs) == 0:
             return str(selector)
 
@@ -1255,6 +1551,16 @@ return primary
     def prepare_filename_replacements_for(
         cls, inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
     ) -> Optional[str]:
+        """
+        Generate a string expression to represent a filename in Nextflow
+
+        :param inp:
+        :type inp:
+        :param inputsdict:
+        :type inputsdict:
+        :return:
+        :rtype:
+        """
         if inp is None or not isinstance(inp, InputSelector):
             return None
 
@@ -1326,6 +1632,24 @@ return primary
         in_shell_script=False,
         for_output=False,
     ):
+        """
+        Translate Janis InputSelector data type into Nextflow expressions
+
+        :param selector:
+        :type selector:
+        :param inputs_dict:
+        :type inputs_dict:
+        :param tool:
+        :type tool:
+        :param skip_inputs_lookup:
+        :type skip_inputs_lookup:
+        :param in_shell_script:
+        :type in_shell_script:
+        :param for_output:
+        :type for_output:
+        :return:
+        :rtype:
+        """
         # TODO: Consider grabbing "path" of File
 
         if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
@@ -1403,6 +1727,29 @@ return primary
         max_mem=None,
         max_duration=None,
     ) -> Dict[str, any]:
+        """
+        Generate a dictionary containing input name and its values from users or
+        its default values if inputs not provided.
+
+        :param tool:
+        :type tool:
+        :param recursive:
+        :type recursive:
+        :param merge_resources:
+        :type merge_resources:
+        :param hints:
+        :type hints:
+        :param additional_inputs:
+        :type additional_inputs:
+        :param max_cores:
+        :type max_cores:
+        :param max_mem:
+        :type max_mem:
+        :param max_duration:
+        :type max_duration:
+        :return:
+        :rtype:
+        """
 
         ad = additional_inputs or {}
         values_provided_from_tool = {i.id(): i.default for i in tool.tool_inputs()}
@@ -1475,6 +1822,14 @@ return primary
 
     @staticmethod
     def stringify_translated_inputs(inputs):
+        """
+        convert dictionary inputs to string
+
+        :param inputs:
+        :type inputs:
+        :return:
+        :rtype:
+        """
         formatted = {}
         for key in inputs:
             # We want list to be formatted as ["xxx", "yyy"] instead of "['xxx', 'yyy']"
@@ -1496,10 +1851,26 @@ return primary
 
     @staticmethod
     def workflow_filename(workflow):
+        """
+        Generate the main workflow filename
+
+        :param workflow:
+        :type workflow:
+        :return:
+        :rtype:
+        """
         return workflow.versioned_id() + ".nf"
 
     @staticmethod
     def inputs_filename(workflow):
+        """
+        Generate the input filename
+
+        :param workflow:
+        :type workflow:
+        :return:
+        :rtype:
+        """
         return workflow.versioned_id() + ".input.json"
 
     @staticmethod
@@ -1512,6 +1883,14 @@ return primary
 
     @staticmethod
     def resources_filename(workflow):
+        """
+        Generate resoureces filename
+
+        :param workflow:
+        :type workflow:
+        :return:
+        :rtype:
+        """
         return workflow.id() + "-resources.json"
 
     @staticmethod
@@ -1519,21 +1898,17 @@ return primary
         pass
 
     @classmethod
-    def has_secondary_files(cls, i: Union[ToolInput, TInput]):
-        if isinstance(i, ToolInput):
-            input_type = i.input_type
-        elif isinstance(i, TInput):
-            input_type = i.intype
+    def prepare_script_for_python_code_tool(cls, tool: CodeTool, inputs) -> str:
+        """
+        Generate the content of the script section in a Nextflow process for Janis python code tool
 
-        if hasattr(input_type, "secondary_files") and callable(
-            input_type.secondary_files
-        ):
-            if input_type.secondary_files() is not None:
-                return True
-        return False
-
-    @classmethod
-    def prepare_script_for_python_code_tool(cls, tool: CodeTool, inputs):
+        :param tool:
+        :type tool:
+        :param inputs:
+        :type inputs:
+        :return:
+        :rtype:
+        """
         PYTHON_SHEBANG = "#!/usr/bin/env python"
         python_script_filename = f"{tool.versioned_id()}"
 
@@ -1543,7 +1918,7 @@ return primary
             arg_value = f"${i.tag}"
             if isinstance(i.intype, Array):
                 arg_value = f'"{arg_value}".split(" ")'
-            elif isinstance(i.intype, File) and cls.has_secondary_files(i):
+            elif isinstance(i.intype, File) and i.intype.has_secondary_files():
                 arg_value = f'"{arg_value}".split(" ")[0]'
             elif not isinstance(i.intype, (Array, Int, Float, Double)):
                 arg_value = f'"{arg_value}"'
@@ -1573,6 +1948,18 @@ for key in result:
     def prepare_script_for_command_tool(
         cls, process_name: str, tool: CommandTool, inputs
     ):
+        """
+        Generate the script content of a Nextflow process for Janis command line tool
+
+        :param process_name:
+        :type process_name:
+        :param tool:
+        :type tool:
+        :param inputs:
+        :type inputs:
+        :return:
+        :rtype:
+        """
         bc = tool.base_command()
         pargs = []
 
@@ -1625,38 +2012,35 @@ for key in result:
 """
 
     @classmethod
-    def prepare_tool_output(cls, tool: Tool):
-        # inputsdict = tool.inputs_map()
+    def prepare_tool_output(cls, tool: Tool) -> Dict[str, str]:
+        """
+        Generate a dictionary that contains Nextflow expressions to represent Janis outputs
 
+        :param tool:
+        :type tool:
+        :return:
+        :rtype:
+        """
         outputs = {}
         for out in tool.outputs():
-            if isinstance(out, TOutput):
-                output_type = out.outtype
-            elif isinstance(out, ToolOutput):
-                output_type = out.output_type
-            else:
-                raise Exception("unknown output object type")
-
             val = f"{tool.id()}{out.tag}"
-
-            # if output_type.has_secondary_files():
-            #     val = f"{val}[0]"
-            # elif output_type.is_array() and output_type.subtype().has_secondary_files():
-            #     val = f"{val}.map{{ val -> val[0]}}"
-
-            # if isinstance(output_type, Stdout):
-            #     val = f"{cls.TOOL_STDOUT_FILENAME}_{tool.id()}"
-            # elif isinstance(output_type, Stderr):
-            #     val = "STDERR"
-            # else:
-            #     val = f"${tool.id()}{out.tag}"
 
             outputs[out.tag] = f"${{{val}}}"
 
         return outputs
 
     @classmethod
-    def prepare_expression_inputs(cls, tool, inputs):
+    def prepare_expression_inputs(cls, tool, inputs) -> str:
+        """
+        Generate Groovy code to represent the values of input variable definitions for complex expressions
+
+        :param tool:
+        :type tool:
+        :param inputs:
+        :type inputs:
+        :return:
+        :rtype:
+        """
 
         inputsdict = tool.inputs_map()
 
@@ -1685,7 +2069,17 @@ def {i.id()} = {val}
         return "".join(script_lines)
 
     @classmethod
-    def generate_input_var_definition(cls, inp: ToolInput, arg_name: str):
+    def generate_input_var_definition(cls, inp: ToolInput, arg_name: str) -> str:
+        """
+        Generate Groovy code to represent the values of input variable definitions
+
+        :param inp:
+        :type inp:
+        :param arg_name:
+        :type arg_name:
+        :return:
+        :rtype:
+        """
         if isinstance(inp.input_type, Array):
             if (
                 isinstance(inp.input_type.subtype(), File)
@@ -1726,7 +2120,16 @@ def {i.id()} = {val}
         return arg
 
     @classmethod
-    def prepare_input_vars(cls, inputs):
+    def prepare_input_vars(cls, inputs) -> str:
+        """
+        Generate Groovy code for input variables definitions inside the Nextflow script section.
+        This is where we apply prefix or preprocessiong if necessary.
+
+        :param inputs:
+        :type inputs:
+        :return:
+        :rtype:
+        """
         pre_script_lines = []
         for a in inputs:
             arg_name = ""
@@ -1749,6 +2152,16 @@ def {arg_name}WithPrefix = {arg}
 
     @classmethod
     def prepare_resources_var(cls, tool, name: Optional[str] = None):
+        """
+        Generate Groovy code for resources variables definitions inside the Nextflow script section.
+
+        :param tool:
+        :type tool:
+        :param name:
+        :type name:
+        :return:
+        :rtype:
+        """
         pre_script_lines = []
         var_names = []
         for k, v in cls.build_resources_input(
@@ -1771,6 +2184,19 @@ def {k} =  params.{prefix}{k}
     def prepare_inputs_in_selector(
         cls, tool, inputs: List[ToolInput], resources: List[str]
     ):
+        """
+        If there is any input being referenced by Janis InputSelector,
+        we need to add their Groovy variable definitions
+
+        :param tool:
+        :type tool:
+        :param inputs:
+        :type inputs:
+        :param resources:
+        :type resources:
+        :return:
+        :rtype:
+        """
         pre_script_lines = []
 
         if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
@@ -1793,6 +2219,14 @@ def {k} =  {val}
     def get_input_qualifier_for_inptype(
         cls, inp_type: DataType
     ) -> nfgen.InputProcessQualifier:
+        """
+        Get Nextflow input qualifier based on Janis data type
+
+        :param inp_type:
+        :type inp_type:
+        :return:
+        :rtype:
+        """
 
         if isinstance(inp_type, Array):
             inp_type = inp_type.fundamental_type()
@@ -1811,6 +2245,14 @@ def {k} =  {val}
         cls,
         out_type: DataType,
     ) -> nfgen.OutputProcessQualifier:
+        """
+        Generate Nextflow output qualifier based on Janis output data type
+
+        :param out_type:
+        :type out_type:
+        :return:
+        :rtype:
+        """
         if isinstance(out_type, Array):
             return nfgen.OutputProcessQualifier.tuple
 

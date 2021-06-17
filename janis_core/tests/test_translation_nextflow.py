@@ -75,7 +75,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
 
         step_id = "print"
         tool = workflow.step_nodes[step_id].tool
-        inputs = translator.generate_wf_tool_inputs(tool, step_keys)
+        inputs = translator.generate_wf_tool_inputs(tool)
         expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
 
         self.assertEqual(expected, inputs)
@@ -87,7 +87,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected = {"testtool": "$params.inp"}
         self.assertEqual(
             expected,
-            translator.generate_wf_tool_inputs(w1.step_nodes["stp"].tool, w1_step_keys),
+            translator.generate_wf_tool_inputs(w1.step_nodes["stp"].tool),
         )
 
     def test_with_expression(self):
@@ -99,9 +99,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         }
         self.assertEqual(
             expected,
-            translator.generate_wf_tool_inputs(
-                w2.step_nodes["print"].tool, w2_step_keys
-            ),
+            translator.generate_wf_tool_inputs(w2.step_nodes["print"].tool),
         )
 
     def test_multi_steps(self):
@@ -111,17 +109,13 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected1 = {"testtool": "$params.inp"}
         self.assertEqual(
             expected1,
-            translator.generate_wf_tool_inputs(
-                w3.step_nodes["stp1"].tool, w3_step_keys
-            ),
+            translator.generate_wf_tool_inputs(w3.step_nodes["stp1"].tool),
         )
 
         expected2 = {"inp": "$stp1.out.out"}
         self.assertEqual(
             expected2,
-            translator.generate_wf_tool_inputs(
-                w3.step_nodes["stp2"].tool, w3_step_keys
-            ),
+            translator.generate_wf_tool_inputs(w3.step_nodes["stp2"].tool),
         )
 
 
