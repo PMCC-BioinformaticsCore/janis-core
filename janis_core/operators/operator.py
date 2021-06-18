@@ -135,6 +135,10 @@ class Operator(Selector):
         pass
 
     @abstractmethod
+    def to_nextflow(self, unwrap_operator, *args):
+        pass
+
+    @abstractmethod
     def to_python(self, unwrap_operator, *args):
         pass
 
@@ -191,6 +195,10 @@ class IndexOperator(Operator, ABC):
         base, index = [unwrap_operator(a) for a in self.args]
         return f"{base}[{index}]"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        base, index = [unwrap_operator(a) for a in self.args]
+        return f"{base}[{index}]"
+
 
 class SingleValueOperator(Operator, ABC):
     @staticmethod
@@ -230,6 +238,9 @@ class SingleValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         return f"{self.cwl_symbol()}({unwrap_operator(*args)})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        return f"{self.to_nextflow()}({unwrap_operator(*args)})"
+
     def to_python(self, unwrap_operator, *args):
         return f"{self.symbol()}({unwrap_operator(*args)})"
 
@@ -252,6 +263,11 @@ class TwoValueOperator(Operator, ABC):
 
     @staticmethod
     @abstractmethod
+    def nextflow_symbol():
+        pass
+
+    @staticmethod
+    @abstractmethod
     def apply_to(arg1, arg2):
         pass
 
@@ -266,6 +282,23 @@ class TwoValueOperator(Operator, ABC):
     def to_cwl(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]
         return f"({arg1} {self.cwl_symbol()} {arg2})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+
+        return f"{arg1} {self.nextflow_symbol()} {arg2}"
+
+    def to_nextflow_output_var(self, unwrap_operator, *args):
+        arg1, arg2 = [unwrap_operator(a) for a in self.args]
+        if (
+            isinstance(arg1, str)
+            and not arg1.isdigit()
+            and isinstance(arg2, str)
+            and not arg2.isdigit()
+        ):
+            return f"{arg1}{arg2}"
+        else:
+            return self.to_nextflow(unwrap_operator, *args)
 
     def to_python(self, unwrap_operator, *args):
         arg1, arg2 = [unwrap_operator(a) for a in self.args]

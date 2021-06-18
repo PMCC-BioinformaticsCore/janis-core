@@ -65,6 +65,9 @@ class StringFormatter(Operator):
     def to_wdl(self, unwrap_operator, *args):
         raise Exception("Don't use this method")
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise Exception("Don't use this method")
+
     def to_python(self, unwrap_operator, *args):
         f = self._format
         for k, v in self.kwargs.items():

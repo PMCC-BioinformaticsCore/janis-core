@@ -6,8 +6,12 @@ from janis_core.types import Filename
 from janis_core import (
     ToolOutput,
     ToolInput,
+    TInput,
+    TOutput,
     String,
+    Int,
     CommandTool,
+    PythonTool,
     Stdout,
     InputSelector,
     Array,
@@ -18,6 +22,7 @@ from janis_core import (
     InputDocumentation,
     InputQualityType,
     Workflow,
+    FirstOperator,
     ForEachSelector,
 )
 
@@ -97,12 +102,10 @@ class SingleTestTool(CommandTool):
     def outputs(self):
         return [ToolOutput("out", String(), glob=WildcardSelector("*"))]
 
-    @staticmethod
-    def container():
+    def container(self):
         return None
 
-    @staticmethod
-    def version():
+    def version(self):
         return None
 
 
@@ -222,6 +225,28 @@ class TestToolWithSecondaryOutput(TestTool):
         ]
 
 
+class TestToolWithAppendedSecondaryOutput(TestTool):
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                TestTypeWithAppendedSecondary(),
+                selector=InputSelector("testtool") + ".bam",
+            )
+        ]
+
+
+class TestToolWithReplacedSecondaryOutput(TestTool):
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                TestTypeWithReplacedSecondary(),
+                selector=InputSelector("testtool") + ".bam",
+            )
+        ]
+
+
 class TestToolWithSecondaryInput(CatTestTool):
     def inputs(self) -> List[ToolInput]:
         return [ToolInput("inp", TestTypeWithSecondary, position=0)]
@@ -234,6 +259,24 @@ class TestTypeWithSecondary(File):
     @staticmethod
     def secondary_files():
         return ["^.txt"]
+
+
+class TestTypeWithAppendedSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".bam")
+
+    @staticmethod
+    def secondary_files():
+        return [".bai"]
+
+
+class TestTypeWithReplacedSecondary(File):
+    def __init__(self, optional=False):
+        super().__init__(optional, extension=".bam")
+
+    @staticmethod
+    def secondary_files():
+        return ["^.bai"]
 
 
 class TestTypeWithNonEscapedSecondary(File):
@@ -315,6 +358,51 @@ class TestWorkflowThatOutputsArraysOfSecondaryFiles(Workflow):
         self.output("out", source=self.stp.out)
 
 
+class TestWorkflowWithConditionStep(Workflow):
+    def constructor(self):
+        self.input("mystring", Optional[str], value=None)
+
+        someString = FirstOperator(
+            [
+                self.mystring,
+                self.step(
+                    "get_string",
+                    EchoTestTool(inp="Some default value"),
+                    when=self.mystring.is_null(),
+                ).out,
+            ]
+        )
+
+        self.step(
+            "print",
+            EchoTestTool(inp=someString),
+        )
+
+        self.output("out", source=self.print)
+
+    def friendly_name(self):
+        return "TEST: TestWorkflowWithConditionStep"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class TestWorkflowWithAliasSelectorWorkflow(Workflow):
+    def id(self) -> str:
+        return "TestWorkflowWithAliasSelectorWorkflow"
+
+    def friendly_name(self):
+        return "Test Workflow with alias selector in the output"
+
+    def constructor(self):
+        self.input("inp", String, value="abc")
+
+        self.step("stp1", TestToolWithSecondaryOutput(testtool=self.inp))
+        self.step("stp2", CatTestTool(inp=self.stp1.out.as_type(File)))
+
+        self.output("out", source=self.stp1.out)
+
+
 class TestForEach(Workflow):
     def constructor(self):
         self.input("inp", Array(str))
@@ -328,3 +416,55 @@ class TestForEach(Workflow):
 
     def id(self) -> str:
         return "TestForEach"
+
+
+class TestSplitTextTool(PythonTool):
+    @staticmethod
+    def code_block(inp: str) -> dict:
+        # list splits "abc" into ["a", "b", "c"]
+        return {"out": list(inp)}
+
+    def outputs(self):
+        return [TOutput("out", Array(String()))]
+
+
+class TestJoinArrayTool(PythonTool):
+    @staticmethod
+    def code_block(inp: Array(String())) -> dict:
+        return {"out": " ".join(inp)}
+
+    def outputs(self):
+        return [TOutput("out", String())]
+
+
+class TestSumTool(PythonTool):
+    @staticmethod
+    def code_block(inp1: int, inp2: int) -> dict:
+        return {"out": inp1 + inp2}
+
+    def outputs(self):
+        return [TOutput("out", Int())]
+
+
+class TestFileInput(PythonTool):
+    @staticmethod
+    def code_block(inp: File) -> dict:
+        with open(inp) as f:
+            content = f.read()
+
+        return {"out": content}
+
+    def outputs(self):
+        return [TOutput("out", String())]
+
+
+class TestFileWithSecondaryInput(PythonTool):
+    @staticmethod
+    def code_block(inp: TestTypeWithSecondary) -> dict:
+        with open(inp) as f:
+            content = f.read()
+
+        return {"out": content}
+
+    def outputs(self):
+        return [TOutput("out", String())]
