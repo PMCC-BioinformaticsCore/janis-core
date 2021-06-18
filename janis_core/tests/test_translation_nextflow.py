@@ -467,13 +467,13 @@ process filenamegeneratedtool
 
   script:
 
-    def generatedInp = (generatedInp && generatedInp != 'None' && generatedInp != '') ? generatedInp : inp + '' + ''
+    def generatedInp = generatedInp && generatedInp != 'None' ? generatedInp : inp + '' + ''
 
-    def generatedInpOptional = (generatedInpOptional && generatedInpOptional != 'None' && generatedInpOptional != '') ? generatedInpOptional : inpOptional + '' + ''
+    def generatedInpOptional = generatedInpOptional && generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
 
-    def generatedFileInp = (generatedFileInp && generatedFileInp != 'None' && generatedFileInp != '') ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
+    def generatedFileInp = generatedFileInp && generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
 
-    def generatedFileInpOptional = (generatedFileInpOptional && generatedFileInpOptional != 'None' && generatedFileInpOptional != '') ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
+    def generatedFileInpOptional = generatedFileInpOptional && generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
 
     def inpWithPrefix = apply_prefix(inp, ' ', 'False')
 

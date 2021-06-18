@@ -1612,7 +1612,7 @@ return primary
                 if isinstance(intype, Filename):
                     default = base
 
-                replacement = f"({inp.input_to_select} != 'None' && {inp.input_to_select} != '' ? {inp.input_to_select} : {default})"
+                replacement = f"({inp.input_to_select} && {inp.input_to_select} != 'None' && {inp.input_to_select} != '' ? {inp.input_to_select} : {default})"
             else:
                 replacement = f"{base}"
 
@@ -2062,7 +2062,7 @@ for key in result:
                 )
 
                 if input_type.optional:
-                    val = f"({i.id()} && {i.id()} != 'None' && {i.id()} != '') ? {i.id()} : {val}"
+                    val = f"{i.id()} && {i.id()} != 'None' ? {i.id()} : {val}"
 
                 code = f"""
 def {i.id()} = {val}
