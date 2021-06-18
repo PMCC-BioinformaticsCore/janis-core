@@ -1965,12 +1965,12 @@ for key in result:
         args = sorted(args, key=lambda a: (a.prefix is None))
         args = sorted(args, key=lambda a: (a.position or 0))
 
-        prefix = "  "
+        inputsdict = tool.inputs_map()
         for a in args:
             if isinstance(a, ToolInput):
                 pargs.append(f"${a.id()}WithPrefix")
             elif isinstance(a, ToolArgument):
-                inputsdict = tool.inputs_map()
+
                 expression = cls.unwrap_expression(
                     a.value,
                     inputsdict=inputsdict,
@@ -1995,7 +1995,16 @@ for key in result:
 
         main_script = " \\\n".join(pargs)
 
+        pre_script = ""
+        for dir in tool.directories_to_create() or []:
+            unwrapped_dir = cls.unwrap_expression(
+                dir, inputs_dict=inputsdict, tool=tool, in_shell_script=True
+            )
+            pre_script += f"mkdir -p '{unwrapped_dir}'"
+
         return f"""
+{pre_script}
+
 {main_script} | tee {cls.TOOL_STDOUT_FILENAME}_{process_name}
 
 """
