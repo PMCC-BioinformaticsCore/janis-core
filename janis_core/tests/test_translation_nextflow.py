@@ -365,7 +365,7 @@ class TestNextflowGenerateInput(unittest.TestCase):
             Filename(prefix=InputSelector("inp"), suffix="part1", extension=".doc"),
         )
         self.assertDictEqual(
-            {"inp": "somefancyname", "inpFile": "inp + '-part1' + '.doc'"},
+            {"inp": "somefancyname", "inpFile": "inp + -part1 + .doc"},
             self.translator.build_inputs_file(wf),
         )
 

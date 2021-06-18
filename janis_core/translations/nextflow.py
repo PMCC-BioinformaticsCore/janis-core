@@ -1756,7 +1756,10 @@ return primary
             # Filename always has default value
             if isinstance(i.intype, Filename):
                 val = cls.unwrap_expression(
-                    i.intype.generated_filename(), inputs_dict=inputsdict, tool=tool
+                    i.intype.generated_filename(),
+                    inputs_dict=inputsdict,
+                    tool=tool,
+                    quote_string=False,
                 )
 
             inputsdict = tool.inputs_map()
