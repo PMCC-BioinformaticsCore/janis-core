@@ -364,8 +364,9 @@ class TestNextflowGenerateInput(unittest.TestCase):
             "inpFile",
             Filename(prefix=InputSelector("inp"), suffix="part1", extension=".doc"),
         )
+        # Note: we don't want to set default filenames into json input file
         self.assertDictEqual(
-            {"inp": "somefancyname", "inpFile": "inp + -part1 + .doc"},
+            {"inp": "somefancyname", "inpFile": ""},
             self.translator.build_inputs_file(wf),
         )
 
@@ -466,13 +467,13 @@ process filenamegeneratedtool
 
   script:
 
-    def generatedInp = generatedInp != 'None' ? generatedInp : inp + '' + ''
+    def generatedInp = (generatedInp && generatedInp != 'None' && generatedInp != '') ? generatedInp : inp + '' + ''
 
-    def generatedInpOptional = generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
+    def generatedInpOptional = (generatedInpOptional && generatedInpOptional != 'None' && generatedInpOptional != '') ? generatedInpOptional : inpOptional + '' + ''
 
-    def generatedFileInp = generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
+    def generatedFileInp = (generatedFileInp && generatedFileInp != 'None' && generatedFileInp != '') ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
 
-    def generatedFileInpOptional = generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
+    def generatedFileInpOptional = (generatedFileInpOptional && generatedFileInpOptional != 'None' && generatedFileInpOptional != '') ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
 
     def inpWithPrefix = apply_prefix(inp, ' ', 'False')
 

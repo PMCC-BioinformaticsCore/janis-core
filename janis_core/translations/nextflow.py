@@ -643,6 +643,54 @@ class NextflowTranslator(TranslatorBase):
         return inputs, tool_outputs
 
     @classmethod
+    def prepare_output_process_params_for_worfklow(
+        cls, workflow: WorkflowBase
+    ) -> Tuple[List[nfgen.ProcessInput], Dict]:
+        """
+        Every one of our tools will call a Nextflow process named "janis_outputs".
+        This process will collect all the final outputs for this tool or workflow.
+        This allows Janis to process outputs more easily.
+
+        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow workflow.
+
+        :param workflow:
+        :type workflow:
+        :return:
+        :rtype:
+        """
+        wf_outputs = cls.generate_wf_tool_outputs(workflow)
+        output_dict = workflow.outputs_map()
+
+        inputs = []
+        outputs = {}
+
+        for key, val in wf_outputs.items():
+            inp_var_name = key.replace(".", "")
+            # Always use 'val' qualifier
+            inp = nfgen.ProcessInput(
+                qualifier=nfgen.InputProcessQualifier.val, name=inp_var_name
+            )
+            inputs.append(inp)
+
+            output_var = inp_var_name
+            if key in output_dict:
+                if (
+                    output_dict[key].outtype.is_array()
+                    and isinstance(output_dict[key].outtype.subtype(), File)
+                    and output_dict[key].outtype.subtype().has_secondary_files()
+                ):
+                    output_var = f"{inp_var_name}.map{{ item -> item[0] }}"
+                elif (
+                    isinstance(output_dict[key].outtype, File)
+                    and output_dict[key].outtype.has_secondary_files()
+                ):
+                    output_var = f"{inp_var_name}[0]"
+
+            outputs[key] = f"${{{output_var}}}"
+
+        return inputs, outputs
+
+    @classmethod
     def generate_nf_output_process(
         cls, inputs: List[nfgen.ProcessInput], tool_outputs: Dict
     ) -> nfgen.Process:
@@ -1113,50 +1161,6 @@ class NextflowTranslator(TranslatorBase):
         return p
 
     @classmethod
-    def prepare_output_process_params_for_worfklow(
-        cls, workflow: WorkflowBase
-    ) -> Tuple[List[nfgen.ProcessInput], Dict]:
-        """
-        Every one of our tools will call a Nextflow process named "janis_outputs".
-        This process will collect all the final outputs for this tool or workflow.
-        This allows Janis to process outputs more easily.
-
-        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow workflow.
-
-        :param workflow:
-        :type workflow:
-        :return:
-        :rtype:
-        """
-        wf_outputs = cls.generate_wf_tool_outputs(workflow)
-        output_dict = workflow.outputs_map()
-
-        inputs = []
-        outputs = {}
-
-        for key, val in wf_outputs.items():
-            inp_var_name = key.replace(".", "")
-            # Always use 'val' qualifier
-            inp = nfgen.ProcessInput(
-                qualifier=nfgen.InputProcessQualifier.val, name=inp_var_name
-            )
-            inputs.append(inp)
-
-            output_var = inp_var_name
-            if key in output_dict:
-                if (
-                    output_dict[key].outtype.is_array()
-                    and output_dict[key].outtype.subtype().has_secondary_files()
-                ):
-                    output_var = f"{inp_var_name}.map{{ item -> item[0] }}"
-                elif output_dict[key].outtype.has_secondary_files():
-                    output_var = f"{inp_var_name}[0]"
-
-            outputs[key] = f"${{{output_var}}}"
-
-        return inputs, outputs
-
-    @classmethod
     def generate_nf_execution_workflow(
         cls, tool, nf_process: nfgen.Process
     ) -> nfgen.Workflow:
@@ -1608,7 +1612,7 @@ return primary
                 if isinstance(intype, Filename):
                     default = base
 
-                replacement = f"({inp.input_to_select} != 'None' ? {inp.input_to_select} : {default})"
+                replacement = f"({inp.input_to_select} != 'None' && {inp.input_to_select} != '' ? {inp.input_to_select} : {default})"
             else:
                 replacement = f"{base}"
 
@@ -1752,17 +1756,6 @@ return primary
 
         for i in tool.tool_inputs():
             val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
-
-            # Filename always has default value
-            if isinstance(i.intype, Filename):
-                val = cls.unwrap_expression(
-                    i.intype.generated_filename(),
-                    inputs_dict=inputsdict,
-                    tool=tool,
-                    quote_string=False,
-                )
-
-            inputsdict = tool.inputs_map()
 
             if val is None:
                 if isinstance(i.intype, (File, Directory)) or (
@@ -2019,7 +2012,21 @@ for key in result:
         """
         outputs = {}
         for out in tool.outputs():
+            if isinstance(out, TOutput):
+                output_type = out.outtype
+            elif isinstance(out, ToolOutput):
+                output_type = out.output_type
+
             val = f"{tool.id()}{out.tag}"
+
+            if (
+                output_type.is_array()
+                and isinstance(output_type.subtype(), File)
+                and output_type.subtype().has_secondary_files()
+            ):
+                val = f"{val}.map{{ item -> item[0] }}"
+            elif isinstance(output_type, File) and output_type.has_secondary_files():
+                val = f"{val}[0]"
 
             outputs[out.tag] = f"${{{val}}}"
 
@@ -2055,7 +2062,7 @@ for key in result:
                 )
 
                 if input_type.optional:
-                    val = f"{i.id()} != 'None' ? {i.id()} : {val}"
+                    val = f"({i.id()} && {i.id()} != 'None' && {i.id()} != '') ? {i.id()} : {val}"
 
                 code = f"""
 def {i.id()} = {val}
