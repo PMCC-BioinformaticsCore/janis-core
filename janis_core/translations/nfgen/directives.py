@@ -32,6 +32,9 @@ class CacheDirective(ProcessDirective):
     def __init__(self, cache):
         super().__init__("cache", cache)
 
+    def get_string(self):
+        return f"{self.name} {str(self.value).lower()}"
+
 
 class CpusDirective(ProcessDirective):
     def __init__(self, cpus):

@@ -374,6 +374,64 @@ class NextflowTranslator(TranslatorBase):
         return nfgen.Workflow(name=name, main=main, take=take, emit=emit)
 
     @classmethod
+    def generate_nf_workflow(
+        cls,
+        workflow,
+        nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]],
+        nf_workflow_name: str = "",
+    ) -> nfgen.Workflow:
+        """
+        Generate a Nextflow Workflow object
+
+        :param workflow:
+        :type workflow:
+        :param nf_items:
+        :type nf_items:
+        :param nf_workflow_name:
+        :type nf_workflow_name:
+        :return:
+        :rtype:
+        """
+        main = []
+
+        step_keys = list(workflow.step_nodes.keys())
+
+        for step_id in workflow.step_nodes:
+            tool = workflow.step_nodes[step_id].tool
+            provided_inputs = cls.generate_wf_tool_inputs(tool)
+
+            inputsdict = tool.inputs_map()
+
+            # TODO: fetch process or a subworkflow
+            nf_process = nf_items[tool.versioned_id()]
+
+            if isinstance(nf_process, nfgen.Process):
+                nf_inputs = nf_process.inputs
+            elif isinstance(nf_process, nfgen.Workflow):
+                nf_inputs = nf_process.take
+
+            args = cls.handle_nf_process_args(
+                tool,
+                nf_inputs,
+                inputsdict,
+                provided_inputs,
+                workflow=workflow,
+                scatter=workflow.step_nodes[step_id].scatter,
+            )
+
+            main.append(f"{nf_process.name}({args})")
+
+        # calling outputs process for Janis to be able to find output files
+        # #TODO: RE-ENABLE THIS!!!
+        args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
+        # args_list += [f"Channel.from({step_id}.out).collect()" for step_id in workflow.step_nodes]
+
+        args = ", ".join(args_list)
+        main.append(f"{cls.FINAL_STEP_NAME}({args})")
+
+        return nfgen.Workflow(name=nf_workflow_name, main=main)
+
+    @classmethod
     def apply_outer_workflow_inputs(
         cls,
         workflow: WorkflowBase,
@@ -1055,64 +1113,6 @@ class NextflowTranslator(TranslatorBase):
         return p
 
     @classmethod
-    def generate_nf_workflow(
-        cls,
-        workflow,
-        nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]],
-        nf_workflow_name: str = "",
-    ) -> nfgen.Workflow:
-        """
-        Generate a Nextflow Workflow object
-
-        :param workflow:
-        :type workflow:
-        :param nf_items:
-        :type nf_items:
-        :param nf_workflow_name:
-        :type nf_workflow_name:
-        :return:
-        :rtype:
-        """
-        main = []
-
-        step_keys = list(workflow.step_nodes.keys())
-
-        for step_id in workflow.step_nodes:
-            tool = workflow.step_nodes[step_id].tool
-            provided_inputs = cls.generate_wf_tool_inputs(tool)
-
-            inputsdict = tool.inputs_map()
-
-            # TODO: fetch process or a subworkflow
-            nf_process = nf_items[tool.versioned_id()]
-
-            if isinstance(nf_process, nfgen.Process):
-                nf_inputs = nf_process.inputs
-            elif isinstance(nf_process, nfgen.Workflow):
-                nf_inputs = nf_process.take
-
-            args = cls.handle_nf_process_args(
-                tool,
-                nf_inputs,
-                inputsdict,
-                provided_inputs,
-                workflow=workflow,
-                scatter=workflow.step_nodes[step_id].scatter,
-            )
-
-            main.append(f"{nf_process.name}({args})")
-
-        # calling outputs process for Janis to be able to find output files
-        # #TODO: RE-ENABLE THIS!!!
-        args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
-        # args_list += [f"Channel.from({step_id}.out).collect()" for step_id in workflow.step_nodes]
-
-        args = ", ".join(args_list)
-        main.append(f"{cls.FINAL_STEP_NAME}({args})")
-
-        return nfgen.Workflow(name=nf_workflow_name, main=main)
-
-    @classmethod
     def prepare_output_process_params_for_worfklow(
         cls, workflow: WorkflowBase
     ) -> Tuple[List[nfgen.ProcessInput], Dict]:
@@ -1173,7 +1173,6 @@ class NextflowTranslator(TranslatorBase):
         """
         args_list = []
         for i in nf_process.inputs:
-
             p = f"params.{i.name}"
 
             # Extra processing when we need to set up the process input parameters
@@ -1187,13 +1186,14 @@ class NextflowTranslator(TranslatorBase):
                         cls.LIST_OF_FILE_PAIRS_PARAM,
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
+                elif cls.PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
 
-                path_to_python_code_file = posixpath.join(
-                    "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
-                )
-                p = p.replace(
-                    cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
-                )
+                    path_to_python_code_file = posixpath.join(
+                        "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
+                    )
+                    p = i.as_param.replace(
+                        cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                    )
 
             args_list.append(p)
 
