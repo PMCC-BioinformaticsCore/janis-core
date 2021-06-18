@@ -539,9 +539,6 @@ class NextflowTranslator(TranslatorBase):
         lib_file = nfgen.NFFile(imports=[], items=cls.generate_generic_functions())
         helpers[cls.LIB_FILENAME] = lib_file.get_string()
 
-        # Nextflow config file
-        helpers[nfgen.CONFIG_FILENAME] = cls.generate_config()
-
         # Python files for Python code tools
         if isinstance(tool, PythonTool):
             helpers["__init__.py"] = ""
@@ -626,6 +623,8 @@ class NextflowTranslator(TranslatorBase):
             inputs=inputs,
             outputs=outputs,
         )
+
+        process.directives.append(nfgen.CacheDirective(False))
 
         return process
 
@@ -1276,12 +1275,6 @@ class NextflowTranslator(TranslatorBase):
             outputs[o] = val
 
         return outputs
-
-    @classmethod
-    def generate_config(cls):
-        return f"""
-docker.enabled = true
-"""
 
     @classmethod
     def generate_generic_functions(cls) -> List[nfgen.Function]:
