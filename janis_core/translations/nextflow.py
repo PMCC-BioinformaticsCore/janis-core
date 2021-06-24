@@ -1420,12 +1420,12 @@ return primary
 
             return list_representation
 
-        if isinstance(value, str):
+        elif isinstance(value, str):
             if quote_string:
                 return f"'{value}'"
             else:
                 return value
-        if isinstance(value, bool):
+        elif isinstance(value, bool):
             # return value
             if quote_string:
                 return f"'{value}'"
@@ -1455,7 +1455,7 @@ return primary
             return cls.translate_input_selector(
                 selector=value,
                 inputs_dict=inputs_dict,
-                skip_inputs_lookup=skip_inputs_lookup,
+                skip_inputs_lookup=False,
                 in_shell_script=in_shell_script,
                 tool=tool,
             )
@@ -1625,7 +1625,6 @@ return primary
         tool,
         skip_inputs_lookup=False,
         in_shell_script=False,
-        for_output=False,
     ):
         """
         Translate Janis InputSelector data type into Nextflow expressions
@@ -1645,8 +1644,6 @@ return primary
         :return:
         :rtype:
         """
-        # TODO: Consider grabbing "path" of File
-
         if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
             cls.INPUT_IN_SELECTORS[tool.versioned_id()] = set()
 
@@ -1674,10 +1671,13 @@ return primary
             tinp: ToolInput = inputs_dict[selector.input_to_select]
 
             intype = tinp.intype
+
+            if intype.is_base_type((File, Directory)):
+                if intype.has_secondary_files():
+                    sel = f"{sel}[0]"
+
             if selector.remove_file_extension:
                 if intype.is_base_type((File, Directory)):
-                    if intype.has_secondary_files():
-                        sel = f"{sel}[0]"
 
                     potential_extensions = (
                         intype.get_extensions() if intype.is_base_type(File) else None
@@ -1706,7 +1706,7 @@ return primary
                     )
 
         if in_shell_script:
-            sel = f"${sel}"
+            sel = f"${{{sel}}}"
 
         return sel
 
@@ -1971,7 +1971,7 @@ for key in result:
 
                 expression = cls.unwrap_expression(
                     a.value,
-                    inputsdict=inputsdict,
+                    inputs_dict=inputsdict,
                     tool=tool,
                     skip_inputs_lookup=True,
                     quote_string=False,
