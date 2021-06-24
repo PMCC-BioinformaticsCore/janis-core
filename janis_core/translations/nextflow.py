@@ -42,9 +42,7 @@ from janis_core import Logger
 from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, WorkflowBase
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
-from janis_core.types import get_instantiated_type
-
-import janis_core.translations.nfgen as nfgen
+from janis_core.translations import nfgen
 
 
 class NextflowTranslator(TranslatorBase):
