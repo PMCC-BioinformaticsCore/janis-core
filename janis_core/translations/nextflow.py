@@ -1834,7 +1834,7 @@ return primary
 
             formatted[key] = val
 
-        return json.dumps(formatted)
+        return json.dumps(formatted, indent=2)
 
     @staticmethod
     def workflow_filename(workflow):
