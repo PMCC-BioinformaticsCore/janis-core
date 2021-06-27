@@ -385,18 +385,22 @@ process EchoTestTool
     path "${{'janisstdout_EchoTestTool'}}" , emit: out
 
   publishDir "$launchDir/EchoTestTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
     def inpWithPrefix = apply_prefix(inp, ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
     $inpWithPrefix | tee janisstdout_EchoTestTool
@@ -420,6 +424,10 @@ process EchoTestTool
     path "${{'janisstdout_EchoTestTool'}}" , emit: out
 
   publishDir "$launchDir/EchoTestTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
@@ -427,13 +435,13 @@ process EchoTestTool
 
     def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
     $inputFileWithPrefix | tee janisstdout_EchoTestTool
@@ -464,6 +472,10 @@ process filenamegeneratedtool
     val "${{'*'}}" , emit: out
 
   publishDir "$launchDir/filenamegeneratedtool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
@@ -491,13 +503,13 @@ process filenamegeneratedtool
 
     def generatedFileInpOptionalWithPrefix = optional(generatedFileInpOptional, ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
     $generatedInpWithPrefix \\
@@ -526,18 +538,22 @@ process CatTestTool
     path "${{'janisstdout_CatTestTool'}}" , emit: out
 
   publishDir "$launchDir/CatTestTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
     def inpWithPrefix = apply_prefix(inp[0], ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     cat \\
     $inpWithPrefix | tee janisstdout_CatTestTool
@@ -564,6 +580,10 @@ process TestTranslationtool
     tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bam.bai'}}") , emit: out
 
   publishDir "$launchDir/TestTranslationtool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
@@ -571,13 +591,13 @@ process TestTranslationtool
 
     def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
     test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
@@ -603,6 +623,10 @@ process TestTranslationtool
     tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bai'}}") , emit: out
 
   publishDir "$launchDir/TestTranslationtool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
 
@@ -610,13 +634,13 @@ process TestTranslationtool
 
     def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
 
-    def runtime_memory =  params.runtime_memory
+    def runtime_memory = params.runtime_memory
 
-    def runtime_cpu =  params.runtime_cpu
+    def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks =  params.runtime_disks
+    def runtime_disks = params.runtime_disks
 
-    def runtime_seconds =  params.runtime_seconds
+    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
     test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool

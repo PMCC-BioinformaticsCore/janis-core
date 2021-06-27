@@ -788,7 +788,7 @@ class NextflowTranslator(TranslatorBase):
 
         :param tool:
         :type tool:
-        :param name:
+        :param name: Generally, this is a workflow step id, so that we can prefix variables or process names
         :type name:
         :param provided_inputs:
         :type provided_inputs:
@@ -796,7 +796,6 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         inputs: List[ToolInput] = []
-        outputs: List[ToolOutput] = tool.outputs()
 
         # construct script
         for i in tool.inputs():
@@ -816,7 +815,11 @@ class NextflowTranslator(TranslatorBase):
         pre_script = cls.prepare_expression_inputs(tool, inputs)
         pre_script += cls.prepare_input_vars(inputs)
 
-        resources_var, resource_var_names = cls.prepare_resources_var(tool, name)
+        (
+            resources_var,
+            resource_var_names,
+            resource_param_names,
+        ) = cls.prepare_resources_var(tool, name)
         pre_script += resources_var
 
         pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
@@ -834,6 +837,55 @@ class NextflowTranslator(TranslatorBase):
 
             process.inputs.append(inp)
 
+        process.outputs = cls.generate_nf_outputs_for_nf_process(process_name, tool)
+        process.directives = cls.generate_nf_directives_for_nf_process(
+            process_name, resource_param_names
+        )
+
+        return process
+
+    @classmethod
+    def generate_nf_directives_for_nf_process(
+        cls, process_name: str, resource_param_names: List[str]
+    ) -> List[nfgen.ProcessDirective]:
+
+        nf_directives = []
+        nf_directives.append(nfgen.PublishDirDirective(f"$launchDir/{process_name}"))
+
+        # Add directives for input resources
+        for res in resource_param_names:
+            if res.endswith("runtime_cpu"):
+                nf_directives.append(nfgen.CpusDirective(f"${{{res} ? {res} : ''}}"))
+            elif res.endswith("runtime_memory"):
+                nf_directives.append(
+                    nfgen.MemoryDirective(f"${{{res} ? {res} + 'GB': ''}}")
+                )
+            elif res.endswith("runtime_seconds"):
+                nf_directives.append(nfgen.TimeDirective(f"${{{res} + 's'}}"))
+            elif res.endswith("runtime_disks"):
+                nf_directives.append(
+                    nfgen.DiskDirective(f"${{{res} ? {res} + 'GB': ''}}")
+                )
+
+        return nf_directives
+
+    @classmethod
+    def generate_nf_outputs_for_nf_process(
+        cls, process_name: str, tool: Tool
+    ) -> List[nfgen.ProcessOutput]:
+        """
+        Generate a list of tool outputs in the form of nfgen.ProcessOutput objects
+
+        :param process_name:
+        :type process_name:
+        :param tool:
+        :type tool:
+        :return:
+        :rtype:
+        """
+        outputs: List[ToolOutput] = tool.outputs()
+
+        nf_outputs = []
         for o in outputs:
             output_type = o.output_type
             selector = o.selector
@@ -911,13 +963,9 @@ class NextflowTranslator(TranslatorBase):
                 is_optional=output_type.optional,
             )
 
-            process.outputs.append(out)
+            nf_outputs.append(out)
 
-            process.directives.append(
-                nfgen.PublishDirDirective(f"$launchDir/{process_name}")
-            )
-
-        return process
+        return nf_outputs
 
     @classmethod
     def generate_nf_output_expression(cls, o: Union[TOutput, ToolOutput]):
@@ -2174,6 +2222,7 @@ def {arg_name}WithPrefix = {arg}
         """
         pre_script_lines = []
         var_names = []
+        param_names = []
         for k, v in cls.build_resources_input(
             tool,
             hints=None,
@@ -2182,13 +2231,16 @@ def {arg_name}WithPrefix = {arg}
             if name is not None:
                 prefix = f"{name}_"
 
+            param_name = f"params.{prefix}{k}"
+
             code = f"""
-def {k} =  params.{prefix}{k}
+def {k} = {param_name}
 """
             var_names.append(k)
+            param_names.append(param_name)
             pre_script_lines.append(code)
 
-        return "".join(pre_script_lines), var_names
+        return "".join(pre_script_lines), var_names, param_names
 
     @classmethod
     def prepare_inputs_in_selector(
