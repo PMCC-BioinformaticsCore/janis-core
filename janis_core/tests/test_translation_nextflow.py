@@ -666,6 +666,12 @@ process TestSplitTextTool
   output:
     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
 
+  publishDir "$launchDir/TestSplitTextTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
+
   script:
     \"\"\"
     #!/usr/bin/env python
@@ -699,6 +705,12 @@ process TestSumTool
   output:
     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
 
+  publishDir "$launchDir/TestSumTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
+
   script:
     \"\"\"
     #!/usr/bin/env python
@@ -731,6 +743,12 @@ process TestJoinArrayTool
   output:
     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
 
+  publishDir "$launchDir/TestJoinArrayTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
+
   script:
     \"\"\"
     #!/usr/bin/env python
@@ -762,6 +780,12 @@ process TestFileInput
 
   output:
     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  publishDir "$launchDir/TestFileInput"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
     \"\"\"
@@ -796,6 +820,12 @@ process TestFileWithSecondaryInput
 
   output:
     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
+
+  publishDir "$launchDir/TestFileWithSecondaryInput"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
 
   script:
     \"\"\"

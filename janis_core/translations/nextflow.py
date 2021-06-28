@@ -1035,8 +1035,9 @@ class NextflowTranslator(TranslatorBase):
 
         script = cls.prepare_script_for_python_code_tool(tool, inputs)
 
+        process_name = name or tool.id()
         process = nfgen.Process(
-            name=name or tool.id(),
+            name=process_name,
             script=script,
             script_type=nfgen.ProcessScriptType.script,
         )
@@ -1064,6 +1065,16 @@ class NextflowTranslator(TranslatorBase):
                 qualifier=qual, name=o.id(), expression=expression
             )
             process.outputs.append(out)
+
+        (
+            resources_var,
+            resource_var_names,
+            resource_param_names,
+        ) = cls.prepare_resources_var(tool, name)
+
+        process.directives = cls.generate_nf_directives_for_nf_process(
+            process_name, resource_param_names
+        )
 
         return process
 
