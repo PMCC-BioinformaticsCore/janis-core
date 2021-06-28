@@ -71,10 +71,8 @@ class NextflowTranslator(TranslatorBase):
         allow_empty_container=False,
         container_override: dict = None,
     ) -> Tuple[any, Dict[str, any]]:
-        inputsdict = workflow.inputs_map()
 
         step_keys = list(workflow.step_nodes.keys())
-        nf_items = {}
         process_files = {}
         tools = {}
 
@@ -400,7 +398,6 @@ class NextflowTranslator(TranslatorBase):
 
             inputsdict = tool.inputs_map()
 
-            # TODO: fetch process or a subworkflow
             nf_process = nf_items[tool.versioned_id()]
 
             if isinstance(nf_process, nfgen.Process):
@@ -420,9 +417,7 @@ class NextflowTranslator(TranslatorBase):
             main.append(f"{nf_process.name}({args})")
 
         # calling outputs process for Janis to be able to find output files
-        # #TODO: RE-ENABLE THIS!!!
         args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
-        # args_list += [f"Channel.from({step_id}.out).collect()" for step_id in workflow.step_nodes]
 
         args = ", ".join(args_list)
         main.append(f"{cls.FINAL_STEP_NAME}({args})")
@@ -492,7 +487,6 @@ class NextflowTranslator(TranslatorBase):
                             provided_inputs[key] += ".map{ tuple -> tuple[0] }"
 
             for step_key in step_keys:
-                # TODO: handle variable in the middle??
                 if isinstance(val, str) and f"{step_key}.out." in val:
                     parts = val.split(f"{step_key}.out.")
                     step_output_var = parts[1]
@@ -1026,7 +1020,6 @@ class NextflowTranslator(TranslatorBase):
                 optional = i.intype.optional is None or i.intype.optional is True
                 if i.id() in provided_inputs or i.default is not None or not optional:
                     inputs.append(i)
-                # TODO: handle input type that works more like arguments
                 # note: Filename is set to optional=True, but they have a default value that is not set to i.default
                 if isinstance(i.intype, Filename):
                     inputs.append(i)
