@@ -9,7 +9,6 @@ class ProcessDirective(NFBase, ABC):
         self.value = value
 
     def get_string(self):
-
         return f'{self.name} "{self.value}"'
 
 
