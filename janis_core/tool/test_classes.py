@@ -18,6 +18,7 @@ class TTestPreprocessor(Enum):
     LineCount = "line-count"
     ListSize = "list-size"
     ListOfFilesExist = "list-of-files-exist"
+    ListOfFilesTotalSize = "list-of-files-total-size"
 
 
 class TTestExpectedOutput(object):
