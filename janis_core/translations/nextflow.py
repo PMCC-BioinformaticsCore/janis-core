@@ -94,12 +94,14 @@ class NextflowTranslator(TranslatorBase):
             nf_file = nfgen.NFFile(
                 imports=[cls.init_helper_functions_import(".")], items=nf_items
             )
-            process_files[tool.versioned_id()] = nf_file
-            items_to_import[tool.versioned_id()] = nf_items
+
+            tool_filename = f"{step_id}_{tool.versioned_id()}"
+            process_files[tool_filename] = nf_file
+            items_to_import[tool_filename] = [nf_items[0]]
 
             # for subworkflow, we only want the workflow object
             for i in nf_items:
-                main_items[tool.versioned_id()] = nf_items[0]
+                main_items[step_id] = nf_items[0]
 
         (
             out_process_inp,
@@ -358,7 +360,10 @@ class NextflowTranslator(TranslatorBase):
                 nf_item.inputs,
                 tool_inp_dict,
                 provided_inputs,
+                input_param_prefix=f"{name}_{step_id}_",
+                step_key_prefix=f"{name}_",
                 workflow=subworkflow,
+                scatter=subworkflow.step_nodes[step_id].scatter,
             )
 
             main.append(f"{name}_{step_id}({args})")
@@ -398,7 +403,7 @@ class NextflowTranslator(TranslatorBase):
 
             inputsdict = tool.inputs_map()
 
-            nf_process = nf_items[tool.versioned_id()]
+            nf_process = nf_items[step_id]
 
             if isinstance(nf_process, nfgen.Process):
                 nf_inputs = nf_process.inputs
@@ -410,6 +415,7 @@ class NextflowTranslator(TranslatorBase):
                 nf_inputs,
                 inputsdict,
                 provided_inputs,
+                input_param_prefix=f"{step_id}_",
                 workflow=workflow,
                 scatter=workflow.step_nodes[step_id].scatter,
             )
@@ -488,7 +494,8 @@ class NextflowTranslator(TranslatorBase):
 
             for step_key in step_keys:
                 if isinstance(val, str) and f"{step_key}.out." in val:
-                    parts = val.split(f"{step_key}.out.")
+
+                    parts = val.strip("][").split(f"{step_key}.out.")
                     step_output_var = parts[1]
                     step_outputs = workflow.step_nodes.get(step_key).outputs()
 
@@ -509,6 +516,13 @@ class NextflowTranslator(TranslatorBase):
                             and not tool_inp_type.subtype().has_secondary_files()
                         ):
                             provided_inputs[key] += ".map{ tuple -> tuple[0] }"
+
+        # Now, get rid of anything that points to workflow input variables but is not provided as workflow inputs
+        for key, val in provided_inputs.items():
+            if isinstance(val, str) and val.startswith("$"):
+                val = val.strip("$")
+                if val in wf_inputsdict and val not in wf_provided_inputs:
+                    provided_inputs[key] = None
 
         return provided_inputs
 
@@ -589,18 +603,22 @@ class NextflowTranslator(TranslatorBase):
         lib_file = nfgen.NFFile(imports=[], items=cls.generate_generic_functions())
         helpers[cls.LIB_FILENAME] = lib_file.get_string()
 
+        helpers = cls.generate_python_code_files(tool, helpers)
+
+        return helpers
+
+    @classmethod
+    def generate_python_code_files(cls, tool: PythonTool, helpers: dict):
         # Python files for Python code tools
         if isinstance(tool, PythonTool):
             helpers["__init__.py"] = ""
             helpers[f"{tool.versioned_id()}.py"] = cls.generate_python_script(tool)
+            return helpers
+
         elif isinstance(tool, WorkflowBase):
             for step_id in tool.step_nodes:
                 step_tool = tool.step_nodes[step_id].tool
-                if isinstance(step_tool, PythonTool):
-                    helpers["__init__.py"] = ""
-                    helpers[
-                        f"{step_tool.versioned_id()}.py"
-                    ] = cls.generate_python_script(step_tool)
+                helpers = cls.generate_python_code_files(step_tool, helpers)
 
         return helpers
 
@@ -954,7 +972,7 @@ class NextflowTranslator(TranslatorBase):
                 qualifier=qual,
                 name=o.id(),
                 expression=expression,
-                is_optional=output_type.optional,
+                # is_optional=output_type.optional, # disable this because nextflow doesn't allow workflow to point to optional output
             )
 
             nf_outputs.append(out)
@@ -1079,6 +1097,8 @@ class NextflowTranslator(TranslatorBase):
         inputsdict: Dict[str, ToolInput],
         provided_inputs: Dict[str, Any],
         workflow: WorkflowBase,
+        input_param_prefix: str = "",
+        step_key_prefix: str = "",
         scatter: Optional[str] = None,
     ) -> str:
         """
@@ -1099,7 +1119,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        step_keys = list(workflow.step_nodes.keys())
+        step_keys = [f"{step_key_prefix}{s}" for s in list(workflow.step_nodes.keys())]
 
         args_list = []
         for i in nfgen_inputs:
@@ -1115,6 +1135,8 @@ class NextflowTranslator(TranslatorBase):
                     p = f"'{p}'"
             elif i.name in inputsdict:
                 p = f"'{inputsdict[i.name].default}'" or "''"
+                if "inputs." in p:
+                    p = p.replace("inputs.", f"params.{input_param_prefix}").strip("'")
             else:
                 p = i.as_param
 
@@ -1296,6 +1318,8 @@ class NextflowTranslator(TranslatorBase):
                     tool=tool,
                     inputs_dict=tool.inputs_map(),
                     quote_string=False,
+                    var_indicator=inputs_replacement,
+                    step_indicator=tool_id_prefix,
                 )
 
             inputs[key] = val
@@ -1416,6 +1440,8 @@ return primary
         inputs_dict=None,
         skip_inputs_lookup=False,
         in_shell_script=False,
+        var_indicator=None,
+        step_indicator=None,
         **debugkwargs,
     ):
         """
@@ -1464,6 +1490,8 @@ return primary
                     skip_inputs_lookup=skip_inputs_lookup,
                     for_output=for_output,
                     in_shell_script=in_shell_script,
+                    var_indicator=var_indicator,
+                    step_indicator=step_indicator,
                 )
 
                 elements.append(el)
@@ -1521,6 +1549,8 @@ return primary
                 skip_inputs_lookup=skip_inputs_lookup,
                 for_output=for_output,
                 in_shell_script=in_shell_script,
+                var_indicator=var_indicator,
+                step_indicator=step_indicator,
             )
 
         elif isinstance(value, WildcardSelector):
@@ -1543,7 +1573,12 @@ return primary
             return value.to_nextflow(unwrap_expression_wrap, *value.args)
 
         elif callable(getattr(value, "nextflow", None)):
-            return value.nextflow()
+            if var_indicator is not None and step_indicator is not None:
+                return value.nextflow(
+                    var_indicator=var_indicator, step_indicator=step_indicator
+                )
+            else:
+                return value.nextflow()
 
         raise Exception(
             "Could not detect type %s to convert to input value" % type(value)
