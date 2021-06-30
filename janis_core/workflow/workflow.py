@@ -234,7 +234,9 @@ class StepNode(Node):
         """
         if len(self.outputs().keys()) >= 1:
             first_tag = list(self.outputs().keys())[0]
-            return self.get_item(first_tag).nextflow()
+            return self.get_item(first_tag).nextflow(
+                var_indicator=var_indicator, step_indicator=step_indicator
+            )
 
         return None
 
