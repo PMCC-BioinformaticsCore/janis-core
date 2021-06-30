@@ -834,7 +834,11 @@ class NextflowTranslator(TranslatorBase):
         ) = cls.prepare_resources_var(tool, name)
         pre_script += resources_var
 
-        pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
+        # pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
+        pre_script = (
+            cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
+            + pre_script
+        )
 
         process = nfgen.Process(
             name=process_name,
