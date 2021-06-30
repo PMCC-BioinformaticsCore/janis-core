@@ -242,6 +242,17 @@ class ToolTestSuiteRunner:
                     if not (os.path.getsize(file + test_logic.suffix) > 0):
                         return False
             return True
+        elif test_logic.preprocessor == TTestPreprocessor.ListOfFilesTotalSize:
+            total_size = 0
+            if not output_value:
+                return False
+            files = output_value.split("|")
+            for file in files:
+                if test_logic.suffix is None:
+                    total_size += os.path.getsize(file)
+                else:
+                    total_size += os.path.getsize(file + test_logic.suffix)
+            return total_size
         else:
             raise Exception(
                 f"{test_logic.preprocessor} comparison type is not supported"
