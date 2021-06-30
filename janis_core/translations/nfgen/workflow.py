@@ -49,6 +49,10 @@ class Workflow(NFBase):
         self.emit = emit or []
         self.publish = publish or []
 
+    @property
+    def inputs(self):
+        return self.take
+
     def prepare_main(self, prefix="  "):
         main = "\n".join(self.main) if isinstance(self.main, list) else self.main
 
