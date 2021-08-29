@@ -2039,9 +2039,6 @@ def prepare_move_statements_for_input(ti: ToolInput):
     it = ti.input_type
     commands: List[wdl.Task.Command] = []
 
-    if not (ti.localise_file or ti.presents_as or ti.secondaries_present_as):
-        return commands
-
     if not it.is_base_type(File):
         Logger.critical(
             "Janis has temporarily removed support for localising array types"
