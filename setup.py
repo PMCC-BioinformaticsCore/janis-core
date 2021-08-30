@@ -60,6 +60,7 @@ setup(
         "cwl-utils >= 0.9",
         "graphviz",
         "nose",
+        "miniwdl",
     ],
     # entry_points={"janis.extension": ["core=core"]},
     zip_safe=False,
