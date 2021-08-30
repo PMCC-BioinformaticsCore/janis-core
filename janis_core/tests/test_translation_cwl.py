@@ -508,6 +508,20 @@ class TestCwlOutputGeneration(unittest.TestCase):
         out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
         self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
 
+    def test_stdout_no_outputbinding(self):
+        out = cwl.translate_tool_output(
+            ToolOutput(tag="out", output_type=File(), selector=Stdout()), {}, tool=None
+        ).save()
+        self.assertDictEqual(
+            {
+                "id": "out",
+                "label": "out",
+                "outputBinding": {"loadContents": False, "glob": "_stdout"},
+                "type": "File",
+            },
+            out,
+        )
+
     def test_localised_out(self):
 
         inps = {"inp": ToolInput("inp", File, position=1, localise_file=True)}
