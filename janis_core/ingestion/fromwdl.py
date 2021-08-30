@@ -232,7 +232,9 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if cpus is not None and not isinstance(cpus, (int, float)):
+        if isinstance(cpus, j.Selector):
+            cpus = cpus.as_str()
+        elif cpus is not None and not isinstance(cpus, (int, float)):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
