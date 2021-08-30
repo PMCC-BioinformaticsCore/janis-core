@@ -213,7 +213,7 @@ class WdlParser:
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 0.931323
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
@@ -224,6 +224,8 @@ class WdlParser:
             return s / (1024 ** 3)
         elif isinstance(s, j.Selector):
             return s
+        elif s is None:
+            return 2.14748  # 2 GiB
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
 
     def from_loaded_task(self, obj: WDL.Task):
