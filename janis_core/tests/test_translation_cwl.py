@@ -505,10 +505,6 @@ class TestCwlTranslateInput(unittest.TestCase):
 
 class TestCwlOutputGeneration(unittest.TestCase):
     def test_stdout_no_outputbinding(self):
-        out = cwl.translate_tool_output(ToolOutput("out", Stdout), {}, tool=None).save()
-        self.assertDictEqual({"id": "out", "label": "out", "type": "stdout"}, out)
-
-    def test_stdout_no_outputbinding(self):
         out = cwl.translate_tool_output(
             ToolOutput(tag="out", output_type=File(), selector=Stdout()), {}, tool=None
         ).save()
@@ -516,7 +512,30 @@ class TestCwlOutputGeneration(unittest.TestCase):
             {
                 "id": "out",
                 "label": "out",
-                "outputBinding": {"loadContents": False, "glob": "_stdout"},
+                "outputBinding": {"glob": "_stdout"},
+                "type": "File",
+            },
+            out,
+        )
+
+    def test_use_stdout(self):
+        out = cwl.translate_tool_output(
+            ToolOutput(
+                tag="out", output_type=File(), selector=(ReadContents(Stdout()) + "_1")
+            ),
+            {},
+            tool=None,
+        ).save()
+
+        self.assertDictEqual(
+            {
+                "id": "out",
+                "label": "out",
+                "outputBinding": {
+                    "glob": ["_stdout", "_stderr"],
+                    "loadContents": True,
+                    "outputEval": '$((self[0].contents + "_1"))',
+                },
                 "type": "File",
             },
             out,
