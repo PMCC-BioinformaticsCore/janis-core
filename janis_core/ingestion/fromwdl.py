@@ -3,6 +3,7 @@ import functools
 import os
 import re
 from types import LambdaType
+
 from typing import List, Union, Optional, Callable
 import WDL
 
@@ -447,6 +448,16 @@ if __name__ == "__main__":
 
     toolname = sys.argv[1]
 
-    tool = WdlParser.from_doc(toolname)
+    try:
+        tool = WdlParser.from_doc(toolname)
+        tool.translate("janis")
 
-    tool.translate("janis")
+    except WDL.Error.MultipleValidationErrors as err:
+        for exc in err.exceptions:
+            print(exc, file=sys.stderr)
+            print(exc.pos, file=sys.stderr)
+            print(exc.node, file=sys.stderr)
+    except WDL.Error.ValidationError as exc:
+        print(exc, file=sys.stderr)
+        print(exc.pos, file=sys.stderr)
+        print(exc.node, file=sys.stderr)
