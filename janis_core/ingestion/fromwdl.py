@@ -177,13 +177,15 @@ class WdlParser:
 
     def parse_memory_requirement(self, value):
         s = self.translate_expr(value)
-        if isinstance(s, str):
+        if s is None:
+            return 1.074
+        elif isinstance(s, str):
             if s.lower().endswith("g"):
                 return float(s[:-1].strip())
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 0.931323
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
@@ -235,7 +237,7 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if cpus is not None and not isinstance(cpus, (int, float)):
+        if not isinstance(cpus, j.Selector) and cpus is not None and not isinstance(cpus, (int, float)):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
