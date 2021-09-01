@@ -26,6 +26,7 @@ def error_boundary(return_value=None):
 
     return try_catch_translate_inner
 
+
 class WdlParser:
 
     allow_errors = False
@@ -110,7 +111,7 @@ class WdlParser:
                         call.expr, input_selector_getter=selector_getter
                     ),
                     expr_alias=expr_alias,
-                    foreach=foreach
+                    foreach=foreach,
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -220,8 +221,8 @@ class WdlParser:
                 return float(s[:-3].strip()) / 1024
             raise Exception(f"Disk type type {s}")
         elif isinstance(s, (float, int)):
-            # in bytes?
-            return s / (1024 ** 3)
+            # in GiB
+            return s * 1.07374
         elif isinstance(s, j.Selector):
             return s
         elif s is None:
@@ -389,10 +390,9 @@ class WdlParser:
             "sub": j.ReplaceOperator,
             "round": j.RoundOperator,
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
-            "read_tsv": lambda exp: f'JANIS: j.read_tsv({exp})',
-            "read_boolean": lambda exp: f'JANIS: j.read_boolean({exp})',
-            'read_lines': lambda exp: f'JANIS: j.read_lines({exp})',
-
+            "read_tsv": lambda exp: f"JANIS: j.read_tsv({exp})",
+            "read_boolean": lambda exp: f"JANIS: j.read_boolean({exp})",
+            "read_lines": lambda exp: f"JANIS: j.read_lines({exp})",
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -439,9 +439,10 @@ class WdlParser:
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) != 2:
         raise Exception("Expected 1 argument, the name of a CWL tool.")
-        
+
     toolname = sys.argv[1]
 
     tool = WdlParser.from_doc(toolname)
