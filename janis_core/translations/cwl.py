@@ -1323,7 +1323,7 @@ def prepare_tool_output_binding(
     requires_std = has_std(output.selector)
 
     glob, value_from = (
-        [STDOUT_NAME, STDERR_NAME]
+        [STDOUT_NAME, None]
         if requires_std
         else translate_to_cwl_glob(
             output.selector, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
