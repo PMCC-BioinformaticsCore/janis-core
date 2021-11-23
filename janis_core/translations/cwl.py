@@ -683,21 +683,28 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             inputs=[],
             outputs=[],
             requirements=[],
+            arguments=[],
         )
+
+        tool_cwl.arguments.append(
+            cwlgen.CommandLineBinding(valueFrom="inputs.json", prefix="--json")
+        )
+
+        tool_ins = tool.inputs()
 
         tool_cwl.inputs.extend(
             translate_tool_input(
                 ToolInput(
                     t.id(),
                     input_type=t.intype,
-                    prefix=f"--{t.id()}",
+                    # prefix=f"--{t.id()}",
                     default=t.default,
                     doc=t.doc.doc if t.doc else None,
                 ),
                 inputsdict=inputsdict,
                 tool=tool,
             )
-            for t in tool.inputs()
+            for t in tool_ins
         )
 
         for output in tool.tool_outputs():
@@ -725,13 +732,28 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
+        ins = "[" + ", ".join(f'"{k.id()}"' for k in tool_ins) + "]"
+
         tool_cwl.requirements.append(
             cwlgen.InitialWorkDirRequirement(
                 listing=[
                     cwlgen.Dirent(
                         entryname=scriptname,
                         entry=tool.prepared_script(SupportedTranslation.CWL),
-                    )
+                    ),
+                    cwlgen.Dirent(
+                        entryname="inputs.json",
+                        entry=f"""${{
+var retval = {{}};
+{ins}.forEach(function(k) {{
+    if (inputs[k] != null && inputs[k].path) {{
+        retval[k] = inputs[k].path;
+    }} else {{
+        retval[k] = inputs[k];
+    }}
+}})
+return JSON.stringify(retval);\n}}""",
+                    ),
                 ]
             )
         )

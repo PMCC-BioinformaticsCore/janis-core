@@ -428,7 +428,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 f"numbers or an underscore)"
             )
 
-        ins = cls.get_resource_override_inputs() + [
+        raw_ins = [
             ToolInput(
                 t.id(),
                 input_type=t.intype,
@@ -438,6 +438,8 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             )
             for t in tool.tool_inputs()
         ]
+
+        ins = cls.get_resource_override_inputs() + raw_ins
 
         tr_ins = cls.translate_tool_inputs(ins)
 
@@ -470,10 +472,18 @@ EOT"""
             )
         )
 
-        command_ins = cls.build_command_from_inputs(ins)
-        bc = tool.base_command()
-        bcs = " ".join(bc) if isinstance(bc, list) else bc
-        commands.append(wdl.Task.Command(bcs, command_ins, []))
+        prepared_map = ", ".join(f'"{i.id()}": {i.id()}' for i in raw_ins)
+
+        tr_ins.append(
+            wdl.Input(
+                wdl.File,
+                "jsonFile__",
+                expression=f"write_json({{{prepared_map}}})",
+                requires_quotes=False,
+            )
+        )
+        command_ins = [wdl.Task.Command.CommandInput(f"--json '~{{jsonFile__}}'")]
+        commands.append(wdl.Task.Command(tool.base_command(), command_ins, []))
 
         r = wdl.Task.Runtime()
         if with_docker:

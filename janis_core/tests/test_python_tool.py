@@ -75,6 +75,10 @@ class PythonToolCodeBuilderTests(unittest.TestCase):
         test = CwlTranslator.translate_code_tool_internal(PythonEchoTool())
         print(test)
 
+    def test_whole_cwl(self):
+        out = PythonEchoTool().translate("cwl", to_console=False)
+        print(out)
+
     # def test_build_code_block(self):
     #     script = PythonEchoTool().prepared_script()
     #     print(script)
@@ -112,10 +116,7 @@ cat <<EOT >> echo_tool-script.py
 import argparse, json, sys
 from typing import Optional, List, Dict, Any
 cli = argparse.ArgumentParser("Argument parser for Janis PythonTool")
-cli.add_argument("--name", type=str, required=True)
-cli.add_argument("--infile", type=str, help='File to write to fout')
-cli.add_argument("--flag", action='store_true', help='Random boolean')
-cli.add_argument("--testvalue", type=str)
+cli.add_argument("--json", help="JSON file to parse")
 
 String = str
 Filename = str
@@ -152,7 +153,9 @@ def code_block(name: str, infile: Filename, flag: bool = True, testvalue="test")
 
 try:
     args = cli.parse_args()
-    result = code_block(name=args.name, infile=args.infile, flag=args.flag, testvalue=args.testvalue)
+    with open(args.json) as fp:
+        d = json.load(fp)
+    result = code_block(**d)
     print(json.dumps(result))
 except Exception as e:
     print(str(e), file=sys.stderr)
@@ -160,10 +163,7 @@ except Exception as e:
 
 EOT
     python echo_tool-script.py \\
-      --name '~{name}' \\
-      --infile '~{select_first([infile, "generated"])}' \\
-      ~{if defined(select_first([flag, true])) then "--flag" else ""} \\
-      ~{if defined(select_first([testvalue, "test"])) then ("--testvalue '" + select_first([testvalue, "test"]) + "'") else ""}
+      --json ~{write_json({"name": name, "infile": infile, "flag": flag, "testvalue": testvalue})}
   >>>
   runtime {
     disks: runtime_disks
