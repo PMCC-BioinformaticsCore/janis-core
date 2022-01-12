@@ -1,6 +1,5 @@
 -r base.txt
 nose
-codecov
 coverage
 requests_mock
-pytest
+pytest-cov
