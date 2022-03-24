@@ -1322,18 +1322,24 @@ def prepare_tool_output_binding(
     loadcontents = requires_content(output.selector)
     requires_std = has_std(output.selector)
 
-    glob, value_from = (
-        [STDOUT_NAME, STDERR_NAME]
-        if requires_std
-        else translate_to_cwl_glob(
+    glob = None
+    value_from = None
+    if isinstance(output.selector, Stdout):
+        glob = STDOUT_NAME
+    elif isinstance(output.selector, Stderr):
+        glob = STDERR_NAME
+    elif requires_std:
+        glob = [STDOUT_NAME, STDERR_NAME]
+        value_from = prepare_tool_output_eval(tool, output)
+    else:
+        glob, value_from = translate_to_cwl_glob(
             output.selector, inputsdict, outputtag=output.tag, tool=tool, **debugkwargs
         )
-    )
 
     return cwlgen.CommandOutputBinding(
         glob=glob,
-        outputEval=value_from or prepare_tool_output_eval(tool, output),
-        loadContents=loadcontents,
+        outputEval=value_from,
+        loadContents=loadcontents if loadcontents else None,
     )
 
 
@@ -1354,7 +1360,6 @@ ${{
 $}}
 """
     if isinstance(output.selector, Operator):
-        return None
         return CwlTranslator.unwrap_expression(
             output.selector, code_environment=False, tool=tool, for_output=True
         )
@@ -1919,9 +1924,9 @@ def translate_string_formatter(
     return expr
 
 
-def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
+def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs) -> Tuple[Optional[str], Optional[str]]:
     if glob is None:
-        return None
+        return None, None
 
     if isinstance(glob, list):
         return (
