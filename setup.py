@@ -57,7 +57,7 @@ setup(
         "tabulate",
         "path",
         "cwlformat == 2020.5.19",
-        "cwl-utils >= 0.9",
+        "cwl-utils == 0.11",
         "graphviz",
         "nose",
         "miniwdl",

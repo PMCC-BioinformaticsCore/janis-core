@@ -1,4 +1,5 @@
 import unittest
+from tempfile import TemporaryDirectory
 from typing import Optional
 
 from janis_core.deps import wdlgen
@@ -1600,7 +1601,8 @@ class TestUnionType(unittest.TestCase):
 
 class TestForEachSelectors(unittest.TestCase):
     def test_minimal(self):
-        TestForEach().translate("wdl", to_disk=True, export_path="~/Desktop/tmp")
+        with TemporaryDirectory() as tmpdir:
+            TestForEach().translate("wdl", to_disk=True, export_path=tmpdir)
         w, _ = WdlTranslator.translate_workflow(TestForEach())
         expected = """\
 version development

@@ -8,4 +8,4 @@ class TestFromWdl(unittest.TestCase):
 
     def test_missing_disk(self):
         result = self.parser.parse_disk_requirement(None)
-        self.assertEqual(0.931323, result)
+        self.assertEqual(2.14748, result)

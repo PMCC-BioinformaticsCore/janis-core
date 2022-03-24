@@ -3,6 +3,7 @@ import functools
 import os
 import re
 from types import LambdaType
+
 from typing import List, Union, Optional, Callable
 import WDL
 
@@ -177,13 +178,15 @@ class WdlParser:
 
     def parse_memory_requirement(self, value):
         s = self.translate_expr(value)
-        if isinstance(s, str):
+        if s is None:
+            return 1.074
+        elif isinstance(s, str):
             if s.lower().endswith("g"):
                 return float(s[:-1].strip())
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 0.931323
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
@@ -214,7 +217,7 @@ class WdlParser:
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 1.07374
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
@@ -226,7 +229,7 @@ class WdlParser:
         elif isinstance(s, j.Selector):
             return s
         elif s is None:
-            return 0.931323
+            return 2.14748  # 2 GiB
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
 
     def from_loaded_task(self, obj: WDL.Task):
@@ -235,7 +238,7 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if cpus is not None and not isinstance(cpus, (int, float)):
+        if not isinstance(cpus, j.Selector) and cpus is not None and not isinstance(cpus, (int, float)):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
@@ -445,6 +448,16 @@ if __name__ == "__main__":
 
     toolname = sys.argv[1]
 
-    tool = WdlParser.from_doc(toolname)
+    try:
+        tool = WdlParser.from_doc(toolname)
+        tool.translate("janis")
 
-    tool.translate("janis")
+    except WDL.Error.MultipleValidationErrors as err:
+        for exc in err.exceptions:
+            print(exc, file=sys.stderr)
+            print(exc.pos, file=sys.stderr)
+            print(exc.node, file=sys.stderr)
+    except WDL.Error.ValidationError as exc:
+        print(exc, file=sys.stderr)
+        print(exc.pos, file=sys.stderr)
+        print(exc.node, file=sys.stderr)
