@@ -150,7 +150,7 @@ class PythonTool:
 
         extra_param_parsing = ""
 
-        if translation == SupportedTranslation.Nextflow:
+        if translation == SupportedTranslation.NEXTFLOW:
             return f"""
 from typing import Optional, List, Dict, Any
 

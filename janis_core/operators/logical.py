@@ -3,8 +3,8 @@ from typing import List, Union
 
 from janis_core.types import get_instantiated_type
 
-from ..types import UnionType
-from ..types.common_data_types import (
+from janis_core.types import UnionType
+from janis_core.types.common_data_types import (
     Boolean,
     String,
     Float,

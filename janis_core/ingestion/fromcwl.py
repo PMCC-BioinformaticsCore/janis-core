@@ -442,7 +442,7 @@ class CWlParser:
         )
 
     def ingest_workflow_output(self, wf: j.Workflow, out):
-        import cwl_utils.parser_v1_2 as cwlgen
+        import cwl_utils.parser.cwl_v1_2 as cwlgen
 
         out: cwlgen.WorkflowOutputParameter = out
         identifier = self.get_tag_from_identifier(out.id)
@@ -456,7 +456,7 @@ class CWlParser:
         )
 
     def ingest_workflow_step(self, wf: j.Workflow, stp):
-        import cwl_utils.parser_v1_2 as cwlgen
+        import cwl_utils.parser.cwl_v1_2 as cwlgen
 
         stp: cwlgen.WorkflowStep = stp
         step_identifier = self.get_tag_from_identifier(stp.id)
@@ -614,13 +614,13 @@ class CWlParser:
     def load_cwlgen_from_version(cls, cwl_version: str):
 
         if cwl_version == "v1.0":
-            import cwl_utils.parser_v1_0 as cwlutils
+            import cwl_utils.parser.cwl_v1_0 as cwlutils
             from cwl_utils.cwl_v1_0_expression_refactor import etool_to_cltool
         elif cwl_version == "v1.1":
-            import cwl_utils.parser_v1_1 as cwlutils
+            import cwl_utils.parser.cwl_v1_1 as cwlutils
             from cwl_utils.cwl_v1_0_expression_refactor import etool_to_cltool
         elif cwl_version == "v1.2":
-            import cwl_utils.parser_v1_2 as cwlutils
+            import cwl_utils.parser.cwl_v1_2 as cwlutils
             from cwl_utils.cwl_v1_2_expression_refactor import etool_to_cltool
         else:
             print(

@@ -584,7 +584,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        return tool.prepared_script(SupportedTranslation.Nextflow)
+        return tool.prepared_script(SupportedTranslation.NEXTFLOW)
 
     @classmethod
     def translate_helper_files(cls, tool) -> Dict[str, str]:

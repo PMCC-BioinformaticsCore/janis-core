@@ -83,7 +83,7 @@ build/
 
 
 
-
+.vscode
 \.mypy_cache/
 *.egg-info
 *.dist-info

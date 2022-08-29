@@ -1,10 +1,29 @@
 from enum import Enum
 
 
+class SupportedIngestion(Enum):
+    JANIS = "janis"
+    GALAXY = "galaxy"
+    CWL = "cwl"
+    #NEXTFLOW = "nf"    # future
+    #WDL = "wdl"        # future
+
+    def __str__(self) -> str:
+        return self.value
+    
+    @staticmethod
+    def all() -> list[str]:
+        return [
+            str(SupportedIngestion.JANIS),
+            str(SupportedIngestion.GALAXY),
+            str(SupportedIngestion.CWL),
+        ]
+
+
 class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
-    Nextflow = "nf"
+    NEXTFLOW = "nf"
     JANIS = "janis"
 
     def __str__(self):
@@ -22,7 +41,7 @@ class SupportedTranslation(Enum):
             from ..translations.wdl import WdlTranslator
 
             return WdlTranslator()
-        elif self == SupportedTranslation.Nextflow:
+        elif self == SupportedTranslation.NEXTFLOW:
             from ..translations.nextflow import NextflowTranslator
 
             return NextflowTranslator()
@@ -38,5 +57,5 @@ class SupportedTranslation(Enum):
             SupportedTranslation.CWL,
             SupportedTranslation.WDL,
             SupportedTranslation.JANIS,
-            SupportedTranslation.Nextflow
+            SupportedTranslation.NEXTFLOW
         ]

@@ -8,7 +8,7 @@ from .cwl import CwlTranslator
 from .nextflow import NextflowTranslator
 from .translationbase import TranslatorBase
 
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translationdeps.supportedtranslations import SupportedIngestion, SupportedTranslation
 
 
 def get_translator(translation: Union[str, SupportedTranslation]):
