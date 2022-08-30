@@ -1,1 +1,3 @@
-from janis_core.ingestion.fromcwl import CWlParser
+
+
+from .main import ingest

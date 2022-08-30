@@ -5,19 +5,13 @@ class SupportedIngestion(Enum):
     JANIS = "janis"
     GALAXY = "galaxy"
     CWL = "cwl"
+    WDL = "wdl"        
     #NEXTFLOW = "nf"    # future
-    #WDL = "wdl"        # future
 
-    def __str__(self) -> str:
-        return self.value
-    
     @staticmethod
     def all() -> list[str]:
-        return [
-            str(SupportedIngestion.JANIS),
-            str(SupportedIngestion.GALAXY),
-            str(SupportedIngestion.CWL),
-        ]
+        """return the value of each enum item"""
+        return [str(item.value) for item in SupportedIngestion]
 
 
 class SupportedTranslation(Enum):

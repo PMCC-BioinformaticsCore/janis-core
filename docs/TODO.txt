@@ -1,0 +1,11 @@
+
+
+
+
+TODO
+- check how the janis_assistant main.py translate() 'name' arg works
+- logging: make galaxy info logs stfu
+- 
+
+
+

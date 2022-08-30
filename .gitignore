@@ -82,7 +82,7 @@ build/
 
 
 
-
+.docs
 .vscode
 \.mypy_cache/
 *.egg-info
