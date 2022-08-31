@@ -79,10 +79,9 @@ docs/_build/
 janis_pipelines.egg-info/
 dist/
 build/
+docs/
 
 
-
-.docs
 .vscode
 \.mypy_cache/
 *.egg-info

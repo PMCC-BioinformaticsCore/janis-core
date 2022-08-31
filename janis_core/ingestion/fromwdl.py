@@ -197,6 +197,8 @@ class WdlParser:
 
     def parse_disk_requirement(self, value):
         s = self.translate_expr(value)
+        if s is None:
+            return None
         if isinstance(s, str):
             try:
                 return int(s)
@@ -415,6 +417,9 @@ class WdlParser:
             return j.Directory(optional=optional)
         elif isinstance(t, WDL.Type.Array):
             return j.Array(self.parse_wdl_type(t.item_type), optional=optional)
+        elif isinstance(t, WDL.Type.StructInstance):
+            # TODO LOG
+            return j.File(optional=optional)
 
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")
 

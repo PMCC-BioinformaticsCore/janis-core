@@ -2,10 +2,12 @@
 
 import re
 import os
-from typing import Optional, Union, List
 
+from ruamel.yaml.comments import CommentedSeq
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+from typing import Any, Optional, Union, List
 from janis_core.utils.validators import Validators
-
 import janis_core as j
 
 
@@ -194,13 +196,22 @@ class CWlParser:
         return i
 
     @classmethod
-    def get_tag_from_identifier(cls, identifier: any):
+    def get_tag_from_identifier(cls, identifier: Any) -> str:
         identifier = cls.get_source_from_identifier(identifier)
-        if "/" in identifier:
-            identifier = str(identifier.split("/")[-1])
-        while "-" in identifier:
-            identifier = identifier.replace("-", "_")
+        identifier = identifier.replace("-", "_")
 
+        # handle cwl_utils random id generation for unnamed tools / workflows
+        if identifier.startswith('_:'):
+            identifier = identifier[2:]         # get rid of start
+            identifier = f'temp_{identifier}'   # mark as temp & solve starting with number issues
+
+        # handle generating a tag from a filename
+        if "/" in identifier:
+            identifier = identifier.split("/")[-1]
+        if "." in identifier:
+            identifier = identifier.split(".")[0]
+
+        # handle janis clashes
         if identifier == "input":
             return "inp"
         if identifier == "output":
@@ -209,7 +220,7 @@ class CWlParser:
         return identifier
 
     @classmethod
-    def get_source_from_identifier(cls, identifier):
+    def get_source_from_identifier(cls, identifier: Any) -> str:
         if not isinstance(identifier, str):
             identifier = str(identifier)
         if "#" in identifier:
@@ -479,7 +490,7 @@ class CWlParser:
             elif inp.valueFrom is not None:
                 source = self.parse_basic_expression(inp.valueFrom)
             elif inp.default:
-                source = inp.default
+                source = cast_cwl_type_to_python(inp.default)
 
             if source is None:
                 print(f"Source is None from object: {inp.save()}")
@@ -658,6 +669,21 @@ class CWlParser:
             out.outputEval = f"JANIS (potentially unimplemented): j.ReadJsonOperator(j.Stdout)[out_id]"
 
         return self.ingest_command_line_tool(clt)
+
+
+def cast_cwl_type_to_python(cwlvalue: Any) -> Any:
+    """
+    cwl utils parser stores these as ruamel types, not python types.
+    sometimes need to be converted to python for janis datatype inference.
+    for example:
+    often we see <class 'ruamel.yaml.comments.CommentedSeq'> for lists of strings
+    each item being a <class 'ruamel.yaml.scalarstring.DoubleQuotedScalarString'>
+    """
+    if isinstance(cwlvalue, DoubleQuotedScalarString):
+        return str(cwlvalue)
+    elif isinstance(cwlvalue, CommentedSeq):
+        return [cast_cwl_type_to_python(x) for x in cwlvalue]
+    return cwlvalue
 
 
 if __name__ == "__main__":
