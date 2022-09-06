@@ -70,6 +70,7 @@ class NextflowTranslator(TranslatorBase):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ) -> Tuple[any, Dict[str, any]]:
 
         step_keys = list(workflow.step_nodes.keys())
@@ -206,6 +207,7 @@ class NextflowTranslator(TranslatorBase):
         with_resource_overrides: bool = False,
         allow_empty_container: bool = False,
         container_override: dict = None,
+        render_comments: bool = True
     ) -> str:
         """
         Generate Nextflow translation for Janis command line tool
@@ -253,6 +255,7 @@ class NextflowTranslator(TranslatorBase):
         with_container=True,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ) -> str:
         """
         Generate Nextflow translation for Janis code tool

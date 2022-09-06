@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from janis_core.messages import log_message
+
 import functools
 import os
 import re
@@ -146,7 +148,7 @@ class WdlParser:
                 inp.expr, input_selector_getter=selector_getter
             )
 
-        return wf.input(inp.name, self.parse_wdl_type(inp.type), default=default)
+        return wf.input(inp.name, self.parse_wdl_type(inp.type, uuid=inp.name), default=default)
 
     @classmethod
     def container_from_runtime(cls, runtime, inputs: List[WDL.Decl]):
@@ -401,7 +403,7 @@ class WdlParser:
             return fn(args)
         return fn(*args)
 
-    def parse_wdl_type(self, t: WDL.Type.Base):
+    def parse_wdl_type(self, t: WDL.Type.Base, uuid: Optional[str]=None):
         optional = t.optional
         if isinstance(t, WDL.Type.Int):
             return j.Int(optional=optional)
@@ -416,9 +418,10 @@ class WdlParser:
         elif isinstance(t, WDL.Type.Directory):
             return j.Directory(optional=optional)
         elif isinstance(t, WDL.Type.Array):
-            return j.Array(self.parse_wdl_type(t.item_type), optional=optional)
+            return j.Array(self.parse_wdl_type(t.item_type, uuid), optional=optional)
         elif isinstance(t, WDL.Type.StructInstance):
-            # TODO LOG
+            if uuid:
+                log_message(uuid, 'WDL Struct type unsupported. Has been cast to File type.')
             return j.File(optional=optional)
 
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")
@@ -432,12 +435,12 @@ class WdlParser:
         if inp.name.startswith("runtime_"):
             return None
 
-        return j.ToolInput(inp.name, self.parse_wdl_type(inp.type), default=default)
+        return j.ToolInput(inp.name, self.parse_wdl_type(inp.type, uuid=inp.name), default=default)
 
     def parse_command_tool_output(self, outp: WDL.Decl):
         sel = self.translate_expr(outp.expr)
 
-        return j.ToolOutput(outp.name, self.parse_wdl_type(outp.type), selector=sel)
+        return j.ToolOutput(outp.name, self.parse_wdl_type(outp.type, uuid=outp.name), selector=sel)
 
 
 if __name__ == "__main__":

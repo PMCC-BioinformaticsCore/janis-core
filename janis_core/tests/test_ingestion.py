@@ -1,12 +1,47 @@
 import unittest
+import os 
 
 from janis_core import (
-    CWlParser,
     InputSelector,
     BasenameOperator,
     FileSizeOperator,
     ReadContents,
 )
+
+from janis_core.ingestion.fromcwl import CWlParser
+from janis_core.ingestion.fromwdl import WdlParser
+from janis_core.ingestion.main import ingest_galaxy
+
+
+class TestFromWdl(unittest.TestCase):
+    parser = WdlParser()
+
+    def test_ingest_tool(self) -> None:
+        raise NotImplementedError
+
+    def test_ingest_workflow(self) -> None:
+        raise NotImplementedError
+
+
+
+class TestFromGalaxy(unittest.TestCase):
+    TOOL_PATH = os.path.abspath('./janis_core/tests/data/galaxy/abricate/abricate.xml')
+    WORKFLOW_PATH = os.path.abspath('./janis_core/tests/data/galaxy/assembly.ga')
+
+    def test_ingest_tool(self) -> None:
+        jtool = ingest_galaxy(self.TOOL_PATH)
+        self.assertEquals(len(jtool.inputs()), 5)
+        self.assertEquals(len(jtool.outputs()), 1)
+        self.assertEquals(jtool.base_command(), ['abricate'])
+
+    def test_ingest_workflow(self) -> None:
+        jworkflow = ingest_galaxy(self.WORKFLOW_PATH)
+        self.assertEquals(len(jworkflow.step_nodes), 6)
+        self.assertEquals(len(jworkflow.output_nodes), 19)
+        self.assertIn('inForwardReads', jworkflow.input_nodes)
+        self.assertIn('inReverseReads', jworkflow.input_nodes)
+        self.assertIn('inLongReads', jworkflow.input_nodes)
+
 
 
 class TestFromCwlExpressions(unittest.TestCase):

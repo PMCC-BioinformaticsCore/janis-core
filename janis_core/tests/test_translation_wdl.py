@@ -45,6 +45,18 @@ from janis_core.translations import WdlTranslator
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 
 
+
+# helper methods
+
+def non_blank_lines(text: str) -> list[str]:
+    lines = text.splitlines()
+    lines = [ln for ln in lines if not ln == '']
+    return lines
+
+
+
+# test classes 
+
 class MultipleEcho(CommandTool):
     @staticmethod
     def tool():
@@ -784,8 +796,8 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
 scatter (i in inp) {
    call A.SingleTestTool as dotTool {
     input:
-      input1=i,
-      input2=inp2
+      input1=i,      
+      input2=inp2,   
   }
 }"""
         self.assertEqual(expected, outp.get_string(indent=0))
@@ -1055,7 +1067,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override={tool.id(): expected_container}
         )
 
-        line = translated.splitlines()[-9].strip()
+        line = non_blank_lines(translated)[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_string_override(self):
@@ -1066,7 +1078,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             "wdl", to_console=False, container_override=expected_container
         )
 
-        line = translated.splitlines()[-9].strip()
+        line = non_blank_lines(translated)[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
     def test_tool_override_casecheck(self):
@@ -1082,8 +1094,7 @@ class TestWdlContainerOverride(unittest.TestCase):
             to_console=False,
             container_override={toolid_upper: expected_container},
         )
-
-        line = translated.splitlines()[-9].strip()
+        line = non_blank_lines(translated)[-9].strip()
         self.assertEqual(f'docker: "{expected_container}"', line)
 
 
@@ -1104,17 +1115,21 @@ import "tools/TestTranslationtool.wdl" as T
 import "tools/TestTranslationtool_v0_0_2.wdl" as T2
 
 workflow testTwoToolsWithSameId {
+
   input {
     String inp
   }
+
   call T.TestTranslationtool as stp1 {
     input:
-      testtool=inp
+      testtool=inp,   # [String] (default)
   }
+
   call T2.TestTranslationtool as stp2 {
     input:
-      testtool=inp
+      testtool=inp,   # [String] (default)
   }
+
 }"""
 
         self.assertEqual(expected, wf_wdl.get_string())
@@ -1135,15 +1150,18 @@ version development
 import "tools/CatTestTool_TEST.wdl" as C
 
 workflow wf {
+
   input {
     File ref
     File ref_txt
   }
+
   call C.CatTestTool as stp {
     input:
       inp=ref,
       inp_txt=ref_txt
   }
+
 }"""
         self.assertEqual(expected, wdlwf)
 
@@ -1161,10 +1179,12 @@ version development
 import "tools/CatTestTool_TEST.wdl" as C
 
 workflow wf {
+
   input {
     Array[File] ref
     Array[File] ref_txt
   }
+
   scatter (r in transpose([ref, ref_txt])) {
      call C.CatTestTool as stp {
       input:
@@ -1172,6 +1192,7 @@ workflow wf {
         inp_txt=r[1]
     }
   }
+
 }"""
         self.assertEqual(expected, wdlwf)
 
@@ -1207,7 +1228,7 @@ workflow wf {
         )
 
         out = tool.translate("wdl", to_console=False)
-        lines = out.splitlines(keepends=False)[-4:-2]
+        lines = non_blank_lines(out)[-4:-2]
         l1 = "File out = basename(inp)"
         l2 = 'File out_file = sub(sub(basename(inp), "\\\\.txt$", ".file"), "\\\\.text$", ".file")'
 
@@ -1452,7 +1473,7 @@ class TestWdlResourceOperators(unittest.TestCase):
         tool_wdl = WdlTranslator.translate_tool_internal(
             OperatorResourcesTestTool(), with_resource_overrides=True
         ).get_string()
-        lines = tool_wdl.splitlines(keepends=False)
+        lines = non_blank_lines(tool_wdl)
         cpus = lines[-12].strip()
         time = lines[-9].strip()
         memory = lines[-8].strip()
@@ -1468,7 +1489,7 @@ class TestWdlResourceOperators(unittest.TestCase):
         tool_wdl = WdlTranslator.translate_tool_internal(
             EchoTestTool(), with_resource_overrides=True
         ).get_string()
-        lines = tool_wdl.splitlines(keepends=False)
+        lines = non_blank_lines(tool_wdl)
         # print(tool_wdl)
         cpus = lines[-12].strip()
         disks = lines[-11].strip()
@@ -1525,15 +1546,11 @@ class TestWDLNotNullOperator(unittest.TestCase):
         w.input("inp", Optional[str])
         w.output("out", source=w.inp.assert_not_null())
 
-        wdltool = (
-            w.translate("wdl", allow_empty_container=True, to_console=False)[0]
-            .splitlines()[-3]
-            .strip()
-        )
-        self.assertEqual("String out = select_first([inp])", wdltool)
+        wdltool = w.translate("wdl", allow_empty_container=True, to_console=False)[0]
+        wdlline = non_blank_lines(wdltool)[-3].strip()
+        self.assertEqual("String out = select_first([inp])", wdlline)
 
     def test_commandtool_string(self):
-
         t = CommandToolBuilder(
             tool="id",
             base_command=None,
@@ -1545,12 +1562,9 @@ class TestWDLNotNullOperator(unittest.TestCase):
             container=None,
         )
 
-        wdltool = (
-            t.translate("wdl", allow_empty_container=True, to_console=False)
-            .splitlines()[-3]
-            .strip()
-        )
-        self.assertEqual("String out = select_first([inp])", wdltool)
+        wdltool = t.translate("wdl", allow_empty_container=True, to_console=False)
+        wdlline = non_blank_lines(wdltool)[-3].strip()
+        self.assertEqual("String out = select_first([inp])", wdlline)
 
 
 class TestWdlWildcardSelector(unittest.TestCase):
@@ -1608,18 +1622,22 @@ version development
 import "tools/EchoTestTool_TEST.wdl" as E
 
 workflow TestForEach {
+
   input {
     Array[String] inp
   }
+
   scatter (idx in inp) {
-     call E.EchoTestTool as print {
+    call E.EchoTestTool as print {
       input:
-        inp=(idx + "-hello")
+        inp=(idx + "-hello"),   # [String]
     }
   }
+  
   output {
     Array[File] out = print.out
   }
+
 }"""
         self.assertEqual(expected.strip(), w.get_string().strip())
 

@@ -20,6 +20,7 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
+from janis_core.messages import get_messages
 from janis_core.code.codetool import CodeTool
 from janis_core.deps import wdlgen as wdl
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -39,7 +40,7 @@ from janis_core.operators import (
     AliasSelector,
     ForEachSelector,
 )
-from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput
+from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput, TInput
 from janis_core.tool.tool import Tool, ToolType
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations.translationbase import (
@@ -77,7 +78,6 @@ from janis_core.utils.validators import Validators
 ## PRIMARY TRANSLATION METHODS
 from janis_core.workflow.workflow import StepNode
 
-# from janis_core.tool.step import StepNode
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
 REMOVE_EXTENSION = (
@@ -117,7 +117,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         return ["java", "-jar", "$womtooljar", "validate", wfpath]
 
     @classmethod
-    @try_catch_translate(type="workflow")
+    #@try_catch_translate(type="workflow")
     def translate_workflow(
         cls,
         wfi,
@@ -126,6 +126,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_nested_tool=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ) -> Tuple[wdl.Workflow, Dict[str, any]]:
         """
         Translate the workflow into wdlgen classes!
@@ -139,6 +140,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         # Import needs to be here, otherwise we end up circularly importing everything
         # I need the workflow for type comparison
+        # you could have used TYPE_CHECKING, or fixed the larger architecture issue. 
         from janis_core.workflow.workflow import Workflow
 
         wf: Workflow = wfi
@@ -307,13 +309,14 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     resource_overrides[r.name] = s.id() + "_" + r.name
 
             call = translate_step_node(
-                node2=s,
+                step=s,
                 step_identifier=tool_aliases[t.versioned_id().lower()].upper()
                 + "."
                 + t.id(),
                 resource_overrides=resource_overrides,
                 invalid_identifiers=forbiddenidentifiers,
                 inputsdict=inputsdict,
+                render_comments=render_comments
             )
 
             w.calls.append(call)
@@ -329,6 +332,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
 
         if not Validators.validate_identifier(tool.id()):
@@ -420,6 +424,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         with_resource_overrides=True,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
         if not Validators.validate_identifier(tool.id()):
             raise Exception(
@@ -511,7 +516,8 @@ EOT"""
         tool=None,
         for_output=False,
         **debugkwargs,
-    ):
+    ):  
+        print(type(expression))
         if expression is None:
             return ""
 
@@ -1422,47 +1428,41 @@ def validate_step_with_multiple_sources(node, edge, k, input_name_maps):
             f"AND this field ('{k}') is not scattered. However this connection {reasons}"
         )
 
-
 def translate_step_node(
-    node2,
+    step: StepNode,
     step_identifier: str,
     resource_overrides: Dict[str, str],
     invalid_identifiers: Set[str],
-    inputsdict: Dict[str, any],
+    inputsdict: Dict[str, Any],
+    render_comments: bool = True
 ) -> wdl.WorkflowCallBase:
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
-    be able to handle multiple scatters on this step node. If there are multiple scatters, the scatters will be ordered
+    be able to handle multiple scatters on this step step. If there are multiple scatters, the scatters will be ordered
     in to out by alphabetical order.
 
-    This method isn't perfect, when there are multiple sources it's not correctly resolving defaults,
-    and tbh it's pretty confusing.
+    This method isn't perfect, when there are multiple sources it's not correctly resolving defaults, and tbh it's pretty confusing.
+    ^I think you should have started by breaking this 200 line function into 
+    more manageable parts. - Grace
 
-    :param node:
+    :param step:
     :param step_identifier:
     :param step_alias:
     :param resource_overrides:
     :return:
     """
-    from janis_core.workflow.workflow import StepNode
-
-    node: StepNode = node2
-    step_alias: str = node.id()
-
-    ins = node.inputs()
-
-    # Sanity check our step node connections:
+    # Sanity check our step step connections:
 
     # 1. make sure our inputs are all present:
     missing_keys = [
         k
-        for k in ins.keys()
-        if k not in node.sources
-        and not (ins[k].intype.optional is True or ins[k].default is not None)
+        for k in step.inputs().keys()
+        if k not in step.sources
+        and not (step.inputs()[k].intype.optional is True or step.inputs()[k].default is not None)
     ]
-    if missing_keys:
+    if missing_keys:  # TODO this may pose an issue for user-readability translation
         raise Exception(
-            f"Error when building connections for step '{node.id()}', "
+            f"Error when building connections for step '{step.id()}', "
             f"missing the required connection(s): '{', '.join(missing_keys)}'"
         )
 
@@ -1470,16 +1470,16 @@ def translate_step_node(
     #       we're like double zipping things, it's complicated and it's even MORE complicated in WDL.
     scatterable: List[StepTagInput] = []
 
-    if node.scatter:
-        unbound_scatter_keys = [k for k in node.scatter.fields if k not in node.sources]
+    if step.scatter:
+        unbound_scatter_keys = [k for k in step.scatter.fields if k not in step.sources]
         if len(unbound_scatter_keys):
             raise Exception(
-                f"Attempted to scatter {node.id()} on field(s) [{', '.join(unbound_scatter_keys)}] however "
+                f"Attempted to scatter {step.id()} on field(s) [{', '.join(unbound_scatter_keys)}] however "
                 "these inputs were not mapped on step construction. Make sure that those unbound keys exist"
                 f"in your step definition (eg: "
-                f"{node.tool.__class__.__name__}({', '.join(k + '=inp' for k in unbound_scatter_keys)})"
+                f"{step.tool.__class__.__name__}({', '.join(k + '=inp' for k in unbound_scatter_keys)})"
             )
-        scatterable = [node.sources[k] for k in node.scatter.fields]
+        scatterable = [step.sources[k] for k in step.scatter.fields]
 
         invalid_sources = [
             si
@@ -1490,7 +1490,7 @@ def translate_step_node(
         if len(invalid_sources) > 0:
             invalid_sources_str = ", ".join(f"{si.source()}" for si in invalid_sources)
             raise NotImplementedError(
-                f"The edge(s) '{invalid_sources_str}' on node '{node.id()}' scatters"
+                f"The edge(s) '{invalid_sources_str}' on step '{step.id()}' scatters"
                 f"on multiple inputs, this behaviour has not been implemented"
             )
 
@@ -1508,13 +1508,13 @@ def translate_step_node(
     # Let's map the inputs, to the source. We're using a dictionary for the map atm, but WDL requires the _format:
     #       fieldName: sourceCall.Output
 
-    inputs_map = {}
-    for k, inp in ins.items():
-        if k not in node.sources:
-            continue
+    inputs_details: dict[str, dict[str, Any]] = {}
+    for k, inp in step.inputs().items():
+        if k not in step.sources:
+            continue    # ignore tool inputs which haven't be given a value.
+                        # these will either be optional, or have a default value provided.
 
-        steptag_input: StepTagInput = node.sources[k]
-        intype = inp.intype
+        steptag_input: StepTagInput = step.sources[k]
         src: Edge = steptag_input.source()  # potentially single item or array
 
         ar_source = src if isinstance(src, list) else [src]
@@ -1525,13 +1525,13 @@ def translate_step_node(
 
         if has_multiple_sources:
             # let's do some checks, make sure we're okay
-            validate_step_with_multiple_sources(node, steptag_input, k, inputs_map)
+            validate_step_with_multiple_sources(step, steptag_input, k, inputs_details)
 
         elif ar_source:
             source = ar_source[0]
 
             ot = source.source.returntype()
-            if intype.is_array() and not ot.is_array() and not source.scatter:
+            if inp.intype.is_array() and not ot.is_array() and not source.scatter:
                 array_input_from_single_source = True
         else:
             Logger.critical(
@@ -1543,9 +1543,9 @@ def translate_step_node(
         # Checks over, let's continue!
 
         secondaries = (
-            intype.secondary_files()
-            if not intype.is_array()
-            else intype.subtype().secondary_files()
+            inp.intype.secondary_files()
+            if not inp.intype.is_array()
+            else inp.intype.subtype().secondary_files()
         ) or []
         # place to put the processed_sources:
         #   Key=None is for the regular input
@@ -1578,7 +1578,7 @@ def translate_step_node(
                 if not sec_in.issubset(sec_out):
                     raise Exception(
                         f"An error occurred when connecting '{edge.source}' to "
-                        f"'{edge.finish.id()}.{edge.ftag}', there were secondary files in the final node "
+                        f"'{edge.finish.id()}.{edge.ftag}', there were secondary files in the final step "
                         f"that weren't present in the source: {', '.join(sec_out.difference(sec_in))}"
                     )
 
@@ -1617,37 +1617,83 @@ def translate_step_node(
             else:
                 tag = get_secondary_tag_from_original_tag(k, tag)
 
-            inputs_map[tag] = (
-                value[0]
-                if should_select_first_element
-                else "[" + ", ".join(value) + "]"
-            )
+            # get extra info from tool_input. used to render comments
+            tool_input = [x for x in step.tool.inputs() if x.tag == k][0]
+            special_label = None
+            # cant do this because even static values are InputNodes
+            # if isinstance(source, InputNodeSelector):   
+            #     special_label = 'WORKFLOW INPUT'
+            if isinstance(source.source, StepOutputSelector):
+                special_label = 'CONNECTION'
+            prefix = tool_input.prefix
+            if isinstance(prefix, str):
+                prefix = prefix.rstrip('=')
 
-    inputs_map.update(resource_overrides)
+            inputs_details[tag] = {
+                'value': value[0] if should_select_first_element else "[" + ", ".join(value) + "]",
+                'special_label': special_label,
+                'prefix': prefix,
+                # below - used if we wanted to output '(default)' as default label,
+                # rather than the actual default value to the tool input. eg '(100)'
+                #'default': True if _is_input_default(inp, source) else False, 
+                'default': _get_wrapped_default(inp, tool_input),
+                'datatype': str(inp.intype)
+            }
 
-    call = wdl.WorkflowCall(step_identifier, step_alias, inputs_map)
+    for key, val in resource_overrides.items():
+        inputs_details[key] = {
+            'value': val,
+            'special_label': 'resource',
+            'prefix': None,
+            'default': True,
+            'datatype': None
+        }
+
+    messages = get_messages(step.id())   # uuid is currently using janis-core identifiers
+    call = wdl.WorkflowCall(step_identifier, step.id(), inputs_details, messages, render_comments)
 
     if len(scatterable) > 0:
         call = wrap_scatter_call(
-            call, node.scatter, scatterable, scattered_old_to_new_identifier
+            call, step.scatter, scatterable, scattered_old_to_new_identifier
         )
-    if node2.foreach is not None:
+    if step.foreach is not None:
         expr = WdlTranslator.unwrap_expression(
-            node2.foreach,
+            step.foreach,
             inputsdict=inputsdict,
             string_environment=False,
             stepid=step_identifier,
         )
         call = wdl.WorkflowScatter("idx", expr, [call])
 
-    if node.when is not None:
+    if step.when is not None:
         condition = WdlTranslator.unwrap_expression(
-            node.when, inputsdict=inputsdict, string_environment=False
+            step.when, inputsdict=inputsdict, string_environment=False
         )
         call = wdl.WorkflowConditional(condition, [call])
         # determine how to unwrap when
 
     return call
+
+
+def _get_wrapped_default(inp: TInput, tool_input: ToolInput) -> Optional[str]:
+    default = inp.default if inp.default is not None else tool_input.default
+    if default is None:
+        return None
+    elif isinstance(inp.intype, String):
+        return f'"{default}"'
+    else:
+        return f'{default}'
+
+def _is_input_default(inp: ToolInput, source: Edge) -> bool:
+    # determines whether the value being fed to a step input 
+    # is the default value for the underlying tool input.
+    # only InputNode sources need to be considered, since connections 
+    # can never a considered a 'default' value
+    if isinstance(source.source, InputNodeSelector):
+        fed_value = source.source.input_node.default
+        if fed_value == inp.default:
+            return True
+    return False
 
 
 def generate_scatterable_details(

@@ -119,6 +119,7 @@ class TranslatorBase(ABC):
         with_container=True,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
 
         str_tool, tr_tools, tr_helpers = None, [], {}
@@ -130,6 +131,7 @@ class TranslatorBase(ABC):
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
                 container_override=lowercase_dictkeys(container_override),
+                render_comments=render_comments
             )
             str_tool = self.stringify_translated_workflow(tr_tool)
         elif isinstance(tool, CodeTool):
@@ -137,6 +139,7 @@ class TranslatorBase(ABC):
                 tool,
                 allow_empty_container=allow_empty_container,
                 container_override=lowercase_dictkeys(container_override),
+                render_comments=render_comments
             )
             str_tool = self.stringify_translated_tool(tr_tool)
         else:
@@ -146,6 +149,7 @@ class TranslatorBase(ABC):
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
                 container_override=lowercase_dictkeys(container_override),
+                render_comments=render_comments
             )
             str_tool = self.stringify_translated_tool(tr_tool)
 
@@ -290,6 +294,7 @@ class TranslatorBase(ABC):
         max_mem=None,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -299,6 +304,7 @@ class TranslatorBase(ABC):
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
                 container_override=lowercase_dictkeys(container_override),
+                render_comments=render_comments
             )
         )
 
@@ -329,6 +335,7 @@ class TranslatorBase(ABC):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
 
         tool_out = self.stringify_translated_tool(
@@ -337,6 +344,7 @@ class TranslatorBase(ABC):
                 with_docker=with_docker,
                 allow_empty_container=allow_empty_container,
                 container_override=lowercase_dictkeys(container_override),
+                render_comments=render_comments
             )
         )
 
@@ -398,6 +406,7 @@ class TranslatorBase(ABC):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ) -> Tuple[any, Dict[str, any]]:
         pass
 
@@ -410,6 +419,7 @@ class TranslatorBase(ABC):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ):
         pass
 
@@ -421,6 +431,7 @@ class TranslatorBase(ABC):
         with_docker=True,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ):
         pass
 

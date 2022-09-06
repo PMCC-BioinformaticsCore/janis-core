@@ -1,0 +1,822 @@
+
+# PRE-PROCESSING ---------------------
+
+
+die() { echo "$@" 1>&2 ; exit 1; }  &&
+mkdir multiqc_WDir  &&
+
+#for $i, $repeat in enumerate( $results )
+#set software_dir = os.path.join('multiqc_WDir', str($repeat.software_cond.software) + '_' + str($i))
+mkdir $software_dir  &&
+#if str($repeat.software_cond.software) == "bamtools"
+#set $pattern = "Stats for BAM file(s)"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "bcftools"
+#set $pattern = "This file was produced by bcftools stats"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "bismark"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type) == "align"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_SE_report.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "dedup"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_deduplication_report.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "meth_extract"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_splitting_report.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "m_bias"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_M-bias.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "bam2nuc"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '.nucleotide_stats.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "bowtie2"
+#set $pattern = "reads; of these:"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "busco"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, 'short_summary_' + str($identifier))
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "cutadapt"
+#set $pattern = "This is cutadapt"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier) + '.txt')
+ln -s '$file' '$file_path'  &&
+sed -i.old 's/You are running/This is/' '$file_path'  &&
+grep -q "$pattern" '$file_path'  && die "'$pattern' or 'You are running cutadapt' not found in the file"  &&
+#end for
+#elif str($repeat.software_cond.software) == "deeptools"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#if str($repeat2.type) == "bamPEFragmentSize"
+#set $pattern = "Frag."
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "estimateReadFiltering"
+#set $pattern = "Internally-determined Duplicate"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "plotCoverageStdout"
+#set $pattern = "sample"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "plotCoverageOutRawCounts"
+#set $pattern = "#plotCoverage --outRawCounts"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "plotEnrichment"
+#set $pattern = "featureReadCount"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "plotFingerprintOutRawCounts"
+#set $pattern = "#plotFingerprint --outRawCounts"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "fastp"
+#set $pattern = "report_title"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier) + 'fastp.json')
+ln -s '$file' '$file_path'  &&
+grep -q "$pattern" '$file_path'  && die "'$pattern' or 'report_title' not found in the file"  &&
+#end for
+#elif str($repeat.software_cond.software) == "fastqc"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type) == "data"
+#for $k, -s in enumerate($repeat2.input)
+#set file_dir = os.path.join($repeat_dir, 'file_' + str($k))
+#set file_path = os.path.join($file_dir, 'fastqc_data.txt')
+mkdir '$file_dir'  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "theoretical_gc"
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_fastqc_theoretical_gc')
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "featureCounts"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_prefix = os.path.join($software_dir, str($identifier))
+if grep -qw Status '-s'; then
+ln -s '$file' '${file_prefix}.summary';
+else
+echo -e 'Status\t${identifier}' > '${file_prefix}.summary';
+cat '-s' >> '${file_prefix}.summary';
+fi  &&
+#end for
+#elif str($repeat.software_cond.software) == "flexbar"
+#set $pattern = "flexible barcode and adapter removal"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "gatk"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#if str($repeat2.type) == "varianteval"
+#set $pattern = "#:GATKTable:TiTvVariantEvaluator"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "base_recalibrator"
+#set $pattern = "#:GATKTable:Arguments:Recalibration"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "hicup"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, 'HiCUP_summary_report_' + str($identifier))
+ln -s '${file}' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "hisat2"
+#set $pattern = "HISAT2 summary stats:"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "hicexplorer"
+#set $pattern = "Min rest. site distance"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "htseq"
+#set $pattern = "__too_low_aQual"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "kallisto"
+#set $pattern = "finding pseudoalignments for the reads"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "macs2"
+#set $pattern = "# This file is generated by MACS"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier) + '_peaks.xls')
+grep -q "$pattern" -s  && die "'$pattern' not found in the file"  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "picard"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#if str($repeat2.type) == "alignment_metrics"
+#set $pattern = "picard.analysis.AlignmentSummaryMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "basedistributionbycycle"
+#set $pattern = "picard.analysis.BaseDistributionByCycleMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "gcbias"
+#set $pattern = "picard.analysis.GcBias"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "hsmetrics"
+#set $pattern = "picard.analysis.directed.HsMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "insertsize"
+#set $pattern = "picard.analysis.InsertSizeMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "markdups"
+#set $pattern = "picard.sam.DuplicationMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "oxogmetrics"
+#set $pattern = "picard.analysis.CollectOxoGMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "pcr_metrics"
+#set $pattern = "picard.analysis.directed.TargetedPcrMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "rnaseqmetrics"
+#set $pattern = "Collect"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "rrbs_metrics"
+#set $pattern = "picard.analysis.RrbsSummaryMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type) == "wgs_metrics"
+#set $pattern = "picard.analysis.CollectWgsMetrics$WgsMetrics"
+#set file_paths = []
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#for -s in $repeat2.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "prokka"
+#set $pattern = "contigs:"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "quast"
+#for $k, -s in enumerate($repeat.software_cond.input)
+#set file_dir = os.path.join($software_dir, 'file_' + str($k))
+#set file_path = os.path.join($file_dir, 'report.tsv')
+mkdir '$file_dir'  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "rsem"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier) + '.cnt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "rseqc"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type.type) == "bam_stat"
+#set $pattern = "Proper-paired reads map to different chrom:"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "gene_body_coverage"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_path = os.path.join($repeat_dir, 'file_' + str($k) + '.geneBodyCoverage.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "inner_distance"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_path = os.path.join($repeat_dir, 'file_' + str($k) + '.inner_distance_freq.txt')
+ln -s '${file}' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "junction_annotation"
+#set $pattern = "Partial Novel Splicing Junctions:"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "read_gc"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_path = os.path.join($repeat_dir, 'file_' + str($k) + '.GC.xls')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "junction_annotation"
+#set $pattern = "Group               Total_bases         Tag_count           Tags/Kb"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "read_distribution"
+#set $pattern = "Group               Total_bases         Tag_count           Tags/Kb"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "read_duplication_pos"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_path = os.path.join($repeat_dir, 'file_' + str($k) + '.pos.DupRate.xls')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "infer_experiment"
+#set $pattern = "Fraction of reads explained by"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+grep -q "$pattern" -s  && die "'$pattern' not found in the file"  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "salmon"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type.type) == "meta"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_dir = os.path.join($repeat_dir, 'file_' + str($k))
+#set file_path = os.path.join($file_dir, 'meta_info.json')
+mkdir '$file_dir'  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "fld"
+#for $k, -s in enumerate($repeat2.type.input)
+#set file_dir = os.path.join($repeat_dir, 'file_' + str($k))
+#set file_path = os.path.join($file_dir,'flenDist.txt')
+mkdir '$file_dir'  &&
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "samblaster"
+#set $pattern = "samblaster: Version"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "samtools"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type.type) == "stats"
+#set $pattern = "This file was produced by samtools stats"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "flagstat"
+#set $pattern = "in total (QC-passed reads + QC-failed reads)"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat2.type.type) == "idxstats"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_idxstat')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "rmdup"
+#set $pattern = "[bam_rmdup"
+#set file_paths = []
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "slamdunk"
+#set $pattern = "# slamdunk"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "snpeff"
+#set $pattern = "SnpEff_version"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "sortmerna"
+#set $pattern = "Minimal SW score based on E-value"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#else if str($repeat.software_cond.software) == "star":
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type.type) == "log"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_Log.final.out')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type.type) == "genecounts"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '_ReadsPerGene.out.tab')
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#elif str($repeat.software_cond.software) == "tophat"
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier) + 'align_summary.txt')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat.software_cond.software) == "trimmomatic"
+#set $pattern = "Trimmomatic"
+#set file_paths = []
+#for -s in $repeat.software_cond.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($software_dir, str($identifier))
+#if $file_path in $file_paths
+#set $file_path += '_' + str($file_paths.count($file_path))
+#end if
+#set $file_paths += [$file_path]
+grep -q "$pattern" -s  && die "Module '${repeat.software_cond.software}: '$pattern' not found in the file '$identifier'"  &&
+ln -s '$file' '$file_path'   &&
+#end for
+#elif str($repeat.software_cond.software) == "vcftools"
+#for $j, $repeat2 in enumerate( $repeat.software_cond.output )
+#set repeat_dir = os.path.join($software_dir, str($repeat2.type.type) + '_' + str($j))
+mkdir '$repeat_dir'  &&
+#if str($repeat2.type.type) == "relatedness2"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '.relatedness2')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "tstv_by_count"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '.TsTv.count')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "tstv_by_qual"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '.TsTv.qual')
+ln -s '$file' '$file_path'  &&
+#end for
+#elif str($repeat2.type) == "tstv_summary"
+#for -s in $repeat2.type.input
+#set identifier = re.sub('[^\s\w\-]', '_', str($file.element_identifier))
+#set file_path = os.path.join($repeat_dir, str($identifier) + '.TsTv.summary')
+ln -s '$file' '$file_path'  &&
+#end for
+#end if
+#end for
+#else if str($repeat.software_cond.software) == "custom_content":
+#set $configfile = "T"
+#for $j, -s in enumerate( $repeat.software_cond.input )
+#set file_path = os.path.join($software_dir, 'file_' + str($i) + '_' + str($j))
+ln -s '$file' '$file_path'  &&
+more -s 

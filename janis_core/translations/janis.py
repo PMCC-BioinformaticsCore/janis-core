@@ -108,6 +108,7 @@ class JanisTranslator(TranslatorBase):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ) -> Tuple[any, Dict[str, any]]:
         str_wf, subtools = self.generate_workflow_string(workflow)
 
@@ -134,6 +135,7 @@ from janis_core import *
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ):
         tool_str = self.generate_command_tool_string(tool)
 
@@ -157,6 +159,7 @@ from janis_core import *
         with_docker=True,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ):
         tool_str = self.generate_code_tool_string(tool)
 

@@ -57,7 +57,7 @@ class Node(object):
         self.depth = depth
 
         # actually a StepInput
-        self.sources: Dict[str, any] = {}
+        self.sources: Dict[str, Any] = {}
 
         # Update unique counter for hash
         self._nodeId = Node._N_counter

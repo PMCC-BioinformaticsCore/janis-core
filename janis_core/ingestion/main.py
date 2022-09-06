@@ -1,15 +1,18 @@
 
 import os 
 
-from typing import Optional
 from janis_core import CommandTool
 from janis_core import Workflow
-from janis_core import SupportedIngestion
+from janis_core.messages import configure_logging
+from janis_core.messages import info_ingesting_tool
+from janis_core.messages import info_ingesting_workflow
 
 from galaxy2janis import ingest_tool
 from galaxy2janis import ingest_workflow
-from galaxy2janis import to_janis_tool
-from galaxy2janis import to_janis_workflow
+
+from .SupportedIngestion import SupportedIngestion
+from .janis_mapping import to_janis_tool
+from .janis_mapping import to_janis_workflow
 from .fromcwl import CWlParser
 from .fromwdl import WdlParser
 
@@ -18,9 +21,11 @@ def ingest_galaxy(path: str) -> CommandTool | Workflow:
     # this function is essentially the same as CWlParser / WdlParser
     name, ext = os.path.splitext(path)
     if ext == '.xml':
+        info_ingesting_tool('galaxy', name)
         tool = ingest_tool(path)
         return to_janis_tool(tool)
     elif ext == '.ga':
+        info_ingesting_workflow('galaxy', name)
         workflow = ingest_workflow(path)
         return to_janis_workflow(workflow)
     else:
@@ -43,6 +48,7 @@ ingestor_map = {
 
 
 def ingest(path: str, format: str) -> CommandTool | Workflow:
+    configure_logging()
     assert(format in SupportedIngestion.all())  # validate format
     ingest_func = ingestor_map[format]          # select ingestor
     internal = ingest_func(path)                # ingest

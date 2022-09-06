@@ -66,11 +66,10 @@ from janis_core.operators import *
 # Misc
 from janis_core.tool.documentation import *
 from janis_core.utils.logger import Logger, LogLevel
-from janis_core.translations import SupportedIngestion, SupportedTranslation
+from janis_core.translations import SupportedTranslation
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod, ScatterMethods
 from janis_core.hints import CaptureType, Engine, HINTS, Hint, HintEnum, HintArray
 from janis_core.utils import get_value_for_hints_and_ordered_resource_tuple
 from janis_core.utils.metadata import Metadata, WorkflowMetadata, ToolMetadata
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.transformation import JanisTransformation, JanisTransformationGraph
-from janis_core.ingestion.fromcwl import CWlParser

@@ -3,12 +3,12 @@ from typing import Dict, Union
 from janis_core.utils import lowercase_dictkeys
 
 from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translations.wdl import WdlTranslator
+from .wdl import WdlTranslator
 from .cwl import CwlTranslator
 from .nextflow import NextflowTranslator
 from .translationbase import TranslatorBase
 
-from janis_core.translationdeps.supportedtranslations import SupportedIngestion, SupportedTranslation
+from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 
 
 def get_translator(translation: Union[str, SupportedTranslation]):
@@ -38,6 +38,7 @@ def translate_workflow(
     max_duration=None,
     allow_empty_container=False,
     container_override: dict = None,
+    render_comments: bool = True
 ):
     translator = get_translator(translation)
     return translator.translate(
@@ -60,6 +61,7 @@ def translate_workflow(
         max_duration=max_duration,
         allow_empty_container=allow_empty_container,
         container_override=lowercase_dictkeys(container_override),
+        render_comments=render_comments
     )
 
 
@@ -72,6 +74,7 @@ def translate_code_tool(
     with_docker=True,
     allow_empty_container=False,
     container_override: dict = None,
+    render_comments: bool = True
 ):
     translator = get_translator(translation)
     return translator.translate_code_tool(
@@ -82,6 +85,7 @@ def translate_code_tool(
         with_docker=with_docker,
         allow_empty_container=allow_empty_container,
         container_override=lowercase_dictkeys(container_override),
+        render_comments=render_comments
     )
 
 
@@ -97,6 +101,7 @@ def translate_tool(
     max_mem=None,
     allow_empty_container=False,
     container_override: dict = None,
+    render_comments: bool = True
 ) -> str:
     translator = get_translator(translation)
     return translator.translate_tool(
@@ -110,6 +115,7 @@ def translate_tool(
         max_mem=max_mem,
         allow_empty_container=allow_empty_container,
         container_override=lowercase_dictkeys(container_override),
+        render_comments=render_comments
     )
 
 

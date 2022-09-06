@@ -143,6 +143,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_packed=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ) -> Tuple[cwlgen.Workflow, Dict[str, any]]:
 
         metadata = wf.metadata
@@ -482,6 +483,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
         metadata = tool.metadata if tool.metadata else ToolMetadata()
 
@@ -649,6 +651,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         with_docker=True,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
 
         stdouts = [

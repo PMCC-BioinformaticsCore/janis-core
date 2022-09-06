@@ -454,6 +454,7 @@ class CommandTool(Tool, ABC):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override=None,
+        render_comments: bool = True
     ):
         import janis_core.translations
 
@@ -470,6 +471,7 @@ class CommandTool(Tool, ABC):
             with_resource_overrides=with_resource_overrides,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
+            render_comments=render_comments
         )
 
     def tool_inputs(self) -> List[TInput]:

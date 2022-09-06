@@ -175,6 +175,7 @@ class CodeTool(Tool):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: Union[str, dict] = None,
+        render_comments: bool = True
     ):
         from janis_core import translations
 
@@ -190,6 +191,7 @@ class CodeTool(Tool):
             export_path=export_path,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
+            render_comments=render_comments
         )
 
     def wrapped_in_wf(self):

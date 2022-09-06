@@ -957,6 +957,7 @@ class WorkflowBase(Tool):
         max_duration=None,
         allow_empty_container=False,
         container_override: dict = None,
+        render_comments: bool = True
     ):
         from janis_core.translations import translate_workflow
 
@@ -981,6 +982,7 @@ class WorkflowBase(Tool):
             max_duration=max_duration,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
+            render_comments=render_comments
         )
 
     def generate_inputs_override(

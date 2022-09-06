@@ -1,0 +1,24 @@
+
+# PRE-PROCESSING ---------------------
+
+#set input_name = re.sub('[^\w\-\s]', '_', str($input_file.element_identifier))
+#if $input_file.ext.endswith('.gz'):
+#set input_file_sl = $input_name + '.gz'
+#elif $input_file.ext.endswith('.bz2'):
+#set input_file_sl = $input_name + '.bz2'
+#else
+#set input_file_sl = $input_name
+#end if
+#if 'bam' in $input_file.ext:
+#set format = 'bam'
+#elif 'sam' in $input_file.ext:
+#set format = 'sam'
+#else
+#set format = 'fastq'
+#end if
+ln -s '${input_file}' '${input_file_sl}'  &&
+mkdir -p '${html_file.files_path}' 
+
+# POST-PROCESSING ---------------------
+ cp '${html_file.files_path}'/*/fastqc_data.txt output.txt
+ && cp '${html_file.files_path}'/*\.html output.html
