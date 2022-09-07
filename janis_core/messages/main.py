@@ -6,6 +6,7 @@ from .logfile import LogFile
 import os
 import warnings
 import yaml
+from pathlib import Path
 
 # -------------
 # configuration
@@ -20,6 +21,11 @@ MESSAGE_LOG_PATH = f'./messages.log'
 
 # logging 
 def configure_logging() -> None:
+    # delete previous log
+    path = Path(MESSAGE_LOG_PATH)
+    if path.exists():
+        path.unlink()
+    # set up logging package conf
     with open(CONFIG_FILE_PATH, "r") as fp:
         the_dict = yaml.safe_load(fp)
         the_dict['handlers']['messages']['filename'] = MESSAGE_LOG_PATH

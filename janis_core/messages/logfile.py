@@ -35,7 +35,7 @@ class LogFile:
         # load messages in file
         with open(self.filepath, 'r') as fp:
             for line in fp.readlines():
-                level, uuid, message = line.split('\t')
+                level, uuid, message = line.strip('\n').split('\t')
                 logline = LogLine(level, uuid, message)
                 self.messages[uuid].append(logline)
 

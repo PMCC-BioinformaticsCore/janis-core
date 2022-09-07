@@ -517,7 +517,6 @@ EOT"""
         for_output=False,
         **debugkwargs,
     ):  
-        print(type(expression))
         if expression is None:
             return ""
 
@@ -1442,8 +1441,6 @@ def translate_step_node(
     in to out by alphabetical order.
 
     This method isn't perfect, when there are multiple sources it's not correctly resolving defaults, and tbh it's pretty confusing.
-    ^I think you should have started by breaking this 200 line function into 
-    more manageable parts. - Grace
 
     :param step:
     :param step_identifier:
@@ -1623,8 +1620,9 @@ def translate_step_node(
             # cant do this because even static values are InputNodes
             # if isinstance(source, InputNodeSelector):   
             #     special_label = 'WORKFLOW INPUT'
-            if isinstance(source.source, StepOutputSelector):
-                special_label = 'CONNECTION'
+            for edge in ar_source:
+                if isinstance(edge.source, StepOutputSelector):
+                    special_label = 'CONNECTION'
             prefix = tool_input.prefix
             if isinstance(prefix, str):
                 prefix = prefix.rstrip('=')
@@ -1643,9 +1641,9 @@ def translate_step_node(
     for key, val in resource_overrides.items():
         inputs_details[key] = {
             'value': val,
-            'special_label': 'resource',
+            'special_label': None,
             'prefix': None,
-            'default': True,
+            'default': None,
             'datatype': None
         }
 

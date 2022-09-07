@@ -12,6 +12,10 @@ import janis_core as j
 
 
 DEFAULT_PARSER_VERSION = "v1.2"
+from cwl_utils.parser.cwl_v1_0 import CommandLineTool as CommandLineTool_1_0
+from cwl_utils.parser.cwl_v1_1 import CommandLineTool as CommandLineTool_1_1
+from cwl_utils.parser.cwl_v1_2 import CommandLineTool as CommandLineTool_1_2
+CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_2
 
 
 class CWlParser:
@@ -81,10 +85,10 @@ class CWlParser:
         loaded_doc = self.cwlgen.load_document(doc)
         return self.from_loaded_doc(loaded_doc)
 
-    def from_loaded_doc(self, loaded_doc) -> j.Tool:
+    def from_loaded_doc(self, loaded_doc, name: Optional[str]=None) -> j.Tool:
 
         if isinstance(loaded_doc, self.cwlgen.CommandLineTool):
-            return self.ingest_command_line_tool(loaded_doc)
+            return self.ingest_command_line_tool(loaded_doc, name)
 
         elif isinstance(loaded_doc, self.cwlgen.Workflow):
             return self.ingest_workflow(loaded_doc)
@@ -473,7 +477,7 @@ class CWlParser:
         step_identifier = self.get_tag_from_identifier(stp.id)
 
         if isinstance(stp.run, (self.cwlgen.CommandLineTool, self.cwlgen.Workflow)):
-            tool = self.from_loaded_doc(stp.run)
+            tool = self.from_loaded_doc(stp.run, f'{step_identifier}_tool')
         else:
             tool = CWlParser.from_doc(stp.run, base_uri=self.base_uri)
 
@@ -535,7 +539,7 @@ class CWlParser:
 
         raise Exception(f"Unrecognised scatter method '{scatter_method}'")
 
-    def ingest_command_line_tool(self, clt):
+    def ingest_command_line_tool(self, clt, name: Optional[str]=None):
 
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
         files_to_create = {}
@@ -567,7 +571,8 @@ class CWlParser:
         if docker_requirement:
             container = docker_requirement.dockerPull
 
-        tool_id = self.get_tool_tag_from_identifier(clt.id)
+        clt_id = name if name else clt.id
+        tool_id = self.get_tool_tag_from_identifier(clt_id)
         jclt = j.CommandToolBuilder(
             tool=tool_id,
             base_command=clt.baseCommand,
@@ -586,6 +591,50 @@ class CWlParser:
             time=time,
         )
         return jclt
+
+    # def get_clt_id(self, clt: CommandLineTool) -> str:
+    #     # challenging case - clt.id is auto-generated gibberish
+    #     if clt.id.startswith('_:'):
+    #         selected_id: Optional[str] = None
+    #         if not selected_id:
+    #             selected_id = self.get_id_from_base_cmd(clt)
+    #         if not selected_id:
+    #             selected_id = self.get_id_from_arguments(clt)
+    #         if not selected_id:
+    #             selected_id = self.get_id_from_requirements(clt)
+    #         if not selected_id:
+    #             selected_id = f'temp_{clt.id[2:]}'
+    #     # most simple case - clt.id is reasonable
+    #     else:
+    #         selected_id = clt.id
+    #     return selected_id
+    
+    # def get_id_from_base_cmd(self, clt: CommandLineTool) -> Optional[str]:
+    #     banned_commands = ['bash', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cd']
+    #     if hasattr(clt, 'baseCommand') and clt.baseCommand:
+    #         command = clt.baseCommand[0]
+    #         if command not in banned_commands:
+    #             return command
+    #     return None
+    
+    # def get_id_from_arguments(self, clt: CommandLineTool) -> Optional[str]:
+    #     banned_commands = ['bash', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cd']
+    #     if hasattr(clt, 'arguments') and clt.arguments:
+    #         for arg in clt.arguments:
+    #             command = arg.split()[0]
+    #             if command not in banned_commands:
+    #                 return command
+    #     return None 
+    
+    # def get_id_from_requirements(self, clt: CommandLineTool) -> Optional[str]:
+    #     if hasattr(clt, 'requirements') and clt.requirements:
+    #         for req in clt.requirements:
+    #             if req.class_ == 'DockerRequirement':
+    #                 return req.dockerPull.rsplit('/', 1)[-1].split(':', 1)[0]
+    #             elif req.class_ == 'SoftwareRequirement':
+    #                 for package in req.packages:
+    #                     return package.package
+    #     return None
 
     def ingest_workflow(self, workflow):
 
