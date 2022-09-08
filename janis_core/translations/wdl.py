@@ -74,9 +74,11 @@ from janis_core.utils.secondary import (
     apply_secondary_file_format_to_filename,
 )
 from janis_core.utils.validators import Validators
+from janis_core.workflow.workflow import StepNode
+
+from .ordering import get_tool_input_ordering
 
 ## PRIMARY TRANSLATION METHODS
-from janis_core.workflow.workflow import StepNode
 
 
 SED_REMOVE_EXTENSION = "| sed 's/\\.[^.]*$//'"
@@ -1506,6 +1508,8 @@ def translate_step_node(
     #       fieldName: sourceCall.Output
 
     inputs_details: dict[str, dict[str, Any]] = {}
+    input_ordering = get_tool_input_ordering(step.tool.inputs())
+    
     for k, inp in step.inputs().items():
         if k not in step.sources:
             continue    # ignore tool inputs which haven't be given a value.
@@ -1619,10 +1623,10 @@ def translate_step_node(
             special_label = None
             # cant do this because even static values are InputNodes
             # if isinstance(source, InputNodeSelector):   
-            #     special_label = 'WORKFLOW INPUT'
+            #     special_label = '*WORKFLOW INPUT*'
             for edge in ar_source:
                 if isinstance(edge.source, StepOutputSelector):
-                    special_label = 'CONNECTION'
+                    special_label = '*CONNECTION*'
             prefix = tool_input.prefix
             if isinstance(prefix, str):
                 prefix = prefix.rstrip('=')
@@ -1635,7 +1639,8 @@ def translate_step_node(
                 # rather than the actual default value to the tool input. eg '(100)'
                 #'default': True if _is_input_default(inp, source) else False, 
                 'default': _get_wrapped_default(inp, tool_input),
-                'datatype': str(inp.intype)
+                'datatype': inp.intype.wdl().get_string(),
+                'ordering': input_ordering[tag]
             }
 
     for key, val in resource_overrides.items():
@@ -1644,7 +1649,8 @@ def translate_step_node(
             'special_label': None,
             'prefix': None,
             'default': None,
-            'datatype': None
+            'datatype': None,
+            'ordering': 9999
         }
 
     messages = get_messages(step.id())   # uuid is currently using janis-core identifiers

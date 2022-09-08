@@ -78,6 +78,8 @@ def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
         if internal_inp.delim != ' ':
             prefix = f'{internal_inp.prefix}{internal_inp.delim}'
             separate = False
+        else:
+            prefix = internal_inp.prefix
         
     return ToolInput(
         tag=internal_inp.tag,

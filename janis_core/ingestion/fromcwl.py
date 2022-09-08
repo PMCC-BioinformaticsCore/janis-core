@@ -592,50 +592,6 @@ class CWlParser:
         )
         return jclt
 
-    # def get_clt_id(self, clt: CommandLineTool) -> str:
-    #     # challenging case - clt.id is auto-generated gibberish
-    #     if clt.id.startswith('_:'):
-    #         selected_id: Optional[str] = None
-    #         if not selected_id:
-    #             selected_id = self.get_id_from_base_cmd(clt)
-    #         if not selected_id:
-    #             selected_id = self.get_id_from_arguments(clt)
-    #         if not selected_id:
-    #             selected_id = self.get_id_from_requirements(clt)
-    #         if not selected_id:
-    #             selected_id = f'temp_{clt.id[2:]}'
-    #     # most simple case - clt.id is reasonable
-    #     else:
-    #         selected_id = clt.id
-    #     return selected_id
-    
-    # def get_id_from_base_cmd(self, clt: CommandLineTool) -> Optional[str]:
-    #     banned_commands = ['bash', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cd']
-    #     if hasattr(clt, 'baseCommand') and clt.baseCommand:
-    #         command = clt.baseCommand[0]
-    #         if command not in banned_commands:
-    #             return command
-    #     return None
-    
-    # def get_id_from_arguments(self, clt: CommandLineTool) -> Optional[str]:
-    #     banned_commands = ['bash', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cd']
-    #     if hasattr(clt, 'arguments') and clt.arguments:
-    #         for arg in clt.arguments:
-    #             command = arg.split()[0]
-    #             if command not in banned_commands:
-    #                 return command
-    #     return None 
-    
-    # def get_id_from_requirements(self, clt: CommandLineTool) -> Optional[str]:
-    #     if hasattr(clt, 'requirements') and clt.requirements:
-    #         for req in clt.requirements:
-    #             if req.class_ == 'DockerRequirement':
-    #                 return req.dockerPull.rsplit('/', 1)[-1].split(':', 1)[0]
-    #             elif req.class_ == 'SoftwareRequirement':
-    #                 for package in req.packages:
-    #                     return package.package
-    #     return None
-
     def ingest_workflow(self, workflow):
 
         wf = j.WorkflowBuilder(

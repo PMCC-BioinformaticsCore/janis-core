@@ -55,9 +55,7 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
         dtype = Stdout(dtype)
 
     # modifying dtype in optional case
-    if component.optional:
-        dtype.optional = True
-    
+    dtype.optional = component.optional
     return dtype
 
 
