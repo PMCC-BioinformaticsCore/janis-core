@@ -43,7 +43,7 @@ def order_tool_inputs(inputs: list[ToolInput]) -> list[ToolInput]:
         inputs = strategy.order(inputs)
     return inputs
 
-def get_tool_input_ordering(inputs: list[ToolInput]) -> dict[str, int]:
+def get_tool_input_positions(inputs: list[ToolInput]) -> dict[str, int]:
     inputs = order_tool_inputs(inputs)
     return {inp.tag: i for i, inp in enumerate(inputs)}
         

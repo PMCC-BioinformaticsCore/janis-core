@@ -154,8 +154,8 @@ class TestWdlComments(unittest.TestCase):
         expected = """\
 call A.SingleTestTool as testTool {
   input:
-    input1=inp1,  # [String]
-    input2=inp2   # [Optional<String>]
+    input1=inp1,  # String     
+    input2=inp2   # String?    
 }"""
         self.assertEqual(expected, outstr)
 

@@ -76,7 +76,7 @@ from janis_core.utils.secondary import (
 from janis_core.utils.validators import Validators
 from janis_core.workflow.workflow import StepNode
 
-from .ordering import get_tool_input_ordering
+from .ordering import get_tool_input_positions
 
 ## PRIMARY TRANSLATION METHODS
 
@@ -1508,7 +1508,8 @@ def translate_step_node(
     #       fieldName: sourceCall.Output
 
     inputs_details: dict[str, dict[str, Any]] = {}
-    input_ordering = get_tool_input_ordering(step.tool.inputs())
+    input_positions = get_tool_input_positions(step.tool.inputs())
+    last_position = 999
     
     for k, inp in step.inputs().items():
         if k not in step.sources:
@@ -1620,38 +1621,37 @@ def translate_step_node(
 
             # get extra info from tool_input. used to render comments
             tool_input = [x for x in step.tool.inputs() if x.tag == k][0]
+            
+            # special label
             special_label = None
-            # cant do this because even static values are InputNodes
-            # if isinstance(source, InputNodeSelector):   
-            #     special_label = '*WORKFLOW INPUT*'
             for edge in ar_source:
                 if isinstance(edge.source, StepOutputSelector):
                     special_label = '*CONNECTION*'
+            # prefix
             prefix = tool_input.prefix
             if isinstance(prefix, str):
                 prefix = prefix.rstrip('=')
+            # position
+            # odd grammar here is handle situations where we don't know what position the
+            # input should be (eg secondary files). In these cases, just uses the previous position. 
+            # should keep secondaries grouped together.
+            position = input_positions[tag] if tag in input_positions else last_position
+            last_position = position
 
             inputs_details[tag] = {
                 'value': value[0] if should_select_first_element else "[" + ", ".join(value) + "]",
-                'special_label': special_label,
+                'special': special_label,
                 'prefix': prefix,
                 # below - used if we wanted to output '(default)' as default label,
                 # rather than the actual default value to the tool input. eg '(100)'
                 #'default': True if _is_input_default(inp, source) else False, 
                 'default': _get_wrapped_default(inp, tool_input),
                 'datatype': inp.intype.wdl().get_string(),
-                'ordering': input_ordering[tag]
+                'position': position
             }
 
     for key, val in resource_overrides.items():
-        inputs_details[key] = {
-            'value': val,
-            'special_label': None,
-            'prefix': None,
-            'default': None,
-            'datatype': None,
-            'ordering': 9999
-        }
+        inputs_details[key] = {'value': val}
 
     messages = get_messages(step.id())   # uuid is currently using janis-core identifiers
     call = wdl.WorkflowCall(step_identifier, step.id(), inputs_details, messages, render_comments)
