@@ -78,6 +78,9 @@ class NFFile(NFBase):
 
 
 class Channel(NFBase):
+    # need to look into this properly. 
+    # Channels are also sometimes created as plain text in functions
+    # this isnt expressive enough to properly handle Channels
     def __init__(self, method, value):
         self.method = method
         self.value = value

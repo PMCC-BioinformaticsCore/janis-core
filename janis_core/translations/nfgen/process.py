@@ -1,11 +1,11 @@
-import json
+
 from enum import Enum
 from textwrap import indent
 
 from typing import Optional, Union, List
 
-from janis_core.translations.nfgen.common import NFBase, filter_null
-from janis_core.translations.nfgen.directives import ProcessDirective
+from .common import NFBase, filter_null
+from .directives import ProcessDirective
 
 
 class ProcessScriptType(Enum):
@@ -19,18 +19,18 @@ class InputProcessQualifier(Enum):
     env = "env"
     file = "file"
     path = "path"
-    stdin = "stdin"
     tuple = "tuple"
+    stdin = "stdin"
     each = "each"
 
 
 class OutputProcessQualifier(Enum):
     val = "val"
+    env = "env"
     file = "file"
     path = "path"
-    env = "env"
-    stdout = "stdout"
     tuple = "tuple"
+    stdout = "stdout"
 
 
 class ProcessInput(NFBase):
@@ -68,7 +68,7 @@ class ProcessOutput(NFBase):
         qualifier: OutputProcessQualifier,
         name: str,
         expression: str,
-        is_optional=False,
+        is_optional: bool = False,
         into: Optional[Union[str, List[str]]] = None,
         attributes: Optional[Union[str, List[str]]] = None,
     ):
@@ -199,8 +199,7 @@ class Process(NFBase):
 
         return f"""\
 
-process {name}
-{{
+process {name} {{
 {tool_definition}
 }}
 

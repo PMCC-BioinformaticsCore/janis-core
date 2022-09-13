@@ -75,7 +75,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
 
         step_id = "print"
         tool = workflow.step_nodes[step_id].tool
-        inputs = translator.generate_wf_tool_inputs(tool)
+        inputs = translator.gen_wf_tool_inputs(tool)
         expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
 
         self.assertEqual(expected, inputs)
@@ -87,7 +87,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected = {"testtool": "$params.inp"}
         self.assertEqual(
             expected,
-            translator.generate_wf_tool_inputs(w1.step_nodes["stp"].tool),
+            translator.gen_wf_tool_inputs(w1.step_nodes["stp"].tool),
         )
 
     def test_with_expression(self):
@@ -99,7 +99,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         }
         self.assertEqual(
             expected,
-            translator.generate_wf_tool_inputs(w2.step_nodes["print"].tool),
+            translator.gen_wf_tool_inputs(w2.step_nodes["print"].tool),
         )
 
     def test_multi_steps(self):
@@ -109,13 +109,13 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected1 = {"testtool": "$params.inp"}
         self.assertEqual(
             expected1,
-            translator.generate_wf_tool_inputs(w3.step_nodes["stp1"].tool),
+            translator.gen_wf_tool_inputs(w3.step_nodes["stp1"].tool),
         )
 
         expected2 = {"inp": "$stp1.out.out"}
         self.assertEqual(
             expected2,
-            translator.generate_wf_tool_inputs(w3.step_nodes["stp2"].tool),
+            translator.gen_wf_tool_inputs(w3.step_nodes["stp2"].tool),
         )
 
 
@@ -123,7 +123,7 @@ class TestNextflowPrepareInputVars(unittest.TestCase):
     def test_secondary_files(self):
         inp = ToolInput("bam", DataTypeWithSecondary(), prefix="-I")
 
-        res = translator.generate_input_var_definition(inp, "bam")
+        res = translator.gen_input_var_definition(inp, "bam")
         expected = "apply_prefix(bam[0], '-I ', 'False')"
         self.assertEqual(res, expected)
 
@@ -131,7 +131,7 @@ class TestNextflowPrepareInputVars(unittest.TestCase):
 
         inp = ToolInput("bams", Array(DataTypeWithSecondary()), prefix="-I")
 
-        res = translator.generate_input_var_definition(inp, "bams")
+        res = translator.gen_input_var_definition(inp, "bams")
         expected = "apply_prefix(get_primary_files(bams).join(' '), '-I ', 'False')"
 
         self.assertEqual(res, expected)
@@ -143,19 +143,19 @@ class TestGenerateWfToolOutputs(unittest.TestCase):
     w3 = TestWorkflowWithAliasSelectorWorkflow()
 
     def test_without_prefix(self):
-        assert translator.generate_wf_tool_outputs(self.w1) == {"out": "stp.out.out"}
-        assert translator.generate_wf_tool_outputs(self.w2) == {"out": "print.out.out"}
-        assert translator.generate_wf_tool_outputs(self.w3) == {"out": "stp1.out.out"}
+        assert translator.gen_wf_tool_outputs(self.w1) == {"out": "stp.out.out"}
+        assert translator.gen_wf_tool_outputs(self.w2) == {"out": "print.out.out"}
+        assert translator.gen_wf_tool_outputs(self.w3) == {"out": "stp1.out.out"}
 
     def test_with_prefix(self):
         expected1 = {"out": "subworkflow_stp.out.out"}
         self.assertEqual(
-            expected1, translator.generate_wf_tool_outputs(self.w1, "subworkflow_")
+            expected1, translator.gen_wf_tool_outputs(self.w1, "subworkflow_")
         )
 
         expected2 = {"out": "subworkflowprint.out.out"}
         self.assertEqual(
-            expected2, translator.generate_wf_tool_outputs(self.w2, "subworkflow")
+            expected2, translator.gen_wf_tool_outputs(self.w2, "subworkflow")
         )
 
 
@@ -372,12 +372,12 @@ class TestNextflowGenerateInput(unittest.TestCase):
 
 
 class TestGenerateNfProcessForCommandTool(unittest.TestCase):
+    maxDiff: Optional[int] = None
     def test_stdout_out_tool(self):
-        p = translator.generate_nf_process_for_command_tool(EchoTestTool())
-
+        p = translator.gen_process_from_cmdtool(EchoTestTool())
+        p_str = p.get_string()
         expected = f"""
-process EchoTestTool
-{{
+process EchoTestTool {{
   input:
     val inp
 
@@ -391,16 +391,12 @@ process EchoTestTool
   time "${{params.runtime_seconds + 's'}}"
 
   script:
-
     def inpWithPrefix = apply_prefix(inp, ' ', 'False')
-
     def runtime_memory = params.runtime_memory
-
     def runtime_cpu = params.runtime_cpu
-
     def runtime_disks = params.runtime_disks
-
     def runtime_seconds = params.runtime_seconds
+    
     \"\"\"
     echo \\
     $inpWithPrefix | tee janisstdout_EchoTestTool
@@ -409,10 +405,10 @@ process EchoTestTool
 
 
 """
-        self.assertEqual(expected, p.get_string())
+        self.assertEqual(expected, p_str)
 
     def test_operator_resource_tool(self):
-        p = translator.generate_nf_process_for_command_tool(OperatorResourcesTestTool())
+        p = translator.gen_process_from_cmdtool(OperatorResourcesTestTool())
         expected = f"""
 process EchoTestTool
 {{
@@ -453,7 +449,7 @@ process EchoTestTool
         self.assertEqual(expected, p.get_string())
 
     def test_filename_generated_tool(self):
-        p = translator.generate_nf_process_for_command_tool(FilenameGeneratedTool())
+        p = translator.gen_process_from_cmdtool(FilenameGeneratedTool())
 
         expected = f"""
 process filenamegeneratedtool
@@ -524,7 +520,7 @@ process filenamegeneratedtool
         self.assertEqual(expected, p.get_string())
 
     def test_tool_with_secondary_input(self):
-        p = translator.generate_nf_process_for_command_tool(
+        p = translator.gen_process_from_cmdtool(
             TestToolWithSecondaryInput()
         )
 
@@ -565,7 +561,7 @@ process CatTestTool
         self.assertEqual(expected, p.get_string())
 
     def test_tool_with_secondary_output(self):
-        p = translator.generate_nf_process_for_command_tool(
+        p = translator.gen_process_from_cmdtool(
             TestToolWithAppendedSecondaryOutput()
         )
 
@@ -609,7 +605,7 @@ process TestTranslationtool
         self.assertEqual(expected, p.get_string())
 
     def test_tool_with_replaced_secondary_output(self):
-        p = translator.generate_nf_process_for_command_tool(
+        p = translator.gen_process_from_cmdtool(
             TestToolWithReplacedSecondaryOutput()
         )
         expected = f"""
@@ -655,7 +651,7 @@ process TestTranslationtool
 
 class TestGenerateNfProcessForPythonCodeTool(unittest.TestCase):
     def test_str_input(self):
-        p = translator.generate_nf_process_for_python_code_tool(TestSplitTextTool())
+        p = translator.gen_process_from_codetool(TestSplitTextTool())
         expected = f"""
 process TestSplitTextTool
 {{
@@ -693,7 +689,7 @@ process TestSplitTextTool
         self.assertEqual(expected, p.get_string())
 
     def test_int_input(self):
-        p = translator.generate_nf_process_for_python_code_tool(TestSumTool())
+        p = translator.gen_process_from_codetool(TestSumTool())
         expected = f"""
 process TestSumTool
 {{
@@ -732,7 +728,7 @@ process TestSumTool
         self.assertEqual(expected, p.get_string())
 
     def test_array_input(self):
-        p = translator.generate_nf_process_for_python_code_tool(TestJoinArrayTool())
+        p = translator.gen_process_from_codetool(TestJoinArrayTool())
         expected = f"""
 process TestJoinArrayTool
 {{
@@ -770,7 +766,7 @@ process TestJoinArrayTool
         self.assertEqual(expected, p.get_string())
 
     def test_file_input(self):
-        p = translator.generate_nf_process_for_python_code_tool(TestFileInput())
+        p = translator.gen_process_from_codetool(TestFileInput())
         expected = f"""
 process TestFileInput
 {{
@@ -808,7 +804,7 @@ process TestFileInput
         self.assertEqual(expected, p.get_string())
 
     def test_file_with_secondary_input(self):
-        p = translator.generate_nf_process_for_python_code_tool(
+        p = translator.gen_process_from_codetool(
             TestFileWithSecondaryInput()
         )
         expected = f"""

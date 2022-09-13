@@ -3,6 +3,7 @@ import re
 import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
+from .nfgen.common import NFBase
 
 from janis_core.types import (
     DataType,
@@ -39,24 +40,32 @@ from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core import Logger
-from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, WorkflowBase
+from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, Workflow, WorkflowBase
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
 
 
-class NextflowTranslator(TranslatorBase):
-    LIB_FILENAME = "lib.nf"
-    OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
-    NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
-    PARAM_VAR = "%PARAM%"
-    LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
-    LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
-    PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
-    PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
-    FINAL_STEP_NAME = "janis_outputs"
-    TOOL_STDOUT_FILENAME = "janisstdout"
 
+# class methods dont make sense. dislike this approach. 
+# whole approach is far too complex. no need for oop. 
+# should have just defined a translation interface (protocol class in python) 
+# specifying the method signatures each translator needs.
+
+
+LIB_FILENAME = "lib.nf"
+OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
+NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
+PARAM_VAR = "%PARAM%"
+LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
+LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
+PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
+PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
+FINAL_STEP_NAME = "janis_outputs"
+TOOL_STDOUT_FILENAME = "janisstdout"
+
+
+class NextflowTranslator(TranslatorBase):
     INPUT_IN_SELECTORS = {}
 
     def __init__(self):
@@ -65,28 +74,21 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def translate_workflow(
         cls,
-        workflow,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override: dict = None,
+        jworkflow: Workflow,
+        with_container: bool = True,  
+        with_resource_overrides: bool = False,
+        allow_empty_container: bool = False,
+        container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
-    ) -> Tuple[any, Dict[str, any]]:
+    ) -> Tuple[Any, dict[str, Any]]:  
 
-        step_keys = list(workflow.step_nodes.keys())
-        process_files = {}
-        tools = {}
-
-        items_to_import = {}
+        files: dict[str, nfgen.NFFile] = {}
         main_items = {}
-        for step_id in workflow.step_nodes:
-            tool = workflow.step_nodes[step_id].tool
-            tools[tool.versioned_id()] = tool
 
-            nf_items = cls.generate_nf_items_for_workflow_step(
-                tool,
-                step_id,
-                step_keys,
+        for step in jworkflow.step_nodes.values():
+            nf_items = cls.gen_items_for_step(
+                step.tool,
+                step.id(),
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
@@ -96,42 +98,32 @@ class NextflowTranslator(TranslatorBase):
                 imports=[cls.init_helper_functions_import(".")], items=nf_items
             )
 
-            tool_filename = f"{step_id}_{tool.versioned_id()}"
-            process_files[tool_filename] = nf_file
-            items_to_import[tool_filename] = [nf_items[0]]
+            tool_filename = f"{step.id()}_{step.tool.versioned_id()}"
+            files[tool_filename] = nf_file
 
             # for subworkflow, we only want the workflow object
-            for i in nf_items:
-                main_items[step_id] = nf_items[0]
+            main_items[step.id()] = nf_items[0]
 
-        (
-            out_process_inp,
-            out_process_out,
-        ) = cls.prepare_output_process_params_for_worfklow(workflow)
+        imports = cls.collect_workflow_imports(files)
+        out_process_inp, out_process_out = cls.prepare_output_process_params_for_workflow(jworkflow)
+        output_p = cls.gen_output_process(out_process_inp, out_process_out)
+        workflow = cls.gen_workflow(janis=jworkflow, nf_items=main_items)
 
-        imports = [cls.init_helper_functions_import()] + cls.init_tool_steps_import(
-            items_to_import
-        )
-        items = [
-            cls.generate_nf_output_process(out_process_inp, out_process_out),
-            cls.generate_nf_workflow(workflow=workflow, nf_items=main_items),
-        ]
-        nf_file = nfgen.NFFile(imports=imports, items=items)
-
-        tool_scripts = {t: process_files[t].get_string() for t in process_files}
+        nf_file = nfgen.NFFile(imports=imports, items=[output_p, workflow])
+        tool_scripts: dict[str, str] = {t: files[t].get_string() for t in files}
 
         return (nf_file.get_string(), tool_scripts)
 
+
     @classmethod
-    def generate_nf_items_for_workflow_step(
+    def gen_items_for_step(
         cls,
         tool: Tool,
         step_id: str,
-        step_keys: List[str],
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override: dict = None,
+        with_container: bool = True,  
+        with_resource_overrides: bool = False,
+        allow_empty_container: bool = False,
+        container_override: Optional[dict[str, str]] = None,
     ) -> List[nfgen.NFBase]:
         """
         For each of the workflow step, we need to generate a Nextflow subworkflow or process object
@@ -153,33 +145,27 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        provided_inputs = cls.generate_wf_tool_inputs(tool)
-
         if isinstance(tool, CommandTool):
-            nf_item = cls.generate_nf_process_for_command_tool(
-                tool, step_id, provided_inputs
-            )
+            nf_item = cls.gen_process_from_cmdtool(tool, step_id)
             nf_item = cls.handle_container(
                 tool, nf_item, with_container, allow_empty_container, container_override
             )
-
             return [nf_item]
+
         elif isinstance(tool, PythonTool):
-            nf_item = cls.generate_nf_process_for_python_code_tool(
-                tool, step_id, provided_inputs
-            )
+            nf_item = cls.gen_process_from_codetool(tool, step_id)
             nf_item = cls.handle_container(
                 tool, nf_item, with_container, allow_empty_container, container_override
             )
-
             return [nf_item]
+
         elif isinstance(tool, WorkflowBase):
             sub_step_keys = list(tool.step_nodes.keys())
             nf_items = []
 
             for sub_step_id in tool.step_nodes:
                 step_tool = tool.step_nodes[sub_step_id].tool
-                nf_items += cls.generate_nf_items_for_workflow_step(
+                nf_items += cls.gen_items_for_step(
                     step_tool,
                     f"{step_id}_{sub_step_id}",
                     sub_step_keys,
@@ -189,7 +175,7 @@ class NextflowTranslator(TranslatorBase):
                     container_override=container_override,
                 )
 
-            nf_items = [cls.generate_nf_subworkflow(tool, step_id, nf_items)] + nf_items
+            nf_items = [cls.gen_subworkflow(tool, step_id, nf_items)] + nf_items
 
             return nf_items
         elif isinstance(tool, CodeTool):
@@ -211,6 +197,8 @@ class NextflowTranslator(TranslatorBase):
     ) -> str:
         """
         Generate Nextflow translation for Janis command line tool
+        main_p - the main tool process 
+        output_p - the process to collect outputs
 
         :param tool:
         :type tool:
@@ -225,26 +213,26 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        GENERATE_WORKFLOW = False  # change this using CLI? to allow original workflow wrapping behaviour.
 
-        process = cls.generate_nf_process_for_command_tool(tool)
-        process = cls.handle_container(
-            tool, process, with_container, allow_empty_container, container_override
+        main_p = cls.gen_process_from_cmdtool(tool)
+        main_p = cls.handle_container(
+            tool, main_p, with_container, allow_empty_container, container_override
         )
+        output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
+        output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
+        workflow = cls.gen_process_workflow(tool, nf_process=main_p)
 
-        imports = [cls.init_helper_functions_import()]
-
-        out_process_inp, out_process_out = cls.prepare_output_process_params_for_tool(
-            tool, process
+        nf_file = nfgen.NFFile(
+            imports=[
+                cls.init_helper_functions_import('.')
+            ], 
+            items=[
+                main_p,
+                output_p,
+                workflow
+            ]
         )
-
-        items = [
-            process,
-            cls.generate_nf_output_process(
-                inputs=out_process_inp, tool_outputs=out_process_out
-            ),
-            cls.generate_nf_execution_workflow(tool, nf_process=process),
-        ]
-        nf_file = nfgen.NFFile(imports=imports, items=items)
 
         return nf_file.get_string()
 
@@ -273,7 +261,7 @@ class NextflowTranslator(TranslatorBase):
         """
 
         if isinstance(tool, PythonTool):
-            process = cls.generate_nf_process_for_python_code_tool(tool)
+            process = cls.gen_process_from_codetool(tool)
             process = cls.handle_container(
                 tool, process, with_container, allow_empty_container, container_override
             )
@@ -287,10 +275,10 @@ class NextflowTranslator(TranslatorBase):
 
             items = [
                 process,
-                cls.generate_nf_output_process(
+                cls.gen_output_process(
                     inputs=out_process_inp, tool_outputs=out_process_out
                 ),
-                cls.generate_nf_execution_workflow(tool, nf_process=process),
+                cls.gen_process_workflow(tool, nf_process=process),
             ]
             nf_file = nfgen.NFFile(imports=imports, items=items)
 
@@ -299,7 +287,7 @@ class NextflowTranslator(TranslatorBase):
             raise Exception("Only PythonTool code tool is supported for the moment.")
 
     @classmethod
-    def generate_nf_subworkflow(
+    def gen_subworkflow(
         cls, subworkflow: WorkflowBase, name: str, nf_items: List[nfgen.NFBase]
     ) -> nfgen.Workflow:
         """
@@ -321,7 +309,7 @@ class NextflowTranslator(TranslatorBase):
         inputsdict = subworkflow.inputs_map()
         step_keys = list(subworkflow.step_nodes.keys())
 
-        wf_provided_inputs = cls.generate_wf_tool_inputs(subworkflow)
+        wf_provided_inputs = cls.gen_wf_tool_inputs(subworkflow)
 
         for i in subworkflow.input_nodes:
             if (
@@ -334,12 +322,12 @@ class NextflowTranslator(TranslatorBase):
             as_param = None
             input_type = inputsdict.get(key).intype
             if isinstance(input_type, File):
-                # inp.as_process_param = f"Channel.fromPath({cls.PARAM_VAR}).collect()"
-                as_param = cls.LIST_OF_FILES_PARAM
+                # inp.as_process_param = f"Channel.fromPath({PARAM_VAR}).collect()"
+                as_param = LIST_OF_FILES_PARAM
             elif isinstance(input_type, Array) and isinstance(
                 input_type.subtype(), Array
             ):
-                as_param = cls.LIST_OF_FILE_PAIRS_PARAM
+                as_param = LIST_OF_FILE_PAIRS_PARAM
 
             take.append(nfgen.WorkflowInput(name=key, as_param=as_param))
 
@@ -348,7 +336,7 @@ class NextflowTranslator(TranslatorBase):
             tool = subworkflow.step_nodes[step_id].tool
             tool_inp_dict = tool.inputs_map()
 
-            provided_inputs = cls.generate_wf_tool_inputs(
+            provided_inputs = cls.gen_wf_tool_inputs(
                 tool,
                 inputs_replacement="$",
                 tool_id_prefix=f"${name}_",
@@ -358,7 +346,7 @@ class NextflowTranslator(TranslatorBase):
                 subworkflow, tool, provided_inputs, wf_provided_inputs
             )
 
-            args = cls.handle_nf_process_args(
+            args = cls.handle_process_args(
                 tool,
                 nf_item.inputs,
                 tool_inp_dict,
@@ -371,16 +359,16 @@ class NextflowTranslator(TranslatorBase):
 
             main.append(f"{name}_{step_id}({args})")
 
-        wf_outputs = cls.generate_wf_tool_outputs(subworkflow, f"{name}_")
+        wf_outputs = cls.gen_wf_tool_outputs(subworkflow, f"{name}_")
         for o in wf_outputs:
             emit.append(nfgen.WorkflowOutput(name=o, expression=wf_outputs[o]))
 
         return nfgen.Workflow(name=name, main=main, take=take, emit=emit)
 
     @classmethod
-    def generate_nf_workflow(
+    def gen_workflow(
         cls,
-        workflow,
+        janis: Workflow,
         nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]],
         nf_workflow_name: str = "",
     ) -> nfgen.Workflow:
@@ -398,11 +386,11 @@ class NextflowTranslator(TranslatorBase):
         """
         main = []
 
-        step_keys = list(workflow.step_nodes.keys())
+        step_keys = list(janis.step_nodes.keys())
 
-        for step_id in workflow.step_nodes:
-            tool = workflow.step_nodes[step_id].tool
-            provided_inputs = cls.generate_wf_tool_inputs(tool)
+        for step_id in janis.step_nodes:
+            tool = janis.step_nodes[step_id].tool
+            provided_inputs = cls.gen_wf_tool_inputs(tool)
 
             inputsdict = tool.inputs_map()
 
@@ -413,23 +401,23 @@ class NextflowTranslator(TranslatorBase):
             elif isinstance(nf_process, nfgen.Workflow):
                 nf_inputs = nf_process.take
 
-            args = cls.handle_nf_process_args(
+            args = cls.handle_process_args(
                 tool,
                 nf_inputs,
                 inputsdict,
                 provided_inputs,
                 input_param_prefix=f"{step_id}_",
-                workflow=workflow,
-                scatter=workflow.step_nodes[step_id].scatter,
+                workflow=janis,
+                scatter=janis.step_nodes[step_id].scatter,
             )
 
             main.append(f"{nf_process.name}({args})")
 
         # calling outputs process for Janis to be able to find output files
-        args_list = [val for val in cls.generate_wf_tool_outputs(workflow).values()]
+        args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
 
         args = ", ".join(args_list)
-        main.append(f"{cls.FINAL_STEP_NAME}({args})")
+        main.append(f"{FINAL_STEP_NAME}({args})")
 
         return nfgen.Workflow(name=nf_workflow_name, main=main)
 
@@ -578,7 +566,7 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def generate_python_script(cls, tool: PythonTool) -> str:
+    def gen_python_script(cls, tool: PythonTool) -> str:
         """
         Generate python script to be included inside a Nextflow process
 
@@ -603,25 +591,25 @@ class NextflowTranslator(TranslatorBase):
         helpers = {}
 
         # Groovy helper functions
-        lib_file = nfgen.NFFile(imports=[], items=cls.generate_generic_functions())
-        helpers[cls.LIB_FILENAME] = lib_file.get_string()
+        lib_file = nfgen.NFFile(imports=[], items=cls.gen_generic_functions())
+        helpers[LIB_FILENAME] = lib_file.get_string()
 
-        helpers = cls.generate_python_code_files(tool, helpers)
+        helpers = cls.gen_python_code_files(tool, helpers)
 
         return helpers
 
     @classmethod
-    def generate_python_code_files(cls, tool: PythonTool, helpers: dict):
+    def gen_python_code_files(cls, tool: PythonTool, helpers: dict):
         # Python files for Python code tools
         if isinstance(tool, PythonTool):
             helpers["__init__.py"] = ""
-            helpers[f"{tool.versioned_id()}.py"] = cls.generate_python_script(tool)
+            helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
             return helpers
 
         elif isinstance(tool, WorkflowBase):
             for step_id in tool.step_nodes:
                 step_tool = tool.step_nodes[step_id].tool
-                helpers = cls.generate_python_code_files(step_tool, helpers)
+                helpers = cls.gen_python_code_files(step_tool, helpers)
 
         return helpers
 
@@ -656,9 +644,9 @@ class NextflowTranslator(TranslatorBase):
         return inputs, tool_outputs
 
     @classmethod
-    def prepare_output_process_params_for_worfklow(
+    def prepare_output_process_params_for_workflow(
         cls, workflow: WorkflowBase
-    ) -> Tuple[List[nfgen.ProcessInput], Dict]:
+    ) -> Tuple[List[nfgen.ProcessInput], dict[str, Any]]:
         """
         Every one of our tools will call a Nextflow process named "janis_outputs".
         This process will collect all the final outputs for this tool or workflow.
@@ -671,7 +659,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        wf_outputs = cls.generate_wf_tool_outputs(workflow)
+        wf_outputs = cls.gen_wf_tool_outputs(workflow)
         output_dict = workflow.outputs_map()
 
         inputs = []
@@ -704,8 +692,8 @@ class NextflowTranslator(TranslatorBase):
         return inputs, outputs
 
     @classmethod
-    def generate_nf_output_process(
-        cls, inputs: List[nfgen.ProcessInput], tool_outputs: Dict
+    def gen_output_process(
+        cls, inputs: List[nfgen.ProcessInput], tool_outputs: dict[str, Any]
     ) -> nfgen.Process:
         """
         Every one of our tools will call a Nextflow process named "janis_outputs".
@@ -725,18 +713,18 @@ class NextflowTranslator(TranslatorBase):
         # The script is simply adding tool outputs as key-value pairs into a text file
         script = ""
         for key, val in tool_outputs.items():
-            script += f"echo {key}={val} >> {cls.OUTPUT_METADATA_FILENAME}\n"
+            script += f"echo {key}={val} >> {OUTPUT_METADATA_FILENAME}\n"
 
         outputs = [
             nfgen.ProcessOutput(
                 qualifier=nfgen.OutputProcessQualifier.path,
                 name="janis_output_metadata",
-                expression=f"'{cls.OUTPUT_METADATA_FILENAME}'",
+                expression=f"'{OUTPUT_METADATA_FILENAME}'",
             )
         ]
 
         process = nfgen.Process(
-            name=cls.FINAL_STEP_NAME,
+            name=FINAL_STEP_NAME,
             script=script,
             script_type=nfgen.ProcessScriptType.script,
             inputs=inputs,
@@ -761,42 +749,43 @@ class NextflowTranslator(TranslatorBase):
             path = os.path.join(".", cls.DIR_TOOLS)
 
         items = [
-            nfgen.ImportItem(name=f.name) for f in cls.generate_generic_functions()
+            nfgen.ImportItem(name=f.name) for f in cls.gen_generic_functions()
         ]
-        return nfgen.Import(items, os.path.join(path, cls.LIB_FILENAME))
+        return nfgen.Import(items, os.path.join(path, LIB_FILENAME))
 
     @classmethod
-    def init_tool_steps_import(
-        cls, processes: Dict[str, nfgen.Process]
-    ) -> List[nfgen.Import]:
+    def collect_workflow_imports(
+        cls, files: dict[str, nfgen.NFFile]
+    ) -> list[nfgen.Import]:
         """
         Generate a list of Nextflow Import objects for each of the steps in a workflow.
 
-        :param processes:
-        :type processes:
+        :param files:
+        :type files:
         :return:
         :rtype:
         """
-        imports = []
-        for filename, nf_items in processes.items():
-            items_in_one_file = []
-            for p in nf_items:
-                item = nfgen.ImportItem(name=p.name)
-                items_in_one_file.append(item)
+        imports: list[nfgen.Import] = []
+        imports += [cls.init_helper_functions_import()]
+        
+        for filename, nf_file in files.items():
+            file_imports = []
+            for process in nf_file.items:
+                i_item = nfgen.ImportItem(name=process.name)
+                file_imports.append(i_item)
 
             imp = nfgen.Import(
-                items_in_one_file, os.path.join(".", cls.DIR_TOOLS, filename)
+                file_imports, os.path.join(".", cls.DIR_TOOLS, filename)
             )
             imports.append(imp)
 
         return imports
 
     @classmethod
-    def generate_nf_process_for_command_tool(
+    def gen_process_from_cmdtool(
         cls,
         tool: CommandTool,
         name: Optional[str] = None,
-        provided_inputs: Optional = None,
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for a Janis Command line tool
@@ -810,6 +799,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        provided_inputs = cls.gen_wf_tool_inputs(tool)
         inputs: List[ToolInput] = []
 
         # construct script
@@ -856,15 +846,15 @@ class NextflowTranslator(TranslatorBase):
 
             process.inputs.append(inp)
 
-        process.outputs = cls.generate_nf_outputs_for_nf_process(process_name, tool)
-        process.directives = cls.generate_nf_directives_for_nf_process(
+        process.outputs = cls.gen_outputs_for_process(process_name, tool)
+        process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
         )
 
         return process
 
     @classmethod
-    def generate_nf_directives_for_nf_process(
+    def gen_directives_for_process(
         cls, process_name: str, resource_param_names: List[str]
     ) -> List[nfgen.ProcessDirective]:
 
@@ -889,7 +879,7 @@ class NextflowTranslator(TranslatorBase):
         return nf_directives
 
     @classmethod
-    def generate_nf_outputs_for_nf_process(
+    def gen_outputs_for_process(
         cls, process_name: str, tool: Tool
     ) -> List[nfgen.ProcessOutput]:
         """
@@ -930,7 +920,7 @@ class NextflowTranslator(TranslatorBase):
 
                 expression = ", ".join(formatted_list)
             elif isinstance(output_type, Stdout):
-                expression = f"'{cls.TOOL_STDOUT_FILENAME}_{process_name}'"
+                expression = f"'{TOOL_STDOUT_FILENAME}_{process_name}'"
             elif isinstance(output_type, File) and output_type.has_secondary_files():
                 sub_qual = nfgen.OutputProcessQualifier.path
                 tuple_elements = [expression]
@@ -987,7 +977,7 @@ class NextflowTranslator(TranslatorBase):
         return nf_outputs
 
     @classmethod
-    def generate_nf_output_expression(cls, o: Union[TOutput, ToolOutput]):
+    def gen_output_expression(cls, o: Union[TOutput, ToolOutput]):
         """
         Based on the Janis output type, we generate string expression to represent outputs in Nextflow Process.
 
@@ -1013,16 +1003,15 @@ class NextflowTranslator(TranslatorBase):
             qual = nfgen.OutputProcessQualifier.path
         else:
             qual = nfgen.OutputProcessQualifier.val
-            expression = f"file(\"$workDir/{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
+            expression = f"file(\"$workDir/{PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
 
         return qual, expression
 
     @classmethod
-    def generate_nf_process_for_python_code_tool(
+    def gen_process_from_codetool(
         cls,
         tool: CodeTool,
-        name: Optional[str] = None,
-        provided_inputs: Optional = None,
+        name: Optional[str] = None
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for Janis python code tool
@@ -1036,6 +1025,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        provided_inputs = cls.gen_wf_tool_inputs(tool)
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
 
@@ -1062,8 +1052,8 @@ class NextflowTranslator(TranslatorBase):
 
         python_file_input = nfgen.ProcessInput(
             qualifier=nfgen.InputProcessQualifier.path,
-            name=cls.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-            as_param=cls.PYTHON_CODE_FILE_PATH_PARAM,
+            name=PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
+            as_param=PYTHON_CODE_FILE_PATH_PARAM,
         )
         process.inputs.append(python_file_input)
         for i in inputs:
@@ -1073,12 +1063,12 @@ class NextflowTranslator(TranslatorBase):
             if isinstance(i.intype, File) or (
                 isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
             ):
-                inp.as_param = cls.LIST_OF_FILES_PARAM
+                inp.as_param = LIST_OF_FILES_PARAM
 
             process.inputs.append(inp)
 
         for o in outputs:
-            qual, expression = cls.generate_nf_output_expression(o)
+            qual, expression = cls.gen_output_expression(o)
             out = nfgen.ProcessOutput(
                 qualifier=qual, name=o.id(), expression=expression
             )
@@ -1090,14 +1080,14 @@ class NextflowTranslator(TranslatorBase):
             resource_param_names,
         ) = cls.prepare_resources_var(tool, name)
 
-        process.directives = cls.generate_nf_directives_for_nf_process(
+        process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
         )
 
         return process
 
     @classmethod
-    def handle_nf_process_args(
+    def handle_process_args(
         cls,
         tool: Tool,
         nfgen_inputs: Union[List[nfgen.ProcessInput], List[nfgen.WorkflowInput]],
@@ -1148,12 +1138,12 @@ class NextflowTranslator(TranslatorBase):
                 p = i.as_param
 
             # Extra processing
-            if cls.PYTHON_CODE_FILE_PATH_PARAM in p:
+            if PYTHON_CODE_FILE_PATH_PARAM in p:
                 path_to_python_code_file = posixpath.join(
                     "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
                 )
                 p = p.replace(
-                    cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                    PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
                 )
             elif i.name in inputsdict:
                 toolinput = inputsdict.get(i.name)
@@ -1240,7 +1230,7 @@ class NextflowTranslator(TranslatorBase):
         return p
 
     @classmethod
-    def generate_nf_execution_workflow(
+    def gen_process_workflow(
         cls, tool, nf_process: nfgen.Process
     ) -> nfgen.Workflow:
         """
@@ -1260,22 +1250,22 @@ class NextflowTranslator(TranslatorBase):
 
             # Extra processing when we need to set up the process input parameters
             if i.as_param:
-                if cls.LIST_OF_FILES_PARAM in i.as_param:
+                if LIST_OF_FILES_PARAM in i.as_param:
                     p = i.as_param.replace(
-                        cls.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
+                        LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
                     )
-                elif cls.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
+                elif LIST_OF_FILE_PAIRS_PARAM in i.as_param:
                     p = i.as_param.replace(
-                        cls.LIST_OF_FILE_PAIRS_PARAM,
+                        LIST_OF_FILE_PAIRS_PARAM,
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
-                elif cls.PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
+                elif PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
 
                     path_to_python_code_file = posixpath.join(
                         "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
                     )
                     p = i.as_param.replace(
-                        cls.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                        PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
                     )
 
             args_list.append(p)
@@ -1285,21 +1275,21 @@ class NextflowTranslator(TranslatorBase):
             f"{nf_process.name}.out.{o.name}" for o in nf_process.outputs
         )
 
-        main = [f"{nf_process.name}({args})", f"{cls.FINAL_STEP_NAME}({outputs_args})"]
+        main = [f"{nf_process.name}({args})", f"{FINAL_STEP_NAME}({outputs_args})"]
 
         return nfgen.Workflow(name="", main=main)
 
     @classmethod
-    def generate_wf_tool_inputs(
+    def gen_wf_tool_inputs(
         cls,
         tool: Tool,
         inputs_replacement: str = "$params.",
         tool_id_prefix: str = "$",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
-        Generate a dictionary to represent the input values provided to a tool
-        key is the input name
-        value is the input expression
+        Generate a dictionary to represent the input values provided to a tool.
+        key is the input name.
+        value is the input expression.
 
         :param tool:
         :type tool:
@@ -1334,7 +1324,7 @@ class NextflowTranslator(TranslatorBase):
         return inputs
 
     @classmethod
-    def generate_wf_tool_outputs(
+    def gen_wf_tool_outputs(
         cls, wf: WorkflowBase, tool_var_prefix: str = ""
     ) -> Dict[str, str]:
         """
@@ -1362,7 +1352,7 @@ class NextflowTranslator(TranslatorBase):
         return outputs
 
     @classmethod
-    def generate_generic_functions(cls) -> List[nfgen.Function]:
+    def gen_generic_functions(cls) -> List[nfgen.Function]:
         """
         Generate Groovy helper functions to run our Nextflow processes
 
@@ -1392,7 +1382,7 @@ else {{
                 parameters=["var", "prefix", "prefix_applies_to_all_elements"],
                 definition=f"""
 var = var.toString()
-if (var && ( var != 'None' ) && (! var.contains('{cls.NO_FILE_PATH_PREFIX}')))
+if (var && ( var != 'None' ) && (! var.contains('{NO_FILE_PATH_PREFIX}')))
 {{
     return apply_prefix(var, prefix, prefix_applies_to_all_elements)
 }}
@@ -1855,7 +1845,7 @@ return primary
                     and isinstance(i.intype.subtype(), (File, Directory))
                 ):
                     count += 1
-                    val = f"/{cls.NO_FILE_PATH_PREFIX}{count}"
+                    val = f"/{NO_FILE_PATH_PREFIX}{count}"
                 else:
                     val = ""
             else:
@@ -2019,7 +2009,7 @@ result = code_block({args})
 
 work_dir = os.getenv("PYENV_DIR")
 for key in result:
-    with open(os.path.join("$workDir", f"{cls.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
+    with open(os.path.join("$workDir", f"{PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
         f.write(json.dumps(result[key]))
 """
 
@@ -2097,7 +2087,7 @@ for key in result:
         return f"""
 {pre_script}
 
-{main_script} | tee {cls.TOOL_STDOUT_FILENAME}_{process_name}
+{main_script} | tee {TOOL_STDOUT_FILENAME}_{process_name}
 
 """
 
@@ -2150,12 +2140,12 @@ for key in result:
 
         script_lines = []
         for i in inputs:
-            if hasattr(i, "input_type"):
+            if hasattr(i, 'input_type'):
                 input_type = i.input_type
-            elif hasattr(i, "intype"):
+            elif hasattr(i, 'intype'):
                 input_type = i.intype
             else:
-                raise Exception("Failed to get input type attribute")
+                raise Exception('Failed to get input type attribute')
 
             if isinstance(input_type, Filename):
                 val = cls.unwrap_expression(
@@ -2163,17 +2153,15 @@ for key in result:
                 )
 
                 if input_type.optional:
-                    val = f"{i.id()} && {i.id()} != 'None' ? {i.id()} : {val}"
+                    val = f'{i.id()} && {i.id()} != "None" ? {i.id()} : {val}'
 
-                code = f"""
-def {i.id()} = {val}
-"""
+                code = f'def {i.id()} = {val}'
                 script_lines.append(code)
 
-        return "".join(script_lines)
+        return '\n'.join(script_lines)
 
     @classmethod
-    def generate_input_var_definition(cls, inp: ToolInput, arg_name: str) -> str:
+    def gen_input_var_definition(cls, inp: ToolInput, arg_name: str) -> str:
         """
         Generate Groovy code to represent the values of input variable definitions
 
@@ -2244,18 +2232,16 @@ def {i.id()} = {val}
             else:
                 raise Exception("unknown input type")
 
-            arg = cls.generate_input_var_definition(a, arg_name)
-
-            code = f"""
-def {arg_name}WithPrefix = {arg}
-"""
-
+            arg = cls.gen_input_var_definition(a, arg_name)
+            
+            code = f'def {arg_name}WithPrefix = {arg}'
+            
             pre_script_lines.append(code)
 
-        return "".join(pre_script_lines)
+        return '\n'.join(pre_script_lines)
 
     @classmethod
-    def prepare_resources_var(cls, tool, name: Optional[str] = None):
+    def prepare_resources_var(cls, tool, name: Optional[str] = None) -> Tuple[str, list[str], list[str]]:
         """
         Generate Groovy code for resources variables definitions inside the Nextflow script section.
 
@@ -2279,14 +2265,12 @@ def {arg_name}WithPrefix = {arg}
 
             param_name = f"params.{prefix}{k}"
 
-            code = f"""
-def {k} = {param_name}
-"""
+            code = f'def {k} = {param_name}'
             var_names.append(k)
             param_names.append(param_name)
             pre_script_lines.append(code)
 
-        return "".join(pre_script_lines), var_names, param_names
+        return '\n'.join(pre_script_lines), var_names, param_names
 
     @classmethod
     def prepare_inputs_in_selector(
@@ -2316,12 +2300,11 @@ def {k} = {param_name}
             if k not in input_keys and k not in resources:
                 val = "''"
 
-                code = f"""
-def {k} =  {val}
-"""
+                code = f'def {k} = {val}'
+
                 pre_script_lines.append(code)
 
-        return "".join(pre_script_lines)
+        return '\n'.join(pre_script_lines)
 
     @classmethod
     def get_input_qualifier_for_inptype(

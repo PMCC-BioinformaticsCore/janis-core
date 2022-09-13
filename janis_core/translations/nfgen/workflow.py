@@ -84,8 +84,6 @@ class Workflow(NFBase):
         )
 
     def get_string(self):
-        nl = "\n"
-
         components = filter_null(
             [
                 self.prepare_take(),
@@ -95,11 +93,10 @@ class Workflow(NFBase):
             ]
         )
         name = self.name or ""
-        components_str = (2 * nl).join(components)
+        components_str = '\n'.join(components)
 
         return f"""\
-workflow {name} 
-{{
+workflow {name} {{
 
 {components_str}
 
