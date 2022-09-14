@@ -8,7 +8,7 @@
 """
 CONFIG_FILENAME = "nextflow.config"
 
-from .common import Channel, NFFile, Import, ImportItem, Function
+from .common import NFFile, Import, ImportItem, Function
 from .process import (
     Process,
     ProcessInput,

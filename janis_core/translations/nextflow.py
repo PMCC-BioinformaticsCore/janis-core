@@ -83,48 +83,54 @@ class NextflowTranslator(TranslatorBase):
     ) -> Tuple[Any, dict[str, Any]]:  
 
         files: dict[str, nfgen.NFFile] = {}
-        main_items = {}
-
+        processes: dict[str, nfgen.NFBase] = {}
+        step_keys = list(jworkflow.step_nodes.keys())
+        
+        # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
             nf_items = cls.gen_items_for_step(
                 step.tool,
                 step.id(),
+                step_keys,
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
                 container_override=container_override,
             )
             nf_file = nfgen.NFFile(
-                imports=[cls.init_helper_functions_import(".")], items=nf_items
+                imports=[cls.init_helper_functions_import(".")], 
+                items=nf_items,
+                _name=f"{step.id()}_{step.tool.versioned_id()}"
             )
+            files[nf_file.name] = nf_file
+            processes[step.id()] = nf_file.items[0]  # main process or workflow in file. 
 
-            tool_filename = f"{step.id()}_{step.tool.versioned_id()}"
-            files[tool_filename] = nf_file
-
-            # for subworkflow, we only want the workflow object
-            main_items[step.id()] = nf_items[0]
-
+        # handle imports
         imports = cls.collect_workflow_imports(files)
+        
+        # create outputs collection process
         out_process_inp, out_process_out = cls.prepare_output_process_params_for_workflow(jworkflow)
         output_p = cls.gen_output_process(out_process_inp, out_process_out)
-        workflow = cls.gen_workflow(janis=jworkflow, nf_items=main_items)
-
+        
+        # create object & NFFile for workflow
+        workflow = cls.gen_workflow(janis=jworkflow, nf_items=processes)
         nf_file = nfgen.NFFile(imports=imports, items=[output_p, workflow])
-        tool_scripts: dict[str, str] = {t: files[t].get_string() for t in files}
 
+        # generate strings for each file
+        tool_scripts: dict[str, str] = {name: nffile.get_string() for name, nffile in files.items()}
         return (nf_file.get_string(), tool_scripts)
-
 
     @classmethod
     def gen_items_for_step(
         cls,
         tool: Tool,
         step_id: str,
+        step_keys: list[str],
         with_container: bool = True,  
         with_resource_overrides: bool = False,
         allow_empty_container: bool = False,
         container_override: Optional[dict[str, str]] = None,
-    ) -> List[nfgen.NFBase]:
+    ) -> list[nfgen.Process | nfgen.Workflow]:
         """
         For each of the workflow step, we need to generate a Nextflow subworkflow or process object
 
@@ -174,12 +180,12 @@ class NextflowTranslator(TranslatorBase):
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-
             nf_items = [cls.gen_subworkflow(tool, step_id, nf_items)] + nf_items
-
             return nf_items
+
         elif isinstance(tool, CodeTool):
             raise Exception("Only PythonTool code tool is supported for the moment")
+        
         else:
             raise Exception(
                 f"Nextflow translation for this {tool.__class__} is not yet supported"
@@ -192,7 +198,7 @@ class NextflowTranslator(TranslatorBase):
         with_container: bool = True,
         with_resource_overrides: bool = False,
         allow_empty_container: bool = False,
-        container_override: dict = None,
+        container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
     ) -> str:
         """
@@ -240,9 +246,9 @@ class NextflowTranslator(TranslatorBase):
     def translate_code_tool_internal(
         cls,
         tool: CodeTool,
-        with_container=True,
-        allow_empty_container=False,
-        container_override: dict = None,
+        with_container: bool = True,  
+        allow_empty_container: bool = False,
+        container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
     ) -> str:
         """
@@ -312,11 +318,9 @@ class NextflowTranslator(TranslatorBase):
         wf_provided_inputs = cls.gen_wf_tool_inputs(subworkflow)
 
         for i in subworkflow.input_nodes:
-            if (
-                i not in wf_provided_inputs
-                and subworkflow.input_nodes[i].default is not None
-            ):
-                wf_provided_inputs[i] = subworkflow.input_nodes[i].default
+            if i not in wf_provided_inputs:
+                if subworkflow.input_nodes[i].default is not None:
+                    wf_provided_inputs[i] = subworkflow.input_nodes[i].default
 
         for key in subworkflow.connections:
             as_param = None
@@ -520,11 +524,11 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def handle_container(
         cls,
-        tool,
+        tool: Tool,
         process: nfgen.Process,
         with_container: bool = True,
-        allow_empty_container=False,
-        container_override: dict = None,
+        allow_empty_container: bool = False,
+        container_override: Optional[dict[str, str]] = None,
     ) -> nfgen.Process:
         """
         Add container information to a Nexflow Process object
@@ -1231,7 +1235,7 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def gen_process_workflow(
-        cls, tool, nf_process: nfgen.Process
+        cls, tool: Tool, nf_process: nfgen.Process
     ) -> nfgen.Workflow:
         """
         In the main translation file, we call a Nextflow Workflow even if it is only for a tool.

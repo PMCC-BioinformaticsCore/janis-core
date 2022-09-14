@@ -1,4 +1,3 @@
-from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from textwrap import indent
@@ -13,19 +12,6 @@ def filter_null(iterable):
         )
 
     return [el for el in iterable if el is not None]
-
-
-def get_nf_string(value):
-    if isinstance(value, list):
-        return ", ".join(get_nf_string(v for v in value))
-
-    elif isinstance(value, Enum):
-        return value.value
-
-    elif isinstance(value, NFBase):
-        return value.get_string()
-
-    return str(value)
 
 
 class NFBase(ABC):
@@ -61,12 +47,16 @@ class Import(NFBase):
 
 
 class NFFile(NFBase):
-    def __init__(self, imports: List[Import], items: List[NFBase]):
+    def __init__(self, imports: List[Import], items: List[NFBase], _name: Optional[str]=None):
         self.imports = imports
         self.items = items
+        self._name = _name
+
+    @property
+    def name(self) -> str:
+        return self._name  # type: ignore
 
     def get_string(self):
-
         components = [f"nextflow.enable.dsl=2"]
 
         if self.imports:
@@ -75,23 +65,7 @@ class NFFile(NFBase):
             components.extend(i.get_string() for i in self.items)
 
         return "\n\n".join(components)
-
-
-class Channel(NFBase):
-    # need to look into this properly. 
-    # Channels are also sometimes created as plain text in functions
-    # this isnt expressive enough to properly handle Channels
-    def __init__(self, method, value):
-        self.method = method
-        self.value = value
-
-    def get_string(self):
-        value = get_nf_string(self.value)
-        return f"Channel.{self.method}( {value} )"
-
-    @classmethod
-    def from_(cls, value):
-        return cls("from", value)
+    
 
 
 class Function(NFBase):

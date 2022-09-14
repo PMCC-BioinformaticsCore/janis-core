@@ -1,16 +1,10 @@
 import unittest
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
-from janis_core.operators.logical import If, IsDefined
-from janis_core.operators.standard import ReadContents
 
 from janis_core.tests.testtools import (
-    SingleTestTool,
-    ArrayTestTool,
     TestTool,
-    TestToolV2,
     TestInputQualityTool,
-    TestTypeWithSecondary,
     TestWorkflowWithStepInputExpression,
     EchoTestTool,
     FilenameGeneratedTool,
@@ -21,7 +15,6 @@ from janis_core.tests.testtools import (
     TestToolWithSecondaryInput,
     TestToolWithAppendedSecondaryOutput,
     TestToolWithReplacedSecondaryOutput,
-    TestTypeWithAppendedSecondary,
     TestSplitTextTool,
     TestSumTool,
     TestJoinArrayTool,
@@ -29,26 +22,16 @@ from janis_core.tests.testtools import (
     TestFileWithSecondaryInput,
 )
 
-
-from janis_core.translations.nextflow import NextflowTranslator
 from janis_core import (
     WorkflowBuilder,
     ToolInput,
     InputSelector,
-    WildcardSelector,
     StringFormatter,
-    CommandToolBuilder,
-    ToolOutput,
-    DataType,
     JoinOperator,
 )
-from janis_core.tool.documentation import InputDocumentation
 from janis_core.translations import NextflowTranslator as translator
-from janis_core.types import CpuSelector, MemorySelector, Stdout
-from janis_core.workflow.workflow import InputNode
-
-from janis_core.operators.standard import FirstOperator
-from janis_core import Array, String, Stdout, File, Int, Float, Boolean, Filename
+from janis_core.translations.nextflow import NO_FILE_PATH_PREFIX
+from janis_core import Array, String, File, Boolean, Filename
 
 
 class DataTypeWithSecondary(File):
@@ -333,7 +316,7 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_file_input")
         wf.input("inp", DataTypeWithSecondary())
         self.assertDictEqual(
-            {"inp": f"/{translator.NO_FILE_PATH_PREFIX}1"},
+            {"inp": f"/{NO_FILE_PATH_PREFIX}1"},
             self.translator.build_inputs_file(wf),
         )
 
@@ -341,7 +324,7 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_file_input")
         wf.input("inp", DataTypeNoSecondary())
         self.assertDictEqual(
-            {"inp": f"/{translator.NO_FILE_PATH_PREFIX}1"},
+            {"inp": f"/{NO_FILE_PATH_PREFIX}1"},
             self.translator.build_inputs_file(wf),
         )
 
@@ -351,8 +334,8 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf.input("inp2", DataTypeNoSecondary())
         self.assertDictEqual(
             {
-                "inp": f"/{translator.NO_FILE_PATH_PREFIX}1",
-                "inp2": f"/{translator.NO_FILE_PATH_PREFIX}2",
+                "inp": f"/{NO_FILE_PATH_PREFIX}1",
+                "inp2": f"/{NO_FILE_PATH_PREFIX}2",
             },
             self.translator.build_inputs_file(wf),
         )
