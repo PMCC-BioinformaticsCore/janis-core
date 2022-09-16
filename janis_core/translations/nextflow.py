@@ -4,6 +4,7 @@ import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
 from .nfgen.common import NFBase
+from .nfgen.formatting import format_process_call
 
 from janis_core.types import (
     DataType,
@@ -46,11 +47,22 @@ from janis_core.translationdeps.supportedtranslations import SupportedTranslatio
 from janis_core.translations import nfgen
 
 
-
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
 # should have just defined a translation interface (protocol class in python) 
 # specifying the method signatures each translator needs.
+
+# class File:
+#     ...
+
+# def translate_workflow(workflow: Workflow) -> list[File]:
+#     """translates a janis workflow to nextflow format."""
+#     ...
+
+# def translate_tool(tool: Tool) -> list[File]:
+#     """translates a janis tool to nextflow"""
+#     ...
+
 
 
 LIB_FILENAME = "lib.nf"
@@ -85,7 +97,10 @@ class NextflowTranslator(TranslatorBase):
         files: dict[str, nfgen.NFFile] = {}
         processes: dict[str, nfgen.NFBase] = {}
         step_keys = list(jworkflow.step_nodes.keys())
-        
+
+        param_block = cls.gen_param_declarations(list(jworkflow.input_nodes.values()))
+        channel_block = cls.gen_channel_declarations(list(jworkflow.input_nodes.values()))
+
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
             nf_items = cls.gen_items_for_step(
@@ -100,7 +115,7 @@ class NextflowTranslator(TranslatorBase):
             nf_file = nfgen.NFFile(
                 imports=[cls.init_helper_functions_import(".")], 
                 items=nf_items,
-                _name=f"{step.id()}_{step.tool.versioned_id()}"
+                name=f"{step.id()}_{step.tool.versioned_id()}"
             )
             files[nf_file.name] = nf_file
             processes[step.id()] = nf_file.items[0]  # main process or workflow in file. 
@@ -114,7 +129,7 @@ class NextflowTranslator(TranslatorBase):
         
         # create object & NFFile for workflow
         workflow = cls.gen_workflow(janis=jworkflow, nf_items=processes)
-        nf_file = nfgen.NFFile(imports=imports, items=[output_p, workflow])
+        nf_file = nfgen.NFFile(imports=imports, items=[param_block, channel_block, output_p, workflow])
 
         # generate strings for each file
         tool_scripts: dict[str, str] = {name: nffile.get_string() for name, nffile in files.items()}
@@ -219,7 +234,10 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        GENERATE_WORKFLOW = False  # change this using CLI? to allow original workflow wrapping behaviour.
+        file_items: list[nfgen.NFBase] = []
+
+        param_block = cls.gen_param_declarations(tool.inputs())
+        channel_block = cls.gen_channel_declarations(tool.inputs())
 
         main_p = cls.gen_process_from_cmdtool(tool)
         main_p = cls.handle_container(
@@ -227,20 +245,39 @@ class NextflowTranslator(TranslatorBase):
         )
         output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
         output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
-        workflow = cls.gen_process_workflow(tool, nf_process=main_p)
+        workflow = cls.gen_process_workflow(tool, process=main_p)
+
+        file_items.append(param_block)
+        file_items.append(channel_block)
+        file_items.append(main_p)
+        file_items.append(output_p)
+        file_items.append(workflow)
 
         nf_file = nfgen.NFFile(
-            imports=[
-                cls.init_helper_functions_import('.')
-            ], 
-            items=[
-                main_p,
-                output_p,
-                workflow
-            ]
+            imports=[cls.init_helper_functions_import('.')], 
+            items=file_items
         )
-
         return nf_file.get_string()
+
+    @classmethod 
+    def gen_param_declarations(cls, task_inputs: list[ToolInput] | list[InputNode]) -> nfgen.ParamDeclarationBlock:
+        """
+        generates a param declaration with default value for each task input.
+        this is to show users which params the workflow accepts. 
+        """
+        params: list[nfgen.ParamDeclaration] = []
+        for inp in task_inputs:
+            name = inp.id()
+            default = inp.default  # type: ignore
+            params.append(nfgen.ParamDeclaration(name, default))
+        return nfgen.ParamDeclarationBlock(params)
+    
+    @classmethod 
+    def gen_channel_declarations(cls, task_inputs: list[ToolInput] | list[InputNode]) -> nfgen.ChannelDeclarationBlock:
+        """generates a channel declaration for each task input. """
+        channels = [nfgen.channel_factory(inp) for inp in task_inputs]
+        return nfgen.ChannelDeclarationBlock(channels)
+
 
     @classmethod
     def translate_code_tool_internal(
@@ -284,7 +321,7 @@ class NextflowTranslator(TranslatorBase):
                 cls.gen_output_process(
                     inputs=out_process_inp, tool_outputs=out_process_out
                 ),
-                cls.gen_process_workflow(tool, nf_process=process),
+                cls.gen_process_workflow(tool, process=process),
             ]
             nf_file = nfgen.NFFile(imports=imports, items=items)
 
@@ -879,7 +916,6 @@ class NextflowTranslator(TranslatorBase):
                 nf_directives.append(
                     nfgen.DiskDirective(f"${{{res} ? {res} + 'GB': ''}}")
                 )
-
         return nf_directives
 
     @classmethod
@@ -1235,7 +1271,7 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def gen_process_workflow(
-        cls, tool: Tool, nf_process: nfgen.Process
+        cls, tool: Tool, process: nfgen.Process
     ) -> nfgen.Workflow:
         """
         In the main translation file, we call a Nextflow Workflow even if it is only for a tool.
@@ -1243,14 +1279,17 @@ class NextflowTranslator(TranslatorBase):
 
         :param tool:
         :type tool:
-        :param nf_process:
-        :type nf_process:
+        :param process:
+        :type process:
         :return:
         :rtype:
         """
+        body: list[str] = []
+
+        # gather input args for the tool process call
         args_list = []
-        for i in nf_process.inputs:
-            p = f"params.{i.name}"
+        for i in process.inputs:
+            p = f"ch_{i.name}"
 
             # Extra processing when we need to set up the process input parameters
             if i.as_param:
@@ -1264,24 +1303,20 @@ class NextflowTranslator(TranslatorBase):
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
                 elif PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
-
                     path_to_python_code_file = posixpath.join(
                         "$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
                     )
                     p = i.as_param.replace(
                         PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
                     )
-
             args_list.append(p)
 
-        args = ", ".join(args_list)
-        outputs_args = ", ".join(
-            f"{nf_process.name}.out.{o.name}" for o in nf_process.outputs
-        )
-
-        main = [f"{nf_process.name}({args})", f"{FINAL_STEP_NAME}({outputs_args})"]
-
-        return nfgen.Workflow(name="", main=main)
+        # gather input args for the output collection process call
+        output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
+        
+        body.append(format_process_call(process.name, args_list))
+        body.append(format_process_call(FINAL_STEP_NAME, output_args_list))
+        return nfgen.Workflow(name="", main=body)
 
     @classmethod
     def gen_wf_tool_inputs(

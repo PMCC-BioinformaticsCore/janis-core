@@ -20,5 +20,6 @@ from .process import (
 )
 
 from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
-
+from .channels import channel_factory, ChannelDeclaration, ChannelDeclarationBlock
+from .params import ParamDeclaration, ParamDeclarationBlock
 from .directives import *

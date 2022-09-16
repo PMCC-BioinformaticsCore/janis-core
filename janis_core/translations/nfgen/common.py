@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Any, Optional, List
 from textwrap import indent
+from . import formatting
 
 
 def filter_null(iterable):
@@ -16,7 +17,7 @@ def filter_null(iterable):
 
 class NFBase(ABC):
     @abstractmethod
-    def get_string(self):
+    def get_string(self) -> str:
         raise Exception("Subclass must override .get_string() method")
 
 
@@ -25,7 +26,7 @@ class ImportItem(NFBase):
         self.name = name
         self.alias = alias
 
-    def get_string(self):
+    def get_string(self) -> str:
         if self.alias:
             return f"{self.name} as {self.alias}"
         return self.name
@@ -36,7 +37,7 @@ class Import(NFBase):
         self.items = items
         self.source = source
 
-    def get_string(self):
+    def get_string(self) -> str:
         if len(self.items) == 0:
             raise Exception(
                 f"NF workflow import from '{self.source}' did not contain any items"
@@ -46,17 +47,19 @@ class Import(NFBase):
         return f"include {{ {items} }} from '{self.source}'"
 
 
+
+
 class NFFile(NFBase):
-    def __init__(self, imports: List[Import], items: List[NFBase], _name: Optional[str]=None):
+    def __init__(self, imports: List[Import], items: List[NFBase], name: Optional[str]=None):
         self.imports = imports
         self.items = items
-        self._name = _name
+        self._name = name
 
     @property
     def name(self) -> str:
         return self._name  # type: ignore
 
-    def get_string(self):
+    def get_string(self) -> str:
         components = [f"nextflow.enable.dsl=2"]
 
         if self.imports:
@@ -66,15 +69,13 @@ class NFFile(NFBase):
 
         return "\n\n".join(components)
     
-
-
 class Function(NFBase):
     def __init__(self, name: str, parameters: List[str], definition: str):
         self.name = name
         self.definition = definition
         self.parameters = parameters
 
-    def get_string(self):
+    def get_string(self) -> str:
         return f"""
 def {self.name}({", ".join(self.parameters)}) {{
   {indent(self.definition, '  ')}

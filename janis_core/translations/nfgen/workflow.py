@@ -9,7 +9,7 @@ class WorkflowInput(NFBase):
         self.name = name
         self.as_param = as_param
 
-    def get_string(self):
+    def get_string(self) -> str:
         return self.name
 
 
@@ -18,7 +18,7 @@ class WorkflowOutput(NFBase):
         self.name = name
         self.expression = expression
 
-    def get_string(self):
+    def get_string(self) -> str:
         if self.expression is not None:
             return f"{self.name} = {self.expression}"
 
@@ -30,7 +30,7 @@ class WorkflowPublish(NFBase):
         self.name = name
         self.to = to
 
-    def get_string(self):
+    def get_string(self) -> str:
         return f"{self.name} to: {self.to}"
 
 
@@ -83,7 +83,7 @@ class Workflow(NFBase):
             "  ",
         )
 
-    def get_string(self):
+    def get_string(self) -> str:
         components = filter_null(
             [
                 self.prepare_take(),

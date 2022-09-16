@@ -15,14 +15,14 @@ class ProcessDirective(NFBase, ABC):
         self.name = name
         self.value = value
 
-    def get_string(self):
+    def get_string(self) -> str:
         return f'{self.name} "{self.value}"'
 
 class CacheDirective(ProcessDirective):
     def __init__(self, cache):
         super().__init__("cache", cache)
 
-    def get_string(self):
+    def get_string(self) -> str:
         return f"{self.name} {str(self.value).lower()}"
 
 class CpusDirective(ProcessDirective):

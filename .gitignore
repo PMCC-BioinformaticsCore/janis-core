@@ -23,7 +23,9 @@
 # Logs and databases #
 ######################
 *.log
+*.log.*
 *.sqlite
+*.nextflow
 
 # OS generated files #
 ######################
@@ -39,6 +41,7 @@ tmtagsHistory
 *.sublime-project
 *.sublime-workspace
 .bundle
+work/
 
 # Added by Mohammad
 

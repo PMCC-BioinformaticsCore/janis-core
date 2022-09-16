@@ -48,7 +48,7 @@ class ProcessInput(NFBase):
         self.attributes = attributes
         self.as_param = as_param
 
-    def get_string(self):
+    def get_string(self) -> str:
         els = [self.qualifier.value, self.name]
 
         if self.from_:
@@ -80,7 +80,7 @@ class ProcessOutput(NFBase):
         self.optional = is_optional
         self.attributes = attributes
 
-    def get_string(self):
+    def get_string(self) -> str:
         if self.qualifier != OutputProcessQualifier.tuple:
             self.expression = f'"${{{self.expression}}}"'
 
@@ -117,7 +117,7 @@ class TupleElementForOutput(NFBase):
         self.qualifier = qualifier
         self.expression = expression
 
-    def get_string(self):
+    def get_string(self) -> str:
         return f'{self.qualifier.value}("${{{self.expression}}}")'
 
 
@@ -134,7 +134,6 @@ class Process(NFBase):
         directives: List[ProcessDirective] = None,
         pre_script: Optional[str] = None,
     ):
-
         self.name = name
 
         self.script = script
@@ -184,13 +183,13 @@ class Process(NFBase):
             return None
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
-    def get_string(self):
+    def get_string(self) -> str:
         nl = "\n"
         components = filter_null(
             [
+                self.prepare_directives(),
                 self.prepare_inputs(),
                 self.prepare_outputs(),
-                self.prepare_directives(),
                 self.prepare_script(),
             ]
         )
