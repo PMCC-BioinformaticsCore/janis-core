@@ -30,11 +30,13 @@ def is_file_pair(task_input: ToolInput | InputNode) -> bool:
                 raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
     return False
 
-def get_references(task_input: ToolInput | InputNode) -> list[str]:
+def get_input_references(inp: InputNode) -> list[str]:
     """returns the tags of each entity referencing task_input"""
     # TODO
-    return [task_input.id()]
+    return [inp.id()]
     #raise NotImplementedError
 
 def is_nullable(task_input: ToolInput | InputNode) -> bool:
     raise NotImplementedError
+
+#def should_wrap()

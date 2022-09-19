@@ -3,9 +3,12 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from io import RawIOBase
 from typing import Any
+
 from .common import NFBase
 from . import formatting
+
 
 
 @dataclass
@@ -45,8 +48,11 @@ class ParamDeclarationBlock(NFBase):
         return params
 
     def get_string(self) -> str:
-        return '\n'.join([ch.get_string() for ch in self.ordered_params])
-    
+        width_col_1 = max([p.width for p in self.params])
+        outstr = ''
+        for p in self.params:
+            outstr += f'{p.param:<{width_col_1}} = {p.default}\n'
+        return outstr
 
 
 
@@ -57,16 +63,28 @@ class ParamDeclaration(NFBase):
 
     @property
     def default(self) -> str:
-        default = str(self._default)
+        if isinstance(self._default, list):
+            default = [str(x) for x in self._default] # type: ignore
+            default = ', '.join(default)  
+        else:
+            default = str(self._default)
         if default in formatting.type_keyword_map:
             default = formatting.type_keyword_map[default]
         return default
     
+    @property
+    def param(self) -> str:
+        return f'params.{self.name}'
+
+    @property
+    def width(self) -> int:
+        return len(self.param)
+    
     def get_string(self) -> str:
-        if isinstance(self.default, list):
-            return f'params.{self.name} = {", ".join(self.default)}'  
-        else:
-            return f'params.{self.name} = {self.default}'
+        # leave this unimplemented! 
+        # bad architecture means the method has to exist. 
+        raise NotImplementedError  
+
 
 
 

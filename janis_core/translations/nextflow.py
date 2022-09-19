@@ -345,7 +345,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        main = []
+        body: list[str] = []
         take = []
         emit = []
 
@@ -398,13 +398,13 @@ class NextflowTranslator(TranslatorBase):
                 scatter=subworkflow.step_nodes[step_id].scatter,
             )
 
-            main.append(f"{name}_{step_id}({args})")
+            body.append(format_process_call(f'{name}_{step_id}', args))
 
         wf_outputs = cls.gen_wf_tool_outputs(subworkflow, f"{name}_")
         for o in wf_outputs:
             emit.append(nfgen.WorkflowOutput(name=o, expression=wf_outputs[o]))
 
-        return nfgen.Workflow(name=name, main=main, take=take, emit=emit)
+        return nfgen.Workflow(name=name, main=body, take=take, emit=emit)
 
     @classmethod
     def gen_workflow(
@@ -425,7 +425,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        main = []
+        body: list[str] = []
 
         step_keys = list(janis.step_nodes.keys())
 
@@ -452,15 +452,13 @@ class NextflowTranslator(TranslatorBase):
                 scatter=janis.step_nodes[step_id].scatter,
             )
 
-            main.append(f"{nf_process.name}({args})")
+            body.append(format_process_call(nf_process.name, args))
 
         # calling outputs process for Janis to be able to find output files
         args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
+        body.append(format_process_call(FINAL_STEP_NAME, args_list))
 
-        args = ", ".join(args_list)
-        main.append(f"{FINAL_STEP_NAME}({args})")
-
-        return nfgen.Workflow(name=nf_workflow_name, main=main)
+        return nfgen.Workflow(name=nf_workflow_name, main=body)
 
     @classmethod
     def apply_outer_workflow_inputs(
@@ -1137,9 +1135,9 @@ class NextflowTranslator(TranslatorBase):
         input_param_prefix: str = "",
         step_key_prefix: str = "",
         scatter: Optional[str] = None,
-    ) -> str:
+    ) -> list[str]:
         """
-        Generate a string to represent a Nextflow process arguments
+        generate list of strings representing each argument to a Nextflow process
 
         :param tool:
         :type tool:
@@ -1213,9 +1211,7 @@ class NextflowTranslator(TranslatorBase):
 
             args_list.append(p)
 
-        args = ", ".join(args_list)
-
-        return args
+        return args_list
 
     @classmethod
     def handle_scatter_argument(

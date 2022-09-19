@@ -88,7 +88,12 @@ class ChannelDeclarationBlock(NFBase):
         return channels
 
     def get_string(self) -> str:
-        return '\n'.join([ch.get_string() for ch in self.ordered_channels])
+        width_col_1 = max([c.width for c in self.channels])
+        outstr = ''
+        for c in self.ordered_channels:
+            outstr += f'{c.name:<{width_col_1}} = {c.get_string()}\n'
+        return outstr
+
 
 
 class ChannelDeclaration(NFBase):
@@ -103,16 +108,17 @@ class ChannelDeclaration(NFBase):
     @property
     def name(self) -> str:
         return f'ch_{self._name}'
+    
+    @property
+    def width(self) -> int:
+        return len(self.name)
 
     def get_string(self) -> str:
-        if self.condensed:
-            return self.get_string_condensed()
-        else:
-            return self.get_string_expanded()
+        return self.get_string_condensed()
         
     def get_string_condensed(self) -> str:
         collect = '.collect()' if self.collect else ''
-        return f'{self.name} = Channel.{self.method}( {self.source} ){collect}'
+        return f'Channel.{self.method}( {self.source} ){collect}'
 
     def get_string_expanded(self) -> str:
         channel_str = ''
