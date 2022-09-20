@@ -128,13 +128,15 @@ class Mapper:
                 doc=outp.tool_output.docstring,  # type: ignore
             )
 
-    def set_tool_input_values(self, gxstep: WorkflowStep, jtool: CommandToolBuilder) -> None:
+    def set_tool_input_values(self, gstep: WorkflowStep, jtool: CommandToolBuilder) -> None:
         """
         cast galaxy2janis InputValues to the janis model.
         janis stores these step input values on the tool itself (tool.connections).
         """
         unknown_count: int = 0
-        for gvalue in gxstep.inputs.all: # TODO ordering? currently unordered
+        invalues = gstep.inputs.all
+        invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+        for gvalue in invalues:
             # tool input is known (normal case)
             if gvalue.component:       
                 tag = gvalue.input_tag
@@ -227,7 +229,9 @@ def _get_scatter_targets(gstep: WorkflowStep) -> list[str]:
     unknown_count: int = 0
     targets: list[str] = []
     
-    for v in gstep.inputs.all:
+    invalues = gstep.inputs.all
+    invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+    for v in invalues:
         if v.scatter:
             if v.component:
                 name = v.input_tag

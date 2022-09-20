@@ -2,6 +2,7 @@
 
 from textwrap import indent
 
+
 NF_INDENT = '  '
 
 def call_fmt0(name: str) -> str:
@@ -30,10 +31,3 @@ def format_process_call(name: str, inputs: list[str], ind: int=0) -> str:
 
     return indent(call_str, ind * NF_INDENT)
 
-
-
-type_keyword_map: dict[str, str] = {
-    'None': 'null',
-    'False': 'false',
-    'True': 'true',
-}

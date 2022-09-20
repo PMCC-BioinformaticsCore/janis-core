@@ -40,11 +40,13 @@ def to_janis_tool(internal: Tool) -> CommandToolBuilder:
         directories_to_create
         files_to_create
     """
+    outs = [to_janis_tool_output(gout) for gout in internal.outputs]
+    inps = [to_janis_tool_input(ginp) for ginp in internal.inputs]
     return CommandToolBuilder(
         tool=internal.tag,
         base_command=internal.base_command,
-        inputs=[to_janis_tool_input(inp) for inp in internal.inputs],
-        outputs=[to_janis_tool_output(out) for out in internal.outputs],
+        inputs=inps,
+        outputs=outs,
         container=internal.container,                   # TODO check None type is ok
         version=internal.metadata.version,
         metadata=to_janis_metadata(internal.metadata),
@@ -81,7 +83,7 @@ def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
         else:
             prefix = internal_inp.prefix
         
-    return ToolInput(
+    tinp = ToolInput(
         tag=internal_inp.tag,
         input_type=to_janis_datatype(internal_inp),
         position=internal_inp.cmd_pos,
@@ -90,6 +92,7 @@ def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
         default=internal_inp.default_value,
         doc=internal_inp.docstring
     )
+    return tinp
 
 def to_janis_tool_output(internal_out: OutputComponent) -> ToolOutput:
     """ 

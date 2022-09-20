@@ -5,7 +5,7 @@ import json
 from typing import Tuple, Dict, List, Optional, Union, Any
 from .nfgen.common import NFBase
 from .nfgen.formatting import format_process_call
-
+from .nfgen.utils import wrap_value
 from janis_core.types import (
     DataType,
     Array,
@@ -268,7 +268,8 @@ class NextflowTranslator(TranslatorBase):
         params: list[nfgen.ParamDeclaration] = []
         for inp in task_inputs:
             name = inp.id()
-            default = inp.default  # type: ignore
+            itype = type(inp)
+            default = wrap_value(inp.default, inp)  # type: ignore
             params.append(nfgen.ParamDeclaration(name, default))
         return nfgen.ParamDeclarationBlock(params)
     
@@ -864,7 +865,7 @@ class NextflowTranslator(TranslatorBase):
             resource_var_names,
             resource_param_names,
         ) = cls.prepare_resources_var(tool, name)
-        pre_script += resources_var
+        pre_script += f'\n{resources_var}'
 
         # pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
         pre_script = (
@@ -1160,20 +1161,15 @@ class NextflowTranslator(TranslatorBase):
         for i in nfgen_inputs:
             if i.name in provided_inputs:
                 p = provided_inputs[i.name]
-                if p is None:
-                    p = "''"
-                elif isinstance(p, bool):
-                    p = f"'{p}'"
-                elif "$" in p:
-                    p = p.replace("$", "")
-                else:
-                    p = f"'{p}'"
             elif i.name in inputsdict:
                 p = f"'{inputsdict[i.name].default}'" or "''"
                 if "inputs." in p:
                     p = p.replace("inputs.", f"params.{input_param_prefix}").strip("'")
             else:
                 p = i.as_param
+            
+            t = inputsdict[i.name] if i.name in inputsdict else None
+            p = wrap_value(p, t)
 
             # Extra processing
             if PYTHON_CODE_FILE_PATH_PARAM in p:
@@ -1318,7 +1314,7 @@ class NextflowTranslator(TranslatorBase):
     def gen_wf_tool_inputs(
         cls,
         tool: Tool,
-        inputs_replacement: str = "$params.",
+        inputs_replacement: str = "ch_",
         tool_id_prefix: str = "$",
     ) -> dict[str, Any]:
         """

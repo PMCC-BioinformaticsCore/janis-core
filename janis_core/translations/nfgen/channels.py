@@ -21,7 +21,7 @@ def channel_factory(task_input: ToolInput | InputNode) -> ChannelDeclaration:
 
 def get_channel_method(task_input: ToolInput | InputNode) -> str:
     # consumed once or multiple times? (only valid for InputNode)
-    if isinstance(task_input, InputNode) and len(utils.get_references(task_input)) > 1:
+    if isinstance(task_input, InputNode) and len(utils.get_input_references(task_input)) > 1:
         method = 'value'
     elif utils.is_path(task_input) and utils.is_file_pair(task_input):
         method = 'fromFilePairs'

@@ -13,7 +13,6 @@ class ProcessScriptType(Enum):
     shell = "shell"
     exec = "exec"
 
-
 class InputProcessQualifier(Enum):
     val = "val"
     env = "env"
@@ -22,7 +21,6 @@ class InputProcessQualifier(Enum):
     tuple = "tuple"
     stdin = "stdin"
     each = "each"
-
 
 class OutputProcessQualifier(Enum):
     val = "val"
@@ -130,7 +128,7 @@ class Process(NFBase):
         script_quote: Optional[str] = '"',
         inputs: List[ProcessInput] = None,
         outputs: List[ProcessOutput] = None,
-        when: Optional[str] = None,
+        when: Optional[str] = None,  # TODO unimplemented
         directives: List[ProcessDirective] = None,
         pre_script: Optional[str] = None,
     ):
@@ -146,7 +144,8 @@ class Process(NFBase):
         self.pre_script = pre_script
 
     def prepare_script(self, prefix="  "):
-        script = str(self.script).strip()
+        script = ''
+        script += str(self.script).strip()
         if self.script_quote:
             q = 3 * self.script_quote
             script = q + "\n" + script + "\n" + q
@@ -159,7 +158,7 @@ class Process(NFBase):
             pre_script = ""
 
         if self.script_type:
-            script = indent(f"{self.script_type.value}:\n{pre_script}" + script, "  ")
+            script = indent(f"{self.script_type.value}:\n{pre_script}\n" + script, "  ")
 
         return script
 
@@ -184,7 +183,6 @@ class Process(NFBase):
         return "\n".join(prefix + d.get_string() for d in self.directives)
 
     def get_string(self) -> str:
-        nl = "\n"
         components = filter_null(
             [
                 self.prepare_directives(),
@@ -194,13 +192,10 @@ class Process(NFBase):
             ]
         )
         name = self.name or ""
-        tool_definition = (2 * nl).join(components)
+        tool_definition = "\n\n".join(components)
 
         return f"""\
-
 process {name} {{
 {tool_definition}
 }}
-
-
 """

@@ -3,11 +3,10 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from io import RawIOBase
 from typing import Any
 
 from .common import NFBase
-from . import formatting
+from . import utils
 
 
 
@@ -68,8 +67,8 @@ class ParamDeclaration(NFBase):
             default = ', '.join(default)  
         else:
             default = str(self._default)
-        if default in formatting.type_keyword_map:
-            default = formatting.type_keyword_map[default]
+        if default in utils.type_keyword_map:
+            default = utils.type_keyword_map[default]
         return default
     
     @property

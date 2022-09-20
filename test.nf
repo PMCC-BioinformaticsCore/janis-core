@@ -6,7 +6,21 @@ params.extra_greeting = null
 
 ch_greeting = Channel.of(params.greeting) 
 ch_extra_greeting = Channel.of(params.extra_greeting) 
+ch_false = Channel.of(true)
 
+process CHECKFALSE {
+    input:
+    val input1
+
+    output: 
+    stdout emit: outstr
+
+    script:
+    def mytext = input1 ? 'its true!' : 'its false!'
+    """ 
+    echo $mytext
+    """ 
+}
 
 process CONVERTTOUPPER { 
     input:  
@@ -24,8 +38,10 @@ process CONVERTTOUPPER {
 } 
 
 workflow { 
-    results_ch = CONVERTTOUPPER(ch_greeting, ch_extra_greeting) 
-    results_ch.view{ it } 
+    //results_ch = CONVERTTOUPPER(ch_greeting, ch_extra_greeting) 
+    //results_ch.view{ it } 
+    ch_out = CHECKFALSE(ch_false)
+    ch_out.view{ it }
 }
 
 
