@@ -487,7 +487,7 @@ class CommandTool(Tool, ABC):
         return super().all_input_keys() + [
             "runtime_memory",
             "runtime_cpu",
-            "runtime_disks",
+            "runtime_disk",
             "runtime_seconds",
         ]
 
@@ -630,7 +630,7 @@ OUTPUTS:
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": disk,
+                    "runtime_disk": disk,
                     "runtime_seconds": secs,
                 }
             )

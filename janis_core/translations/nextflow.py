@@ -3,9 +3,9 @@ import re
 import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
-from .nfgen.common import NFBase
-from .nfgen.formatting import format_process_call
-from .nfgen.utils import wrap_value
+from .nfgen import NFBase
+from .nfgen import format_process_call
+from .nfgen import wrap_value
 from janis_core.types import (
     DataType,
     Array,
@@ -64,7 +64,7 @@ from janis_core.translations import nfgen
 #     ...
 
 
-
+MINIFIED_PROCESS = True
 LIB_FILENAME = "lib.nf"
 OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
 NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
@@ -593,7 +593,7 @@ class NextflowTranslator(TranslatorBase):
         if container is not None:
             process.directives.append(
                 nfgen.ContainerDirective(
-                    cls.unwrap_expression(container, quote_string=False, tool=tool)
+                    container=cls.unwrap_expression(container, quote_string=False, tool=tool)
                 )
             )
         elif not allow_empty_container:
@@ -771,7 +771,7 @@ class NextflowTranslator(TranslatorBase):
             outputs=outputs,
         )
 
-        process.directives.append(nfgen.CacheDirective(False))
+        process.directives.append(nfgen.CacheDirective(enabled=False))
 
         return process
 
@@ -839,37 +839,40 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        provided_inputs = cls.gen_wf_tool_inputs(tool)
-        inputs: List[ToolInput] = []
+        # # construct script
+        # for i in tool.inputs():
+        #     if provided_inputs is not None:
+        #         optional = (
+        #             i.input_type.optional is None or i.input_type.optional is True
+        #         )
+        #         if i.id() in provided_inputs or i.default is not None or not optional:
+        #             inputs.append(i)
+        #         elif isinstance(i.input_type, Filename):
+        #             inputs.append(i)
+        #         else:
+        #             pass
+        #     else:
+        #         inputs.append(i)
 
-        # construct script
-        for i in tool.inputs():
-            if provided_inputs is not None:
-                optional = (
-                    i.input_type.optional is None or i.input_type.optional is True
-                )
-                if i.id() in provided_inputs or i.default is not None or not optional:
-                    inputs.append(i)
-                elif isinstance(i.input_type, Filename):
-                    inputs.append(i)
-            else:
-                inputs.append(i)
-
+        #exposed_inputs = cls.gen_wf_tool_inputs(tool)
         process_name = name or tool.id()
-        script = cls.prepare_script_for_command_tool(process_name, tool, inputs)
-        pre_script = cls.prepare_expression_inputs(tool, inputs)
-        pre_script += cls.prepare_input_vars(inputs)
+        exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
+        internal_inputs = [x for x in tool.inputs() if x.id() not in tool.connections] 
+        # TODO HERE
+        script = cls.prepare_script_for_command_tool(process_name, tool, exposed_inputs)
+        pre_script = cls.prepare_expression_inputs(tool, exposed_inputs)
+        pre_script += cls.prepare_input_vars(exposed_inputs)
 
         (
             resources_var,
             resource_var_names,
             resource_param_names,
         ) = cls.prepare_resources_var(tool, name)
-        pre_script += f'\n{resources_var}'
+        #pre_script += f'\n{resources_var}'
 
         # pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
         pre_script = (
-            cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
+            cls.prepare_inputs_in_selector(tool, exposed_inputs, resource_var_names)
             + pre_script
         )
 
@@ -880,7 +883,7 @@ class NextflowTranslator(TranslatorBase):
             pre_script=pre_script,
         )
 
-        for i in inputs:
+        for i in exposed_inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
@@ -896,25 +899,21 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def gen_directives_for_process(
         cls, process_name: str, resource_param_names: List[str]
-    ) -> List[nfgen.ProcessDirective]:
+    ) -> list[nfgen.ProcessDirective]:
 
-        nf_directives = []
-        nf_directives.append(nfgen.PublishDirDirective(f"$launchDir/{process_name}"))
+        nf_directives: list[nfgen.ProcessDirective] = []
+        nf_directives.append(nfgen.PublishDirDirective(process_name=process_name))
 
         # Add directives for input resources
         for res in resource_param_names:
             if res.endswith("runtime_cpu"):
-                nf_directives.append(nfgen.CpusDirective(f"${{{res} ? {res} : ''}}"))
+                nf_directives.append(nfgen.CpusDirective(varname=res))
             elif res.endswith("runtime_memory"):
-                nf_directives.append(
-                    nfgen.MemoryDirective(f"${{{res} ? {res} + 'GB': ''}}")
-                )
+                nf_directives.append(nfgen.MemoryDirective(varname=res))
             elif res.endswith("runtime_seconds"):
-                nf_directives.append(nfgen.TimeDirective(f"${{{res} + 's'}}"))
-            elif res.endswith("runtime_disks"):
-                nf_directives.append(
-                    nfgen.DiskDirective(f"${{{res} ? {res} + 'GB': ''}}")
-                )
+                nf_directives.append(nfgen.TimeDirective(varname=res))
+            elif res.endswith("runtime_disk"):
+                nf_directives.append(nfgen.DiskDirective(varname=res))
         return nf_directives
 
     @classmethod
@@ -1162,8 +1161,8 @@ class NextflowTranslator(TranslatorBase):
             if i.name in provided_inputs:
                 p = provided_inputs[i.name]
             elif i.name in inputsdict:
-                p = f"'{inputsdict[i.name].default}'" or "''"
-                if "inputs." in p:
+                p = inputsdict[i.name].default
+                if isinstance(p, str) and "inputs." in p:
                     p = p.replace("inputs.", f"params.{input_param_prefix}").strip("'")
             else:
                 p = i.as_param
@@ -2048,8 +2047,11 @@ for key in result:
 
     @classmethod
     def prepare_script_for_command_tool(
-        cls, process_name: str, tool: CommandTool, inputs
-    ):
+        cls, 
+        process_name: str, 
+        tool: CommandTool, 
+        inputs: list[ToolInput]
+    ) -> str:
         """
         Generate the script content of a Nextflow process for Janis command line tool
 
@@ -2062,30 +2064,63 @@ for key in result:
         :return:
         :rtype:
         """
-        bc = tool.base_command()
-        pargs = []
+       
+        lines = []
+        lines += cls.prepare_cmdtool_preprocessing_lines(tool)
+        lines += cls.prepare_cmdtool_base_command_lines(tool)
+        lines += cls.prepare_cmdtool_arg_lines(tool, inputs)
+        lines = [f'{ln} \\' for ln in lines]
+        lines += [f'| tee {TOOL_STDOUT_FILENAME}_{process_name}']
+        return '\n'.join(lines)
 
-        if bc:
-            pargs.append(" ".join(bc) if isinstance(bc, list) else str(bc))
-
+    @classmethod
+    def get_ordered_cmdtool_arguments(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
         arguments = []
         if isinstance(tool, CommandTool):
             arguments = tool.arguments() or []
 
         args = [a for a in arguments if a.position is not None or a.prefix is not None]
         args += [a for a in inputs if a.position is not None or a.prefix is not None]
-
         args = sorted(args, key=lambda a: (a.prefix is None))
         args = sorted(args, key=lambda a: (a.position or 0))
+        return args
 
+    @classmethod
+    def prepare_cmdtool_preprocessing_lines(cls, tool: CommandTool) -> list[str]:
+        lines: list[str] = []
+        for dir in tool.directories_to_create() or []:
+            unwrapped_dir = cls.unwrap_expression(
+                dir, inputs_dict=inputsdict, tool=tool, in_shell_script=True
+            )
+            line = f"mkdir -p '{unwrapped_dir}'"
+            preprocessing.append(line)
+        return lines
+
+    @classmethod
+    def prepare_cmdtool_base_command_lines(cls, tool: CommandTool) -> list[str]:
+        bc = tool.base_command()
+        if bc is None:
+            lines = []
+        elif bc and isinstance(bc, list):
+            lines = [' '.join([str(cmd) for cmd in bc])]
+        else:
+            lines = [str(bc)]
+        return lines
+    
+    @classmethod
+    def prepare_cmdtool_arg_lines(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
+        lines: list[str] = []
+        
+        inputs = cls.get_ordered_cmdtool_arguments(tool, inputs)
         inputsdict = tool.inputs_map()
-        for a in args:
-            if isinstance(a, ToolInput):
-                pargs.append(f"${a.id()}WithPrefix")
-            elif isinstance(a, ToolArgument):
+        
+        for inp in inputs:
+            if isinstance(inp, ToolInput):
+                lines.append(f"${inp.id()}WithPrefix")
+            elif isinstance(inp, ToolArgument):
 
                 expression = cls.unwrap_expression(
-                    a.value,
+                    inp.value,
                     inputs_dict=inputsdict,
                     tool=tool,
                     skip_inputs_lookup=True,
@@ -2093,34 +2128,19 @@ for key in result:
                     in_shell_script=True,
                 )
 
-                if a.prefix is not None:
+                if inp.prefix is not None:
                     space = ""
-                    if a.separate_value_from_prefix is not False:
+                    if inp.separate_value_from_prefix is not False:
                         space = " "
 
-                    cmd_arg = f'{a.prefix}{space}"{expression}"'
+                    cmd_arg = f'{inp.prefix}{space}"{expression}"'
                 else:
                     cmd_arg = expression
 
-                pargs.append(cmd_arg)
+                lines.append(cmd_arg)
             else:
                 raise Exception("unknown input type")
-
-        main_script = " \\\n".join(pargs)
-
-        pre_script = ""
-        for dir in tool.directories_to_create() or []:
-            unwrapped_dir = cls.unwrap_expression(
-                dir, inputs_dict=inputsdict, tool=tool, in_shell_script=True
-            )
-            pre_script += f"mkdir -p '{unwrapped_dir}'"
-
-        return f"""
-{pre_script}
-
-{main_script} | tee {TOOL_STDOUT_FILENAME}_{process_name}
-
-"""
+        return lines
 
     @classmethod
     def prepare_tool_output(cls, tool: Tool) -> Dict[str, str]:

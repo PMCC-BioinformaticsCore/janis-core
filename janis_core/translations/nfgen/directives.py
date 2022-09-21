@@ -1,6 +1,5 @@
 
-from abc import ABC
-from typing import Any
+from abc import ABC, abstractmethod
 
 from janis_core.translations.nfgen.common import NFBase
 
@@ -9,45 +8,90 @@ from janis_core.translations.nfgen.common import NFBase
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc
 
 # implemented
+# class ProcessDirective(NFBase, ABC):
+#     def __init__(self, name: str, value: Any):
+#         self.name = name
+#         self.value = value
+
+#     def get_string(self) -> str:
+#         return f'{self.name} "{self.value}"'
+
 
 class ProcessDirective(NFBase, ABC):
-    def __init__(self, name: str, value: Any):
-        self.name = name
-        self.value = value
-
+    @abstractmethod
     def get_string(self) -> str:
-        return f'{self.name} "{self.value}"'
+        ...
 
 class CacheDirective(ProcessDirective):
-    def __init__(self, cache):
-        super().__init__("cache", cache)
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
 
     def get_string(self) -> str:
-        return f"{self.name} {str(self.value).lower()}"
+        return f"cache {str(self.enabled).lower()}"
+
 
 class CpusDirective(ProcessDirective):
-    def __init__(self, cpus):
-        super().__init__("cpus", cpus)
+    def __init__(self, varname: str):
+        self.var = varname
+
+    def get_string_old(self) -> str:
+        return f"cpus \"${{{self.var} ? {self.var} : ''}}\""
+    
+    def get_string(self) -> str:
+        return f"cpus \"${{{self.var}}}\""
+
 
 class ContainerDirective(ProcessDirective):
-    def __init__(self, container):
-        super().__init__("container", f"{container}")
+    def __init__(self, container: str):
+        self.container = container
+
+    def get_string(self) -> str:
+        return f'container "{self.container}"'
+
 
 class DiskDirective(ProcessDirective):
-    def __init__(self, disk):
-        super().__init__("disk", disk)
+    def __init__(self, varname: str):
+        self.var = varname
+    
+    def get_string_old1(self) -> str:
+        return f"disk \"${{{self.var} ? {self.var} + 'GB': ''}}\""
+    
+    def get_string_old2(self) -> str:
+        return f"disk {self.var} ? \"{{{self.var} + 'GB'}}\" : null"
+    
+    def get_string(self) -> str:
+        return f"disk \"${{{self.var}}}\""
+
 
 class MemoryDirective(ProcessDirective):
-    def __init__(self, memory):
-        super().__init__("memory", memory)
+    def __init__(self, varname: str):
+        self.var = varname
+    
+    def get_string_old(self) -> str:
+        return f"memory \"${{{self.var} ? {self.var} + 'GB': ''}}\""
+    
+    def get_string(self) -> str:
+        return f"memory \"${{{self.var}}}\""
+
 
 class PublishDirDirective(ProcessDirective):
-    def __init__(self, publishDir):
-        super().__init__("publishDir", publishDir)
+    def __init__(self, process_name: str):
+        self.pname = process_name
+
+    def get_string(self) -> str:
+        return f"publishDir \"$launchDir/{self.pname}\""
+
 
 class TimeDirective(ProcessDirective):
-    def __init__(self, time):
-        super().__init__("time", time)
+    def __init__(self, varname: str):
+        self.var = varname
+    
+    def get_string_old(self) -> str:
+        return f"time \"${{{self.var} + 's'}}\""
+    
+    def get_string(self) -> str:
+        return f"time \"${{{self.var}}}\""
+
 
 
 # not implemented

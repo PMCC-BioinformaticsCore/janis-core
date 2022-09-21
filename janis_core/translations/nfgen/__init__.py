@@ -9,6 +9,10 @@
 CONFIG_FILENAME = "nextflow.config"
 
 from .common import NFFile, Import, ImportItem, Function
+from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
+from .channels import channel_factory, ChannelDeclaration, ChannelDeclarationBlock
+from .params import ParamDeclaration, ParamDeclarationBlock
+from .directives import *  # so bad. 
 from .process import (
     Process,
     ProcessInput,
@@ -19,7 +23,5 @@ from .process import (
     TupleElementForOutput
 )
 
-from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
-from .channels import channel_factory, ChannelDeclaration, ChannelDeclarationBlock
-from .params import ParamDeclaration, ParamDeclarationBlock
-from .directives import *
+from .formatting import format_process_call
+from .utils import wrap_value

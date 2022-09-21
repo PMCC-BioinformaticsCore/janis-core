@@ -2200,7 +2200,7 @@ def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
             [
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_memory"),
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_cpu"),
-                wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_disks"),
+                wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_disk"),
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_seconds"),
             ]
         )

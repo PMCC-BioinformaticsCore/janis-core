@@ -159,7 +159,7 @@ class CodeTool(Tool):
                 {
                     "runtime_memory": mem,
                     "runtime_cpu": cpus,
-                    "runtime_disks": disk,
+                    "runtime_disk": disk,
                     "runtime_seconds": secs,
                 }
             )

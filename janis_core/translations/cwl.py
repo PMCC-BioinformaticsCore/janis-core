@@ -610,7 +610,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 [
                     cwlgen.CommandInputParameter(id="runtime_memory", type="float?"),
                     cwlgen.CommandInputParameter(id="runtime_cpu", type="int?"),
-                    cwlgen.CommandInputParameter(id="runtime_disks", type="int?"),
+                    cwlgen.CommandInputParameter(id="runtime_disk", type="int?"),
                     cwlgen.CommandInputParameter(id="runtime_seconds", type="int?"),
                 ]
             )
@@ -2069,7 +2069,7 @@ def build_resource_override_maps_for_workflow(
                         id=tool_pre + "runtime_cpu", type="int?"
                     ),
                     cwlgen.CommandInputParameter(
-                        id=tool_pre + "runtime_disks", type="int?"
+                        id=tool_pre + "runtime_disk", type="int?"
                     ),
                     cwlgen.CommandInputParameter(
                         id=tool_pre + "runtime_seconds", type="int?"

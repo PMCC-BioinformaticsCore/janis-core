@@ -10,7 +10,7 @@ from janis_core import DataType
 from janis_core import ToolInput
 from janis_core import TInput
 from janis_core.workflow.workflow import InputNode
-
+import regex as re
 
 
 def get_base_type(task_input: ToolInput | InputNode | TInput) -> DataType:
@@ -58,6 +58,15 @@ type_keyword_map: dict[str, str] = {
     "''": 'null',
     '': 'null',
 }
+
+def is_simple_path(text: str) -> bool:
+    PATH = r'[\w./]+'
+    text = text.strip('\'"')
+    matches = re.finditer(PATH, text)
+    for m in matches:
+        if m.span()[1] - m.span()[0] == len(text):
+            return True
+    return False
 
 def wrap_value(val: Any, tool_input: Optional[ToolInput | InputNode]):
     # ensure string

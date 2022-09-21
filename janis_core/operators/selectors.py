@@ -528,7 +528,7 @@ class CpuSelector(ResourceSelector):
 
 class DiskSelector(ResourceSelector):
     def __init__(self, default=20):
-        super().__init__("runtime_disks", Int(optional=True), default)
+        super().__init__("runtime_disk", Int(optional=True), default)
 
     def get_value_from_tool(self, tool, hints):
         return tool.disk(hints)

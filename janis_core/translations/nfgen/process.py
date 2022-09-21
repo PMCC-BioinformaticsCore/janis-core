@@ -6,7 +6,7 @@ from typing import Optional, Union, List
 
 from .common import NFBase, filter_null
 from .directives import ProcessDirective
-
+from . import utils
 
 class ProcessScriptType(Enum):
     script = "script"
@@ -80,7 +80,8 @@ class ProcessOutput(NFBase):
 
     def get_string(self) -> str:
         if self.qualifier != OutputProcessQualifier.tuple:
-            self.expression = f'"${{{self.expression}}}"'
+            if not utils.is_simple_path(self.expression):
+                self.expression = f'"${{{self.expression}}}"'
 
         els = [self.qualifier.value, f"{self.expression}"]
 
@@ -128,7 +129,7 @@ class Process(NFBase):
         script_quote: Optional[str] = '"',
         inputs: List[ProcessInput] = None,
         outputs: List[ProcessOutput] = None,
-        when: Optional[str] = None,  # TODO unimplemented
+        when: Optional[str] = None,  # TODO unimplemented?
         directives: List[ProcessDirective] = None,
         pre_script: Optional[str] = None,
     ):

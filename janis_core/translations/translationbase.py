@@ -507,7 +507,7 @@ class TranslatorBase(ABC):
             if cpus is None:
                 cpus = 1
             mem = inputs.get(f"{prefix}runtime_memory", tool.memory(hints))
-            disk = inputs.get(f"{prefix}runtime_disks", 20)
+            disk = inputs.get(f"{prefix}runtime_disk", 20)
             seconds = inputs.get(f"{prefix}runtime_seconds", 86400)
 
             if max_cores is not None and cpus > max_cores:
@@ -537,7 +537,7 @@ class TranslatorBase(ABC):
                 prefix + "runtime_cpu": cpus
                 if not isinstance(cpus, Selector)
                 else None,
-                prefix + "runtime_disks": disk
+                prefix + "runtime_disk": disk
                 if not isinstance(disk, Selector)
                 else None,
                 prefix + "runtime_seconds": seconds
@@ -577,7 +577,7 @@ class TranslatorBase(ABC):
             ToolInput("runtime_cpu", Int(optional=True)),  # number of CPUs
             ToolInput("runtime_memory", Int(optional=True)),  # GB of memory
             ToolInput("runtime_seconds", Int(optional=True)),  # seconds of running time
-            ToolInput("runtime_disks", Int(optional=True)),  # GB of storage required
+            ToolInput("runtime_disk", Int(optional=True)),  # GB of storage required
         ]
 
     # STRINGIFY

@@ -11,6 +11,7 @@ ch_false = Channel.of(true)
 process CHECKFALSE {
     input:
     val input1
+    cpus null
 
     output: 
     stdout emit: outstr
