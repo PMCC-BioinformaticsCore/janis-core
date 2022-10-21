@@ -24,7 +24,6 @@ from .process import (
 )
 
 from .script import gen_script_for_cmdtool
-from .prescript import gen_prescript_for_cmdtool
 from .unwrap import unwrap_expression, translate_string_formatter
 from .formatting import format_process_call
 from .utils import wrap_value

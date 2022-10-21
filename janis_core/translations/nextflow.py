@@ -3,8 +3,8 @@ import re
 import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
-from .nfgen import format_process_call
-from .nfgen import wrap_value
+from janis_core.translations.nfgen import format_process_call
+from janis_core.translations.nfgen import wrap_value
 from janis_core.types import (
     DataType,
     Array,
@@ -842,22 +842,14 @@ class NextflowTranslator(TranslatorBase):
         #         inputs.append(i)
 
         #exposed_inputs = cls.gen_wf_tool_inputs(tool)
-        process_name = name or tool.id()
-        exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
-        internal_inputs = [x for x in tool.inputs() if x.id() not in tool.connections] 
+        
         resource_var_names = cls.get_resource_var_names(tool)
+        process_name = name or tool.id()
 
-        pre_script = nfgen.gen_prescript_for_cmdtool(
+        pre_script, script = nfgen.gen_script_for_cmdtool(
             tool, 
-            exposed_inputs, 
-            resource_var_names, 
-            cls.INPUT_IN_SELECTORS
-        )
-
-        script = nfgen.gen_script_for_cmdtool(
-            tool, 
-            exposed_inputs, 
             cls.INPUT_IN_SELECTORS, 
+            resource_var_names, 
             process_name, 
             TOOL_STDOUT_FILENAME
         )
@@ -869,6 +861,7 @@ class NextflowTranslator(TranslatorBase):
             pre_script=pre_script,
         )
 
+        exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
         for i in exposed_inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())

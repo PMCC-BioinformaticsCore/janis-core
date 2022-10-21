@@ -1,22 +1,25 @@
 
-
-from typing import Any
+from typing import Any, Tuple
 from janis_core import CommandTool, ToolArgument, ToolInput
-from .unwrap import unwrap_expression
+from janis_core.types import Boolean
+from janis_core.translations.nfgen.unwrap import unwrap_expression
+from janis_core.translations.nfgen import ordering
 
+
+FILL_NONEXPOSED_INPUTS = True
 
 
 def gen_script_for_cmdtool(
     tool: CommandTool, 
-    inputs: list[ToolInput], 
     input_in_selectors: dict[str, Any],
+    resource_var_names: list[str], 
     process_name: str,
     stdout_filename: str
-) -> str:
+) -> Tuple[str, str]:
     return ProcessScriptGenerator(
         tool,
-        inputs,
         input_in_selectors,
+        resource_var_names,
         process_name,
         stdout_filename
     ).generate()
@@ -26,30 +29,36 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        inputs: list[ToolInput], 
         input_in_selectors: dict[str, Any],
+        resource_var_names: list[str], 
         process_name: str, 
         stdout_filename: str
     ):
         assert(tool)
         self.tool = tool
-        self.inputs = inputs        # exposed_inputs vs internal_inputs???
+        self.resource_var_names = resource_var_names
         self.input_in_selectors = input_in_selectors
         self.process_name = process_name
         self.stdout_filename = stdout_filename
 
-    def generate(self) -> str:
-        """Generate the script content of a Nextflow process for Janis command line tool"""
-        lines = []
-        lines += self.gen_cmdtool_preprocessing()
-        lines += self.gen_cmdtool_base_command()
-        lines += self.gen_cmdtool_args()
-        lines = [f'{ln} \\' for ln in lines]
-        lines += [f'| tee {self.stdout_filename}_{self.process_name}']
-        return '\n'.join(lines)
+        self.prescript: list[str] = []
+        self.script: list[str] = []
 
-    def gen_cmdtool_preprocessing(self) -> list[str]:
-        lines: list[str] = []
+    def is_exposed(self, inp: ToolInput) -> bool:
+        if inp.id() in self.tool.connections:
+            return True
+        return False
+
+    def generate(self) -> Tuple[str, str]:
+        """Generate the script content of a Nextflow process for Janis command line tool"""
+        self.handle_cmdtool_preprocessing()
+        self.handle_cmdtool_base_command()
+        self.handle_cmdtool_inputs()
+        prescript = self.finalise_prescript()
+        script = self.finalise_script()
+        return prescript, script
+
+    def handle_cmdtool_preprocessing(self) -> None:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 value=dirpath, 
@@ -59,55 +68,179 @@ class ProcessScriptGenerator:
                 in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}'"
-            lines.append(line)
-        return lines
+            self.script.append(line)
 
-    def gen_cmdtool_base_command(self) -> list[str]:
+    def handle_cmdtool_base_command(self) -> None:
         bc = self.tool.base_command()
-        if bc is None:
-            lines = []
-        elif bc and isinstance(bc, list):
-            lines = [' '.join([str(cmd) for cmd in bc])]
-        else:
-            lines = [str(bc)]
-        return lines
-
-    def gen_cmdtool_args(self) -> list[str]:
-        lines: list[str] = []
-        
-        for inp in self.get_ordered_cmdtool_arguments():
-            if isinstance(inp, ToolInput):
-                lines.append(f"${inp.id()}WithPrefix")
-            
-            elif isinstance(inp, ToolArgument):
-                expression = unwrap_expression(
-                    value=inp.value,
-                    input_in_selectors=self.input_in_selectors,
-                    tool=self.tool,
-                    inputs_dict=self.tool.inputs_map(),
-                    skip_inputs_lookup=True,
-                    quote_string=False,
-                    in_shell_script=True,
-                )
-                
-                if inp.prefix is not None:
-                    space = ""
-                    if inp.separate_value_from_prefix is not False:
-                        space = " "
-                    line = f'{inp.prefix}{space}"{expression}"'
-                else:
-                    line = expression
-
-                lines.append(line)
+        if bc is not None:
+            if isinstance(bc, list):
+                self.script += [' '.join([str(cmd) for cmd in bc])]
             else:
-                raise Exception("unknown input type")
-        return lines
+                self.script += [str(bc)]
 
-    def get_ordered_cmdtool_arguments(self) -> list[ToolInput | ToolArgument]:
-        arguments = self.tool.arguments() or []
-        args = [a for a in arguments if a.position is not None or a.prefix is not None]
-        args += [a for a in self.inputs if a.position is not None or a.prefix is not None]
-        args = sorted(args, key=lambda a: (a.prefix is None))
-        args = sorted(args, key=lambda a: (a.position or 0))
-        return args
+    def get_src_varname(self, inp: ToolInput) -> str:
+        return inp.id() if self.is_exposed(inp) else f'params.{inp.id()}'
+
+    def handle_cmdtool_inputs(self) -> None:
+        # combine with prescript logic 
+        for inp in ordering.cmdtool_inputs_arguments(self.tool):
+            match inp:
+                # positionals
+                # TODO optional positional?
+                # TODO default positional?
+                case ToolInput(prefix=None): 
+                    self.handle_positional(inp)
+                
+                # flags
+                case ToolInput(input_type=Boolean()):
+                    if str(inp.default) == 'False':
+                        self.handle_false_default_flag(inp)
+                    else:
+                        self.handle_true_default_flag(inp)
+
+                # options
+                case ToolInput():
+                    if inp.default is not None:
+                        self.handle_default_option(inp)
+                    elif inp.input_type.optional == True:
+                        self.handle_optional_option(inp)
+                    elif inp.input_type.optional == False and inp.default is None:
+                        self.handle_basic_option(inp)
+                    else:
+                        raise RuntimeError
+
+                # arguments
+                case _:
+                    self.handle_tool_argument(inp)
+
+    def handle_positional(self, inp: ToolInput) -> None:
+        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+            raise NotImplementedError
+        else:
+            src_name = self.get_src_varname(inp)
+            self.script.append(f'${{{src_name}}}')
+
+    def handle_false_default_flag(self, inp: ToolInput) -> None:
+        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+            # if its not a process input, 
+            # and its false by default, 
+            # add nothing to script.
+            pass  
+        else:
+            prefix = inp.prefix
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} ? "{prefix}" : ""')
+            self.script.append(f'${{{src_name}}}')
+
+    def handle_true_default_flag(self, inp: ToolInput) -> None:
+        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
+
+    def handle_default_option(self, inp: ToolInput) -> None:
+        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+            prefix = self.get_option_prefix(inp)
+            self.script.append(f'{prefix}{inp.default}')
+        else:
+            prefix = self.get_option_prefix(inp)
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} ?: "{inp.default}"')
+            self.script.append(f'{prefix}${{{inp.id()}}}')
+
+    def handle_optional_option(self, inp: ToolInput) -> None:
+        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+            # if its not a process input, 
+            # and doesn't have a default,
+            # add nothing to script.
+            pass 
+        else:
+            prefix = self.get_option_prefix(inp)
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} ? "{prefix}${{{src_name}}}" : ""')
+            self.script.append(f'${{{inp.id()}}}')
+
+    def handle_basic_option(self, inp: ToolInput) -> None:
+        prefix = self.get_option_prefix(inp)
+        src_name = self.get_src_varname(inp)
+        self.script.append(f'{prefix}${{{src_name}}}')
+
+    def get_option_prefix(self, inp: ToolInput) -> str:
+        assert(inp.prefix)
+        if inp.separate_value_from_prefix == False:
+            return inp.prefix 
+        else:
+            delim = inp.separator if inp.separator else ' '
+            return inp.prefix + delim
+
+    def handle_tool_argument(self, arg: ToolArgument) -> None:
+        expression = unwrap_expression(
+            value=arg.value,
+            input_in_selectors=self.input_in_selectors,
+            tool=self.tool,
+            inputs_dict=self.tool.inputs_map(),
+            skip_inputs_lookup=True,
+            quote_string=False,
+            in_shell_script=True,
+        )
+        if arg.prefix is not None:
+            space = " " if arg.separate_value_from_prefix else ""
+            line = f'{arg.prefix}{space}"{expression}"'
+        else:
+            line = expression
+        self.script.append(line)
+
+    def finalise_prescript(self) -> str:
+        return '\n'.join(self.prescript)
+
+    def finalise_script(self) -> str:
+        script = self.script + [f'| tee {self.stdout_filename}_{self.process_name}']
+        script = [f'{ln} \\' for ln in script]
+        return '\n'.join(script)
+
+
+
+
+"""
+single example
+
+
+// these will be overridden by workflow params if exist
+params.opt                         = 500
+params.opt_optional                = 500
+params.opt_default                 = 500
+params.flag_true_default           = true
+params.flag_false_default          = true
+
+process SINGLE_ITEMS_PARAMS {
+    input:
+      path pos
+
+    output:
+      stdout
+    
+    script:
+      def opt_optional = params.opt_optional ? "--min-length ${params.opt_optional}" : ""
+      def opt_default = params.opt_default ?: '100'
+      def flag_true_default = params.flag_true_default == false ? "" : "--trim-n"
+      def flag_false_default = params.flag_false_default ? "--trim-n" : ""
+      '''
+      echo --- SINGLES ---
+      echo POSITIONAL: ${pos}
+      echo OPTION: --min-length ${params.opt}
+      echo OPTION_OPTIONAL: ${opt_optional}
+      echo OPTION_DEFAULT: --min-length ${opt_default}
+      echo FLAG_TRUE_DEFAULT: ${flag_true_default}
+      echo FLAG_FALSE_DEFAULT: ${flag_false_default}
+      '''
+}
+
+"""
+
+
+
+
+
+
+
 
