@@ -31,3 +31,13 @@ def format_process_call(name: str, inputs: list[str], ind: int=0) -> str:
 
     return indent(call_str, ind * NF_INDENT)
 
+
+
+
+
+
+# formatting
+def prescript_array_prefix(varname: str):
+    """
+    -A one two three
+    """

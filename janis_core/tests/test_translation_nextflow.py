@@ -1,7 +1,7 @@
 import unittest
 from typing import Optional
 
-
+from janis_core.translations import nfgen
 from janis_core.tests.testtools import (
     TestTool,
     TestInputQualityTool,
@@ -147,17 +147,17 @@ class TestTranslateStringFormatter(unittest.TestCase):
 
     def test_string_formatter(self):
         b = StringFormatter("no format")
-        res = translator.translate_string_formatter(b, self.any_tool)
+        res = nfgen.translate_string_formatter(b, self.any_tool)
         self.assertEqual("no format", res)
 
     def test_string_formatter_one_string_param(self):
         b = StringFormatter("there's {one} arg", one="a string")
-        res = translator.translate_string_formatter(b, self.any_tool)
+        res = nfgen.translate_string_formatter(b, self.any_tool)
         self.assertEqual("there's ${'a string'} arg", res)
 
     def test_string_formatter_one_input_selector_param(self):
         b = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
-        res = translator.translate_string_formatter(
+        res = nfgen.translate_string_formatter(
             b, self.any_tool, inputs_dict=self.any_tool.inputs_map()
         )
         self.assertEqual("an input ${testtool}", res)
@@ -169,7 +169,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        res = translator.translate_string_formatter(
+        res = nfgen.translate_string_formatter(
             b, tool, inputs_dict=tool.inputs_map()
         )
         self.assertEqual(
@@ -184,12 +184,12 @@ class TestTranslateStringFormatter(unittest.TestCase):
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        res = translator.translate_string_formatter(
+        res = nfgen.translate_string_formatter(
             b, tool, inputs_dict=tool.inputs_map()
         )
         self.assertEqual("${user}\\t${static}", res)
 
-        res2 = translator.translate_string_formatter(
+        res2 = nfgen.translate_string_formatter(
             b, tool, inputs_dict=tool.inputs_map(), in_shell_script=True
         )
         self.assertEqual("${user}\\\\t${static}", res2)
@@ -202,7 +202,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
             items=JoinOperator(InputSelector("arrayInp"), separator=";"),
         )
 
-        res = translator.translate_string_formatter(
+        res = nfgen.translate_string_formatter(
             b, tool, inputs_dict=tool.inputs_map()
         )
         self.assertEqual("${testtool}:${arrayInp.join(';')}", res)

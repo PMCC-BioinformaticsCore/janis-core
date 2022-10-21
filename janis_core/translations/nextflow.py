@@ -3,49 +3,36 @@ import re
 import posixpath
 import json
 from typing import Tuple, Dict, List, Optional, Union, Any
-from .nfgen import NFBase
 from .nfgen import format_process_call
 from .nfgen import wrap_value
 from janis_core.types import (
     DataType,
     Array,
-    String,
     File,
     Int,
     Float,
     Double,
     Directory,
     Stdout,
-    Stderr,
     Filename,
-    InputSelector,
-    WildcardSelector,
     Boolean,
-    InputNodeSelector,
-    StepOutputSelector,
-    AliasSelector,
 )
-from janis_core.operators import Operator, StringFormatter, Selector
 
 from janis_core.tool.commandtool import (
     CommandTool,
     ToolInput,
     ToolOutput,
-    ToolArgument,
     Tool,
-    ToolType,
     TOutput,
     TInput,
 )
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core import Logger
-from janis_core.workflow.workflow import StepNode, InputNode, OutputNode, Workflow, WorkflowBase
+from janis_core.workflow.workflow import InputNode, Workflow, WorkflowBase
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
-
 
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
@@ -78,7 +65,7 @@ TOOL_STDOUT_FILENAME = "janisstdout"
 
 
 class NextflowTranslator(TranslatorBase):
-    INPUT_IN_SELECTORS = {}
+    INPUT_IN_SELECTORS: dict[str, Any] = {}
 
     def __init__(self):
         super().__init__(name="nextflow")
@@ -858,24 +845,23 @@ class NextflowTranslator(TranslatorBase):
         process_name = name or tool.id()
         exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
         internal_inputs = [x for x in tool.inputs() if x.id() not in tool.connections] 
-        # TODO HERE
-        script = cls.prepare_script_for_command_tool(process_name, tool, exposed_inputs)
-        pre_script = cls.prepare_expression_inputs(tool, exposed_inputs)
-        pre_script += cls.prepare_input_vars(exposed_inputs)
+        resource_var_names = cls.get_resource_var_names(tool)
 
-        (
-            resources_var,
-            resource_var_names,
-            resource_param_names,
-        ) = cls.prepare_resources_var(tool, name)
-        #pre_script += f'\n{resources_var}'
-
-        # pre_script += cls.prepare_inputs_in_selector(tool, inputs, resource_var_names)
-        pre_script = (
-            cls.prepare_inputs_in_selector(tool, exposed_inputs, resource_var_names)
-            + pre_script
+        pre_script = nfgen.gen_prescript_for_cmdtool(
+            tool, 
+            exposed_inputs, 
+            resource_var_names, 
+            cls.INPUT_IN_SELECTORS
         )
 
+        script = nfgen.gen_script_for_cmdtool(
+            tool, 
+            exposed_inputs, 
+            cls.INPUT_IN_SELECTORS, 
+            process_name, 
+            TOOL_STDOUT_FILENAME
+        )
+ 
         process = nfgen.Process(
             name=process_name,
             script=script,
@@ -889,6 +875,7 @@ class NextflowTranslator(TranslatorBase):
 
             process.inputs.append(inp)
 
+        resource_param_names = cls.get_resource_param_names(tool, name)
         process.outputs = cls.gen_outputs_for_process(process_name, tool)
         process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
@@ -1112,12 +1099,7 @@ class NextflowTranslator(TranslatorBase):
             )
             process.outputs.append(out)
 
-        (
-            resources_var,
-            resource_var_names,
-            resource_param_names,
-        ) = cls.prepare_resources_var(tool, name)
-
+        resource_param_names = cls.get_resource_param_names(tool, name)
         process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
         )
@@ -1470,359 +1452,20 @@ return primary
         var_indicator=None,
         step_indicator=None,
         **debugkwargs,
-    ):
-        """
-        The main logic to unwrap a janis expression and represent it in Nextflow translation
-
-        :param value:
-        :type value:
-        :param quote_string:
-        :type quote_string:
-        :param tool:
-        :type tool:
-        :param for_output:
-        :type for_output:
-        :param inputs_dict:
-        :type inputs_dict:
-        :param skip_inputs_lookup:
-        :type skip_inputs_lookup:
-        :param in_shell_script:
-        :type in_shell_script:
-        :param debugkwargs:
-        :type debugkwargs:
-        :return:
-        :rtype:
-        """
-        if value is None:
-            if quote_string:
-                return "null"
-            return None
-
-        if isinstance(value, StepNode):
-            raise Exception(
-                f"The Step node '{value.id()}' was found when unwrapping an expression, "
-                f"you might not have selected an output."
-            )
-
-        if isinstance(value, list):
-            toolid = debugkwargs.get("tool_id", "unwrap_list_expression")
-            elements = []
-            for i in range(len(value)):
-                el = cls.unwrap_expression(
-                    value[i],
-                    quote_string=quote_string,
-                    tool=tool,
-                    tool_id=toolid + "." + str(i),
-                    inputs_dict=inputs_dict,
-                    skip_inputs_lookup=skip_inputs_lookup,
-                    for_output=for_output,
-                    in_shell_script=in_shell_script,
-                    var_indicator=var_indicator,
-                    step_indicator=step_indicator,
-                )
-
-                elements.append(el)
-
-            list_representation = f"[{', '.join(elements)}]"
-
-            return list_representation
-
-        elif isinstance(value, str):
-            if quote_string:
-                return f"'{value}'"
-            else:
-                return value
-        elif isinstance(value, bool):
-            # return value
-            if quote_string:
-                return f"'{value}'"
-            else:
-                return value
-        elif isinstance(value, int) or isinstance(value, float):
-            return str(value)
-        elif isinstance(value, Filename):
-            formatted = value.generated_filename()
-            return formatted
-
-        elif isinstance(value, StringFormatter):
-            return cls.translate_string_formatter(
-                value,
-                in_shell_script=in_shell_script,
-                tool=tool,
-                inputs_dict=inputs_dict,
-                skip_inputs_lookup=skip_inputs_lookup,
-                **debugkwargs,
-            )
-        elif isinstance(value, InputSelector):
-            if for_output:
-                el = cls.prepare_filename_replacements_for(
-                    value, inputsdict=inputs_dict
-                )
-                return el
-            return cls.translate_input_selector(
-                selector=value,
-                inputs_dict=inputs_dict,
-                skip_inputs_lookup=False,
-                in_shell_script=in_shell_script,
-                tool=tool,
-            )
-
-        elif isinstance(value, AliasSelector):
-            return cls.unwrap_expression(
-                value.inner_selector,
-                quote_string=quote_string,
-                tool=tool,
-                inputs_dict=inputs_dict,
-                skip_inputs_lookup=skip_inputs_lookup,
-                for_output=for_output,
-                in_shell_script=in_shell_script,
-                var_indicator=var_indicator,
-                step_indicator=step_indicator,
-            )
-
-        elif isinstance(value, WildcardSelector):
-            # raise Exception(
-            #     f"A wildcard selector cannot be used as an argument value for '{debugkwargs}' {tool.id()}"
-            # )
-            return f"'{value.wildcard}'"
-        elif isinstance(value, Operator):
-            unwrap_expression_wrap = lambda exp: cls.unwrap_expression(
-                exp,
-                quote_string=quote_string,
-                tool=tool,
-                for_output=for_output,
-                inputs_dict=inputs_dict,
-                skip_inputs_lookup=skip_inputs_lookup,
-                in_shell_script=in_shell_script,
-                **debugkwargs,
-            )
-
-            return value.to_nextflow(unwrap_expression_wrap, *value.args)
-
-        elif callable(getattr(value, "nextflow", None)):
-            if var_indicator is not None and step_indicator is not None:
-                return value.nextflow(
-                    var_indicator=var_indicator, step_indicator=step_indicator
-                )
-            else:
-                return value.nextflow()
-
-        raise Exception(
-            "Could not detect type %s to convert to input value" % type(value)
-        )
-
-    @classmethod
-    def translate_string_formatter(
-        cls,
-        selector: StringFormatter,
-        tool,
-        in_shell_script=False,
-        inputs_dict=None,
-        skip_inputs_lookup=False,
-        **debugkwargs,
-    ):
-        """
-        Translate Janis StringFormatter data type to Nextflow
-
-        :param selector:
-        :type selector:
-        :param tool:
-        :type tool:
-        :param in_shell_script:
-        :type in_shell_script:
-        :param inputs_dict:
-        :type inputs_dict:
-        :param skip_inputs_lookup:
-        :type skip_inputs_lookup:
-        :param debugkwargs:
-        :type debugkwargs:
-        :return:
-        :rtype:
-        """
-        if len(selector.kwargs) == 0:
-            return str(selector)
-
-        kwargreplacements = {
-            k: f"{cls.unwrap_expression(v, tool=tool, inputs_dict=inputs_dict, skip_inputs_lookup=skip_inputs_lookup, **debugkwargs)}"
-            for k, v in selector.kwargs.items()
-        }
-
-        arg_val = selector._format
-        for k in selector.kwargs:
-            arg_val = arg_val.replace(f"{{{k}}}", f"${{{str(kwargreplacements[k])}}}")
-
-        if in_shell_script:
-            arg_val = arg_val.replace("\\", "\\\\")
-
-        return arg_val
-
-    @classmethod
-    def prepare_filename_replacements_for(
-        cls, inp: Optional[Selector], inputsdict: Optional[Dict[str, ToolInput]]
-    ) -> Optional[str]:
-        """
-        Generate a string expression to represent a filename in Nextflow
-
-        :param inp:
-        :type inp:
-        :param inputsdict:
-        :type inputsdict:
-        :return:
-        :rtype:
-        """
-        if inp is None or not isinstance(inp, InputSelector):
-            return None
-
-        if not inputsdict:
-            return f"${inp.input_to_select}.name"
-            # raise Exception(
-            #     f"Couldn't generate filename as an internal error occurred (inputsdict did not contain {inp.input_to_select})"
-            # )
-
-        if isinstance(inp, InputSelector):
-            if inp.input_to_select not in inputsdict:
-                raise Exception(
-                    f"The InputSelector '{inp.input_to_select}' did not select a valid input"
-                )
-
-            tinp = inputsdict.get(inp.input_to_select)
-            intype = tinp.intype
-
-            if intype.is_base_type((File, Directory)):
-                potential_extensions = (
-                    intype.get_extensions() if intype.is_base_type(File) else None
-                )
-
-                base = f"{tinp.id()}"
-                if intype.has_secondary_files():
-                    base = f"{tinp.id()}[0]"
-
-                if inp.remove_file_extension and potential_extensions:
-                    base = f"{base}.simpleName"
-                elif hasattr(tinp, "localise_file") and tinp.localise_file:
-                    base = f"{base}.name"
-
-            elif isinstance(intype, Filename):
-                base = str(
-                    cls.unwrap_expression(
-                        intype.generated_filename(),
-                        inputs_dict=inputsdict,
-                        for_output=True,
-                    )
-                )
-            elif (
-                intype.is_array()
-                and isinstance(intype.fundamental_type(), (File, Directory))
-                and tinp.localise_file
-            ):
-                base = f"{tinp.id()}.map{{ el.name }}"
-            else:
-                base = f"{tinp.id()}"
-
-            if intype.optional:
-                default = "'generated'"
-                if isinstance(intype, Filename):
-                    default = base
-
-                replacement = f"({inp.input_to_select} && {inp.input_to_select} != 'None' && {inp.input_to_select} != '' ? {inp.input_to_select} : {default})"
-            else:
-                replacement = f"{base}"
-
-            # return f"\"${{{replacement}}}\""
-            return replacement
-
-    @classmethod
-    def translate_input_selector(
-        cls,
-        selector: InputSelector,
-        inputs_dict,
-        tool,
-        skip_inputs_lookup=False,
-        in_shell_script=False,
-    ):
-        """
-        Translate Janis InputSelector data type into Nextflow expressions
-
-        :param selector:
-        :type selector:
-        :param inputs_dict:
-        :type inputs_dict:
-        :param tool:
-        :type tool:
-        :param skip_inputs_lookup:
-        :type skip_inputs_lookup:
-        :param in_shell_script:
-        :type in_shell_script:
-        :param for_output:
-        :type for_output:
-        :return:
-        :rtype:
-        """
-        if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
-            cls.INPUT_IN_SELECTORS[tool.versioned_id()] = set()
-
-        cls.INPUT_IN_SELECTORS[tool.versioned_id()].add(selector.input_to_select)
-
-        sel: str = selector.input_to_select
-        if not sel:
-            raise Exception(
-                "No input was selected for input selector: " + str(selector)
-            )
-
-        skip_lookup = skip_inputs_lookup or sel.startswith("runtime_")
-
-        if not skip_lookup:
-
-            if inputs_dict is None:
-                raise Exception(
-                    f"An internal error occurred when translating input selector '{sel}': the inputs dictionary was None"
-                )
-            if selector.input_to_select not in inputs_dict:
-                raise Exception(
-                    f"Couldn't find the input '{sel}' for the InputSelector(\"{sel}\")"
-                )
-
-            tinp: ToolInput = inputs_dict[selector.input_to_select]
-
-            intype = tinp.intype
-
-            if intype.is_base_type((File, Directory)):
-                if intype.has_secondary_files():
-                    sel = f"{sel}[0]"
-
-            if selector.remove_file_extension:
-                if intype.is_base_type((File, Directory)):
-
-                    potential_extensions = (
-                        intype.get_extensions() if intype.is_base_type(File) else None
-                    )
-                    if selector.remove_file_extension and potential_extensions:
-                        sel = f"{sel}.simpleName"
-
-                elif intype.is_array() and isinstance(
-                    intype.fundamental_type(), (File, Directory)
-                ):
-                    inner_type = intype.fundamental_type()
-                    extensions = (
-                        inner_type.get_extensions()
-                        if isinstance(inner_type, File)
-                        else None
-                    )
-
-                    inner_sel = f"el.basename"
-                    if extensions:
-                        for ext in extensions:
-                            inner_sel += f'.replace(/{ext}$/, "")'
-                    sel = f"{sel}.map(function(el) {{ return {inner_sel}; }})"
-                else:
-                    Logger.warn(
-                        f"InputSelector {sel} is requesting to remove_file_extension but it has type {tinp.input_type.id()}"
-                    )
-
-        if in_shell_script:
-            sel = f"${{{sel}}}"
-
-        return sel
+    ): 
+        return nfgen.unwrap_expression(
+            value,
+            input_in_selectors=cls.INPUT_IN_SELECTORS,
+            quote_string=quote_string,
+            tool=tool,
+            for_output=for_output,
+            inputs_dict=inputs_dict,
+            skip_inputs_lookup=skip_inputs_lookup,
+            in_shell_script=in_shell_script,
+            var_indicator=var_indicator,
+            step_indicator=step_indicator,
+            debugkwargs=debugkwargs
+        )       
 
     @classmethod
     def build_inputs_file(
@@ -2045,102 +1688,6 @@ for key in result:
 
         return script
 
-    @classmethod
-    def prepare_script_for_command_tool(
-        cls, 
-        process_name: str, 
-        tool: CommandTool, 
-        inputs: list[ToolInput]
-    ) -> str:
-        """
-        Generate the script content of a Nextflow process for Janis command line tool
-
-        :param process_name:
-        :type process_name:
-        :param tool:
-        :type tool:
-        :param inputs:
-        :type inputs:
-        :return:
-        :rtype:
-        """
-       
-        lines = []
-        lines += cls.prepare_cmdtool_preprocessing_lines(tool)
-        lines += cls.prepare_cmdtool_base_command_lines(tool)
-        lines += cls.prepare_cmdtool_arg_lines(tool, inputs)
-        lines = [f'{ln} \\' for ln in lines]
-        lines += [f'| tee {TOOL_STDOUT_FILENAME}_{process_name}']
-        return '\n'.join(lines)
-
-    @classmethod
-    def get_ordered_cmdtool_arguments(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
-        arguments = []
-        if isinstance(tool, CommandTool):
-            arguments = tool.arguments() or []
-
-        args = [a for a in arguments if a.position is not None or a.prefix is not None]
-        args += [a for a in inputs if a.position is not None or a.prefix is not None]
-        args = sorted(args, key=lambda a: (a.prefix is None))
-        args = sorted(args, key=lambda a: (a.position or 0))
-        return args
-
-    @classmethod
-    def prepare_cmdtool_preprocessing_lines(cls, tool: CommandTool) -> list[str]:
-        lines: list[str] = []
-        for dir in tool.directories_to_create() or []:
-            unwrapped_dir = cls.unwrap_expression(
-                dir, inputs_dict=inputsdict, tool=tool, in_shell_script=True
-            )
-            line = f"mkdir -p '{unwrapped_dir}'"
-            preprocessing.append(line)
-        return lines
-
-    @classmethod
-    def prepare_cmdtool_base_command_lines(cls, tool: CommandTool) -> list[str]:
-        bc = tool.base_command()
-        if bc is None:
-            lines = []
-        elif bc and isinstance(bc, list):
-            lines = [' '.join([str(cmd) for cmd in bc])]
-        else:
-            lines = [str(bc)]
-        return lines
-    
-    @classmethod
-    def prepare_cmdtool_arg_lines(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
-        lines: list[str] = []
-        
-        inputs = cls.get_ordered_cmdtool_arguments(tool, inputs)
-        inputsdict = tool.inputs_map()
-        
-        for inp in inputs:
-            if isinstance(inp, ToolInput):
-                lines.append(f"${inp.id()}WithPrefix")
-            elif isinstance(inp, ToolArgument):
-
-                expression = cls.unwrap_expression(
-                    inp.value,
-                    inputs_dict=inputsdict,
-                    tool=tool,
-                    skip_inputs_lookup=True,
-                    quote_string=False,
-                    in_shell_script=True,
-                )
-
-                if inp.prefix is not None:
-                    space = ""
-                    if inp.separate_value_from_prefix is not False:
-                        space = " "
-
-                    cmd_arg = f'{inp.prefix}{space}"{expression}"'
-                else:
-                    cmd_arg = expression
-
-                lines.append(cmd_arg)
-            else:
-                raise Exception("unknown input type")
-        return lines
 
     @classmethod
     def prepare_tool_output(cls, tool: Tool) -> Dict[str, str]:
@@ -2175,187 +1722,15 @@ for key in result:
         return outputs
 
     @classmethod
-    def prepare_expression_inputs(cls, tool, inputs) -> str:
-        """
-        Generate Groovy code to represent the values of input variable definitions for complex expressions
-
-        :param tool:
-        :type tool:
-        :param inputs:
-        :type inputs:
-        :return:
-        :rtype:
-        """
-
-        inputsdict = tool.inputs_map()
-
-        script_lines = []
-        for i in inputs:
-            if hasattr(i, 'input_type'):
-                input_type = i.input_type
-            elif hasattr(i, 'intype'):
-                input_type = i.intype
-            else:
-                raise Exception('Failed to get input type attribute')
-
-            if isinstance(input_type, Filename):
-                val = cls.unwrap_expression(
-                    input_type.generated_filename(), inputs_dict=inputsdict, tool=tool
-                )
-
-                if input_type.optional:
-                    val = f'{i.id()} && {i.id()} != "None" ? {i.id()} : {val}'
-
-                code = f'def {i.id()} = {val}'
-                script_lines.append(code)
-
-        return '\n'.join(script_lines)
+    def get_resource_var_names(cls, tool: CommandTool) -> list[str]:
+        resources = cls.build_resources_input(tool, hints=None)
+        return list(resources.keys())
 
     @classmethod
-    def gen_input_var_definition(cls, inp: ToolInput, arg_name: str) -> str:
-        """
-        Generate Groovy code to represent the values of input variable definitions
-
-        :param inp:
-        :type inp:
-        :param arg_name:
-        :type arg_name:
-        :return:
-        :rtype:
-        """
-        if isinstance(inp.input_type, Array):
-            if (
-                isinstance(inp.input_type.subtype(), File)
-                and inp.input_type.subtype().has_secondary_files()
-            ):
-                arg_value = f"get_primary_files({arg_name}).join(' ')"
-            else:
-                arg_value = f"{arg_name}.join(' ')"
-
-        elif (
-            isinstance(inp.input_type, (File)) and inp.input_type.has_secondary_files()
-        ):
-            arg_value = f"{arg_name}[0]"
-        else:
-            arg_value = arg_name
-
-        prefix = ""
-        if inp.prefix is not None:
-            prefix = inp.prefix
-
-        space = ""
-        if inp.separate_value_from_prefix is not False:
-            space = " "
-
-        prefix_applies_to_all_elements = "False"
-        if inp.prefix_applies_to_all_elements is True:
-            prefix_applies_to_all_elements = "True"
-
-        if isinstance(inp.input_type, Boolean):
-            arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
-        else:
-            if inp.input_type.optional:
-                arg = f"optional({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
-            else:
-                arg = f"apply_prefix({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
-                # arg = f"'{prefix}{space}' + {arg_value}"
-
-        return arg
-
-    @classmethod
-    def prepare_input_vars(cls, inputs) -> str:
-        """
-        Generate Groovy code for input variables definitions inside the Nextflow script section.
-        This is where we apply prefix or preprocessiong if necessary.
-
-        :param inputs:
-        :type inputs:
-        :return:
-        :rtype:
-        """
-        pre_script_lines = []
-        for a in inputs:
-            arg_name = ""
-            if isinstance(a, ToolInput):
-                arg_name = a.id()
-            elif isinstance(a, ToolArgument):
-                continue
-            else:
-                raise Exception("unknown input type")
-
-            arg = cls.gen_input_var_definition(a, arg_name)
-            
-            code = f'def {arg_name}WithPrefix = {arg}'
-            
-            pre_script_lines.append(code)
-
-        return '\n'.join(pre_script_lines)
-
-    @classmethod
-    def prepare_resources_var(cls, tool, name: Optional[str] = None) -> Tuple[str, list[str], list[str]]:
-        """
-        Generate Groovy code for resources variables definitions inside the Nextflow script section.
-
-        :param tool:
-        :type tool:
-        :param name:
-        :type name:
-        :return:
-        :rtype:
-        """
-        pre_script_lines = []
-        var_names = []
-        param_names = []
-        for k, v in cls.build_resources_input(
-            tool,
-            hints=None,
-        ).items():
-            prefix = ""
-            if name is not None:
-                prefix = f"{name}_"
-
-            param_name = f"params.{prefix}{k}"
-
-            code = f'def {k} = {param_name}'
-            var_names.append(k)
-            param_names.append(param_name)
-            pre_script_lines.append(code)
-
-        return '\n'.join(pre_script_lines), var_names, param_names
-
-    @classmethod
-    def prepare_inputs_in_selector(
-        cls, tool, inputs: List[ToolInput], resources: List[str]
-    ):
-        """
-        If there is any input being referenced by Janis InputSelector,
-        we need to add their Groovy variable definitions
-
-        :param tool:
-        :type tool:
-        :param inputs:
-        :type inputs:
-        :param resources:
-        :type resources:
-        :return:
-        :rtype:
-        """
-        pre_script_lines = []
-
-        if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
-            return ""
-
-        input_keys = [i.id() for i in inputs]
-
-        for k in cls.INPUT_IN_SELECTORS[tool.versioned_id()]:
-            if k not in input_keys and k not in resources:
-                val = "''"
-
-                code = f'def {k} = {val}'
-
-                pre_script_lines.append(code)
-
-        return '\n'.join(pre_script_lines)
+    def get_resource_param_names(cls, tool: CommandTool | CodeTool, name: Optional[str]=None) -> list[str]:
+        resources = cls.build_resources_input(tool, hints=None)
+        prefix = f'{name}_' if name else ''
+        return [f"params.{prefix}{k}" for k in resources]
 
     @classmethod
     def get_input_qualifier_for_inptype(
@@ -2405,3 +1780,296 @@ for key in result:
             return nfgen.OutputProcessQualifier.path
 
         return nfgen.OutputProcessQualifier.val
+
+
+
+    
+
+
+
+### CORNER OF SHAME ###
+
+    # @classmethod
+    # def prepare_script_for_command_tool(
+    #     cls, 
+    #     process_name: str, 
+    #     tool: CommandTool, 
+    #     inputs: list[ToolInput]
+    # ) -> str:
+    #     """
+    #     Generate the script content of a Nextflow process for Janis command line tool
+
+    #     :param process_name:
+    #     :type process_name:
+    #     :param tool:
+    #     :type tool:
+    #     :param inputs:
+    #     :type inputs:
+    #     :return:
+    #     :rtype:
+    #     """
+       
+    #     lines = []
+    #     lines += cls.prepare_cmdtool_preprocessing_lines(tool)
+    #     lines += cls.prepare_cmdtool_base_command_lines(tool)
+    #     lines += cls.prepare_cmdtool_arg_lines(tool, inputs)
+    #     lines = [f'{ln} \\' for ln in lines]
+    #     lines += [f'| tee {TOOL_STDOUT_FILENAME}_{process_name}']
+    #     return '\n'.join(lines)
+
+    # @classmethod
+    # def get_ordered_cmdtool_arguments(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
+    #     arguments = []
+    #     if isinstance(tool, CommandTool):
+    #         arguments = tool.arguments() or []
+
+    #     args = [a for a in arguments if a.position is not None or a.prefix is not None]
+    #     args += [a for a in inputs if a.position is not None or a.prefix is not None]
+    #     args = sorted(args, key=lambda a: (a.prefix is None))
+    #     args = sorted(args, key=lambda a: (a.position or 0))
+    #     return args
+
+    # @classmethod
+    # def prepare_cmdtool_preprocessing_lines(cls, tool: CommandTool) -> list[str]:
+    #     lines: list[str] = []
+    #     for dir in tool.directories_to_create() or []:
+    #         unwrapped_dir = cls.unwrap_expression(
+    #             dir, inputs_dict=inputsdict, tool=tool, in_shell_script=True
+    #         )
+    #         line = f"mkdir -p '{unwrapped_dir}'"
+    #         preprocessing.append(line)
+    #     return lines
+
+    # @classmethod
+    # def prepare_cmdtool_base_command_lines(cls, tool: CommandTool) -> list[str]:
+    #     bc = tool.base_command()
+    #     if bc is None:
+    #         lines = []
+    #     elif bc and isinstance(bc, list):
+    #         lines = [' '.join([str(cmd) for cmd in bc])]
+    #     else:
+    #         lines = [str(bc)]
+    #     return lines
+    
+    # @classmethod
+    # def prepare_cmdtool_arg_lines(cls, tool: CommandTool, inputs: list[ToolInput]) -> list[str]:
+    #     lines: list[str] = []
+        
+    #     inputs = cls.get_ordered_cmdtool_arguments(tool, inputs)
+    #     inputsdict = tool.inputs_map()
+        
+    #     for inp in inputs:
+    #         if isinstance(inp, ToolInput):
+    #             lines.append(f"${inp.id()}WithPrefix")
+    #         elif isinstance(inp, ToolArgument):
+
+    #             expression = cls.unwrap_expression(
+    #                 inp.value,
+    #                 inputs_dict=inputsdict,
+    #                 tool=tool,
+    #                 skip_inputs_lookup=True,
+    #                 quote_string=False,
+    #                 in_shell_script=True,
+    #             )
+
+    #             if inp.prefix is not None:
+    #                 space = ""
+    #                 if inp.separate_value_from_prefix is not False:
+    #                     space = " "
+
+    #                 cmd_arg = f'{inp.prefix}{space}"{expression}"'
+    #             else:
+    #                 cmd_arg = expression
+
+    #             lines.append(cmd_arg)
+    #         else:
+    #             raise Exception("unknown input type")
+    #     return lines
+
+
+        # # deprecated - see ./nfgen/script.py for replacement code
+    # @classmethod
+    # def prepare_expression_inputs(cls, tool, inputs) -> str:
+    #     """
+    #     Generate Groovy code to represent the values of input variable definitions for complex expressions
+
+    #     :param tool:
+    #     :type tool:
+    #     :param inputs:
+    #     :type inputs:
+    #     :return:
+    #     :rtype:
+    #     """
+
+    #     inputsdict = tool.inputs_map()
+
+    #     script_lines = []
+    #     for i in inputs:
+    #         if hasattr(i, 'input_type'):
+    #             input_type = i.input_type
+    #         elif hasattr(i, 'intype'):
+    #             input_type = i.intype
+    #         else:
+    #             raise Exception('Failed to get input type attribute')
+
+    #         if isinstance(input_type, Filename):
+    #             val = cls.unwrap_expression(
+    #                 input_type.generated_filename(), inputs_dict=inputsdict, tool=tool
+    #             )
+
+    #             if input_type.optional:
+    #                 val = f'{i.id()} && {i.id()} != "None" ? {i.id()} : {val}'
+
+    #             code = f'def {i.id()} = {val}'
+    #             script_lines.append(code)
+
+    #     return '\n'.join(script_lines)
+        
+    # deprecated - see ./nfgen/script.py for replacement code
+    # @classmethod
+    # def gen_input_var_definition(cls, inp: ToolInput, arg_name: str) -> str:
+    #     """
+    #     Generate Groovy code to represent the values of input variable definitions
+
+    #     :param inp:
+    #     :type inp:
+    #     :param arg_name:
+    #     :type arg_name:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     if isinstance(inp.input_type, Array):
+    #         if (
+    #             isinstance(inp.input_type.subtype(), File)
+    #             and inp.input_type.subtype().has_secondary_files()
+    #         ):
+    #             arg_value = f"get_primary_files({arg_name}).join(' ')"
+    #         else:
+    #             arg_value = f"{arg_name}.join(' ')"
+
+    #     elif (
+    #         isinstance(inp.input_type, (File)) and inp.input_type.has_secondary_files()
+    #     ):
+    #         arg_value = f"{arg_name}[0]"
+    #     else:
+    #         arg_value = arg_name
+
+    #     prefix = ""
+    #     if inp.prefix is not None:
+    #         prefix = inp.prefix
+
+    #     space = ""
+    #     if inp.separate_value_from_prefix is not False:
+    #         space = " "
+
+    #     prefix_applies_to_all_elements = "False"
+    #     if inp.prefix_applies_to_all_elements is True:
+    #         prefix_applies_to_all_elements = "True"
+
+    #     if isinstance(inp.input_type, Boolean):
+    #         arg = f"boolean_flag({arg_value}, '{prefix}{space}')"
+    #     else:
+    #         if inp.input_type.optional:
+    #             arg = f"optional({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
+    #         else:
+    #             arg = f"apply_prefix({arg_value}, '{prefix}{space}', '{prefix_applies_to_all_elements}')"
+    #             # arg = f"'{prefix}{space}' + {arg_value}"
+
+    #     return arg
+
+    # @classmethod
+    # def prepare_input_vars(cls, inputs) -> str:
+    #     """
+    #     Generate Groovy code for input variables definitions inside the Nextflow script section.
+    #     This is where we apply prefix or preprocessiong if necessary.
+
+    #     :param inputs:
+    #     :type inputs:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     pre_script_lines = []
+    #     for a in inputs:
+    #         arg_name = ""
+    #         if isinstance(a, ToolInput):
+    #             arg_name = a.id()
+    #         elif isinstance(a, ToolArgument):
+    #             continue
+    #         else:
+    #             raise Exception("unknown input type")
+
+    #         arg = cls.gen_input_var_definition(a, arg_name)
+            
+    #         code = f'def {arg_name}WithPrefix = {arg}'
+            
+    #         pre_script_lines.append(code)
+
+    #     return '\n'.join(pre_script_lines)
+
+
+
+    # @classmethod
+    # def prepare_resources_var(cls, tool, name: Optional[str] = None) -> Tuple[str, list[str], list[str]]:
+    #     """
+    #     Generate Groovy code for resources variables definitions inside the Nextflow script section.
+
+    #     :param tool:
+    #     :type tool:
+    #     :param name:
+    #     :type name:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     pre_script_lines = []
+    #     var_names = []
+    #     param_names = []
+    #     for k, v in cls.build_resources_input(
+    #         tool,
+    #         hints=None,
+    #     ).items():
+    #         prefix = ""
+    #         if name is not None:
+    #             prefix = f"{name}_"
+
+    #         param_name = f"params.{prefix}{k}"
+
+    #         code = f'def {k} = {param_name}'
+    #         var_names.append(k)
+    #         param_names.append(param_name)
+    #         pre_script_lines.append(code)
+
+    #     return '\n'.join(pre_script_lines), var_names, param_names
+
+    # # deprecated
+    # @classmethod
+    # def prepare_inputs_in_selector(
+    #     cls, tool, inputs: List[ToolInput], resources: List[str]
+    # ):
+    #     """
+    #     we need to add their Groovy variable definitions
+
+    #     :param tool:
+    #     :type tool:
+    #     :param inputs:
+    #     :type inputs:
+    #     :param resources:
+    #     :type resources:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     pre_script_lines = []
+
+    #     if tool.versioned_id() not in cls.INPUT_IN_SELECTORS:
+    #         return ""
+
+    #     input_keys = [i.id() for i in inputs]
+
+    #     for k in cls.INPUT_IN_SELECTORS[tool.versioned_id()]:
+    #         if k not in input_keys and k not in resources:
+    #             val = "''"
+
+    #             code = f'def {k} = {val}'
+
+    #             pre_script_lines.append(code)
+
+    #     return '\n'.join(pre_script_lines)
