@@ -145,7 +145,7 @@ class Mapper:
             # create a dummy 'unknown' tool input and add to tool. 
             else:   
                 unknown_count += 1
-                tag = f'UNKNOWN{unknown_count}'
+                tag = f'unknown{unknown_count}'
                 inp = self.create_unknown_tool_input(tag, gvalue)
                 jtool._inputs.append(inp)  # yes, I know this is protected. I need to add an input - sue me.
             

@@ -88,9 +88,10 @@ class ChannelDeclarationBlock(NFBase):
         return channels
 
     def get_string(self) -> str:
-        width_col_1 = max([c.width for c in self.channels])
         outstr = ''
-        for c in self.ordered_channels:
+        channels = self.ordered_channels
+        width_col_1 = max([c.width for c in channels])
+        for c in channels:
             outstr += f'{c.name:<{width_col_1}} = {c.get_string()}\n'
         return outstr
 

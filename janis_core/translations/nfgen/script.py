@@ -114,11 +114,8 @@ class ProcessScriptGenerator:
                     self.handle_tool_argument(inp)
 
     def handle_positional(self, inp: ToolInput) -> None:
-        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
-            raise NotImplementedError
-        else:
-            src_name = self.get_src_varname(inp)
-            self.script.append(f'${{{src_name}}}')
+        src_name = self.get_src_varname(inp)
+        self.script.append(f'${{{src_name}}}')
 
     def handle_false_default_flag(self, inp: ToolInput) -> None:
         if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
@@ -133,10 +130,14 @@ class ProcessScriptGenerator:
             self.script.append(f'${{{src_name}}}')
 
     def handle_true_default_flag(self, inp: ToolInput) -> None:
+        prefix = inp.prefix
+        assert(prefix)
         if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
-            raise NotImplementedError
+            self.script.append(prefix)
         else:
-            raise NotImplementedError
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} == false ? "" : "{prefix}"')
+            self.script.append(f'${{{src_name}}}')
 
     def handle_default_option(self, inp: ToolInput) -> None:
         if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
