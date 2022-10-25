@@ -13,11 +13,12 @@ from . import utils
 
 
 def channel_factory(task_input: ToolInput | InputNode) -> ChannelDeclaration:
-    name = task_input.id()
+    wf_inp_name = task_input.id()
     method = get_channel_method(task_input)
     source = get_channel_source(task_input, method)
     collect = should_collect(task_input)
-    return ChannelDeclaration(name, method, source, collect)
+    allow_null = should_allow_null(task_input)
+    return ChannelDeclaration(wf_inp_name, method, source, collect, allow_null)
 
 def get_channel_method(task_input: ToolInput | InputNode) -> str:
     # consumed once or multiple times? (only valid for InputNode)
@@ -44,6 +45,15 @@ def should_collect(task_input: ToolInput | InputNode) -> bool:
             return True
     return False
 
+def should_allow_null(task_input: ToolInput | InputNode) -> bool:
+    if isinstance(task_input, ToolInput):
+        dtype = task_input.input_type
+    else:
+        dtype = task_input.datatype
+    if dtype.optional:
+        return True
+    return False
+
 
 @dataclass
 class OrderingMethod(ABC):
@@ -54,25 +64,28 @@ class OrderingMethod(ABC):
 @dataclass
 class QueueChannelPriority(OrderingMethod):
     def order(self, channels: list[ChannelDeclaration]) -> list[ChannelDeclaration]:
-        channels.sort(key=lambda x: x.method != 'value', reverse=True) 
-        return channels
+        return sorted(channels, key=lambda x: x.method != 'value', reverse=True) 
 
 @dataclass
 class FileTypePriority(OrderingMethod):
     def order(self, channels: list[ChannelDeclaration]) -> list[ChannelDeclaration]:
-        channels.sort(key=lambda x: x.method == 'fromPath' or x.method == 'fromFilePairs', reverse=True) 
-        return channels
+        return sorted(channels, key=lambda x: x.method == 'fromPath' or x.method == 'fromFilePairs', reverse=True) 
+
+@dataclass
+class MandatoryPriority(OrderingMethod):
+    def order(self, channels: list[ChannelDeclaration]) -> list[ChannelDeclaration]:
+        return sorted(channels, key=lambda x: x.allow_null == False, reverse=True)
     
 @dataclass
 class Alphabetical(OrderingMethod):
     def order(self, channels: list[ChannelDeclaration]) -> list[ChannelDeclaration]:
-        channels.sort(key=lambda x: x.name) 
-        return channels
+        return sorted(channels, key=lambda x: x.name) 
 
 orderers: list[OrderingMethod] = [
     Alphabetical(),
     QueueChannelPriority(),
     FileTypePriority(),
+    MandatoryPriority()
 ]
 
 
@@ -100,15 +113,16 @@ class ChannelDeclarationBlock(NFBase):
 class ChannelDeclaration(NFBase):
     condensed: bool = True   # class method - shared by each instance. 
 
-    def __init__(self, name: str, method: str, source: str, collect: bool=False):
-        self._name = name
+    def __init__(self, wf_inp_name: str, method: str, source: str, collect: bool=False, allow_null: bool=False):
+        self.wf_inp_name = wf_inp_name
         self.method = method
         self.source = source
         self.collect = collect
+        self.allow_null = allow_null
     
     @property
     def name(self) -> str:
-        return f'ch_{self._name}'
+        return f'ch_{self.wf_inp_name}'
     
     @property
     def width(self) -> int:
@@ -119,13 +133,15 @@ class ChannelDeclaration(NFBase):
         
     def get_string_condensed(self) -> str:
         collect = '.collect()' if self.collect else ''
-        return f'Channel.{self.method}( {self.source} ){collect}'
+        ifempty = '.ifEmpty(null)' if self.allow_null else ''
+        return f'Channel.{self.method}( {self.source} ){collect}{ifempty}'
 
     def get_string_expanded(self) -> str:
         channel_str = ''
         channel_str += 'Channel\n'
         channel_str += f'  .{self.method}( {self.source} )\n'
         channel_str += f'  .collect()\n' if self.collect else ''
+        channel_str += f'  .ifEmpty(null)\n' if self.allow_null else ''
         channel_str += f'  .set{{ {self.name} }}\n'
         return channel_str
     

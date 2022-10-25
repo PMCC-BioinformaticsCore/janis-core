@@ -54,7 +54,7 @@ class ParamDeclarationBlock(NFBase):
         return outstr
 
 
-
+# currently unused
 class ParamDeclaration(NFBase):
     def __init__(self, name: str, default: Any=None):
         self.name = name
@@ -62,11 +62,15 @@ class ParamDeclaration(NFBase):
 
     @property
     def default(self) -> str:
-        if isinstance(self._default, list):
+        # get the default value as string
+        if self._default == '':
+            default = 'None'
+        elif isinstance(self._default, list):
             default = [str(x) for x in self._default] # type: ignore
             default = ', '.join(default)  
         else:
             default = str(self._default)
+        # cast 'None' to 'null' etc
         if default in utils.type_keyword_map:
             default = utils.type_keyword_map[default]
         return default

@@ -34,62 +34,99 @@ from janis_core.translations.nextflow import NO_FILE_PATH_PREFIX
 from janis_core import Array, String, File, Boolean, Filename
 
 
-wfinputs = [
-    "inForwardReads",
-    "inReverseReads",
-    "inLongReads",
-    "fastqc1_adapters",
-    "fastqc1_contaminants",
-    "fastqc1_limits",
-    "fastqc2_adapters",
-    "fastqc2_contaminants",
-    "fastqc2_limits",
-    "prokka_proteins",
-]
+
+config_sample = """docker.enabled = true
+
+params {
+
+    inForwardReads         = null
+    inReverseReads         = null
+    inLongReads            = null
+    fastqc1_adapters       = null
+    fastqc1_contaminants   = null
+    fastqc1_limits         = null
+    fastqc2_adapters       = null
+    fastqc2_contaminants   = null
+    fastqc2_limits         = null
+    prokka_proteins        = null
+    unicycler_kmers        = 
+    unicycler_scores       = 
+    unicycler_startGeneCov = 95.0
+    unicycler_startGeneId  = 90.0
+    quast_referencesList   = temp_ref_list_fp
+    quast_contigThresholds = null
+    prokka_genus           = Escherichia
+    prokka_increment       = 10
+    prokka_locustag        = PROKKA
+    prokka_species         = Coli
+    prokka_strain          = C-1
+
+}"""
+
+
 
 class TestNextflowConfig(unittest.TestCase):
+
     def setUp(self) -> None:
         from janis_core.tests.data.janis.simple.workflow import w
         self.wf = w
+        self.maxDiff = None
 
-    @unittest.skip('not implemented')
     def test_workflow_config(self) -> None:
-        raise NotImplementedError
+        params = translator.build_inputs_file(self.wf)
+        config = translator.stringify_translated_inputs(params)
+        self.assertEquals(config, config_sample)
 
-    
     @unittest.skip('not implemented')
     def test_tool_config(self) -> None:
         raise NotImplementedError
     
 
-class TestParams(unittest.TestCase):
+
+class TestWorkflowInputs(unittest.TestCase):
+
     def setUp(self) -> None:
         from janis_core.tests.data.janis.simple.workflow import w
         self.wf = w
+        self.inputs = list(self.wf.input_nodes.values())
+        self.file_inputs = set([inp for inp in self.inputs if isinstance(inp.datatype, File)])
+        self.channels = translator.gen_channel_declarations(self.wf).channels
     
-    def test_wfinput_params(self) -> None:
-        inputs = translator.build_inputs_file(self.wf)
-        for winp in wfinputs:
-            self.assertEquals(inputs[winp], 'null')
+    def test_params(self) -> None:
+        """
+        Every wf input should have a param. 
+        """
+        params = translator.build_inputs_file(self.wf)
+        for winp in self.inputs:
+            self.assertIn(winp.id(), params)
     
-    @unittest.skip('not implemented')
-    def test_step_static_params(self) -> None:
-        raise NotImplementedError
+    def test_file_channels(self) -> None:
+        """
+        Every File type wf input should have a channel. 
+        """
+        channel_src_names = set([c.wf_inp_name for c in self.channels])
+        for winp in self.file_inputs:
+            self.assertIn(winp.id(), channel_src_names)
     
+    def test_optional_file_channels(self) -> None:
+        """
+        Every Optional(File) type wf input should have a channel. 
+        '.ifEmpty(null)' should appear in the channel string definition.
+        """
+        optional_inputs = [x for x in self.file_inputs if x.datatype.optional == True]
+        for winp in optional_inputs:
+            channel = [c for c in self.channels if c.wf_inp_name == winp.id()][0]
+            self.assertIn('.ifEmpty(null)', channel.get_string())
+
+    def test_nonfile_no_channel(self) -> None:
+        """
+        Non-File-type wf input should not have channels.
+        """
+        nonfile_inputs = [x for x in self.inputs if not isinstance(x.datatype, File)]
+        channel_src_names = set([c.wf_inp_name for c in self.channels])
+        for winp in nonfile_inputs:
+            self.assertNotIn(winp.id(), channel_src_names)
     
-
-class TestChannels(unittest.TestCase):
-    def setUp(self) -> None:
-        from janis_core.tests.data.janis.simple.workflow import w
-        self.wf = w
-
-    @unittest.skip('not implemented')
-    def test_wfinput_channels(self) -> None:
-        raise NotImplementedError
-
-
-
-
 
 
 
@@ -110,7 +147,6 @@ class DataTypeNoSecondary(File):
 
 
 
-# TODO rewrite for new params approach
 class TestNextflowWfToolInputs(unittest.TestCase):
     def test_first_selector(self):
 

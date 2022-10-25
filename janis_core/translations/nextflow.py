@@ -64,6 +64,12 @@ FINAL_STEP_NAME = "janis_outputs"
 TOOL_STDOUT_FILENAME = "janisstdout"
 
 
+def is_runtime_input(inp: InputNode) -> bool:
+    if isinstance(inp.datatype, File):
+        return False
+    return True
+
+
 class NextflowTranslator(TranslatorBase):
     INPUT_IN_SELECTORS: dict[str, Any] = {}
 
@@ -87,8 +93,8 @@ class NextflowTranslator(TranslatorBase):
         processes: dict[str, nfgen.NFBase] = {}
         step_keys = list(jworkflow.step_nodes.keys())
 
-        #param_block = cls.gen_param_declarations(list(jworkflow.input_nodes.values()))
-        channel_block = cls.gen_channel_declarations(list(jworkflow.input_nodes.values()))
+        param_block = cls.gen_param_declarations(jworkflow)
+        channel_block = cls.gen_channel_declarations(jworkflow)
 
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
@@ -242,8 +248,8 @@ class NextflowTranslator(TranslatorBase):
         """
         file_items: list[nfgen.NFBase] = []
 
-        param_block = cls.gen_param_declarations(tool.inputs())
-        channel_block = cls.gen_channel_declarations(tool.inputs())
+        param_block = cls.gen_param_declarations(tool)
+        #channel_block = cls.gen_channel_declarations(tool)
 
         main_p = cls.gen_process_from_cmdtool(tool)
         main_p = cls.handle_container(
@@ -254,7 +260,7 @@ class NextflowTranslator(TranslatorBase):
         workflow = cls.gen_process_workflow(tool, process=main_p)
 
         file_items.append(param_block)
-        file_items.append(channel_block)
+        #file_items.append(channel_block)
         file_items.append(main_p)
         file_items.append(output_p)
         file_items.append(workflow)
@@ -267,23 +273,35 @@ class NextflowTranslator(TranslatorBase):
         return nf_file.get_string()
 
     @classmethod 
-    def gen_param_declarations(cls, task_inputs: list[ToolInput] | list[InputNode]) -> nfgen.ParamDeclarationBlock:
+    def gen_param_declarations(cls, entity: Workflow | CommandTool) -> nfgen.ParamDeclarationBlock:
         """
-        generates a param declaration with default value for each task input.
-        this is to show users which params the workflow accepts. 
+        Creates the nextflow params object for a tool or workflow. 
+        wf / tool inputs which are exposed to the user must to be listed 
+        as part of the params object. 
         """
         params: list[nfgen.ParamDeclaration] = []
-        for inp in task_inputs:
+        
+        if isinstance(entity, Workflow):
+            inputs = list(entity.input_nodes.values())
+            inputs = nfgen.ordering.workflow_inputs(inputs)
+        elif isinstance(entity, CommandTool):  # type: ignore
+            inputs = entity.inputs()
+            inputs = nfgen.ordering.tool_inputs(inputs)
+        else:
+            raise RuntimeError(f'wrong inputs type: {type(entity)}')
+
+        for inp in inputs:
             name = inp.id()
-            itype = type(inp)
             default = wrap_value(inp.default, inp)  # type: ignore
             params.append(nfgen.ParamDeclaration(name, default))
         return nfgen.ParamDeclarationBlock(params)
-    
+            
     @classmethod 
-    def gen_channel_declarations(cls, task_inputs: list[ToolInput] | list[InputNode]) -> nfgen.ChannelDeclarationBlock:
-        """generates a channel declaration for each task input. """
-        channels = [nfgen.channel_factory(inp) for inp in task_inputs]
+    def gen_channel_declarations(cls, wf: Workflow) -> nfgen.ChannelDeclarationBlock:
+        """generates a channel declaration for each supplied task input. """
+        inputs = [x for x in wf.input_nodes.values() if not is_runtime_input(x)]
+        inputs = nfgen.ordering.workflow_inputs(inputs)
+        channels = [nfgen.channel_factory(inp) for inp in inputs]
         return nfgen.ChannelDeclarationBlock(channels)
 
 
@@ -894,6 +912,7 @@ class NextflowTranslator(TranslatorBase):
         )
 
         exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
+        exposed_inputs = nfgen.ordering.tool_inputs(exposed_inputs)
         for i in exposed_inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
@@ -1530,17 +1549,26 @@ return primary
         :return:
         :rtype:
         """
-
         ad = additional_inputs or {}
         values_provided_from_tool = {i.id(): i.default for i in tool.tool_inputs()}
 
         #count = 0
         inp = {}
 
-        for i in tool.tool_inputs():
+        if isinstance(tool, Workflow):
+            inputs = list(tool.input_nodes.values())
+            inputs = nfgen.ordering.workflow_inputs(inputs)
+        elif isinstance(tool, CommandTool):  # type: ignore
+            inputs = tool.inputs()
+            inputs = nfgen.ordering.tool_inputs(inputs)
+        else:
+            raise RuntimeError
+
+        for i in inputs:
+            dtype = i.datatype if isinstance(tool, Workflow) else i.intype
             val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
 
-            if val is None:
+            if val is None or val == '':
                 val = 'null'
                 # if isinstance(i.intype, (File, Directory)) or (
                 #     isinstance(i.intype, (Array))
@@ -1551,18 +1579,18 @@ return primary
                 # else:
                 #     val = ''
             else:
-                if isinstance(i.intype, Boolean):
+                if isinstance(dtype, Boolean):
                     val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
                     if val == "True":
                         val = True
                     if val == "False" or val == "":
                         val = False
-                elif isinstance(i.intype, File):
+                elif isinstance(dtype, File):
 
-                    if i.intype.has_secondary_files():
+                    if dtype.has_secondary_files():
                         primary_file = val
                         secondary_files = []
-                        for suffix in i.intype.secondary_files():
+                        for suffix in dtype.secondary_files():
                             sec_file = apply_secondary_file_format_to_filename(
                                 primary_file, suffix
                             )

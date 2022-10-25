@@ -23,7 +23,7 @@ from .process import (
     TupleElementForOutput
 )
 
-
+from . import ordering
 from .textcases import to_case
 from .script import gen_script_for_cmdtool
 from .unwrap import unwrap_expression, translate_string_formatter
