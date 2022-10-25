@@ -34,6 +34,65 @@ from janis_core.translations.nextflow import NO_FILE_PATH_PREFIX
 from janis_core import Array, String, File, Boolean, Filename
 
 
+wfinputs = [
+    "inForwardReads",
+    "inReverseReads",
+    "inLongReads",
+    "fastqc1_adapters",
+    "fastqc1_contaminants",
+    "fastqc1_limits",
+    "fastqc2_adapters",
+    "fastqc2_contaminants",
+    "fastqc2_limits",
+    "prokka_proteins",
+]
+
+class TestNextflowConfig(unittest.TestCase):
+    def setUp(self) -> None:
+        from janis_core.tests.data.janis.simple.workflow import w
+        self.wf = w
+
+    @unittest.skip('not implemented')
+    def test_workflow_config(self) -> None:
+        raise NotImplementedError
+
+    
+    @unittest.skip('not implemented')
+    def test_tool_config(self) -> None:
+        raise NotImplementedError
+    
+
+class TestParams(unittest.TestCase):
+    def setUp(self) -> None:
+        from janis_core.tests.data.janis.simple.workflow import w
+        self.wf = w
+    
+    def test_wfinput_params(self) -> None:
+        inputs = translator.build_inputs_file(self.wf)
+        for winp in wfinputs:
+            self.assertEquals(inputs[winp], 'null')
+    
+    @unittest.skip('not implemented')
+    def test_step_static_params(self) -> None:
+        raise NotImplementedError
+    
+    
+
+class TestChannels(unittest.TestCase):
+    def setUp(self) -> None:
+        from janis_core.tests.data.janis.simple.workflow import w
+        self.wf = w
+
+    @unittest.skip('not implemented')
+    def test_wfinput_channels(self) -> None:
+        raise NotImplementedError
+
+
+
+
+
+
+
 class DataTypeWithSecondary(File):
     @staticmethod
     def name() -> str:
@@ -50,6 +109,8 @@ class DataTypeNoSecondary(File):
         return "test_no_secondary"
 
 
+
+# TODO rewrite for new params approach
 class TestNextflowWfToolInputs(unittest.TestCase):
     def test_first_selector(self):
 

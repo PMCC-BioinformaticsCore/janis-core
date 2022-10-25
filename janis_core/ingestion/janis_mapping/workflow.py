@@ -237,7 +237,7 @@ def _get_scatter_targets(gstep: WorkflowStep) -> list[str]:
                 name = v.input_tag
             else:
                 unknown_count += 1
-                name = f'UNKNOWN{unknown_count}'
+                name = f'unknown{unknown_count}'
             targets.append(name)
     return targets
 

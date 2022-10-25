@@ -24,7 +24,7 @@ from .process import (
 )
 
 
-from .cases import to_case
+from .textcases import to_case
 from .script import gen_script_for_cmdtool
 from .unwrap import unwrap_expression, translate_string_formatter
 from .formatting import format_process_call

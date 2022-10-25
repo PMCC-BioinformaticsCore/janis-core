@@ -16,9 +16,11 @@ from janis_core.ingestion.main import ingest_galaxy
 class TestFromWdl(unittest.TestCase):
     parser = WdlParser()
 
+    @unittest.skip("no wdl ingest yet")
     def test_ingest_tool(self) -> None:
         raise NotImplementedError
 
+    @unittest.skip("no wdl ingest yet")
     def test_ingest_workflow(self) -> None:
         raise NotImplementedError
 

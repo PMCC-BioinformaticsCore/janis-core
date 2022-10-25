@@ -1017,11 +1017,11 @@ workflow wb {
     String inp
     Int? echo_runtime_memory
     Int? echo_runtime_cpu
-    Int? echo_runtime_disks
+    Int? echo_runtime_disk
     Int? echo_runtime_seconds
     Int? echo_2_runtime_memory
     Int? echo_2_runtime_cpu
-    Int? echo_2_runtime_disks
+    Int? echo_2_runtime_disk
     Int? echo_2_runtime_seconds
   }
   call T.TestStepTool as echo {
@@ -1029,7 +1029,7 @@ workflow wb {
       input1=inp,
       runtime_memory=echo_runtime_memory,
       runtime_cpu=echo_runtime_cpu,
-      runtime_disks=echo_runtime_disks,
+      runtime_disk=echo_runtime_disk,
       runtime_seconds=echo_runtime_seconds
   }
   call T.TestStepTool as echo_2 {
@@ -1037,7 +1037,7 @@ workflow wb {
       input1=inp,
       runtime_memory=echo_2_runtime_memory,
       runtime_cpu=echo_2_runtime_cpu,
-      runtime_disks=echo_2_runtime_disks,
+      runtime_disk=echo_2_runtime_disk,
       runtime_seconds=echo_2_runtime_seconds
   }
 }"""
@@ -1535,7 +1535,7 @@ class TestWdlResourceOperators(unittest.TestCase):
         self.assertEqual("duration: select_first([runtime_seconds, 86400])", time)
 
         self.assertEqual(
-            'disks: "local-disk ~{select_first([runtime_disks, 20])} SSD"', disks
+            'disks: "local-disk ~{select_first([runtime_disk, 20])} SSD"', disks
         )
 
 

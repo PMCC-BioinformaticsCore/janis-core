@@ -66,7 +66,7 @@ def to_janis_selector(component: OutputComponent) -> Optional[InputSelector | Wi
             return InputSelector(input_comp_tag)
 
         case WildcardOutput():
-            wildcard: str = 'UNKNOWN'
+            wildcard: str = 'unknown'
             if hasattr(component.gxparam, 'from_work_dir') and component.gxparam.from_work_dir: # type: ignore
                 wildcard = component.gxparam.from_work_dir      # type: ignore
             elif component.gxparam.discover_pattern:            # type: ignore

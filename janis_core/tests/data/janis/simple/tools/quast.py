@@ -145,6 +145,12 @@ Alignment viewer highlights regions of interest as, in this case, missassemblies
 
 inputs = [
 	# Positionals
+    ToolInput(
+		'unknown1',
+		File,
+		doc="Unknown input. Accepts w.fastqc1.outTextFile. Please address.",
+	),
+    
 
 	# Flags
 	ToolInput(

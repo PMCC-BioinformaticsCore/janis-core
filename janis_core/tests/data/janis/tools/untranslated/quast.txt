@@ -1,7 +1,0 @@
-
-# POST-PROCESSING ---------------------
- mkdir -p '$report_html.files_path'
- && cp outputdir/*.html '$report_html.files_path'
-#if ($assembly.type == 'genome' and $assembly.ref.use_ref) or ($assembly.type == 'metagenome' and $assembly.ref.origin != 'none')
- && cp -R outputdir/icarus_viewers '$report_html.files_path'
-#end if

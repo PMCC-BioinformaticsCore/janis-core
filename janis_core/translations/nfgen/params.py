@@ -56,7 +56,7 @@ class ParamDeclarationBlock(NFBase):
 
 
 class ParamDeclaration(NFBase):
-    def __init__(self, name: str, default: Any):
+    def __init__(self, name: str, default: Any=None):
         self.name = name
         self._default = default
 
@@ -83,18 +83,3 @@ class ParamDeclaration(NFBase):
         # leave this unimplemented! 
         # bad architecture means the method has to exist. 
         raise NotImplementedError  
-
-
-
-
-    # # has default
-    # if task_input.default is not None:
-    #     if method == 'value' and utils.is_path(task_input):
-    #         sources = [f"file('{task_input.default}')"]
-    #     elif isinstance(task_input.default, list):
-    #         sources = ', '.join(task_input.default)
-    #     else:
-    #         sources = [task_input.default]
-    # else:
-    #     sources = ['None']
-    # return sources

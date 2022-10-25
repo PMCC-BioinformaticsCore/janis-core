@@ -42,6 +42,17 @@ The first integration of this tool was made by Cyril Monjeaud and Yvan Le Bras (
 
 inputs = [
 	# Positionals
+	ToolInput(
+		'unknown1',
+		File,
+		doc="Unknown input. Accepts w.fastqc1.outTextFile. Please address.",
+	),
+	ToolInput(
+		'unknown2',
+		File,
+		doc="Unknown input. Accepts w.fastqc2.outTextFile. Please address.",
+	),
+
 
 	# Flags
 
