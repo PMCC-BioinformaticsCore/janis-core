@@ -214,9 +214,6 @@ class TestJanisWorkflowMapping(unittest.TestCase):
     def test_janis_inputs(self) -> None:
         target_inputs = {
             'inFasta', 
-            'abricate_noheader', 
-            'abricate_minid', 
-            'abricate_db'
         }
         actual_inputs = set(self.jworkflow.input_nodes.keys())
         self.assertEquals(target_inputs, actual_inputs)
@@ -248,12 +245,12 @@ class TestJanisWorkflowMapping(unittest.TestCase):
 
         # sources (tool input values)
         self.assertIn('fileInput', jstep.sources)
-        self.assertIn('noheader', jstep.sources)
-        self.assertIn('minid', jstep.sources)
-        self.assertIn('db', jstep.sources)
+        self.assertNotIn('noheader', jstep.sources)
+        self.assertNotIn('minid', jstep.sources)
+        self.assertNotIn('db', jstep.sources)
         
         # scatter 
-        self.assertEquals(jstep.scatter.fields, ['minid'])
-        self.assertEquals(jstep.scatter.method, ScatterMethod.dot)
+        # self.assertEquals(jstep.scatter.fields, ['minid'])
+        # self.assertEquals(jstep.scatter.method, ScatterMethod.dot)
 
 

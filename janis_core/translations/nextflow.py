@@ -1,7 +1,7 @@
+from copy import deepcopy
 import os
 import re
 import posixpath
-import json
 from typing import Tuple, Dict, List, Optional, Union, Any
 from janis_core.translations.nfgen import format_process_call
 from janis_core.translations.nfgen import wrap_value
@@ -15,7 +15,6 @@ from janis_core.types import (
     Directory,
     Stdout,
     Filename,
-    Boolean,
 )
 
 from janis_core.tool.commandtool import (
@@ -29,8 +28,7 @@ from janis_core.tool.commandtool import (
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core.workflow.workflow import InputNode, Workflow, WorkflowBase
-from janis_core.utils.secondary import apply_secondary_file_format_to_filename
+from janis_core.workflow.workflow import InputNode, StepNode, Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
 
@@ -64,12 +62,6 @@ FINAL_STEP_NAME = "janis_outputs"
 TOOL_STDOUT_FILENAME = "janisstdout"
 
 
-def is_runtime_input(inp: InputNode) -> bool:
-    if isinstance(inp.datatype, File):
-        return False
-    return True
-
-
 class NextflowTranslator(TranslatorBase):
     INPUT_IN_SELECTORS: dict[str, Any] = {}
 
@@ -86,22 +78,25 @@ class NextflowTranslator(TranslatorBase):
         container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
     ) -> Tuple[Any, dict[str, Any]]:
-
+        
+        scope: list[str] = []
         cls.format_name_case(jworkflow)
 
         files: dict[str, nfgen.NFFile] = {}
         processes: dict[str, nfgen.NFBase] = {}
-        step_keys = list(jworkflow.step_nodes.keys())
 
-        param_block = cls.gen_param_declarations(jworkflow)
+        cls.register_params_for_inputs(jworkflow, scope)
         channel_block = cls.gen_channel_declarations(jworkflow)
 
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
+            values = step.sources
+            current_scope = deepcopy(scope)
+            current_scope.append(step.identifier)
             nf_items = cls.gen_items_for_step(
-                step.tool,
-                step.id(),
-                step_keys,
+                tool=step.tool,
+                scope=current_scope,
+                values=values,
                 with_container=with_container,
                 with_resource_overrides=with_resource_overrides,
                 allow_empty_container=allow_empty_container,
@@ -136,24 +131,105 @@ class NextflowTranslator(TranslatorBase):
     def format_name_case(cls, jworkflow: Workflow) -> None:
         # step names
         steps = {}
-        for step_name, step_node in jworkflow.step_nodes.items():
+        for step_name, step in jworkflow.step_nodes.items():
             step_name = nfgen.to_case(step_name, 'snake_caps')
-            step_node.identifier = step_name
-            steps[step_name] = step_node
+            step.identifier = step_name
+            steps[step_name] = step
         jworkflow.step_nodes = steps
         
         # tool names
-        for step_node in jworkflow.step_nodes.values():
-            step_node.tool._tool = nfgen.to_case(step_node.tool._tool, 'snake_caps')
+        for step in jworkflow.step_nodes.values():
+            step.tool._tool = nfgen.to_case(step.tool._tool, 'snake_caps')
+    
+    @classmethod
+    def register_params_for_inputs(cls, entity: Workflow | CommandTool, scope: Optional[list[str]], override: bool=False) -> None:
+        """
+        Registers a param for each tool or workflow input.
+        workflow / tool inputs which are exposed to the user must to be listed 
+        as part of the global params object. 
+        """
+        if isinstance(entity, Workflow):
+            inputs = nfgen.utils.get_workflow_inputs(entity)
+            for inp in inputs:
+                cls.register_wf_param(inp, scope, override=override)
+        elif isinstance(entity, CommandTool):  # type: ignore
+            inputs = nfgen.utils.get_exposed_tool_inputs(entity)
+            for inp in inputs:
+                cls.register_tool_param(inp, scope=scope, override=override)
+        else:
+            raise RuntimeError(f'wrong inputs type: {type(entity)}')
         
+    @classmethod 
+    def register_wf_param(cls, inp: InputNode, scope: Optional[list[str]], override: bool=False) -> None:
+        varname = inp.id()
+        if override:
+            nfgen.params.update(varname, scope)
+        elif nfgen.params.exists(varname, scope):
+            pass
+        else:
+            nfgen.params.add(
+                varname=varname,
+                scope=scope,
+                dtype=inp.datatype.name(),
+                optional=inp.datatype.optional,
+                default=wrap_value(inp.default, inp)  # type: ignore
+            )
+    
+    @classmethod 
+    def register_tool_param(cls, inp: ToolInput, scope: Optional[list[str]], override: bool=False) -> None:
+        varname = inp.id()
+        if override:
+            nfgen.params.update(varname, scope)
+        elif nfgen.params.exists(varname, scope):
+            pass
+        else:  
+            nfgen.params.add(
+                varname=varname,
+                dtype=inp.input_type.name(),
+                optional=inp.input_type.optional,
+                scope=scope,
+                default=wrap_value(inp.default, inp)  # type: ignore
+        )
+
+    @classmethod 
+    def register_params_for_additional_inputs(
+        cls, 
+        additional_inputs: dict[str, Any],
+        scope: Optional[list[str]]=None
+        ) -> None:
+        for k, v in additional_inputs.items():
+            nfgen.params.add(
+                varname=k,
+                scope=scope,
+                default=v
+            )
+    
+    @classmethod 
+    def register_params_for_resources(
+        cls, 
+        entity: Workflow | CommandTool,
+        hints: Optional[dict[str, Any]],
+        max_cores: Optional[int], 
+        max_mem: Optional[int], 
+        max_duration: Optional[int]) -> None:
+        resources_input = cls.build_resources_input(
+            entity,
+            hints,
+            max_cores=max_cores,
+            max_mem=max_mem,
+            max_duration=max_duration,
+        )
+        for k, v in resources_input.items():
+            nfgen.params.add(varname=k, default=v)
 
     @classmethod
     def gen_items_for_step(
         cls,
-        tool: Tool,
-        step_id: str,
-        step_keys: list[str],
-        with_container: bool = True,  
+        tool: CommandTool | PythonTool | Workflow,
+        scope: list[str],
+        values:dict[str, Any],
+        step_keys: Optional[list[str]] = None,
+        with_container: bool = True, 
         with_resource_overrides: bool = False,
         allow_empty_container: bool = False,
         container_override: Optional[dict[str, str]] = None,
@@ -179,43 +255,42 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         if isinstance(tool, CommandTool):
-            nf_item = cls.gen_process_from_cmdtool(tool, step_id)
+            nf_item = cls.gen_process_from_cmdtool(tool, values, scope)
             nf_item = cls.handle_container(
                 tool, nf_item, with_container, allow_empty_container, container_override
             )
             return [nf_item]
 
-        elif isinstance(tool, PythonTool):
-            nf_item = cls.gen_process_from_codetool(tool, step_id)
+        elif isinstance(step.tool, PythonTool):
+            nf_item = cls.gen_process_from_codetool(step.tool, step.id())
             nf_item = cls.handle_container(
-                tool, nf_item, with_container, allow_empty_container, container_override
+                step.tool, nf_item, with_container, allow_empty_container, container_override
             )
             return [nf_item]
 
-        elif isinstance(tool, WorkflowBase):
-            sub_step_keys = list(tool.step_nodes.keys())
+        elif isinstance(step.tool, WorkflowBase):
+            sub_step_keys = list(step.tool.step_nodes.keys())
             nf_items = []
 
-            for sub_step_id in tool.step_nodes:
-                step_tool = tool.step_nodes[sub_step_id].tool
+            for substep_id, substep in step.tool.step_nodes.items():
                 nf_items += cls.gen_items_for_step(
-                    step_tool,
-                    f"{step_id}_{sub_step_id}",
-                    sub_step_keys,
+                    substep,
+                    step_id_override=f"{step.id()}_{substep_id}",
+                    step_keys=sub_step_keys,
                     with_container=with_container,
                     with_resource_overrides=with_resource_overrides,
                     allow_empty_container=allow_empty_container,
                     container_override=container_override,
                 )
-            nf_items = [cls.gen_subworkflow(tool, step_id, nf_items)] + nf_items
+            nf_items = [cls.gen_subworkflow(step, step.id(), nf_items)] + nf_items
             return nf_items
 
-        elif isinstance(tool, CodeTool):
+        elif isinstance(step.tool, CodeTool):
             raise Exception("Only PythonTool code tool is supported for the moment")
         
         else:
             raise Exception(
-                f"Nextflow translation for this {tool.__class__} is not yet supported"
+                f"Nextflow translation for this {step.tool.__class__} is not yet supported"
             )
 
     @classmethod
@@ -248,10 +323,10 @@ class NextflowTranslator(TranslatorBase):
         """
         file_items: list[nfgen.NFBase] = []
 
-        param_block = cls.gen_param_declarations(tool)
+        cls.register_params_for_inputs(tool, tool.id())
         #channel_block = cls.gen_channel_declarations(tool)
 
-        main_p = cls.gen_process_from_cmdtool(tool)
+        main_p = cls.gen_process_from_cmdtool(tool, )
         main_p = cls.handle_container(
             tool, main_p, with_container, allow_empty_container, container_override
         )
@@ -273,34 +348,9 @@ class NextflowTranslator(TranslatorBase):
         return nf_file.get_string()
 
     @classmethod 
-    def gen_param_declarations(cls, entity: Workflow | CommandTool) -> nfgen.ParamDeclarationBlock:
-        """
-        Creates the nextflow params object for a tool or workflow. 
-        wf / tool inputs which are exposed to the user must to be listed 
-        as part of the params object. 
-        """
-        params: list[nfgen.ParamDeclaration] = []
-        
-        if isinstance(entity, Workflow):
-            inputs = list(entity.input_nodes.values())
-            inputs = nfgen.ordering.workflow_inputs(inputs)
-        elif isinstance(entity, CommandTool):  # type: ignore
-            inputs = entity.inputs()
-            inputs = nfgen.ordering.tool_inputs(inputs)
-        else:
-            raise RuntimeError(f'wrong inputs type: {type(entity)}')
-
-        for inp in inputs:
-            name = inp.id()
-            default = wrap_value(inp.default, inp)  # type: ignore
-            params.append(nfgen.ParamDeclaration(name, default))
-        return nfgen.ParamDeclarationBlock(params)
-            
-    @classmethod 
     def gen_channel_declarations(cls, wf: Workflow) -> nfgen.ChannelDeclarationBlock:
         """generates a channel declaration for each supplied task input. """
-        inputs = [x for x in wf.input_nodes.values() if not is_runtime_input(x)]
-        inputs = nfgen.ordering.workflow_inputs(inputs)
+        inputs = nfgen.utils.get_workflow_inputs(wf)
         channels = [nfgen.channel_factory(inp) for inp in inputs]
         return nfgen.ChannelDeclarationBlock(channels)
 
@@ -358,7 +408,7 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def gen_subworkflow(
-        cls, subworkflow: WorkflowBase, name: str, nf_items: List[nfgen.NFBase]
+        cls, step: StepNode, name: str, nf_items: List[nfgen.NFBase]
     ) -> nfgen.Workflow:
         """
         Generate a Nextflow Workflow object for a Janis subworkflow inside a workflow
@@ -375,16 +425,16 @@ class NextflowTranslator(TranslatorBase):
         body: list[str] = []
         take = []
         emit = []
+        subworkflow: Workflow = step.tool
 
         inputsdict = subworkflow.inputs_map()
         step_keys = list(subworkflow.step_nodes.keys())
-
-        wf_provided_inputs = cls.gen_wf_tool_inputs(subworkflow)
+        step_inputs = cls.gen_step_inval_dict(step.tool, step.sources)
 
         for i in subworkflow.input_nodes:
-            if i not in wf_provided_inputs:
+            if i not in step_inputs:
                 if subworkflow.input_nodes[i].default is not None:
-                    wf_provided_inputs[i] = subworkflow.input_nodes[i].default
+                    step_inputs[i] = subworkflow.input_nodes[i].default
 
         for key in subworkflow.connections:
             as_param = None
@@ -404,21 +454,22 @@ class NextflowTranslator(TranslatorBase):
             tool = subworkflow.step_nodes[step_id].tool
             tool_inp_dict = tool.inputs_map()
 
-            provided_inputs = cls.gen_wf_tool_inputs(
-                tool,
+            step_inputs = cls.gen_step_inval_dict(
+                step.tool,
+                step.sources,
                 inputs_replacement="$",
                 tool_id_prefix=f"${name}_",
             )
 
-            provided_inputs = cls.apply_outer_workflow_inputs(
-                subworkflow, tool, provided_inputs, wf_provided_inputs
+            step_inputs = cls.apply_outer_workflow_inputs(
+                subworkflow, tool, step_inputs, step_inputs
             )
 
             args = cls.handle_process_args(
                 tool,
                 nf_item.inputs,
                 tool_inp_dict,
-                provided_inputs,
+                step_inputs,
                 input_param_prefix=f"{name}_{step_id}_",
                 step_key_prefix=f"{name}_",
                 workflow=subworkflow,
@@ -455,13 +506,10 @@ class NextflowTranslator(TranslatorBase):
         body: list[str] = []
 
         step_keys = list(janis.step_nodes.keys())
-
-        for step_id in janis.step_nodes:
+        for step_id, step in janis.step_nodes.items():
             tool = janis.step_nodes[step_id].tool
-            provided_inputs = cls.gen_wf_tool_inputs(tool)
-
-            inputsdict = tool.inputs_map()
-
+            step_inputs = cls.gen_step_inval_dict(step.tool, step.sources)
+            wf_inputs = tool.inputs_map()
             nf_process = nf_items[step_id]
 
             if isinstance(nf_process, nfgen.Process):
@@ -472,8 +520,8 @@ class NextflowTranslator(TranslatorBase):
             args = cls.handle_process_args(
                 tool,
                 nf_inputs,
-                inputsdict,
-                provided_inputs,
+                wf_inputs,
+                step_inputs,
                 input_param_prefix=f"{step_id}_",
                 workflow=janis,
                 scatter=janis.step_nodes[step_id].scatter,
@@ -861,7 +909,8 @@ class NextflowTranslator(TranslatorBase):
     def gen_process_from_cmdtool(
         cls,
         tool: CommandTool,
-        name: Optional[str] = None,
+        values: dict[str, Any],
+        scope: list[str],
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for a Janis Command line tool
@@ -891,35 +940,34 @@ class NextflowTranslator(TranslatorBase):
         #         inputs.append(i)
 
         #exposed_inputs = cls.gen_wf_tool_inputs(tool)
-        
         resource_var_names = cls.get_resource_var_names(tool)
-        process_name = name or tool.id()
-        process_name = nfgen.to_case(process_name, 'snake_caps')
+        cls.register_params_for_inputs(tool, scope, override=True)
 
+        process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.gen_script_for_cmdtool(
-            tool, 
+            tool,
+            scope,
+            values,
             cls.INPUT_IN_SELECTORS, 
             resource_var_names, 
-            process_name, 
             TOOL_STDOUT_FILENAME
         )
  
         process = nfgen.Process(
             name=process_name,
+            pre_script=pre_script,
             script=script,
             script_type=nfgen.ProcessScriptType.script,
-            pre_script=pre_script,
         )
-
-        exposed_inputs = [x for x in tool.inputs() if x.id() in tool.connections] 
-        exposed_inputs = nfgen.ordering.tool_inputs(exposed_inputs)
-        for i in exposed_inputs:
+        
+        inputs = nfgen.utils.get_channel_tool_inputs(tool, values)
+        for i in inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
             process.inputs.append(inp)
 
-        resource_param_names = cls.get_resource_param_names(tool, name)
+        resource_param_names = cls.get_resource_param_names(tool, scope)
         process.outputs = cls.gen_outputs_for_process(process_name, tool)
         process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
@@ -1079,7 +1127,7 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def gen_process_from_codetool(
         cls,
-        tool: CodeTool,
+        step: StepNode,
         name: Optional[str] = None
     ) -> nfgen.Process:
         """
@@ -1094,15 +1142,15 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        provided_inputs = cls.gen_wf_tool_inputs(tool)
+        step_inputs = cls.gen_step_inval_dict(step)
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
 
         # construct script
-        for i in tool.inputs():
-            if provided_inputs is not None:
+        for i in step.tool.inputs():
+            if step_inputs is not None:
                 optional = i.intype.optional is None or i.intype.optional is True
-                if i.id() in provided_inputs or i.default is not None or not optional:
+                if i.id() in step_inputs or i.default is not None or not optional:
                     inputs.append(i)
                 # note: Filename is set to optional=True, but they have a default value that is not set to i.default
                 if isinstance(i.intype, Filename):
@@ -1110,9 +1158,9 @@ class NextflowTranslator(TranslatorBase):
             else:
                 inputs.append(i)
 
-        script = cls.prepare_script_for_python_code_tool(tool, inputs)
+        script = cls.prepare_script_for_python_code_tool(step.tool, inputs)
 
-        process_name = name or tool.id()
+        process_name = name or step.id()
         process = nfgen.Process(
             name=process_name,
             script=script,
@@ -1143,7 +1191,7 @@ class NextflowTranslator(TranslatorBase):
             )
             process.outputs.append(out)
 
-        resource_param_names = cls.get_resource_param_names(tool, name)
+        resource_param_names = cls.get_resource_param_names(step.tool, name)
         process.directives = cls.gen_directives_for_process(
             process_name, resource_param_names
         )
@@ -1339,9 +1387,10 @@ class NextflowTranslator(TranslatorBase):
         return nfgen.Workflow(name="", main=body)
 
     @classmethod
-    def gen_wf_tool_inputs(
+    def gen_step_inval_dict(
         cls,
-        tool: Tool,
+        tool: CommandTool,
+        values: dict[str, Any],
         inputs_replacement: str = "ch_",
         tool_id_prefix: str = "$",
     ) -> dict[str, Any]:
@@ -1349,6 +1398,8 @@ class NextflowTranslator(TranslatorBase):
         Generate a dictionary to represent the input values provided to a tool.
         key is the input name.
         value is the input expression.
+        
+        Uses StepNode.sources. Only gets step input values which are channels. 
 
         :param tool:
         :type tool:
@@ -1361,25 +1412,29 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        for key in tool.connections:
-            if tool.connections[key] is None:
-                val = None
-            elif hasattr(tool.connections[key], "nextflow"):
-                val = tool.connections[key].nextflow(
-                    var_indicator=inputs_replacement, step_indicator=tool_id_prefix
-                )
-            else:
-                val = cls.unwrap_expression(
-                    tool.connections[key],
-                    tool=tool,
-                    inputs_dict=tool.inputs_map(),
-                    quote_string=False,
-                    var_indicator=inputs_replacement,
-                    step_indicator=tool_id_prefix,
-                )
+        channel_inputs = nfgen.utils.get_channel_tool_inputs(tool, values)
+        channel_inputs_names = [x.id() for x in channel_inputs]
 
-            inputs[key] = val
+        for name in channel_inputs_names:
+            if name in values:
+                src = values[name]
+                
+                if hasattr(src, "nextflow"):
+                    val = src.nextflow(
+                        var_indicator=inputs_replacement, 
+                        step_indicator=tool_id_prefix
+                    )
+                else:
+                    val = cls.unwrap_expression(
+                        src,
+                        tool=tool,
+                        inputs_dict=tool.inputs_map(), ## should this be 'values' instead?
+                        quote_string=False,
+                        var_indicator=inputs_replacement,
+                        step_indicator=tool_id_prefix,
+                    )
 
+                inputs[name] = val
         return inputs
 
     @classmethod
@@ -1517,15 +1572,15 @@ return primary
     @classmethod
     def build_inputs_file(
         cls,
-        tool,
-        recursive=False,
-        merge_resources=False,
-        hints=None,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-    ) -> Dict[str, any]:
+        tool: Workflow | CommandTool,
+        recursive: bool=False,
+        merge_resources: bool=False,
+        hints: Optional[dict[str, Any]]=None,
+        additional_inputs: Optional[dict[str, Any]]=None,
+        max_cores: Optional[int]=None,
+        max_mem: Optional[int]=None,
+        max_duration: Optional[int]=None,
+    ) -> dict[str, Any]:
         """
         Generate a dictionary containing input name and its values from users or
         its default values if inputs not provided.
@@ -1549,69 +1604,13 @@ return primary
         :return:
         :rtype:
         """
-        ad = additional_inputs or {}
-        values_provided_from_tool = {i.id(): i.default for i in tool.tool_inputs()}
-
-        #count = 0
-        inp = {}
-
-        if isinstance(tool, Workflow):
-            inputs = list(tool.input_nodes.values())
-            inputs = nfgen.ordering.workflow_inputs(inputs)
-        elif isinstance(tool, CommandTool):  # type: ignore
-            inputs = tool.inputs()
-            inputs = nfgen.ordering.tool_inputs(inputs)
-        else:
-            raise RuntimeError
-
-        for i in inputs:
-            dtype = i.datatype if isinstance(tool, Workflow) else i.intype
-            val = ad.get(i.id(), values_provided_from_tool.get(i.id()))
-
-            if val is None or val == '':
-                val = 'null'
-                # if isinstance(i.intype, (File, Directory)) or (
-                #     isinstance(i.intype, (Array))
-                #     and isinstance(i.intype.subtype(), (File, Directory))
-                # ):
-                #     count += 1
-                #     val = f"/{NO_FILE_PATH_PREFIX}{count}"
-                # else:
-                #     val = ''
-            else:
-                if isinstance(dtype, Boolean):
-                    val = ad.get(i.tag, values_provided_from_tool.get(i.tag)) or ""
-                    if val == "True":
-                        val = True
-                    if val == "False" or val == "":
-                        val = False
-                elif isinstance(dtype, File):
-
-                    if dtype.has_secondary_files():
-                        primary_file = val
-                        secondary_files = []
-                        for suffix in dtype.secondary_files():
-                            sec_file = apply_secondary_file_format_to_filename(
-                                primary_file, suffix
-                            )
-                            secondary_files.append(sec_file)
-
-                        # Note: we want primary file to always be the first item in the array
-                        val = [primary_file] + secondary_files
-
-            inp[i.id()] = val
-
+        scope = []
+        cls.register_params_for_inputs(tool, scope)
+        if additional_inputs:
+            cls.register_params_for_additional_inputs(additional_inputs, scope)
         if merge_resources:
-            for k, v in cls.build_resources_input(
-                tool,
-                hints,
-                max_cores=max_cores,
-                max_mem=max_mem,
-                max_duration=max_duration,
-            ).items():
-                inp[k] = ad.get(k, v)
-
-        return inp
+            cls.register_params_for_resources(tool, hints, max_cores, max_mem, max_duration)
+        return nfgen.params.serialize()
 
     @staticmethod
     def stringify_translated_workflow(wf):
@@ -1631,28 +1630,12 @@ return primary
         :return:
         :rtype:
         """
-        indent = ' ' * 4
-        formatted = {}
-        for key in inputs:
-            # We want list to be formatted as [xxx, yyy] instead of "['xxx', 'yyy']"
-            if inputs[key] is not None:
-                if (
-                    type(inputs[key]) is list
-                    or type(inputs[key]) is int
-                    or type(inputs[key]) is float
-                ):
-                    val = inputs[key]
-                else:
-                    val = str(inputs[key])
-            else:
-                val = ""
-            formatted[key] = val
-        
-        left_span = max([len(k) for k in formatted.keys()])
+        indent = ' ' * 4      
+        left_span = max([len(k) for k in inputs.keys()])
 
         body = 'docker.enabled = true\n\n'
         body += 'params {\n\n'
-        for key, val in formatted.items():
+        for key, val in inputs.items():
             body += f'{indent}{key:{left_span}} = {val}\n'
         body += '\n}'
         return body
@@ -1795,9 +1778,9 @@ for key in result:
         return list(resources.keys())
 
     @classmethod
-    def get_resource_param_names(cls, tool: CommandTool | CodeTool, name: Optional[str]=None) -> list[str]:
+    def get_resource_param_names(cls, tool: CommandTool | CodeTool, scope: list[str]) -> list[str]:
         resources = cls.build_resources_input(tool, hints=None)
-        prefix = f'{name}_' if name else ''
+        prefix = f"{'_'.join(scope)}_" if scope else ''
         return [f"params.{prefix}{k}" for k in resources]
 
     @classmethod

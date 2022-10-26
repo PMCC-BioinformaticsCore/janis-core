@@ -6,10 +6,10 @@ from textwrap import indent
 NF_INDENT = '  '
 
 def call_fmt0(name: str) -> str:
-    return f'{name}()'
+    return f'{name}()\n'
 
 def call_fmt1(name: str, input: str) -> str:
-    return f'{name}( {input} )'
+    return f'{name}( {input} )\n'
 
 def call_fmt2(name: str, inputs: list[str]) -> str:
     call_str = f'{name}(\n'

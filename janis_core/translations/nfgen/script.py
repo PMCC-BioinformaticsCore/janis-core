@@ -1,26 +1,32 @@
 
 from typing import Any, Tuple
 from janis_core import CommandTool, ToolArgument, ToolInput
+
 from janis_core.types import Boolean
 from janis_core.translations.nfgen.unwrap import unwrap_expression
 from janis_core.translations.nfgen import ordering
+from janis_core.translations.nfgen import utils
+from janis_core.translations.nfgen import params
+from janis_core.workflow.workflow import Workflow
 
 
 FILL_NONEXPOSED_INPUTS = True
 
 
 def gen_script_for_cmdtool(
-    tool: CommandTool, 
+    tool: CommandTool | Workflow,
+    scope: list[str],
+    values: dict[str, Any],
     input_in_selectors: dict[str, Any],
     resource_var_names: list[str], 
-    process_name: str,
     stdout_filename: str
 ) -> Tuple[str, str]:
     return ProcessScriptGenerator(
         tool,
+        scope,
+        values,
         input_in_selectors,
         resource_var_names,
-        process_name,
         stdout_filename
     ).generate()
 
@@ -29,25 +35,26 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
+        scope: list[str],
+        values: dict[str, Any],
         input_in_selectors: dict[str, Any],
         resource_var_names: list[str], 
-        process_name: str, 
         stdout_filename: str
     ):
         assert(tool)
         self.tool = tool
-        self.resource_var_names = resource_var_names
+        self.scope = scope
+        self.process_name = scope[-1] if scope else tool.id()
+        self.values = values
         self.input_in_selectors = input_in_selectors
-        self.process_name = process_name
+        self.resource_var_names = resource_var_names
         self.stdout_filename = stdout_filename
+
+        self.channel_inputs = [x.id() for x in utils.get_channel_tool_inputs(tool, values)]
+        self.param_inputs = [x.id() for x in utils.get_param_tool_inputs(tool, values)]
 
         self.prescript: list[str] = []
         self.script: list[str] = []
-
-    def is_exposed(self, inp: ToolInput) -> bool:
-        if inp.id() in self.tool.connections:
-            return True
-        return False
 
     def generate(self) -> Tuple[str, str]:
         """Generate the script content of a Nextflow process for Janis command line tool"""
@@ -79,7 +86,13 @@ class ProcessScriptGenerator:
                 self.script += [str(bc)]
 
     def get_src_varname(self, inp: ToolInput) -> str:
-        return inp.id() if self.is_exposed(inp) else f'params.{inp.id()}'
+        if inp.id() in self.channel_inputs:
+            return inp.id()
+        elif inp.id() in self.param_inputs:
+            param = params.get(inp.id(), scope=self.scope)
+            return param.text
+        else:
+            raise RuntimeError
 
     def handle_cmdtool_inputs(self) -> None:
         # combine with prescript logic 
@@ -118,7 +131,7 @@ class ProcessScriptGenerator:
         self.script.append(f'${{{src_name}}}')
 
     def handle_false_default_flag(self, inp: ToolInput) -> None:
-        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
             # if its not a process input, 
             # and its false by default, 
             # add nothing to script.
@@ -132,7 +145,7 @@ class ProcessScriptGenerator:
     def handle_true_default_flag(self, inp: ToolInput) -> None:
         prefix = inp.prefix
         assert(prefix)
-        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
             self.script.append(prefix)
         else:
             src_name = self.get_src_varname(inp)
@@ -140,7 +153,7 @@ class ProcessScriptGenerator:
             self.script.append(f'${{{src_name}}}')
 
     def handle_default_option(self, inp: ToolInput) -> None:
-        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
             prefix = self.get_option_prefix(inp)
             self.script.append(f'{prefix}{inp.default}')
         else:
@@ -150,7 +163,7 @@ class ProcessScriptGenerator:
             self.script.append(f'{prefix}${{{inp.id()}}}')
 
     def handle_optional_option(self, inp: ToolInput) -> None:
-        if not self.is_exposed(inp) and FILL_NONEXPOSED_INPUTS:
+        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
             # if its not a process input, 
             # and doesn't have a default,
             # add nothing to script.

@@ -5,6 +5,7 @@ from janis_core import CommandTool, ToolArgument, ToolInput
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import Boolean, File
 
+
 class CmdtoolInsArgsStrategy(ABC):
     @abstractmethod
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:

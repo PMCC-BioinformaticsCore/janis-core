@@ -12,12 +12,14 @@ from janis_core import (
     WildcardSelector, 
     StringFormatter
 )
+from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import (
     Filename,
     File,
     Directory
 )
+from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
 
 
 def unwrap_expression(
@@ -155,10 +157,30 @@ def unwrap_expression(
             )
         else:
             return value.nextflow()
+    
+    elif isinstance(value, StepTagInput):
+        return unwrap_expression(
+            value.source_map[0],
+            tool=tool,
+            var_indicator=var_indicator,
+            step_indicator=step_indicator,
+            input_in_selectors=input_in_selectors,
+            quote_string=False
+        )
+    
+    elif isinstance(value, Edge):
+        if isinstance(value.source, InputNodeSelector):
+            return value.source.nextflow(var_indicator=var_indicator)
+        elif isinstance(value.source, StepOutputSelector):
+            return value.source.nextflow(var_indicator=var_indicator)
+        else:
+            raise NotImplementedError
 
     raise Exception(
         "Could not detect type %s to convert to input value" % type(value)
     )
+
+
 
 def translate_string_formatter(
     selector: StringFormatter,

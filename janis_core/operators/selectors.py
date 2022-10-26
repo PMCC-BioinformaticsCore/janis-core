@@ -412,8 +412,8 @@ class StepOutputSelector(Selector):
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
 
-    def nextflow(self, var_indicator: str = "$", step_indicator: str = "$"):
-        return f"{step_indicator}{self.node.id()}.out.{self.tag}"
+    def nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        return f'{step_indicator}{self.node.id()}.out.{self.tag}'
 
 
 class WildcardSelector(Selector):

@@ -1,5 +1,6 @@
 import unittest
 from typing import Optional
+import regex as re
 
 from janis_core.translations import nfgen
 from janis_core.tests.testtools import (
@@ -35,35 +36,29 @@ from janis_core import Array, String, File, Boolean, Filename
 
 
 
-config_sample = """docker.enabled = true
-
-params {
-
-    inForwardReads         = null
-    inReverseReads         = null
-    inLongReads            = null
-    fastqc1_adapters       = null
-    fastqc1_contaminants   = null
-    fastqc1_limits         = null
-    fastqc2_adapters       = null
-    fastqc2_contaminants   = null
-    fastqc2_limits         = null
-    prokka_proteins        = null
-    unicycler_kmers        = 
-    unicycler_scores       = 
-    unicycler_startGeneCov = 95.0
-    unicycler_startGeneId  = 90.0
-    quast_referencesList   = temp_ref_list_fp
-    quast_contigThresholds = null
-    prokka_genus           = Escherichia
-    prokka_increment       = 10
-    prokka_locustag        = PROKKA
-    prokka_species         = Coli
-    prokka_strain          = C-1
-
-}"""
-
-
+params_sample = {
+    "inForwardReads": "null",
+    "inLongReads": "null",
+    "inReverseReads": "null",
+    "fastqc1_adapters": "null",
+    "fastqc1_contaminants": "null",
+    "fastqc1_limits": "null",
+    "fastqc2_adapters": "null",
+    "fastqc2_contaminants": "null",
+    "fastqc2_limits": "null",
+    "prokka_proteins": "null",
+    "prokka_genus": "'Escherichia'",
+    "prokka_increment": "10",
+    "prokka_locustag": "'PROKKA'",
+    "prokka_species": "'Coli'",
+    "prokka_strain": "'C-1'",
+    "quast_contigThresholds": "null",
+    "quast_referencesList": "'temp_ref_list_fp'",
+    "unicycler_kmers": "null",
+    "unicycler_scores": "null",
+    "unicycler_startGeneCov": "95.0",
+    "unicycler_startGeneId": "90.0",
+}
 
 class TestNextflowConfig(unittest.TestCase):
 
@@ -75,7 +70,15 @@ class TestNextflowConfig(unittest.TestCase):
     def test_workflow_config(self) -> None:
         params = translator.build_inputs_file(self.wf)
         config = translator.stringify_translated_inputs(params)
-        self.assertEquals(config, config_sample)
+        # basic structure
+        self.assertIn('docker.enabled = true', config)
+        self.assertIn('params {\n\n', config)
+        self.assertIn('\n\n}', config)
+        # expected params are present & correct
+        for name, val in params_sample.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
 
     @unittest.skip('not implemented')
     def test_tool_config(self) -> None:
@@ -155,7 +158,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
 
         step_id = "print"
         tool = workflow.step_nodes[step_id].tool
-        inputs = translator.gen_wf_tool_inputs(tool)
+        inputs = translator.gen_step_inval_dict(tool)
         expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
 
         self.assertEqual(expected, inputs)
@@ -167,7 +170,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected = {"testtool": "$params.inp"}
         self.assertEqual(
             expected,
-            translator.gen_wf_tool_inputs(w1.step_nodes["stp"].tool),
+            translator.gen_step_inval_dict(w1.step_nodes["stp"].tool),
         )
 
     def test_with_expression(self):
@@ -179,7 +182,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         }
         self.assertEqual(
             expected,
-            translator.gen_wf_tool_inputs(w2.step_nodes["print"].tool),
+            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
         )
 
     def test_multi_steps(self):
@@ -189,13 +192,13 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         expected1 = {"testtool": "$params.inp"}
         self.assertEqual(
             expected1,
-            translator.gen_wf_tool_inputs(w3.step_nodes["stp1"].tool),
+            translator.gen_step_inval_dict(w3.step_nodes["stp1"].tool),
         )
 
         expected2 = {"inp": "$stp1.out.out"}
         self.assertEqual(
             expected2,
-            translator.gen_wf_tool_inputs(w3.step_nodes["stp2"].tool),
+            translator.gen_step_inval_dict(w3.step_nodes["stp2"].tool),
         )
 
 

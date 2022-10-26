@@ -133,7 +133,7 @@ class ChannelDeclaration(NFBase):
         
     def get_string_condensed(self) -> str:
         collect = '.collect()' if self.collect else ''
-        ifempty = '.ifEmpty(null)' if self.allow_null else ''
+        ifempty = '.ifEmpty( null )' if self.allow_null else ''
         return f'Channel.{self.method}( {self.source} ){collect}{ifempty}'
 
     def get_string_expanded(self) -> str:
@@ -141,7 +141,7 @@ class ChannelDeclaration(NFBase):
         channel_str += 'Channel\n'
         channel_str += f'  .{self.method}( {self.source} )\n'
         channel_str += f'  .collect()\n' if self.collect else ''
-        channel_str += f'  .ifEmpty(null)\n' if self.allow_null else ''
+        channel_str += f'  .ifEmpty( null )\n' if self.allow_null else ''
         channel_str += f'  .set{{ {self.name} }}\n'
         return channel_str
     
