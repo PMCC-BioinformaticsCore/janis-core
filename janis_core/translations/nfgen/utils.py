@@ -15,14 +15,17 @@ from janis_core import (
     CommandTool,
     Workflow
 )
-from janis_core.workflow.workflow import InputNode, StepNode
+
+from janis_core.workflow.workflow import InputNode
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translations.nfgen import ordering
 import regex as re
 
 
+
 def get_workflow_inputs(wf: Workflow) -> list[InputNode]:
     """
+    OK
     Get the (assumed) true workflow inputs. 
     Assume that a workflow input is an InputNode which:
         - has the 'File' datatype
@@ -51,45 +54,103 @@ def get_workflow_inputs(wf: Workflow) -> list[InputNode]:
     wfinps = ordering.workflow_inputs(out)
     return wfinps
 
-def get_exposed_tool_inputs(tool: CommandTool) -> list[ToolInput]:
-    inputs = [x for x in tool.inputs() if x.id() in tool.connections]
-    inputs = ordering.tool_inputs(inputs)
-    return inputs
+def get_exposed_tool_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
+    """
+    Tool inputs which rely on outside world
+    Note: tool input must be fed a value from 'sources' (step inputs) to be considered.
+    
+    true conditions: 
+    1. source is connection
+    2. source is workflow input
+        - && tool input has file type
+        - && wf input has file type
+        or
+        - && tool input & wf input have same type
+        - && tool input default == wf input default
 
-def get_channel_tool_inputs(tool: CommandTool, values: dict[str, Any]) -> list[ToolInput]:
+    """
+    out: list[ToolInput] = []
+    inputs: list[ToolInput] = tool.inputs()
+    for inp in inputs:
+        # must have source (be in step inputs)
+        if inp.id() in sources:
+            source = sources[inp.id()]
+            # connection
+            if hasattr(source.source_map[0].source, 'node'):
+                out.append(inp)
+            # workflow input
+            elif hasattr(source.source_map[0].source, 'input_node'):
+                wfinp = source.source_map[0].source.input_node
+                if isinstance(wfinp.datatype, File) and isinstance(inp.input_type, File):
+                    out.append(inp)
+                if type(wfinp.datatype) == type(inp.input_type):
+                    if not roughly_equivalent(wfinp.default, inp.default):
+                        out.append(inp)
+    return out
+
+def get_source_value(source: Any) -> Any:
+    if hasattr(source.source_map[0].source, 'node'):
+        return None
+    elif hasattr(source.source_map[0].source, 'input_node'):
+        return source.source_map[0].source.input_node.default
+
+def get_internal_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
+    """
+    all inputs - exposed inputs = internal inputs
+    """
+    all_inputs = tool.inputs()
+    exposed_inputs = get_exposed_tool_inputs(tool, sources)
+    exposed_input_names = set([x.id() for x in exposed_inputs])
+    internal_inputs = [x for x in all_inputs if x.id() not in exposed_input_names]
+    return internal_inputs
+
+def get_channel_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
     """
     start with all exposed tool inputs
     keep Files
     keep those with wfinput or connection sources
     """
-    all_inputs = get_exposed_tool_inputs(tool)
+    all_inputs = get_exposed_tool_inputs(tool, sources)
     file_inputs = [x for x in all_inputs if isinstance(x.input_type, File)]
     var_inputs: set[str] = set()
-    for inname, src in values.items():
-        if hasattr(src, 'source_map'):
-            if hasattr(src.source_map[0], 'source'):
-                if hasattr(src.source_map[0].source, 'input_node'):
-                    var_inputs.add(inname)
-                if hasattr(src.source_map[0].source, 'node'):
-                    var_inputs.add(inname)
+    for inname, src in sources.items():
+        if hasattr(src.source_map[0].source, 'input_node'):
+            var_inputs.add(inname)
+        if hasattr(src.source_map[0].source, 'node'):
+            var_inputs.add(inname)
     
     channel_inputs = [x for x in file_inputs if x.id() in var_inputs]
     return channel_inputs
 
-def get_param_tool_inputs(tool: CommandTool, values: dict[str, Any]) -> list[ToolInput]:
+def get_param_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
     """
-    Its better to find NOT channel_inputs, than it is to have custom logic to 
-    define param_inputs. This way we are sure each input is either in 
-    channel_inputs or param_inputs.
-    Logic:
-        > all_inputs = channel_inputs + param_inputs
-        > param_inputs = all_inputs - channel_inputs
+    exposed inputs = channel inputs + param inputs, therefore
+    param inputs = channel inputs - exposed inputs
     """
-    all_inputs = get_exposed_tool_inputs(tool)
-    channel_inputs = get_channel_tool_inputs(tool, values)
+    all_inputs = get_exposed_tool_inputs(tool, sources)
+    channel_inputs = get_channel_inputs(tool, sources)
     channel_input_names = set([x.id() for x in channel_inputs])
     param_inputs = [x for x in all_inputs if x.id() not in channel_input_names]
     return param_inputs
+
+def roughly_equivalent(val1: Any, val2: Any) -> bool:
+    equivalents = {
+        '': ' ',
+    }
+    map_fwd = equivalents
+    map_rev = {v: k for k, v in equivalents.items()}
+    if val1 is None and val2 is None:
+        return True
+    elif str(val1) == str(val2):
+        return True
+    elif val1 in map_fwd and map_fwd[val1] == val2:
+        return True
+    elif val1 in map_rev and map_rev[val1] == val2:
+        return True
+    return False
+
+
+
 
 def get_base_type(task_input: ToolInput | InputNode | TInput) -> DataType:
     match task_input:
@@ -119,12 +180,6 @@ def is_file_pair(task_input: ToolInput | InputNode) -> bool:
                 raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
     return False
 
-def get_input_references(inp: InputNode) -> list[str]:
-    """returns the tags of each entity referencing task_input"""
-    # TODO!
-    return [inp.id()]
-    #raise NotImplementedError
-
 def is_nullable(task_input: ToolInput | InputNode) -> bool:
     raise NotImplementedError
 
@@ -133,8 +188,6 @@ type_keyword_map: dict[str, str] = {
     'None': 'null',
     'False': 'false',
     'True': 'true',
-    "''": 'null',
-    '': 'null',
 }
 
 def is_simple_path(text: str) -> bool:

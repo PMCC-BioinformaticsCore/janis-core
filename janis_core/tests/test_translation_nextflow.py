@@ -107,7 +107,7 @@ class TestWorkflowInputs(unittest.TestCase):
         """
         Every File type wf input should have a channel. 
         """
-        channel_src_names = set([c.wf_inp_name for c in self.channels])
+        channel_src_names = set([c.wfinp_name for c in self.channels])
         for winp in self.file_inputs:
             self.assertIn(winp.id(), channel_src_names)
     
@@ -118,7 +118,7 @@ class TestWorkflowInputs(unittest.TestCase):
         """
         optional_inputs = [x for x in self.file_inputs if x.datatype.optional == True]
         for winp in optional_inputs:
-            channel = [c for c in self.channels if c.wf_inp_name == winp.id()][0]
+            channel = [c for c in self.channels if c.wfinp_name == winp.id()][0]
             self.assertIn('.ifEmpty(null)', channel.get_string())
 
     def test_nonfile_no_channel(self) -> None:
@@ -126,7 +126,7 @@ class TestWorkflowInputs(unittest.TestCase):
         Non-File-type wf input should not have channels.
         """
         nonfile_inputs = [x for x in self.inputs if not isinstance(x.datatype, File)]
-        channel_src_names = set([c.wf_inp_name for c in self.channels])
+        channel_src_names = set([c.wfinp_name for c in self.channels])
         for winp in nonfile_inputs:
             self.assertNotIn(winp.id(), channel_src_names)
     

@@ -10,7 +10,6 @@ CONFIG_FILENAME = "nextflow.config"
 
 from .common import NFFile, Import, ImportItem, Function
 from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
-from .channels import channel_factory, ChannelDeclaration, ChannelDeclarationBlock
 from .directives import *  # so bad. 
 from .process import (
     Process,
@@ -22,6 +21,7 @@ from .process import (
     TupleElementForOutput
 )
 
+from . import channels
 from . import params
 from . import ordering
 from .textcases import to_case

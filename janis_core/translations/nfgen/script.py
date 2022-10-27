@@ -11,7 +11,7 @@ from janis_core.workflow.workflow import Workflow
 
 
 FILL_NONEXPOSED_INPUTS = True
-
+JANIS_ASSISTANT = False
 
 def gen_script_for_cmdtool(
     tool: CommandTool | Workflow,
@@ -50,8 +50,8 @@ class ProcessScriptGenerator:
         self.resource_var_names = resource_var_names
         self.stdout_filename = stdout_filename
 
-        self.channel_inputs = [x.id() for x in utils.get_channel_tool_inputs(tool, values)]
-        self.param_inputs = [x.id() for x in utils.get_param_tool_inputs(tool, values)]
+        self.channel_inputs = [x.id() for x in utils.get_channel_inputs(tool, values)]
+        self.param_inputs = [x.id() for x in utils.get_param_inputs(tool, values)]
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -95,7 +95,6 @@ class ProcessScriptGenerator:
             raise RuntimeError
 
     def handle_cmdtool_inputs(self) -> None:
-        # combine with prescript logic 
         for inp in ordering.cmdtool_inputs_arguments(self.tool):
             match inp:
                 # positionals
@@ -208,7 +207,9 @@ class ProcessScriptGenerator:
         return '\n'.join(self.prescript)
 
     def finalise_script(self) -> str:
-        script = self.script + [f'| tee {self.stdout_filename}_{self.process_name}']
+        script = self.script
+        if JANIS_ASSISTANT:
+            script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)
 
