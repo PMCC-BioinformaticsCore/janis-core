@@ -188,7 +188,7 @@ class ParamRegister(NFBase):
 class Param(NFBase):
     varname: str
     scope: Optional[list[str]]=None
-    dtype: Optional[str]=None
+    dtype: Optional[str]=None   # this is a janis 'Datatype' type name
     optional: Optional[bool]=None
     default: Any=None
     is_wf_input: bool=False
@@ -230,10 +230,25 @@ class Param(NFBase):
         raise NotImplementedError  
 
 
-
-### module entry points
+### instantiation of register & default params
 
 param_register = ParamRegister()
+
+default_params = [
+    Param(
+        varname='outdir',
+        dtype='String',
+        optional=False,
+        default='"outputs"',
+        is_wf_input=False,
+    )
+]
+
+for param in default_params:
+    param_register.params[param.name] = param
+
+
+### module entry points
 
 def add(varname: str, 
         scope: Optional[list[str]]=None, 

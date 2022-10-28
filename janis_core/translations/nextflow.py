@@ -4,7 +4,6 @@ import re
 import posixpath
 from typing import Tuple, Dict, List, Optional, Union, Any
 from janis_core.translations.nfgen import format_process_call
-from janis_core.translations.nfgen import wrap_value
 from janis_core.types import (
     DataType,
     Array,
@@ -28,7 +27,7 @@ from janis_core.tool.commandtool import (
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core.workflow.workflow import InputNode, StepNode, Workflow, WorkflowBase
+from janis_core.workflow.workflow import StepNode, Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
 
@@ -58,7 +57,7 @@ LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
 LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
 PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
 PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
-FINAL_STEP_NAME = "janis_outputs"
+#FINAL_STEP_NAME = "janis_outputs"
 TOOL_STDOUT_FILENAME = "janisstdout"
 
 
@@ -116,14 +115,15 @@ class NextflowTranslator(TranslatorBase):
         imports = cls.collect_workflow_imports(files)
         
         # create outputs collection process
-        out_process_inp, out_process_out = cls.prepare_output_process_params_for_workflow(jworkflow)
-        output_p = cls.gen_output_process(out_process_inp, out_process_out)
+        # out_process_inp, out_process_out = cls.prepare_output_process_params_for_workflow(jworkflow)
+        # output_p = cls.gen_output_process(out_process_inp, out_process_out)
         
         # create object & NFFile for workflow
         workflow = cls.gen_workflow(janis=jworkflow, nf_items=processes)
         nfgen.channels.register(jworkflow)
         channels = nfgen.channels.channel_register
-        nf_file = nfgen.NFFile(imports=imports, items=[channels, output_p, workflow])
+        #nf_file = nfgen.NFFile(imports=imports, items=[channels, output_p, workflow])
+        nf_file = nfgen.NFFile(imports=imports, items=[channels, workflow])
 
         # generate strings for each file
         tool_scripts: dict[str, str] = {name: nffile.get_string() for name, nffile in files.items()}
@@ -253,14 +253,14 @@ class NextflowTranslator(TranslatorBase):
         main_p = cls.handle_container(
             tool, main_p, with_container, allow_empty_container, container_override
         )
-        output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
-        output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
+        # output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
+        # output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
         workflow = cls.gen_process_workflow(tool, process=main_p)
 
         file_items.append(param_block)
         #file_items.append(channel_block)
         file_items.append(main_p)
-        file_items.append(output_p)
+        #file_items.append(output_p)
         file_items.append(workflow)
 
         nf_file = nfgen.NFFile(
@@ -303,16 +303,16 @@ class NextflowTranslator(TranslatorBase):
             #imports = [cls.init_helper_functions_import()]
             imports = []
 
-            (
-                out_process_inp,
-                out_process_out,
-            ) = cls.prepare_output_process_params_for_tool(tool, process)
+            # (
+            #     out_process_inp,
+            #     out_process_out,
+            # ) = cls.prepare_output_process_params_for_tool(tool, process)
 
             items = [
                 process,
-                cls.gen_output_process(
-                    inputs=out_process_inp, tool_outputs=out_process_out
-                ),
+                # cls.gen_output_process(
+                #     inputs=out_process_inp, tool_outputs=out_process_out
+                # ),
                 cls.gen_process_workflow(tool, process=process),
             ]
             nf_file = nfgen.NFFile(imports=imports, items=items)
@@ -441,8 +441,8 @@ class NextflowTranslator(TranslatorBase):
             body.append(format_process_call(nf_process.name, args))
 
         # calling outputs process for Janis to be able to find output files
-        args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
-        body.append(format_process_call(FINAL_STEP_NAME, args_list))
+        # args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
+        # body.append(format_process_call(FINAL_STEP_NAME, args_list))
 
         return nfgen.Workflow(name=nf_workflow_name, main=body)
 
@@ -639,127 +639,127 @@ class NextflowTranslator(TranslatorBase):
 
         return helpers
 
-    @classmethod
-    def prepare_output_process_params_for_tool(
-        cls, tool: Tool, nf_process: nfgen.NFBase
-    ):
-        """
-        Every one of our tools will call a Nextflow process named "janis_outputs".
-        This process will collect all the final outputs for this tool or workflow.
-        This allows Janis to process outputs more easily.
+    # @classmethod
+    # def prepare_output_process_params_for_tool(
+    #     cls, tool: Tool, nf_process: nfgen.NFBase
+    # ):
+    #     """
+    #     Every one of our tools will call a Nextflow process named "janis_outputs".
+    #     This process will collect all the final outputs for this tool or workflow.
+    #     This allows Janis to process outputs more easily.
 
-        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow process.
+    #     This function is used to generate the inputs and outputs for "janis_outputs" Nextflow process.
 
-        :param tool:
-        :type tool:
-        :param nf_process: This is the Nextflow Process of the actual tool
-        :type nf_process:
-        :return:
-        :rtype:
-        """
-        inputs = []
-        for o in nf_process.outputs:
-            # Always use 'val' qualifier
-            inp = nfgen.ProcessInput(
-                qualifier=nfgen.InputProcessQualifier.val, name=nf_process.name + o.name
-            )
-            inputs.append(inp)
+    #     :param tool:
+    #     :type tool:
+    #     :param nf_process: This is the Nextflow Process of the actual tool
+    #     :type nf_process:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     inputs = []
+    #     for o in nf_process.outputs:
+    #         # Always use 'val' qualifier
+    #         inp = nfgen.ProcessInput(
+    #             qualifier=nfgen.InputProcessQualifier.val, name=nf_process.name + o.name
+    #         )
+    #         inputs.append(inp)
 
-        tool_outputs = cls.prepare_tool_output(tool)
+    #     tool_outputs = cls.prepare_tool_output(tool)
 
-        return inputs, tool_outputs
+    #     return inputs, tool_outputs
 
-    @classmethod
-    def prepare_output_process_params_for_workflow(
-        cls, workflow: WorkflowBase
-    ) -> Tuple[List[nfgen.ProcessInput], dict[str, Any]]:
-        """
-        Every one of our tools will call a Nextflow process named "janis_outputs".
-        This process will collect all the final outputs for this tool or workflow.
-        This allows Janis to process outputs more easily.
+    # @classmethod
+    # def prepare_output_process_params_for_workflow(
+    #     cls, workflow: WorkflowBase
+    # ) -> Tuple[List[nfgen.ProcessInput], dict[str, Any]]:
+    #     """
+    #     Every one of our tools will call a Nextflow process named "janis_outputs".
+    #     This process will collect all the final outputs for this tool or workflow.
+    #     This allows Janis to process outputs more easily.
 
-        This function is used to generate the inputs and outputs for "janis_outputs" Nextflow workflow.
+    #     This function is used to generate the inputs and outputs for "janis_outputs" Nextflow workflow.
 
-        :param workflow:
-        :type workflow:
-        :return:
-        :rtype:
-        """
-        wf_outputs = cls.gen_wf_tool_outputs(workflow)
-        output_dict = workflow.outputs_map()
+    #     :param workflow:
+    #     :type workflow:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     wf_outputs = cls.gen_wf_tool_outputs(workflow)
+    #     output_dict = workflow.outputs_map()
 
-        inputs = []
-        outputs = {}
+    #     inputs = []
+    #     outputs = {}
 
-        for key, val in wf_outputs.items():
-            inp_var_name = key.replace(".", "")
-            # Always use 'val' qualifier
-            inp = nfgen.ProcessInput(
-                qualifier=nfgen.InputProcessQualifier.val, name=inp_var_name
-            )
-            inputs.append(inp)
+    #     for key, val in wf_outputs.items():
+    #         inp_var_name = key.replace(".", "")
+    #         # Always use 'val' qualifier
+    #         inp = nfgen.ProcessInput(
+    #             qualifier=nfgen.InputProcessQualifier.val, name=inp_var_name
+    #         )
+    #         inputs.append(inp)
 
-            output_var = inp_var_name
-            if key in output_dict:
-                if (
-                    output_dict[key].outtype.is_array()
-                    and isinstance(output_dict[key].outtype.subtype(), File)
-                    and output_dict[key].outtype.subtype().has_secondary_files()
-                ):
-                    output_var = f"{inp_var_name}.map{{ item -> item[0] }}"
-                elif (
-                    isinstance(output_dict[key].outtype, File)
-                    and output_dict[key].outtype.has_secondary_files()
-                ):
-                    output_var = f"{inp_var_name}[0]"
+    #         output_var = inp_var_name
+    #         if key in output_dict:
+    #             if (
+    #                 output_dict[key].outtype.is_array()
+    #                 and isinstance(output_dict[key].outtype.subtype(), File)
+    #                 and output_dict[key].outtype.subtype().has_secondary_files()
+    #             ):
+    #                 output_var = f"{inp_var_name}.map{{ item -> item[0] }}"
+    #             elif (
+    #                 isinstance(output_dict[key].outtype, File)
+    #                 and output_dict[key].outtype.has_secondary_files()
+    #             ):
+    #                 output_var = f"{inp_var_name}[0]"
 
-            outputs[key] = f"${{{output_var}}}"
+    #         outputs[key] = f"${{{output_var}}}"
 
-        return inputs, outputs
+    #     return inputs, outputs
 
-    @classmethod
-    def gen_output_process(
-        cls, inputs: List[nfgen.ProcessInput], tool_outputs: dict[str, Any]
-    ) -> nfgen.Process:
-        """
-        Every one of our tools will call a Nextflow process named "janis_outputs".
-        This process will collect all the final outputs for this tool or workflow.
-        This allows Janis to process outputs more easily.
+    # @classmethod
+    # def gen_output_process(
+    #     cls, inputs: List[nfgen.ProcessInput], tool_outputs: dict[str, Any]
+    # ) -> nfgen.Process:
+    #     """
+    #     Every one of our tools will call a Nextflow process named "janis_outputs".
+    #     This process will collect all the final outputs for this tool or workflow.
+    #     This allows Janis to process outputs more easily.
 
-        This function creates this "janis_outputs" Nextflow process.
+    #     This function creates this "janis_outputs" Nextflow process.
 
-        :param inputs:
-        :type inputs:
-        :param tool_outputs:
-        :type tool_outputs:
-        :return:
-        :rtype:
-        """
+    #     :param inputs:
+    #     :type inputs:
+    #     :param tool_outputs:
+    #     :type tool_outputs:
+    #     :return:
+    #     :rtype:
+    #     """
 
-        # The script is simply adding tool outputs as key-value pairs into a text file
-        script = ""
-        for key, val in tool_outputs.items():
-            script += f"echo {key}={val} >> {OUTPUT_METADATA_FILENAME}\n"
+    #     # The script is simply adding tool outputs as key-value pairs into a text file
+    #     script = ""
+    #     for key, val in tool_outputs.items():
+    #         script += f"echo {key}={val} >> {OUTPUT_METADATA_FILENAME}\n"
 
-        outputs = [
-            nfgen.ProcessOutput(
-                qualifier=nfgen.OutputProcessQualifier.path,
-                name="janis_output_metadata",
-                expression=f"'{OUTPUT_METADATA_FILENAME}'",
-            )
-        ]
+    #     outputs = [
+    #         nfgen.ProcessOutput(
+    #             qualifier=nfgen.OutputProcessQualifier.path,
+    #             name="janis_output_metadata",
+    #             expression=f"'{OUTPUT_METADATA_FILENAME}'",
+    #         )
+    #     ]
 
-        process = nfgen.Process(
-            name=FINAL_STEP_NAME,
-            script=script,
-            script_type=nfgen.ProcessScriptType.script,
-            inputs=inputs,
-            outputs=outputs,
-        )
+    #     process = nfgen.Process(
+    #         name=FINAL_STEP_NAME,
+    #         script=script,
+    #         script_type=nfgen.ProcessScriptType.script,
+    #         inputs=inputs,
+    #         outputs=outputs,
+    #     )
 
-        process.directives.append(nfgen.CacheDirective(enabled=False))
+    #     process.directives.append(nfgen.CacheDirective(enabled=False))
 
-        return process
+    #     return process
 
     @classmethod
     def init_helper_functions_import(cls, path: Optional[str] = None) -> nfgen.Import:
@@ -851,15 +851,13 @@ class NextflowTranslator(TranslatorBase):
         #         inputs.append(i)
 
         #exposed_inputs = cls.gen_wf_tool_inputs(tool)
-        resource_var_names = cls.get_resource_var_names(tool)
         process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.gen_script_for_cmdtool(
-            tool,
-            scope,
-            values,
-            cls.INPUT_IN_SELECTORS, 
-            resource_var_names, 
-            TOOL_STDOUT_FILENAME
+            tool=tool,
+            scope=scope,
+            values=values,
+            input_in_selectors=cls.INPUT_IN_SELECTORS, 
+            stdout_filename=TOOL_STDOUT_FILENAME
         )
  
         process = nfgen.Process(
@@ -876,32 +874,34 @@ class NextflowTranslator(TranslatorBase):
 
             process.inputs.append(inp)
 
-        resource_param_names = cls.get_resource_param_names(tool, scope)
-        process.outputs = cls.gen_outputs_for_process(process_name, tool)
+        #resources = cls.build_resources_input(tool, hints=None)
+        resources = {}
+        process.outputs = cls.gen_outputs_for_process(process_name, tool)  # TODO change to scope
         process.directives = cls.gen_directives_for_process(
-            process_name, resource_param_names
+            resources, scope
         )
 
         return process
 
     @classmethod
     def gen_directives_for_process(
-        cls, process_name: str, resource_param_names: List[str]
+        cls, resources: dict[str, Any], scope: Optional[list[str]]=None
     ) -> list[nfgen.ProcessDirective]:
+        scope = scope if scope else []
 
         nf_directives: list[nfgen.ProcessDirective] = []
-        nf_directives.append(nfgen.PublishDirDirective(process_name=process_name))
+        nf_directives.append(nfgen.PublishDirDirective(scope))
 
         # Add directives for input resources
-        for res in resource_param_names:
+        for res, val in resources.items():
             if res.endswith("runtime_cpu"):
-                nf_directives.append(nfgen.CpusDirective(varname=res))
+                nf_directives.append(nfgen.CpusDirective(scope, res, val))
             elif res.endswith("runtime_memory"):
-                nf_directives.append(nfgen.MemoryDirective(varname=res))
+                nf_directives.append(nfgen.MemoryDirective(scope, res, val))
             elif res.endswith("runtime_seconds"):
-                nf_directives.append(nfgen.TimeDirective(varname=res))
+                nf_directives.append(nfgen.TimeDirective(scope, res, val))
             elif res.endswith("runtime_disk"):
-                nf_directives.append(nfgen.DiskDirective(varname=res))
+                nf_directives.append(nfgen.DiskDirective(scope, res, val))
         return nf_directives
 
     @classmethod
@@ -1100,11 +1100,12 @@ class NextflowTranslator(TranslatorBase):
             )
             process.outputs.append(out)
 
-        resource_param_names = cls.get_resource_param_names(step.tool, name)
+        #resource_param_names = cls.get_resource_param_names(step.tool, name)
+        #resources = cls.build_resources_input(tool, hints=None)
+        resources = {}
         process.directives = cls.gen_directives_for_process(
-            process_name, resource_param_names
+            resources, scope
         )
-
         return process
 
     @classmethod
@@ -1290,10 +1291,10 @@ class NextflowTranslator(TranslatorBase):
             args_list.append(p)
 
         # gather input args for the output collection process call
-        output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
+        #output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
         
         body.append(format_process_call(process.name, args_list))
-        body.append(format_process_call(FINAL_STEP_NAME, output_args_list))
+        #body.append(format_process_call(FINAL_STEP_NAME, output_args_list))
         return nfgen.Workflow(name="", main=body)
 
     @classmethod
@@ -1517,15 +1518,15 @@ return primary
         scope = []
         if additional_inputs:
             nfgen.params.register_params_for_additional_inputs(additional_inputs, scope)
-        if merge_resources:
-            resources_input = cls.build_resources_input(
-                tool,
-                hints,
-                max_cores=max_cores,
-                max_mem=max_mem,
-                max_duration=max_duration,
-            )
-            nfgen.params.register_params_for_resources(resources_input)
+        # if merge_resources:
+        #     resources_input = cls.build_resources_input(
+        #         tool,
+        #         hints,
+        #         max_cores=max_cores,
+        #         max_mem=max_mem,
+        #         max_duration=max_duration,
+        #     )
+        #     nfgen.params.register_params_for_resources(resources_input)
         return nfgen.params.serialize()
 
     @staticmethod
@@ -1656,48 +1657,37 @@ for key in result:
         return script
 
 
-    @classmethod
-    def prepare_tool_output(cls, tool: Tool) -> Dict[str, str]:
-        """
-        Generate a dictionary that contains Nextflow expressions to represent Janis outputs
+    # @classmethod
+    # def prepare_tool_output(cls, tool: Tool) -> Dict[str, str]:
+    #     """
+    #     Generate a dictionary that contains Nextflow expressions to represent Janis outputs
 
-        :param tool:
-        :type tool:
-        :return:
-        :rtype:
-        """
-        outputs = {}
-        for out in tool.outputs():
-            if isinstance(out, TOutput):
-                output_type = out.outtype
-            elif isinstance(out, ToolOutput):
-                output_type = out.output_type
+    #     :param tool:
+    #     :type tool:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     outputs = {}
+    #     for out in tool.outputs():
+    #         if isinstance(out, TOutput):
+    #             output_type = out.outtype
+    #         elif isinstance(out, ToolOutput):
+    #             output_type = out.output_type
 
-            val = f"{tool.id()}{out.tag}"
+    #         val = f"{tool.id()}{out.tag}"
 
-            if (
-                output_type.is_array()
-                and isinstance(output_type.subtype(), File)
-                and output_type.subtype().has_secondary_files()
-            ):
-                val = f"{val}.map{{ item -> item[0] }}"
-            elif isinstance(output_type, File) and output_type.has_secondary_files():
-                val = f"{val}[0]"
+    #         if (
+    #             output_type.is_array()
+    #             and isinstance(output_type.subtype(), File)
+    #             and output_type.subtype().has_secondary_files()
+    #         ):
+    #             val = f"{val}.map{{ item -> item[0] }}"
+    #         elif isinstance(output_type, File) and output_type.has_secondary_files():
+    #             val = f"{val}[0]"
 
-            outputs[out.tag] = f"${{{val}}}"
+    #         outputs[out.tag] = f"${{{val}}}"
 
-        return outputs
-
-    @classmethod
-    def get_resource_var_names(cls, tool: CommandTool) -> list[str]:
-        resources = cls.build_resources_input(tool, hints=None)
-        return list(resources.keys())
-
-    @classmethod
-    def get_resource_param_names(cls, tool: CommandTool | CodeTool, scope: list[str]) -> list[str]:
-        resources = cls.build_resources_input(tool, hints=None)
-        prefix = f"{'_'.join(scope)}_" if scope else ''
-        return [f"params.{prefix}{k}" for k in resources]
+    #     return outputs
 
     @classmethod
     def get_input_qualifier_for_inptype(

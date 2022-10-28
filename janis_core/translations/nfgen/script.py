@@ -7,18 +7,16 @@ from janis_core.translations.nfgen.unwrap import unwrap_expression
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import params
-from janis_core.workflow.workflow import Workflow
 
 
 FILL_NONEXPOSED_INPUTS = True
 JANIS_ASSISTANT = False
 
 def gen_script_for_cmdtool(
-    tool: CommandTool | Workflow,
+    tool: CommandTool,
     scope: list[str],
     values: dict[str, Any],
     input_in_selectors: dict[str, Any],
-    resource_var_names: list[str], 
     stdout_filename: str
 ) -> Tuple[str, str]:
     return ProcessScriptGenerator(
@@ -26,7 +24,6 @@ def gen_script_for_cmdtool(
         scope,
         values,
         input_in_selectors,
-        resource_var_names,
         stdout_filename
     ).generate()
 
@@ -38,7 +35,6 @@ class ProcessScriptGenerator:
         scope: list[str],
         values: dict[str, Any],
         input_in_selectors: dict[str, Any],
-        resource_var_names: list[str], 
         stdout_filename: str
     ):
         assert(tool)
@@ -47,7 +43,6 @@ class ProcessScriptGenerator:
         self.process_name = scope[-1] if scope else tool.id()
         self.values = values
         self.input_in_selectors = input_in_selectors
-        self.resource_var_names = resource_var_names
         self.stdout_filename = stdout_filename
 
         self.channel_inputs = [x.id() for x in utils.get_channel_inputs(tool, values)]

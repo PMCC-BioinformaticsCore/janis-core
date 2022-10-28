@@ -50,6 +50,17 @@ class InsPriorityStrategy(CmdtoolInsArgsStrategy):
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
         return sorted(ins_args, key=lambda x: isinstance(x, ToolInput), reverse=True)
 
+class FilePriorityStrategy(CmdtoolInsArgsStrategy):
+    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
+        top: list[ToolInput | ToolArgument] = []
+        bottom: list[ToolInput | ToolArgument] = []
+        for elem in ins_args:
+            if isinstance(elem, ToolInput) and isinstance(elem.input_type, File):
+                top.append(elem)
+            else:
+                bottom.append(elem)
+        return top + bottom
+
 class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
         top: list[ToolInput | ToolArgument] = []
@@ -63,9 +74,10 @@ class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
 
 ins_args_strategies = [
     AlphabeticalStrategy,
-    InsPriorityStrategy,
+    FilePriorityStrategy,
     ComponentTypeStrategy,
     ExposedPriorityStrategy,
+    InsPriorityStrategy,
     PositionStrategy
 ]
 
