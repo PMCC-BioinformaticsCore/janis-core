@@ -10,6 +10,12 @@ from janis_core.workflow.workflow import StepNode
 from janis_core.workflow.workflow import Workflow
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.commandtool import ToolInput
+from janis_core.types import (
+    DataType,
+    String, 
+    Array, 
+    File
+)
 
 from ..common import NFBase
 from .. import utils
@@ -45,13 +51,11 @@ def register_params_for_entity(
         for inp in inputs:
             register_wfinp_param(inp, scope, override=override)
     elif isinstance(entity, StepNode):
-        inputs = utils.get_exposed_tool_inputs(entity.tool, entity.sources)
+        inputs = utils.get_param_inputs(entity.tool, entity.sources)
         for inp in inputs:
             src = entity.sources[inp.id()]
             val = utils.get_source_value(src)
             register_toolinp_param(inp, scope=scope, value=val, override=override)
-        print('\n\nPARAMS ----')
-        print(getstr())
     elif isinstance(entity, CommandTool):  # type: ignore
         inputs = utils.get_exposed_tool_inputs(entity, {})
         for inp in inputs:
@@ -73,8 +77,7 @@ def register_wfinp_param(
         add(
             varname=varname,
             scope=scope,
-            dtype=inp.datatype.name(),
-            optional=inp.datatype.optional,
+            dtype=inp.datatype,
             default=default,
             is_wf_input=True
         )
@@ -94,8 +97,7 @@ def register_toolinp_param(
             default = inp.default 
         add(
             varname=varname,
-            dtype=inp.input_type.name(),
-            optional=inp.input_type.optional,
+            dtype=inp.input_type,
             scope=scope,
             default=utils.wrap_value(default, inp),
             is_wf_input=False
@@ -128,38 +130,50 @@ class OrderingMethod(ABC):
 @dataclass
 class NotNullPriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        params.sort(key=lambda x: x.value != 'null') 
-        return params
+        return sorted(params, key=lambda x: x.value != 'null') 
 
 @dataclass
 class Alphabetical(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        params.sort(key=lambda x: x.name) 
-        return params
+        return sorted(params, key=lambda x: x.name) 
 
 @dataclass
 class MandatoryPriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        params.sort(key=lambda x: x.optional or False) 
-        return params
+        top: list[Param] = []
+        bottom: list[Param] = []
+        for p in params:
+            if p.dtype and p.dtype.optional == False:
+                top.append(p)
+            else:
+                bottom.append(p)
+        return top + bottom
 
 @dataclass
 class FileTypePriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        params.sort(key=lambda x: x.dtype == 'File', reverse=True) 
-        return params
+        top: list[Param] = []
+        bottom: list[Param] = []
+        for p in params:
+            dtype = p.dtype
+            while isinstance(dtype, Array):
+                dtype = dtype.subtype()
+            if isinstance(dtype, File):
+                top.append(p)
+            else:
+                bottom.append(p)
+        return top + bottom
 
 @dataclass
 class WfInputPriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        params.sort(key=lambda x: x.is_wf_input, reverse=True) 
-        return params
+        return sorted(params, key=lambda x: x.is_wf_input, reverse=True) 
 
 orderers: list[OrderingMethod] = [
     #NotNullPriority(),
     #FileTypePriority(),
     #MandatoryPriority(),
-    Alphabetical(),
+    #Alphabetical(),
     WfInputPriority(),
 ]
 
@@ -175,27 +189,24 @@ class ParamRegister(NFBase):
         for orderer in orderers:
             params = orderer.order(params)
         return params
-
+    
     def get_string(self) -> str:
-        width_col_1 = max([p.width for p in self.params.values()])
-        outstr = ''
-        for p in self.ordered_params:
-            outstr += f'{p.text:<{width_col_1}} = {p.default}\n'
-        return outstr
+        # leave this unimplemented! 
+        # architecture mandates the method has to exist, but not needed. 
+        raise NotImplementedError  
 
 
 @dataclass
 class Param(NFBase):
     varname: str
     scope: Optional[list[str]]=None
-    dtype: Optional[str]=None   # this is a janis 'Datatype' type name
-    optional: Optional[bool]=None
+    dtype: Optional[DataType]=None
     default: Any=None
     is_wf_input: bool=False
 
     @property
     def name(self) -> str:
-        if self.scope and len(self.scope) > 0:
+        if self.scope:
             name = f"{'_'.join(self.scope)}_{self.varname}"
         else:
             name = self.varname
@@ -222,7 +233,7 @@ class Param(NFBase):
     
     @property
     def width(self) -> int:
-        return len(self.text)
+        return len(self.name)
     
     def get_string(self) -> str:
         # leave this unimplemented! 
@@ -237,8 +248,7 @@ param_register = ParamRegister()
 default_params = [
     Param(
         varname='outdir',
-        dtype='String',
-        optional=False,
+        dtype=String(),
         default='"outputs"',
         is_wf_input=False,
     )
@@ -252,14 +262,13 @@ for param in default_params:
 
 def add(varname: str, 
         scope: Optional[list[str]]=None, 
-        dtype: Optional[str]=None, 
-        optional: Optional[bool]=None, 
+        dtype: Optional[DataType]=None, 
         default: Any=None,
         is_wf_input: bool=False
         
     ) -> None:
     global param_register
-    param = Param(varname, scope, dtype, optional, default, is_wf_input)
+    param = Param(varname, scope, dtype, default, is_wf_input)
     param_register.params[param.name] = param
     
 def exists(varname: str, scope: Optional[list[str]]=None) -> bool:
@@ -282,16 +291,17 @@ def in_scope(scope: list[str]) -> list[Param]:
     global param_register
     return [x for x in param_register.ordered_params if x.scope == scope]
 
-def getstr() -> str:
-    global param_register
-    return param_register.get_string()
-
 def serialize() -> dict[str, Any]:
     global param_register
     the_dict: dict[str, Any] = {}
     for p in getall():
         the_dict[p.name] = p.value
     return the_dict
+
+def clear() -> None:
+    global param_register 
+    param_register = ParamRegister()
+
 
 
 

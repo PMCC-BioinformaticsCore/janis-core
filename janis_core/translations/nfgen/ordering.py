@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from janis_core import CommandTool, ToolArgument, ToolInput
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import Boolean, File
+from . import utils
 
 
 class CmdtoolInsArgsStrategy(ABC):
@@ -55,8 +56,12 @@ class FilePriorityStrategy(CmdtoolInsArgsStrategy):
         top: list[ToolInput | ToolArgument] = []
         bottom: list[ToolInput | ToolArgument] = []
         for elem in ins_args:
-            if isinstance(elem, ToolInput) and isinstance(elem.input_type, File):
-                top.append(elem)
+            if isinstance(elem, ToolInput):
+                dtype = utils.get_base_type(elem)
+                if isinstance(dtype, File):
+                    top.append(elem)
+                else:
+                    bottom.append(elem)
             else:
                 bottom.append(elem)
         return top + bottom
@@ -86,7 +91,6 @@ def cmdtool_inputs_arguments(tool: CommandTool) -> list[ToolInput | ToolArgument
     for strategy in ins_args_strategies:
         ins_args = strategy().order(ins_args, tool)
     return ins_args
-
 
 
 class WinpStrategy(ABC):

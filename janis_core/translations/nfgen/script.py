@@ -12,6 +12,7 @@ from janis_core.translations.nfgen import params
 FILL_NONEXPOSED_INPUTS = True
 JANIS_ASSISTANT = False
 
+
 def gen_script_for_cmdtool(
     tool: CommandTool,
     scope: list[str],
@@ -101,18 +102,18 @@ class ProcessScriptGenerator:
                 # flags
                 case ToolInput(input_type=Boolean()):
                     if str(inp.default) == 'False':
-                        self.handle_false_default_flag(inp)
+                        self.handle_flag_false_default(inp)
                     else:
-                        self.handle_true_default_flag(inp)
+                        self.handle_flag_true_default(inp)
 
                 # options
                 case ToolInput():
                     if inp.default is not None:
-                        self.handle_default_option(inp)
+                        self.handle_option_default(inp)
                     elif inp.input_type.optional == True:
-                        self.handle_optional_option(inp)
+                        self.handle_option_optional(inp)
                     elif inp.input_type.optional == False and inp.default is None:
-                        self.handle_basic_option(inp)
+                        self.handle_option(inp)
                     else:
                         raise RuntimeError
 
@@ -124,8 +125,14 @@ class ProcessScriptGenerator:
         src_name = self.get_src_varname(inp)
         self.script.append(f'${{{src_name}}}')
 
-    def handle_false_default_flag(self, inp: ToolInput) -> None:
-        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
+    def should_autofill(self, inp: ToolInput) -> bool:
+        if FILL_NONEXPOSED_INPUTS:
+            if not inp.id() in self.channel_inputs and not inp.id() in self.param_inputs:
+                return True
+        return False
+
+    def handle_flag_false_default(self, inp: ToolInput) -> None:
+        if self.should_autofill(inp):
             # if its not a process input, 
             # and its false by default, 
             # add nothing to script.
@@ -136,18 +143,18 @@ class ProcessScriptGenerator:
             self.prescript.append(f'def {inp.id()} = {src_name} ? "{prefix}" : ""')
             self.script.append(f'${{{src_name}}}')
 
-    def handle_true_default_flag(self, inp: ToolInput) -> None:
+    def handle_flag_true_default(self, inp: ToolInput) -> None:
         prefix = inp.prefix
         assert(prefix)
-        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
+        if self.should_autofill(inp):
             self.script.append(prefix)
         else:
             src_name = self.get_src_varname(inp)
             self.prescript.append(f'def {inp.id()} = {src_name} == false ? "" : "{prefix}"')
             self.script.append(f'${{{src_name}}}')
 
-    def handle_default_option(self, inp: ToolInput) -> None:
-        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
+    def handle_option_default(self, inp: ToolInput) -> None:
+        if self.should_autofill(inp):
             prefix = self.get_option_prefix(inp)
             self.script.append(f'{prefix}{inp.default}')
         else:
@@ -156,8 +163,8 @@ class ProcessScriptGenerator:
             self.prescript.append(f'def {inp.id()} = {src_name} ?: "{inp.default}"')
             self.script.append(f'{prefix}${{{inp.id()}}}')
 
-    def handle_optional_option(self, inp: ToolInput) -> None:
-        if not inp.id() in self.channel_inputs and FILL_NONEXPOSED_INPUTS:
+    def handle_option_optional(self, inp: ToolInput) -> None:
+        if self.should_autofill(inp):
             # if its not a process input, 
             # and doesn't have a default,
             # add nothing to script.
@@ -168,7 +175,7 @@ class ProcessScriptGenerator:
             self.prescript.append(f'def {inp.id()} = {src_name} ? "{prefix}${{{src_name}}}" : ""')
             self.script.append(f'${{{inp.id()}}}')
 
-    def handle_basic_option(self, inp: ToolInput) -> None:
+    def handle_option(self, inp: ToolInput) -> None:
         prefix = self.get_option_prefix(inp)
         src_name = self.get_src_varname(inp)
         self.script.append(f'{prefix}${{{src_name}}}')

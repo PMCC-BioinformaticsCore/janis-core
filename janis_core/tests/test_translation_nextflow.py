@@ -1,3 +1,4 @@
+from copy import deepcopy
 import unittest
 from typing import Optional
 import regex as re
@@ -35,47 +36,114 @@ from janis_core.translations.nextflow import NO_FILE_PATH_PREFIX
 from janis_core import Array, String, File, Boolean, Filename
 
 
-
-params_sample = {
-    "inForwardReads": "null",
-    "inLongReads": "null",
-    "inReverseReads": "null",
-    "fastqc1_adapters": "null",
-    "fastqc1_contaminants": "null",
-    "fastqc1_limits": "null",
-    "fastqc2_adapters": "null",
-    "fastqc2_contaminants": "null",
-    "fastqc2_limits": "null",
-    "prokka_proteins": "null",
-    "prokka_genus": "'Escherichia'",
-    "prokka_increment": "10",
-    "prokka_locustag": "'PROKKA'",
-    "prokka_species": "'Coli'",
-    "prokka_strain": "'C-1'",
-    "quast_contigThresholds": "null",
-    "quast_referencesList": "'temp_ref_list_fp'",
-    "unicycler_kmers": "null",
-    "unicycler_scores": "null",
-    "unicycler_startGeneCov": "95.0",
-    "unicycler_startGeneId": "90.0",
+WF_INPUTS_SINGLES = {
+    'testinput': 'null',
+    'fastqc1_adapters': 'null',
+    'fastqc1_contaminants': 'null',
+    'fastqc1_limits': 'null',
+    'fastqc2_adapters': 'null',
+    'fastqc2_contaminants': 'null',
+    'fastqc2_limits': 'null',
+    'prokka_proteins': 'null',
 }
+
+WF_INPUTS_ARRS = {
+    'inforwardreads': 'null',
+    'inlongreads': 'null',
+    'inreversereads': 'null',
+}
+
+TOOL_INPUTS = {
+    'prokka_genus': '"Escherichia"',
+    'prokka_increment': '10',
+    'prokka_locustag': '"PROKKA"',
+    'prokka_species': '"Coli"',
+    'prokka_strain': '"C-1"',
+    'quast_contigthresholds': 'null',
+    'quast_referenceslist': '"temp_ref_list_fp"',
+    'unicycler_kmers': '""',
+    'unicycler_scores': '""',
+    'unicycler_startgenecov': '95.0',
+    'unicycler_startgeneid': '90.0',
+}
+
+COMBINED_INPUTS = WF_INPUTS_SINGLES | WF_INPUTS_ARRS | TOOL_INPUTS
+
+
+class TestParamRegistration(unittest.TestCase):
+
+    def setUp(self) -> None:
+        from janis_core.tests.data.janis.simple.workflow import w
+        self.maxDiff = None
+
+        scope: list[str] = []
+        nfgen.params.clear()
+        nfgen.params.register(the_entity=w, scope=scope)
+        for step in w.step_nodes.values():
+            current_scope = deepcopy(scope)
+            current_scope.append(step.id())
+            nfgen.params.register(the_entity=step, scope=current_scope)
+
+    def test_all(self) -> None:
+        # check each param is registered
+        params = nfgen.params.getall()
+        all_inputs = {p.name: p.value for p in params}
+        self.assertEquals(all_inputs, COMBINED_INPUTS)
+
+    def test_workflow_inputs_singles(self) -> None:
+        # check each wf input now has a param
+        params = nfgen.params.getall()
+            
+        wf_singles = {}
+        for p in params:
+            if p.is_wf_input and not isinstance(p.dtype, Array):
+                wf_singles[p.name] = p.value
+
+        self.assertEquals(wf_singles, WF_INPUTS_SINGLES)
+    
+    def test_workflow_inputs_arrs(self) -> None:
+        # check each wf input now has a param
+        params = nfgen.params.getall()
+            
+        wf_arrs = {}
+        for p in params:
+            if p.is_wf_input and isinstance(p.dtype, Array):
+                wf_arrs[p.name] = p.value
+
+        self.assertEquals(wf_arrs, WF_INPUTS_ARRS)
+
+    def test_exposed_inputs(self) -> None:
+        params = nfgen.params.getall()
+            
+        exposed_inputs = {}
+        for p in params:
+            if not p.is_wf_input:
+                exposed_inputs[p.name] = p.value
+
+        self.assertEquals(exposed_inputs, TOOL_INPUTS)
+
+
 
 class TestNextflowConfig(unittest.TestCase):
 
     def setUp(self) -> None:
         from janis_core.tests.data.janis.simple.workflow import w
-        self.wf = w
-        self.maxDiff = None
+        scope: list[str] = []
+        nfgen.params.clear()
+        nfgen.params.register(the_entity=w, scope=scope)
+        for step in w.step_nodes.values():
+            current_scope = deepcopy(scope)
+            current_scope.append(step.id())
+            nfgen.params.register(the_entity=step, scope=current_scope)
 
     def test_workflow_config(self) -> None:
-        params = translator.build_inputs_file(self.wf)
-        config = translator.stringify_translated_inputs(params)
+        config = translator.stringify_translated_inputs({})
         # basic structure
         self.assertIn('docker.enabled = true', config)
         self.assertIn('params {\n\n', config)
         self.assertIn('\n\n}', config)
         # expected params are present & correct
-        for name, val in params_sample.items():
+        for name, val in COMBINED_INPUTS.items():
             pattern = f'{name}.*?{val}'
             matches = re.findall(pattern, config)
             self.assertGreater(len(matches), 0)
@@ -452,6 +520,9 @@ class TestNextflowGenerateInput(unittest.TestCase):
             {"inp": "somefancyname", "inpFile": ""},
             self.translator.build_inputs_file(wf),
         )
+
+
+
 
 
 class TestGenerateNfProcessForCommandTool(unittest.TestCase):

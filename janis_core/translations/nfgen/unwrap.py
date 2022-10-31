@@ -13,6 +13,7 @@ from janis_core import (
     StringFormatter
 )
 from janis_core.graph.steptaginput import Edge, StepTagInput
+from janis_core.operators.operator import IndexOperator
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import (
     Filename,
@@ -74,12 +75,12 @@ def unwrap_expression(
 
     elif isinstance(value, str):
         if quote_string:
-            return f"'{value}'"
+            return f'"{value}"'
         return value
 
     elif isinstance(value, bool):
         if quote_string:
-            return f"'{value}'"
+            return f'"{value}"'
         return value
 
     elif isinstance(value, int) or isinstance(value, float):
@@ -173,6 +174,15 @@ def unwrap_expression(
             return value.source.nextflow(var_indicator=var_indicator)
         elif isinstance(value.source, StepOutputSelector):
             return value.source.nextflow(var_indicator=var_indicator)
+        elif isinstance(value.source, IndexOperator):
+            return unwrap_expression(
+                value.source.args[0],
+                tool=tool,
+                var_indicator=var_indicator,
+                step_indicator=step_indicator,
+                input_in_selectors=input_in_selectors,
+                quote_string=False
+            )
         else:
             raise NotImplementedError
 

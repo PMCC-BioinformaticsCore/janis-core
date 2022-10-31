@@ -24,6 +24,7 @@ from .process import (
 from . import channels
 from . import params
 from . import ordering
+from .config import generate_config
 from .textcases import to_case
 from .script import gen_script_for_cmdtool
 from .unwrap import unwrap_expression, translate_string_formatter

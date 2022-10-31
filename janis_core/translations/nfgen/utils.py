@@ -1,6 +1,8 @@
 
 
 from typing import Any, Optional
+from janis_core.graph.node import Node
+from janis_core.graph.steptaginput import StepTagInput
 from janis_core.types import (
     File,
     Boolean,
@@ -16,7 +18,7 @@ from janis_core import (
     Workflow
 )
 
-from janis_core.workflow.workflow import InputNode
+from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translations.nfgen import ordering
 import regex as re
@@ -32,27 +34,40 @@ def get_workflow_inputs(wf: Workflow) -> list[InputNode]:
         - is referenced in a step input
     Everything else are static step inputs, or non-exposed tool inputs. 
     """
+
     # wf inputs with reference in step 
-    referenced_inputs: set[str] = set()
+    referenced_inputs = get_referenced_inputs(wf)
+
+    # wf inputs with file type
+    file_inputs = get_file_inputs(wf)
+
+    wf_inputs: list[InputNode] = []
+    for name, inp in wf.input_nodes.items():
+        if name in referenced_inputs and name in file_inputs:
+            wf_inputs.append(inp)
+    
+    # final ordering
+    wf_inputs = ordering.workflow_inputs(wf_inputs)
+    return wf_inputs
+
+def get_referenced_inputs(wf: Workflow) -> set[str]:
+    out: set[str] = set()
     for step in wf.step_nodes.values():
         for src in step.sources.values():
-            if hasattr(src.source_map[0], 'source'):
-                if hasattr(src.source_map[0].source, 'input_node'):
-                    referenced_inputs.add(src.source_map[0].source.input_node.identifier)
+            node = resolve_node(src)
+            if isinstance(node, InputNode):
+                out.add(node.identifier)
+    return out
     
-    # get names of true wf inputs using sets
-    all_wf_inputs = wf.input_nodes
-    file_inputs = set([k for k, v in all_wf_inputs.items() if isinstance(v.datatype, File)])
+def get_file_inputs(wf: Workflow) -> set[str]:
+    out: set[str] = set()
+    for name, inp in wf.input_nodes.items():
+        dtype = get_base_type(inp)
+        if isinstance(dtype, File):
+            out.add(name)
+    return out
 
-    # get true_wf_inputs using input names
-    out: list[InputNode] = []
-    for name, wfinp in all_wf_inputs.items():
-        if name in file_inputs and name in referenced_inputs:
-            out.append(wfinp)
 
-    # final ordering
-    wfinps = ordering.workflow_inputs(out)
-    return wfinps
 
 def get_exposed_tool_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
     """
@@ -71,28 +86,48 @@ def get_exposed_tool_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[
     """
     out: list[ToolInput] = []
     inputs: list[ToolInput] = tool.inputs()
-    for inp in inputs:
+    for toolinp in inputs:
         # must have source (be in step inputs)
-        if inp.id() in sources:
-            source = sources[inp.id()]
-            # connection
-            if hasattr(source.source_map[0].source, 'node'):
-                out.append(inp)
-            # workflow input
-            elif hasattr(source.source_map[0].source, 'input_node'):
-                wfinp = source.source_map[0].source.input_node
-                if isinstance(wfinp.datatype, File) and isinstance(inp.input_type, File):
-                    out.append(inp)
-                if type(wfinp.datatype) == type(inp.input_type):
-                    if not roughly_equivalent(wfinp.default, inp.default):
-                        out.append(inp)
+        if toolinp.id() in sources:
+            source = sources[toolinp.id()]
+            node = resolve_node(source)
+            if isinstance(node, StepNode):
+                out.append(toolinp)
+            elif isinstance(node, InputNode):
+                toolinp_dtype = get_base_type(toolinp)
+                wfinp_dtype = get_base_type(node)
+                if isinstance(toolinp_dtype, File) and isinstance(wfinp_dtype, File):
+                    out.append(toolinp)
+                elif type(toolinp_dtype) == type(wfinp_dtype):
+                    if not roughly_equivalent(node.default, toolinp.default):
+                        out.append(toolinp)
     return out
 
+def resolve_node(source: StepTagInput) -> Optional[Node]:
+    # workflow input
+    if hasattr(source.source_map[0].source, 'input_node'):
+        node = source.source_map[0].source.input_node
+    
+    # connection
+    elif hasattr(source.source_map[0].source, 'node'):
+        node = source.source_map[0].source.node
+    
+    # workflow input / connection to index
+    elif hasattr(source.source_map[0].source, 'args'):
+        upstream = source.source_map[0].source.args[0]
+        if hasattr(upstream, 'node'):
+            node = upstream.node
+        elif hasattr(upstream, 'input_node'):
+            node = upstream.input_node
+    else:
+        node = None
+    return node
+
 def get_source_value(source: Any) -> Any:
-    if hasattr(source.source_map[0].source, 'node'):
-        return None
-    elif hasattr(source.source_map[0].source, 'input_node'):
-        return source.source_map[0].source.input_node.default
+    node = resolve_node(source)
+    if isinstance(node, InputNode):
+        return node.default
+    return None
 
 def get_internal_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolInput]:
     """
@@ -111,12 +146,14 @@ def get_channel_inputs(tool: CommandTool, sources: dict[str, Any]) -> list[ToolI
     keep those with wfinput or connection sources
     """
     all_inputs = get_exposed_tool_inputs(tool, sources)
-    file_inputs = [x for x in all_inputs if isinstance(x.input_type, File)]
+
+    file_inputs = [x for x in all_inputs if isinstance(get_base_type(x), File)]
     var_inputs: set[str] = set()
     for inname, src in sources.items():
-        if hasattr(src.source_map[0].source, 'input_node'):
+        node = resolve_node(src)
+        if isinstance(node, InputNode):
             var_inputs.add(inname)
-        if hasattr(src.source_map[0].source, 'node'):
+        elif isinstance(node, StepNode):
             var_inputs.add(inname)
     
     channel_inputs = [x for x in file_inputs if x.id() in var_inputs]
@@ -155,14 +192,15 @@ def roughly_equivalent(val1: Any, val2: Any) -> bool:
 def get_base_type(task_input: ToolInput | InputNode | TInput) -> DataType:
     match task_input:
         case ToolInput():
-            datatype = task_input.input_type
+            dtype = task_input.input_type
         case InputNode():
-            datatype = task_input.datatype
+            dtype = task_input.datatype
         case _:
-            datatype = task_input.intype
-    while isinstance(datatype, Array):
-        datatype = datatype.subtype()
-    return datatype
+            dtype = task_input.intype
+    while isinstance(dtype, Array):
+        dtype = dtype.subtype()
+    return dtype
+
 
 def is_path(task_input: ToolInput | InputNode) -> bool:
     datatype = get_base_type(task_input)
@@ -217,7 +255,7 @@ def wrap_value(val: Any, inp: Optional[ToolInput | InputNode]):
 
     # wrap in quotes if necessary (for actual string values, file paths etc)
     if should_wrap(val, inp):
-        val = f"'{val}'"
+        val = f'"{val}"'
     
     # secondary files
     if isinstance(dtype, File) and dtype.has_secondary_files():
@@ -225,7 +263,7 @@ def wrap_value(val: Any, inp: Optional[ToolInput | InputNode]):
         secondary_files: list[str] = []
         for suffix in dtype.secondary_files():
             sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
-            sec_file = f"'{sec_file}'"
+            sec_file = f'"{sec_file}"'
             secondary_files.append(sec_file)
         # Note: we want primary file to always be the first item in the array
         val = [primary_file] + secondary_files

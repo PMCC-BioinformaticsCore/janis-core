@@ -3,6 +3,8 @@
 from janis_core.types.common_data_types import File
 from janis_core import WorkflowMetadata
 from janis_core import WorkflowBuilder
+from janis_core import ScatterDescription
+from janis_core import ScatterMethods
 from janis_core import Array
 
 from janis_core.tests.data.janis.simple.tools.unicycler import unicycler
@@ -31,9 +33,10 @@ w = WorkflowBuilder(
 # INPUTS
 # ------
 
-w.input("inForwardReads", File)
-w.input("inReverseReads", File)
-w.input("inLongReads", File)
+w.input("inForwardReads", Array(File))
+w.input("inReverseReads", Array(File))
+w.input("inLongReads", Array(File))
+w.input("testInput", File)
 w.input("fastqc1_adapters", File(optional=True))
 w.input("fastqc1_contaminants", File(optional=True))
 w.input("fastqc1_limits", File(optional=True))
@@ -53,7 +56,8 @@ w.step(
 		contaminants=w.fastqc1_contaminants,  # --contaminants [File OPTIONAL] (WORKFLOW INPUT)
 		limits=w.fastqc1_limits,              # --limits [File OPTIONAL] (WORKFLOW INPUT)
 		inputFile=w.inForwardReads,           # [File] (WORKFLOW INPUT)
-	)
+	),
+    scatter="inputFile"
 )
 
 # -------------
@@ -67,7 +71,17 @@ w.step(
 		contaminants=w.fastqc2_contaminants,  # --contaminants [File OPTIONAL] (WORKFLOW INPUT)
 		limits=w.fastqc2_limits,              # --limits [File OPTIONAL] (WORKFLOW INPUT)
 		inputFile=w.inReverseReads,           # [File] (WORKFLOW INPUT)
-	)
+	),
+    scatter="inputFile"
+)
+
+### TEST PURPOSES
+
+w.step(
+	"fastqc3",
+	fastqc(
+		inputFile=w.testInput,                  # [File] (WORKFLOW INPUT)
+	),
 )
 
 # ---------------------------------------
@@ -84,20 +98,21 @@ w.step(
 		scores="",                  # --scores [String]
 		startGeneCov=95.0,          # --start_gene_cov [Float]
 		startGeneId=90.0,           # --start_gene_id [Float]
-	)
+	),
+    scatter=ScatterDescription(fields=['option11', 'option12', 'optionL'], method=ScatterMethods.dot)
 )
 
 # --------------
 # STEP4: MultiQC
 # --------------
 
-w.step(
-	"multiqc",
-	multiqc(
-		unknown1=w.fastqc1.outTextFile,  # (CONNECTION)
-		unknown2=w.fastqc2.outTextFile,  # (CONNECTION)
-	)
-)
+# w.step(
+# 	"multiqc",
+# 	multiqc(
+# 		unknown1=w.fastqc1.outTextFile,  # (CONNECTION)
+# 		unknown2=w.fastqc2.outTextFile,  # (CONNECTION)
+# 	)
+# )
 
 # ------------
 # STEP5: Quast
@@ -106,10 +121,10 @@ w.step(
 w.step(
 	"quast",
 	quast(
-		unknown1=w.unicycler.outAssembly,  # (CONNECTION)
+		unknown1=w.unicycler.outAssembly[0],  # (CONNECTION)
 		referencesList="temp_ref_list_fp",  # --references-list [String]
 		contigThresholds=None,              # --contig-thresholds [String OPTIONAL]
-	)
+	),
 )
 
 # -------------
@@ -120,13 +135,13 @@ w.step(
 	"prokka",
 	prokka(
 		proteins=w.prokka_proteins,         # --proteins [File OPTIONAL] (WORKFLOW INPUT)
-		inputFile=w.unicycler.outAssembly,  # [File] (CONNECTION)
+		inputFile=w.unicycler.outAssembly[0],  # [File] (CONNECTION)
 		genus="Escherichia",                # --genus [String]
 		increment=10,                       # --increment [Int OPTIONAL]
 		locustag="PROKKA",                  # --locustag [String]
 		species="Coli",                     # --species [String]
 		strain="C-1",                       # --strain [String]
-	)
+	),
 )
 
 # -------
@@ -135,45 +150,45 @@ w.step(
 
 w.output(
 	"fastqc1_outHtmlFile",
-	File,
+	Array(File),
 	source=(w.fastqc1, "outHtmlFile")
 )
 
 w.output(
 	"fastqc1_outTextFile",
-	File,
+	Array(File),
 	source=(w.fastqc1, "outTextFile")
 )
 
 w.output(
 	"fastqc2_outHtmlFile",
-	File,
+	Array(File),
 	source=(w.fastqc2, "outHtmlFile")
 )
 
 w.output(
 	"fastqc2_outTextFile",
-	File,
+	Array(File),
 	source=(w.fastqc2, "outTextFile")
 )
 
 w.output(
 	"unicycler_outAssembly",
-	File,
+	Array(File),
 	source=(w.unicycler, "outAssembly")
 )
 
-w.output(
-	"multiqc_outStats",
-	Array(File),
-	source=(w.multiqc, "outStats")
-)
+# w.output(
+# 	"multiqc_outStats",
+# 	Array(File),
+# 	source=(w.multiqc, "outStats")
+# )
 
-w.output(
-	"multiqc_outHtmlReport",
-	File,
-	source=(w.multiqc, "outHtmlReport")
-)
+# w.output(
+# 	"multiqc_outHtmlReport",
+# 	File,
+# 	source=(w.multiqc, "outHtmlReport")
+# )
 
 w.output(
 	"quast_outReportHtml",

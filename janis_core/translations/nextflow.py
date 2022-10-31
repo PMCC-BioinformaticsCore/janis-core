@@ -1518,15 +1518,15 @@ return primary
         scope = []
         if additional_inputs:
             nfgen.params.register_params_for_additional_inputs(additional_inputs, scope)
-        # if merge_resources:
-        #     resources_input = cls.build_resources_input(
-        #         tool,
-        #         hints,
-        #         max_cores=max_cores,
-        #         max_mem=max_mem,
-        #         max_duration=max_duration,
-        #     )
-        #     nfgen.params.register_params_for_resources(resources_input)
+        if merge_resources:
+            resources_input = cls.build_resources_input(
+                tool,
+                hints,
+                max_cores=max_cores,
+                max_mem=max_mem,
+                max_duration=max_duration,
+            )
+            nfgen.params.register_params_for_resources(resources_input)
         return nfgen.params.serialize()
 
     @staticmethod
@@ -1541,21 +1541,24 @@ return primary
     def stringify_translated_inputs(inputs):
         """
         convert dictionary inputs to string
+        
+        NOTE - this method does not do what it says. 
 
+        build_inputs_file() and stringify_translated_inputs() must be 
+        implemented by any subclass of TranslationBase, but these don't
+        properly capture what we want to do for nextflow. 
+
+        The fed inputs are ignored because we do not want a dict. 
+        Rather, we want the registered nfgen.params. We can use their 
+        properties to create a nicer nextflow.config file structure.
+        
         :param inputs:
         :type inputs:
         :return:
         :rtype:
         """
-        indent = ' ' * 4      
-        left_span = max([len(k) for k in inputs.keys()])
+        return nfgen.config.generate_config()
 
-        body = 'docker.enabled = true\n\n'
-        body += 'params {\n\n'
-        for key, val in inputs.items():
-            body += f'{indent}{key:{left_span}} = {val}\n'
-        body += '\n}'
-        return body
 
     @staticmethod
     def workflow_filename(workflow):
