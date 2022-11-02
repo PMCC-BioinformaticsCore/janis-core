@@ -4,6 +4,7 @@ from janis_core.translations.nfgen import patterns
 from enum import Enum, auto
 import regex as re 
 
+
 # module entry
 def to_case(text: str, format: str='snake_caps') -> str:
     """
@@ -17,7 +18,6 @@ def to_case(text: str, format: str='snake_caps') -> str:
     text_split = split_words(text, src_case)
     dest_case = case_map[format]
     return as_case(text_split, dest_case)
-
 
 
 

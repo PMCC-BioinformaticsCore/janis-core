@@ -1,31 +1,29 @@
 
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional
 from janis_core import CommandTool, ToolArgument, ToolInput
+from enum import Enum
 
 from janis_core.types import Boolean
 from janis_core.translations.nfgen.unwrap import unwrap_expression
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import params
-
-
-FILL_NONEXPOSED_INPUTS = True
-JANIS_ASSISTANT = False
+from janis_core.translations.nfgen import settings
 
 
 def gen_script_for_cmdtool(
     tool: CommandTool,
+    input_in_selectors: dict[str, Any],
+    stdout_filename: str,
     scope: list[str],
     values: dict[str, Any],
-    input_in_selectors: dict[str, Any],
-    stdout_filename: str
 ) -> Tuple[str, str]:
     return ProcessScriptGenerator(
-        tool,
-        scope,
-        values,
-        input_in_selectors,
-        stdout_filename
+        tool=tool,
+        input_in_selectors=input_in_selectors,
+        stdout_filename=stdout_filename,
+        scope=scope,
+        values=values,
     ).generate()
 
 
@@ -33,21 +31,22 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        scope: list[str],
-        values: dict[str, Any],
         input_in_selectors: dict[str, Any],
-        stdout_filename: str
+        stdout_filename: str,
+        scope: Optional[list[str]]=None,
+        values: Optional[dict[str, Any]]=None,
     ):
         assert(tool)
         self.tool = tool
         self.scope = scope
         self.process_name = scope[-1] if scope else tool.id()
-        self.values = values
         self.input_in_selectors = input_in_selectors
         self.stdout_filename = stdout_filename
 
-        self.channel_inputs = [x.id() for x in utils.get_channel_inputs(tool, values)]
-        self.param_inputs = [x.id() for x in utils.get_param_inputs(tool, values)]
+        # think this is ok
+        self.process_inputs = utils.get_process_input_ids(tool, values)
+        self.param_inputs = utils.get_param_input_ids(tool, values)
+        self.internal_inputs = utils.get_internal_input_ids(tool, values)
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -82,22 +81,88 @@ class ProcessScriptGenerator:
                 self.script += [str(bc)]
 
     def get_src_varname(self, inp: ToolInput) -> str:
-        if inp.id() in self.channel_inputs:
+        # get variable name of feeder (process input or param)
+        if inp.id() in self.process_inputs:
             return inp.id()
         elif inp.id() in self.param_inputs:
-            param = params.get(inp.id(), scope=self.scope)
-            return param.text
+            return f'params.{inp.id()}'
         else:
             raise RuntimeError
+
+
+    ### ARRAYS
+
+    def expand_array_expression(self, inp: ToolInput) -> str:
+        # can ignore ToolArguments
+        # can ignore Boolean ToolInputs
+
+        """
+        The following is true for MINIMAL_PROCESS=True and MINIMAL_PROCESS=False.
+        Each tool input will either have a process input or param, or can be 
+        autofilled (is optional=ignored, has default=templated)
+
+        note: handle booleans seperately to positions / options
+
+        PRE-SCRIPT FORMATS ---
+        (positionals / options)
+        basic:          None -> {expr} = {name} or {params.name} so gets injected into script
+        basic (arr):    def {name} = {expr} 
+        optional:       def {name} = {name} ? {expr} : ''
+        default:        def {name} = {name} ? {expr} : {default}
+
+        (flags)
+        true_default    def {name} = {name} == false ? "" : "{prefix}"
+        false_default   def {name} = {name} ? "{prefix}" : ""
+
+        EXPR ---
+        (doesn't matter if optional or default etc, the {expr} will always be the same)
+        basic                   {src} -> injected into script
+        basic arr               {src}.join{delim}
+        basic arr prefixeach    {src}.collect{ {prefix} + it }.join({delim})}
+
+        SRC ---
+        process input
+        param
+
+        FINAL VALUE ---
+        (all = positional / option)
+        optional (all)          {prefix}{src}
+        optional (all)(arr)     
+        default (all)           {src}   # the prefix will be in the script body
+        default (all)(arr)      
+
+        SCRIPT FORMATS ---
+        positional (all)            {final_value}
+        positional (all)(arr)       {final_value}
+
+        option (basic)              {prefix}{final_value}  # prefix due to mandatory
+        option (optional)           {final_value}
+        option (default)            {prefix}{final_value}  # prefix due to always having value
+        
+        option (basic)(arr)                 {prefix}{final_value}  # prefix due to mandatory
+        option (optional)(arr)              {final_value}
+        option (default)(arr)               {prefix}{final_value}  # prefix due to always having value
+        option (default)(prefixeach)(arr)   {final_value}          
+
+        flag (true default)         {final_value}
+        flag (false default)        {final_value}
+
+        """
+        raise NotImplementedError
 
     def handle_cmdtool_inputs(self) -> None:
         for inp in ordering.cmdtool_inputs_arguments(self.tool):
             match inp:
                 # positionals
-                # TODO optional positional?
-                # TODO default positional?
                 case ToolInput(prefix=None): 
-                    self.handle_positional(inp)
+                    if inp.default is not None:
+                        self.handle_positional_default(inp)
+                    elif inp.input_type.optional == True:
+                        self.handle_positional_optional(inp)
+                    elif inp.input_type.optional == False and inp.default is None:
+                        self.handle_positional(inp)
+                    else:
+                        raise RuntimeError
                 
                 # flags
                 case ToolInput(input_type=Boolean()):
@@ -121,15 +186,34 @@ class ProcessScriptGenerator:
                 case _:
                     self.handle_tool_argument(inp)
 
+    def should_autofill(self, inp: ToolInput) -> bool:
+        if settings.MINIMAL_PROCESS:
+            if not inp.id() in self.process_inputs and not inp.id() in self.param_inputs:
+                return True
+        return False
+
+    def handle_positional_default(self, inp: ToolInput) -> None:
+        if self.should_autofill(inp):
+            self.script.append(f'{inp.default}')
+        else:
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} ? {src_name} : "{inp.default}"')
+            self.script.append(f'${{{inp.id()}}}')
+    
+    def handle_positional_optional(self, inp: ToolInput) -> None:
+        if self.should_autofill(inp):
+            # if its not a process input, 
+            # and doesn't have a default,
+            # add nothing to script.
+            pass 
+        else:
+            src_name = self.get_src_varname(inp)
+            self.prescript.append(f'def {inp.id()} = {src_name} ? "${{{src_name}}}" : ""')
+            self.script.append(f'${{{inp.id()}}}')
+    
     def handle_positional(self, inp: ToolInput) -> None:
         src_name = self.get_src_varname(inp)
         self.script.append(f'${{{src_name}}}')
-
-    def should_autofill(self, inp: ToolInput) -> bool:
-        if FILL_NONEXPOSED_INPUTS:
-            if not inp.id() in self.channel_inputs and not inp.id() in self.param_inputs:
-                return True
-        return False
 
     def handle_flag_false_default(self, inp: ToolInput) -> None:
         if self.should_autofill(inp):
@@ -160,7 +244,7 @@ class ProcessScriptGenerator:
         else:
             prefix = self.get_option_prefix(inp)
             src_name = self.get_src_varname(inp)
-            self.prescript.append(f'def {inp.id()} = {src_name} ?: "{inp.default}"')
+            self.prescript.append(f'def {inp.id()} = {src_name} ? {src_name} : "{inp.default}"')
             self.script.append(f'{prefix}${{{inp.id()}}}')
 
     def handle_option_optional(self, inp: ToolInput) -> None:
@@ -210,7 +294,7 @@ class ProcessScriptGenerator:
 
     def finalise_script(self) -> str:
         script = self.script
-        if JANIS_ASSISTANT:
+        if settings.JANIS_ASSISTANT:
             script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)

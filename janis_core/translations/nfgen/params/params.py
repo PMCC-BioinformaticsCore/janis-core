@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from janis_core.workflow.workflow import InputNode
-from janis_core.workflow.workflow import StepNode
 from janis_core.workflow.workflow import Workflow
 from janis_core.tool.commandtool import CommandTool
 from janis_core.tool.commandtool import ToolInput
@@ -22,46 +21,73 @@ from .. import utils
 
 
 def register(
-    the_entity: Optional[Workflow | StepNode | CommandTool]=None,
+    the_entity: Optional[Workflow | CommandTool]=None,
     the_dict: Optional[dict[str, Any]]=None, 
+    values: Optional[dict[str, Any]]=None, 
     scope: Optional[list[str]]=None, 
     override: bool=True
     ) -> None:
+
     if not isinstance(scope, list):
         scope = []
-    if the_entity:
-        register_params_for_entity(the_entity, scope, override)
-    elif the_dict:
+    if isinstance(the_entity, Workflow):
+        register_params_for_wf_inputs(the_entity, scope, override, values)
+    elif isinstance(the_entity, CommandTool):
+        register_params_for_tool(the_entity, scope, override, values)
+    elif the_dict is not None:
         register_params_for_dict(the_dict, scope, override)
     else:
         raise RuntimeError("nothing to register: please supply 'the_entity' or 'the_dict'")
 
-def register_params_for_entity(
-    entity: Workflow | StepNode | CommandTool, 
+
+def register_params_for_wf_inputs(
+    workflow: Workflow,
     scope: list[str], 
-    override: bool
+    override: bool,
+    values: Optional[dict[str, Any]]=None, 
+    ) -> None:
+    param_ids = utils.get_wf_input_ids(workflow)
+    param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
+    for inp in param_inputs:
+        val = None
+        if values is not None and inp.id() in values:
+            src = values[inp.id()]
+            val = utils.get_source_value(src)
+        register_wfinp_param(inp, scope=scope, value=val, override=override)
+
+def register_params_for_tool(
+    tool: CommandTool, 
+    scope: list[str], 
+    override: bool,
+    values: Optional[dict[str, Any]]=None, 
     ) -> None:
     """
     Registers a param tool or workflow inputs.
     Workflow / tool inputs which are exposed to the user must to be listed
     as part of the global params object. 
     """
-    if isinstance(entity, Workflow):
-        inputs = utils.get_workflow_inputs(entity)
-        for inp in inputs:
-            register_wfinp_param(inp, scope, override=override)
-    elif isinstance(entity, StepNode):
-        inputs = utils.get_param_inputs(entity.tool, entity.sources)
-        for inp in inputs:
-            src = entity.sources[inp.id()]
+    param_ids = utils.get_param_input_ids(tool, sources=values)
+    param_inputs = utils.items_with_id(tool.inputs(), param_ids)
+    for inp in param_inputs:
+        val = None
+        if values is not None and inp.id() in values:
+            src = values[inp.id()]
             val = utils.get_source_value(src)
-            register_toolinp_param(inp, scope=scope, value=val, override=override)
-    elif isinstance(entity, CommandTool):  # type: ignore
-        inputs = utils.get_exposed_tool_inputs(entity, {})
-        for inp in inputs:
-            register_toolinp_param(inp, scope=scope, override=override)
-    else:
-        raise RuntimeError
+        register_toolinp_param(inp, scope=scope, value=val, override=override)
+
+def register_params_for_dict(
+    the_dict: dict[str, Any],
+    scope: list[str],
+    override: bool
+    ) -> None:
+    for k, v in the_dict.items():
+        if (not exists(k, scope)) or (exists(k, scope) and override):
+            add(
+                varname=k,
+                scope=scope,
+                default=v,
+                is_wf_input=False
+            )
 
 
 def register_wfinp_param(
@@ -102,20 +128,6 @@ def register_toolinp_param(
             default=utils.wrap_value(default, inp),
             is_wf_input=False
         )
-
-def register_params_for_dict(
-    the_dict: dict[str, Any],
-    scope: list[str],
-    override: bool
-    ) -> None:
-    for k, v in the_dict.items():
-        if (not exists(k, scope)) or (exists(k, scope) and override):
-            add(
-                varname=k,
-                scope=scope,
-                default=v,
-                is_wf_input=False
-            )
 
 
 
@@ -226,10 +238,6 @@ class Param(NFBase):
         if value in utils.type_keyword_map:
             value = utils.type_keyword_map[value]
         return value
-    
-    @property
-    def text(self) -> str:
-        return f'params.{self.name}'
     
     @property
     def width(self) -> int:

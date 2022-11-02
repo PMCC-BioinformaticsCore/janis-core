@@ -14,7 +14,8 @@ class CmdtoolInsArgsStrategy(ABC):
 
 class PositionStrategy(CmdtoolInsArgsStrategy):
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda x: x.position or 0)
+        return sorted(ins_args, key=lambda x: x.position if x.position else 0)
+        
 
 class AlphabeticalStrategy(CmdtoolInsArgsStrategy):
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
@@ -87,7 +88,10 @@ ins_args_strategies = [
 ]
 
 def cmdtool_inputs_arguments(tool: CommandTool) -> list[ToolInput | ToolArgument]:
-    ins_args: list[ToolInput | ToolArgument] = tool.arguments() or [] + tool.inputs()
+    ins_args: list[ToolInput | ToolArgument] = []
+    ins_args += tool.inputs()
+    if tool.arguments():
+        ins_args += tool.arguments()
     for strategy in ins_args_strategies:
         ins_args = strategy().order(ins_args, tool)
     return ins_args

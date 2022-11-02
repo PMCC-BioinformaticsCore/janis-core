@@ -30,6 +30,7 @@ from janis_core.translations.translationbase import TranslatorBase
 from janis_core.workflow.workflow import StepNode, Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
+from janis_core.translations.nfgen import settings
 
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
@@ -48,18 +49,6 @@ from janis_core.translations import nfgen
 #     ...
 
 
-MINIFIED_PROCESS = True
-LIB_FILENAME = "lib.nf"
-OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
-NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
-PARAM_VAR = "%PARAM%"
-LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
-LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
-PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
-PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
-#FINAL_STEP_NAME = "janis_outputs"
-TOOL_STDOUT_FILENAME = "janisstdout"
-
 
 class NextflowTranslator(TranslatorBase):
     INPUT_IN_SELECTORS: dict[str, Any] = {}
@@ -77,20 +66,22 @@ class NextflowTranslator(TranslatorBase):
         container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
     ) -> Tuple[Any, dict[str, Any]]:
-        
+
         scope: list[str] = []
         files: dict[str, nfgen.NFFile] = {}
         processes: dict[str, nfgen.NFBase] = {}
 
+        # font case for process names etc
         cls.format_name_case(jworkflow)
+
+        # register params and channels for workflow inputs
+        nfgen.channels.register(workflow=jworkflow)
         nfgen.params.register(the_entity=jworkflow, scope=scope)
 
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
             current_scope = deepcopy(scope)
-            current_scope.append(step.identifier)
-            nfgen.params.register(the_entity=step, scope=current_scope)
-            
+            current_scope.append(step.identifier)           
             nf_items = cls.gen_items_for_step(
                 step,
                 scope=current_scope,
@@ -120,7 +111,6 @@ class NextflowTranslator(TranslatorBase):
         
         # create object & NFFile for workflow
         workflow = cls.gen_workflow(janis=jworkflow, nf_items=processes)
-        nfgen.channels.register(jworkflow)
         channels = nfgen.channels.channel_register
         #nf_file = nfgen.NFFile(imports=imports, items=[channels, output_p, workflow])
         nf_file = nfgen.NFFile(imports=imports, items=[channels, workflow])
@@ -183,17 +173,20 @@ class NextflowTranslator(TranslatorBase):
             return [nf_item]
 
         elif isinstance(step.tool, PythonTool):
-            nf_item = cls.gen_process_from_codetool(step.tool, step.id())
+            nf_item = cls.gen_process_from_codetool(step.tool, step.sources, scope)
             nf_item = cls.handle_container(
                 step.tool, nf_item, with_container, allow_empty_container, container_override
             )
             return [nf_item]
 
         elif isinstance(step.tool, WorkflowBase):
-            #sub_step_keys = list(step.tool.step_nodes.keys())
-            nf_items = []
+            subworkflow = step.tool
+            # register params for subworkflow inputs.
+            # no channels to register for subworkflow.
+            nfgen.params.register(the_entity=subworkflow, values=step.sources, scope=scope)
 
-            for substep in step.tool.step_nodes.values():
+            nf_items = []
+            for substep in subworkflow.step_nodes.values():
                 current_scope = deepcopy(scope)
                 current_scope.append(step.identifier)
                 nf_items += cls.gen_items_for_step(
@@ -244,12 +237,12 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        settings.MODE = 'tool'
         file_items: list[nfgen.NFBase] = []
         scope: list[str] = []
+        values: dict[str, Any] = {}
 
-        nfgen.params.register(the_entity=tool, scope=scope)
-
-        main_p = cls.gen_process_from_cmdtool(tool, scope)
+        main_p = cls.gen_process_from_cmdtool(tool, values, scope)
         main_p = cls.handle_container(
             tool, main_p, with_container, allow_empty_container, container_override
         )
@@ -293,9 +286,9 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-
+        raise NotImplementedError
         if isinstance(tool, PythonTool):
-            process = cls.gen_process_from_codetool(tool)
+            process = cls.gen_process_from_codetool(tool=tool, values={}, scope=[])
             process = cls.handle_container(
                 tool, process, with_container, allow_empty_container, container_override
             )
@@ -355,12 +348,12 @@ class NextflowTranslator(TranslatorBase):
             as_param = None
             input_type = inputsdict.get(key).intype
             if isinstance(input_type, File):
-                # inp.as_process_param = f"Channel.fromPath({PARAM_VAR}).collect()"
-                as_param = LIST_OF_FILES_PARAM
+                # inp.as_process_param = f"Channel.fromPath({settings.PARAM_VAR}).collect()"
+                as_param = settings.LIST_OF_FILES_PARAM
             elif isinstance(input_type, Array) and isinstance(
                 input_type.subtype(), Array
             ):
-                as_param = LIST_OF_FILE_PAIRS_PARAM
+                as_param = settings.LIST_OF_FILE_PAIRS_PARAM
 
             take.append(nfgen.WorkflowInput(name=key, as_param=as_param))
 
@@ -442,7 +435,7 @@ class NextflowTranslator(TranslatorBase):
 
         # calling outputs process for Janis to be able to find output files
         # args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
-        # body.append(format_process_call(FINAL_STEP_NAME, args_list))
+        # body.append(format_process_call(settings.FINAL_STEP_NAME, args_list))
 
         return nfgen.Workflow(name=nf_workflow_name, main=body)
 
@@ -617,7 +610,7 @@ class NextflowTranslator(TranslatorBase):
 
         # Groovy helper functions
         lib_file = nfgen.NFFile(imports=[], items=cls.gen_generic_functions())
-        helpers[LIB_FILENAME] = lib_file.get_string()
+        helpers[settings.LIB_FILENAME] = lib_file.get_string()
 
         helpers = cls.gen_python_code_files(tool, helpers)
 
@@ -739,18 +732,18 @@ class NextflowTranslator(TranslatorBase):
     #     # The script is simply adding tool outputs as key-value pairs into a text file
     #     script = ""
     #     for key, val in tool_outputs.items():
-    #         script += f"echo {key}={val} >> {OUTPUT_METADATA_FILENAME}\n"
+    #         script += f"echo {key}={val} >> {settings.OUTPUT_METADATA_FILENAME}\n"
 
     #     outputs = [
     #         nfgen.ProcessOutput(
     #             qualifier=nfgen.OutputProcessQualifier.path,
     #             name="janis_output_metadata",
-    #             expression=f"'{OUTPUT_METADATA_FILENAME}'",
+    #             expression=f"'{settings.OUTPUT_METADATA_FILENAME}'",
     #         )
     #     ]
 
     #     process = nfgen.Process(
-    #         name=FINAL_STEP_NAME,
+    #         name=settings.FINAL_STEP_NAME,
     #         script=script,
     #         script_type=nfgen.ProcessScriptType.script,
     #         inputs=inputs,
@@ -786,7 +779,7 @@ class NextflowTranslator(TranslatorBase):
 
         
 
-        return nfgen.Import(items, os.path.join(path, LIB_FILENAME))
+        return nfgen.Import(items, os.path.join(path, settings.LIB_FILENAME))
 
     @classmethod
     def collect_workflow_imports(
@@ -820,7 +813,7 @@ class NextflowTranslator(TranslatorBase):
     def gen_process_from_cmdtool(
         cls,
         tool: CommandTool,
-        values: dict[str, Any],
+        values: dict[str, Any],   # values fed to tool inputs (step translation)
         scope: list[str],
     ) -> nfgen.Process:
         """
@@ -835,29 +828,16 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        # # construct script
-        # for i in tool.inputs():
-        #     if provided_inputs is not None:
-        #         optional = (
-        #             i.input_type.optional is None or i.input_type.optional is True
-        #         )
-        #         if i.id() in provided_inputs or i.default is not None or not optional:
-        #             inputs.append(i)
-        #         elif isinstance(i.input_type, Filename):
-        #             inputs.append(i)
-        #         else:
-        #             pass
-        #     else:
-        #         inputs.append(i)
 
-        #exposed_inputs = cls.gen_wf_tool_inputs(tool)
+        nfgen.params.register(the_entity=tool, values=values, scope=scope)
+
         process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.gen_script_for_cmdtool(
             tool=tool,
             scope=scope,
             values=values,
             input_in_selectors=cls.INPUT_IN_SELECTORS, 
-            stdout_filename=TOOL_STDOUT_FILENAME
+            stdout_filename=settings.TOOL_STDOUT_FILENAME
         )
  
         process = nfgen.Process(
@@ -867,8 +847,9 @@ class NextflowTranslator(TranslatorBase):
             script_type=nfgen.ProcessScriptType.script,
         )
         
-        inputs = nfgen.utils.get_channel_inputs(tool, values)
-        for i in inputs:
+        process_ids = nfgen.utils.get_process_input_ids(tool, values)
+        process_inputs = nfgen.utils.items_with_id(tool.inputs(), process_ids)
+        for i in process_inputs:
             qual = cls.get_input_qualifier_for_inptype(i.input_type)
             inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
@@ -946,7 +927,7 @@ class NextflowTranslator(TranslatorBase):
 
                 expression = ", ".join(formatted_list)
             elif isinstance(output_type, Stdout):
-                expression = f"'{TOOL_STDOUT_FILENAME}_{process_name}'"
+                expression = f'"{settings.TOOL_STDOUT_FILENAME}_{process_name}"'
             elif isinstance(output_type, File) and output_type.has_secondary_files():
                 sub_qual = nfgen.OutputProcessQualifier.path
                 tuple_elements = [expression]
@@ -1029,15 +1010,16 @@ class NextflowTranslator(TranslatorBase):
             qual = nfgen.OutputProcessQualifier.path
         else:
             qual = nfgen.OutputProcessQualifier.val
-            expression = f"file(\"$workDir/{PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
+            expression = f"file(\"$workDir/{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
 
         return qual, expression
 
     @classmethod
     def gen_process_from_codetool(
         cls,
-        step: StepNode,
-        name: Optional[str] = None
+        tool: CommandTool,
+        values: dict[str, Any],   # values fed to tool inputs (step translation)
+        scope: list[str],
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for Janis python code tool
@@ -1051,6 +1033,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        raise NotImplementedError
         step_inputs = cls.gen_step_inval_dict(step)
         inputs: List[TInput] = []
         outputs: List[TOutput] = tool.outputs()
@@ -1078,8 +1061,8 @@ class NextflowTranslator(TranslatorBase):
 
         python_file_input = nfgen.ProcessInput(
             qualifier=nfgen.InputProcessQualifier.path,
-            name=PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-            as_param=PYTHON_CODE_FILE_PATH_PARAM,
+            name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
+            as_param=settings.PYTHON_CODE_FILE_PATH_PARAM,
         )
         process.inputs.append(python_file_input)
         for i in inputs:
@@ -1089,7 +1072,7 @@ class NextflowTranslator(TranslatorBase):
             if isinstance(i.intype, File) or (
                 isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
             ):
-                inp.as_param = LIST_OF_FILES_PARAM
+                inp.as_param = settings.LIST_OF_FILES_PARAM
 
             process.inputs.append(inp)
 
@@ -1154,13 +1137,13 @@ class NextflowTranslator(TranslatorBase):
             #     p = i.as_param
             
             # Extra processing
-            if PYTHON_CODE_FILE_PATH_PARAM in value:
+            if settings.PYTHON_CODE_FILE_PATH_PARAM in value:
                 path_to_python_code_file = posixpath.join(
                     #"$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
                     "$baseDir", cls.DIR_TOOLS, f"{tool.id()}.py"
                 )
                 value = value.replace(
-                    PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                    settings.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
                 )
             # elif i.name in inputsdict:
             #     toolinput = inputsdict.get(i.name)
@@ -1271,22 +1254,22 @@ class NextflowTranslator(TranslatorBase):
 
             # Extra processing when we need to set up the process input parameters
             if i.as_param:
-                if LIST_OF_FILES_PARAM in i.as_param:
+                if settings.LIST_OF_FILES_PARAM in i.as_param:
                     p = i.as_param.replace(
-                        LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
+                        settings.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
                     )
-                elif LIST_OF_FILE_PAIRS_PARAM in i.as_param:
+                elif settings.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
                     p = i.as_param.replace(
-                        LIST_OF_FILE_PAIRS_PARAM,
+                        settings.LIST_OF_FILE_PAIRS_PARAM,
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
-                elif PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
+                elif settings.PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
                     path_to_python_code_file = posixpath.join(
                         #"$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
                         "$baseDir", cls.DIR_TOOLS, f"{tool.id()}.py"
                     )
                     p = i.as_param.replace(
-                        PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                        settings.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
                     )
             args_list.append(p)
 
@@ -1294,7 +1277,7 @@ class NextflowTranslator(TranslatorBase):
         #output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
         
         body.append(format_process_call(process.name, args_list))
-        #body.append(format_process_call(FINAL_STEP_NAME, output_args_list))
+        #body.append(format_process_call(settings.FINAL_STEP_NAME, output_args_list))
         return nfgen.Workflow(name="", main=body)
 
     @classmethod
@@ -1323,10 +1306,11 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        channel_inputs = nfgen.utils.get_channel_inputs(tool, values)
-        channel_inputs_names = [x.id() for x in channel_inputs]
+        process_ids = nfgen.utils.get_process_input_ids(tool, values)
+        process_inputs = nfgen.utils.items_with_id(tool.inputs(), process_ids)
+        process_inputs_names = [x.id() for x in process_inputs]
 
-        for name in channel_inputs_names:
+        for name in process_inputs_names:
             if name in values:
                 src = values[name]
                 
@@ -1407,7 +1391,7 @@ else {{
                 parameters=["var", "prefix", "prefix_applies_to_all_elements"],
                 definition=f"""
 var = var.toString()
-if (var && ( var != 'None' ) && (! var.contains('{NO_FILE_PATH_PREFIX}')))
+if (var && ( var != 'None' ) && (! var.contains('{settings.NO_FILE_PATH_PREFIX}')))
 {{
     return apply_prefix(var, prefix, prefix_applies_to_all_elements)
 }}
@@ -1653,7 +1637,7 @@ result = code_block({args})
 
 work_dir = os.getenv("PYENV_DIR")
 for key in result:
-    with open(os.path.join("$workDir", f"{PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
+    with open(os.path.join("$workDir", f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
         f.write(json.dumps(result[key]))
 """
 

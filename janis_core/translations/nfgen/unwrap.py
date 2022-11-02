@@ -136,7 +136,7 @@ def unwrap_expression(
         # raise Exception(
         #     f"A wildcard selector cannot be used as an argument value for '{debugkwargs}' {tool.id()}"
         # )
-        return f"'{value.wildcard}'"
+        return f'"{value.wildcard}"'
     elif isinstance(value, Operator):
         unwrap_expression_wrap = lambda x: unwrap_expression(
             value=x,
@@ -282,7 +282,7 @@ def prepare_filename_replacements_for(
             base = f"{tinp.id()}"
 
         if intype.optional:
-            default = "'generated'"
+            default = '"generated"'
             if isinstance(intype, Filename):
                 default = base
             replacement = f"({inp.input_to_select} && {inp.input_to_select} != 'None' && {inp.input_to_select} != '' ? {inp.input_to_select} : {default})"

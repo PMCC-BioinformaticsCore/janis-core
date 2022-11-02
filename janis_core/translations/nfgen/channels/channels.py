@@ -14,8 +14,10 @@ from .. import utils
 ### factory 
 
 def register(workflow: Workflow) -> None:
-    for wfinp in utils.get_workflow_inputs(workflow):
-        add(wfinp)
+    wfinp_ids = utils.get_wf_input_ids(workflow)
+    wfinps = utils.items_with_id(list(workflow.input_nodes.values()), wfinp_ids)
+    for inp in wfinps:
+        add(inp)
 
 def get_channel_method(wfinp: InputNode) -> str:
     if utils.is_path(wfinp) and utils.is_file_pair(wfinp):

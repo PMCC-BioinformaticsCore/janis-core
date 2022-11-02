@@ -3,7 +3,6 @@ import unittest
 from typing import Optional
 import regex as re
 
-from janis_core.translations import nfgen
 from janis_core.tests.testtools import (
     TestTool,
     TestInputQualityTool,
@@ -31,9 +30,35 @@ from janis_core import (
     StringFormatter,
     JoinOperator,
 )
+
 from janis_core.translations import NextflowTranslator as translator
-from janis_core.translations.nextflow import NO_FILE_PATH_PREFIX
+from janis_core.translations import nfgen
+from janis_core.translations.nfgen import settings
 from janis_core import Array, String, File, Boolean, Filename
+
+
+
+class TestSettings(unittest.TestCase):
+
+    def test_get_settings(self):
+        self.assertEquals(settings.LIB_FILENAME, 'lib.nf')
+        self.assertEquals(settings.CONFIG_FILENAME, 'nextflow.config')
+        self.assertEquals(settings.MINIMAL_PROCESS, True)
+    
+    def test_set_settings(self):
+        self.assertEquals(settings.MINIMAL_PROCESS, True)
+        settings.MINIMAL_PROCESS = False
+        self.assertEquals(settings.MINIMAL_PROCESS, False)
+
+    @unittest.skip('not implemented')
+    def test_minimal_process(self):
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_janis_assistant_process(self):
+        raise NotImplementedError
+    
+        
 
 
 WF_INPUTS_SINGLES = {
@@ -68,7 +93,6 @@ TOOL_INPUTS = {
 }
 
 COMBINED_INPUTS = WF_INPUTS_SINGLES | WF_INPUTS_ARRS | TOOL_INPUTS
-
 
 class TestParamRegistration(unittest.TestCase):
 
@@ -484,7 +508,7 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_file_input")
         wf.input("inp", DataTypeWithSecondary())
         self.assertDictEqual(
-            {"inp": f"/{NO_FILE_PATH_PREFIX}1"},
+            {"inp": f"/{settings.NO_FILE_PATH_PREFIX}1"},
             self.translator.build_inputs_file(wf),
         )
 
@@ -492,7 +516,7 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_file_input")
         wf.input("inp", DataTypeNoSecondary())
         self.assertDictEqual(
-            {"inp": f"/{NO_FILE_PATH_PREFIX}1"},
+            {"inp": f"/{settings.NO_FILE_PATH_PREFIX}1"},
             self.translator.build_inputs_file(wf),
         )
 
@@ -502,8 +526,8 @@ class TestNextflowGenerateInput(unittest.TestCase):
         wf.input("inp2", DataTypeNoSecondary())
         self.assertDictEqual(
             {
-                "inp": f"/{NO_FILE_PATH_PREFIX}1",
-                "inp2": f"/{NO_FILE_PATH_PREFIX}2",
+                "inp": f"/{settings.NO_FILE_PATH_PREFIX}1",
+                "inp2": f"/{settings.NO_FILE_PATH_PREFIX}2",
             },
             self.translator.build_inputs_file(wf),
         )
@@ -521,89 +545,86 @@ class TestNextflowGenerateInput(unittest.TestCase):
             self.translator.build_inputs_file(wf),
         )
 
-
-
-
-
 class TestGenerateNfProcessForCommandTool(unittest.TestCase):
+    settings.MODE = 'tool'
+    settings.MINIMAL_PROCESS = False
     maxDiff: Optional[int] = None
-    def test_stdout_out_tool(self):
-        p = translator.gen_process_from_cmdtool(EchoTestTool())
-        p_str = p.get_string()
-        expected = f"""
-process EchoTestTool {{
-  input:
-    val inp
-
-  output:
-    path "${{'janisstdout_EchoTestTool'}}" , emit: out
-
-  publishDir "$launchDir/EchoTestTool"
-  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-  time "${{params.runtime_seconds + 's'}}"
-
-  script:
-    def inpWithPrefix = apply_prefix(inp, ' ', 'False')
-    def runtime_memory = params.runtime_memory
-    def runtime_cpu = params.runtime_cpu
-    def runtime_disks = params.runtime_disks
-    def runtime_seconds = params.runtime_seconds
     
-    \"\"\"
-    echo \\
-    $inpWithPrefix | tee janisstdout_EchoTestTool
-    \"\"\"
-}}
-
-
-"""
-        self.assertEqual(expected, p_str)
+    def test_stdout_out_tool(self):
+        scope = []
+        values = {}
+        tool = EchoTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        expected_contents = [
+            'process EchoTestTool',
+            'publishDir "$params.outdir"',
+            'output:',
+            'path "janisstdout_EchoTestTool" , emit: out',
+            'script:',
+            'echo',
+            '${params.inp}'
+        ]
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
 
     def test_operator_resource_tool(self):
-        p = translator.gen_process_from_cmdtool(OperatorResourcesTestTool())
-        expected = f"""
-process EchoTestTool
-{{
-  input:
-    path inputFile
-    val outputFiles
+        scope = []
+        values = {}
+        tool = OperatorResourcesTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        # f"""
+        # process EchoTestTool
+        # {{
+        #   input:
+        #     path inputFile
+        #     val outputFiles
 
-  output:
-    path "${{'janisstdout_EchoTestTool'}}" , emit: out
+        #   output:
+        #     path "${{'janisstdout_EchoTestTool'}}" , emit: out
 
-  publishDir "$launchDir/EchoTestTool"
-  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-  time "${{params.runtime_seconds + 's'}}"
+        #   publishDir "$launchDir/EchoTestTool"
+        #   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+        #   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+        #   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+        #   time "${{params.runtime_seconds + 's'}}"
 
-  script:
+        #   script:
 
-    def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
+        #     def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
 
-    def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
+        #     def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
 
-    def runtime_memory = params.runtime_memory
+        #     def runtime_memory = params.runtime_memory
 
-    def runtime_cpu = params.runtime_cpu
+        #     def runtime_cpu = params.runtime_cpu
 
-    def runtime_disks = params.runtime_disks
+        #     def runtime_disks = params.runtime_disks
 
-    def runtime_seconds = params.runtime_seconds
-    \"\"\"
-    echo \\
-    $inputFileWithPrefix | tee janisstdout_EchoTestTool
-    \"\"\"
-}}
-
-
-"""
-        self.assertEqual(expected, p.get_string())
-
+        #     def runtime_seconds = params.runtime_seconds
+        #     \"\"\"
+        #     echo \\
+        #     $inputFileWithPrefix | tee janisstdout_EchoTestTool
+        #     \"\"\"
+        # }}
+        # """
+        expected_contents = [
+            'process EchoTestTool',
+            'input:',
+            'output:',
+        ]
+        # TODO ask richard - unnecessary?
+        raise NotImplementedError
+        print(p.get_string())
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
+        
     def test_filename_generated_tool(self):
-        p = translator.gen_process_from_cmdtool(FilenameGeneratedTool())
+        # TODO
+        scope = []
+        values = {}
+        tool = FilenameGeneratedTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
 
         expected = f"""
 process filenamegeneratedtool
@@ -674,10 +695,11 @@ process filenamegeneratedtool
         self.assertEqual(expected, p.get_string())
 
     def test_tool_with_secondary_input(self):
-        p = translator.gen_process_from_cmdtool(
-            TestToolWithSecondaryInput()
-        )
-
+        scope = []
+        values = {}
+        tool = TestToolWithSecondaryInput()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
         expected = f"""
 process CatTestTool
 {{
@@ -715,48 +737,23 @@ process CatTestTool
         self.assertEqual(expected, p.get_string())
 
     def test_tool_with_secondary_output(self):
-        p = translator.gen_process_from_cmdtool(
-            TestToolWithAppendedSecondaryOutput()
-        )
+        scope = []
+        values = {}
+        tool = TestToolWithAppendedSecondaryOutput()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
+        expected_contents = [
+            'process TestTranslationtool',
+            'tuple path("${testtool + ".bam"}"), path("${testtool + ".bam.bai"}") , emit: out',
+            'def arrayInp = params.arrayInp ? "${params.arrayInp}" : ""',
+            'echo',
+            '${params.testtool}',
+            '${arrayInp}',
+            'test:\\t:escaped:\\n:characters"',
+        ]
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
 
-        expected = f"""
-process TestTranslationtool
-{{
-  input:
-    val testtool
-    val arrayInp
-
-  output:
-    tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bam.bai'}}") , emit: out
-
-  publishDir "$launchDir/TestTranslationtool"
-  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-  time "${{params.runtime_seconds + 's'}}"
-
-  script:
-
-    def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
-
-    def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
-
-    def runtime_memory = params.runtime_memory
-
-    def runtime_cpu = params.runtime_cpu
-
-    def runtime_disks = params.runtime_disks
-
-    def runtime_seconds = params.runtime_seconds
-    \"\"\"
-    echo \\
-    test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
-    \"\"\"
-}}
-
-
-"""
-        self.assertEqual(expected, p.get_string())
 
     def test_tool_with_replaced_secondary_output(self):
         p = translator.gen_process_from_cmdtool(

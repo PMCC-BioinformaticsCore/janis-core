@@ -6,7 +6,6 @@
     DSL2: https://www.nextflow.io/docs/latest/dsl2.html
 
 """
-CONFIG_FILENAME = "nextflow.config"
 
 from .common import NFFile, Import, ImportItem, Function
 from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
@@ -21,11 +20,12 @@ from .process import (
     TupleElementForOutput
 )
 
+from . import settings
 from . import channels
 from . import params
 from . import ordering
 from .config import generate_config
-from .textcases import to_case
+from .casefmt import to_case
 from .script import gen_script_for_cmdtool
 from .unwrap import unwrap_expression, translate_string_formatter
 from .formatting import format_process_call

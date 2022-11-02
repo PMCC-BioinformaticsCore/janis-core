@@ -99,7 +99,11 @@ class PublishDirDirective(ProcessDirective):
 
     def get_string(self) -> str:
         subpath = '/'.join(self.scope).lower()
-        return f"publishDir \"$params.outdir/{subpath}\""
+        if subpath == '':
+            return f"publishDir \"$params.outdir\""
+        else:
+            return f"publishDir \"$params.outdir/{subpath}\""
+
         #return f"publishDir \"$params.outdir/$task.process\""
         #return f"publishDir \"$launchDir/{self.process_name}\""
     
