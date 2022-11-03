@@ -20,6 +20,18 @@ from ..common import NFBase
 from .. import utils
 
 
+
+"""
+MINIMAL PROCESS
+- wf inputs: param for all wf inputs
+- tool inputs: param for non-process-inputs fed value using step.sources
+
+FULL PROCESS
+- wf inputs: param for all wf inputs
+- tool inputs: param for all non-process-inputs
+"""
+
+
 def register(
     the_entity: Optional[Workflow | CommandTool]=None,
     the_dict: Optional[dict[str, Any]]=None, 
@@ -66,6 +78,7 @@ def register_params_for_tool(
     Workflow / tool inputs which are exposed to the user must to be listed
     as part of the global params object. 
     """
+    values = values if values is not None else {}
     param_ids = utils.get_param_input_ids(tool, sources=values)
     param_inputs = utils.items_with_id(tool.inputs(), param_ids)
     for inp in param_inputs:
@@ -227,9 +240,10 @@ class Param(NFBase):
     @property
     def value(self) -> str:
         # get the default value as string
+        # TODO I am dubious about this
         if self.default == '':
             value = 'None'
-        elif isinstance(self.default, list):
+        if isinstance(self.default, list):
             value = [str(x) for x in self.default] # type: ignore
             value = ', '.join(value)  
         else:

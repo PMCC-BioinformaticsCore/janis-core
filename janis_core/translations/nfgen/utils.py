@@ -95,18 +95,18 @@ def get_file_wf_inputs(wf: Workflow) -> set[str]:
 
 ### process inputs
 
-def get_process_input_ids(tool: Optional[CommandTool], sources: Optional[dict[str, Any]]) -> set[str]:
+def get_process_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     determine the tool inputs which should remnain as process inputs
     """
-    if settings.MODE == 'workflow' and sources is not None:
-        return get_process_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool' and tool:  # type: ignore
-        return get_process_inputs_toolmode(tool)
+    if settings.MODE == 'workflow':
+        return get_process_inputs_workflowmode(tool, sources)
+    elif settings.MODE == 'tool':  # type: ignore
+        return get_process_inputs_toolmode(tool, sources)
     else:
         raise RuntimeError
 
-def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
+def get_process_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are fed (via step inputs) using a file type workflow input
     inputs which are fed (via step inputs) using a connection
@@ -116,10 +116,10 @@ def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     surviving_ids = file_wfinp_ids | step_conn_ids
     return surviving_ids
 
-def get_process_inputs_toolmode(tool: CommandTool) -> set[str]:
+def get_process_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are file types
-    non-file types fed values from params. 
+    non-file types usually fed values from params instead.
     
     if MINIMAL_PROCESS:
         - remove inputs which are optional
@@ -144,25 +144,31 @@ def get_process_inputs_toolmode(tool: CommandTool) -> set[str]:
 
 ### param inputs
 
-def get_param_input_ids(tool: Optional[CommandTool], sources: Optional[dict[str, Any]]=None) -> set[str]:
+def get_param_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     determine the tool inputs which should be fed a value via params
     """
-    if settings.MODE == 'workflow' and sources is not None:
-        return get_param_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool' and tool:  # type: ignore
-        return get_param_inputs_toolmode(tool)
+    if settings.MODE == 'workflow':
+        return get_param_inputs_workflowmode(tool, sources)
+    elif settings.MODE == 'tool':  # type: ignore
+        return get_param_inputs_toolmode(tool, sources)
     else:
         raise RuntimeError
 
-def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
+def get_param_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are fed (via step inputs) using a non-File type workflow input
     """
-    surviving_ids = get_nonfile_wfinp_connected_input_ids(sources)
+    if settings.MINIMAL_PROCESS:
+        surviving_ids = get_nonfile_wfinp_connected_input_ids(sources)
+    else:
+        all_inputs = tool.inputs()
+        all_ids = get_all_input_ids(all_inputs)
+        process_ids = get_process_input_ids(tool, sources)
+        surviving_ids = all_ids - process_ids
     return surviving_ids
 
-def get_param_inputs_toolmode(tool: CommandTool) -> set[str]:
+def get_param_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     nonfile types 
     
@@ -189,7 +195,7 @@ def get_param_inputs_toolmode(tool: CommandTool) -> set[str]:
 
 ### internal inputs
 
-def get_internal_input_ids(tool: CommandTool, sources: Optional[dict[str, Any]]=None) -> set[str]:
+def get_internal_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     """
     internal inputs = all inputs - process inputs - param inputs
     """
@@ -221,6 +227,9 @@ def get_optional_input_ids(tinputs: list[ToolInput]) -> set[str]:
 def get_default_input_ids(tinputs: list[ToolInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs with a default value"""
     return {x.id() for x in tinputs if x.default != None}
+
+# def get_non_fed_input_ids(tinputs: list[ToolInput], sources: dict[str, Any]) -> set[str]:
+#     return {x.id() for x in tinputs if x.id() not in sources}
 
 def get_file_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a File type workflow input"""
