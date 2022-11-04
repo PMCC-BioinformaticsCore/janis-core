@@ -2,14 +2,12 @@
 from typing import Any, Tuple, Optional
 from janis_core import CommandTool, ToolArgument, ToolInput
 
-from janis_core.types import Boolean
 from janis_core.translations.nfgen.unwrap import unwrap_expression
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import settings
 
-from .formatter import get_prescript
-from .formatter import get_script
+from .formatter import format_input
 
 
 def gen_script_for_cmdtool(
@@ -96,12 +94,17 @@ class ProcessScriptGenerator:
         for inp in ordering.cmdtool_inputs_arguments(self.tool):
             match inp:
                 case ToolInput():
-                    line = get_prescript(inp, self.process_inputs, self.param_inputs, scope=self.scope)
-                    if line is not None:
-                        self.prescript.append(line)
-                    line = get_script(inp, self.process_inputs, self.param_inputs, scope=self.scope)
-                    if line is not None:
-                        self.script.append(line)
+                    prescript_ln, script_ln = format_input(
+                        inp, 
+                        self.process_inputs, 
+                        self.param_inputs, 
+                        scope=self.scope
+                    )
+                    if prescript_ln is not None:
+                        self.prescript.append(prescript_ln)
+                    if script_ln is not None:
+                        self.script.append(script_ln)
+                    
                 # arguments
                 case _:
                     self.handle_tool_argument(inp)

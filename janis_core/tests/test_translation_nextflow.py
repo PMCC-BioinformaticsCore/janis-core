@@ -43,10 +43,8 @@ class TestSettings(unittest.TestCase):
     def test_get_settings(self):
         self.assertEquals(settings.LIB_FILENAME, 'lib.nf')
         self.assertEquals(settings.CONFIG_FILENAME, 'nextflow.config')
-        self.assertEquals(settings.MINIMAL_PROCESS, True)
     
     def test_set_settings(self):
-        self.assertEquals(settings.MINIMAL_PROCESS, True)
         settings.MINIMAL_PROCESS = False
         self.assertEquals(settings.MINIMAL_PROCESS, False)
 
@@ -95,26 +93,174 @@ TOOL_INPUTS = {
 COMBINED_INPUTS = WF_INPUTS_SINGLES | WF_INPUTS_ARRS | TOOL_INPUTS
 
 class TestParamRegistration(unittest.TestCase):
+    MINIMAL_PARAMS = {
+        'inforwardreads': 'null',
+        'inreversereads': 'null',
+        'inlongreads': 'null',
+        'testinput': 'null',
+        'fastqc1_adapters': 'null',
+        'fastqc1_contaminants': 'null',
+        'fastqc1_limits': 'null',
+        'fastqc2_adapters': 'null',
+        'fastqc2_contaminants': 'null',
+        'fastqc2_limits': 'null',
+        'unicycler_kmers': '""',
+        'unicycler_scores': '""',
+        'unicycler_startgenecov': '95.0',
+        'unicycler_startgeneid': '90.0',
+    }
+    
+    ADDITIONAL_PARAMS = {
+        'fastqc1_extract': 'null',
+        'fastqc1_nogroup': 'null',
+        'fastqc1_quiet': 'null',
+        'fastqc1_kmers': 'null',
+        'fastqc1_minlength': 'null',
+        'fastqc1_optionf': 'null',
+        'fastqc1_outdir': 'null',
+        'fastqc2_extract': 'null',
+        'fastqc2_nogroup': 'null',
+        'fastqc2_quiet': 'null',
+        'fastqc2_kmers': 'null',
+        'fastqc2_minlength': 'null',
+        'fastqc2_optionf': 'null',
+        'fastqc2_outdir': 'null',
+        'fastqc3_adapters': 'null',
+        'fastqc3_contaminants': 'null',
+        'fastqc3_limits': 'null',
+        'fastqc3_extract': 'null',
+        'fastqc3_nogroup': 'null',
+        'fastqc3_quiet': 'null',
+        'fastqc3_kmers': 'null',
+        'fastqc3_minlength': 'null',
+        'fastqc3_optionf': 'null',
+        'fastqc3_outdir': 'null',
+        'unicycler_largestcomponent': 'null',
+        'unicycler_nocorrect': 'null',
+        'unicycler_nopilon': 'null',
+        'unicycler_norotate': 'null',
+        'unicycler_contamination': 'null',
+        'unicycler_depthfilter': 'null',
+        'unicycler_kmercount': 'null',
+        'unicycler_linearseqs': 'null',
+        'unicycler_lowscore': 'null',
+        'unicycler_maxkmerfrac': 'null',
+        'unicycler_minanchorseglen': 'null',
+        'unicycler_mincomponentsize': 'null',
+        'unicycler_mindeadendsize': 'null',
+        'unicycler_minfastalength': 'null',
+        'unicycler_minkmerfrac': 'null',
+        'unicycler_minpolishsize': 'null',
+        'unicycler_mode': 'null',
+        'unicycler_optiono': 'null',
+        'unicycler_options': 'null',
+        'unicycler_optiont': 'null',
+        'unicycler_pilonpath': 'null',
+        'unicycler_startgenes': 'null',
+        'unicycler_verbosity': 'null',
+    }
+
+    FULL_PARAMS = MINIMAL_PARAMS | ADDITIONAL_PARAMS
+
+    UNICYCLER_MINIMAL = {
+        'kmers': '""',
+        'scores': '""',
+        'startgenecov': '95.0',
+        'startgeneid': '90.0',
+    }
+
+    UNICYCLER_ADDITIONAL = {
+        'largestcomponent': 'null',
+        'nocorrect': 'null',
+        'nopilon': 'null',
+        'norotate': 'null',
+        'contamination': 'null',
+        'depthfilter': 'null',
+        'kmercount': 'null',
+        'linearseqs': 'null',
+        'lowscore': 'null',
+        'maxkmerfrac': 'null',
+        'minanchorseglen': 'null',
+        'mincomponentsize': 'null',
+        'mindeadendsize': 'null',
+        'minfastalength': 'null',
+        'minkmerfrac': 'null',
+        'minpolishsize': 'null',
+        'mode': 'null',
+        'optiono': 'null',
+        'options': 'null',
+        'optiont': 'null',
+        'pilonpath': 'null',
+        'startgenes': 'null',
+        'verbosity': 'null',
+    }
+
+    UNICYCLER_FULL = UNICYCLER_MINIMAL | UNICYCLER_ADDITIONAL
 
     def setUp(self) -> None:
-        from janis_core.tests.data.janis.simple.workflow import w
+        from janis_core.tests.data.janis.simple_truncated.workflow import w
+        from janis_core.tests.data.janis.simple_truncated.tools.unicycler import unicycler
+        self.wf = w
+        self.unicycler = unicycler
         self.maxDiff = None
 
+    def refresh_params_workflowmode(self) -> None:
         scope: list[str] = []
         nfgen.params.clear()
-        nfgen.params.register(the_entity=w, scope=scope)
-        for step in w.step_nodes.values():
+        nfgen.params.register(the_entity=self.wf, scope=scope)
+        for step in self.wf.step_nodes.values():
             current_scope = deepcopy(scope)
             current_scope.append(step.id())
-            nfgen.params.register(the_entity=step, scope=current_scope)
+            nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
+    
+    def refresh_params_toolmode(self) -> None:
+        nfgen.params.clear()
+        nfgen.params.register(the_entity=self.unicycler, sources={}, scope=[])
 
-    def test_all(self) -> None:
-        # check each param is registered
+    def test_all_full_workflowmode(self) -> None:
+        # check each necessary param is registered for 
+        # full process translation in workflow mode
+        settings.MINIMAL_PROCESS = False
+        settings.MODE = 'workflow'
+        self.refresh_params_workflowmode()
         params = nfgen.params.getall()
-        all_inputs = {p.name: p.value for p in params}
-        self.assertEquals(all_inputs, COMBINED_INPUTS)
+        params_dict = {p.name: p.value for p in params}
+        self.assertEquals(params_dict, self.FULL_PARAMS)
+    
+    def test_all_minimal_workflowmode(self) -> None:
+        # check each necessary param is registered for 
+        # minimal process translation in workflow mode
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.refresh_params_workflowmode()
+        params = nfgen.params.getall()
+        params_dict = {p.name: p.value for p in params}
+        self.assertEquals(params_dict, self.MINIMAL_PARAMS)
+    
+    @unittest.skip('not implemented')
+    def test_all_full_toolmode(self) -> None:
+        # check each necessary param is registered for 
+        # full process translation in tool mode
+        settings.MINIMAL_PROCESS = False
+        settings.MODE = 'tool'
+        self.refresh_params_toolmode()
+        params = nfgen.params.getall()
+        params_dict = {p.name: p.value for p in params}
+        self.assertEquals(params_dict, self.MINIMAL_PARAMS)
+    
+    def test_all_minimal_toolmode(self) -> None:
+        # check each necessary param is registered for 
+        # minimal process translation in tool mode
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'tool'
+        self.refresh_params_toolmode()
+        params = nfgen.params.getall()
+        params_dict = {p.name: p.value for p in params}
+        self.assertEquals(params_dict, self.UNICYCLER_MINIMAL)
 
-    def test_workflow_inputs_singles(self) -> None:
+    @unittest.skip('not implemented')
+    def test_workflow_inputs(self) -> None:
+        raise NotImplementedError
         # check each wf input now has a param
         params = nfgen.params.getall()
             
@@ -125,18 +271,9 @@ class TestParamRegistration(unittest.TestCase):
 
         self.assertEquals(wf_singles, WF_INPUTS_SINGLES)
     
-    def test_workflow_inputs_arrs(self) -> None:
-        # check each wf input now has a param
-        params = nfgen.params.getall()
-            
-        wf_arrs = {}
-        for p in params:
-            if p.is_wf_input and isinstance(p.dtype, Array):
-                wf_arrs[p.name] = p.value
-
-        self.assertEquals(wf_arrs, WF_INPUTS_ARRS)
-
-    def test_exposed_inputs(self) -> None:
+    @unittest.skip('not implemented')
+    def test_tool_inputs(self) -> None:
+        raise NotImplementedError
         params = nfgen.params.getall()
             
         exposed_inputs = {}
@@ -158,7 +295,7 @@ class TestNextflowConfig(unittest.TestCase):
         for step in w.step_nodes.values():
             current_scope = deepcopy(scope)
             current_scope.append(step.id())
-            nfgen.params.register(the_entity=step, scope=current_scope)
+            nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
 
     def test_workflow_config(self) -> None:
         config = translator.stringify_translated_inputs({})

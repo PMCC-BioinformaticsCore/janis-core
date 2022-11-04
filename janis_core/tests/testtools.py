@@ -109,6 +109,34 @@ class SingleTestTool(CommandTool):
         return None
 
 
+class SingleTestToolFile(CommandTool):
+    def tool(self):
+        return "SingleTestToolFile"
+
+    def base_command(self):
+        return "echo"
+
+    def inputs(self):
+        return [
+            ToolInput("inp", File(), position=0),
+            # ToolInput("input2", String(optional=True), position=1),
+            # ToolInput("input3", String(optional=True), position=2),
+            # ToolInput("input4", String(optional=True), position=3),
+        ]
+
+    def friendly_name(self):
+        return None
+
+    def outputs(self):
+        return [ToolOutput("out", File(), glob=WildcardSelector("*"))]
+
+    def container(self):
+        return None
+
+    def version(self):
+        return None
+
+
 class FilenameGeneratedTool(SingleTestTool):
     def id(self):
         return "filenamegeneratedtool"

@@ -183,7 +183,7 @@ class NextflowTranslator(TranslatorBase):
             subworkflow = step.tool
             # register params for subworkflow inputs.
             # no channels to register for subworkflow.
-            nfgen.params.register(the_entity=subworkflow, values=step.sources, scope=scope)
+            nfgen.params.register(the_entity=subworkflow, sources=step.sources, scope=scope)
 
             nf_items = []
             for substep in subworkflow.step_nodes.values():
@@ -829,7 +829,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
 
-        nfgen.params.register(the_entity=tool, values=values, scope=scope)
+        nfgen.params.register(the_entity=tool, sources=values, scope=scope)
 
         process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.gen_script_for_cmdtool(

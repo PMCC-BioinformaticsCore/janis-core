@@ -35,7 +35,7 @@ FULL PROCESS
 def register(
     the_entity: Optional[Workflow | CommandTool]=None,
     the_dict: Optional[dict[str, Any]]=None, 
-    values: Optional[dict[str, Any]]=None, 
+    sources: Optional[dict[str, Any]]=None, 
     scope: Optional[list[str]]=None, 
     override: bool=True
     ) -> None:
@@ -43,9 +43,9 @@ def register(
     if not isinstance(scope, list):
         scope = []
     if isinstance(the_entity, Workflow):
-        register_params_for_wf_inputs(the_entity, scope, override, values)
+        register_params_for_wf_inputs(the_entity, scope, override, sources)
     elif isinstance(the_entity, CommandTool):
-        register_params_for_tool(the_entity, scope, override, values)
+        register_params_for_tool(the_entity, scope, override, sources)
     elif the_dict is not None:
         register_params_for_dict(the_dict, scope, override)
     else:
@@ -56,14 +56,14 @@ def register_params_for_wf_inputs(
     workflow: Workflow,
     scope: list[str], 
     override: bool,
-    values: Optional[dict[str, Any]]=None, 
+    sources: Optional[dict[str, Any]]=None, 
     ) -> None:
     param_ids = utils.get_wf_input_ids(workflow)
     param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
     for inp in param_inputs:
         val = None
-        if values is not None and inp.id() in values:
-            src = values[inp.id()]
+        if sources is not None and inp.id() in sources:
+            src = sources[inp.id()]
             val = utils.get_source_value(src)
         register_wfinp_param(inp, scope=scope, value=val, override=override)
 
@@ -71,20 +71,20 @@ def register_params_for_tool(
     tool: CommandTool, 
     scope: list[str], 
     override: bool,
-    values: Optional[dict[str, Any]]=None, 
+    sources: Optional[dict[str, Any]]=None, 
     ) -> None:
     """
     Registers a param tool or workflow inputs.
     Workflow / tool inputs which are exposed to the user must to be listed
     as part of the global params object. 
     """
-    values = values if values is not None else {}
-    param_ids = utils.get_param_input_ids(tool, sources=values)
+    sources = sources if sources is not None else {}
+    param_ids = utils.get_param_input_ids(tool, sources=sources)
     param_inputs = utils.items_with_id(tool.inputs(), param_ids)
     for inp in param_inputs:
         val = None
-        if values is not None and inp.id() in values:
-            src = values[inp.id()]
+        if sources is not None and inp.id() in sources:
+            src = sources[inp.id()]
             val = utils.get_source_value(src)
         register_toolinp_param(inp, scope=scope, value=val, override=override)
 

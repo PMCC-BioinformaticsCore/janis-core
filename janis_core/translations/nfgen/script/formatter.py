@@ -1,6 +1,6 @@
 
 
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 from janis_core import ToolInput
 from janis_core.types import Boolean, Array
 from janis_core.translations.nfgen import utils
@@ -112,70 +112,37 @@ class InputFormatter:
         self.param_inputs = param_inputs
         self.scope = scope
         self.itype = get_itype(tinput)
-        self.ps_template = prescript_template_map[self.itype]
+        self.prescript_template = prescript_template_map[self.itype]
 
-        self.prescript_func_map = {
-            IType.FLAG_TRUE:    self.get_ps_flag_true,
-            IType.FLAG_FALSE:   self.get_ps_flag_false,
+        self.func_map = {
+            IType.FLAG_TRUE:    self.flag_true,
+            IType.FLAG_FALSE:   self.flag_false,
             
-            IType.POS_BASIC:    self.get_ps_pos_basic,
-            IType.POS_DEFAULT:  self.get_ps_pos_default,
-            IType.POS_OPTIONAL: self.get_ps_pos_optional,
+            IType.POS_BASIC:    self.pos_basic,
+            IType.POS_DEFAULT:  self.pos_default,
+            IType.POS_OPTIONAL: self.pos_optional,
 
-            IType.POS_BASIC_ARR:    self.get_ps_pos_basic_arr,
-            IType.POS_DEFAULT_ARR:  self.get_ps_pos_default_arr,
-            IType.POS_OPTIONAL_ARR: self.get_ps_pos_optional_arr,
+            IType.POS_BASIC_ARR:    self.pos_basic_arr,
+            IType.POS_DEFAULT_ARR:  self.pos_default_arr,
+            IType.POS_OPTIONAL_ARR: self.pos_optional_arr,
 
-            IType.OPT_BASIC:    self.get_ps_opt_basic,
-            IType.OPT_DEFAULT:  self.get_ps_opt_default,
-            IType.OPT_OPTIONAL: self.get_ps_opt_optional,
+            IType.OPT_BASIC:    self.opt_basic,
+            IType.OPT_DEFAULT:  self.opt_default,
+            IType.OPT_OPTIONAL: self.opt_optional,
 
-            IType.OPT_BASIC_ARR:    self.get_ps_opt_basic_arr,
-            IType.OPT_DEFAULT_ARR:  self.get_ps_opt_default_arr,
-            IType.OPT_OPTIONAL_ARR: self.get_ps_opt_optional_arr,
-        }
-        
-        self.script_func_map = {
-            IType.FLAG_TRUE:    self.get_sc_flag_true,
-            IType.FLAG_FALSE:   self.get_sc_flag_false,
-            
-            IType.POS_BASIC:    self.get_sc_pos_basic,
-            IType.POS_DEFAULT:  self.get_sc_pos_default,
-            IType.POS_OPTIONAL: self.get_sc_pos_optional,
-
-            IType.POS_BASIC_ARR:    self.get_sc_pos_basic_arr,
-            IType.POS_DEFAULT_ARR:  self.get_sc_pos_default_arr,
-            IType.POS_OPTIONAL_ARR: self.get_sc_pos_optional_arr,
-
-            IType.OPT_BASIC:    self.get_sc_opt_basic,
-            IType.OPT_DEFAULT:  self.get_sc_opt_default,
-            IType.OPT_OPTIONAL: self.get_sc_opt_optional,
-
-            IType.OPT_BASIC_ARR:    self.get_sc_opt_basic_arr,
-            IType.OPT_DEFAULT_ARR:  self.get_sc_opt_default_arr,
-            IType.OPT_OPTIONAL_ARR: self.get_sc_opt_optional_arr,
+            IType.OPT_BASIC_ARR:    self.opt_basic_arr,
+            IType.OPT_DEFAULT_ARR:  self.opt_default_arr,
+            IType.OPT_OPTIONAL_ARR: self.opt_optional_arr,
         }
 
 
     ### PUBLIC METHODS
-    def get_prescript(self) -> Optional[str]:
-        func = self.prescript_func_map[self.itype]
-        text = func()
-        return text
+    def format(self) -> Tuple[Optional[str], Optional[str]]:
+        func = self.func_map[self.itype]
+        prescript, script = func()
+        return prescript, script
+
     
-    def get_script(self) -> Optional[str]:
-        func = self.script_func_map[self.itype]
-        text = func()
-        return text
-
-    # @property
-    # def can_direct_inject(self) -> bool:
-    #     if settings.MINIMAL_PROCESS:
-    #         if self.name not in self.process_inputs:
-    #             if self.name not in self.param_inputs:
-    #                 return True
-    #     return False
-
     ### HELPER PROPERTIES
     @property
     def prefix(self) -> Optional[str]:
@@ -199,12 +166,6 @@ class InputFormatter:
         if self.name in self.param_inputs:
             return True
         return False
-
-    # @property
-    # def param(self) -> Optional[params.Param]:
-    #     if self.name in self.param_inputs:
-    #         return params.get(self.name, self.scope)
-    #     return None
 
     @property
     def name(self) -> str:
@@ -241,241 +202,190 @@ class InputFormatter:
 
 
     ### PRESCRIPT TEXT
-    def get_ps_flag_true(self) -> Optional[str]:
-        # can be merged with func below
-        if not self.is_param_input:
-            return None  # no prescript needed - value is directly injected
-        else:
-            return self.ps_template.format(
-                name=self.name, 
-                src=self.src, 
-                prefix=self.prefix
-            )
-
-    def get_ps_flag_false(self) -> Optional[str]:
-        # can be merged with func above
-        if not self.is_param_input:
-            return None  # no prescript needed - value is directly injected
-        else:
-            return self.ps_template.format(
-                name=self.name, 
-                src=self.src, 
-                prefix=self.prefix
-            )
-
-    def get_ps_pos_basic(self) -> Optional[str]:
-        return None   # no prescript needed
-
-    def get_ps_pos_default(self) -> Optional[str]:
-        # same as get_ps_opt_default()
+    def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
+        # if fed by param or process input, there will be prescript var definition
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - value is directly injected
+            prescript = None
+            script = self.prefix
         else:
-            return self.ps_template.format(
+            prescript = self.prescript_template.format(
+                name=self.name, 
+                src=self.src, 
+                prefix=self.prefix
+            )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
+
+    def flag_false(self) -> Tuple[Optional[str], Optional[str]]:
+        # if fed by param or process input, there will be prescript var definition
+        if not self.is_param_input and not self.is_process_input:
+            prescript = None
+            script = self.prefix
+        else:
+            prescript = self.prescript_template.format(
+                name=self.name, 
+                src=self.src, 
+                prefix=self.prefix
+            )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
+
+    def pos_basic(self) -> Tuple[Optional[str], Optional[str]]:
+        # Mandatory: always fed value via process input or param input
+        # TODO dubious about this
+        prescript = None
+        script = '${{{var}}}'.format(var=self.src)
+        return prescript, script
+
+    def pos_default(self) -> Tuple[Optional[str], Optional[str]]:
+        if not self.is_param_input and not self.is_process_input:
+            # if internal input, value is directly injected
+            prescript = None  
+            script = self.default
+        else:
+            # if has param or is process input, there will be prescript var definition
+            prescript = self.prescript_template.format(
                 name=self.name,
                 src=self.src,
                 default=self.default
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_pos_optional(self) -> Optional[str]:
+    def pos_optional(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - input is ignored
+            # if internal input
+            prescript = None  # no prescript needed - input is ignored
+            script = None  # no script needed - input is ignored
         else:
-            return self.ps_template.format(
+            # there will be prescript var definition
+            prescript = self.prescript_template.format(
                 name=self.name, 
                 src=self.src
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_pos_basic_arr(self) -> Optional[str]:
-        # same as get_ps_opt_basic_arr()
-        return self.ps_template.format(
+    def pos_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        # always has a prescript var to format array
+        prescript = self.prescript_template.format(
             name=self.name, 
             arr_join=self.arr_join
         )
+        script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_pos_default_arr(self) -> Optional[str]:
+    def pos_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - value is directly injected
+            # internal input
+            prescript = None  # no prescript needed - value is directly injected
+            script = self.default
         else:
-            return self.ps_template.format(
+            # fed from param or process input
+            prescript = self.prescript_template.format(
                 name=self.name, 
                 src=self.src, 
                 arr_join=self.arr_join, 
                 default=self.default
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_pos_optional_arr(self) -> Optional[str]:
+    def pos_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - input is ignored
+            # internal input
+            prescript = None  # no prescript needed - input is ignored
+            script = None  # no script needed - input is ignored
         else:
-            return self.ps_template.format(
+            # fed by param or process input
+            prescript = self.prescript_template.format(
                 name=self.name, 
                 src=self.src, 
                 arr_join=self.arr_join
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_opt_basic(self) -> Optional[str]:
-        return None   # no prescript needed
+    def opt_basic(self) -> Tuple[Optional[str], Optional[str]]:
+        # Mandatory: always fed value via process input or param input
+        # TODO DUBIOUSSSSSS
+        prescript = None   # no prescript needed
+        script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.src)
+        return prescript, script
 
-    def get_ps_opt_default(self) -> Optional[str]:
-        # same as get_ps_pos_default()
+    def opt_default(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - value is directly injected
+            # internal
+            prescript = None  # no prescript needed - value is directly injected
+            script = '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
         else:
-            return self.ps_template.format(
+            # fed by param or process input
+            prescript = self.prescript_template.format(
                 name=self.name,
                 src=self.src,
                 default=self.default
             )
+            script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
+        return prescript, script
 
-    def get_ps_opt_optional(self) -> Optional[str]:
+    def opt_optional(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - input is ignored
+            # internal
+            prescript = None  # no prescript needed - input is ignored
+            script = None
         else:
-            return self.ps_template.format(
+            # external
+            prescript = self.prescript_template.format(
                 name=self.name,
                 src=self.src,
                 prefix=self.prefix
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-    def get_ps_opt_basic_arr(self) -> Optional[str]:
-        # same as get_ps_pos_basic_arr()
-        return self.ps_template.format(
+    def opt_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        # Mandatory: always fed value via process input or param input
+        # always has a prescript var to format array
+        # TODO DUBIOUSSSSSS
+        prescript = self.prescript_template.format(
             name=self.name, 
             arr_join=self.arr_join
         )
+        script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
+        return prescript, script
 
-    def get_ps_opt_default_arr(self) -> Optional[str]:
+    def opt_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - value is directly injected
+            # internal
+            prescript = None  # no prescript needed - value is directly injected
+            script = '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
         else:
-            return self.ps_template.format(
+            # external
+            prescript = self.prescript_template.format(
                 name=self.name, 
                 src=self.src, 
                 arr_join=self.arr_join, 
                 default=self.default
             )
+            script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
+        return prescript, script
 
-    def get_ps_opt_optional_arr(self) -> Optional[str]:
+    def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.is_param_input and not self.is_process_input:
-            return None  # no prescript needed - value is ignored
+            # internal
+            prescript = None  # no prescript needed
+            script = None     # input is ignored
         else:
-            return self.ps_template.format(
+            # external
+            prescript = self.prescript_template.format(
                 name=self.name, 
                 src=self.src, 
                 prefix=self.prefix,
                 arr_join=self.arr_join
             )
+            script = '${{{var}}}'.format(var=self.name)
+        return prescript, script
 
-
-    ### SCRIPT TEXT
-    def get_sc_flag_true(self) -> Optional[str]:
-        """
-        HAS PARAM
-        prescript:  def {name} = {src} == false ? "" : "{prefix}"
-        script:     ${name}
-
-        NO PARAM
-        prescript:  None
-        script:     --prefix
-        """
-        # if has param, there will be prescript var definition
-        if self.is_param_input:
-            return '${{{var}}}'.format(var=self.name)
-        # no param, can inject
-        else:
-            return self.prefix
-
-    def get_sc_flag_false(self) -> Optional[str]:
-        # if has param, there will be prescript var definition
-        if self.is_param_input:
-            return '${{{var}}}'.format(var=self.name)
-        # no param, can ignore
-        else:
-            return None
-
-    def get_sc_pos_basic(self) -> Optional[str]:
-        # Mandatory: always fed value via process input or param input
-        return '${{{var}}}'.format(var=self.src)
-
-    def get_sc_pos_default(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can just inject the default
-        else:
-            return self.default
-
-    def get_sc_pos_optional(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can just ignore (since optional)
-        else:
-            return None
-
-    def get_sc_pos_basic_arr(self) -> Optional[str]:
-        # always has a prescript var to format array
-        return '${{{var}}}'.format(var=self.name)
-
-    def get_sc_pos_default_arr(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can inject default
-        else:
-            return self.default
-
-    def get_sc_pos_optional_arr(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can just ignore (since optional)
-        else:
-            return None
-
-    def get_sc_opt_basic(self) -> Optional[str]:
-        # Mandatory: always fed value via process input or param input
-        # TODO DUBIOUSSSSSS
-        return '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.src)
-
-    def get_sc_opt_default(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
-        # otherwise, can inject default
-        else:
-            return '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
-
-    def get_sc_opt_optional(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can just ignore (since optional)
-        else:
-            return None
-
-    def get_sc_opt_basic_arr(self) -> Optional[str]:
-        # Mandatory: always fed value via process input or param input
-        # always has a prescript var to format array
-        # TODO DUBIOUSSSSSS
-        return '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
-
-    def get_sc_opt_default_arr(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
-        # otherwise, can inject default
-        else:
-            return '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
-
-    def get_sc_opt_optional_arr(self) -> Optional[str]:
-        # if has param or is process input, there will be prescript var definition
-        if self.is_param_input or self.is_process_input:
-            return '${{{var}}}'.format(var=self.name)
-        # otherwise, can just ignore (since optional)
-        else:
-            return None
 
 
 # bool input type identity
@@ -530,19 +440,11 @@ def is_array(tinput: ToolInput) -> bool:
 
 # module entry points
 
-def get_prescript(
+def format_input(
     tinput: ToolInput, 
     process_inputs: set[str], 
     param_inputs: set[str],
     scope: list[str]
-    ) -> Optional[str]:
-    return InputFormatter(tinput, process_inputs, param_inputs, scope).get_prescript()
-
-def get_script(
-    tinput: ToolInput, 
-    process_inputs: set[str], 
-    param_inputs: set[str],
-    scope: list[str]
-    ) -> Optional[str]:
-    return InputFormatter(tinput, process_inputs, param_inputs, scope).get_script()
+    ) -> Tuple[Optional[str], Optional[str]]:
+    return InputFormatter(tinput, process_inputs, param_inputs, scope).format()
 
