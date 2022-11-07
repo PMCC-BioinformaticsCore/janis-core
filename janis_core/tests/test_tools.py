@@ -3,12 +3,12 @@ from unittest import TestCase
 from janis_core.workflow.workflow import WorkflowBuilder
 from janis_core.types.common_data_types import Array, String
 
-from janis_core.tests.testtools import TestTool, ArrayTestTool, TestToolV2
+from janis_core.tests.testtools import BasicTestTool, InArrayTestTool, VersionTestTool
 
 
 class TestContainers(TestCase):
     def test_command_tool(self):
-        t = TestTool()
+        t = BasicTestTool()
         d = t.containers()
         self.assertEqual(t.versioned_id(), next(iter(d.keys())))
         self.assertEqual("ubuntu:latest", t.container())
@@ -18,9 +18,9 @@ class TestContainers(TestCase):
         w.input("inp", String)
         w.input("aInp", Array(String))
 
-        w.step("stp1", TestTool(testtool=w.inp))
-        w.step("stp1_v2", TestToolV2(testtool=w.inp))
-        w.step("stp2", ArrayTestTool(inps=w.aInp))
+        w.step("stp1", BasicTestTool(testtool=w.inp))
+        w.step("stp1_v2", VersionTestTool(testtool=w.inp))
+        w.step("stp2", InArrayTestTool(inps=w.aInp))
 
         cons = w.containers()
         self.assertSetEqual(

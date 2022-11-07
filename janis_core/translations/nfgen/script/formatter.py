@@ -201,7 +201,7 @@ class InputFormatter:
         return None
 
 
-    ### PRESCRIPT TEXT
+    ### MAIN METHODS BY ToolInput TYPE
     def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
         # if fed by param or process input, there will be prescript var definition
         if not self.is_param_input and not self.is_process_input:
@@ -388,7 +388,9 @@ class InputFormatter:
 
 
 
-# bool input type identity
+
+
+# bool ToolInput type identities
 def is_positional(tinput: ToolInput) -> bool:
     if tinput.prefix == None:
         return True

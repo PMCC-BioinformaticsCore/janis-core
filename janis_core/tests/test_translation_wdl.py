@@ -27,19 +27,22 @@ from janis_core.operators import CpuSelector, StringFormatter
 from janis_core.operators.logical import If, IsDefined
 from janis_core.operators.standard import JoinOperator, ReadContents
 from janis_core.tests.testtools import (
-    TestTypeWithSecondary,
-    TestTypeWithNonEscapedSecondary,
+    SecondaryTestType,
+    NonEscapedSecondaryTestType,
     EchoTestTool,
     SingleTestTool,
     FilenameGeneratedTool,
-    TestTool,
-    TestToolV2,
-    TestToolWithSecondaryInput,
-    TestWorkflowWithStepInputExpression,
-    ArrayTestTool,
+    BasicTestTool,
+    VersionTestTool,
+    SecondaryInputTestTool,
+    InArrayTestTool,
     OperatorResourcesTestTool,
-    TestWorkflowThatOutputsArraysOfSecondaryFiles,
-    TestForEach,
+)
+
+from janis_core.tests.testworkflows import (
+    StepInputExpressionTestWF,
+    ArraysOfSecondaryFilesOutputsTestWF,
+    ForEachTestWF,
 )
 from janis_core.translations import WdlTranslator
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -104,12 +107,12 @@ class TxtSecondary(File):
         return [".qt"]
 
 
-class TestToolWithSecondaryOutput(TestTool):
+class TestToolWithSecondaryOutput(BasicTestTool):
     def outputs(self):
         return [
             ToolOutput(
                 "out",
-                TestTypeWithNonEscapedSecondary(),
+                NonEscapedSecondaryTestType(),
                 selector=InputSelector("testtool") + "/out",
             )
         ]
@@ -206,7 +209,7 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
 
     def test_tools_filename(self):
         self.assertEqual(
-            "TestTranslationtool.wdl", self.translator.tool_filename(TestTool().id())
+            "TestTranslationtool.wdl", self.translator.tool_filename(BasicTestTool().id())
         )
 
     def test_inputs_filename(self):
@@ -221,7 +224,7 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
 class TestWdlTranslatorBuilders(unittest.TestCase):
     def test_inputs_generator_secondary_files(self):
         w = WorkflowBuilder("tst")
-        w.input("wsec", TestTypeWithSecondary, default="test.ext")
+        w.input("wsec", SecondaryTestType, default="test.ext")
         # w._add_input(Input("wsec", TestTypeWithSecondary(), value="test.ext"))
         inpsdict = WdlTranslator().build_inputs_file(w, merge_resources=False)
         self.assertEqual("test.ext", inpsdict.get("tst.wsec"))
@@ -229,7 +232,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
 
     def test_inputs_generator_array_of_secondary_files(self):
         w = WorkflowBuilder("tst")
-        w.input("wsec", Array(TestTypeWithSecondary()), default=["test.ext"])
+        w.input("wsec", Array(SecondaryTestType()), default=["test.ext"])
         inpsdict = WdlTranslator().build_inputs_file(w, merge_resources=False)
         self.assertListEqual(["test.ext"], inpsdict.get("tst.wsec"))
         self.assertListEqual(["test.txt"], inpsdict.get("tst.wsec_txt"))
@@ -237,9 +240,9 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
     def test_translate_single_to_array_edge(self):
         w = WorkflowBuilder("wf")
         w.input("inp", str)
-        stp1 = w.step("stp1", TestTool(testtool=w.inp), ignore_missing=True)
+        stp1 = w.step("stp1", BasicTestTool(testtool=w.inp), ignore_missing=True)
         stp2 = w.step(
-            "stp2", TestTool(arrayInp=stp1.std, testtool=w.inp), ignore_missing=True
+            "stp2", BasicTestTool(arrayInp=stp1.std, testtool=w.inp), ignore_missing=True
         )
 
         outp = wdl.translate_step_node(stp2, stp2.id(), {}, set(), None, render_comments=False)
@@ -448,7 +451,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = wdl.WdlTranslator
-        translated = trans.translate_tool_internal(TestTool())
+        translated = trans.translate_tool_internal(BasicTestTool())
         arg = translated.command[-1].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 
@@ -616,7 +619,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         tool = TestToolWithSecondaryOutput()
         toolout = ToolOutput(
             "out",
-            TestTypeWithNonEscapedSecondary(optional=True),
+            NonEscapedSecondaryTestType(optional=True),
             selector=InputSelector("testtool"),
         )
         inmap = {t.id(): t for t in tool.inputs()}
@@ -781,14 +784,14 @@ class TestWdlInputTranslation(unittest.TestCase):
 
 class TestWdlEnvVar(unittest.TestCase):
     def test_environment1(self):
-        t = WdlTranslator().translate_tool_internal(tool=TestTool())
+        t = WdlTranslator().translate_tool_internal(tool=BasicTestTool())
         s = t.get_string()
         print(s)
 
 
 class TestWdlMaxResources(unittest.TestCase):
     def test_cores(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = WdlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, is_root=True
         )
@@ -797,7 +800,7 @@ class TestWdlMaxResources(unittest.TestCase):
         )
 
     def test_max_cores(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = WdlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_cores=1, is_root=True
         )
@@ -806,7 +809,7 @@ class TestWdlMaxResources(unittest.TestCase):
         )
 
     def test_memory(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = WdlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, is_root=True
         )
@@ -815,7 +818,7 @@ class TestWdlMaxResources(unittest.TestCase):
         )
 
     def test_max_memory(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = WdlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_mem=1, is_root=True
         )
@@ -1163,8 +1166,8 @@ class TestWDLRunRefs(unittest.TestCase):
         w = WorkflowBuilder("testTwoToolsWithSameId")
 
         w.input("inp", str)
-        w.step("stp1", TestTool(testtool=w.inp))
-        w.step("stp2", TestToolV2(testtool=w.inp))
+        w.step("stp1", BasicTestTool(testtool=w.inp))
+        w.step("stp2", VersionTestTool(testtool=w.inp))
 
         w, _ = WdlTranslator.translate_workflow(w, render_comments=False)
         workflow_str = w.get_string()
@@ -1194,8 +1197,8 @@ workflow testTwoToolsWithSameId {
 class TestWdlSecondaryTranslation(unittest.TestCase):
     def test_secondary_connection(self):
         wf = WorkflowBuilder("wf")
-        wf.input("ref", TestTypeWithSecondary)
-        wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref))
+        wf.input("ref", SecondaryTestType)
+        wf.step("stp", SecondaryInputTestTool(inp=wf.ref))
         workflow_str, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
@@ -1216,8 +1219,8 @@ workflow wf {
 
     def test_array_secondary_connection(self):
         wf = WorkflowBuilder("wf")
-        wf.input("ref", Array(TestTypeWithSecondary))
-        wf.step("stp", TestToolWithSecondaryInput(inp=wf.ref), scatter="inp")
+        wf.input("ref", Array(SecondaryTestType))
+        wf.step("stp", SecondaryInputTestTool(inp=wf.ref), scatter="inp")
         workflow_str, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
@@ -1239,7 +1242,7 @@ workflow wf {
         self.assertEqual(expected, workflow_str)
 
     def test_workflow_secondary_outputs(self):
-        wf = TestWorkflowThatOutputsArraysOfSecondaryFiles()
+        wf = ArraysOfSecondaryFilesOutputsTestWF()
         wfwdl, _ = WdlTranslator.translate_workflow(wf)
 
         outs = [o.get_string() for o in wfwdl.outputs]
@@ -1352,14 +1355,14 @@ class TestCompleteOperators(unittest.TestCase):
         self.assertEqual('[1, 2, "three"]', exp)
 
     def test_step_input(self):
-        workflow_str, _, _ = TestWorkflowWithStepInputExpression().translate(
+        workflow_str, _, _ = StepInputExpressionTestWF().translate(
             "wdl", to_console=False, render_comments=False
         )
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
 import "tools/EchoTestTool_TEST.wdl" as E
-workflow TestWorkflowWithStepInputExpression {
+workflow StepInputExpressionTestWF {
   input {
     String? mystring
     String? mystring_backup
@@ -1396,7 +1399,7 @@ workflow TestWorkflowWithStepInputExpression {
 
         wf.step(
             "print",
-            ArrayTestTool(
+            InArrayTestTool(
                 inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
@@ -1644,16 +1647,16 @@ class TestUnionType(unittest.TestCase):
         self.assertRaises(Exception, uniontype.wdl)
 
 
-class TestForEachSelectors(unittest.TestCase):
+class ForEachTestWFSelectors(unittest.TestCase):
     def test_minimal(self):
-        TestForEach().translate("wdl", to_disk=True, export_path="~/Desktop/tmp", render_comments=False)
-        w, _ = WdlTranslator.translate_workflow(TestForEach(), render_comments=False)
+        ForEachTestWF().translate("wdl", to_disk=True, export_path="~/Desktop/tmp", render_comments=False)
+        w, _ = WdlTranslator.translate_workflow(ForEachTestWF(), render_comments=False)
         workflow_str = w.get_string()
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
 import "tools/EchoTestTool_TEST.wdl" as E
-workflow TestForEach {
+workflow ForEachTestWF {
   input {
     Array[String] inp
   }

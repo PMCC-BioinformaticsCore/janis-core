@@ -1,15 +1,15 @@
 
 
-from janis_core.types.common_data_types import File
 from janis_core import WorkflowMetadata
 from janis_core import WorkflowBuilder
 from janis_core import ScatterDescription
 from janis_core import ScatterMethods
 from janis_core import Array
+from janis_core import File
 
-from janis_core.tests.data.janis.simple.tools.unicycler import unicycler
-from janis_core.tests.data.janis.simple.tools.fastqc import fastqc
-from janis_core.tests.testtools import SingleTestToolFile
+from janis_core.tests.testtools import FastqcTestTool
+from janis_core.tests.testtools import UnicyclerTestTool
+from janis_core.tests.testtools import CatTestTool
 
 
 
@@ -50,7 +50,7 @@ w.input("fastqc2_limits", File(optional=True))
 
 w.step(
 	"fastqc1",
-	fastqc(
+	FastqcTestTool(
 		adapters=w.fastqc1_adapters,          # --adapters [File OPTIONAL] (WORKFLOW INPUT)
 		contaminants=w.fastqc1_contaminants,  # --contaminants [File OPTIONAL] (WORKFLOW INPUT)
 		limits=w.fastqc1_limits,              # --limits [File OPTIONAL] (WORKFLOW INPUT)
@@ -65,7 +65,7 @@ w.step(
 
 w.step(
 	"fastqc2",
-	fastqc(
+	FastqcTestTool(
 		adapters=w.fastqc2_adapters,          # --adapters [File OPTIONAL] (WORKFLOW INPUT)
 		contaminants=w.fastqc2_contaminants,  # --contaminants [File OPTIONAL] (WORKFLOW INPUT)
 		limits=w.fastqc2_limits,              # --limits [File OPTIONAL] (WORKFLOW INPUT)
@@ -78,14 +78,14 @@ w.step(
 
 w.step(
 	"fastqc3",
-	fastqc(
+	FastqcTestTool(
 		inputFile=w.testInput,                  # [File] (WORKFLOW INPUT)
 	),
 )
 
 w.step(
-    "SingleTestToolFile",
-    SingleTestToolFile(
+    "CatTestTool",
+    CatTestTool(
         inp=w.fastqc3.outTextFile,
     )
 
@@ -97,7 +97,7 @@ w.step(
 
 w.step(
 	"unicycler",
-	unicycler(
+	UnicyclerTestTool(
 		option11=w.inForwardReads,  # -1 [File] (WORKFLOW INPUT)
 		option12=w.inReverseReads,  # -2 [File] (WORKFLOW INPUT)
 		optionL=w.inLongReads,      # -l [File OPTIONAL] (WORKFLOW INPUT)

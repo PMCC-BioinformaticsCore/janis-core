@@ -13,7 +13,7 @@ from janis_core import (
     InputQualityType,
 )
 from janis_core.graph.steptaginput import StepTagInput, first_value, Edge
-from janis_core.tests.testtools import SingleTestTool, ArrayTestTool
+from janis_core.tests.testtools import SingleTestTool, InArrayTestTool
 
 
 class TestWorkflow(TestCase):
@@ -196,7 +196,7 @@ class TestWorkflow(TestCase):
     def test_add_scatter_nested_arrays(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(str)))
-        stp = w.step("stp", ArrayTestTool(inps=w.inp), scatter="inps")
+        stp = w.step("stp", InArrayTestTool(inps=w.inp), scatter="inps")
 
         e = w.stp.sources["inps"].source_map[0]
 
@@ -206,7 +206,7 @@ class TestWorkflow(TestCase):
     def test_add_scatter_nested_arrays_incompatible(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(int)))
-        stp = w.step("stp", ArrayTestTool(inps=w.inp), scatter="inps")
+        stp = w.step("stp", InArrayTestTool(inps=w.inp), scatter="inps")
 
         e = w.stp.sources["inps"].source_map[0]
 
@@ -223,7 +223,7 @@ class TestWorkflow(TestCase):
     def test_add_non_scatter2(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(String()))
-        w.step("stp", ArrayTestTool(inps=w.inp))
+        w.step("stp", InArrayTestTool(inps=w.inp))
 
         e = w.stp.sources["inps"].source_map[0]
         self.assertFalse(e.scatter)
@@ -235,7 +235,7 @@ class TestWorkflow(TestCase):
             Exception,
             w.step,
             identifier="stp",
-            tool=ArrayTestTool(inps=w.inp),
+            tool=InArrayTestTool(inps=w.inp),
             scatter="randomfield",
         )
 
@@ -246,7 +246,7 @@ class TestWorkflow(TestCase):
             Exception,
             w.step,
             identifier="stp",
-            tool=ArrayTestTool(inps=w.inp),
+            tool=InArrayTestTool(inps=w.inp),
             scatter=["input1", "randomfield"],
         )
 
@@ -255,7 +255,7 @@ class TestWorkflow(TestCase):
 
         w.input("inp1", Array(String()))
         w.step("scatteredStp1", SingleTestTool(input1=w.inp1), scatter="input1")
-        stp = w.step("mergeStp2", ArrayTestTool(inps=w.scatteredStp1))
+        stp = w.step("mergeStp2", InArrayTestTool(inps=w.scatteredStp1))
 
         e1 = w.scatteredStp1.sources["input1"].source_map[0]
         e2 = w.mergeStp2.sources["inps"].source_map[0]
@@ -280,7 +280,7 @@ class TestWorkflow(TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", String())
-        w.step("stp1", ArrayTestTool(inps=w.inp1))
+        w.step("stp1", InArrayTestTool(inps=w.inp1))
 
         e = w.stp1.sources["inps"].source_map[0]
         self.assertTrue(w.has_multiple_inputs)

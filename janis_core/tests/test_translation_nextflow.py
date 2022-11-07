@@ -4,23 +4,25 @@ from typing import Optional
 import regex as re
 
 from janis_core.tests.testtools import (
-    TestTool,
-    TestInputQualityTool,
-    TestWorkflowWithStepInputExpression,
+    InputQualityTestTool,
     EchoTestTool,
     FilenameGeneratedTool,
     OperatorResourcesTestTool,
-    TestWorkflowWithConditionStep,
-    TestWorkflowThatOutputsArraysOfSecondaryFiles,
-    TestWorkflowWithAliasSelectorWorkflow,
-    TestToolWithSecondaryInput,
-    TestToolWithAppendedSecondaryOutput,
-    TestToolWithReplacedSecondaryOutput,
-    TestSplitTextTool,
-    TestSumTool,
-    TestJoinArrayTool,
-    TestFileInput,
-    TestFileWithSecondaryInput,
+    SplitTextTestTool,
+    SumTestTool,
+    JoinArrayTestTool,
+    FileInputTestTool,
+    SecondaryInputTestTool,
+    BasicTestTool,
+    AppendedSecondaryOutputTestTool,
+    ReplacedSecondaryOutputTestTool,
+)
+
+from janis_core.tests.testworkflows import (
+    StepInputExpressionTestWF,
+    ConditionStepTestWF,
+    ArraysOfSecondaryFilesOutputsTestWF,
+    AliasSelectorTestWF,
 )
 
 from janis_core import (
@@ -56,7 +58,6 @@ class TestSettings(unittest.TestCase):
     def test_janis_assistant_process(self):
         raise NotImplementedError
     
-        
 
 
 WF_INPUTS_SINGLES = {
@@ -198,7 +199,7 @@ class TestParamRegistration(unittest.TestCase):
     UNICYCLER_FULL = UNICYCLER_MINIMAL | UNICYCLER_ADDITIONAL
 
     def setUp(self) -> None:
-        from janis_core.tests.data.janis.simple_truncated.workflow import w
+        from janis_core.tests.testworkflows.assembly import w
         from janis_core.tests.data.janis.simple_truncated.tools.unicycler import unicycler
         self.wf = w
         self.unicycler = unicycler
@@ -382,7 +383,7 @@ class DataTypeNoSecondary(File):
 class TestNextflowWfToolInputs(unittest.TestCase):
     def test_first_selector(self):
 
-        workflow = TestWorkflowWithConditionStep()
+        workflow = ConditionStepTestWF()
         step_keys = list(workflow.step_nodes.keys())
 
         step_id = "print"
@@ -393,7 +394,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         self.assertEqual(expected, inputs)
 
     def test_simple(self):
-        w1 = TestWorkflowThatOutputsArraysOfSecondaryFiles()
+        w1 = ArraysOfSecondaryFilesOutputsTestWF()
         w1_step_keys = list(w1.step_nodes.keys())
 
         expected = {"testtool": "$params.inp"}
@@ -403,7 +404,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         )
 
     def test_with_expression(self):
-        w2 = TestWorkflowWithStepInputExpression()
+        w2 = StepInputExpressionTestWF()
         w2_step_keys = list(w2.step_nodes.keys())
 
         expected = {
@@ -415,7 +416,7 @@ class TestNextflowWfToolInputs(unittest.TestCase):
         )
 
     def test_multi_steps(self):
-        w3 = TestWorkflowWithAliasSelectorWorkflow()
+        w3 = AliasSelectorTestWF()
         w3_step_keys = list(w3.step_nodes.keys())
 
         expected1 = {"testtool": "$params.inp"}
@@ -450,9 +451,9 @@ class TestNextflowPrepareInputVars(unittest.TestCase):
 
 
 class TestGenerateWfToolOutputs(unittest.TestCase):
-    w1 = TestWorkflowThatOutputsArraysOfSecondaryFiles()
-    w2 = TestWorkflowWithStepInputExpression()
-    w3 = TestWorkflowWithAliasSelectorWorkflow()
+    w1 = ArraysOfSecondaryFilesOutputsTestWF()
+    w2 = StepInputExpressionTestWF()
+    w3 = AliasSelectorTestWF()
 
     def test_without_prefix(self):
         assert translator.gen_wf_tool_outputs(self.w1) == {"out": "stp.out.out"}
@@ -472,7 +473,7 @@ class TestGenerateWfToolOutputs(unittest.TestCase):
 
 
 class TestTranslateStringFormatter(unittest.TestCase):
-    any_tool = TestTool()
+    any_tool = BasicTestTool()
 
     def test_string_formatter(self):
         b = StringFormatter("no format")
@@ -492,7 +493,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
         self.assertEqual("an input ${testtool}", res)
 
     def test_string_formatter_two_param(self):
-        tool = TestInputQualityTool()
+        tool = InputQualityTestTool()
         b = StringFormatter(
             "{username}:{password}",
             username=InputSelector("user"),
@@ -507,7 +508,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
         )
 
     def test_escaped_characters(self):
-        tool = TestInputQualityTool()
+        tool = InputQualityTestTool()
         b = StringFormatter(
             "{username}\\t{password}",
             username=InputSelector("user"),
@@ -524,7 +525,7 @@ class TestTranslateStringFormatter(unittest.TestCase):
         self.assertEqual("${user}\\\\t${static}", res2)
 
     def test_expression_arg(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         b = StringFormatter(
             "{name}:{items}",
             name=InputSelector("testtool"),
@@ -834,7 +835,7 @@ process filenamegeneratedtool
     def test_tool_with_secondary_input(self):
         scope = []
         values = {}
-        tool = TestToolWithSecondaryInput()
+        tool = SecondaryInputTestTool()
         p = translator.gen_process_from_cmdtool(tool, values, scope)
         print(p.get_string())
         expected = f"""
@@ -876,7 +877,7 @@ process CatTestTool
     def test_tool_with_secondary_output(self):
         scope = []
         values = {}
-        tool = TestToolWithAppendedSecondaryOutput()
+        tool = AppendedSecondaryOutputTestTool()
         p = translator.gen_process_from_cmdtool(tool, values, scope)
         print(p.get_string())
         expected_contents = [
@@ -894,7 +895,7 @@ process CatTestTool
 
     def test_tool_with_replaced_secondary_output(self):
         p = translator.gen_process_from_cmdtool(
-            TestToolWithReplacedSecondaryOutput()
+            ReplacedSecondaryOutputTestTool()
         )
         expected = f"""
 process TestTranslationtool
@@ -939,7 +940,7 @@ process TestTranslationtool
 
 class TestGenerateNfProcessForPythonCodeTool(unittest.TestCase):
     def test_str_input(self):
-        p = translator.gen_process_from_codetool(TestSplitTextTool())
+        p = translator.gen_process_from_codetool(SplitTextTestTool())
         expected = f"""
 process TestSplitTextTool
 {{
@@ -977,7 +978,7 @@ process TestSplitTextTool
         self.assertEqual(expected, p.get_string())
 
     def test_int_input(self):
-        p = translator.gen_process_from_codetool(TestSumTool())
+        p = translator.gen_process_from_codetool(SumTestTool())
         expected = f"""
 process TestSumTool
 {{
@@ -1016,7 +1017,7 @@ process TestSumTool
         self.assertEqual(expected, p.get_string())
 
     def test_array_input(self):
-        p = translator.gen_process_from_codetool(TestJoinArrayTool())
+        p = translator.gen_process_from_codetool(JoinArrayTestTool())
         expected = f"""
 process TestJoinArrayTool
 {{
@@ -1054,7 +1055,7 @@ process TestJoinArrayTool
         self.assertEqual(expected, p.get_string())
 
     def test_file_input(self):
-        p = translator.gen_process_from_codetool(TestFileInput())
+        p = translator.gen_process_from_codetool(FileInputTestTool())
         expected = f"""
 process TestFileInput
 {{
@@ -1093,7 +1094,7 @@ process TestFileInput
 
     def test_file_with_secondary_input(self):
         p = translator.gen_process_from_codetool(
-            TestFileWithSecondaryInput()
+            SecondaryInputTestTool()
         )
         expected = f"""
 process TestFileWithSecondaryInput

@@ -478,7 +478,7 @@ outputs = [
 
 ]
 
-unicycler = CommandToolBuilder(
+UnicyclerTestTool = CommandToolBuilder(
     tool="unicycler",
     version="0.4.8.0",
     metadata=metadata,
@@ -490,7 +490,7 @@ unicycler = CommandToolBuilder(
 
 
 if __name__ == "__main__":
-    unicycler().translate(
+    UnicyclerTestTool().translate(
         "wdl", to_console=True
     )
 

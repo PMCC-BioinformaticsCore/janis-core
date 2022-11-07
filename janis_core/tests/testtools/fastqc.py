@@ -1,9 +1,3 @@
-# NOTE
-# This is an automated translation of the 'fastqc' version '0.72' tool from a Galaxy XML tool wrapper.  
-# Translation was performed by the gxtool2janis program (in-development)
-
-import sys
-sys.path.append('/home/grace/work/pp/gxtool2janis')
 
 from janis_core.types.common_data_types import Boolean
 from janis_core.types.common_data_types import String
@@ -201,7 +195,7 @@ outputs = [
 
 ]
 
-fastqc = CommandToolBuilder(
+FastqcTestTool = CommandToolBuilder(
     tool="fastqc",
     version="0.72",
     metadata=metadata,
@@ -213,7 +207,7 @@ fastqc = CommandToolBuilder(
 
 
 if __name__ == "__main__":
-    fastqc().translate(
+    FastqcTestTool().translate(
         "wdl", to_console=True
     )
 

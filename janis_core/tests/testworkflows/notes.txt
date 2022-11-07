@@ -1,0 +1,16 @@
+
+
+"""
+
+Secondaries, Arrays, Core Types (File, String, Int)
+- wf inputs
+- wf outputs
+- tool inputs
+- tool outputs
+
+Static Step input value(s)
+Connection(s)
+Scatter
+Conditional step execution
+
+"""

@@ -8,15 +8,17 @@ from janis_core.operators.standard import ReadContents, FilterNullOperator
 
 from janis_core.tests.testtools import (
     SingleTestTool,
-    ArrayTestTool,
-    TestTool,
-    TestToolV2,
-    TestTypeWithSecondary,
-    TestWorkflowWithStepInputExpression,
+    InArrayTestTool,
+    BasicTestTool,
+    VersionTestTool,
+    SecondaryTestType,
     EchoTestTool,
     FilenameGeneratedTool,
     OperatorResourcesTestTool,
-    TestForEach,
+)
+from janis_core.tests.testworkflows import (
+    StepInputExpressionTestWF,
+    ForEachTestWF,
 )
 
 from janis_core.deps import cwlgen
@@ -58,7 +60,7 @@ class TestCwlTypesConversion(unittest.TestCase):
 
 class TestCwlMisc(unittest.TestCase):
     def test_str_tool(self):
-        t = TestTool()
+        t = BasicTestTool()
         actual = t.translate("cwl", to_console=False)
         self.maxDiff = None
         self.assertEqual(cwl_testtool, actual)
@@ -115,7 +117,7 @@ id: tid
 
     def test_tools_filename(self):
         self.assertEqual(
-            "TestTranslationtool.cwl", self.translator.tool_filename(TestTool())
+            "TestTranslationtool.cwl", self.translator.tool_filename(BasicTestTool())
         )
 
     def test_inputs_filename(self):
@@ -440,14 +442,14 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = cwl.CwlTranslator
-        translated = trans.translate_tool_internal(TestTool())
+        translated = trans.translate_tool_internal(BasicTestTool())
         arg: cwlgen.CommandLineBinding = translated.arguments[0]
         self.assertEqual('test:\\\\t:escaped:\\\\n:characters\\"', arg.valueFrom)
 
 
 class TestCwlEnvVar(unittest.TestCase):
     def test_environment1(self):
-        t = CwlTranslator().translate_tool_internal(tool=TestTool())
+        t = CwlTranslator().translate_tool_internal(tool=BasicTestTool())
         envvar: cwlgen.EnvVarRequirement = [
             t for t in t.requirements if t.class_ == "EnvVarRequirement"
         ][0]
@@ -480,7 +482,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         inp = InputNode(
             None,
             identifier="testIdentifier",
-            datatype=TestTypeWithSecondary(),
+            datatype=SecondaryTestType(),
             default=None,
             value=None,
         )
@@ -493,7 +495,7 @@ class TestCwlTranslateInput(unittest.TestCase):
         inp = InputNode(
             None,
             identifier="testIdentifier",
-            datatype=Array(TestTypeWithSecondary()),
+            datatype=Array(SecondaryTestType()),
             default=None,
             value=None,
         )
@@ -569,24 +571,24 @@ class TestCwlGenerateInput(unittest.TestCase):
 
 class TestCwlMaxResources(unittest.TestCase):
     def test_cores(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
         self.assertEqual(2, resources["testtranslationtool_runtime_cpu"])
 
     def test_max_cores(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_cores=1
         )
         self.assertEqual(1, resources["testtranslationtool_runtime_cpu"])
 
     def test_memory(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
         self.assertEqual(2, resources["testtranslationtool_runtime_memory"])
 
     def test_max_memory(self):
-        tool = TestTool()
+        tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_mem=1
         )
@@ -611,7 +613,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", ArrayTestTool(inps=w.inp1))
+        w.step("stp1", InArrayTestTool(inps=w.inp1))
 
         c, _, _ = CwlTranslator().translate(
             w, to_console=False, allow_empty_container=True
@@ -678,7 +680,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
         self.maxDiff = None
 
-        ret, _, _ = TestWorkflowWithStepInputExpression().translate(
+        ret, _, _ = StepInputExpressionTestWF().translate(
             "cwl", to_console=False
         )
         self.assertEqual(cwl_stepinput, ret)
@@ -690,7 +692,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
 
         wf.step(
             "print",
-            ArrayTestTool(
+            InArrayTestTool(
                 inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
@@ -860,8 +862,8 @@ class TestCWLRunRefs(unittest.TestCase):
         w = WorkflowBuilder("testTwoToolsWithSameId")
 
         w.input("inp", str)
-        w.step("stp1", TestTool(testtool=w.inp))
-        w.step("stp2", TestToolV2(testtool=w.inp))
+        w.step("stp1", BasicTestTool(testtool=w.inp))
+        w.step("stp2", VersionTestTool(testtool=w.inp))
 
         wf_cwl, _ = CwlTranslator.translate_workflow(w)
         stps = {stp.id: stp for stp in wf_cwl.steps}
@@ -1006,7 +1008,7 @@ class TestCWLWhen(unittest.TestCase):
 
         w.step(
             "print_if_has_value",
-            TestTool(testtool=w.inp),
+            BasicTestTool(testtool=w.inp),
             # only print if the input "inp" is defined.
             when=IsDefined(w.inp),
         )
@@ -1022,9 +1024,9 @@ class TestCWLWhen(unittest.TestCase):
         self.assertEqual("__when_inp", extra_input.id)
 
 
-class TestForEachSelectors(unittest.TestCase):
+class ForEachTestWFSelectors(unittest.TestCase):
     def test_minimal(self):
-        tool = TestForEach()
+        tool = ForEachTestWF()
         # tool.translate("cwl", export_path="~/Desktop/tmp", to_disk=True)
         w, _ = CwlTranslator.translate_workflow(tool)
 
@@ -1147,7 +1149,7 @@ steps:
   run: tools/EchoTestTool_TEST.cwl
   out:
   - id: out
-id: TestWorkflowWithStepInputExpression
+id: StepInputExpressionTestWF
 """
 
 cwl_arraystepinput = """\
