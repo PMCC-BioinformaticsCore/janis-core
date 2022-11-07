@@ -199,10 +199,10 @@ class TestParamRegistration(unittest.TestCase):
     UNICYCLER_FULL = UNICYCLER_MINIMAL | UNICYCLER_ADDITIONAL
 
     def setUp(self) -> None:
-        from janis_core.tests.testworkflows.assembly import w
-        from janis_core.tests.data.janis.simple_truncated.tools.unicycler import unicycler
-        self.wf = w
-        self.unicycler = unicycler
+        from janis_core.tests.testworkflows import AssemblyTestWF
+        from janis_core.tests.testtools import UnicyclerTestTool
+        self.wf = AssemblyTestWF
+        self.unicycler = UnicyclerTestTool
         self.maxDiff = None
 
     def refresh_params_workflowmode(self) -> None:

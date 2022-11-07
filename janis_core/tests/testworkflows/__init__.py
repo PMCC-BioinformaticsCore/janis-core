@@ -1,13 +1,28 @@
 
 
 
-from .additional import (
+from .additional_features import (
     StepInputExpressionTestWF,
     ConditionStepTestWF,
-    ArraysOfSecondaryFilesOutputsTestWF,
     AliasSelectorTestWF,
+    ArraysOfSecondaryFilesOutputsTestWF,
     ForEachTestWF
 )
 
 from .assembly import w as AssemblyTestWF
-from .core_types import CoreTypesTestWF
+
+from .core_features import (
+    BasicIOTestWF,
+    StepInputsTestWF,
+    StepConnectionsTestWF,
+
+    ArrayIOTestWF,
+    ArrayStepConnectionsTestWF,
+
+    BasicScatterTestWF,
+    ChainedScatterTestWF,
+    MultiFieldScatterTestWF,
+
+    # secondaries
+
+)

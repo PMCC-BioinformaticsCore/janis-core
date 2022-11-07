@@ -35,7 +35,7 @@ from janis_core.tests.testtools import (
     BasicTestTool,
     VersionTestTool,
     SecondaryInputTestTool,
-    InArrayTestTool,
+    ArrayStepTool,
     OperatorResourcesTestTool,
 )
 
@@ -1399,7 +1399,7 @@ workflow StepInputExpressionTestWF {
 
         wf.step(
             "print",
-            InArrayTestTool(
+            ArrayStepTool(
                 inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),

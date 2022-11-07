@@ -3,7 +3,7 @@ from unittest import TestCase
 from janis_core.workflow.workflow import WorkflowBuilder
 from janis_core.types.common_data_types import Array, String
 
-from janis_core.tests.testtools import BasicTestTool, InArrayTestTool, VersionTestTool
+from janis_core.tests.testtools import BasicTestTool, ArrayStepTool, VersionTestTool
 
 
 class TestContainers(TestCase):
@@ -20,7 +20,7 @@ class TestContainers(TestCase):
 
         w.step("stp1", BasicTestTool(testtool=w.inp))
         w.step("stp1_v2", VersionTestTool(testtool=w.inp))
-        w.step("stp2", InArrayTestTool(inps=w.aInp))
+        w.step("stp2", ArrayStepTool(inps=w.aInp))
 
         cons = w.containers()
         self.assertSetEqual(

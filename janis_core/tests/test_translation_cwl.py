@@ -8,7 +8,7 @@ from janis_core.operators.standard import ReadContents, FilterNullOperator
 
 from janis_core.tests.testtools import (
     SingleTestTool,
-    InArrayTestTool,
+    ArrayStepTool,
     BasicTestTool,
     VersionTestTool,
     SecondaryTestType,
@@ -613,7 +613,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", InArrayTestTool(inps=w.inp1))
+        w.step("stp1", ArrayStepTool(inps=w.inp1))
 
         c, _, _ = CwlTranslator().translate(
             w, to_console=False, allow_empty_container=True
@@ -692,7 +692,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
 
         wf.step(
             "print",
-            InArrayTestTool(
+            ArrayStepTool(
                 inps=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),

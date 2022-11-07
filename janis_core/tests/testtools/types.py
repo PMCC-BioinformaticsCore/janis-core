@@ -4,7 +4,6 @@
 from janis_core.types import File
 
 
-
 class SecondaryTestType(File):
     def __init__(self, optional=False):
         super().__init__(optional, extension=".txt")

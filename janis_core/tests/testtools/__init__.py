@@ -3,16 +3,18 @@ from .types import (
     SecondaryTestType,
     AppendedSecondaryTestType,
     ReplacedSecondaryTestType,
-    NonEscapedSecondaryTestType
+    NonEscapedSecondaryTestType,
 )
 
-from .core_types import (
-    FileTypeTestTool,
-    StringTypeTestTool,
-    IntTypeTestTool
+from .basics import (
+    FileTestTool,
+    StringTestTool,
+    IntTestTool,
+    ComponentsTestTool,
+    SecondariesTestTool
 )
 
-from .codetools import (
+from .misc_codetools import (
     SplitTextTestTool,
     JoinArrayTestTool,
     SumTestTool,
@@ -22,9 +24,18 @@ from .codetools import (
 
 from .unicycler import UnicyclerTestTool
 from .fastqc import FastqcTestTool
-from .arrays import InArrayTestTool
 
-from .commandtools import (
+
+from .arrays import (
+    ArrayStepTool,
+    ArrayStringTestTool,
+    ArrayFileTestTool,
+    ArrayIntTestTool,
+    ArrayComponentsTestTool,
+    ArraySecondariesTestTool
+)
+
+from .misc_commandtools import (
     EchoTestTool,
     CatTestTool,
     SingleTestTool,
