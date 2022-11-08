@@ -368,7 +368,7 @@ inputs = [
 		doc="Select Bridging mode. possible values: bold, conservative, normal",
 	),
 	ToolInput(
-		'option11',
+		'option1',
 		File,
 		prefix='-1',
 		position=1,
@@ -376,7 +376,7 @@ inputs = [
 		doc="Select first set of reads. Specify dataset with forward reads",
 	),
 	ToolInput(
-		'option12',
+		'option2',
 		File,
 		prefix='-2',
 		position=1,

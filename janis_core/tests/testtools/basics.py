@@ -84,14 +84,14 @@ class ComponentsTestTool(CommandTool):
     def inputs(self) -> list[ToolInput]:
         return [
             ToolInput("pos_basic", File, position=1),
-            ToolInput("pos_default", String, default="DEFAULT", position=2),
+            ToolInput("pos_default", Int, default=95, position=2),
             ToolInput("pos_optional", String(optional=True), position=3),
 
             ToolInput("flag_true", Boolean, position=4, prefix="--bool-true", default=True),
             ToolInput("flag_false", Boolean, position=5, prefix="--bool-false", default=False),
             
             ToolInput("opt_basic", String, position=6, prefix="--opt-basic"),
-            ToolInput("opt_default", String, position=7, default="DEFAULT", prefix="--opt-default"),
+            ToolInput("opt_default", Int, position=7, default=5, prefix="--opt-default"),
             ToolInput("opt_optional", String(optional=True), position=8, prefix="--opt-optional"),
         ]
 

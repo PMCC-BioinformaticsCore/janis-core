@@ -1,4 +1,6 @@
 
+
+
 from .types import (
     SecondaryTestType,
     AppendedSecondaryTestType,
@@ -14,6 +16,15 @@ from .basics import (
     SecondariesTestTool
 )
 
+from .arrays import (
+    ArrayStepTool,  # old, leave for test suite
+    ArrayFileTestTool,
+    ArrayStringTestTool,
+    ArrayIntTestTool,
+    ArrayComponentsTestTool,
+    ArraySecondariesTestTool
+)
+
 from .misc_codetools import (
     SplitTextTestTool,
     JoinArrayTestTool,
@@ -22,21 +33,9 @@ from .misc_codetools import (
     SecondaryInputTestTool
 )
 
-from .unicycler import UnicyclerTestTool
-from .fastqc import FastqcTestTool
-
-
-from .arrays import (
-    ArrayStepTool,
-    ArrayStringTestTool,
-    ArrayFileTestTool,
-    ArrayIntTestTool,
-    ArrayComponentsTestTool,
-    ArraySecondariesTestTool
-)
-
 from .misc_commandtools import (
     EchoTestTool,
+    OperatorResourcesTestTool,
     CatTestTool,
     SingleTestTool,
     FilenameGeneratedTool,
@@ -47,5 +46,7 @@ from .misc_commandtools import (
     ReplacedSecondaryOutputTestTool,
     SecondaryInputTestTool,
     InputQualityTestTool,
-    OperatorResourcesTestTool,
 )
+
+from .unicycler import UnicyclerTestTool
+from .fastqc import FastqcTestTool

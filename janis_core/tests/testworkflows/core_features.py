@@ -85,12 +85,12 @@ class StepInputsTestWF(Workflow):
             "stp1", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
-                pos_default=self.inString,
+                pos_default=self.inInt,
                 pos_optional=self.inString,
                 flag_true=self.inBool,
                 flag_false=self.inBool,
                 opt_basic=self.inString,
-                opt_default=self.inString,
+                opt_default=self.inInt,
                 opt_optional=self.inString,
             )
         )
@@ -99,18 +99,28 @@ class StepInputsTestWF(Workflow):
             "stp2", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
-                pos_default="static",
+                pos_default=100,
                 pos_optional="static",
                 flag_true=False,
                 flag_false=True,
                 opt_basic="static",
-                opt_default="static",
-                opt_optional="static",
+                opt_default=100,
+                opt_optional='',
+            )
+        )
+        # partial inputs static
+        self.step(
+            "stp3", 
+            ComponentsTestTool(
+                pos_basic=self.inFile,
+                opt_basic="static",
+                opt_default=100,
+                opt_optional='',
             )
         )
         # minimal inputs
         self.step(
-            "stp3", 
+            "stp4", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
                 opt_basic=self.inString,
@@ -120,12 +130,132 @@ class StepInputsTestWF(Workflow):
         self.output("outFile1", File, source=self.stp1.out)
         self.output("outFile2", File, source=self.stp2.out)
         self.output("outFile3", File, source=self.stp3.out)
+        self.output("outFile4", File, source=self.stp4.out)
 
     def friendly_name(self):
         return "TEST: StepInputsTestWF"
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+class StepInputsWFInputTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inString', String)
+        self.input('inInt', Int)
+        self.input('inBool', Boolean)
+
+        # full inputs
+        self.step(
+            "stp1", 
+            ComponentsTestTool(
+                pos_basic=self.inFile,
+                pos_default=self.inInt,
+                pos_optional=self.inString,
+                flag_true=self.inBool,
+                flag_false=self.inBool,
+                opt_basic=self.inString,
+                opt_default=self.inInt,
+                opt_optional=self.inString,
+            )
+        )
+        self.output("outFile1", File, source=self.stp1.out)
+
+    def friendly_name(self):
+        return "TEST: StepInputsWFInputTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class StepInputsStaticTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inString', String)
+        self.input('inInt', Int)
+        self.input('inBool', Boolean)
+
+        # full inputs static
+        self.step(
+            "stp2", 
+            ComponentsTestTool(
+                pos_basic=self.inFile,
+                pos_default=100,
+                pos_optional="static",
+                flag_true=False,
+                flag_false=True,
+                opt_basic="static",
+                opt_default=100,
+                opt_optional='',
+            )
+        )
+
+        self.output("outFile2", File, source=self.stp2.out)
+
+    def friendly_name(self):
+        return "TEST: StepInputsStaticTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class StepInputsPartialStaticTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inString', String)
+        self.input('inInt', Int)
+        self.input('inBool', Boolean)
+
+        # partial inputs static
+        self.step(
+            "stp3", 
+            ComponentsTestTool(
+                pos_basic=self.inFile,
+                opt_basic="static",
+                opt_default=100,
+                opt_optional='',
+            )
+        )
+
+        self.output("outFile3", File, source=self.stp3.out)
+
+    def friendly_name(self):
+        return "TEST: StepInputsMinimalTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class StepInputsMinimalTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inString', String)
+        self.input('inInt', Int)
+        self.input('inBool', Boolean)
+
+        # minimal inputs
+        self.step(
+            "stp4", 
+            ComponentsTestTool(
+                pos_basic=self.inFile,
+                opt_basic=self.inString,
+            )
+        )
+
+        self.output("outFile4", File, source=self.stp4.out)
+
+    def friendly_name(self):
+        return "TEST: StepInputsMinimalTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
 
 
 # ConnectionsTestWF 
@@ -430,33 +560,60 @@ class SecondariesIOTestWF(Workflow):
         self.output("outBamBai", source=self.stp1.out)
 
 
+class SecondariesConnectionsTestWF(Workflow):
+    def id(self) -> str:
+        return "SecondariesConnectionsTestWF"
+
+    def friendly_name(self):
+        return "WF which uses SecondaryFile types for step connections"
+
+    def constructor(self):
+        self.input('inBamBai', BamBai)
+
+        self.step(
+            "stp1", 
+            SecondariesTestTool(
+                inp=self.inBamBai
+            ), 
+        )
+        self.step(
+            "stp2", 
+            SecondariesTestTool(
+                inp=self.stp1.out
+            ), 
+        )
+
+        self.output("outBamBai", source=self.stp2.out)
+
+
 # ------------------- #
 #  DISGUSTING COMBOS  #
 # ------------------- #
 
 
-# class ArrayScatterTestWF(Workflow):
-#     def id(self) -> str:
-#         return "ArrayScatterTestWF"
+class ScatterSecondariesTestWF(Workflow):
+    def id(self) -> str:
+        return "ScatterSecondaries"
 
-#     def friendly_name(self):
-#         return "WF which uses Array(File) and Scatter"
+    def friendly_name(self):
+        return "WF which uses Scatter and Secondaries"
 
-#     def constructor(self):
-#         self.input('inStrArray', Array(String))
-#         self.input('inFileArray', Array(File))
-#         self.input('inIntArray', Array(Int))
+    def constructor(self):
+        self.input('inBamBaiArray', Array(BamBai))
+        
+        self.step(
+            "stp1", 
+            SecondariesTestTool(
+                inp=self.inBamBaiArray
+            ),
+            scatter="inp"
+        )
 
-#         self.step(
-#             "stp1", 
-#             (testtool=self.inStrArray), 
-#             scatter="testtool"
-#         )
-
-#         self.output("outStrArray", source=self.stp1.out)
+        self.output("outBamBaiArray", Array(BamBai), source=self.stp1.out)
+        # self.output("outStdout", source=self.stp1.outStdout)
 
 
-# TODO FAILS secondaries_present_as
+
 class ArraySecondariesTestWF(Workflow):
     def id(self) -> str:
         return "ArraySecondariesTestWF"
@@ -474,16 +631,17 @@ class ArraySecondariesTestWF(Workflow):
             ), 
         )
 
-        self.output("outBamBaiArray", source=self.stp1.outArray)
+        # self.output("outBamBaiArray", source=self.stp1.outArray)
         self.output("outStdout", source=self.stp1.outStdout)
 
 
-# class ScatterSecondaries(Workflow):
+
+# class ArrayScatterTestWF(Workflow):
 #     def id(self) -> str:
-#         return "ScatterSecondaries"
+#         return "ArrayScatterTestWF"
 
 #     def friendly_name(self):
-#         return "WF which uses Scatter and Secondaries"
+#         return "WF which uses Array(File) and Scatter"
 
 #     def constructor(self):
 #         self.input('inStrArray', Array(String))

@@ -125,7 +125,7 @@ class ArrayComponentsTestTool(CommandTool):
         return "TEST"
 
 
-# TODO FAILS secondaries_present_as
+# TODO FAILS if using outArray ToolOutput due to secondaries_present_as
 class ArraySecondariesTestTool(CommandTool):
     def tool(self) -> str:
         return "ArraySecondariesTestTool"
@@ -148,12 +148,12 @@ class ArraySecondariesTestTool(CommandTool):
     def outputs(self):
         return [
             ToolOutput("outStdout", Stdout),
-            ToolOutput(
-                "outArray", 
-                Array(BamBai),
-                selector=WildcardSelector("*.bam"),
-                secondaries_present_as={".bai": ".bai"},
-            )
+            # ToolOutput(
+            #     "outArray", 
+            #     Array(BamBai),
+            #     selector=WildcardSelector("*.bam"),
+            #     # secondaries_present_as={".bai": ".bai"},
+            # )
         ]
 
     def container(self) -> str:
