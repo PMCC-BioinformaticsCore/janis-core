@@ -1479,6 +1479,8 @@ return primary
         """
         Generate a dictionary containing input name and its values from users or
         its default values if inputs not provided.
+        Builds using params - all params must be registered before they will appear! 
+        nfgen.params.register(Tool | Workflow)
 
         :param tool:
         :type tool:

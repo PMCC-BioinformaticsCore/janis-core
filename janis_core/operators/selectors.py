@@ -433,7 +433,11 @@ class WildcardSelector(Selector):
 
 class AliasSelector(Selector):
     """
-    Simply a way to silence the Janis type system
+    Simply a way to silence the Janis type system.
+    
+    This absolutely should not be a 'Selector'. 
+    The whole Selector system itself is clunky. 
+    - Grace
     """
 
     def __init__(self, inner: Selector, dt: ParseableType):

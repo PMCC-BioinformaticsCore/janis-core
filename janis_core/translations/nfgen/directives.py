@@ -24,7 +24,8 @@ def format_param_name(resname: str, scope: list[str]) -> str:
         pname = f"{'_'.join(scope)}_{resname}"
     else:
         pname = resname
-    return pname.lower()
+    return pname
+    # return pname.lower()
 
 
 @dataclass
@@ -55,7 +56,8 @@ class CpusDirective(ProcessDirective):
 
     def get_string(self) -> str:
         pname = format_param_name(self.resname, self.scope)
-        return f'cpus "$params.{pname}"'.lower()
+        return f'cpus "$params.{pname}"'
+        # return f'cpus "$params.{pname}"'.lower()
 
 @dataclass
 class ContainerDirective(ProcessDirective):

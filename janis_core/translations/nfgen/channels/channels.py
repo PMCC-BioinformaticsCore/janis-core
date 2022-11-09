@@ -14,7 +14,7 @@ from .. import utils
 ### factory 
 
 def register(workflow: Workflow) -> None:
-    wfinp_ids = utils.get_wf_input_ids(workflow)
+    wfinp_ids = utils.get_channel_input_ids(workflow)
     wfinps = utils.items_with_id(list(workflow.input_nodes.values()), wfinp_ids)
     for inp in wfinps:
         add(inp)

@@ -89,7 +89,8 @@ def split_words(text: str, case: Case) -> list[str]:
         out += text.split('_')
     else:
         raise NotImplementedError
-    return [x.lower() for x in out]
+    return out
+    # return [x.lower() for x in out]
 
 
 

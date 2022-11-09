@@ -84,7 +84,7 @@ dist/
 build/
 docs/
 
-
+TODO.txt
 .vscode
 \.mypy_cache/
 *.egg-info

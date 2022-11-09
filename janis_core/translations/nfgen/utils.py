@@ -50,7 +50,7 @@ shoud should be included.
 
 ### workflow inputs
 
-def get_wf_input_ids(wf: Workflow) -> set[str]:
+def get_channel_input_ids(wf: Workflow) -> set[str]:
     """
     Get the (assumed) true workflow inputs. 
     Assume that a workflow input is an InputNode which:
@@ -65,14 +65,14 @@ def get_wf_input_ids(wf: Workflow) -> set[str]:
     # wf inputs with file type
     file_inputs = get_file_wf_inputs(wf)
 
-    wf_inputs: list[InputNode] = []
+    channel_inputs: list[InputNode] = []
     for name, inp in wf.input_nodes.items():
         if name in referenced_inputs and name in file_inputs:
-            wf_inputs.append(inp)
+            channel_inputs.append(inp)
     
     # final ordering
-    wf_inputs = ordering.workflow_inputs(wf_inputs)
-    return {x.id() for x in wf_inputs}
+    channel_inputs = ordering.workflow_inputs(channel_inputs)
+    return {x.id() for x in channel_inputs}
 
 def get_referenced_wf_inputs(wf: Workflow) -> set[str]:
     out: set[str] = set()
@@ -264,8 +264,8 @@ def get_step_connected_input_ids(sources: dict[str, Any]) -> set[str]:
 
 ### misc helper methods
 
-def items_with_id(inputs: list[Any], ids: set[str]) -> list[Any]:
-    return [x for x in inputs if x.id() in ids]
+def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
+    return [x for x in the_list if x.id() in ids]
 
 def resolve_node(source: StepTagInput) -> Optional[Node]:
     # workflow input

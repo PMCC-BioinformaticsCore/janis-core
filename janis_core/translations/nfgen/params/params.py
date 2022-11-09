@@ -58,7 +58,7 @@ def register_params_for_wf_inputs(
     override: bool,
     sources: Optional[dict[str, Any]]=None, 
     ) -> None:
-    param_ids = utils.get_wf_input_ids(workflow)
+    param_ids = utils.get_channel_input_ids(workflow)
     param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
     for inp in param_inputs:
         val = None
@@ -235,7 +235,8 @@ class Param(NFBase):
             name = f"{'_'.join(self.scope)}_{self.varname}"
         else:
             name = self.varname
-        return name.lower()
+        return name
+        # return name.lower()
 
     @property
     def value(self) -> str:
