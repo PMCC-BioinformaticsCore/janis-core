@@ -1,6 +1,5 @@
 from copy import deepcopy
 import unittest
-from typing import Optional, Any
 import regex as re
 
 from janis_core.tests.testtools import (
@@ -19,20 +18,49 @@ from janis_core.tests.testtools import (
 )
 
 from janis_core.tests.testworkflows import (
+
+    # basics
+    BasicIOTestWF,
+    StepInputsTestWF,
+    StepInputsWFInputTestWF,
+    StepInputsStaticTestWF,
+    StepInputsPartialStaticTestWF,
+    StepInputsMinimalTestWF,
+    StepConnectionsTestWF,
+
+    # arrays
+    ArrayIOTestWF,
+    ArrayStepInputsTestWF,
+    ArrayStepConnectionsTestWF,
+
+    # scatter
+    BasicScatterTestWF,
+    ChainedScatterTestWF,
+    MultiFieldScatterTestWF,
+
+    # secondaries
+    SecondariesIOTestWF,
+    SecondariesConnectionsTestWF,
+
+    # combos
+    ScatterSecondariesTestWF,
+    ArraySecondariesTestWF,
+
+    # additional features
     StepInputExpressionTestWF,
     ConditionStepTestWF,
-    ArraysOfSecondaryFilesOutputsTestWF,
     AliasSelectorTestWF,
-    StepInputsTestWF,
-    AssemblyTestWF
-    
+    ArraysOfSecondaryFilesOutputsTestWF,
+    ForEachTestWF,
+
+    # specific workflows
+    AssemblyTestWF,
 )
 
 from janis_core import (
     WorkflowBuilder,
     Workflow,
     CommandTool,
-    ToolInput,
     InputSelector,
     StringFormatter,
     JoinOperator,
@@ -42,6 +70,7 @@ from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nfgen
 from janis_core.translations.nfgen import settings
 from janis_core.translations.nfgen.params import Param
+from janis_core.translations.nfgen.channels import Channel
 from janis_core import Array, String, File, Boolean, Filename
 
 
@@ -66,11 +95,9 @@ class DataTypeNoSecondary(File):
 
 
 
-
-
 ### helper functions
 
-def register_params_workflow(wf: Workflow) -> dict[str, str]:
+def register_params(wf: Workflow) -> dict[str, str]:
     scope: list[str] = []
     nfgen.params.clear()
     nfgen.params.register(the_entity=wf, scope=scope)
@@ -88,6 +115,10 @@ def register_params_tool(tool: CommandTool) -> dict[str, str]:
     params = nfgen.params.getall()
     return {p.name: p.value for p in params} 
 
+def register_channels(wf: Workflow) -> list[Channel]:
+    nfgen.channels.clear()
+    nfgen.channels.register(wf)
+    return nfgen.channels.getall()
 
 
 
@@ -255,33 +286,45 @@ UNICYCLER_FULL = UNICYCLER_MINIMAL | UNICYCLER_ADDITIONAL
 class TestParams(unittest.TestCase):
     
     def setUp(self) -> None:
-        from janis_core.tests.testworkflows import AssemblyTestWF
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-        self.wf = AssemblyTestWF()
-        register_params_workflow(self.wf)
-        
+    
     def test_channel_params(self) -> None:
         """
         Every channel requires a param. 
         Channels are created from a subset of workflow inputs.
         """
+        wf = AssemblyTestWF()
+        register_params(wf)
         params = nfgen.params.getall()
         param_ids = {p.name for p in params}
-        wfinp_ids = nfgen.utils.get_channel_input_ids(self.wf)
-        for inp_id in wfinp_ids:
+        expected_ids = {
+            'unicycler_start_gene_id', 
+            'test_input', 
+            'fastqc2_limits', 
+            'unicycler_start_gene_cov', 
+            'fastqc1_adapters', 
+            'unicycler_scores', 
+            'unicycler_kmers', 
+            'fastqc2_adapters', 
+            'fastqc2_contaminants', 
+            'in_long_reads', 
+            'in_reverse_reads', 
+            'in_forward_reads', 
+            'fastqc1_contaminants', 
+            'fastqc1_limits'
+        }
+        for inp_id in expected_ids:
             self.assertIn(inp_id, param_ids)
 
     def test_fed_step_inputs(self) -> None:
-        from janis_core.tests.testworkflows import StepInputsWFInputTestWF
         wf = StepInputsWFInputTestWF()
-        settings.MODE = 'workflow'
         
         # full
         settings.MINIMAL_PROCESS = False
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp1_pos_default': 'null',
             'stp1_pos_optional': 'null',
             'stp1_flag_true': 'null',
@@ -294,9 +337,9 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp1_pos_default': 'null',
             'stp1_pos_optional': 'null',
             'stp1_flag_true': 'null',
@@ -308,81 +351,75 @@ class TestParams(unittest.TestCase):
         self.assertEquals(actual_params, expected_params)
 
     def test_static_step_inputs(self) -> None:
-        from janis_core.tests.testworkflows import StepInputsStaticTestWF
         wf = StepInputsStaticTestWF()
-        settings.MODE = 'workflow'
         
         # full
         settings.MINIMAL_PROCESS = False
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp2_pos_default': '100',
-            'stp2_pos_optional': '"static"',
+            'stp2_pos_optional': "'static'",
             'stp2_flag_true': 'false',
             'stp2_flag_false': 'true',
-            'stp2_opt_basic': '"static"',
+            'stp2_opt_basic': "'static'",
             'stp2_opt_default': '100',
-            'stp2_opt_optional': '""'
+            'stp2_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp2_pos_default': '100',
-            'stp2_pos_optional': '"static"',
+            'stp2_pos_optional': "'static'",
             'stp2_flag_true': 'false',
             'stp2_flag_false': 'true',
-            'stp2_opt_basic': '"static"',
+            'stp2_opt_basic': "'static'",
             'stp2_opt_default': '100',
-            'stp2_opt_optional': '""'
+            'stp2_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
     
     def test_static_and_omitted_step_inputs(self) -> None:
-        from janis_core.tests.testworkflows import StepInputsPartialStaticTestWF
         wf = StepInputsPartialStaticTestWF()
-        settings.MODE = 'workflow'
         
         # full
         settings.MINIMAL_PROCESS = False
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp3_pos_default': 'null',
             'stp3_pos_optional': 'null',
             'stp3_flag_true': 'null',
             'stp3_flag_false': 'null',
-            'stp3_opt_basic': '"static"',
+            'stp3_opt_basic': "'static'",
             'stp3_opt_default': '100',
-            'stp3_opt_optional': '""'
+            'stp3_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
-            'stp3_opt_basic': '"static"',
+            'in_file': 'null',
+            'stp3_opt_basic': "'static'",
             'stp3_opt_default': '100',
-            'stp3_opt_optional': '""'
+            'stp3_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
     
     def test_omitted_step_inputs(self) -> None:
-        from janis_core.tests.testworkflows import StepInputsMinimalTestWF
         wf = StepInputsMinimalTestWF()
-        settings.MODE = 'workflow'
         
         # full
         settings.MINIMAL_PROCESS = False
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp4_pos_default': 'null',
             'stp4_pos_optional': 'null',
             'stp4_flag_true': 'null',
@@ -395,10 +432,38 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        actual_params = register_params(wf)
         expected_params = {
-            'inFile': 'null',
+            'in_file': 'null',
             'stp4_opt_basic': 'null',
+        }
+        self.assertEquals(actual_params, expected_params)
+
+    def test_array_inputs(self) -> None:
+        wf = ArrayIOTestWF()
+        actual_params = register_params(wf)
+        expected_params = {
+            'stp1_ins': '[]',
+            'in_file_array': '[]',
+            'stp3_ins': '[]',
+        }
+        self.assertEquals(actual_params, expected_params)
+
+    def test_secondaries_inputs(self) -> None:
+        wf = SecondariesIOTestWF()
+        actual_params = register_params(wf)
+        expected_params = {
+            'in_alignments_bam': 'null',
+            'in_alignments_bai': 'null',
+        }
+        self.assertEquals(actual_params, expected_params)
+    
+    def test_secondaries_array_inputs(self) -> None:
+        wf = ArraySecondariesTestWF()
+        actual_params = register_params(wf)
+        expected_params = {
+            'in_alignments_bams': '[]',
+            'in_alignments_bais': '[]',
         }
         self.assertEquals(actual_params, expected_params)
     
@@ -418,51 +483,46 @@ class TestChannels(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-        
         self.maxDiff = None
-        self.wf = AssemblyTestWF()
-        register_params_workflow(self.wf)
-        janis_wf_inputs = list(self.wf.input_nodes.values())
-        self.wf_inputs_ids = nfgen.utils.get_channel_input_ids(self.wf)
-        self.wf_inputs = nfgen.utils.items_with_id(janis_wf_inputs, self.wf_inputs_ids)
-        
-        # wf channels (params)
-        nfgen.channels.register(self.wf)
-        self.channels = nfgen.channels.getall()
-        self.channels_ids = [c.wfinp_name for c in self.channels]
 
-    def test_identify_wf_inputs(self) -> None:
+    def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
-        
+        wf = AssemblyTestWF()
+        register_params(wf)
+        register_channels(wf)
+        channel_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
-            'inForwardReads',
-            'inReverseReads',
-            'inLongReads',
-            'testInput',
-            'fastqc1_adapters',
-            'fastqc1_contaminants',
-            'fastqc1_limits',
-            'fastqc2_adapters',
-            'fastqc2_contaminants',
-            'fastqc2_limits',
+            'ch_in_forward_reads',
+            'ch_in_reverse_reads',
+            'ch_in_long_reads',
+            'ch_test_input',
+            'ch_fastqc1_adapters',
+            'ch_fastqc1_contaminants',
+            'ch_fastqc1_limits',
+            'ch_fastqc2_adapters',
+            'ch_fastqc2_contaminants',
+            'ch_fastqc2_limits',
         }
-        self.assertEqual(self.wf_inputs_ids, expected_ids)
-
-    def test_file_channels(self) -> None:
-        """
-        Every File type wf input should have a channel. 
-        """
-        for inp_id in self.wf_inputs_ids:
-            self.assertIn(inp_id, self.channels_ids)
+        self.assertEqual(channel_ids, expected_ids)
     
     def test_optional_file_channels(self) -> None:
         """
         Every Optional(File) type wf input should have a channel. 
         '.ifEmpty(null)' should appear in the channel string definition.
         """
-        optional_wf_inputs = [x for x in self.wf_inputs if x.datatype.optional == True]
-        for inp in optional_wf_inputs:
-            channel = [c for c in self.channels if c.wfinp_name == inp.id()][0]
+        wf = AssemblyTestWF()
+        register_params(wf)
+        register_channels(wf)
+        relevant_channel_names = {
+            'ch_fastqc1_adapters',
+            'ch_fastqc1_contaminants',
+            'ch_fastqc1_limits',
+            'ch_fastqc2_adapters',
+            'ch_fastqc2_contaminants',
+            'ch_fastqc2_limits',
+        }
+        for name in relevant_channel_names:
+            channel = nfgen.channels.get(name)
             self.assertTrue(channel)
             self.assertIn('.ifEmpty( null )', channel.get_string())
 
@@ -470,9 +530,61 @@ class TestChannels(unittest.TestCase):
         """
         Non-File-type wf input should not have channels.
         """
-        nonfile_inputs = [x for x in self.wf_inputs if not isinstance(x.datatype, File)]
-        for winp in nonfile_inputs:
-            self.assertNotIn(winp.id(), self.channels_ids)
+        wf = AssemblyTestWF()
+        register_params(wf)
+        register_channels(wf)
+        nonfile_wf_input_ids = {
+            'unicycler_kmers',
+            'unicycler_scores',
+            'unicycler_startGeneCov',
+            'unicycler_startGeneId',
+        }
+        channel_janis_references = {c.reference for c in nfgen.channels.getall()}
+        for winp_id in nonfile_wf_input_ids:
+            self.assertNotIn(winp_id, channel_janis_references)
+
+    def test_array_inputs(self) -> None:
+        wf = ArrayIOTestWF()
+        register_params(wf)
+        register_channels(wf)
+        channels_ids = {c.name for c in nfgen.channels.getall()}
+        expected_ids = {
+            'ch_in_file_array',
+        }
+        self.assertEqual(channels_ids, expected_ids)
+        for c in nfgen.channels.getall():
+            self.assertTrue(c.collect)
+        
+    def test_secondaries_inputs(self) -> None:
+        wf = SecondariesIOTestWF()
+        register_params(wf)
+        register_channels(wf)
+        channels_ids = {c.name for c in nfgen.channels.getall()}
+        expected_ids = {
+            'ch_in_alignments',
+        }
+        self.assertEqual(channels_ids, expected_ids)
+        alignments_ch = nfgen.channels.get('ch_in_alignments')
+        self.assertTrue(len(alignments_ch.params) == 2)
+        self.assertTrue(alignments_ch.collect)
+    
+    def test_secondaries_array_inputs(self) -> None:
+        wf = ArraySecondariesTestWF()
+        register_params(wf)
+        register_channels(wf)
+        channels_ids = {c.name for c in nfgen.channels.getall()}
+        expected_ids = {
+            'ch_in_alignments_bams',
+            'ch_in_alignments_bais',
+        }
+        self.assertEqual(channels_ids, expected_ids)
+        for channel in nfgen.channels.getall():
+            self.assertTrue(len(channel.params) == 1)
+            self.assertTrue(channel.collect)
+
+    @unittest.skip('not implemented')
+    def test_channel_methods(self) -> None:
+        raise NotImplementedError
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -497,20 +609,76 @@ class TestProcessDirectives(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
 
+    def test_operator_resource_tool(self):
+        # TODO FIX ME
+        scope = []
+        values = {}
+        tool = OperatorResourcesTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        # f"""
+        # process EchoTestTool
+        # {{
+        #   input:
+        #     path inputFile
+        #     val outputFiles
+
+        #   output:
+        #     path "${{'janisstdout_EchoTestTool'}}" , emit: out
+
+        #   publishDir "$launchDir/EchoTestTool"
+        #   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+        #   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+        #   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+        #   time "${{params.runtime_seconds + 's'}}"
+
+        #   script:
+
+        #     def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
+
+        #     def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
+
+        #     def runtime_memory = params.runtime_memory
+
+        #     def runtime_cpu = params.runtime_cpu
+
+        #     def runtime_disks = params.runtime_disks
+
+        #     def runtime_seconds = params.runtime_seconds
+        #     \"\"\"
+        #     echo \\
+        #     $inputFileWithPrefix | tee janisstdout_EchoTestTool
+        #     \"\"\"
+        # }}
+        # """
+        expected_contents = [
+            'process EchoTestTool',
+            'input:',
+            'output:',
+        ]
+        # TODO ask richard - unnecessary?
+        raise NotImplementedError
+        print(p.get_string())
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
+    
+    @unittest.skip('not implemented')
     def test_metadata(self) -> None:
         # debug true
         # label
-        pass
+        raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_publishDir(self) -> None:
-        pass
+        raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_container(self) -> None:
-        pass
+        raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_resource_directives(self) -> None:
         # memory, cpus, disk, time
-        pass
+        raise NotImplementedError
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -520,7 +688,6 @@ class TestProcessDirectives(unittest.TestCase):
     def test_translate_codetool(self) -> None:
         raise NotImplementedError
     
-
 
 
 
@@ -536,7 +703,7 @@ class TestProcessInputs(unittest.TestCase):
         from janis_core.tests.testworkflows import AssemblyTestWF
         self.maxDiff = None
         self.wf = AssemblyTestWF()
-        register_params_workflow(self.wf)
+        register_params(self.wf)
 
     def test_wf_inputs(self) -> None:
         # need a process input for each File wf input in step sources.
@@ -588,6 +755,62 @@ class TestProcessInputs(unittest.TestCase):
             self.assertNotIn(input_id, actual_ids)
 
     @unittest.skip('not implemented')
+    def test_array_inputs(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_secondaries_inputs(self) -> None:
+        raise NotImplementedError
+
+    def test_tool_with_secondary_input(self):
+        # TODO FIX ME
+        scope = []
+        values = {}
+        tool = SecondaryInputTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
+        expected = f"""
+process CatTestTool
+{{
+  input:
+    path inp
+
+  output:
+    path "${{'janisstdout_CatTestTool'}}" , emit: out
+
+  publishDir "$launchDir/CatTestTool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
+
+  script:
+
+    def inpWithPrefix = apply_prefix(inp[0], ' ', 'False')
+
+    def runtime_memory = params.runtime_memory
+
+    def runtime_cpu = params.runtime_cpu
+
+    def runtime_disks = params.runtime_disks
+
+    def runtime_seconds = params.runtime_seconds
+    \"\"\"
+    cat \\
+    $inpWithPrefix | tee janisstdout_CatTestTool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+    
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array_inputs(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
     
@@ -606,6 +829,99 @@ class TestProcessOutputs(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+    
+    def test_stdout_out_tool(self):
+        # TODO FIX ME
+        scope = []
+        values = {}
+        tool = EchoTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        expected_contents = [
+            'process EchoTestTool',
+            'publishDir "$params.outdir"',
+            'output:',
+            'path "janisstdout_EchoTestTool" , emit: out',
+            'script:',
+            'echo',
+            '${params.inp}'
+        ]
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
+
+    def test_tool_with_secondary_output(self):
+        # TODO FIX ME
+        scope = []
+        values = {}
+        tool = AppendedSecondaryOutputTestTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
+        expected_contents = [
+            'process TestTranslationtool',
+            'tuple path("${testtool + ".bam"}"), path("${testtool + ".bam.bai"}") , emit: out',
+            'def arrayInp = params.arrayInp ? "${params.arrayInp}" : ""',
+            'echo',
+            '${params.testtool}',
+            '${arrayInp}',
+            'test:\\t:escaped:\\n:characters"',
+        ]
+        for line in expected_contents:
+            self.assertIn(line, p.get_string())
+
+    def test_tool_with_replaced_secondary_output(self):
+        # TODO FIX ME
+        p = translator.gen_process_from_cmdtool(
+            ReplacedSecondaryOutputTestTool()
+        )
+        expected = f"""
+process TestTranslationtool
+{{
+  input:
+    val testtool
+    val arrayInp
+
+  output:
+    tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bai'}}") , emit: out
+
+  publishDir "$launchDir/TestTranslationtool"
+  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+  time "${{params.runtime_seconds + 's'}}"
+
+  script:
+
+    def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
+
+    def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
+
+    def runtime_memory = params.runtime_memory
+
+    def runtime_cpu = params.runtime_cpu
+
+    def runtime_disks = params.runtime_disks
+
+    def runtime_seconds = params.runtime_seconds
+    \"\"\"
+    echo \\
+    test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+    
+    @unittest.skip('not implemented')
+    def test_array_outputs(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_secondaries_outputs(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array_outputs(self) -> None:
+        raise NotImplementedError
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -614,7 +930,6 @@ class TestProcessOutputs(unittest.TestCase):
     @unittest.skip('not implemented')
     def test_translate_codetool(self) -> None:
         raise NotImplementedError
-
 
 
 
@@ -629,6 +944,83 @@ class TestProcessScript(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
 
+    def test_filename_generated_tool(self):
+        # TODO FIX ME
+        scope = []
+        values = {}
+        tool = FilenameGeneratedTool()
+        p = translator.gen_process_from_cmdtool(tool, values, scope)
+        print(p.get_string())
+
+        expected = f"""
+process filenamegeneratedtool
+{{
+    input:
+    val inp
+    val inpOptional
+    path fileInp
+    path fileInpOptional
+    val generatedInp
+    val generatedInpOptional
+    val generatedFileInp
+    val generatedFileInpOptional
+
+    output:
+    val "${{'*'}}" , emit: out
+
+    publishDir "$launchDir/filenamegeneratedtool"
+    memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
+    cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
+    disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
+    time "${{params.runtime_seconds + 's'}}"
+
+    script:
+
+    def generatedInp = generatedInp && generatedInp != 'None' ? generatedInp : inp + '' + ''
+
+    def generatedInpOptional = generatedInpOptional && generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
+
+    def generatedFileInp = generatedFileInp && generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
+
+    def generatedFileInpOptional = generatedFileInpOptional && generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
+
+    def inpWithPrefix = apply_prefix(inp, ' ', 'False')
+
+    def inpOptionalWithPrefix = optional(inpOptional, ' ', 'False')
+
+    def fileInpWithPrefix = apply_prefix(fileInp, ' ', 'False')
+
+    def fileInpOptionalWithPrefix = optional(fileInpOptional, ' ', 'False')
+
+    def generatedInpWithPrefix = optional(generatedInp, ' ', 'False')
+
+    def generatedInpOptionalWithPrefix = optional(generatedInpOptional, ' ', 'False')
+
+    def generatedFileInpWithPrefix = optional(generatedFileInp, ' ', 'False')
+
+    def generatedFileInpOptionalWithPrefix = optional(generatedFileInpOptional, ' ', 'False')
+
+    def runtime_memory = params.runtime_memory
+
+    def runtime_cpu = params.runtime_cpu
+
+    def runtime_disks = params.runtime_disks
+
+    def runtime_seconds = params.runtime_seconds
+    \"\"\"
+    echo \\
+    $generatedInpWithPrefix \\
+    $generatedInpOptionalWithPrefix \\
+    $generatedFileInpWithPrefix \\
+    $generatedFileInpOptionalWithPrefix | tee janisstdout_filenamegeneratedtool
+    \"\"\"
+}}
+
+
+"""
+        self.assertEqual(expected, p.get_string())
+
+
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
@@ -638,265 +1030,9 @@ class TestProcessScript(unittest.TestCase):
         raise NotImplementedError
 
 
+
+
 # distribute to the above TestProces___ classes
-
-# class TestProcessCommandTool(unittest.TestCase):
-#     settings.MODE = 'tool'
-#     settings.MINIMAL_PROCESS = False
-#     maxDiff: Optional[int] = None
-    
-#     def test_stdout_out_tool(self):
-#         scope = []
-#         values = {}
-#         tool = EchoTestTool()
-#         p = translator.gen_process_from_cmdtool(tool, values, scope)
-#         expected_contents = [
-#             'process EchoTestTool',
-#             'publishDir "$params.outdir"',
-#             'output:',
-#             'path "janisstdout_EchoTestTool" , emit: out',
-#             'script:',
-#             'echo',
-#             '${params.inp}'
-#         ]
-#         for line in expected_contents:
-#             self.assertIn(line, p.get_string())
-
-#     def test_operator_resource_tool(self):
-#         scope = []
-#         values = {}
-#         tool = OperatorResourcesTestTool()
-#         p = translator.gen_process_from_cmdtool(tool, values, scope)
-#         # f"""
-#         # process EchoTestTool
-#         # {{
-#         #   input:
-#         #     path inputFile
-#         #     val outputFiles
-
-#         #   output:
-#         #     path "${{'janisstdout_EchoTestTool'}}" , emit: out
-
-#         #   publishDir "$launchDir/EchoTestTool"
-#         #   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#         #   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#         #   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#         #   time "${{params.runtime_seconds + 's'}}"
-
-#         #   script:
-
-#         #     def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
-
-#         #     def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
-
-#         #     def runtime_memory = params.runtime_memory
-
-#         #     def runtime_cpu = params.runtime_cpu
-
-#         #     def runtime_disks = params.runtime_disks
-
-#         #     def runtime_seconds = params.runtime_seconds
-#         #     \"\"\"
-#         #     echo \\
-#         #     $inputFileWithPrefix | tee janisstdout_EchoTestTool
-#         #     \"\"\"
-#         # }}
-#         # """
-#         expected_contents = [
-#             'process EchoTestTool',
-#             'input:',
-#             'output:',
-#         ]
-#         # TODO ask richard - unnecessary?
-#         raise NotImplementedError
-#         print(p.get_string())
-#         for line in expected_contents:
-#             self.assertIn(line, p.get_string())
-        
-#     def test_filename_generated_tool(self):
-#         # TODO
-#         scope = []
-#         values = {}
-#         tool = FilenameGeneratedTool()
-#         p = translator.gen_process_from_cmdtool(tool, values, scope)
-#         print(p.get_string())
-
-#         expected = f"""
-# process filenamegeneratedtool
-# {{
-#   input:
-#     val inp
-#     val inpOptional
-#     path fileInp
-#     path fileInpOptional
-#     val generatedInp
-#     val generatedInpOptional
-#     val generatedFileInp
-#     val generatedFileInpOptional
-
-#   output:
-#     val "${{'*'}}" , emit: out
-
-#   publishDir "$launchDir/filenamegeneratedtool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-
-#     def generatedInp = generatedInp && generatedInp != 'None' ? generatedInp : inp + '' + ''
-
-#     def generatedInpOptional = generatedInpOptional && generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
-
-#     def generatedFileInp = generatedFileInp && generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
-
-#     def generatedFileInpOptional = generatedFileInpOptional && generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
-
-#     def inpWithPrefix = apply_prefix(inp, ' ', 'False')
-
-#     def inpOptionalWithPrefix = optional(inpOptional, ' ', 'False')
-
-#     def fileInpWithPrefix = apply_prefix(fileInp, ' ', 'False')
-
-#     def fileInpOptionalWithPrefix = optional(fileInpOptional, ' ', 'False')
-
-#     def generatedInpWithPrefix = optional(generatedInp, ' ', 'False')
-
-#     def generatedInpOptionalWithPrefix = optional(generatedInpOptional, ' ', 'False')
-
-#     def generatedFileInpWithPrefix = optional(generatedFileInp, ' ', 'False')
-
-#     def generatedFileInpOptionalWithPrefix = optional(generatedFileInpOptional, ' ', 'False')
-
-#     def runtime_memory = params.runtime_memory
-
-#     def runtime_cpu = params.runtime_cpu
-
-#     def runtime_disks = params.runtime_disks
-
-#     def runtime_seconds = params.runtime_seconds
-#     \"\"\"
-#     echo \\
-#     $generatedInpWithPrefix \\
-#     $generatedInpOptionalWithPrefix \\
-#     $generatedFileInpWithPrefix \\
-#     $generatedFileInpOptionalWithPrefix | tee janisstdout_filenamegeneratedtool
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_tool_with_secondary_input(self):
-#         scope = []
-#         values = {}
-#         tool = SecondaryInputTestTool()
-#         p = translator.gen_process_from_cmdtool(tool, values, scope)
-#         print(p.get_string())
-#         expected = f"""
-# process CatTestTool
-# {{
-#   input:
-#     path inp
-
-#   output:
-#     path "${{'janisstdout_CatTestTool'}}" , emit: out
-
-#   publishDir "$launchDir/CatTestTool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-
-#     def inpWithPrefix = apply_prefix(inp[0], ' ', 'False')
-
-#     def runtime_memory = params.runtime_memory
-
-#     def runtime_cpu = params.runtime_cpu
-
-#     def runtime_disks = params.runtime_disks
-
-#     def runtime_seconds = params.runtime_seconds
-#     \"\"\"
-#     cat \\
-#     $inpWithPrefix | tee janisstdout_CatTestTool
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_tool_with_secondary_output(self):
-#         scope = []
-#         values = {}
-#         tool = AppendedSecondaryOutputTestTool()
-#         p = translator.gen_process_from_cmdtool(tool, values, scope)
-#         print(p.get_string())
-#         expected_contents = [
-#             'process TestTranslationtool',
-#             'tuple path("${testtool + ".bam"}"), path("${testtool + ".bam.bai"}") , emit: out',
-#             'def arrayInp = params.arrayInp ? "${params.arrayInp}" : ""',
-#             'echo',
-#             '${params.testtool}',
-#             '${arrayInp}',
-#             'test:\\t:escaped:\\n:characters"',
-#         ]
-#         for line in expected_contents:
-#             self.assertIn(line, p.get_string())
-
-
-#     def test_tool_with_replaced_secondary_output(self):
-#         p = translator.gen_process_from_cmdtool(
-#             ReplacedSecondaryOutputTestTool()
-#         )
-#         expected = f"""
-# process TestTranslationtool
-# {{
-#   input:
-#     val testtool
-#     val arrayInp
-
-#   output:
-#     tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bai'}}") , emit: out
-
-#   publishDir "$launchDir/TestTranslationtool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-
-#     def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
-
-#     def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
-
-#     def runtime_memory = params.runtime_memory
-
-#     def runtime_cpu = params.runtime_cpu
-
-#     def runtime_disks = params.runtime_disks
-
-#     def runtime_seconds = params.runtime_seconds
-#     \"\"\"
-#     echo \\
-#     test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
-#     \"\"\"
-# }}
-
-
-# """
-
-#         self.assertEqual(expected, p.get_string())
-
-
-
-
 # class TestProcessCodeTool(unittest.TestCase):
 #     def test_str_input(self):
 #         p = translator.gen_process_from_codetool(SplitTextTestTool())
@@ -1094,20 +1230,20 @@ class TestProcessScript(unittest.TestCase):
 
 
 
-class TestStepInputs(unittest.TestCase):
+class TestPlumbingBasic(unittest.TestCase):
     # TODO test more features / edge cases?
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-    
+
     def test_basic(self):
         wf = AssemblyTestWF()
 
         tool = wf.step_nodes["fastqc1"].tool
         sources = wf.step_nodes["fastqc1"].sources
         expected = {
-            "inputFile": "ch_inForwardReads",
+            "inputFile": "ch_in_forward_reads",
             "adapters": "ch_fastqc1_adapters",
             "contaminants": "ch_fastqc1_contaminants",
             "limits": "ch_fastqc1_limits",
@@ -1117,7 +1253,7 @@ class TestStepInputs(unittest.TestCase):
         
         tool = wf.step_nodes["fastqc3"].tool
         sources = wf.step_nodes["fastqc3"].sources
-        expected = {"inputFile": "ch_testInput"}
+        expected = {"inputFile": "ch_test_input"}
         actual = translator.gen_step_inval_dict(tool, sources)
         self.assertEqual(expected, actual)
         
@@ -1130,38 +1266,71 @@ class TestStepInputs(unittest.TestCase):
         tool = wf.step_nodes["unicycler"].tool
         sources = wf.step_nodes["unicycler"].sources
         expected = {
-            "option1": "ch_inForwardReads",
-            "option2": "ch_inReverseReads",
-            "optionL": "ch_inLongReads",
+            "option1": "ch_in_forward_reads",
+            "option2": "ch_in_reverse_reads",
+            "optionL": "ch_in_long_reads",
         }
         actual = translator.gen_step_inval_dict(tool, sources)
         self.assertEqual(expected, actual)
-
-    def test_first_selector(self):
-        workflow = ConditionStepTestWF()
-
-        step_id = "print"
-        tool = workflow.step_nodes[step_id].tool
-        sources = workflow.step_nodes[step_id].sources
-        inputs = translator.gen_step_inval_dict(tool, sources)
-        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
-
-        self.assertEqual(expected, inputs)
-
-    def test_with_expression(self):
-        w2 = StepInputExpressionTestWF()
-        w2_step_keys = list(w2.step_nodes.keys())
-
-        expected = {
-            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
-        }
-        self.assertEqual(
-            expected,
-            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
-        )
-
+    
+    @unittest.skip('not implemented')
+    def test_arrays(self) -> None:
+        raise NotImplementedError
     
 
+
+
+class TestPlumbingScatter(unittest.TestCase):
+    # TODO test more features / edge cases?
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+    
+    @unittest.skip('not implemented')
+    def test_scatter(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_dot(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_cross(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_array(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_dot_array(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_cross_array(self) -> None:
+        raise NotImplementedError
+
+
+
+
+class TestPlumbingSecondaries(unittest.TestCase):
+    # TODO test more features / edge cases?
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_connections(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array_connections(self) -> None:
+        raise NotImplementedError
+    
+
+    
 
 class TestNextflowConfig(unittest.TestCase):
 
@@ -1169,7 +1338,7 @@ class TestNextflowConfig(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
         self.wf = AssemblyTestWF()
-        register_params_workflow(self.wf)
+        register_params(self.wf)
 
     def test_workflow_config(self) -> None:
         config = translator.stringify_translated_inputs({})
@@ -1190,10 +1359,10 @@ class TestNextflowConfig(unittest.TestCase):
         params = translator.build_inputs_file(self.wf)
         config = translator.stringify_translated_inputs(params)
         expected_params = {
-            'inForwardReads',
-            'inReverseReads',
-            'inLongReads',
-            'testInput',
+            'in_forward_reads',
+            'in_reverse_reads',
+            'in_long_reads',
+            'test_input',
             'fastqc1_adapters',
             'fastqc1_contaminants',
             'fastqc1_limits',
@@ -1203,6 +1372,18 @@ class TestNextflowConfig(unittest.TestCase):
         }
         for param in expected_params:
             self.assertIn(param, config)
+
+    @unittest.skip('not implemented')
+    def test_array_inputs(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_secondaries_inputs(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array_inputs(self) -> None:
+        raise NotImplementedError
 
     @unittest.skip('not implemented')
     def test_tool_config(self) -> None:
@@ -1365,12 +1546,34 @@ class TestSubworkflows(unittest.TestCase):
 
 
 
-class TestScatter(unittest.TestCase):
-    # TODO test more features / edge cases?
+class TestStepFeatures(unittest.TestCase):
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+
+    def test_first_selector(self):
+        workflow = ConditionStepTestWF()
+
+        step_id = "print"
+        tool = workflow.step_nodes[step_id].tool
+        sources = workflow.step_nodes[step_id].sources
+        inputs = translator.gen_step_inval_dict(tool, sources)
+        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
+
+        self.assertEqual(expected, inputs)
+
+    def test_with_expression(self):
+        w2 = StepInputExpressionTestWF()
+        w2_step_keys = list(w2.step_nodes.keys())
+
+        expected = {
+            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
+        }
+        self.assertEqual(
+            expected,
+            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
+        )
 
 
 

@@ -49,7 +49,6 @@ from janis_core.translations.nfgen import settings
 #     ...
 
 
-
 class NextflowTranslator(TranslatorBase):
     INPUT_IN_SELECTORS: dict[str, Any] = {}
 
@@ -70,9 +69,6 @@ class NextflowTranslator(TranslatorBase):
         scope: list[str] = []
         files: dict[str, nfgen.NFFile] = {}
         processes: dict[str, nfgen.NFBase] = {}
-
-        # font case for process names etc
-        cls.format_name_case(jworkflow)
 
         # register params and channels for workflow inputs
         nfgen.channels.register(workflow=jworkflow)
@@ -96,7 +92,7 @@ class NextflowTranslator(TranslatorBase):
                 imports=[], 
                 items=nf_items,
                 #name=f"{step.id()}_{step.tool.versioned_id()}"
-                name=nfgen.to_case(step.id(), 'snake')
+                name=step.id()
             )
 
             files[nf_file.name] = nf_file
@@ -118,21 +114,7 @@ class NextflowTranslator(TranslatorBase):
         # generate strings for each file
         tool_scripts: dict[str, str] = {name: nffile.get_string() for name, nffile in files.items()}
         return (nf_file.get_string(), tool_scripts)
-
-    @classmethod
-    def format_name_case(cls, jworkflow: Workflow) -> None:
-        # step names
-        steps = {}
-        for step_name, step in jworkflow.step_nodes.items():
-            step_name = nfgen.to_case(step_name, 'snake_caps')
-            step.identifier = step_name
-            steps[step_name] = step
-        jworkflow.step_nodes = steps
         
-        # tool names
-        for step in jworkflow.step_nodes.values():
-            step.tool._tool = nfgen.to_case(step.tool._tool, 'snake_caps')
-    
     @classmethod
     def gen_items_for_step(
         cls,

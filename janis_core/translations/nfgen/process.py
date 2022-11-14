@@ -6,7 +6,9 @@ from typing import Optional, Union, List
 
 from .common import NFBase, filter_null
 from .directives import ProcessDirective
+from .casefmt import to_case
 from . import utils
+from . import settings
 
 class ProcessScriptType(Enum):
     script = "script"
@@ -192,7 +194,7 @@ class Process(NFBase):
                 self.prepare_script(),
             ]
         )
-        name = self.name or ""
+        name = to_case(self.name, settings.NEXTFLOW_PROCESS_CASE) if self.name else ""
         tool_definition = "\n\n".join(components)
 
         return f"""\

@@ -1,5 +1,12 @@
 
 
+from janis_core.types import DataType
+
+
+def derive_names(name: str, datatype: DataType) -> list[str]:
+    raise NotImplementedError
+
+
 """
 process GRIDSS {
   tag "gridss"

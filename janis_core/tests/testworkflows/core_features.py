@@ -246,7 +246,6 @@ class StepInputsMinimalTestWF(Workflow):
                 opt_basic=self.inString,
             )
         )
-
         self.output("outFile4", File, source=self.stp4.out)
 
     def friendly_name(self):
@@ -548,12 +547,12 @@ class SecondariesIOTestWF(Workflow):
         return "WF which uses SecondaryFile types for workflow / tool IO"
 
     def constructor(self):
-        self.input('inBamBai', BamBai)
+        self.input('inAlignments', BamBai)
 
         self.step(
             "stp1", 
             SecondariesTestTool(
-                inp=self.inBamBai
+                inp=self.inAlignments
             ), 
         )
 
@@ -568,12 +567,12 @@ class SecondariesConnectionsTestWF(Workflow):
         return "WF which uses SecondaryFile types for step connections"
 
     def constructor(self):
-        self.input('inBamBai', BamBai)
+        self.input('inAlignments', BamBai)
 
         self.step(
             "stp1", 
             SecondariesTestTool(
-                inp=self.inBamBai
+                inp=self.inAlignments
             ), 
         )
         self.step(
@@ -599,12 +598,12 @@ class ScatterSecondariesTestWF(Workflow):
         return "WF which uses Scatter and Secondaries"
 
     def constructor(self):
-        self.input('inBamBaiArray', Array(BamBai))
+        self.input('inAlignments', Array(BamBai))
         
         self.step(
             "stp1", 
             SecondariesTestTool(
-                inp=self.inBamBaiArray
+                inp=self.inAlignments
             ),
             scatter="inp"
         )
@@ -622,16 +621,14 @@ class ArraySecondariesTestWF(Workflow):
         return "WF which uses Arrays pf SecondaryFile types for workflow / tool IO"
 
     def constructor(self):
-        self.input('inBamBaiArray', Array(BamBai))
+        self.input('inAlignments', Array(BamBai))
         
         self.step(
             "stp1", 
             ArraySecondariesTestTool(
-                inp=self.inBamBaiArray
+                inp=self.inAlignments
             ), 
         )
-
-        # self.output("outBamBaiArray", source=self.stp1.outArray)
         self.output("outStdout", source=self.stp1.outStdout)
 
 

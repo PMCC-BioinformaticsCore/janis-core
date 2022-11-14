@@ -699,7 +699,7 @@ class WorkflowBase(Tool):
         when: Optional[Operator] = None,
         ignore_missing=False,
         doc: str = None,
-    ):
+    ) -> StepNode:
         """
         Construct a step on this workflow.
 

@@ -16,8 +16,12 @@ from janis_core.types import (
     File
 )
 
-from ..common import NFBase
-from .. import utils
+from janis_core.translations.nfgen import NFBase
+from janis_core.translations.nfgen import utils
+from janis_core.translations.nfgen.casefmt import to_case
+from janis_core.translations.nfgen import settings
+
+
 
 
 
@@ -31,6 +35,8 @@ FULL PROCESS
 - tool inputs: param for all non-process-inputs
 """
 
+
+### DELEGATING FUNCTIONS
 
 def register(
     the_entity: Optional[Workflow | CommandTool]=None,
@@ -51,7 +57,6 @@ def register(
     else:
         raise RuntimeError("nothing to register: please supply 'the_entity' or 'the_dict'")
 
-
 def register_params_for_wf_inputs(
     workflow: Workflow,
     scope: list[str], 
@@ -61,11 +66,11 @@ def register_params_for_wf_inputs(
     param_ids = utils.get_channel_input_ids(workflow)
     param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
     for inp in param_inputs:
-        val = None
+        default = None
         if sources is not None and inp.id() in sources:
             src = sources[inp.id()]
-            val = utils.get_source_value(src)
-        register_wfinp_param(inp, scope=scope, value=val, override=override)
+            default = utils.get_source_value(src)
+        register_wfinp_param(inp, scope=scope, default=default, override=override)
 
 def register_params_for_tool(
     tool: CommandTool, 
@@ -82,11 +87,11 @@ def register_params_for_tool(
     param_ids = utils.get_param_input_ids(tool, sources=sources)
     param_inputs = utils.items_with_id(tool.inputs(), param_ids)
     for inp in param_inputs:
-        val = None
+        default = None
         if sources is not None and inp.id() in sources:
             src = sources[inp.id()]
-            val = utils.get_source_value(src)
-        register_toolinp_param(inp, scope=scope, value=val, override=override)
+            default = utils.get_source_value(src)
+        register_toolinp_param(inp, scope=scope, default=default, override=override)
 
 def register_params_for_dict(
     the_dict: dict[str, Any],
@@ -102,49 +107,110 @@ def register_params_for_dict(
                 is_wf_input=False
             )
 
-
 def register_wfinp_param(
     inp: InputNode, 
     scope: Optional[list[str]], 
-    value: Optional[Any]=None, 
+    default: Optional[Any]=None, 
     override: bool=False
     ) -> None:
-    varname = inp.id()
-    # brackets just to be specific about the condition
-    if (not exists(varname, scope)) or (exists(varname, scope) and override):
-        default = value if value else utils.wrap_value(inp.default, inp)  # type: ignore
+    if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
+        # brackets above just to be specific about the condition being assessed
+        # secondaries
+        if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
+            return register_wfinp_param_secondaries(inp, scope, default)
+        # array secondaries
+        if isinstance(inp.datatype, Array):
+            subtype = inp.datatype.subtype()
+            if isinstance(subtype, File) and subtype.has_secondary_files():
+                return register_wfinp_param_secondaries_array(inp, scope, default)
+        # anything else        
+        return register_wfinp_param_single(inp, scope, default)
+
+
+### ACTUAL PARAM REGISTRATION 
+
+# workflow inputs
+def register_wfinp_param_single(    
+    inp: InputNode, 
+    scope: Optional[list[str]], 
+    default: Optional[Any]=None, 
+    ) -> None:
         add(
-            varname=varname,
+            varname=inp.id(),
+            reference=inp.id(),
             scope=scope,
             dtype=inp.datatype,
             default=default,
             is_wf_input=True
         )
 
+def register_wfinp_param_secondaries(    
+    inp: InputNode, 
+    scope: Optional[list[str]], 
+    default: Optional[Any]=None, 
+    ) -> None:
+    exts: list[str] = []
+    exts.append(inp.datatype.extension)
+    exts += inp.datatype.secondary_files()
+    exts = [x.split('.')[-1] for x in exts]
+    for ext in exts:
+        add(
+            varname=f'{inp.id()}_{ext}',
+            reference=inp.id(),
+            scope=scope,
+            dtype=inp.datatype,
+            default=default,
+            is_wf_input=True
+        )
+
+def register_wfinp_param_secondaries_array(    
+    inp: InputNode, 
+    scope: Optional[list[str]], 
+    default: Optional[Any]=None, 
+    ) -> None:
+    dtype = inp.datatype.subtype() # type: ignore
+    exts: list[str] = []
+    exts.append(dtype.extension)
+    exts += dtype.secondary_files()
+    exts = [x.split('.')[-1] for x in exts]
+    if default is None:
+        default = []
+    for ext in exts:
+        add(
+            varname=f'{inp.id()}_{ext}s',
+            reference=inp.id(),
+            scope=scope,
+            dtype=dtype,
+            default=default,
+            is_wf_input=True
+        )
+
+
+# tool inputs
 def register_toolinp_param(
     inp: ToolInput, 
     scope: Optional[list[str]],
-    value: Optional[Any]='__UwU_PlaceholdeR_UwU__',
+    default: Optional[Any]='__UwU_PlaceholdeR_UwU__',
     override: bool=False
     ) -> None:
-    varname = inp.id()
-    if (not exists(varname, scope)) or (exists(varname, scope) and override):
+    if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
         # valid 'value' includes 'None', so must use placeholder
-        if value != '__UwU_PlaceholdeR_UwU__':
-            default = value
+        if default != '__UwU_PlaceholdeR_UwU__':
+            default = default
         else:
             default = inp.default 
         add(
-            varname=varname,
+            varname=inp.id(),
+            reference=inp.id(),
             dtype=inp.input_type,
             scope=scope,
-            default=utils.wrap_value(default, inp),
+            default=default,
             is_wf_input=False
         )
 
 
 
-### ordering
+### ORDERING
 
 @dataclass
 class OrderingMethod(ABC):
@@ -202,7 +268,8 @@ orderers: list[OrderingMethod] = [
     WfInputPriority(),
 ]
 
-### main classes 
+
+### MAIN CLASSES  
 
 class ParamRegister(NFBase):
     def __init__(self):
@@ -224,6 +291,7 @@ class ParamRegister(NFBase):
 @dataclass
 class Param(NFBase):
     varname: str
+    reference: Optional[str]=None
     scope: Optional[list[str]]=None
     dtype: Optional[DataType]=None
     default: Any=None
@@ -235,6 +303,7 @@ class Param(NFBase):
             name = f"{'_'.join(self.scope)}_{self.varname}"
         else:
             name = self.varname
+        name = to_case(name, settings.NEXTFLOW_PARAM_CASE)
         return name
         # return name.lower()
 
@@ -242,21 +311,25 @@ class Param(NFBase):
     def value(self) -> str:
         # get the default value as string
         # TODO I am dubious about this
-        if self.default == '':
-            value = 'None'
-        if isinstance(self.default, list):
-            value = [str(x) for x in self.default] # type: ignore
-            value = ', '.join(value)  
+        # if self.default == '':
+        #     val = None
+        if isinstance(self.dtype, Array) and self.default is None:
+            val: list[str] = []
         else:
-            value = str(self.default)
+            val = self.default
         # cast 'None' to 'null' etc
-        if value in utils.type_keyword_map:
-            value = utils.type_keyword_map[value]
-        return value
+        str_val = repr(val)
+        str_val = self.cast_keywords(str_val)
+        return str_val
     
     @property
     def width(self) -> int:
         return len(self.name)
+
+    def cast_keywords(self, val: Any) -> Any:
+        if val in utils.type_keyword_map:
+            val = utils.type_keyword_map[val]
+        return val
     
     def get_string(self) -> str:
         # leave this unimplemented! 
@@ -264,13 +337,14 @@ class Param(NFBase):
         raise NotImplementedError  
 
 
-### instantiation of register & default params
+### instantiation of param register & default params
 
 param_register = ParamRegister()
 
 default_params = [
     Param(
         varname='outdir',
+        reference=None,
         dtype=String(),
         default='"outputs"',
         is_wf_input=False,
@@ -281,9 +355,10 @@ for param in default_params:
     param_register.params[param.name] = param
 
 
-### module entry points
+### MODULE ENTRY POINTS
 
 def add(varname: str, 
+        reference: Optional[str]=None,
         scope: Optional[list[str]]=None, 
         dtype: Optional[DataType]=None, 
         default: Any=None,
@@ -291,24 +366,29 @@ def add(varname: str,
         
     ) -> None:
     global param_register
-    param = Param(varname, scope, dtype, default, is_wf_input)
+    param = Param(varname, reference, scope, dtype, default, is_wf_input)
     param_register.params[param.name] = param
     
-def exists(varname: str, scope: Optional[list[str]]=None) -> bool:
+def exists(varname: str, scope: Optional[list[str]]=None
+    ) -> bool:
     global param_register
-    param = Param(varname, scope)
+    param = Param(varname, scope=scope)
     if param.name in param_register.params:
         return True
     return False
 
-def get(varname: str, scope: Optional[list[str]]=None) -> Param:
+def get(varname: str, scope: Optional[list[str]]=None
+    ) -> Param:
     global param_register
-    param = Param(varname, scope)
+    param = Param(varname, reference=None, scope=scope)
     return param_register.params[param.name]
 
-def getall() -> list[Param]:
+def getall(reference: Optional[str]=None) -> list[Param]:
     global param_register
-    return param_register.ordered_params
+    params = param_register.ordered_params
+    if reference:
+        params = [x for x in params if x.reference == reference]
+    return params
 
 def in_scope(scope: list[str]) -> list[Param]:
     global param_register

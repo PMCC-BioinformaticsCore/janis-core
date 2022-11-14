@@ -19,6 +19,11 @@ CONFIG_FILENAME = "nextflow.config"
 NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
 PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
 
+# text case 
+NEXTFLOW_PARAM_CASE = 'snake'
+NEXTFLOW_CHANNEL_CASE = 'snake'
+NEXTFLOW_PROCESS_CASE = 'snake_caps'
+
 # process translation
 MINIMAL_PROCESS = True
 JANIS_ASSISTANT = False
