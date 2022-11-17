@@ -152,7 +152,7 @@ class DataType(ABC):
         self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
 
-    def is_array(self):
+    def is_array(self) -> bool:
         return False
 
     def __hash__(self):

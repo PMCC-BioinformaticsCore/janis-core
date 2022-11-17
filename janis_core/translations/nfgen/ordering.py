@@ -58,7 +58,7 @@ class FilePriorityStrategy(CmdtoolInsArgsStrategy):
         bottom: list[ToolInput | ToolArgument] = []
         for elem in ins_args:
             if isinstance(elem, ToolInput):
-                dtype = utils.get_base_type(elem)
+                dtype = utils.get_base_type_task_input(elem)
                 if isinstance(dtype, File):
                     top.append(elem)
                 else:

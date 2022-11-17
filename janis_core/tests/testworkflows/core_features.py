@@ -12,6 +12,7 @@ from janis_core.types import (
     Array,
     Int,
     Boolean,
+    Float
 )
 from janis_bioinformatics.data_types.bam import BamBai
 from janis_core.tests.testtools import (
@@ -42,7 +43,7 @@ class BasicIOTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inInt', Int)
 
         self.step(
@@ -51,16 +52,21 @@ class BasicIOTestWF(Workflow):
         )
         self.step(
             "stp2", 
-            StringTestTool(inp=self.inString)
+            StringTestTool(inp=self.inStr)
         )
         self.step(
             "stp3", 
-            IntTestTool(inp=self.inInt)
+            IntTestTool(inp=50)
         )
+        # self.step(
+        #     "stp4", 
+        #     FileTestTool(inp=self.stp1.out)
+        # )
 
         self.output("outFile", File, source=self.stp1.out)
-        self.output("outString", File, source=self.stp1.out)
+        self.output("outString", File, source=self.stp2.out)
         self.output("outInt", File, source=self.stp3.out)
+        # self.output("outFileConn", File, source=self.stp4.out)
 
     def friendly_name(self):
         return "TEST: BasicIOTestWF"
@@ -76,7 +82,7 @@ class StepInputsTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -86,12 +92,12 @@ class StepInputsTestWF(Workflow):
             ComponentsTestTool(
                 pos_basic=self.inFile,
                 pos_default=self.inInt,
-                pos_optional=self.inString,
+                pos_optional=self.inStr,
                 flag_true=self.inBool,
                 flag_false=self.inBool,
-                opt_basic=self.inString,
+                opt_basic=self.inStr,
                 opt_default=self.inInt,
-                opt_optional=self.inString,
+                opt_optional=self.inStr,
             )
         )
         # full inputs static
@@ -123,7 +129,7 @@ class StepInputsTestWF(Workflow):
             "stp4", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
-                opt_basic=self.inString,
+                opt_basic=self.inStr,
             )
         )
 
@@ -143,7 +149,8 @@ class StepInputsWFInputTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inFileOpt', File(optional=True))
+        self.input('inStr', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -152,13 +159,14 @@ class StepInputsWFInputTestWF(Workflow):
             "stp1", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
+                pos_basic2=self.inFileOpt,
                 pos_default=self.inInt,
-                pos_optional=self.inString,
+                pos_optional=self.inStr,
                 flag_true=self.inBool,
                 flag_false=self.inBool,
-                opt_basic=self.inString,
+                opt_basic=self.inStr,
                 opt_default=self.inInt,
-                opt_optional=self.inString,
+                opt_optional=self.inStr,
             )
         )
         self.output("outFile1", File, source=self.stp1.out)
@@ -174,7 +182,7 @@ class StepInputsStaticTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -206,7 +214,7 @@ class StepInputsPartialStaticTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -234,7 +242,7 @@ class StepInputsMinimalTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -243,7 +251,7 @@ class StepInputsMinimalTestWF(Workflow):
             "stp4", 
             ComponentsTestTool(
                 pos_basic=self.inFile,
-                opt_basic=self.inString,
+                opt_basic=self.inStr,
             )
         )
         self.output("outFile4", File, source=self.stp4.out)
@@ -263,13 +271,13 @@ class StepInputsMinimalTestWF(Workflow):
 class StepConnectionsTestWF(Workflow):
 
     def constructor(self):
-        self.input('inString', String)
+        self.input('inStr', String)
         self.input('inFile', File)
         self.input('inInt', Int)
 
         self.step(
             "stp1", 
-            StringTestTool(inp=self.inString)
+            StringTestTool(inp=self.inStr)
         )
         self.step(
             "stp2", 
@@ -297,30 +305,74 @@ class StepConnectionsTestWF(Workflow):
 class ArrayIOTestWF(Workflow):
 
     def constructor(self):
-        self.input('inStrArray', Array(String))
         self.input('inFileArray', Array(File))
+        self.input('inStrArray', Array(String))
         self.input('inIntArray', Array(Int))
         self.step(
             "stp1",
             ArrayStringTestTool(
-                ins=self.inStrArray,
+                inp=self.inStrArray,
             ),
         )
         self.step(
             "stp2",
             ArrayFileTestTool(
-                ins=self.inFileArray,
+                inp=self.inFileArray,
             ),
         )
         self.step(
             "stp3",
             ArrayIntTestTool(
-                ins=self.inIntArray,
+                inp=self.inIntArray,
             ),
         )
-        self.output("outStrings", source=self.stp1.outs)
-        self.output("outFiles", source=self.stp2.outs)
-        self.output("outInts", source=self.stp3.outs)
+        self.output("outStrings", source=self.stp1.out)
+        self.output("outFiles", source=self.stp2.out)
+        self.output("outInts", source=self.stp3.out)
+
+    def friendly_name(self):
+        return "TEST: ArrayIOTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+
+class ArrayIOExtrasTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFileArray', Array(File))
+        self.input('inStrArray', Array(String))
+        self.input('inIntArray', Array(Int))
+        self.input('inFloatArray', Array(Float))
+        self.step(
+            "stp1",
+            ArrayStringTestTool(
+                inp=self.inStrArray,
+            ),
+        )
+        self.step(
+            "stp2",
+            ArrayFileTestTool(
+                inp=self.inFileArray,
+            ),
+        )
+        self.step(
+            "stp3",
+            ArrayIntTestTool(
+                inp=self.inIntArray,
+            ),
+        )
+        self.step(
+            "stp4",
+            ArrayStringTestTool(
+                inp=['hello', 'there!'],
+            ),
+        )
+        self.output("outStrings", source=self.stp1.out)
+        self.output("outFiles", source=self.stp2.out)
+        self.output("outInts", source=self.stp3.out)
+        self.output("outStrings2", source=self.stp4.out)
 
     def friendly_name(self):
         return "TEST: ArrayIOTestWF"
@@ -336,6 +388,7 @@ class ArrayStepInputsTestWF(Workflow):
 
     def constructor(self):
         self.input('inFileArray', Array(File))
+        self.input('inFileArrayOpt', Array(File, optional=True))
         self.input('inStrArray', Array(String))
         self.input('inIntArray', Array(Int))
         self.input('inBoolArray', Array(Boolean))
@@ -345,6 +398,7 @@ class ArrayStepInputsTestWF(Workflow):
             "stp1",
             ArrayComponentsTestTool(
                 pos_basic=self.inFileArray,
+                pos_basic2=self.inFileArrayOpt,
                 pos_default=self.inStrArray,
                 pos_optional=self.inStrArray,
                 flag_true=self.inBoolArray,
@@ -359,12 +413,12 @@ class ArrayStepInputsTestWF(Workflow):
             "stp2", 
             ArrayComponentsTestTool(
                 pos_basic=self.inFileArray,
-                pos_default=["hi", "there", "friend"],
+                pos_default=[4,5,6],
                 pos_optional=["hi", "there", "friend"],
                 flag_true=[True],
                 flag_false=[True],
                 opt_basic=["hi", "there", "friend"],
-                opt_default=["hi", "there", "friend"],
+                opt_default=[4,5,6],
                 opt_optional=["hi", "there", "friend"],
             )
         )
@@ -403,17 +457,17 @@ class ArrayStepConnectionsTestWF(Workflow):
         self.step(
             "stp1",
             ArrayFileTestTool(
-                ins=self.inFileArray,
+                inp=self.inFileArray,
             ),
         )
         self.step(
             "stp2",
             ArrayFileTestTool(
-                ins=self.stp1.outs,
+                inp=self.stp1.out,
             ),
         )
-        self.output("outFiles1", source=self.stp1.outs)
-        self.output("outFiles2", source=self.stp2.outs)
+        self.output("outFiles1", source=self.stp1.out)
+        self.output("outFiles2", source=self.stp2.out)
 
     def friendly_name(self):
         return "TEST: ArrayStepConnectionsTestWF"
@@ -446,18 +500,24 @@ class BasicScatterTestWF(Workflow):
         )
         self.step(
             "stp2", 
-            StringTestTool(inp=self.inStrArray),
+            FileTestTool(inp=self.stp1.out),
             scatter="inp"
         )
         self.step(
             "stp3", 
+            StringTestTool(inp=self.inStrArray),
+            scatter="inp"
+        )
+        self.step(
+            "stp4", 
             IntTestTool(inp=self.inIntArray),
             scatter="inp"
         )
 
         self.output("outFile", Array(File), source=self.stp1.out)
-        self.output("outString", Array(File), source=self.stp2.out)
-        self.output("outInt", Array(File), source=self.stp3.out)
+        self.output("outFileConn", Array(File), source=self.stp2.out)
+        self.output("outString", Array(File), source=self.stp3.out)
+        self.output("outInt", Array(File), source=self.stp4.out)
 
     def friendly_name(self):
         return "TEST: BasicScatterTestWF"
@@ -486,15 +546,27 @@ class ChainedScatterTestWF(Workflow):
             FileTestTool(inp=self.stp1.out),
             scatter="inp"
         )
+        self.step(
+            "stp3", 
+            ArrayFileTestTool(inp=self.inFileArray),
+        )
+        self.step(
+            "stp4", 
+            FileTestTool(inp=self.stp3.out),
+            scatter="inp"
+        )
 
         self.output("outFile1", Array(File), source=self.stp1.out)
         self.output("outFile2", Array(File), source=self.stp2.out)
+        self.output("outFile3", Array(File), source=self.stp3.out)
+        self.output("outFile4", Array(File), source=self.stp4.out)
 
     def friendly_name(self):
         return "TEST: BasicScatterTestWF"
 
     def id(self) -> str:
         return self.__class__.__name__
+
 
 
 # MultiFieldScatterTestWF

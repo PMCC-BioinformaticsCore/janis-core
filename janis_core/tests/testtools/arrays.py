@@ -29,7 +29,7 @@ class ArrayFileTestTool(CommandTool):
         return "echo"
 
     def inputs(self) -> list[ToolInput]:
-        return [ToolInput("ins", Array(File), position=0)]
+        return [ToolInput("inp", Array(File), position=0)]
 
     def arguments(self) -> Optional[list[ToolArgument]]:
         return [
@@ -39,7 +39,7 @@ class ArrayFileTestTool(CommandTool):
         ]
 
     def outputs(self):
-        return [ToolOutput("outs", Array(File()), selector=WildcardSelector("*.txt"))]
+        return [ToolOutput("out", Array(File()), selector=WildcardSelector("*.txt"))]
 
     def container(self) -> str:
         return "ubuntu:latest"
@@ -59,10 +59,10 @@ class ArrayStringTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("ins", Array(String()), position=1)]
+        return [ToolInput("inp", Array(String()), position=1)]
 
     def outputs(self):
-        return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]
+        return [ToolOutput("out", Array(File()), glob=WildcardSelector("*"))]
 
     def container(self) -> str:
         return "ubuntu:latest"
@@ -82,10 +82,10 @@ class ArrayIntTestTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("ins", Array(Int()), position=1)]
+        return [ToolInput("inp", Array(Int()), position=1)]
 
     def outputs(self):
-        return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]
+        return [ToolOutput("out", Array(File()), glob=WildcardSelector("*"))]
 
     def container(self) -> str:
         return "ubuntu:latest"
@@ -104,14 +104,15 @@ class ArrayComponentsTestTool(CommandTool):
     def inputs(self) -> list[ToolInput]:
         return [
             ToolInput("pos_basic", Array(File), position=1),
-            ToolInput("pos_default", Array(String), default=["hi", "there", "friend"], position=2),
+            ToolInput("pos_basic2", Array(File, optional=True), position=1),
+            ToolInput("pos_default", Array(Int), default=[1, 2, 3], position=2),
             ToolInput("pos_optional", Array(String, optional=True), position=3),
 
             ToolInput("flag_true", Array(Boolean), position=4, prefix="--bool-true", default=[True]),
             ToolInput("flag_false", Array(Boolean), position=5, prefix="--bool-false", default=[True]),
             
             ToolInput("opt_basic", Array(String), position=6, prefix="--opt-basic=", separate_value_from_prefix=False),
-            ToolInput("opt_default", Array(String), position=7, default=["hi", "there", "friend"], prefix="--opt-default", prefix_applies_to_all_elements=True),
+            ToolInput("opt_default", Array(Int), position=7, default=[1, 2, 3], prefix="--opt-default", prefix_applies_to_all_elements=True),
             ToolInput("opt_optional", Array(String, optional=True), position=8, prefix="--opt-optional", separator=","),
         ]
 
@@ -186,7 +187,7 @@ class ArrayStepTool(CommandTool):
         return [ToolInput("inps", Array(String()), position=1)]
 
     def outputs(self):
-        return [ToolOutput("outs", Array(File()), glob=WildcardSelector("*"))]
+        return [ToolOutput("out", Array(File()), glob=WildcardSelector("*"))]
 
     def container(self):
         return None

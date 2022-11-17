@@ -84,6 +84,7 @@ class ComponentsTestTool(CommandTool):
     def inputs(self) -> list[ToolInput]:
         return [
             ToolInput("pos_basic", File, position=1),
+            ToolInput("pos_basic2", File(optional=True), position=999),
             ToolInput("pos_default", Int, default=95, position=2),
             ToolInput("pos_optional", String(optional=True), position=3),
 

@@ -1,5 +1,7 @@
 
 
+import ast
+import regex as re
 from typing import Any, Optional
 from janis_core.graph.node import Node
 from janis_core.graph.steptaginput import StepTagInput
@@ -22,7 +24,7 @@ from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import settings
-import regex as re
+
 
 
 
@@ -86,7 +88,7 @@ def get_referenced_wf_inputs(wf: Workflow) -> set[str]:
 def get_file_wf_inputs(wf: Workflow) -> set[str]:
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
-        dtype = get_base_type(inp)
+        dtype = get_base_type_task_input(inp)
         if isinstance(dtype, File):
             out.add(name)
     return out
@@ -218,11 +220,11 @@ def get_all_input_ids(tinputs: list[ToolInput]) -> set[str]:
 
 def get_file_input_ids(tinputs: list[ToolInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are File types"""
-    return {x.id() for x in tinputs if isinstance(get_base_type(x), File)}
+    return {x.id() for x in tinputs if isinstance(get_base_type_task_input(x), File)}
 
 def get_optional_input_ids(tinputs: list[ToolInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are optional"""
-    return {x.id() for x in tinputs if get_base_type(x).optional == True}
+    return {x.id() for x in tinputs if get_base_type_task_input(x).optional == True}
 
 def get_default_input_ids(tinputs: list[ToolInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs with a default value"""
@@ -237,7 +239,7 @@ def get_file_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
     for inname, src in sources.items():
         node = resolve_node(src)
         if isinstance(node, InputNode):
-            if isinstance(get_base_type(node), File):
+            if isinstance(get_base_type_task_input(node), File):
                 out.add(inname)
     return out
 
@@ -247,7 +249,7 @@ def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
     for inname, src in sources.items():
         node = resolve_node(src)
         if isinstance(node, InputNode):
-            if not isinstance(get_base_type(node), File):
+            if not isinstance(get_base_type_task_input(node), File):
                 out.add(inname)
     return out
 
@@ -309,7 +311,7 @@ def roughly_equivalent(val1: Any, val2: Any) -> bool:
         return True
     return False
 
-def get_base_type(task_input: ToolInput | InputNode | TInput) -> DataType:
+def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> DataType:
     match task_input:
         case ToolInput():
             dtype = task_input.input_type
@@ -317,18 +319,16 @@ def get_base_type(task_input: ToolInput | InputNode | TInput) -> DataType:
             dtype = task_input.datatype
         case _:
             dtype = task_input.intype
-    while isinstance(dtype, Array):
-        dtype = dtype.subtype()
-    return dtype
+    return get_base_type(dtype)
 
 def is_path(task_input: ToolInput | InputNode) -> bool:
-    datatype = get_base_type(task_input)
+    datatype = get_base_type_task_input(task_input)
     if isinstance(datatype, File):
         return True
     return False
 
 def is_file_pair(task_input: ToolInput | InputNode) -> bool:
-    datatype = get_base_type(task_input)
+    datatype = get_base_type_task_input(task_input)
     if isinstance(datatype, File):
         if datatype.has_secondary_files():
             if len(datatype.secondary_files()) == 1:
@@ -340,11 +340,7 @@ def is_file_pair(task_input: ToolInput | InputNode) -> bool:
 def is_nullable(task_input: ToolInput | InputNode) -> bool:
     raise NotImplementedError
 
-type_keyword_map: dict[str, str] = {
-    'None': 'null',
-    'False': 'false',
-    'True': 'true',
-}
+
 
 def is_simple_path(text: str) -> bool:
     PATH = r'[\w./]+'
@@ -355,69 +351,85 @@ def is_simple_path(text: str) -> bool:
             return True
     return False
 
-def wrap_value(val: Any, inp: Optional[ToolInput | InputNode]):
-    """
-    val is either the inp.default, or can be an override in the case
-    of step inputs. we use the val itself + the inp datatype to know
-    how to wrap.
-    """
-    # get dtype
-    dtype = None
-    if isinstance(inp, InputNode):
-        dtype = inp.datatype
-    elif isinstance(inp, ToolInput):
-        dtype = inp.input_type
-    
-    # ensure string
+def to_groovy_str(val: Any, dtype: Optional[DataType]=None) -> Any:
+    # must work with str version. 
+    dtype = get_base_type(dtype)
     val = str(val)
+    
+    # # secondary files
+    # if val != 'None' and isinstance(dtype, File) and dtype.has_secondary_files():
+    #     primary_file = wrap(val)
+    #     secondary_files: list[str] = []
+    #     for suffix in dtype.secondary_files():
+    #         sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
+    #         sec_file = wrap(sec_file)
+    #         secondary_files.append(sec_file)
+    #     # Note: we want primary file to always be the first item in the array
+    #     val = [primary_file] + secondary_files
 
     # wrap in quotes if necessary (for actual string values, file paths etc)
-    if should_wrap(val, inp):
-        val = f'"{val}"'
-    
-    # secondary files
-    if isinstance(dtype, File) and dtype.has_secondary_files():
-        primary_file = val
-        secondary_files: list[str] = []
-        for suffix in dtype.secondary_files():
-            sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
-            sec_file = f'"{sec_file}"'
-            secondary_files.append(sec_file)
-        # Note: we want primary file to always be the first item in the array
-        val = [primary_file] + secondary_files
-
-    # cast to correct syntax
-    if val in type_keyword_map:
-        val = type_keyword_map[val]
+    if should_wrap(val, dtype):
+        val = wrap(val)
 
     # remove dollar variable references (unsure if needed)
-    val = val.replace('$', '')
+    if '$' in val:
+        val = val.replace('$', '')
+
+    # 'None' -> 'null' etc
+    val = cast_keywords(val)
     return val
 
-def should_wrap(val: str, tool_input: Optional[ToolInput | InputNode]):
-    # if its bool or null or channel or list or starts with dollar, don't wrap
-    # otherwise, wrap
-    no_wrap_types: list[type[DataType]] = [Boolean, Int, Float]
-    
-    # true, false, numeric
-    if tool_input:
-        dtype = get_base_type(tool_input)
-        if type(dtype) in no_wrap_types:
+def should_wrap(val: str, dtype: Optional[DataType]) -> bool:
+    # don't quote lists
+    try:
+        literal_val = ast.literal_eval(val)
+        if isinstance(literal_val, list):
             return False
-        elif dtype.is_array():
-            return False
-        elif val == 'None':
+    except Exception as e: 
+        pass
+
+    # don't quote None
+    if val == 'None':
+        return False
+
+    # don't quote outer array, boolean, numeric types
+    no_quote_types: list[type[DataType]] = [Boolean, Int, Float]
+    if dtype:
+        if type(dtype) in no_quote_types:
             return False
 
-    # input channel
+    # don't quote nextflow input channel
     if val.startswith('ch_'):
         return False
     
-    # referenced variable
+    # don't quote nextflow referenced variable
     if val.startswith('$'):
         return False
     
+    # quote everything else
     return True
+
+def wrap(val: Any) -> Any:
+    return f"'{val}'"
+
+def cast_keywords(val: str) -> str:
+    # this is done in string world - need a better way of handling lists!
+    keyword_map: dict[str, str] = {
+        'None': 'null',
+        'False': 'false',
+        'True': 'true',
+    }
+    for python_val, groovy_val in keyword_map.items():
+        if python_val in val:
+            val = val.replace(python_val, groovy_val)
+    return val
+
+def get_base_type(dtype: Optional[DataType]) -> Optional[DataType]:
+    if dtype is None:
+        return dtype
+    while isinstance(dtype, Array):
+        dtype = dtype.subtype()
+    return dtype
 
 
 

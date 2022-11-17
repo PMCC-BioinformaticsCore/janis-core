@@ -8,7 +8,6 @@ from typing import Any, Optional
 from janis_core.workflow.workflow import InputNode
 from janis_core.workflow.workflow import Workflow
 from janis_core.tool.commandtool import CommandTool
-from janis_core.tool.commandtool import ToolInput
 from janis_core.types import (
     DataType,
     String, 
@@ -49,7 +48,7 @@ def register(
     if not isinstance(scope, list):
         scope = []
     if isinstance(the_entity, Workflow):
-        register_params_for_wf_inputs(the_entity, scope, override, sources)
+        register_params_for_wf_inputs(the_entity, scope, override)
     elif isinstance(the_entity, CommandTool):
         register_params_for_tool(the_entity, scope, override, sources)
     elif the_dict is not None:
@@ -60,16 +59,16 @@ def register(
 def register_params_for_wf_inputs(
     workflow: Workflow,
     scope: list[str], 
-    override: bool,
-    sources: Optional[dict[str, Any]]=None, 
+    override: bool
     ) -> None:
-    param_ids = utils.get_channel_input_ids(workflow)
-    param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
-    for inp in param_inputs:
-        default = None
-        if sources is not None and inp.id() in sources:
-            src = sources[inp.id()]
-            default = utils.get_source_value(src)
+    # param_ids = utils.get_channel_input_ids(workflow)
+    # param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
+    # for inp in param_inputs:
+    for inp in workflow.input_nodes.values():
+        default: Any = inp.default if inp.default is not None else None
+        # if sources is not None and inp.id() in sources:
+        #     src = sources[inp.id()]
+        #     default = utils.get_source_value(src)
         register_wfinp_param(inp, scope=scope, default=default, override=override)
 
 def register_params_for_tool(
@@ -83,6 +82,7 @@ def register_params_for_tool(
     Workflow / tool inputs which are exposed to the user must to be listed
     as part of the global params object. 
     """
+    raise NotImplementedError
     sources = sources if sources is not None else {}
     param_ids = utils.get_param_input_ids(tool, sources=sources)
     param_inputs = utils.items_with_id(tool.inputs(), param_ids)
@@ -168,45 +168,42 @@ def register_wfinp_param_secondaries_array(
     scope: Optional[list[str]], 
     default: Optional[Any]=None, 
     ) -> None:
-    dtype = inp.datatype.subtype() # type: ignore
     exts: list[str] = []
-    exts.append(dtype.extension)
-    exts += dtype.secondary_files()
+    exts.append(inp.datatype.subtype().extension)
+    exts += inp.datatype.subtype().secondary_files()
     exts = [x.split('.')[-1] for x in exts]
-    if default is None:
-        default = []
     for ext in exts:
         add(
             varname=f'{inp.id()}_{ext}s',
             reference=inp.id(),
             scope=scope,
-            dtype=dtype,
+            dtype=inp.datatype,
             default=default,
             is_wf_input=True
         )
 
 
-# tool inputs
-def register_toolinp_param(
-    inp: ToolInput, 
-    scope: Optional[list[str]],
-    default: Optional[Any]='__UwU_PlaceholdeR_UwU__',
-    override: bool=False
-    ) -> None:
-    if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
-        # valid 'value' includes 'None', so must use placeholder
-        if default != '__UwU_PlaceholdeR_UwU__':
-            default = default
-        else:
-            default = inp.default 
-        add(
-            varname=inp.id(),
-            reference=inp.id(),
-            dtype=inp.input_type,
-            scope=scope,
-            default=default,
-            is_wf_input=False
-        )
+# # tool inputs
+# def register_toolinp_param(
+#     inp: ToolInput, 
+#     scope: Optional[list[str]],
+#     default: Optional[Any]='__UwU_PlaceholdeR_UwU__',
+#     override: bool=False
+#     ) -> None:
+#     if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
+#         # valid 'value' includes 'None', so must use placeholder
+#         if default != '__UwU_PlaceholdeR_UwU__':
+#             default = default
+#         else:
+#             default = inp.default 
+#         add(
+#             varname=inp.id(),
+#             reference=inp.id(),
+#             dtype=inp.input_type,
+#             scope=scope,
+#             default=default,
+#             is_wf_input=False
+#         )
 
 
 
@@ -221,7 +218,7 @@ class OrderingMethod(ABC):
 @dataclass
 class NotNullPriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        return sorted(params, key=lambda x: x.value != 'null') 
+        return sorted(params, key=lambda x: x.groovy_value != 'null') 
 
 @dataclass
 class Alphabetical(OrderingMethod):
@@ -308,7 +305,7 @@ class Param(NFBase):
         # return name.lower()
 
     @property
-    def value(self) -> str:
+    def groovy_value(self) -> str:
         # get the default value as string
         # TODO I am dubious about this
         # if self.default == '':
@@ -317,20 +314,12 @@ class Param(NFBase):
             val: list[str] = []
         else:
             val = self.default
-        # cast 'None' to 'null' etc
-        str_val = repr(val)
-        str_val = self.cast_keywords(str_val)
-        return str_val
+        return utils.to_groovy_str(val, self.dtype)
     
     @property
     def width(self) -> int:
         return len(self.name)
 
-    def cast_keywords(self, val: Any) -> Any:
-        if val in utils.type_keyword_map:
-            val = utils.type_keyword_map[val]
-        return val
-    
     def get_string(self) -> str:
         # leave this unimplemented! 
         # architecture mandates the method has to exist, but not needed. 
@@ -398,7 +387,7 @@ def serialize() -> dict[str, Any]:
     global param_register
     the_dict: dict[str, Any] = {}
     for p in getall():
-        the_dict[p.name] = p.value
+        the_dict[p.name] = p.groovy_value
     return the_dict
 
 def clear() -> None:

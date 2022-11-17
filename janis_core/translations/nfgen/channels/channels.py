@@ -161,15 +161,15 @@ class Channel(NFBase):
         return self.get_string_condensed()
         
     def get_string_condensed(self) -> str:
-        collect = '.collect()' if self.collect else ''
+        # collect = '.collect()' if self.collect else ''
         ifempty = '.ifEmpty( null )' if self.allow_null else ''
-        return f'Channel.{self.method}( {self.source} ){collect}{ifempty}'
+        return f'Channel.{self.method}( {self.source} ){ifempty}'
 
     def get_string_expanded(self) -> str:
         channel_str = ''
         channel_str += 'Channel\n'
         channel_str += f'  .{self.method}( {self.source} )\n'
-        channel_str += f'  .collect()\n' if self.collect else ''
+        # channel_str += f'  .collect()\n' if self.collect else ''
         channel_str += f'  .ifEmpty( null )\n' if self.allow_null else ''
         channel_str += f'  .set{{ {self.name} }}\n'
         return channel_str
@@ -211,19 +211,25 @@ def add(
     new_ch = Channel(varname, params, method, collect, allow_null, reference)
     channel_register.channels[new_ch.name] = new_ch
 
-def exists(name: str) -> bool:
+def exists(name: Optional[str]=None, reference: Optional[str]=None) -> bool:
     global channel_register 
-    if name in channel_register.channels:
+    assert(name or reference)
+    if name and name in channel_register.channels:
+        return True
+    if reference and getall(reference):
         return True
     return False
 
 def get(name: str) -> Channel:
     global channel_register 
     return channel_register.channels[name]
-        
-def getall() -> list[Channel]:
-    global channel_register 
-    return channel_register.ordered_channels
+
+def getall(reference: Optional[str]=None) -> list[Channel]:
+    global channel_register
+    channels = channel_register.ordered_channels
+    if reference:
+        channels = [x for x in channels if x.reference == reference]
+    return channels
 
 def getstr() -> str:
     global channel_register 

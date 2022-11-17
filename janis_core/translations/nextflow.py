@@ -811,7 +811,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
 
-        nfgen.params.register(the_entity=tool, sources=values, scope=scope)
+        # nfgen.params.register(the_entity=tool, sources=values, scope=scope)
 
         process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.gen_script_for_cmdtool(
@@ -1295,23 +1295,26 @@ class NextflowTranslator(TranslatorBase):
         for name in process_inputs_names:
             if name in values:
                 src = values[name]
-                
-                if hasattr(src, "nextflow"):
-                    val = src.nextflow(
-                        var_indicator=inputs_replacement, 
-                        step_indicator=tool_id_prefix
-                    )
-                else:
-                    val = cls.unwrap_expression(
-                        src,
-                        tool=tool,
-                        inputs_dict=tool.inputs_map(), ## should this be 'values' instead?
-                        quote_string=False,
-                        var_indicator=inputs_replacement,
-                        step_indicator=tool_id_prefix,
-                    )
+                inputs[name] = nfgen.unwrap_source(src)
 
-                inputs[name] = val
+                #elif isinstance(node,)
+
+                # elif hasattr(src, "nextflow"):
+                #     val = src.nextflow(
+                #         var_indicator=inputs_replacement, 
+                #         step_indicator=tool_id_prefix
+                #     )
+                # else:
+                #     val = cls.unwrap_expression(
+                #         src,
+                #         tool=tool,
+                #         inputs_dict=tool.inputs_map(), ## should this be 'values' instead?
+                #         quote_string=False,
+                #         var_indicator=inputs_replacement,
+                #         step_indicator=tool_id_prefix,
+                #     )
+
+                # inputs[name] = val
         return inputs
 
     @classmethod

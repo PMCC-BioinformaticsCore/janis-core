@@ -11,6 +11,7 @@ from janis_core.tests.testtools import (
     SumTestTool,
     JoinArrayTestTool,
     FileInputTestTool,
+    CatTestTool,
     SecondaryInputTestTool,
     BasicTestTool,
     AppendedSecondaryOutputTestTool,
@@ -30,6 +31,7 @@ from janis_core.tests.testworkflows import (
 
     # arrays
     ArrayIOTestWF,
+    ArrayIOExtrasTestWF,
     ArrayStepInputsTestWF,
     ArrayStepConnectionsTestWF,
 
@@ -71,8 +73,16 @@ from janis_core.translations import nfgen
 from janis_core.translations.nfgen import settings
 from janis_core.translations.nfgen.params import Param
 from janis_core.translations.nfgen.channels import Channel
-from janis_core import Array, String, File, Boolean, Filename
-
+from janis_core import (
+    Array, 
+    String, 
+    Int, 
+    Float, 
+    File, 
+    Boolean, 
+    Filename
+)
+from janis_core.translations.nfgen.utils import to_groovy_str
 
 
 ### helper classes
@@ -97,28 +107,106 @@ class DataTypeNoSecondary(File):
 
 ### helper functions
 
-def register_params(wf: Workflow) -> dict[str, str]:
+def register_params_workflow(wf: Workflow) -> dict[str, str]:
     scope: list[str] = []
     nfgen.params.clear()
     nfgen.params.register(the_entity=wf, scope=scope)
-    for step in wf.step_nodes.values():
-        current_scope = deepcopy(scope)
-        current_scope.append(step.id())
-        nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
+    # for step in wf.step_nodes.values():
+    #     current_scope = deepcopy(scope)
+    #     current_scope.append(step.id())
+    #     nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
     params = nfgen.params.getall()
-    return {p.name: p.value for p in params} 
+    return {p.name: p.groovy_value for p in params} 
 
 def register_params_tool(tool: CommandTool) -> dict[str, str]:
     scope: list[str] = []
     nfgen.params.clear()
     nfgen.params.register(the_entity=tool, scope=scope)
     params = nfgen.params.getall()
-    return {p.name: p.value for p in params} 
+    return {p.name: p.groovy_value for p in params} 
 
 def register_channels(wf: Workflow) -> list[Channel]:
     nfgen.channels.clear()
     nfgen.channels.register(wf)
     return nfgen.channels.getall()
+
+
+
+class TestToGroovyStr(unittest.TestCase):
+
+    def test_string(self) -> None:
+        inp = 'Hello'
+        expected = "'Hello'"
+        actual = to_groovy_str(inp, String())
+        self.assertEquals(expected, actual)
+    
+    def test_numeric(self) -> None:
+        # int
+        inp = 5
+        expected = '5'
+        actual = to_groovy_str(inp, Int())
+        self.assertEquals(expected, actual)
+        # float
+        inp = 5.2
+        expected = '5.2'
+        actual = to_groovy_str(inp, Float())
+        self.assertEquals(expected, actual)
+    
+    def test_bool(self) -> None:
+        # true
+        inp = True
+        expected = 'true'
+        actual = to_groovy_str(inp, Boolean())
+        self.assertEquals(expected, actual)
+        # false
+        inp = False
+        expected = 'false'
+        actual = to_groovy_str(inp, Boolean())
+        self.assertEquals(expected, actual)
+    
+    def test_none(self) -> None:
+        inp = None
+        expected = 'null'
+        actual = to_groovy_str(inp, String())
+        self.assertEquals(expected, actual)
+    
+    def test_empty_array(self) -> None:
+        inp = []
+        expected = "[]"
+        actual = to_groovy_str(inp, String())
+        self.assertEquals(expected, actual)
+    
+    def test_string_array(self) -> None:
+        inp = ['Hello']
+        expected = "['Hello']"
+        actual = to_groovy_str(inp, String())
+        self.assertEquals(expected, actual)
+    
+    def test_numeric_array(self) -> None:
+        # int
+        inp = [1, 2, 3]
+        expected = '[1, 2, 3]'
+        actual = to_groovy_str(inp, Int())
+        self.assertEquals(expected, actual)
+        # float
+        inp = [1.1, 2.2, 3.3]
+        expected = '[1.1, 2.2, 3.3]'
+        actual = to_groovy_str(inp, Float())
+        self.assertEquals(expected, actual)
+    
+    def test_bool_array(self) -> None:
+        inp = [True, False]
+        expected = '[true, false]'
+        actual = to_groovy_str(inp)
+        self.assertEquals(expected, actual)
+    
+    def test_none_array(self) -> None:
+        inp = [None, None]
+        expected = '[null, null]'
+        actual = to_groovy_str(inp)
+        self.assertEquals(expected, actual)
+
+
 
 
 
@@ -142,146 +230,6 @@ class TestSettings(unittest.TestCase):
     
 
 
-WF_INPUTS_SINGLES = {
-    'testinput': 'null',
-    'fastqc1_adapters': 'null',
-    'fastqc1_contaminants': 'null',
-    'fastqc1_limits': 'null',
-    'fastqc2_adapters': 'null',
-    'fastqc2_contaminants': 'null',
-    'fastqc2_limits': 'null',
-    'prokka_proteins': 'null',
-}
-
-WF_INPUTS_ARRS = {
-    'inforwardreads': 'null',
-    'inlongreads': 'null',
-    'inreversereads': 'null',
-}
-
-TOOL_INPUTS = {
-    'prokka_genus': '"Escherichia"',
-    'prokka_increment': '10',
-    'prokka_locustag': '"PROKKA"',
-    'prokka_species': '"Coli"',
-    'prokka_strain': '"C-1"',
-    'quast_contigthresholds': 'null',
-    'quast_referenceslist': '"temp_ref_list_fp"',
-    'unicycler_kmers': '""',
-    'unicycler_scores': '""',
-    'unicycler_startgenecov': '95.0',
-    'unicycler_startgeneid': '90.0',
-}
-
-COMBINED_INPUTS = WF_INPUTS_SINGLES | WF_INPUTS_ARRS | TOOL_INPUTS
-
-MINIMAL_PARAMS = {
-    'inforwardreads': 'null',
-    'inreversereads': 'null',
-    'inlongreads': 'null',
-    'testinput': 'null',
-    'fastqc1_adapters': 'null',
-    'fastqc1_contaminants': 'null',
-    'fastqc1_limits': 'null',
-    'fastqc2_adapters': 'null',
-    'fastqc2_contaminants': 'null',
-    'fastqc2_limits': 'null',
-    'unicycler_kmers': '""',
-    'unicycler_scores': '""',
-    'unicycler_startgenecov': '95.0',
-    'unicycler_startgeneid': '90.0',
-}
-
-ADDITIONAL_PARAMS = {
-    'fastqc1_extract': 'null',
-    'fastqc1_nogroup': 'null',
-    'fastqc1_quiet': 'null',
-    'fastqc1_kmers': 'null',
-    'fastqc1_minlength': 'null',
-    'fastqc1_optionf': 'null',
-    'fastqc1_outdir': 'null',
-    'fastqc2_extract': 'null',
-    'fastqc2_nogroup': 'null',
-    'fastqc2_quiet': 'null',
-    'fastqc2_kmers': 'null',
-    'fastqc2_minlength': 'null',
-    'fastqc2_optionf': 'null',
-    'fastqc2_outdir': 'null',
-    'fastqc3_adapters': 'null',
-    'fastqc3_contaminants': 'null',
-    'fastqc3_limits': 'null',
-    'fastqc3_extract': 'null',
-    'fastqc3_nogroup': 'null',
-    'fastqc3_quiet': 'null',
-    'fastqc3_kmers': 'null',
-    'fastqc3_minlength': 'null',
-    'fastqc3_optionf': 'null',
-    'fastqc3_outdir': 'null',
-    'unicycler_largestcomponent': 'null',
-    'unicycler_nocorrect': 'null',
-    'unicycler_nopilon': 'null',
-    'unicycler_norotate': 'null',
-    'unicycler_contamination': 'null',
-    'unicycler_depthfilter': 'null',
-    'unicycler_kmercount': 'null',
-    'unicycler_linearseqs': 'null',
-    'unicycler_lowscore': 'null',
-    'unicycler_maxkmerfrac': 'null',
-    'unicycler_minanchorseglen': 'null',
-    'unicycler_mincomponentsize': 'null',
-    'unicycler_mindeadendsize': 'null',
-    'unicycler_minfastalength': 'null',
-    'unicycler_minkmerfrac': 'null',
-    'unicycler_minpolishsize': 'null',
-    'unicycler_mode': 'null',
-    'unicycler_optiono': 'null',
-    'unicycler_options': 'null',
-    'unicycler_optiont': 'null',
-    'unicycler_pilonpath': 'null',
-    'unicycler_startgenes': 'null',
-    'unicycler_verbosity': 'null',
-}
-
-FULL_PARAMS = MINIMAL_PARAMS | ADDITIONAL_PARAMS
-
-UNICYCLER_MINIMAL = {
-    'kmers': '""',
-    'scores': '""',
-    'startgenecov': '95.0',
-    'startgeneid': '90.0',
-}
-
-UNICYCLER_ADDITIONAL = {
-    'largestcomponent': 'null',
-    'nocorrect': 'null',
-    'nopilon': 'null',
-    'norotate': 'null',
-    'contamination': 'null',
-    'depthfilter': 'null',
-    'kmercount': 'null',
-    'linearseqs': 'null',
-    'lowscore': 'null',
-    'maxkmerfrac': 'null',
-    'minanchorseglen': 'null',
-    'mincomponentsize': 'null',
-    'mindeadendsize': 'null',
-    'minfastalength': 'null',
-    'minkmerfrac': 'null',
-    'minpolishsize': 'null',
-    'mode': 'null',
-    'optiono': 'null',
-    'options': 'null',
-    'optiont': 'null',
-    'pilonpath': 'null',
-    'startgenes': 'null',
-    'verbosity': 'null',
-}
-
-UNICYCLER_FULL = UNICYCLER_MINIMAL | UNICYCLER_ADDITIONAL
-
-
-
-
 
 class TestParams(unittest.TestCase):
     
@@ -295,7 +243,7 @@ class TestParams(unittest.TestCase):
         Channels are created from a subset of workflow inputs.
         """
         wf = AssemblyTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         params = nfgen.params.getall()
         param_ids = {p.name for p in params}
         expected_ids = {
@@ -321,32 +269,29 @@ class TestParams(unittest.TestCase):
         wf = StepInputsWFInputTestWF()
         
         # full
-        settings.MINIMAL_PROCESS = False
-        actual_params = register_params(wf)
-        expected_params = {
-            'in_file': 'null',
-            'stp1_pos_default': 'null',
-            'stp1_pos_optional': 'null',
-            'stp1_flag_true': 'null',
-            'stp1_flag_false': 'null',
-            'stp1_opt_basic': 'null',
-            'stp1_opt_default': 'null',
-            'stp1_opt_optional': 'null'
-        }
-        self.assertEquals(actual_params, expected_params)
+        # settings.MINIMAL_PROCESS = False
+        # actual_params = register_params_workflow(wf)
+        # expected_params = {
+        #     'in_file': 'null',
+        #     'stp1_pos_default': 'null',
+        #     'stp1_pos_optional': 'null',
+        #     'stp1_flag_true': 'null',
+        #     'stp1_flag_false': 'null',
+        #     'stp1_opt_basic': 'null',
+        #     'stp1_opt_default': 'null',
+        #     'stp1_opt_optional': 'null'
+        # }
+        # self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_file': 'null',
-            'stp1_pos_default': 'null',
-            'stp1_pos_optional': 'null',
-            'stp1_flag_true': 'null',
-            'stp1_flag_false': 'null',
-            'stp1_opt_basic': 'null',
-            'stp1_opt_default': 'null',
-            'stp1_opt_optional': 'null'
+            'in_file_opt': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'in_bool': 'null',
         }
         self.assertEquals(actual_params, expected_params)
 
@@ -354,25 +299,28 @@ class TestParams(unittest.TestCase):
         wf = StepInputsStaticTestWF()
         
         # full
-        settings.MINIMAL_PROCESS = False
-        actual_params = register_params(wf)
-        expected_params = {
-            'in_file': 'null',
-            'stp2_pos_default': '100',
-            'stp2_pos_optional': "'static'",
-            'stp2_flag_true': 'false',
-            'stp2_flag_false': 'true',
-            'stp2_opt_basic': "'static'",
-            'stp2_opt_default': '100',
-            'stp2_opt_optional': "''"
-        }
-        self.assertEquals(actual_params, expected_params)
+        # settings.MINIMAL_PROCESS = False
+        # actual_params = register_params_workflow(wf)
+        # expected_params = {
+        #     'in_file': 'null',
+        #     'stp2_pos_default': '100',
+        #     'stp2_pos_optional': "'static'",
+        #     'stp2_flag_true': 'false',
+        #     'stp2_flag_false': 'true',
+        #     'stp2_opt_basic': "'static'",
+        #     'stp2_opt_default': '100',
+        #     'stp2_opt_optional': "''"
+        # }
+        # self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_file': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'in_bool': 'null',
             'stp2_pos_default': '100',
             'stp2_pos_optional': "'static'",
             'stp2_flag_true': 'false',
@@ -386,26 +334,29 @@ class TestParams(unittest.TestCase):
     def test_static_and_omitted_step_inputs(self) -> None:
         wf = StepInputsPartialStaticTestWF()
         
-        # full
-        settings.MINIMAL_PROCESS = False
-        actual_params = register_params(wf)
-        expected_params = {
-            'in_file': 'null',
-            'stp3_pos_default': 'null',
-            'stp3_pos_optional': 'null',
-            'stp3_flag_true': 'null',
-            'stp3_flag_false': 'null',
-            'stp3_opt_basic': "'static'",
-            'stp3_opt_default': '100',
-            'stp3_opt_optional': "''"
-        }
-        self.assertEquals(actual_params, expected_params)
+        # # full
+        # settings.MINIMAL_PROCESS = False
+        # actual_params = register_params_workflow(wf)
+        # expected_params = {
+        #     'in_file': 'null',
+        #     'stp3_pos_default': 'null',
+        #     'stp3_pos_optional': 'null',
+        #     'stp3_flag_true': 'null',
+        #     'stp3_flag_false': 'null',
+        #     'stp3_opt_basic': "'static'",
+        #     'stp3_opt_default': '100',
+        #     'stp3_opt_optional': "''"
+        # }
+        # self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_file': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'in_bool': 'null',
             'stp3_opt_basic': "'static'",
             'stp3_opt_default': '100',
             'stp3_opt_optional': "''"
@@ -415,43 +366,45 @@ class TestParams(unittest.TestCase):
     def test_omitted_step_inputs(self) -> None:
         wf = StepInputsMinimalTestWF()
         
-        # full
-        settings.MINIMAL_PROCESS = False
-        actual_params = register_params(wf)
-        expected_params = {
-            'in_file': 'null',
-            'stp4_pos_default': 'null',
-            'stp4_pos_optional': 'null',
-            'stp4_flag_true': 'null',
-            'stp4_flag_false': 'null',
-            'stp4_opt_basic': 'null',
-            'stp4_opt_default': 'null',
-            'stp4_opt_optional': 'null'
-        }
-        self.assertEquals(actual_params, expected_params)
+        # # full
+        # settings.MINIMAL_PROCESS = False
+        # actual_params = register_params_workflow(wf)
+        # expected_params = {
+        #     'in_file': 'null',
+        #     'stp4_pos_default': 'null',
+        #     'stp4_pos_optional': 'null',
+        #     'stp4_flag_true': 'null',
+        #     'stp4_flag_false': 'null',
+        #     'stp4_opt_basic': 'null',
+        #     'stp4_opt_default': 'null',
+        #     'stp4_opt_optional': 'null'
+        # }
+        # self.assertEquals(actual_params, expected_params)
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_file': 'null',
-            'stp4_opt_basic': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'in_bool': 'null',
         }
         self.assertEquals(actual_params, expected_params)
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
-            'stp1_ins': '[]',
             'in_file_array': '[]',
-            'stp3_ins': '[]',
+            'in_str_array': '[]',
+            'in_int_array': '[]',
         }
         self.assertEquals(actual_params, expected_params)
 
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesIOTestWF()
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_alignments_bam': 'null',
             'in_alignments_bai': 'null',
@@ -460,7 +413,7 @@ class TestParams(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = ArraySecondariesTestWF()
-        actual_params = register_params(wf)
+        actual_params = register_params_workflow(wf)
         expected_params = {
             'in_alignments_bams': '[]',
             'in_alignments_bais': '[]',
@@ -488,7 +441,7 @@ class TestChannels(unittest.TestCase):
     def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
         wf = AssemblyTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         channel_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
@@ -511,7 +464,7 @@ class TestChannels(unittest.TestCase):
         '.ifEmpty(null)' should appear in the channel string definition.
         """
         wf = AssemblyTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         relevant_channel_names = {
             'ch_fastqc1_adapters',
@@ -531,7 +484,7 @@ class TestChannels(unittest.TestCase):
         Non-File-type wf input should not have channels.
         """
         wf = AssemblyTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         nonfile_wf_input_ids = {
             'unicycler_kmers',
@@ -545,7 +498,7 @@ class TestChannels(unittest.TestCase):
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
@@ -557,7 +510,7 @@ class TestChannels(unittest.TestCase):
         
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesIOTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
@@ -570,7 +523,7 @@ class TestChannels(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = ArraySecondariesTestWF()
-        register_params(wf)
+        register_params_workflow(wf)
         register_channels(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
@@ -703,7 +656,7 @@ class TestProcessInputs(unittest.TestCase):
         from janis_core.tests.testworkflows import AssemblyTestWF
         self.maxDiff = None
         self.wf = AssemblyTestWF()
-        register_params(self.wf)
+        register_params_workflow(self.wf)
 
     def test_wf_inputs(self) -> None:
         # need a process input for each File wf input in step sources.
@@ -1020,7 +973,6 @@ process filenamegeneratedtool
 """
         self.assertEqual(expected, p.get_string())
 
-
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
@@ -1231,65 +1183,149 @@ process filenamegeneratedtool
 
 
 class TestPlumbingBasic(unittest.TestCase):
-    # TODO test more features / edge cases?
+    """
+    This test group checks janis 'TInput' step inputs driven by workflow inputs
+    or static values. 
+
+    Ensures they are being handled correctly when parsed to nextflow.
+    """
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
 
-    def test_basic(self):
-        wf = AssemblyTestWF()
+    # workflow input step inputs
+    def test_workflow_inputs(self):
+        wf = StepInputsWFInputTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        expected = {
+            "pos_basic": "ch_in_file",
+            "pos_basic2": "ch_in_file_opt",
+        }
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
+        
+    def test_workflow_inputs_array(self) -> None:
+        wf = ArrayStepInputsTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        expected = {
+            "pos_basic": "ch_in_file_array",
+            "pos_basic2": "ch_in_file_array_opt",
+        }
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
+    
+    # static step inputs
+    def test_static_step_inputs(self):
+        wf = StepInputsTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        not_expected = {
+            'pos_default',
+            'pos_default',
+            'pos_optional',
+            'flag_true',
+            'flag_false',
+            'opt_basic',
+            'opt_default',
+            'opt_optional',
+        }
+        actual = translator.gen_step_inval_dict(tool, sources)
+        for tinput_name in not_expected:
+            self.assertNotIn(tinput_name, actual)
+    
+    def test_static_step_inputs_array(self):
+        wf = ArrayStepInputsTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        not_expected = {
+            'pos_default',
+            'pos_default',
+            'pos_optional',
+            'flag_true',
+            'flag_false',
+            'opt_basic',
+            'opt_default',
+            'opt_optional',
+        }
+        actual = translator.gen_step_inval_dict(tool, sources)
+        for tinput_name in not_expected:
+            self.assertNotIn(tinput_name, actual)
 
-        tool = wf.step_nodes["fastqc1"].tool
-        sources = wf.step_nodes["fastqc1"].sources
-        expected = {
-            "inputFile": "ch_in_forward_reads",
-            "adapters": "ch_fastqc1_adapters",
-            "contaminants": "ch_fastqc1_contaminants",
-            "limits": "ch_fastqc1_limits",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources)
-        self.assertEqual(expected, actual)
-        
-        tool = wf.step_nodes["fastqc3"].tool
-        sources = wf.step_nodes["fastqc3"].sources
-        expected = {"inputFile": "ch_test_input"}
-        actual = translator.gen_step_inval_dict(tool, sources)
-        self.assertEqual(expected, actual)
-        
-        tool = wf.step_nodes["CatTestTool"].tool
-        sources = wf.step_nodes["CatTestTool"].sources
-        expected = {"inp": "fastqc3.out.outTextFile"}
-        actual = translator.gen_step_inval_dict(tool, sources)
-        self.assertEqual(expected, actual)
-        
-        tool = wf.step_nodes["unicycler"].tool
-        sources = wf.step_nodes["unicycler"].sources
-        expected = {
-            "option1": "ch_in_forward_reads",
-            "option2": "ch_in_reverse_reads",
-            "optionL": "ch_in_long_reads",
-        }
+    # connections
+    def test_file_connections(self) -> None:
+        wf = StepConnectionsTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        expected = {"inp": "STP1.out.out"}
         actual = translator.gen_step_inval_dict(tool, sources)
         self.assertEqual(expected, actual)
     
+    def test_array_connections(self) -> None:
+        wf = ArrayStepConnectionsTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        expected = {"inp": "STP1.out.out"}
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
+
     @unittest.skip('not implemented')
-    def test_arrays(self) -> None:
+    def test_nonfile_connections(self) -> None:
         raise NotImplementedError
-    
+
 
 
 
 class TestPlumbingScatter(unittest.TestCase):
-    # TODO test more features / edge cases?
+    """
+    This test group checks that janis scatter declarations are being handled 
+    correctly to produce the desired nextflow workflow. 
+    """
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
-    @unittest.skip('not implemented')
     def test_scatter(self) -> None:
-        raise NotImplementedError
+        wf = BasicScatterTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        expected = {"inp": "ch_in_file_array"}
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
+    
+    def test_scatter_connection(self) -> None:
+        wf = ChainedScatterTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        # single -> single
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        expected = {"inp": "STP1.out.out"}
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
+        # array -> single
+        tool = wf.step_nodes["stp4"].tool
+        sources = wf.step_nodes["stp4"].sources
+        expected = {"inp": "STP3.out.out.flatten()"}
+        actual = translator.gen_step_inval_dict(tool, sources)
+        self.assertEqual(expected, actual)
     
     @unittest.skip('not implemented')
     def test_scatter_dot(self) -> None:
@@ -1316,91 +1352,339 @@ class TestPlumbingScatter(unittest.TestCase):
 
 class TestPlumbingSecondaries(unittest.TestCase):
     # TODO test more features / edge cases?
+    """
+    This test group checks that janis File types with secondaries are being handled 
+    correctly to produce the desired nextflow workflow. 
+    
+    SecondaryFiles are especially tricky when mapping to janis. 
+    Requires the remapping of tool inputs in some situations.
+    
+    eg Array(BamBai) 
+        - Arrays where each item is a file with secondaries. 
+        - These gets remapped from a single tool input, to an array input
+          for each separate file in the datatype. 
+        - Works like transposing - instead of inp1=[[Bam, Bai], [Bam, Bai]],
+          results in inp1=[Bam, Bam], inp2=[Bai, Bai]
+
+    """
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
     @unittest.skip('not implemented')
+    def test_secondaries_workflow_inputs(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_workflow_inputs_array(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_secondaries_connections(self) -> None:
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_secondaries_array_connections(self) -> None:
+    def test_secondaries_connections_array(self) -> None:
         raise NotImplementedError
     
 
     
 
 class TestNextflowConfig(unittest.TestCase):
-
+    
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-        self.wf = AssemblyTestWF()
-        register_params(self.wf)
+    
+    def test_file_workflow_inputs(self):
+        wf = BasicIOTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+            'in_file': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'stp3_inp': '50',
+        }
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_array_workflow_inputs(self):
+        wf = ArrayIOExtrasTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        # I apologise for disgusting formatting below. 
+        # This can probably be handled better.
+        expected_values = {
+    'in_str_array': fr"""\[
+        // list strings here
+    \]""",
+    'in_file_array': fr"""\[
+        // list files here
+    \]""",
+            'in_int_array': r'\[\]',
+            'in_float_array': r'\[\]',
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_file_secondaries_workflow_inputs(self):
+        wf = SecondariesIOTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+            'in_alignments_bam': 'null',
+            'in_alignments_bai': 'null',
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_file_secondaries_array_workflow_inputs(self):
+        wf = ArraySecondariesTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+    'in_alignments_bams': fr"""\[
+        // list files here
+    \]""",
+    'in_alignments_bais': fr"""\[
+        // list files here
+    \]""",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_nonfile_workflow_inputs(self):
+        # string, int, bool
+        wf = StepInputsTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+            'in_file': 'null',
+            'in_str': 'null',
+            'in_int': 'null',
+            'in_bool': 'null',
+            'stp2_pos_default': '100',
+            'stp2_pos_optional': "'static'",
+            'stp2_flag_true': 'false',
+            'stp2_flag_false': 'true',
+            'stp2_opt_basic': "'static'",
+            'stp2_opt_default': '100',
+            'stp2_opt_optional': "''",
+            'stp3_opt_basic': "'static'",
+            'stp3_opt_default': '100',
+            'stp3_opt_optional': "''",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_nonfile_array_workflow_inputs(self):
+        # string, int, bool
+        wf = ArrayStepInputsTestWF()
+        register_params_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+    'in_file_array': fr"""\[
+        // list files here
+    \]""",
+    'in_str_array': fr"""\[
+        // list strings here
+    \]""",
+    'in_int_array': fr'\[\]',
+    'in_bool_array': fr'\[\]',
+    'stp2_pos_default': fr'\[4, 5, 6\]',
+    'stp2_pos_optional': fr"""\[
+        'hi',
+        'there',
+        'friend',
+    \]""",
+    'stp2_flag_true': fr'\[true\]',
+    'stp2_flag_false': fr'\[true\]',
+    'stp2_opt_basic': fr"""\[
+        'hi',
+        'there',
+        'friend',
+    \]""",
+    'stp2_opt_default': fr'\[4, 5, 6\]',
+    'stp2_opt_optional': fr"""\[
+        'hi',
+        'there',
+        'friend',
+    \]""",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
 
     def test_workflow_config(self) -> None:
-        config = translator.stringify_translated_inputs({})
+        wf = AssemblyTestWF()
+        register_params_workflow(wf)
+        params = translator.build_inputs_file(wf)
+        config = translator.stringify_translated_inputs(params)
         # basic structure
         self.assertIn('docker.enabled = true', config)
         self.assertIn('params {\n\n', config)
         self.assertIn('\n\n}', config)
         # expected params are present & correct
-        for name, val in COMBINED_INPUTS.items():
+        expected_values = {
+            'test_input': 'null',
+            'fastqc1_adapters': 'null',
+            'fastqc1_contaminants': 'null',
+            'fastqc1_limits': 'null',
+            'fastqc2_adapters': 'null',
+            'fastqc2_contaminants': 'null',
+            'fastqc2_limits': 'null',
+            'in_forward_reads': 'null',
+            'in_long_reads': 'null',
+            'in_reverse_reads': 'null',
+            'unicycler_kmers': "''",
+            'unicycler_scores': "''",
+            'unicycler_start_gene_cov': '95.0',
+            'unicycler_start_gene_id': '90.0',
+        }
+        for name, val in expected_values.items():
             pattern = f'{name}.*?{val}'
             matches = re.findall(pattern, config)
             self.assertGreater(len(matches), 0)
-    
-    def test_nextflow_config(self) -> None:
-        """
-        Every wf input should have a param. 
-        """
-        params = translator.build_inputs_file(self.wf)
-        config = translator.stringify_translated_inputs(params)
-        expected_params = {
-            'in_forward_reads',
-            'in_reverse_reads',
-            'in_long_reads',
-            'test_input',
-            'fastqc1_adapters',
-            'fastqc1_contaminants',
-            'fastqc1_limits',
-            'fastqc2_adapters',
-            'fastqc2_contaminants',
-            'fastqc2_limits',
-        }
-        for param in expected_params:
-            self.assertIn(param, config)
-
-    @unittest.skip('not implemented')
-    def test_array_inputs(self) -> None:
-        raise NotImplementedError
-
-    @unittest.skip('not implemented')
-    def test_secondaries_inputs(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_secondaries_array_inputs(self) -> None:
-        raise NotImplementedError
 
     @unittest.skip('not implemented')
     def test_tool_config(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'tool'
         raise NotImplementedError
 
-    
-    ### OLD
 
-    def test_input_in_input_value_nooptional_nodefault(self):
-        wf = WorkflowBuilder(
-            "test_nf_input_in_input_value_nooptional_nodefault",
+
+
+class TestSubworkflows(unittest.TestCase):
+    # TODO test more features / edge cases?
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+
+
+
+class TestStepFeatures(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    def test_first_selector(self):
+        workflow = ConditionStepTestWF()
+
+        step_id = "print"
+        tool = workflow.step_nodes[step_id].tool
+        sources = workflow.step_nodes[step_id].sources
+        inputs = translator.gen_step_inval_dict(tool, sources)
+        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
+
+        self.assertEqual(expected, inputs)
+
+    def test_with_expression(self):
+        w2 = StepInputExpressionTestWF()
+        w2_step_keys = list(w2.step_nodes.keys())
+
+        expected = {
+            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
+        }
+        self.assertEqual(
+            expected,
+            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
         )
-        wf.input("inpId", String())
-        ai = {"inpId": "2"}
-        self.assertDictEqual(
-            {"inpId": "2"}, translator.build_inputs_file(wf, additional_inputs=ai)
+
+
+
+
+class TestUnwrap(unittest.TestCase):
+    any_tool = BasicTestTool()
+
+    def test_string_formatter(self):
+        b = StringFormatter("no format")
+        res = nfgen.translate_string_formatter(b, self.any_tool, {})
+        self.assertEqual("no format", res)
+
+    def test_string_formatter_one_string_param(self):
+        b = StringFormatter("there's {one} arg", one="a string")
+        res = nfgen.translate_string_formatter(b, self.any_tool, {})
+        self.assertEqual("there's ${'a string'} arg", res)
+
+    def test_string_formatter_one_input_selector_param(self):
+        b = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        res = nfgen.translate_string_formatter(
+            b, self.any_tool, input_in_selectors={}, inputs_dict=self.any_tool.inputs_map(),
         )
+        self.assertEqual("an input ${testtool}", res)
+
+    def test_string_formatter_two_param(self):
+        tool = InputQualityTestTool()
+        b = StringFormatter(
+            "{username}:{password}",
+            username=InputSelector("user"),
+            password=InputSelector("static"),
+        )
+        res = nfgen.translate_string_formatter(
+            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual(
+            "${user}:${static}",
+            res,
+        )
+
+    def test_escaped_characters(self):
+        tool = InputQualityTestTool()
+        b = StringFormatter(
+            "{username}\\t{password}",
+            username=InputSelector("user"),
+            password=InputSelector("static"),
+        )
+        res = nfgen.translate_string_formatter(
+            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual("${user}\\t${static}", res)
+
+        res2 = nfgen.translate_string_formatter(
+            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map(),
+        )
+        self.assertEqual("${user}\\\\t${static}", res2)
+
+    def test_expression_arg(self):
+        tool = BasicTestTool()
+        b = StringFormatter(
+            "{name}:{items}",
+            name=InputSelector("testtool"),
+            items=JoinOperator(InputSelector("arrayInp"), separator=";"),
+        )
+
+        res = nfgen.translate_string_formatter(
+            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        )
+        self.assertEqual("${testtool}:${arrayInp.join(';')}", res)
+
+
+
+
+"""
+FROM TestNextflowConfig
 
     def test_input_in_input_value_nooptional_default(self):
         wf = WorkflowBuilder("test_nf_input_in_input_value_nooptional_default")
@@ -1531,122 +1815,7 @@ class TestNextflowConfig(unittest.TestCase):
         self.assertDictEqual(
             {"inp": "somefancyname", "inpFile": ""},
             translator.build_inputs_file(wf),
-        )
 
-
-
-
-class TestSubworkflows(unittest.TestCase):
-    # TODO test more features / edge cases?
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-
-
-
-
-class TestStepFeatures(unittest.TestCase):
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-
-    def test_first_selector(self):
-        workflow = ConditionStepTestWF()
-
-        step_id = "print"
-        tool = workflow.step_nodes[step_id].tool
-        sources = workflow.step_nodes[step_id].sources
-        inputs = translator.gen_step_inval_dict(tool, sources)
-        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
-
-        self.assertEqual(expected, inputs)
-
-    def test_with_expression(self):
-        w2 = StepInputExpressionTestWF()
-        w2_step_keys = list(w2.step_nodes.keys())
-
-        expected = {
-            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
-        }
-        self.assertEqual(
-            expected,
-            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
-        )
-
-
-
-
-class TestUnwrap(unittest.TestCase):
-    any_tool = BasicTestTool()
-
-    def test_string_formatter(self):
-        b = StringFormatter("no format")
-        res = nfgen.translate_string_formatter(b, self.any_tool)
-        self.assertEqual("no format", res)
-
-    def test_string_formatter_one_string_param(self):
-        b = StringFormatter("there's {one} arg", one="a string")
-        res = nfgen.translate_string_formatter(b, self.any_tool)
-        self.assertEqual("there's ${'a string'} arg", res)
-
-    def test_string_formatter_one_input_selector_param(self):
-        b = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
-        res = nfgen.translate_string_formatter(
-            b, self.any_tool, inputs_dict=self.any_tool.inputs_map()
-        )
-        self.assertEqual("an input ${testtool}", res)
-
-    def test_string_formatter_two_param(self):
-        tool = InputQualityTestTool()
-        b = StringFormatter(
-            "{username}:{password}",
-            username=InputSelector("user"),
-            password=InputSelector("static"),
-        )
-        res = nfgen.translate_string_formatter(
-            b, tool, inputs_dict=tool.inputs_map()
-        )
-        self.assertEqual(
-            "${user}:${static}",
-            res,
-        )
-
-    def test_escaped_characters(self):
-        tool = InputQualityTestTool()
-        b = StringFormatter(
-            "{username}\\t{password}",
-            username=InputSelector("user"),
-            password=InputSelector("static"),
-        )
-        res = nfgen.translate_string_formatter(
-            b, tool, inputs_dict=tool.inputs_map()
-        )
-        self.assertEqual("${user}\\t${static}", res)
-
-        res2 = nfgen.translate_string_formatter(
-            b, tool, inputs_dict=tool.inputs_map(), in_shell_script=True
-        )
-        self.assertEqual("${user}\\\\t${static}", res2)
-
-    def test_expression_arg(self):
-        tool = BasicTestTool()
-        b = StringFormatter(
-            "{name}:{items}",
-            name=InputSelector("testtool"),
-            items=JoinOperator(InputSelector("arrayInp"), separator=";"),
-        )
-
-        res = nfgen.translate_string_formatter(
-            b, tool, inputs_dict=tool.inputs_map()
-        )
-        self.assertEqual("${testtool}:${arrayInp.join(';')}", res)
-
-
-
-
-"""
 
 
 class TestGenerateWfToolOutputs(unittest.TestCase):

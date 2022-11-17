@@ -178,7 +178,7 @@ class InputFormatter:
     @property
     def default(self) -> Any:
         if self.tinput.default is not None:
-            return utils.wrap_value(self.tinput.default, self.tinput)
+            return utils.to_groovy_str(self.tinput.default, self.tinput)
         return None
     
     @property

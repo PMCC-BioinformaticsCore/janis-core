@@ -13,6 +13,7 @@ from .core_features import (
 
     # arrays
     ArrayIOTestWF,
+    ArrayIOExtrasTestWF,
     ArrayStepInputsTestWF,
     ArrayStepConnectionsTestWF,
 

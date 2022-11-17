@@ -2,8 +2,8 @@
 
 from collections import defaultdict
 from typing import Optional
+from janis_core.types import Array, File, String
 from .params import Param, getall
-
 
 DEFAULT_LINES = ['docker.enabled = true']
 INDENT = ' ' * 4
@@ -56,11 +56,63 @@ class ConfigBody:
         out: str = ''
         out += heading
         for param in group:
-            out += f'{INDENT}{self.param_to_string(param, width)}\n'
+            out += f'{self.param_to_string(param, width)}\n'
         return out
     
     def param_to_string(self, param: Param, group_width: int) -> str:
-        return f'{param.name:<{group_width}} = {param.default}'
+        dtype = param.dtype
+        # # secondary files
+        # if isinstance(dtype, File) and dtype.has_secondary_files():
+        #     return self.param_to_string_secondary_files(param, group_width)
+        # # secondary files array
+        # if isinstance(dtype, Array):
+        #     if isinstance(dtype.subtype(), File) and dtype.subtype().has_secondary_files():
+        #         return self.param_to_string_secondary_files_array(param, group_width)
+        # file arrays
+        if dtype:
+            if dtype.is_array() and isinstance(dtype.subtype(), File):
+                return self.param_to_string_multiline(
+                    param, group_width, comment='list files here'
+                )
+            # string arrays
+            if dtype.is_array() and isinstance(dtype.subtype(), String):
+                return self.param_to_string_multiline(
+                    param, group_width, comment='list strings here'
+                )
+        # everything else
+        return self.param_to_string_inline(param, group_width)
+
+    def param_to_string_inline(self, param: Param, group_width: int) -> str:
+        return f'{INDENT}{param.name:<{group_width}} = {param.groovy_value}'
+
+    def param_to_string_multiline(self, param: Param, group_width: int, comment: str) -> str:
+        lines: list[str] = []
+        if isinstance(param.default, list):
+            lines.append(f'{param.name:<{group_width}} = [')
+            for val in param.default:
+                if isinstance(val, str):
+                    val = f"'{val}'"
+                lines.append(f'{INDENT}{val},')
+            lines.append(']')
+            lines = [f'{INDENT}{ln}' for ln in lines]
+            return '\n'.join(lines)
+        else:
+            lines.append(f'{param.name:<{group_width}} = [')
+            lines.append(f'{INDENT}// {comment}')
+            lines.append(']')
+            lines = [f'{INDENT}{ln}' for ln in lines]
+            return '\n'.join(lines)
+
+    def param_to_string_secondary_files(self, param: Param, group_width: int) -> str:
+        raise NotImplementedError
+    
+    def param_to_string_secondary_files_array(self, param: Param, group_width: int) -> str:
+        raise NotImplementedError
+
+
+    
+
+    
     
 
 def generate_config_body(params: list[Param]) -> ConfigBody:
@@ -90,7 +142,7 @@ def defaults_to_string() -> str:
 #         return max([p.width for p in self.params]) 
 
 #     def param_to_string(self, param: Param) -> str:
-#         return f'{param.name:<{self.width}} = {param.default}\n'
+#         return f'{param.name:<{self.width}} = {param.value}\n'
     
 #     def to_string(self, indent: str) -> str:
 #         out: str = ''

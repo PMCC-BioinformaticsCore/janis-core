@@ -13,14 +13,58 @@ from janis_core import (
     StringFormatter
 )
 from janis_core.graph.steptaginput import Edge, StepTagInput
+from janis_core.graph.node import Node
 from janis_core.operators.operator import IndexOperator
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import (
+    Array,
     Filename,
     File,
     Directory
 )
 from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
+
+from . import settings
+from . import channels
+from .casefmt import to_case
+
+
+
+def unwrap_source(src: StepTagInput) -> str:
+    source = src.source_map[0].source
+    scatter: bool = src.source_map[0].scatter
+    if isinstance(source, InputNodeSelector) and channels.exists(reference=source.input_node.id()):
+        return unwrap_channel(source, scatter)
+    elif isinstance(source, StepOutputSelector):
+        return unwrap_connection(source, scatter)
+    else:
+        raise NotImplementedError
+
+def unwrap_channel(source: InputNodeSelector, scatter: bool) -> Any:
+    relevant_channels = channels.getall(reference=source.input_node.id())
+    if relevant_channels:
+        if len(relevant_channels) == 1:
+            channel = relevant_channels[0]
+            if channel.collect and scatter == False:
+                return f'{channel.name}.collect()'
+            else:
+                return channel.name
+        else: # complicated stuff here
+            raise NotImplementedError
+
+def unwrap_connection(source: StepOutputSelector, scatter: bool) -> Any:
+    # get 
+    # if scatter & output type is Array, use .flatten()
+    step = source.node
+    step_id = to_case(step.id(), settings.NEXTFLOW_PROCESS_CASE)
+    out_id = source.tag
+    out = [x for x in step.tool.outputs() if x.tag == out_id][0]
+
+    if scatter and isinstance(out.output_type, Array):
+        return f'{step_id}.out.{out_id}.flatten()' 
+    else:
+        return f'{step_id}.out.{out_id}' 
+
 
 
 def unwrap_expression(
@@ -173,7 +217,8 @@ def unwrap_expression(
         if isinstance(value.source, InputNodeSelector):
             return value.source.nextflow(var_indicator=var_indicator)
         elif isinstance(value.source, StepOutputSelector):
-            return value.source.nextflow(var_indicator=var_indicator)
+            step_name = to_case(value.source.node.id(), settings.NEXTFLOW_PROCESS_CASE)
+            return f'{step_name}.out.{value.source.tag}'
         elif isinstance(value.source, IndexOperator):
             return unwrap_expression(
                 value.source.args[0],
