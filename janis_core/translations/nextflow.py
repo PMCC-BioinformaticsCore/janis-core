@@ -16,6 +16,8 @@ from janis_core.types import (
     Filename,
 )
 
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
+
 from janis_core.tool.commandtool import (
     CommandTool,
     ToolInput,
@@ -68,7 +70,9 @@ class NextflowTranslator(TranslatorBase):
 
         scope: list[str] = []
         files: dict[str, nfgen.NFFile] = {}
-        processes: dict[str, nfgen.NFBase] = {}
+        processes: dict[str, nfgen.Process] = {}
+        subworkflows: dict[str, nfgen.Workflow] = {}
+        operations: dict[str, nfgen.ChannelOperation] = {}
 
         # register params and channels for workflow inputs
         nfgen.channels.register(workflow=jworkflow)
@@ -77,7 +81,7 @@ class NextflowTranslator(TranslatorBase):
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
             current_scope = deepcopy(scope)
-            current_scope.append(step.identifier)           
+            current_scope.append(step.identifier)         
             nf_items = cls.gen_items_for_step(
                 step,
                 scope=current_scope,
@@ -96,7 +100,15 @@ class NextflowTranslator(TranslatorBase):
             )
 
             files[nf_file.name] = nf_file
-            processes[step.id()] = nf_file.items[0]  # main process or workflow in file. 
+            for item in nf_items:
+                if isinstance(item, nfgen.Process):
+                    processes[step.id()] = item
+                elif isinstance(item, nfgen.Workflow):
+                    subworkflows[step.id()] = item
+                elif isinstance(item, nfgen.ChannelOperation):
+                    operations[step.id()] = item
+                else:
+                    raise NotImplementedError
 
         # handle imports
         imports = cls.collect_workflow_imports(files)
@@ -106,9 +118,13 @@ class NextflowTranslator(TranslatorBase):
         # output_p = cls.gen_output_process(out_process_inp, out_process_out)
         
         # create object & NFFile for workflow
-        workflow = cls.gen_workflow(janis=jworkflow, nf_items=processes)
+        workflow = cls.gen_workflow(
+            janis=jworkflow, 
+            processes=processes,
+            operations=operations,
+            subworkflows=subworkflows
+        )
         channels = nfgen.channels.channel_register
-        #nf_file = nfgen.NFFile(imports=imports, items=[channels, output_p, workflow])
         nf_file = nfgen.NFFile(imports=imports, items=[channels, workflow])
 
         # generate strings for each file
@@ -125,7 +141,7 @@ class NextflowTranslator(TranslatorBase):
         with_resource_overrides: bool = False,
         allow_empty_container: bool = False,
         container_override: Optional[dict[str, str]] = None,
-    ) -> list[nfgen.Process | nfgen.Workflow]:
+    ) -> list[nfgen.Process | nfgen.Workflow | nfgen.ChannelOperation]:
         """
         For each of the workflow step, we need to generate a Nextflow subworkflow or process object
 
@@ -147,19 +163,24 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
 
+        nf_items: list[nfgen.Process | nfgen.Workflow | nfgen.ChannelOperation] = []
         if isinstance(step.tool, CommandTool):
-            nf_item = cls.gen_process_from_cmdtool(step.tool, step.sources, scope)
-            nf_item = cls.handle_container(
-                step.tool, nf_item, with_container, allow_empty_container, container_override
+            if step.scatter and step.scatter.method == ScatterMethod.cross:
+                operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
+                nf_items.append(operation)
+            process = cls.gen_process_from_cmdtool(step.tool, step.sources, scope)
+            process = cls.handle_container(
+                step.tool, process, with_container, allow_empty_container, container_override
             )
-            return [nf_item]
+            nf_items.append(process)
+            return nf_items
 
         elif isinstance(step.tool, PythonTool):
-            nf_item = cls.gen_process_from_codetool(step.tool, step.sources, scope)
-            nf_item = cls.handle_container(
-                step.tool, nf_item, with_container, allow_empty_container, container_override
+            process = cls.gen_process_from_codetool(step.tool, step.sources, scope)
+            process = cls.handle_container(
+                step.tool, process, with_container, allow_empty_container, container_override
             )
-            return [nf_item]
+            return [process]
 
         elif isinstance(step.tool, WorkflowBase):
             subworkflow = step.tool
@@ -167,7 +188,6 @@ class NextflowTranslator(TranslatorBase):
             # no channels to register for subworkflow.
             nfgen.params.register(the_entity=subworkflow, sources=step.sources, scope=scope)
 
-            nf_items = []
             for substep in subworkflow.step_nodes.values():
                 current_scope = deepcopy(scope)
                 current_scope.append(step.identifier)
@@ -376,7 +396,9 @@ class NextflowTranslator(TranslatorBase):
     def gen_workflow(
         cls,
         janis: Workflow,
-        nf_items: Dict[str, Union[nfgen.Process, nfgen.Workflow]],
+        processes: dict[str, nfgen.Process],
+        operations: dict[str, nfgen.ChannelOperation],
+        subworkflows: dict[str, nfgen.Workflow],
         nf_workflow_name: str = "",
     ) -> nfgen.Workflow:
         """
@@ -393,32 +415,37 @@ class NextflowTranslator(TranslatorBase):
         """
         body: list[str] = []
 
-        step_keys = list(janis.step_nodes.keys())
         for step_id, step in janis.step_nodes.items():
             tool = janis.step_nodes[step_id].tool
             step_inputs = cls.gen_step_inval_dict(step.tool, step.sources)
-            nf_process = nf_items[step_id]
 
-            if isinstance(nf_process, nfgen.Process):
-                nf_inputs = nf_process.inputs
-            elif isinstance(nf_process, nfgen.Workflow):
-                nf_inputs = nf_process.take
+            # if there are operations, add these to body before the process/subworkflow call
+            if step_id in operations:
+                operation = operations[step_id]
+                body.append(operation.get_string())
+
+            if step_id in processes:
+                entity_name = processes[step_id].name
+                entity_inputs = processes[step_id].inputs
+            elif step_id in subworkflows:            
+                entity_name = subworkflows[step_id].name
+                entity_inputs = subworkflows[step_id].take
+            else:
+                raise NotImplementedError
 
             args = cls.handle_process_args(
                 tool,
-                nf_inputs,
+                entity_inputs,
                 step_inputs,
                 input_param_prefix=f"{step_id}_",
                 workflow=janis,
                 scatter=janis.step_nodes[step_id].scatter,
             )
-
-            body.append(format_process_call(nf_process.name, args))
+            body.append(format_process_call(entity_name, args))
 
         # calling outputs process for Janis to be able to find output files
         # args_list = [val for val in cls.gen_wf_tool_outputs(janis).values()]
         # body.append(format_process_call(settings.FINAL_STEP_NAME, args_list))
-
         return nfgen.Workflow(name=nf_workflow_name, main=body)
 
     @classmethod
@@ -1102,6 +1129,9 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+
+        # TODO scatter shouldn't be calculated here anymore. 
+
         args_list: list[Any] = []
         tool_inputs = {x.id(): x for x in tool.inputs()}
 
@@ -1267,6 +1297,7 @@ class NextflowTranslator(TranslatorBase):
         cls,
         tool: CommandTool,
         values: dict[str, Any],
+        scatter: Optional[ScatterDescription],
         inputs_replacement: str = "ch_",
         tool_id_prefix: str = "$",
     ) -> dict[str, Any]:
@@ -1292,10 +1323,12 @@ class NextflowTranslator(TranslatorBase):
         process_inputs = nfgen.utils.items_with_id(tool.inputs(), process_ids)
         process_inputs_names = [x.id() for x in process_inputs]
 
+
+
         for name in process_inputs_names:
             if name in values:
                 src = values[name]
-                inputs[name] = nfgen.unwrap_source(src)
+                inputs[name] = nfgen.unwrap_source(src, scatter)
 
                 #elif isinstance(node,)
 

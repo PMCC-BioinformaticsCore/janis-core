@@ -5,6 +5,7 @@ from janis_core import Logger
 from janis_core import (
     CommandTool, 
     ToolInput, 
+    ToolOutput,
     Operator, 
     Selector,
     AliasSelector, 
@@ -13,57 +14,92 @@ from janis_core import (
     StringFormatter
 )
 from janis_core.graph.steptaginput import Edge, StepTagInput
-from janis_core.graph.node import Node
 from janis_core.operators.operator import IndexOperator
-from janis_core.workflow.workflow import StepNode
+from janis_core.workflow.workflow import StepNode, InputNode
 from janis_core.types import (
+    DataType,
     Array,
     Filename,
     File,
     Directory
 )
 from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
+from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 
 from . import settings
 from . import channels
+from .scatter import cartesian_cross_subname
 from .casefmt import to_case
 
 
-
-def unwrap_source(src: StepTagInput) -> str:
+def unwrap_source(src: StepTagInput, scatter: Optional[ScatterDescription]) -> str:
     source = src.source_map[0].source
-    scatter: bool = src.source_map[0].scatter
     if isinstance(source, InputNodeSelector) and channels.exists(reference=source.input_node.id()):
-        return unwrap_channel(source, scatter)
+        return unwrap_channel(src, scatter)
     elif isinstance(source, StepOutputSelector):
-        return unwrap_connection(source, scatter)
+        return unwrap_connection(src, scatter)
+    elif isinstance(source, IndexOperator):
+        raise NotImplementedError
     else:
         raise NotImplementedError
 
-def unwrap_channel(source: InputNodeSelector, scatter: bool) -> Any:
-    relevant_channels = channels.getall(reference=source.input_node.id())
-    if relevant_channels:
-        if len(relevant_channels) == 1:
-            channel = relevant_channels[0]
-            if channel.collect and scatter == False:
-                return f'{channel.name}.collect()'
-            else:
-                return channel.name
-        else: # complicated stuff here
-            raise NotImplementedError
+def unwrap_channel(src: StepTagInput, scatter: Optional[ScatterDescription]) -> Any:
+    """
+    ch_name                     = same type (most cases)
+    ch_name.collect()           = singles -> array (workflow input array channel creation)
+    ch_name.flatten()           = array -> singles (scatter.dot)
+    cartesian_cross.ch_subname  = scatter.cross  
+    """
+    node: InputNode = src.source_map[0].source.input_node
+    tinput_id = src.ftag
+    
+    relevant_channels = channels.getall(reference=node.id())
+    if relevant_channels and len(relevant_channels) == 1:
+        channel_name = relevant_channels[0].name
+        return get_channel_expression(
+            tinput_name=tinput_id, 
+            channel_name=channel_name,
+            upstream_dtype=node.datatype,
+            scatter=scatter
+        )
 
-def unwrap_connection(source: StepOutputSelector, scatter: bool) -> Any:
-    # get 
+    else: # complicated stuff here
+        raise NotImplementedError
+
+def unwrap_connection(src: StepTagInput, scatter: Optional[ScatterDescription]) -> Any:
     # if scatter & output type is Array, use .flatten()
-    step = source.node
-    step_id = to_case(step.id(), settings.NEXTFLOW_PROCESS_CASE)
-    out_id = source.tag
-    out = [x for x in step.tool.outputs() if x.tag == out_id][0]
+    conn_step: StepNode     = src.source_map[0].source.node
+    tinput_id: str          = src.ftag
+    conn_step_id: str       = to_case(conn_step.id(), settings.NEXTFLOW_PROCESS_CASE)
+    conn_out_id: str        = src.source_map[0].source.tag
+    conn_out: ToolOutput    = [x for x in conn_step.tool.outputs() if x.tag == conn_out_id][0]
+    channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
 
-    if scatter and isinstance(out.output_type, Array):
-        return f'{step_id}.out.{out_id}.flatten()' 
-    else:
-        return f'{step_id}.out.{out_id}' 
+    return get_channel_expression(
+            tinput_name=tinput_id, 
+            channel_name=channel_name,
+            upstream_dtype=conn_out.output_type,
+            scatter=scatter
+        )
+
+def get_channel_expression(
+    tinput_name: str, 
+    channel_name: str,
+    upstream_dtype: DataType, 
+    scatter: Optional[ScatterDescription]
+    ) -> str:
+    # scatter
+    if scatter and tinput_name in scatter.fields:
+        # ch_bams -> ch_cartesian_cross.bams
+        if scatter.method == ScatterMethod.cross:
+            return cartesian_cross_subname(channel_name)
+        # ch_bams -> ch_bams.flatten()
+        elif scatter.method == ScatterMethod.dot:
+            if upstream_dtype.is_array():
+                return f'{channel_name}.flatten()'
+    # everything else
+    return channel_name
+
 
 
 

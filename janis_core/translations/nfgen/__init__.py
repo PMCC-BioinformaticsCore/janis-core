@@ -22,6 +22,7 @@ from .process import (
 
 from . import settings
 from . import channels
+from .channels import ChannelOperation
 from . import params
 from . import ordering
 from .config import generate_config

@@ -20,7 +20,8 @@ from .core_features import (
     # scatter
     BasicScatterTestWF,
     ChainedScatterTestWF,
-    MultiFieldScatterTestWF,
+    ScatterDotTestWF,
+    ScatterCrossTestWF,
 
     # secondaries
     SecondariesIOTestWF,

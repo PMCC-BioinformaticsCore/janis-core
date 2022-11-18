@@ -38,7 +38,8 @@ from janis_core.tests.testworkflows import (
     # scatter
     BasicScatterTestWF,
     ChainedScatterTestWF,
-    MultiFieldScatterTestWF,
+    ScatterDotTestWF,
+    ScatterCrossTestWF,
 
     # secondaries
     SecondariesIOTestWF,
@@ -1201,11 +1202,12 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
         expected = {
             "pos_basic": "ch_in_file",
             "pos_basic2": "ch_in_file_opt",
         }
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
         
     def test_workflow_inputs_array(self) -> None:
@@ -1214,11 +1216,12 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
         expected = {
             "pos_basic": "ch_in_file_array",
             "pos_basic2": "ch_in_file_array_opt",
         }
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     # static step inputs
@@ -1228,6 +1231,7 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
         not_expected = {
             'pos_default',
             'pos_default',
@@ -1238,7 +1242,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
     
@@ -1248,6 +1252,7 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
         not_expected = {
             'pos_default',
             'pos_default',
@@ -1258,7 +1263,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -1269,8 +1274,9 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
         expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_array_connections(self) -> None:
@@ -1279,8 +1285,9 @@ class TestPlumbingBasic(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
         expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
     @unittest.skip('not implemented')
@@ -1306,8 +1313,9 @@ class TestPlumbingScatter(unittest.TestCase):
         register_channels(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
-        expected = {"inp": "ch_in_file_array"}
-        actual = translator.gen_step_inval_dict(tool, sources)
+        scatter = wf.step_nodes["stp1"].scatter
+        expected = {"inp": "ch_in_file_array.flatten()"}
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_connection(self) -> None:
@@ -1317,24 +1325,61 @@ class TestPlumbingScatter(unittest.TestCase):
         # single -> single
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
         expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
         # array -> single
         tool = wf.step_nodes["stp4"].tool
         sources = wf.step_nodes["stp4"].sources
+        scatter = wf.step_nodes["stp4"].scatter
         expected = {"inp": "STP3.out.out.flatten()"}
-        actual = translator.gen_step_inval_dict(tool, sources)
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
-    @unittest.skip('not implemented')
     def test_scatter_dot(self) -> None:
-        raise NotImplementedError
+        wf = ScatterDotTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
+        expected = {
+            "pos_basic": "ch_in_file_array.flatten()",
+            "opt_basic": "ch_in_str_array.flatten()",
+        }
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
     
-    @unittest.skip('not implemented')
     def test_scatter_cross(self) -> None:
-        raise NotImplementedError
-    
+        wf = ScatterCrossTestWF()
+        register_params_workflow(wf)
+        register_channels(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
+
+        # cartesian cross channel manipulation in workflow
+        operation = nfgen.channels.gen_scatter_cross_operation(sources, scatter)
+        actual_op = operation.get_string()
+        expected_op = """\
+ch_in_file_array.flatten()
+.combine(ch_in_str_array).flatten()
+.multiMap { it ->
+    in_file_array: it[0]
+    in_str_array: it[1]
+}
+.set { ch_cartesian_cross }"""
+        self.assertEqual(expected_op, actual_op)
+
+        # step input values
+        expected = {
+            "pos_basic": "ch_cartesian_cross.in_file_array",
+            "opt_basic": "ch_cartesian_cross.in_str_array",
+        }
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
+
     @unittest.skip('not implemented')
     def test_scatter_array(self) -> None:
         raise NotImplementedError
@@ -1595,7 +1640,8 @@ class TestStepFeatures(unittest.TestCase):
         step_id = "print"
         tool = workflow.step_nodes[step_id].tool
         sources = workflow.step_nodes[step_id].sources
-        inputs = translator.gen_step_inval_dict(tool, sources)
+        scatter = workflow.step_nodes[step_id].scatter
+        inputs = translator.gen_step_inval_dict(tool, sources, scatter)
         expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
 
         self.assertEqual(expected, inputs)

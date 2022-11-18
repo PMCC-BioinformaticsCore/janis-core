@@ -3,8 +3,6 @@
 import ast
 import regex as re
 from typing import Any, Optional
-from janis_core.graph.node import Node
-from janis_core.graph.steptaginput import StepTagInput
 from janis_core.types import (
     File,
     Boolean,
@@ -17,6 +15,7 @@ from janis_core import (
     ToolInput,
     TInput,
     CommandTool,
+    ToolOutput,
     Workflow
 )
 
@@ -25,7 +24,11 @@ from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import settings
 
-
+from janis_core.graph.steptaginput import StepTagInput
+from janis_core.operators.operator import IndexOperator
+from janis_core.operators.selectors import InputNodeSelector
+from janis_core.operators.selectors import StepOutputSelector
+from .casefmt import to_case
 
 
 
@@ -66,24 +69,22 @@ def get_channel_input_ids(wf: Workflow) -> set[str]:
 
     # wf inputs with file type
     file_inputs = get_file_wf_inputs(wf)
+    
+    # wf inputs with file type
+    scatter_inputs = get_scatter_wf_inputs(wf)
 
     channel_inputs: list[InputNode] = []
     for name, inp in wf.input_nodes.items():
-        if name in referenced_inputs and name in file_inputs:
-            channel_inputs.append(inp)
+        if name in referenced_inputs:
+            if name in file_inputs or name in scatter_inputs:
+                channel_inputs.append(inp)
     
     # final ordering
     channel_inputs = ordering.workflow_inputs(channel_inputs)
     return {x.id() for x in channel_inputs}
 
 def get_referenced_wf_inputs(wf: Workflow) -> set[str]:
-    out: set[str] = set()
-    for step in wf.step_nodes.values():
-        for src in step.sources.values():
-            node = resolve_node(src)
-            if isinstance(node, InputNode):
-                out.add(node.identifier)
-    return out
+    return set(wf.input_nodes.keys())
     
 def get_file_wf_inputs(wf: Workflow) -> set[str]:
     out: set[str] = set()
@@ -92,6 +93,17 @@ def get_file_wf_inputs(wf: Workflow) -> set[str]:
         if isinstance(dtype, File):
             out.add(name)
     return out
+
+def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
+    out: set[str] = set()
+    for step in wf.step_nodes.values():
+        for src in step.sources.values():
+            scatter = src.source_map[0].scatter
+            node = resolve_node(src)
+            if scatter and isinstance(node, InputNode):
+                out.add(node.identifier)
+    return out
+
 
 
 
@@ -113,9 +125,10 @@ def get_process_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) 
     inputs which are fed (via step inputs) using a file type workflow input
     inputs which are fed (via step inputs) using a connection
     """    
-    file_wfinp_ids = get_file_wfinp_connected_input_ids(sources)
-    step_conn_ids = get_step_connected_input_ids(sources)
-    surviving_ids = file_wfinp_ids | step_conn_ids
+    file_wfinp_ids = get_file_wfinp_input_ids(sources)
+    scatter_wfinp_ids = get_scatter_wfinp_input_ids(sources)
+    step_conn_ids = get_connection_input_ids(sources)
+    surviving_ids = file_wfinp_ids | scatter_wfinp_ids | step_conn_ids
     return surviving_ids
 
 def get_process_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
@@ -233,7 +246,7 @@ def get_default_input_ids(tinputs: list[ToolInput]) -> set[str]:
 # def get_non_fed_input_ids(tinputs: list[ToolInput], sources: dict[str, Any]) -> set[str]:
 #     return {x.id() for x in tinputs if x.id() not in sources}
 
-def get_file_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
+def get_file_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a File type workflow input"""
     out: set[str] = set()
     for inname, src in sources.items():
@@ -241,6 +254,16 @@ def get_file_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
         if isinstance(node, InputNode):
             if isinstance(get_base_type_task_input(node), File):
                 out.add(inname)
+    return out
+
+def get_scatter_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
+    """get tool inputs (ids) which are being scattered on"""
+    out: set[str] = set()
+    for inname, src in sources.items():
+        scatter = src.source_map[0].scatter
+        node = resolve_node(src)
+        if scatter and isinstance(node, InputNode):
+            out.add(inname)
     return out
 
 def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
@@ -253,7 +276,7 @@ def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
                 out.add(inname)
     return out
 
-def get_step_connected_input_ids(sources: dict[str, Any]) -> set[str]:
+def get_connection_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a step connection"""
     out: set[str] = set()
     for inname, src in sources.items():
@@ -269,7 +292,7 @@ def get_step_connected_input_ids(sources: dict[str, Any]) -> set[str]:
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
 
-def resolve_node(source: StepTagInput) -> Optional[Node]:
+def resolve_node(source: StepTagInput) -> list[InputNode | StepNode | IndexOperator]:
     # workflow input
     if hasattr(source.source_map[0].source, 'input_node'):
         node = source.source_map[0].source.input_node
@@ -286,7 +309,7 @@ def resolve_node(source: StepTagInput) -> Optional[Node]:
         elif hasattr(upstream, 'input_node'):
             node = upstream.input_node
     else:
-        node = None
+        raise NotImplementedError
     return node
 
 def get_source_value(source: Any) -> Any:
