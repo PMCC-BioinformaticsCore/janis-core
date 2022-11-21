@@ -108,28 +108,34 @@ class DataTypeNoSecondary(File):
 
 ### helper functions
 
-def register_params_workflow(wf: Workflow) -> dict[str, str]:
-    scope: list[str] = []
-    nfgen.params.clear()
-    nfgen.params.register(the_entity=wf, scope=scope)
-    # for step in wf.step_nodes.values():
-    #     current_scope = deepcopy(scope)
-    #     current_scope.append(step.id())
-    #     nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
-    params = nfgen.params.getall()
-    return {p.name: p.groovy_value for p in params} 
 
-def register_params_tool(tool: CommandTool) -> dict[str, str]:
-    scope: list[str] = []
+def refresh_workflow_inputs(wf: Workflow) -> None:
     nfgen.params.clear()
-    nfgen.params.register(the_entity=tool, scope=scope)
-    params = nfgen.params.getall()
-    return {p.name: p.groovy_value for p in params} 
-
-def register_channels(wf: Workflow) -> list[Channel]:
     nfgen.channels.clear()
-    nfgen.channels.register(wf)
-    return nfgen.channels.getall()
+    nfgen.register_workflow_inputs(wf, scope=[])
+
+# def refresh_workflow_inputs(wf: Workflow) -> dict[str, str]:
+#     scope: list[str] = []
+#     nfgen.params.clear()
+#     nfgen.params.register(the_entity=wf, scope=scope)
+#     # for step in wf.step_nodes.values():
+#     #     current_scope = deepcopy(scope)
+#     #     current_scope.append(step.id())
+#     #     nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
+#     params = nfgen.params.getall()
+#     return {p.name: p.groovy_value for p in params} 
+
+# def register_params_tool(tool: CommandTool) -> dict[str, str]:
+#     scope: list[str] = []
+#     nfgen.params.clear()
+#     nfgen.params.register(the_entity=tool, scope=scope)
+#     params = nfgen.params.getall()
+#     return {p.name: p.groovy_value for p in params} 
+
+# def register_channels(wf: Workflow) -> list[Channel]:
+#     nfgen.channels.clear()
+#     nfgen.channels.register(wf)
+#     return nfgen.channels.getall()
 
 
 
@@ -210,7 +216,6 @@ class TestToGroovyStr(unittest.TestCase):
 
 
 
-
 class TestSettings(unittest.TestCase):
 
     def test_get_settings(self):
@@ -244,7 +249,7 @@ class TestParams(unittest.TestCase):
         Channels are created from a subset of workflow inputs.
         """
         wf = AssemblyTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         params = nfgen.params.getall()
         param_ids = {p.name for p in params}
         expected_ids = {
@@ -271,7 +276,7 @@ class TestParams(unittest.TestCase):
         
         # full
         # settings.MINIMAL_PROCESS = False
-        # actual_params = register_params_workflow(wf)
+        # actual_params = refresh_workflow_inputs(wf)
         # expected_params = {
         #     'in_file': 'null',
         #     'stp1_pos_default': 'null',
@@ -286,7 +291,8 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_file': 'null',
             'in_file_opt': 'null',
@@ -301,7 +307,7 @@ class TestParams(unittest.TestCase):
         
         # full
         # settings.MINIMAL_PROCESS = False
-        # actual_params = register_params_workflow(wf)
+        # actual_params = refresh_workflow_inputs(wf)
         # expected_params = {
         #     'in_file': 'null',
         #     'stp2_pos_default': '100',
@@ -316,7 +322,8 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_file': 'null',
             'in_str': 'null',
@@ -337,7 +344,7 @@ class TestParams(unittest.TestCase):
         
         # # full
         # settings.MINIMAL_PROCESS = False
-        # actual_params = register_params_workflow(wf)
+        # actual_params = refresh_workflow_inputs(wf)
         # expected_params = {
         #     'in_file': 'null',
         #     'stp3_pos_default': 'null',
@@ -352,7 +359,8 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_file': 'null',
             'in_str': 'null',
@@ -369,7 +377,7 @@ class TestParams(unittest.TestCase):
         
         # # full
         # settings.MINIMAL_PROCESS = False
-        # actual_params = register_params_workflow(wf)
+        # actual_params = refresh_workflow_inputs(wf)
         # expected_params = {
         #     'in_file': 'null',
         #     'stp4_pos_default': 'null',
@@ -384,7 +392,8 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_file': 'null',
             'in_str': 'null',
@@ -395,7 +404,8 @@ class TestParams(unittest.TestCase):
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_file_array': '[]',
             'in_str_array': '[]',
@@ -405,7 +415,8 @@ class TestParams(unittest.TestCase):
 
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesIOTestWF()
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_alignments_bam': 'null',
             'in_alignments_bai': 'null',
@@ -414,7 +425,8 @@ class TestParams(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = ArraySecondariesTestWF()
-        actual_params = register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
+        actual_params = nfgen.params.serialize()
         expected_params = {
             'in_alignments_bams': '[]',
             'in_alignments_bais': '[]',
@@ -442,8 +454,7 @@ class TestChannels(unittest.TestCase):
     def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
         wf = AssemblyTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         channel_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_forward_reads',
@@ -465,8 +476,7 @@ class TestChannels(unittest.TestCase):
         '.ifEmpty(null)' should appear in the channel string definition.
         """
         wf = AssemblyTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         relevant_channel_names = {
             'ch_fastqc1_adapters',
             'ch_fastqc1_contaminants',
@@ -485,34 +495,33 @@ class TestChannels(unittest.TestCase):
         Non-File-type wf input should not have channels.
         """
         wf = AssemblyTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         nonfile_wf_input_ids = {
             'unicycler_kmers',
             'unicycler_scores',
             'unicycler_startGeneCov',
             'unicycler_startGeneId',
         }
-        channel_janis_references = {c.reference for c in nfgen.channels.getall()}
+        channel_janis_references = {c.ref_name for c in nfgen.channels.getall()}
         for winp_id in nonfile_wf_input_ids:
             self.assertNotIn(winp_id, channel_janis_references)
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
+        # channels created
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_file_array',
         }
         self.assertEqual(channels_ids, expected_ids)
+        # channels are marked to collect
         for c in nfgen.channels.getall():
             self.assertTrue(c.collect)
         
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesIOTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_alignments',
@@ -524,8 +533,7 @@ class TestChannels(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = ArraySecondariesTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_alignments_bams',
@@ -654,37 +662,43 @@ class TestProcessInputs(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-        from janis_core.tests.testworkflows import AssemblyTestWF
-        self.maxDiff = None
-        self.wf = AssemblyTestWF()
-        register_params_workflow(self.wf)
 
     def test_wf_inputs(self) -> None:
         # need a process input for each File wf input in step sources.
         # non-files are fed data via params.
-        step = self.wf.step_nodes['unicycler']
-        actual_ids = nfgen.utils.get_process_input_ids(step.tool, step.sources)
-        expected_ids = {
-            'option1',
-            'option2',
-            'optionL',
+        wf = AssemblyTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["unicycler"].tool
+        sources = wf.step_nodes["unicycler"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['unicycler'])
+        expected_inputs = {
+            'option1': 'path',
+            'option2': 'path',
+            'optionL': 'path',
         }
-        self.assertEqual(actual_ids, expected_ids)
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
     
     def test_connections(self) -> None:
         # need a process input for each connection in step sources.
-        step = self.wf.step_nodes['CatTestTool']
-        actual_ids = nfgen.utils.get_process_input_ids(step.tool, step.sources)
-        expected_ids = {
-            'inp',
-        }
-        self.assertEqual(actual_ids, expected_ids)
+        wf = AssemblyTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["CatTestTool"].tool
+        sources = wf.step_nodes["CatTestTool"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['CatTestTool'])
+        expected_inputs = {'inp': 'path'}
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
     
     def test_static_inputs(self) -> None:
         # DO NOT need a process input for each static value in step sources.
         # non-files are fed data via params. 
-        step = self.wf.step_nodes['unicycler']
-        actual_ids = nfgen.utils.get_process_input_ids(step.tool, step.sources)
+        wf = AssemblyTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["unicycler"].tool
+        sources = wf.step_nodes["unicycler"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['unicycler'])
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
         non_expected_ids = {
             'kmers',
             'scores',
@@ -692,29 +706,50 @@ class TestProcessInputs(unittest.TestCase):
             'startGeneId',
         }
         for input_id in non_expected_ids:
-            self.assertNotIn(input_id, actual_ids)
+            self.assertNotIn(input_id, actual_inputs)
     
     def test_internal_inputs(self) -> None:
         # DO NOT need a process input for each non-exposed tool input. 
         # tool input will be autofilled or ignored in script.
-        step = self.wf.step_nodes['unicycler']
-        actual_ids = nfgen.utils.get_process_input_ids(step.tool, step.sources)
+        wf = AssemblyTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["unicycler"].tool
+        sources = wf.step_nodes["unicycler"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['unicycler'])
         expected_ids = {
             'option1',
             'option2',
             'optionL',
         }
-        non_expected_ids = {x.id() for x in step.tool.inputs() if x.id() not in expected_ids}
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        non_expected_ids = {x.id() for x in tool.inputs() if x.id() not in expected_ids}
         for input_id in non_expected_ids:
-            self.assertNotIn(input_id, actual_ids)
+            self.assertNotIn(input_id, actual_inputs)
 
-    @unittest.skip('not implemented')
-    def test_array_inputs(self) -> None:
-        raise NotImplementedError
+    def test_arrays(self) -> None:
+        # definition should be the same as singles. 
+        # nextflow doesn't differentiate. 
+        wf = ArrayStepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        expected_inputs = {
+            'pos_basic': 'path',
+            'pos_basic2': 'path',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
 
-    @unittest.skip('not implemented')
-    def test_secondaries_inputs(self) -> None:
-        raise NotImplementedError
+    def test_secondaries(self) -> None:
+        wf = SecondariesIOTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        expected_inputs = {'inp': 'tuple path(bam) path(bai)'}
+        self.assertEqual(actual_inputs, expected_inputs)
 
     def test_tool_with_secondary_input(self):
         # TODO FIX ME
@@ -1198,8 +1233,7 @@ class TestPlumbingBasic(unittest.TestCase):
     # workflow input step inputs
     def test_workflow_inputs(self):
         wf = StepInputsWFInputTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
@@ -1210,46 +1244,10 @@ class TestPlumbingBasic(unittest.TestCase):
         actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
         
-    def test_workflow_inputs_array(self) -> None:
-        wf = ArrayStepInputsTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
-        expected = {
-            "pos_basic": "ch_in_file_array",
-            "pos_basic2": "ch_in_file_array_opt",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
-        self.assertEqual(expected, actual)
-    
     # static step inputs
-    def test_static_step_inputs(self):
+    def test_static_inputs(self):
         wf = StepInputsTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
-        not_expected = {
-            'pos_default',
-            'pos_default',
-            'pos_optional',
-            'flag_true',
-            'flag_false',
-            'opt_basic',
-            'opt_default',
-            'opt_optional',
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
-        for tinput_name in not_expected:
-            self.assertNotIn(tinput_name, actual)
-    
-    def test_static_step_inputs_array(self):
-        wf = ArrayStepInputsTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
@@ -1268,21 +1266,9 @@ class TestPlumbingBasic(unittest.TestCase):
             self.assertNotIn(tinput_name, actual)
 
     # connections
-    def test_file_connections(self) -> None:
+    def test_connections_files(self) -> None:
         wf = StepConnectionsTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
-        expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
-        self.assertEqual(expected, actual)
-    
-    def test_array_connections(self) -> None:
-        wf = ArrayStepConnectionsTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
@@ -1291,10 +1277,65 @@ class TestPlumbingBasic(unittest.TestCase):
         self.assertEqual(expected, actual)
 
     @unittest.skip('not implemented')
-    def test_nonfile_connections(self) -> None:
+    def test_connections_nonfiles(self) -> None:
         raise NotImplementedError
 
 
+
+class TestPlumbingBasicArrays(unittest.TestCase):
+    """
+    This test group checks janis 'TInput' step inputs driven by workflow inputs
+    or static values as above, but for Array situations. 
+
+    Ensures they are being handled correctly when parsed to nextflow.
+    """
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    def test_array_connections(self) -> None:
+        wf = ArrayStepConnectionsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
+        expected = {"inp": "STP1.out.out"}
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
+    
+    def test_workflow_inputs_array(self) -> None:
+        wf = ArrayStepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
+        expected = {
+            "pos_basic": "ch_in_file_array",
+            "pos_basic2": "ch_in_file_array_opt",
+        }
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
+
+    def test_static_step_inputs_array(self):
+        wf = ArrayStepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
+        not_expected = {
+            'pos_default',
+            'pos_default',
+            'pos_optional',
+            'flag_true',
+            'flag_false',
+            'opt_basic',
+            'opt_default',
+            'opt_optional',
+        }
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        for tinput_name in not_expected:
+            self.assertNotIn(tinput_name, actual)
 
 
 class TestPlumbingScatter(unittest.TestCase):
@@ -1307,10 +1348,9 @@ class TestPlumbingScatter(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
-    def test_scatter(self) -> None:
+    def test_scatter_basic(self) -> None:
         wf = BasicScatterTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
@@ -1318,29 +1358,9 @@ class TestPlumbingScatter(unittest.TestCase):
         actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
-    def test_scatter_connection(self) -> None:
-        wf = ChainedScatterTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
-        # single -> single
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
-        expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
-        self.assertEqual(expected, actual)
-        # array -> single
-        tool = wf.step_nodes["stp4"].tool
-        sources = wf.step_nodes["stp4"].sources
-        scatter = wf.step_nodes["stp4"].scatter
-        expected = {"inp": "STP3.out.out.flatten()"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
-        self.assertEqual(expected, actual)
-    
     def test_scatter_dot(self) -> None:
         wf = ScatterDotTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
@@ -1353,8 +1373,7 @@ class TestPlumbingScatter(unittest.TestCase):
     
     def test_scatter_cross(self) -> None:
         wf = ScatterCrossTestWF()
-        register_params_workflow(wf)
-        register_channels(wf)
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
@@ -1379,18 +1398,24 @@ ch_in_file_array.flatten()
         }
         actual = translator.gen_step_inval_dict(tool, sources, scatter)
         self.assertEqual(expected, actual)
-
-    @unittest.skip('not implemented')
-    def test_scatter_array(self) -> None:
-        raise NotImplementedError
     
-    @unittest.skip('not implemented')
-    def test_scatter_dot_array(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_scatter_cross_array(self) -> None:
-        raise NotImplementedError
+    def test_scatter_connection(self) -> None:
+        wf = ChainedScatterTestWF()
+        refresh_workflow_inputs(wf)
+        # single -> single
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
+        expected = {"inp": "STP1.out.out"}
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
+        # array -> single
+        tool = wf.step_nodes["stp4"].tool
+        sources = wf.step_nodes["stp4"].sources
+        scatter = wf.step_nodes["stp4"].scatter
+        expected = {"inp": "STP3.out.out.flatten()"}
+        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEqual(expected, actual)
 
 
 
@@ -1417,24 +1442,141 @@ class TestPlumbingSecondaries(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
-    @unittest.skip('not implemented')
     def test_secondaries_workflow_inputs(self) -> None:
+        wf = SecondariesIOTestWF()
+        refresh_workflow_inputs(wf)
+        # params created correctly?
+        actual_params = nfgen.params.serialize()
+        expected_params = {
+            'in_alignments_bam': 'null',
+            'in_alignments_bai': 'null',
+        }
+        self.assertEquals(actual_params, expected_params)
+        
+        # channel created correctly?
+        reference = 'inAlignments'
+        expected_channel = 'ch_in_alignments = Channel.fromPath( params.in_alignments_bam, params.in_alignments_bai ).collect()'
+        channel = nfgen.channels.getall(reference)[0]
+        actual_channel = channel.declaration
+        self.assertEquals(actual_channel, expected_channel)
+        
+        # step inputs created correctly?
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        scatter = wf.step_nodes["stp1"].scatter
+        expected_inputs = {"inp": "ch_in_alignments"}
+        actual_inputs = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEquals(actual_inputs, expected_inputs)
+    
+    def test_secondaries_connections(self) -> None:
+        wf = SecondariesConnectionsTestWF()
+        refresh_workflow_inputs(wf)
+        # step inputs created correctly?
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        scatter = wf.step_nodes["stp2"].scatter
+        expected_inputs = {"inp": "STP1.out.out"}
+        actual_inputs = translator.gen_step_inval_dict(tool, sources, scatter)
+        self.assertEquals(actual_inputs, expected_inputs)
+
+
+
+
+class TestPlumbingCombinations(unittest.TestCase):
+    """
+    Tests plumbing for most complex cases.
+    Includes combinations of scatter, arrays, secondary files. 
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    # scatter + secondaries
+    @unittest.skip('not implemented')
+    def test_scatter_secondaries_workflow_inputs(self) -> None:
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_secondaries_workflow_inputs_array(self) -> None:
+    def test_scatter_secondaries_dot(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_secondaries_cross(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_secondaries_connections(self) -> None:
         raise NotImplementedError
 
+    # secondaries + arrays
     @unittest.skip('not implemented')
-    def test_secondaries_connections(self) -> None:
+    def test_secondaries_workflow_inputs_array(self) -> None:
+        # wf = ArraySecondariesTestWF()
+        # actual_params = refresh_workflow_inputs(wf)
+        # expected_params = {
+        #     'in_alignments_bams': '[]',
+        #     'in_alignments_bais': '[]',
+        # }
+        # self.assertEquals(actual_params, expected_params)
         raise NotImplementedError
     
     @unittest.skip('not implemented')
     def test_secondaries_connections_array(self) -> None:
         raise NotImplementedError
     
-
+    # scatter + arrays
+    @unittest.skip('not implemented')
+    def test_scatter_basic_array(self) -> None:
+        raise NotImplementedError
     
+    @unittest.skip('not implemented')
+    def test_scatter_dot_array(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_cross_array(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_connection_array(self) -> None:
+        raise NotImplementedError
+
+
+
+class TestWorkflowOutputs(unittest.TestCase):
+    """
+    Tests workflow outputs being created correctly
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        
+    @unittest.skip('not implemented')
+    def test_files(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_files_arrays(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_secondaries(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_scatter_secondaries(self) -> None:
+        raise NotImplementedError
+
+
+
 
 class TestNextflowConfig(unittest.TestCase):
     
@@ -1444,7 +1586,7 @@ class TestNextflowConfig(unittest.TestCase):
     
     def test_file_workflow_inputs(self):
         wf = BasicIOTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
             'in_file': 'null',
@@ -1459,7 +1601,7 @@ class TestNextflowConfig(unittest.TestCase):
     
     def test_array_workflow_inputs(self):
         wf = ArrayIOExtrasTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         # I apologise for disgusting formatting below. 
         # This can probably be handled better.
@@ -1481,7 +1623,7 @@ class TestNextflowConfig(unittest.TestCase):
     
     def test_file_secondaries_workflow_inputs(self):
         wf = SecondariesIOTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
             'in_alignments_bam': 'null',
@@ -1495,7 +1637,7 @@ class TestNextflowConfig(unittest.TestCase):
     
     def test_file_secondaries_array_workflow_inputs(self):
         wf = ArraySecondariesTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
     'in_alignments_bams': fr"""\[
@@ -1514,7 +1656,7 @@ class TestNextflowConfig(unittest.TestCase):
     def test_nonfile_workflow_inputs(self):
         # string, int, bool
         wf = StepInputsTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
             'in_file': 'null',
@@ -1541,7 +1683,7 @@ class TestNextflowConfig(unittest.TestCase):
     def test_nonfile_array_workflow_inputs(self):
         # string, int, bool
         wf = ArrayStepInputsTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
     'in_file_array': fr"""\[
@@ -1580,7 +1722,7 @@ class TestNextflowConfig(unittest.TestCase):
 
     def test_workflow_config(self) -> None:
         wf = AssemblyTestWF()
-        register_params_workflow(wf)
+        refresh_workflow_inputs(wf)
         params = translator.build_inputs_file(wf)
         config = translator.stringify_translated_inputs(params)
         # basic structure
@@ -1614,6 +1756,14 @@ class TestNextflowConfig(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'tool'
         raise NotImplementedError
+
+
+
+
+class TestWorkflow(unittest.TestCase):
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
 
 
 

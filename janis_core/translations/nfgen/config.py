@@ -120,13 +120,11 @@ def generate_config_body(params: list[Param]) -> ConfigBody:
     for p in params:
         if p.name == 'outdir':
             cbody.outdir = p
-        elif p.is_wf_input:
-            cbody.wfinput_params.append(p)
-        elif p.scope:
-            scope_name = f'{"_".join(p.scope)}'
+        elif p.ref_scope:
+            scope_name = f'{"_".join(p.ref_scope)}'
             cbody.process_params[scope_name].append(p)
         else:
-            raise NotImplementedError
+            cbody.wfinput_params.append(p)
     return cbody
 
 def defaults_to_string() -> str:

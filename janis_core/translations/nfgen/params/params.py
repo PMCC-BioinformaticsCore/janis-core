@@ -19,7 +19,7 @@ from janis_core.translations.nfgen import NFBase
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen.casefmt import to_case
 from janis_core.translations.nfgen import settings
-
+from uuid import uuid4
 
 
 
@@ -35,152 +35,6 @@ FULL PROCESS
 """
 
 
-### DELEGATING FUNCTIONS
-
-def register(
-    the_entity: Optional[Workflow | CommandTool]=None,
-    the_dict: Optional[dict[str, Any]]=None, 
-    sources: Optional[dict[str, Any]]=None, 
-    scope: Optional[list[str]]=None, 
-    override: bool=True
-    ) -> None:
-
-    if not isinstance(scope, list):
-        scope = []
-    if isinstance(the_entity, Workflow):
-        register_params_for_wf_inputs(the_entity, scope, override)
-    elif isinstance(the_entity, CommandTool):
-        register_params_for_tool(the_entity, scope, override, sources)
-    elif the_dict is not None:
-        register_params_for_dict(the_dict, scope, override)
-    else:
-        raise RuntimeError("nothing to register: please supply 'the_entity' or 'the_dict'")
-
-def register_params_for_wf_inputs(
-    workflow: Workflow,
-    scope: list[str], 
-    override: bool
-    ) -> None:
-    # param_ids = utils.get_channel_input_ids(workflow)
-    # param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
-    # for inp in param_inputs:
-    for inp in workflow.input_nodes.values():
-        default: Any = inp.default if inp.default is not None else None
-        # if sources is not None and inp.id() in sources:
-        #     src = sources[inp.id()]
-        #     default = utils.get_source_value(src)
-        register_wfinp_param(inp, scope=scope, default=default, override=override)
-
-def register_params_for_tool(
-    tool: CommandTool, 
-    scope: list[str], 
-    override: bool,
-    sources: Optional[dict[str, Any]]=None, 
-    ) -> None:
-    """
-    Registers a param tool or workflow inputs.
-    Workflow / tool inputs which are exposed to the user must to be listed
-    as part of the global params object. 
-    """
-    raise NotImplementedError
-    sources = sources if sources is not None else {}
-    param_ids = utils.get_param_input_ids(tool, sources=sources)
-    param_inputs = utils.items_with_id(tool.inputs(), param_ids)
-    for inp in param_inputs:
-        default = None
-        if sources is not None and inp.id() in sources:
-            src = sources[inp.id()]
-            default = utils.get_source_value(src)
-        register_toolinp_param(inp, scope=scope, default=default, override=override)
-
-def register_params_for_dict(
-    the_dict: dict[str, Any],
-    scope: list[str],
-    override: bool
-    ) -> None:
-    for k, v in the_dict.items():
-        if (not exists(k, scope)) or (exists(k, scope) and override):
-            add(
-                varname=k,
-                scope=scope,
-                default=v,
-                is_wf_input=False
-            )
-
-def register_wfinp_param(
-    inp: InputNode, 
-    scope: Optional[list[str]], 
-    default: Optional[Any]=None, 
-    override: bool=False
-    ) -> None:
-    if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
-        # brackets above just to be specific about the condition being assessed
-        # secondaries
-        if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
-            return register_wfinp_param_secondaries(inp, scope, default)
-        # array secondaries
-        if isinstance(inp.datatype, Array):
-            subtype = inp.datatype.subtype()
-            if isinstance(subtype, File) and subtype.has_secondary_files():
-                return register_wfinp_param_secondaries_array(inp, scope, default)
-        # anything else        
-        return register_wfinp_param_single(inp, scope, default)
-
-
-### ACTUAL PARAM REGISTRATION 
-
-# workflow inputs
-def register_wfinp_param_single(    
-    inp: InputNode, 
-    scope: Optional[list[str]], 
-    default: Optional[Any]=None, 
-    ) -> None:
-        add(
-            varname=inp.id(),
-            reference=inp.id(),
-            scope=scope,
-            dtype=inp.datatype,
-            default=default,
-            is_wf_input=True
-        )
-
-def register_wfinp_param_secondaries(    
-    inp: InputNode, 
-    scope: Optional[list[str]], 
-    default: Optional[Any]=None, 
-    ) -> None:
-    exts: list[str] = []
-    exts.append(inp.datatype.extension)
-    exts += inp.datatype.secondary_files()
-    exts = [x.split('.')[-1] for x in exts]
-    for ext in exts:
-        add(
-            varname=f'{inp.id()}_{ext}',
-            reference=inp.id(),
-            scope=scope,
-            dtype=inp.datatype,
-            default=default,
-            is_wf_input=True
-        )
-
-def register_wfinp_param_secondaries_array(    
-    inp: InputNode, 
-    scope: Optional[list[str]], 
-    default: Optional[Any]=None, 
-    ) -> None:
-    exts: list[str] = []
-    exts.append(inp.datatype.subtype().extension)
-    exts += inp.datatype.subtype().secondary_files()
-    exts = [x.split('.')[-1] for x in exts]
-    for ext in exts:
-        add(
-            varname=f'{inp.id()}_{ext}s',
-            reference=inp.id(),
-            scope=scope,
-            dtype=inp.datatype,
-            default=default,
-            is_wf_input=True
-        )
 
 
 # # tool inputs
@@ -287,22 +141,28 @@ class ParamRegister(NFBase):
 
 @dataclass
 class Param(NFBase):
-    varname: str
-    reference: Optional[str]=None
-    scope: Optional[list[str]]=None
+    ref_name: str
+    ref_scope: list[str]
     dtype: Optional[DataType]=None
     default: Any=None
     is_wf_input: bool=False
+    name_override: Optional[str]=None
+
+    def __post_init__(self):
+        self.uuid = uuid4()
 
     @property
     def name(self) -> str:
-        if self.scope:
-            name = f"{'_'.join(self.scope)}_{self.varname}"
+        if self.name_override:
+            base = self.name_override
         else:
-            name = self.varname
-        name = to_case(name, settings.NEXTFLOW_PARAM_CASE)
+            base = self.ref_name
+        if self.ref_scope:
+            full = f"{'_'.join(self.ref_scope)}_{base}"
+        else:
+            full = base
+        name = to_case(full, settings.NEXTFLOW_PARAM_CASE)
         return name
-        # return name.lower()
 
     @property
     def groovy_value(self) -> str:
@@ -332,8 +192,8 @@ param_register = ParamRegister()
 
 default_params = [
     Param(
-        varname='outdir',
-        reference=None,
+        ref_name='outdir',
+        ref_scope=[],
         dtype=String(),
         default='"outputs"',
         is_wf_input=False,
@@ -346,42 +206,46 @@ for param in default_params:
 
 ### MODULE ENTRY POINTS
 
-def add(varname: str, 
-        reference: Optional[str]=None,
-        scope: Optional[list[str]]=None, 
+def add(ref_name: str, 
+        ref_scope: Optional[list[str]]=None, 
         dtype: Optional[DataType]=None, 
         default: Any=None,
-        is_wf_input: bool=False
-        
-    ) -> None:
-    global param_register
-    param = Param(varname, reference, scope, dtype, default, is_wf_input)
-    param_register.params[param.name] = param
-    
-def exists(varname: str, scope: Optional[list[str]]=None
-    ) -> bool:
-    global param_register
-    param = Param(varname, scope=scope)
-    if param.name in param_register.params:
-        return True
-    return False
-
-def get(varname: str, scope: Optional[list[str]]=None
+        is_wf_input: bool=False,
+        name_override: Optional[str]=None
     ) -> Param:
     global param_register
-    param = Param(varname, reference=None, scope=scope)
-    return param_register.params[param.name]
+    ref_scope = ref_scope if ref_scope else []
+    param = Param(
+        ref_name=ref_name, 
+        ref_scope=ref_scope, 
+        dtype=dtype, 
+        default=default, 
+        is_wf_input=is_wf_input, 
+        name_override=name_override
+    )
+    param_register.params[param.name] = param
+    return param
+    
+def exists(name: str, scope: Optional[list[str]]=None) -> bool:
+    global param_register
+    scope = scope if scope else []
+    for param in param_register.ordered_params:
+        if param.ref_name == name and param.ref_scope == scope:
+            return True
+    return False
 
-def getall(reference: Optional[str]=None) -> list[Param]:
+def get(name: str, scope: Optional[list[str]]=None) -> Param:
+    global param_register
+    return getall(name, scope)[0]
+
+def getall(name: Optional[str]=None, scope: Optional[list[str]]=None) -> list[Param]:
     global param_register
     params = param_register.ordered_params
-    if reference:
-        params = [x for x in params if x.reference == reference]
+    if name:
+        params = [x for x in params if x.ref_name == name]
+    if scope:
+        params = [x for x in params if x.ref_scope == scope]
     return params
-
-def in_scope(scope: list[str]) -> list[Param]:
-    global param_register
-    return [x for x in param_register.ordered_params if x.scope == scope]
 
 def serialize() -> dict[str, Any]:
     global param_register

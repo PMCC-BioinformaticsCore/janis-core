@@ -10,7 +10,6 @@ from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType
 from janis_core.utils.scatter import ScatterDescription
 from janis_core.graph.steptaginput import StepTagInput
-from janis_core.operators.operator import IndexOperator
 from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import StepOutputSelector
 from ..casefmt import to_case
@@ -81,7 +80,7 @@ def resolve_channel_name(src: StepTagInput) -> str:
     # workflow input
     source = src.source_map[0].source
     if isinstance(source, InputNodeSelector):
-        relevant_channels = getall(reference=source.input_node.id())
+        relevant_channels = getall(name=source.input_node.id())
         if relevant_channels and len(relevant_channels) == 1:
             return relevant_channels[0].name
         else:

@@ -7,7 +7,7 @@ from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import settings
 
-from .formatter import format_input
+from .script_formatting import format_input
 
 
 def gen_script_for_cmdtool(
@@ -43,11 +43,11 @@ class ProcessScriptGenerator:
         self.input_in_selectors = input_in_selectors
         self.stdout_filename = stdout_filename
 
-        # think this is ok
-        values = values if values is not None else {}
-        self.process_inputs = utils.get_process_input_ids(tool, values)
-        self.param_inputs = utils.get_param_input_ids(tool, values)
-        self.internal_inputs = utils.get_internal_input_ids(tool, values)
+        # think this is ok?
+        self.values = values if values is not None else {}
+        self.process_inputs = utils.get_process_input_ids(tool, self.values)
+        self.param_inputs = utils.get_param_input_ids(tool, self.values)
+        self.internal_inputs = utils.get_internal_input_ids(tool, self.values)
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -98,7 +98,8 @@ class ProcessScriptGenerator:
                         inp, 
                         self.process_inputs, 
                         self.param_inputs, 
-                        scope=self.scope
+                        scope=self.scope,
+                        sources=self.values
                     )
                     if prescript_ln is not None:
                         self.prescript.append(prescript_ln)

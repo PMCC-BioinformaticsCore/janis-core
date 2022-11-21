@@ -104,13 +104,15 @@ class InputFormatter:
         tinput: ToolInput, 
         process_inputs: set[str], 
         param_inputs: set[str], 
-        scope: list[str]
+        scope: list[str],
+        sources: dict[str, Any]
     ) -> None:
 
         self.tinput = tinput
         self.process_inputs = process_inputs
         self.param_inputs = param_inputs
         self.scope = scope
+        self.sources = sources
         self.itype = get_itype(tinput)
         self.prescript_template = prescript_template_map[self.itype]
 
@@ -183,10 +185,21 @@ class InputFormatter:
     
     @property
     def src(self) -> str:
+        # data via channel
         if self.name in self.process_inputs:
             return self.name
+        # data via param
         elif self.name in self.param_inputs:
-            param = params.get(self.name, self.scope)
+            src = self.sources[self.name]
+            node = utils.resolve_node(src)
+            param = params.get(node.id())
+            # this doesn't follow the usual pattern of .get() from params. 
+            # janis does weird stuff with names, so this is a workaround. 
+            # if self.scope:
+            #     name = f"{'_'.join(self.scope)}_{self.name}"
+            # else:
+            #     name = self.name
+            # param = params.get(name)
             return f'params.{param.name}'
         else:
             raise NotImplementedError
@@ -446,7 +459,8 @@ def format_input(
     tinput: ToolInput, 
     process_inputs: set[str], 
     param_inputs: set[str],
-    scope: list[str]
+    scope: list[str],
+    sources: dict[str, Any]
     ) -> Tuple[Optional[str], Optional[str]]:
-    return InputFormatter(tinput, process_inputs, param_inputs, scope).format()
+    return InputFormatter(tinput, process_inputs, param_inputs, scope, sources).format()
 

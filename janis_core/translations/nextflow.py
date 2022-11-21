@@ -75,8 +75,7 @@ class NextflowTranslator(TranslatorBase):
         operations: dict[str, nfgen.ChannelOperation] = {}
 
         # register params and channels for workflow inputs
-        nfgen.channels.register(workflow=jworkflow)
-        nfgen.params.register(the_entity=jworkflow, scope=scope)
+        nfgen.register_workflow_inputs(workflow, scope=scope)
 
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
@@ -186,7 +185,7 @@ class NextflowTranslator(TranslatorBase):
             subworkflow = step.tool
             # register params for subworkflow inputs.
             # no channels to register for subworkflow.
-            nfgen.params.register(the_entity=subworkflow, sources=step.sources, scope=scope)
+            nfgen.register_workflow_inputs(subworkflow, scope=scope)
 
             for substep in subworkflow.step_nodes.values():
                 current_scope = deepcopy(scope)
@@ -417,7 +416,7 @@ class NextflowTranslator(TranslatorBase):
 
         for step_id, step in janis.step_nodes.items():
             tool = janis.step_nodes[step_id].tool
-            step_inputs = cls.gen_step_inval_dict(step.tool, step.sources)
+            step_inputs = cls.gen_step_inval_dict(step.tool, step.sources, step.scatter)
 
             # if there are operations, add these to body before the process/subworkflow call
             if step_id in operations:
@@ -1709,16 +1708,15 @@ for key in result:
         :rtype:
         """
 
-        if isinstance(inp_type, Array):
-            inp_type = inp_type.fundamental_type()
+        dtype = nfgen.utils.get_base_type(inp_type)
 
-        if isinstance(inp_type, (File, Directory)):
+        if isinstance(dtype, (File, Directory)):
             return nfgen.InputProcessQualifier.path
 
-        # Handle UnionType
+        # Handle UnionType <- what?
         if inp_type.is_base_type(File) or inp_type.is_base_type(Directory):
             return nfgen.InputProcessQualifier.path
-
+        
         return nfgen.InputProcessQualifier.val
 
     @classmethod
@@ -1734,6 +1732,7 @@ for key in result:
         :return:
         :rtype:
         """
+        # what ????
         if isinstance(out_type, Array):
             return nfgen.OutputProcessQualifier.tuple
 

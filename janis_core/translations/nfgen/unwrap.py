@@ -18,7 +18,6 @@ from janis_core.operators.operator import IndexOperator
 from janis_core.workflow.workflow import StepNode, InputNode
 from janis_core.types import (
     DataType,
-    Array,
     Filename,
     File,
     Directory
@@ -34,49 +33,69 @@ from .casefmt import to_case
 
 def unwrap_source(src: StepTagInput, scatter: Optional[ScatterDescription]) -> str:
     source = src.source_map[0].source
-    if isinstance(source, InputNodeSelector) and channels.exists(reference=source.input_node.id()):
-        return unwrap_channel(src, scatter)
-    elif isinstance(source, StepOutputSelector):
-        return unwrap_connection(src, scatter)
-    elif isinstance(source, IndexOperator):
-        raise NotImplementedError
-    else:
-        raise NotImplementedError
+    if isinstance(source, InputNodeSelector) and channels.exists(name=source.input_node.id()):
+        return unwrap_channel(
+            tinput_name=src.ftag, 
+            upstream_node=source.input_node, 
+            scatter=scatter
+        )
+    
+    if isinstance(source, StepOutputSelector):
+        return unwrap_connection(
+            tinput_name=src.ftag, 
+            upstream_step=source.node, 
+            upstream_out=source.tag,
+            scatter=scatter
+        )
+    
+    # IndexOperators are annoying
+    if isinstance(source, IndexOperator):
+        if isinstance(source.args[0], StepOutputSelector):
+            base = unwrap_connection(
+                tinput_name=src.ftag, 
+                upstream_step=source.args[0].node, 
+                upstream_out=source.args[0].tag,
+                scatter=scatter
+            )
+        elif isinstance(source.args[0], InputNodeSelector):
+            base = unwrap_channel(
+                tinput_name=src.ftag, 
+                upstream_node=source.args[0].input_node, 
+                scatter=scatter
+            )
+        else:
+            raise NotImplementedError
+        index = source.args[1]
+        return f"{base}[{index}]"
 
-def unwrap_channel(src: StepTagInput, scatter: Optional[ScatterDescription]) -> Any:
+    raise NotImplementedError
+
+def unwrap_channel(tinput_name: str, upstream_node: InputNode, scatter: Optional[ScatterDescription]) -> Any:
     """
     ch_name                     = same type (most cases)
     ch_name.collect()           = singles -> array (workflow input array channel creation)
     ch_name.flatten()           = array -> singles (scatter.dot)
     cartesian_cross.ch_subname  = scatter.cross  
     """
-    node: InputNode = src.source_map[0].source.input_node
-    tinput_id = src.ftag
-    
-    relevant_channels = channels.getall(reference=node.id())
+    relevant_channels = channels.getall(name=upstream_node.id())
     if relevant_channels and len(relevant_channels) == 1:
         channel_name = relevant_channels[0].name
         return get_channel_expression(
-            tinput_name=tinput_id, 
+            tinput_name=tinput_name, 
             channel_name=channel_name,
-            upstream_dtype=node.datatype,
+            upstream_dtype=upstream_node.datatype,
             scatter=scatter
         )
 
-    else: # complicated stuff here
-        raise NotImplementedError
+    raise NotImplementedError
 
-def unwrap_connection(src: StepTagInput, scatter: Optional[ScatterDescription]) -> Any:
+def unwrap_connection(tinput_name: str, upstream_step: StepNode, upstream_out: str, scatter: Optional[ScatterDescription]) -> Any:
     # if scatter & output type is Array, use .flatten()
-    conn_step: StepNode     = src.source_map[0].source.node
-    tinput_id: str          = src.ftag
-    conn_step_id: str       = to_case(conn_step.id(), settings.NEXTFLOW_PROCESS_CASE)
-    conn_out_id: str        = src.source_map[0].source.tag
-    conn_out: ToolOutput    = [x for x in conn_step.tool.outputs() if x.tag == conn_out_id][0]
-    channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
-
+    upstream_step_id: str     = to_case(upstream_step.id(), settings.NEXTFLOW_PROCESS_CASE)
+    conn_out: ToolOutput    = [x for x in upstream_step.tool.outputs() if x.tag == upstream_out][0]
+    channel_name: str       = f'{upstream_step_id}.out.{upstream_out}'
     return get_channel_expression(
-            tinput_name=tinput_id, 
+            tinput_name=tinput_name, 
             channel_name=channel_name,
             upstream_dtype=conn_out.output_type,
             scatter=scatter
