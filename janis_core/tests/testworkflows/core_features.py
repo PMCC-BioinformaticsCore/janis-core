@@ -19,12 +19,18 @@ from janis_core.tests.testtools import (
     FileTestTool,
     StringTestTool,
     IntTestTool,
+    WildcardSelectorTestTool,
+    InputSelectorTestTool,
     ComponentsTestTool,
     SecondariesTestTool,
+    SecondariesReplacedTestTool,
+    ResourcesTestTool,
 
     ArrayFileTestTool,
     ArrayIntTestTool,
     ArrayStringTestTool,
+    ArrayWildcardSelectorTestTool,
+    ArrayInputSelectorTestTool,
 
     ArrayComponentsTestTool,
     ArraySecondariesTestTool,
@@ -73,6 +79,87 @@ class BasicIOTestWF(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+# all WildcardSelector use cases
+class WildcardSelectorOutputTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inFileArr', Array(File))
+
+        self.step(
+            "stp1", 
+            WildcardSelectorTestTool(inp=self.inFile)
+        )
+        self.step(
+            "stp2", 
+            ArrayWildcardSelectorTestTool(inp=self.inFileArr)
+        )
+
+        self.output("outFile", File, source=self.stp1.out)
+        self.output("outFileArr", Array(File), source=self.stp2.out)
+
+    def friendly_name(self):
+        return "TEST: WildcardSelectorOutputTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+# all InputSelector use cases
+class InputSelectorOutputTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inFileArr', Array(File))
+
+        self.step(
+            "stp1", 
+            InputSelectorTestTool(inp=self.inFile)
+        )
+        self.step(
+            "stp2", 
+            ArrayInputSelectorTestTool(inp=self.inFileArr)
+        )
+
+        self.output("outFile", File, source=self.stp1.out)
+        self.output("outFileArr", File, source=self.stp2.out)
+
+    def friendly_name(self):
+        return "TEST: InputSelectorOutputTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+# directives
+class DirectivesTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+
+        self.step(
+            "stp1", 
+            ResourcesTestTool(
+                inp=self.inFile,
+                threads=4
+            )
+        )
+        self.step(
+            "stp2", 
+            FileTestTool(inp=self.inFile)
+        )
+
+        self.output("outFile", File, source=self.stp1.out)
+        self.output("outFile2", File, source=self.stp2.out)
+
+    def friendly_name(self):
+        return "TEST: DirectivesTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
 
 
 # StepInputsTestWF
@@ -662,8 +749,15 @@ class SecondariesIOTestWF(Workflow):
                 inp=self.inAlignments
             ), 
         )
+        self.step(
+            "stp2", 
+            SecondariesReplacedTestTool(
+                inp=self.inAlignments
+            ), 
+        )
 
         self.output("outBamBai", source=self.stp1.out)
+        self.output("outBamBai2", source=self.stp2.out)
 
 
 class SecondariesConnectionsTestWF(Workflow):
@@ -736,7 +830,7 @@ class ArraySecondariesTestWF(Workflow):
                 inp=self.inAlignments
             ), 
         )
-        self.output("outStdout", source=self.stp1.outStdout)
+        self.output("outStdout", source=self.stp1.out)
 
 
 

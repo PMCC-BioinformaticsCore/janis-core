@@ -43,6 +43,20 @@ class CacheDirective(ProcessDirective):
         return f"cache {str(self.enabled).lower()}"
 
 @dataclass
+class ContainerDirective(ProcessDirective):
+    container: str
+
+    def get_string(self) -> str:
+        return f'container "{self.container}"'
+
+@dataclass
+class DebugDirective(ProcessDirective):
+    debug: str
+
+    def get_string(self) -> str:
+        return f'debug {self.debug}'
+
+@dataclass
 class CpusDirective(ProcessDirective):
     scope: list[str]
     resname: str
@@ -56,15 +70,8 @@ class CpusDirective(ProcessDirective):
 
     def get_string(self) -> str:
         pname = format_param_name(self.resname, self.scope)
-        return f'cpus "$params.{pname}"'
+        return f'cpus "${{params.{pname}}}"'
         # return f'cpus "$params.{pname}"'.lower()
-
-@dataclass
-class ContainerDirective(ProcessDirective):
-    container: str
-
-    def get_string(self) -> str:
-        return f'container "{self.container}"'
 
 @dataclass
 class DiskDirective(ProcessDirective):
@@ -80,7 +87,7 @@ class DiskDirective(ProcessDirective):
     
     def get_string(self) -> str:
         pname = format_param_name(self.resname, self.scope)
-        return f"disk \"$params.{pname}\""
+        return f"disk \"${{params.{pname}}}\""
 
 @dataclass
 class MemoryDirective(ProcessDirective):
@@ -93,7 +100,7 @@ class MemoryDirective(ProcessDirective):
     
     def get_string(self) -> str:
         pname = format_param_name(self.resname, self.scope)
-        return f"memory \"$params.{pname}\""
+        return f"memory \"${{params.{pname}}}\""
 
 @dataclass
 class PublishDirDirective(ProcessDirective):
@@ -104,7 +111,7 @@ class PublishDirDirective(ProcessDirective):
         if subpath == '':
             return f"publishDir \"$params.outdir\""
         else:
-            return f"publishDir \"$params.outdir/{subpath}\""
+            return f"publishDir \"${{params.outdir}}/{subpath}\""
 
         #return f"publishDir \"$params.outdir/$task.process\""
         #return f"publishDir \"$launchDir/{self.process_name}\""
@@ -120,7 +127,7 @@ class TimeDirective(ProcessDirective):
     
     def get_string(self) -> str:
         pname = format_param_name(self.resname, self.scope)
-        return f"time \"$params.{pname}\""
+        return f"time \"${{params.{pname}}}\""
 
 
 

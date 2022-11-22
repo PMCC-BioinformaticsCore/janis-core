@@ -12,8 +12,12 @@ from .basics import (
     FileTestTool,
     StringTestTool,
     IntTestTool,
+    WildcardSelectorTestTool,
+    InputSelectorTestTool,
     ComponentsTestTool,
-    SecondariesTestTool
+    SecondariesTestTool,
+    SecondariesReplacedTestTool,
+    ResourcesTestTool
 )
 
 from .arrays import (
@@ -21,6 +25,8 @@ from .arrays import (
     ArrayFileTestTool,
     ArrayStringTestTool,
     ArrayIntTestTool,
+    ArrayWildcardSelectorTestTool,
+    ArrayInputSelectorTestTool,
     ArrayComponentsTestTool,
     ArraySecondariesTestTool
 )

@@ -8,6 +8,7 @@ from janis_core import (
     ToolInput,
     CommandTool,
     WildcardSelector,
+    InputSelector,
     ToolArgument
 )
 
@@ -94,6 +95,39 @@ class ArrayIntTestTool(CommandTool):
         return "TEST"
 
 
+
+class ArrayOutputTestTool(CommandTool):
+    def tool(self) -> str:
+        return "OutputTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Array(File), position=1)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+class ArrayWildcardSelectorTestTool(ArrayOutputTestTool):
+    def tool(self) -> str:
+        return "ArrayWildcardSelectorTestTool"
+
+    def outputs(self):
+        return [ToolOutput("out", Array(File), selector=WildcardSelector('*.txt'))]
+
+class ArrayInputSelectorTestTool(ArrayOutputTestTool):
+    def tool(self) -> str:
+        return "ArrayInputSelectorTestTool"
+
+    def outputs(self):
+        return [ToolOutput("out", Array(File), selector=InputSelector('inp'))]
+
+
+
 class ArrayComponentsTestTool(CommandTool):
     def tool(self) -> str:
         return "ArrayComponentTypeTestTool"
@@ -148,7 +182,7 @@ class ArraySecondariesTestTool(CommandTool):
 
     def outputs(self):
         return [
-            ToolOutput("outStdout", Stdout),
+            ToolOutput("out", Stdout),
             # ToolOutput(
             #     "outArray", 
             #     Array(BamBai),

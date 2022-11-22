@@ -111,11 +111,8 @@ def register_wfinp_secondaries_array(
     ) -> None:
     # get the extensions. 
     # each extension will create individual param and individual channel.
-    exts: list[str] = []
-    exts.append(inp.datatype.subtype().extension)
-    exts += inp.datatype.subtype().secondary_files()
-    exts = [x.split('.')[-1] for x in exts]
-
+    basetype = utils.get_base_type(inp.datatype)
+    exts = utils.get_extensions(basetype)
     for ext in exts:
         # register a param for file array
         p = params.add(

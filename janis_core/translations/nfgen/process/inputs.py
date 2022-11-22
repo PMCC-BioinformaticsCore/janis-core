@@ -4,18 +4,16 @@ from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from .. import utils
+
+from janis_core import ToolInput
+from janis_core.types import File, Directory, Array, DataType
 
 
-"""
-tuple, path, val
-
-
-PATH
-path x, stageAs: 'data.txt'
-"""
-
-
+@dataclass
 class ProcessInput(ABC):
+    name: str
+    
     @abstractmethod
     def get_string(self) -> str:
         ...
@@ -23,7 +21,6 @@ class ProcessInput(ABC):
 
 @dataclass
 class ValProcessInput(ProcessInput):
-    name: str
 
     def get_string(self) -> str:
         return f'val {self.name}'
@@ -31,84 +28,117 @@ class ValProcessInput(ProcessInput):
 
 @dataclass
 class PathProcessInput(ProcessInput):
-    name: str
-    stage_as: Optional[str]=None
+    presents_as: Optional[str]=None
 
     @property
-    def attributes(self) -> list[str]:
-        out: list[str] = []
-        if self.stage_as:
-            attr = f"stageAs: '{self.stage_as}'"
-            out.append(attr)
-        return out
-
+    def stage_as(self) -> str:
+        if self.presents_as:
+            return f", stageAs: '{self.presents_as}'"
+        return ''
+    
     def get_string(self) -> str:
-        base = f'path {self.name}'
-        if self.attributes:
-            attrs = ', '.join(self.attributes)
-            declaration = f'{base}, {attrs}'
-        else:
-            declaration = base
-        return declaration
+        return f'path {self.name}{self.stage_as}'
 
 
 @dataclass
 class TupleProcessInput(ProcessInput):
-    names: list[str]
     qualifiers: list[str]
+    subnames: list[str]
+
+    @property
+    def fields(self) -> str:
+        out: str = ''
+        for qual, subname in zip(self.qualifiers, self.subnames):
+            out += f'{qual}({subname}), '
+        out = out.rstrip(', ') # strip off the last comma & space
+        return out
 
     def get_string(self) -> str:
-        declaration = 'tuple '
-        for name, qual in zip(self.names, self.qualifiers):
-            declaration += f'{qual}({name}), '
-        declaration = declaration.rstrip(', ')
-        return declaration
+        return f'tuple {self.fields}'
 
 
 
 
+def create_inputs(inp: ToolInput) -> list[ProcessInput]:
+    datatype: DataType = inp.input_type
+    if isinstance(datatype, Array):
+        return create_inputs_array(inp)
+    else:
+        return create_inputs_single(inp)
 
 
+def create_inputs_array(inp: ToolInput) -> list[ProcessInput]:
+    basetype: Optional[DataType] = utils.get_base_type(inp.input_type)
+    assert(basetype)
+
+    # secondaries array
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        # a path input per file type
+        inputs: list[ProcessInput] = []
+        # get all extensions 
+        exts = utils.get_extensions(basetype)
+        for ext in exts:
+            inputs.append(create_path_input_secondaries(inp, ext))
+        return inputs
+
+    # file array
+    if isinstance(basetype, (File, Directory)):
+        return [create_path_input(inp)]
+
+    # nonfile array
+    return [create_val_input(inp)]
 
 
+def create_inputs_single(inp: ToolInput) -> list[ProcessInput]:
+    basetype: Optional[DataType] = utils.get_base_type(inp.input_type)
+    assert(basetype)
+        
+    # file secondaries
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        inputs = [create_tuple_input_secondaries(inp)]
+        return inputs
+    
+    # file
+    if isinstance(basetype, (File, Directory)):
+        return [create_path_input(inp)]
+    
+    # nonfile
+    return [create_val_input(inp)]
 
 
-# path
+def create_path_input(inp: ToolInput) -> PathProcessInput:
+    new_input = PathProcessInput(name=inp.id())
+    new_input.presents_as = inp.presents_as
+    print(new_input.get_string())
+    return new_input
 
+def create_val_input(inp: ToolInput) -> ValProcessInput:
+    new_input = ValProcessInput(name=inp.id())
+    print(new_input.get_string())
+    return new_input
 
-    # val = "val"
-    # env = "env"
-    # file = "file"
-    # path = "path"
-    # tuple = "tuple"
-    # stdout = "stdout"
+def create_path_input_secondaries(inp: ToolInput, ext: str) -> PathProcessInput:
+    # TODO ignoring secondaries_presents_as for now!
+    name = f'{inp.id()}_{ext}s'
+    new_input = PathProcessInput(name=name)
+    print(new_input.get_string())
+    return new_input
 
+def create_tuple_input_secondaries(inp: ToolInput) -> TupleProcessInput:
+    assert(isinstance(inp.input_type, File))
+    qualifiers: list[str] = []
+    subnames: list[str] = []
 
-# class ProcessInput:
-#     def __init__(
-#         self,
-#         qualifier: Qualifier,
-#         name: str,
-#         attributes: Optional[str | list[str]] = None,
-#     ):
-#         self.qualifier = qualifier
-#         self.name = name
-#         self.attributes = attributes
-
-#     def get_string(self) -> str:
-#         els = [self.qualifier.value, self.name]
-
-#         if self.attributes:
-#             if isinstance(self.attributes, list):
-#                 els.extend(str(a) for a in self.attributes)
-#             else:
-#                 els.append(str(self.attributes))
-
-#         return " ".join(str(e) for e in els).strip()
-
-
-
-
-
-
-
+    # tuple sub-element for each file
+    exts = utils.get_extensions(inp.input_type)
+    for ext in exts:
+        qualifiers.append('path')
+        subnames.append(ext)
+    
+    new_input = TupleProcessInput(
+        name=inp.id(), 
+        qualifiers=qualifiers, 
+        subnames=subnames
+    )
+    print(new_input.get_string())
+    return new_input

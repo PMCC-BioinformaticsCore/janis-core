@@ -277,6 +277,15 @@ def get_connection_input_ids(sources: dict[str, Any]) -> set[str]:
 
 ### misc helper methods
 
+def get_extensions(dtype: File, allow_symbols: bool=False) -> list[str]:
+    exts = dtype.get_extensions()
+    secondary_exts = dtype.secondary_files()
+    if secondary_exts:
+        exts += secondary_exts
+    if not allow_symbols:
+        exts = [x.rsplit('.')[-1] for x in exts]
+    return exts
+
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
 

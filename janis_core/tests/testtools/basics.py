@@ -1,8 +1,7 @@
 
-from typing import Optional
+from typing import Optional, Any
 
 from janis_bioinformatics.data_types.bam import BamBai
-
 from janis_core import (
     ToolOutput,
     ToolInput,
@@ -26,13 +25,12 @@ from janis_core.types import (
     Int,
     Stdout,
     Boolean,
-    Filename
 )
 
 
-class TypeTestTool(CommandTool):
+class StdoutTestTool(CommandTool):
     def tool(self) -> str:
-        return "TypeTestTool"
+        return "StdoutTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"
@@ -44,39 +42,108 @@ class TypeTestTool(CommandTool):
         return [ToolOutput("out", Stdout)]
 
     def container(self) -> str:
-        return "ubuntu:latest"
+        return "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"
 
     def version(self) -> str:
         return "TEST"
 
-
-class FileTestTool(TypeTestTool):
+class FileTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "FileTypeTestTool"
+        return "FileStdoutTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", File, position=1)]
 
-
-class StringTestTool(TypeTestTool):
+class StringTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "StringTypeTestTool"
+        return "StringStdoutTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", String, position=1)]
 
-
-class IntTestTool(TypeTestTool):
+class IntTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "IntTypeTestTool"
+        return "IntStdoutTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", Int, position=1)]
 
 
+
+class ResourcesTestTool(CommandTool):
+    def tool(self) -> str:
+        return "ResourcesTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput("inp", File, position=1), 
+            ToolInput("threads", Int)
+        ]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"
+
+    def version(self) -> str:
+        return "TEST"
+    
+    def disk(self, hints: dict[str, Any]):
+        return 100
+
+    def memory(self, hints: dict[str, Any]):
+        return 4
+
+    def cpus(self, hints: dict[str, Any]):
+        return 1 * InputSelector("threads")
+
+    def time(self, hints: dict[str, Any]):
+        return 60
+
+
+
+
+
+class OutputTestTool(CommandTool):
+    def tool(self) -> str:
+        return "OutputTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", File, position=1)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+class WildcardSelectorTestTool(OutputTestTool):
+    def tool(self) -> str:
+        return "WildcardSelectorTestTool"
+
+    def outputs(self):
+        return [ToolOutput("out", File, selector=WildcardSelector('myfile.txt'))]
+
+class InputSelectorTestTool(OutputTestTool):
+    def tool(self) -> str:
+        return "InputSelectorTestTool"
+
+    def outputs(self):
+        return [ToolOutput("out", File, selector=InputSelector('inp'))]
+
+
+
+
 class ComponentsTestTool(CommandTool):
     def tool(self) -> str:
-        return "ComponentTypeTestTool"
+        return "ComponentStdoutTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"
@@ -130,6 +197,40 @@ class SecondariesTestTool(CommandTool):
                 BamBai,
                 selector=WildcardSelector("*.bam"),
                 secondaries_present_as={".bai": ".bai"},
+            )
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class SecondariesReplacedTestTool(CommandTool):
+    def tool(self) -> str:
+        return "SecondariesReplacedTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return []
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", BamBai, position=4)]
+
+    def arguments(self) -> list[ToolArgument]:
+        return [
+            ToolArgument("echo hello > out.bam", position=1, shell_quote=False),
+            ToolArgument("&& echo there > out.bam.bai", position=2, shell_quote=False),
+            ToolArgument("&& echo", position=3, shell_quote=False),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", 
+                BamBai,
+                selector=WildcardSelector("*.bam"),
+                secondaries_present_as={".bai": "^.bai"},
             )
         ]
 

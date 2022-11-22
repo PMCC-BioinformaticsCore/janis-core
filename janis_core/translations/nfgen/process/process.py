@@ -2,25 +2,22 @@
 from enum import Enum
 from textwrap import indent
 
-from typing import Optional, Union, List
-from abc import ABC, abstractproperty
+from typing import Optional
 
 from ..common import NFBase, filter_null
 from ..directives import ProcessDirective
 from ..casefmt import to_case
-from .. import utils
 from .. import settings
+
+from .inputs import ProcessInput
+from .outputs import ProcessOutput
+from .ordering import order_directives
+
 
 class ProcessScriptType(Enum):
     script = "script"
     shell = "shell"
     exec = "exec"
-
-
-
-
-
-
 
 
 class Process(NFBase):
@@ -30,10 +27,10 @@ class Process(NFBase):
         script: str,
         script_type: Optional[ProcessScriptType] = None,
         script_quote: Optional[str] = '"',
-        inputs: List[ProcessInput] = None,
-        outputs: List[ProcessOutput] = None,
+        inputs: Optional[list[ProcessInput]] = None,
+        outputs: Optional[list[ProcessOutput]] = None,
         when: Optional[str] = None,  # TODO unimplemented?
-        directives: List[ProcessDirective] = None,
+        directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
         self.name = name
@@ -42,9 +39,9 @@ class Process(NFBase):
         self.script_type = script_type
         self.script_quote = script_quote
 
-        self.inputs: List[ProcessInput] = inputs or []
-        self.outputs: List[ProcessOutput] = outputs or []
-        self.directives: List[ProcessDirective] = directives or []
+        self.inputs: list[ProcessInput] = inputs or []
+        self.outputs: list[ProcessOutput] = outputs or []
+        self.directives: list[ProcessDirective] = directives or []
         self.pre_script = pre_script
 
     def prepare_script(self, prefix="  "):
@@ -84,7 +81,8 @@ class Process(NFBase):
     def prepare_directives(self, prefix="  "):
         if not self.directives:
             return None
-        return "\n".join(prefix + d.get_string() for d in self.directives)
+        directives = order_directives(self.directives)
+        return "\n".join(prefix + d.get_string() for d in directives)
 
     def get_string(self) -> str:
         components = filter_null(

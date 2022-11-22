@@ -4,6 +4,7 @@ import re
 import posixpath
 from typing import Tuple, Dict, List, Optional, Union, Any
 from janis_core.translations.nfgen import format_process_call
+from janis_core.operators.selectors import Selector
 from janis_core.types import (
     DataType,
     Array,
@@ -836,191 +837,89 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        # TODO HERE
+        
+        # directives
+        #resources = cls.build_resources_input(tool, hints=None)
+        resources = {}
+        process_directives = cls.gen_directives_for_process(
+            tool, resources, scope
+        )
 
-        # nfgen.params.register(the_entity=tool, sources=values, scope=scope)
+        # inputs
+        process_inputs: list[nfgen.ProcessInput] = []
+        tinput_ids = nfgen.utils.get_process_input_ids(tool, values)
+        tinputs = nfgen.utils.items_with_id(tool.inputs(), tinput_ids)
+        for i in tinputs:
+            process_inputs += nfgen.process.create_inputs(i)
 
+        # outputs
+        process_outputs: list[nfgen.ProcessOutput] = []
+        for o in tool.outputs():
+            process_outputs += nfgen.process.create_outputs(o)
+
+        # script
         process_name = scope[-1] if scope else tool.id()
-        pre_script, script = nfgen.gen_script_for_cmdtool(
+        pre_script, script = nfgen.process.gen_script_for_cmdtool(
             tool=tool,
             scope=scope,
             values=values,
             input_in_selectors=cls.INPUT_IN_SELECTORS, 
             stdout_filename=settings.TOOL_STDOUT_FILENAME
         )
- 
+        
+        # process
         process = nfgen.Process(
             name=process_name,
             pre_script=pre_script,
             script=script,
             script_type=nfgen.ProcessScriptType.script,
-        )
-        
-        process_ids = nfgen.utils.get_process_input_ids(tool, values)
-        process_inputs = nfgen.utils.items_with_id(tool.inputs(), process_ids)
-        for i in process_inputs:
-            qual = cls.get_input_qualifier_for_inptype(i.input_type)
-            inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
-
-            process.inputs.append(inp)
-
-        #resources = cls.build_resources_input(tool, hints=None)
-        resources = {}
-        process.outputs = cls.gen_outputs_for_process(process_name, tool)  # TODO change to scope
-        process.directives = cls.gen_directives_for_process(
-            resources, scope
+            inputs=process_inputs,
+            outputs=process_outputs,
+            directives=process_directives
         )
 
         return process
 
     @classmethod
     def gen_directives_for_process(
-        cls, resources: dict[str, Any], scope: Optional[list[str]]=None
+        cls, tool: CommandTool, resources: dict[str, Any], scope: Optional[list[str]]=None
     ) -> list[nfgen.ProcessDirective]:
         scope = scope if scope else []
 
-        nf_directives: list[nfgen.ProcessDirective] = []
-        nf_directives.append(nfgen.PublishDirDirective(scope))
+        nf_directives: dict[str, nfgen.ProcessDirective] = {}
+        nf_directives['publishDir'] = nfgen.PublishDirDirective(scope)
+        nf_directives['debug'] = nfgen.DebugDirective(debug='true')
 
-        # Add directives for input resources
+        # Add directives from input resources
+
         for res, val in resources.items():
             if res.endswith("runtime_cpu"):
-                nf_directives.append(nfgen.CpusDirective(scope, res, val))
+                nf_directives['cpus'] = nfgen.CpusDirective(scope, res, val)
             elif res.endswith("runtime_memory"):
-                nf_directives.append(nfgen.MemoryDirective(scope, res, val))
+                nf_directives['memory'] = nfgen.MemoryDirective(scope, res, val)
             elif res.endswith("runtime_seconds"):
-                nf_directives.append(nfgen.TimeDirective(scope, res, val))
+                nf_directives['time'] = nfgen.TimeDirective(scope, res, val)
             elif res.endswith("runtime_disk"):
-                nf_directives.append(nfgen.DiskDirective(scope, res, val))
-        return nf_directives
-
-    @classmethod
-    def gen_outputs_for_process(
-        cls, process_name: str, tool: Tool
-    ) -> List[nfgen.ProcessOutput]:
-        """
-        Generate a list of tool outputs in the form of nfgen.ProcessOutput objects
-
-        :param process_name:
-        :type process_name:
-        :param tool:
-        :type tool:
-        :return:
-        :rtype:
-        """
-        outputs: List[ToolOutput] = tool.outputs()
-
-        nf_outputs = []
-        for o in outputs:
-            output_type = o.output_type
-            selector = o.selector
-
-            qual = cls.get_output_qualifier_for_outtype(output_type)
-            expression = cls.unwrap_expression(
-                selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
-            )
-
-            if isinstance(output_type, Array):
-                if isinstance(output_type.subtype(), (File, Directory)):
-                    sub_qual = nfgen.OutputProcessQualifier.path
-                else:
-                    sub_qual = nfgen.OutputProcessQualifier.val
-
-                tuple_elements = expression.strip("][").split(",")
-                formatted_list = []
-                for expression in tuple_elements:
-                    sub_exp = nfgen.TupleElementForOutput(
-                        qualifier=sub_qual, expression=expression
-                    )
-                    formatted_list.append(sub_exp.get_string())
-
-                expression = ", ".join(formatted_list)
-            elif isinstance(output_type, Stdout):
-                expression = f'"{settings.TOOL_STDOUT_FILENAME}_{process_name}"'
-            elif isinstance(output_type, File) and output_type.has_secondary_files():
-                sub_qual = nfgen.OutputProcessQualifier.path
-                tuple_elements = [expression]
-
-                primary_ext = output_type.extension
-                secondary_ext = []
-
-                if o.secondaries_present_as is not None:
-                    secondaries_present_as = o.secondaries_present_as
-                else:
-                    secondaries_present_as = {}
-
-                for ext in output_type.secondary_files():
-                    if ext in secondaries_present_as:
-                        secondary_ext.append(secondaries_present_as[ext])
-                    else:
-                        secondary_ext.append(ext)
-
-                for ext in secondary_ext:
-                    replacement = primary_ext + ext
-                    if ext.startswith("^"):
-                        replacement = ext[1:]
-
-                    sec_exp = None
-                    if primary_ext in expression:
-                        sec_exp = expression.replace(primary_ext, replacement)
-                    elif ".name" in expression:
-                        sec_exp = expression.replace(
-                            ".name", f".baseName + '{replacement}'"
-                        )
-
-                    if sec_exp is not None:
-                        tuple_elements.append(sec_exp)
-
-                formatted_list = []
-                for sec_exp in tuple_elements:
-                    tuple_el = nfgen.TupleElementForOutput(
-                        qualifier=sub_qual, expression=sec_exp
-                    )
-                    formatted_list.append(tuple_el.get_string())
-
-                expression = ", ".join(formatted_list)
-                qual = nfgen.OutputProcessQualifier.tuple
-
-            out = nfgen.ProcessOutput(
-                qualifier=qual,
-                name=o.id(),
-                expression=expression,
-                # is_optional=output_type.optional, # disable this because nextflow doesn't allow workflow to point to optional output
-            )
-
-            nf_outputs.append(out)
-
-        return nf_outputs
-
-    @classmethod
-    def gen_output_expression(cls, o: Union[TOutput, ToolOutput]):
-        """
-        Based on the Janis output type, we generate string expression to represent outputs in Nextflow Process.
-
-        :param tool:
-        :type tool:
-        :param o:
-        :type o:
-        :return:
-        :rtype:
-        """
-        if isinstance(o, TOutput):
-            output_type = o.outtype
-        elif isinstance(o, ToolOutput):
-            output_type = o.output_type
-        else:
-            raise Exception("Unknown output object")
-
-        if isinstance(output_type, File):
-            expression = f"'*{output_type.extension}'"
-            qual = nfgen.OutputProcessQualifier.path
-        elif isinstance(output_type, Array) and isinstance(output_type.subtype(), File):
-            expression = f"'*{output_type.subtype().extension}'"
-            qual = nfgen.OutputProcessQualifier.path
-        else:
-            qual = nfgen.OutputProcessQualifier.val
-            expression = f"file(\"$workDir/{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{o.tag}\").text.replace('[', '').replace(']', '').split(', ')"
-
-        return qual, expression
+                nf_directives['disk'] = nfgen.DiskDirective(scope, res, val)
+        
+        # Add directives from tool resources
+        if 'cpus' not in nf_directives and tool.cpus({}) is not None:           
+            nf_directives['cpus'] = nfgen.CpusDirective(scope, 'cpus', tool.cpus({}))
+        if 'memory' not in nf_directives and tool.memory({}) is not None:
+            nf_directives['memory'] = nfgen.MemoryDirective(scope, 'memory', tool.memory({}))
+        if 'disk' not in nf_directives and tool.disk({}) is not None:
+            nf_directives['disk'] = nfgen.DiskDirective(scope, 'disk', tool.disk({}))
+        if 'time' not in nf_directives and tool.time({}) is not None:
+            nf_directives['time'] = nfgen.TimeDirective(scope, 'time', tool.time({}))
+        
+        final_directives: list[nfgen.ProcessDirective] = []
+        for direc in nf_directives.values():
+            if hasattr(direc, 'default') and isinstance(direc.default, Selector):
+                continue
+            else:
+                final_directives.append(direc)
+        return final_directives
 
     @classmethod
     def gen_process_from_codetool(
@@ -1042,62 +941,62 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         raise NotImplementedError
-        step_inputs = cls.gen_step_inval_dict(step)
-        inputs: List[TInput] = []
-        outputs: List[TOutput] = tool.outputs()
+        # step_inputs = cls.gen_step_inval_dict(step)
+        # inputs: List[TInput] = []
+        # outputs: List[TOutput] = tool.outputs()
 
-        # construct script
-        for i in step.tool.inputs():
-            if step_inputs is not None:
-                optional = i.intype.optional is None or i.intype.optional is True
-                if i.id() in step_inputs or i.default is not None or not optional:
-                    inputs.append(i)
-                # note: Filename is set to optional=True, but they have a default value that is not set to i.default
-                if isinstance(i.intype, Filename):
-                    inputs.append(i)
-            else:
-                inputs.append(i)
+        # # construct script
+        # for i in step.tool.inputs():
+        #     if step_inputs is not None:
+        #         optional = i.intype.optional is None or i.intype.optional is True
+        #         if i.id() in step_inputs or i.default is not None or not optional:
+        #             inputs.append(i)
+        #         # note: Filename is set to optional=True, but they have a default value that is not set to i.default
+        #         if isinstance(i.intype, Filename):
+        #             inputs.append(i)
+        #     else:
+        #         inputs.append(i)
 
-        script = cls.prepare_script_for_python_code_tool(step.tool, inputs)
+        # script = cls.prepare_script_for_python_code_tool(step.tool, inputs)
 
-        process_name = name or step.id()
-        process = nfgen.Process(
-            name=process_name,
-            script=script,
-            script_type=nfgen.ProcessScriptType.script,
-        )
+        # process_name = name or step.id()
+        # process = nfgen.Process(
+        #     name=process_name,
+        #     script=script,
+        #     script_type=nfgen.ProcessScriptType.script,
+        # )
 
-        python_file_input = nfgen.ProcessInput(
-            qualifier=nfgen.InputProcessQualifier.path,
-            name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-            as_param=settings.PYTHON_CODE_FILE_PATH_PARAM,
-        )
-        process.inputs.append(python_file_input)
-        for i in inputs:
-            qual = cls.get_input_qualifier_for_inptype(i.intype)
-            inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
+        # python_file_input = nfgen.ProcessInput(
+        #     qualifier=nfgen.InputProcessQualifier.path,
+        #     name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
+        #     as_param=settings.PYTHON_CODE_FILE_PATH_PARAM,
+        # )
+        # process.inputs.append(python_file_input)
+        # for i in inputs:
+        #     qual = cls.get_input_qualifier_for_inptype(i.intype)
+        #     inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
 
-            if isinstance(i.intype, File) or (
-                isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
-            ):
-                inp.as_param = settings.LIST_OF_FILES_PARAM
+        #     if isinstance(i.intype, File) or (
+        #         isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
+        #     ):
+        #         inp.as_param = settings.LIST_OF_FILES_PARAM
 
-            process.inputs.append(inp)
+        #     process.inputs.append(inp)
 
-        for o in outputs:
-            qual, expression = cls.gen_output_expression(o)
-            out = nfgen.ProcessOutput(
-                qualifier=qual, name=o.id(), expression=expression
-            )
-            process.outputs.append(out)
+        # for o in outputs:
+        #     qual, expression = cls.gen_output_expression(o)
+        #     out = nfgen.ProcessOutput(
+        #         qualifier=qual, name=o.id(), expression=expression
+        #     )
+        #     process.outputs.append(out)
 
-        #resource_param_names = cls.get_resource_param_names(step.tool, name)
-        #resources = cls.build_resources_input(tool, hints=None)
-        resources = {}
-        process.directives = cls.gen_directives_for_process(
-            resources, scope
-        )
-        return process
+        # #resource_param_names = cls.get_resource_param_names(step.tool, name)
+        # #resources = cls.build_resources_input(tool, hints=None)
+        # resources = {}
+        # process.directives = cls.gen_directives_for_process(
+        #     resources, scope
+        # )
+        # return process
 
     @classmethod
     def handle_process_args(
@@ -1695,52 +1594,5 @@ for key in result:
 
     #     return outputs
 
-    @classmethod
-    def get_input_qualifier_for_inptype(
-        cls, inp_type: DataType
-    ) -> nfgen.InputProcessQualifier:
-        """
-        Get Nextflow input qualifier based on Janis data type
 
-        :param inp_type:
-        :type inp_type:
-        :return:
-        :rtype:
-        """
-
-        dtype = nfgen.utils.get_base_type(inp_type)
-
-        if isinstance(dtype, (File, Directory)):
-            return nfgen.InputProcessQualifier.path
-
-        # Handle UnionType <- what?
-        if inp_type.is_base_type(File) or inp_type.is_base_type(Directory):
-            return nfgen.InputProcessQualifier.path
-        
-        return nfgen.InputProcessQualifier.val
-
-    @classmethod
-    def get_output_qualifier_for_outtype(
-        cls,
-        out_type: DataType,
-    ) -> nfgen.OutputProcessQualifier:
-        """
-        Generate Nextflow output qualifier based on Janis output data type
-
-        :param out_type:
-        :type out_type:
-        :return:
-        :rtype:
-        """
-        # what ????
-        if isinstance(out_type, Array):
-            return nfgen.OutputProcessQualifier.tuple
-
-        # elif isinstance(out_type, Stdout):
-        #     return nfgen.OutputProcessQualifier.stdout
-
-        elif isinstance(out_type, (File, Directory, Stdout)):
-            return nfgen.OutputProcessQualifier.path
-
-        return nfgen.OutputProcessQualifier.val
 

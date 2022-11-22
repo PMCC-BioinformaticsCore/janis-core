@@ -22,12 +22,15 @@ from janis_core.tests.testworkflows import (
 
     # basics
     BasicIOTestWF,
+    WildcardSelectorOutputTestWF,
+    InputSelectorOutputTestWF,
     StepInputsTestWF,
     StepInputsWFInputTestWF,
     StepInputsStaticTestWF,
     StepInputsPartialStaticTestWF,
     StepInputsMinimalTestWF,
     StepConnectionsTestWF,
+    DirectivesTestWF,
 
     # arrays
     ArrayIOTestWF,
@@ -571,77 +574,45 @@ class TestProcessDirectives(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
 
-    def test_operator_resource_tool(self):
-        # TODO FIX ME
-        scope = []
-        values = {}
-        tool = OperatorResourcesTestTool()
-        p = translator.gen_process_from_cmdtool(tool, values, scope)
-        # f"""
-        # process EchoTestTool
-        # {{
-        #   input:
-        #     path inputFile
-        #     val outputFiles
-
-        #   output:
-        #     path "${{'janisstdout_EchoTestTool'}}" , emit: out
-
-        #   publishDir "$launchDir/EchoTestTool"
-        #   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-        #   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-        #   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-        #   time "${{params.runtime_seconds + 's'}}"
-
-        #   script:
-
-        #     def inputFileWithPrefix = apply_prefix(inputFile, ' ', 'False')
-
-        #     def outputFilesWithPrefix = apply_prefix(outputFiles, ' ', 'False')
-
-        #     def runtime_memory = params.runtime_memory
-
-        #     def runtime_cpu = params.runtime_cpu
-
-        #     def runtime_disks = params.runtime_disks
-
-        #     def runtime_seconds = params.runtime_seconds
-        #     \"\"\"
-        #     echo \\
-        #     $inputFileWithPrefix | tee janisstdout_EchoTestTool
-        #     \"\"\"
-        # }}
-        # """
-        expected_contents = [
-            'process EchoTestTool',
-            'input:',
-            'output:',
+    def test_directives_order(self) -> None:
+        wf = DirectivesTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        process = translator.handle_container(tool, process)
+        directives = nfgen.process.order_directives(process.directives)
+        actual_order = [type(x).__name__ for x in directives]
+        expected_order = [
+            'ContainerDirective',
+            'PublishDirDirective',
+            'DebugDirective',
+            'DiskDirective',
+            'MemoryDirective',
+            'TimeDirective',
         ]
-        # TODO ask richard - unnecessary?
-        raise NotImplementedError
-        print(p.get_string())
-        for line in expected_contents:
-            self.assertIn(line, p.get_string())
-    
-    @unittest.skip('not implemented')
-    def test_metadata(self) -> None:
-        # debug true
-        # label
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_publishDir(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_container(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_resource_directives(self) -> None:
-        # memory, cpus, disk, time
-        raise NotImplementedError
+        for actual, expected in zip(actual_order, expected_order):
+            self.assertEqual(actual, expected)
 
+    def test_directives(self) -> None:
+        wf = DirectivesTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        process = translator.handle_container(tool, process)
+        actual_directives = {d.get_string() for d in process.directives}
+        expected_directives = {
+            'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
+            'publishDir "${params.outdir}/stp1"',
+            'debug true',
+            'disk "${params.stp1_disk}"',
+            'memory "${params.stp1_memory}"',
+            'time "${params.stp1_time}"'
+        }
+        for direc in expected_directives:
+            self.assertIn(direc, actual_directives)
+    
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
@@ -672,11 +643,11 @@ class TestProcessInputs(unittest.TestCase):
         sources = wf.step_nodes["unicycler"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['unicycler'])
         expected_inputs = {
-            'option1': 'path',
-            'option2': 'path',
-            'optionL': 'path',
+            'path option1',
+            'path option2',
+            'path optionL',
         }
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
     
     def test_connections(self) -> None:
@@ -686,8 +657,8 @@ class TestProcessInputs(unittest.TestCase):
         tool = wf.step_nodes["CatTestTool"].tool
         sources = wf.step_nodes["CatTestTool"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['CatTestTool'])
-        expected_inputs = {'inp': 'path'}
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        expected_inputs = {'path inp'}
+        actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
     
     def test_static_inputs(self) -> None:
@@ -698,7 +669,7 @@ class TestProcessInputs(unittest.TestCase):
         tool = wf.step_nodes["unicycler"].tool
         sources = wf.step_nodes["unicycler"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['unicycler'])
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        actual_inputs = {inp.name for inp in process.inputs}
         non_expected_ids = {
             'kmers',
             'scores',
@@ -721,7 +692,7 @@ class TestProcessInputs(unittest.TestCase):
             'option2',
             'optionL',
         }
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        actual_inputs = {inp.name for inp in process.inputs}
         non_expected_ids = {x.id() for x in tool.inputs() if x.id() not in expected_ids}
         for input_id in non_expected_ids:
             self.assertNotIn(input_id, actual_inputs)
@@ -734,10 +705,10 @@ class TestProcessInputs(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
+        actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'pos_basic': 'path',
-            'pos_basic2': 'path',
+            'path pos_basic',
+            'path pos_basic2',
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
@@ -747,57 +718,22 @@ class TestProcessInputs(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
-        actual_inputs = {inp.name: inp.qualifier.name for inp in process.inputs}
-        expected_inputs = {'inp': 'tuple path(bam) path(bai)'}
-        self.assertEqual(actual_inputs, expected_inputs)
-
-    def test_tool_with_secondary_input(self):
-        # TODO FIX ME
-        scope = []
-        values = {}
-        tool = SecondaryInputTestTool()
-        p = translator.gen_process_from_cmdtool(tool, values, scope)
-        print(p.get_string())
-        expected = f"""
-process CatTestTool
-{{
-  input:
-    path inp
-
-  output:
-    path "${{'janisstdout_CatTestTool'}}" , emit: out
-
-  publishDir "$launchDir/CatTestTool"
-  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-  time "${{params.runtime_seconds + 's'}}"
-
-  script:
-
-    def inpWithPrefix = apply_prefix(inp[0], ' ', 'False')
-
-    def runtime_memory = params.runtime_memory
-
-    def runtime_cpu = params.runtime_cpu
-
-    def runtime_disks = params.runtime_disks
-
-    def runtime_seconds = params.runtime_seconds
-    \"\"\"
-    cat \\
-    $inpWithPrefix | tee janisstdout_CatTestTool
-    \"\"\"
-}}
-
-
-"""
-        self.assertEqual(expected, p.get_string())
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {'tuple path(bam), path(bai)'}
+        self.assertEqual(actual_inputs, expected_inputs)   
     
-    
-    @unittest.skip('not implemented')
     def test_secondaries_array_inputs(self) -> None:
-        raise NotImplementedError
+        wf = ArraySecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path inp_bams',
+            'path inp_bais'
+        }
+        self.assertEqual(actual_inputs, expected_inputs)   
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -819,97 +755,79 @@ class TestProcessOutputs(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
-    def test_stdout_out_tool(self):
-        # TODO FIX ME
-        scope = []
-        values = {}
-        tool = EchoTestTool()
-        p = translator.gen_process_from_cmdtool(tool, values, scope)
-        expected_contents = [
-            'process EchoTestTool',
-            'publishDir "$params.outdir"',
-            'output:',
-            'path "janisstdout_EchoTestTool" , emit: out',
-            'script:',
-            'echo',
-            '${params.inp}'
-        ]
-        for line in expected_contents:
-            self.assertIn(line, p.get_string())
+    def test_stdout(self):
+        wf = BasicIOTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_outputs = {inp.get_string() for inp in process.outputs}
+        expected_outputs = {
+            'stdout, emit: out',
+        }
+        self.assertEqual(actual_outputs, expected_outputs)  
 
-    def test_tool_with_secondary_output(self):
-        # TODO FIX ME
-        scope = []
-        values = {}
-        tool = AppendedSecondaryOutputTestTool()
-        p = translator.gen_process_from_cmdtool(tool, values, scope)
-        print(p.get_string())
-        expected_contents = [
-            'process TestTranslationtool',
-            'tuple path("${testtool + ".bam"}"), path("${testtool + ".bam.bai"}") , emit: out',
-            'def arrayInp = params.arrayInp ? "${params.arrayInp}" : ""',
-            'echo',
-            '${params.testtool}',
-            '${arrayInp}',
-            'test:\\t:escaped:\\n:characters"',
-        ]
-        for line in expected_contents:
-            self.assertIn(line, p.get_string())
+    def test_wildcard_selector(self) -> None:
+        wf = WildcardSelectorOutputTestWF()
+        refresh_workflow_inputs(wf)
+        # singles
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "myfile.txt", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # arrays
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "*.txt", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
 
-    def test_tool_with_replaced_secondary_output(self):
-        # TODO FIX ME
-        p = translator.gen_process_from_cmdtool(
-            ReplacedSecondaryOutputTestTool()
-        )
-        expected = f"""
-process TestTranslationtool
-{{
-  input:
-    val testtool
-    val arrayInp
+    def test_input_selector(self) -> None:
+        wf = InputSelectorOutputTestWF()
+        refresh_workflow_inputs(wf)
+        # singles
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path inp, emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # arrays
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path inp, emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
 
-  output:
-    tuple path("${{testtool + '.bam'}}"), path("${{testtool + '.bai'}}") , emit: out
-
-  publishDir "$launchDir/TestTranslationtool"
-  memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-  cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-  disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-  time "${{params.runtime_seconds + 's'}}"
-
-  script:
-
-    def testtoolWithPrefix = apply_prefix(testtool, ' ', 'False')
-
-    def arrayInpWithPrefix = optional(arrayInp.join(' '), ' ', 'False')
-
-    def runtime_memory = params.runtime_memory
-
-    def runtime_cpu = params.runtime_cpu
-
-    def runtime_disks = params.runtime_disks
-
-    def runtime_seconds = params.runtime_seconds
-    \"\"\"
-    echo \\
-    test:\\t:escaped:\\n:characters" | tee janisstdout_TestTranslationtool
-    \"\"\"
-}}
-
-
-"""
-        self.assertEqual(expected, p.get_string())
+    def test_secondaries(self) -> None:
+        wf = SecondariesIOTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'tuple path("*.bam"), path("*.bam.bai"), emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_secondaries_replaced(self) -> None:
+        wf = SecondariesIOTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
     
     @unittest.skip('not implemented')
-    def test_array_outputs(self) -> None:
-        raise NotImplementedError
-
-    @unittest.skip('not implemented')
-    def test_secondaries_outputs(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_secondaries_array_outputs(self) -> None:
+    def test_secondaries_array(self) -> None:
+        # highly unlikely workflow would do this
         raise NotImplementedError
 
     @unittest.skip('not implemented')

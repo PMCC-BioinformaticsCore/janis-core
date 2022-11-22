@@ -417,7 +417,7 @@ class CommandTool(Tool, ABC):
         These are now (2019-04-10) to be kept out of the workflow, to leave the workflow
         truly portable.
 
-        The time is specified in GB.
+        The disk is specified in GB.
         :return:
         """
         return None
