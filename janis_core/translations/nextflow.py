@@ -857,7 +857,7 @@ class NextflowTranslator(TranslatorBase):
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for o in tool.outputs():
-            process_outputs += nfgen.process.create_outputs(o)
+            process_outputs += nfgen.process.create_outputs(o, tool)
 
         # script
         process_name = scope[-1] if scope else tool.id()

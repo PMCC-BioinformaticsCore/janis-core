@@ -123,7 +123,7 @@ def get_channel_expression(
 
 def unwrap_expression(
     value: Any,
-    input_in_selectors: dict[str, Any],
+    input_in_selectors: Optional[dict[str, Any]]=None,
     tool: Optional[CommandTool]=None,
     inputs_dict: Optional[dict[str, ToolInput]]=None,
     quote_string: bool=True,
@@ -137,6 +137,7 @@ def unwrap_expression(
     """
     The main logic to unwrap a janis expression and represent it in Nextflow translation
     """
+    input_in_selectors = input_in_selectors if input_in_selectors else {}
     assert(tool)
 
     if value is None:
@@ -373,6 +374,7 @@ def prepare_filename_replacements_for(
         elif (
             intype.is_array()
             and isinstance(intype.fundamental_type(), (File, Directory))
+            and hasattr(tinp, "localise_file")
             and tinp.localise_file
         ):
             base = f"{tinp.id()}.map{{ el.name }}"

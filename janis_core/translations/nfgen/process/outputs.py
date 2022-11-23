@@ -3,10 +3,10 @@ from typing import Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from janis_core.types import File, Directory, Array, DataType, Stdout
-from janis_core import ToolOutput
-from janis_core.operators.selectors import WildcardSelector, InputSelector
+from janis_core import ToolOutput, CommandTool
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
+from ..unwrap import unwrap_expression
 from .. import utils
 
 
@@ -72,14 +72,14 @@ class TupleProcessOutput(ProcessOutput):
  
 
 
-def create_outputs(out: ToolOutput) -> list[ProcessOutput]:
+def create_outputs(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
     datatype: DataType = out.output_type
     if isinstance(datatype, Array):
-        return create_outputs_array(out)
+        return create_outputs_array(out, tool)
     else:
-        return create_outputs_single(out)
+        return create_outputs_single(out, tool)
 
-def create_outputs_array(out: ToolOutput) -> list[ProcessOutput]:
+def create_outputs_array(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
     basetype: Optional[DataType] = utils.get_base_type(out.output_type)
     assert(basetype)
     
@@ -89,48 +89,50 @@ def create_outputs_array(out: ToolOutput) -> list[ProcessOutput]:
         outputs: list[ProcessOutput] = []
         exts = utils.get_extensions(out.output_type, allow_symbols=True)
         for ext in exts:
-            outputs.append(create_path_output_secondaries(out, ext))
+            outputs.append(create_path_output_secondaries(out, tool, ext))
         return outputs
 
     # file array
     if isinstance(basetype, (File, Directory)):
-        return [create_path_output(out)]
+        return [create_path_output(out, tool)]
 
     # nonfile array
-    return [create_val_output(out)]
+    return [create_val_output(out, tool)]
 
-def create_outputs_single(out: ToolOutput) -> list[ProcessOutput]:
+def create_outputs_single(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
     basetype: Optional[DataType] = utils.get_base_type(out.output_type)
     assert(basetype)
     
     # stdout
     if isinstance(basetype, Stdout):
-        return [create_stdout_output(out)]
+        return [create_stdout_output(out, tool)]
 
     # file secondaries
     if isinstance(basetype, File) and basetype.has_secondary_files():
-        outputs = [create_tuple_output_secondaries(out)]
+        outputs = [create_tuple_output_secondaries(out, tool)]
         return outputs
     
     # file
     if isinstance(basetype, (File, Directory)):
-        return [create_path_output(out)]
+        return [create_path_output(out, tool)]
     
     # nonfile
-    return [create_val_output(out)]
+    return [create_val_output(out, tool)]
 
 
 
-def create_stdout_output(out: ToolOutput) -> StdoutProcessOutput:
+def create_stdout_output(out: ToolOutput, tool: CommandTool) -> StdoutProcessOutput:
     # stdout
     optional = True if out.output_type.optional else False  # type: ignore
     new_output = StdoutProcessOutput(name=out.id(), is_optional=optional)
     return new_output
 
-def create_path_output(out: ToolOutput) -> PathProcessOutput:
+def create_path_output(out: ToolOutput, tool: CommandTool) -> PathProcessOutput:
     # file
     optional = True if out.output_type.optional else False  # type: ignore
-    expression = get_expression(out)
+    expression = unwrap_expression(
+        out.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
+    )
     new_output = PathProcessOutput(
         name=out.id(), 
         is_optional=optional, 
@@ -138,10 +140,12 @@ def create_path_output(out: ToolOutput) -> PathProcessOutput:
     )
     return new_output
 
-def create_val_output(out: ToolOutput) -> ValProcessOutput:
+def create_val_output(out: ToolOutput, tool: CommandTool) -> ValProcessOutput:
     # nonfile
     optional = True if out.output_type.optional else False  # type: ignore
-    expression = get_expression(out)
+    expression = unwrap_expression(
+        out.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
+    )
     new_output = ValProcessOutput(
         name=out.id(), 
         is_optional=optional, 
@@ -149,7 +153,7 @@ def create_val_output(out: ToolOutput) -> ValProcessOutput:
     )
     return new_output
 
-def create_tuple_output_secondaries(out: ToolOutput) -> TupleProcessOutput:
+def create_tuple_output_secondaries(out: ToolOutput, tool: CommandTool) -> TupleProcessOutput:
     """
     secondaries
     eg BamBai:
@@ -161,7 +165,9 @@ def create_tuple_output_secondaries(out: ToolOutput) -> TupleProcessOutput:
     qualifiers: list[str] = []
     expressions: list[str] = []
     
-    primary_expr = get_expression(out)
+    primary_expr = unwrap_expression(
+        out.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
+    )
     primary_expr_unquoted = primary_expr.strip('"')
     exts = utils.get_extensions(out.output_type, allow_symbols=True)
     for ext in exts:
@@ -186,30 +192,30 @@ def create_tuple_output_secondaries(out: ToolOutput) -> TupleProcessOutput:
     )
     return new_output
 
-def create_path_output_secondaries(out: ToolOutput, ext: str) -> PathProcessOutput:
+def create_path_output_secondaries(out: ToolOutput, tool: CommandTool, ext: str) -> PathProcessOutput:
     # array of secondaries
     print(new_output.get_string())
     raise NotImplementedError
 
 
 
-def get_expression(out: ToolOutput) -> str:
-    # WildcardSelector
-    if out.selector is not None:
-        if isinstance(out.selector, WildcardSelector):
-            return get_expression_wildcard_selector(out.selector)
-        elif isinstance(out.selector, InputSelector):
-            return get_expression_input_selector(out.selector)    
-    raise NotImplementedError
+# def get_expression(out: ToolOutput) -> str:
+#     # WildcardSelector
+#     if out.selector is not None:
+#         if isinstance(out.selector, WildcardSelector):
+#             return get_expression_wildcard_selector(out.selector)
+#         elif isinstance(out.selector, InputSelector):
+#             return get_expression_input_selector(out.selector)    
+#     raise NotImplementedError
 
-def get_expression_input_selector(selector: InputSelector) -> str:
-    return selector.input_to_select
+# def get_expression_input_selector(selector: InputSelector) -> str:
+#     return selector.input_to_select
 
-def get_expression_wildcard_selector(selector: WildcardSelector) -> str:
-    if selector.select_first:
-        raise NotImplementedError
-    else:
-        return f'"{selector.wildcard}"'
+# def get_expression_wildcard_selector(selector: WildcardSelector) -> str:
+#     if selector.select_first:
+#         raise NotImplementedError
+#     else:
+#         return f'"{selector.wildcard}"'
  
 
 

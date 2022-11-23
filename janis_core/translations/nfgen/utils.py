@@ -241,9 +241,19 @@ def get_file_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a File type workflow input"""
     out: set[str] = set()
     for inname, src in sources.items():
-        sel = src.source_map[0].source
-        if isinstance(sel, InputNodeSelector):
-            if isinstance(get_base_type(sel.input_node.datatype), File):
+        node = resolve_node(src) 
+        if isinstance(node, InputNode):
+            if isinstance(get_base_type(node.datatype), File):
+                out.add(inname)
+    return out
+
+def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
+    """get tool inputs (ids) which are being fed a value from a non-File type workflow input"""
+    out: set[str] = set()
+    for inname, src in sources.items():
+        node = resolve_node(src) 
+        if isinstance(node, InputNode):
+            if not isinstance(get_base_type(node.datatype), File):
                 out.add(inname)
     return out
 
@@ -252,27 +262,17 @@ def get_scatter_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
     out: set[str] = set()
     for inname, src in sources.items():
         scatter = src.source_map[0].scatter
-        sel = src.source_map[0].source
-        if scatter and isinstance(sel, InputNodeSelector):
+        node = resolve_node(src)
+        if scatter and isinstance(node, InputNode):
             out.add(inname)
-    return out
-
-def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
-    """get tool inputs (ids) which are being fed a value from a non-File type workflow input"""
-    out: set[str] = set()
-    for inname, src in sources.items():
-        sel = src.source_map[0].source
-        if isinstance(sel, InputNodeSelector):
-            if not isinstance(get_base_type(sel.input_node.datatype), File):
-                out.add(inname)
     return out
 
 def get_connection_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a step connection"""
     out: set[str] = set()
     for inname, src in sources.items():
-        sel = src.source_map[0].source
-        if isinstance(sel, StepOutputSelector):
+        node = resolve_node(src)
+        if isinstance(node, StepNode):
             out.add(inname)
     return out
 
@@ -280,6 +280,20 @@ def get_connection_input_ids(sources: dict[str, Any]) -> set[str]:
 
 
 ### misc helper methods
+def resolve_node(node: Any) -> Any:
+    if isinstance(node, StepTagInput):
+        return resolve_node(node.source_map[0].source)
+    elif isinstance(node, InputNodeSelector):
+        return node.input_node
+    elif isinstance(node, StepOutputSelector):
+        return node.node
+    elif isinstance(node, IndexOperator):
+        return resolve_node(node.args[0])
+    elif isinstance(node, FirstOperator):
+        return resolve_node(node.args[0])
+    else:
+        raise NotImplementedError
+
 def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
     connected: dict[str, list[str]] = defaultdict(list)
     for step in wf.step_nodes.values():

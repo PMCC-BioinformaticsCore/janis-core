@@ -81,15 +81,6 @@ class ProcessScriptGenerator:
             else:
                 self.script += [str(bc)]
 
-    def get_src_varname(self, inp: ToolInput) -> str:
-        # get variable name of feeder (process input or param)
-        if inp.id() in self.process_inputs:
-            return inp.id()
-        elif inp.id() in self.param_inputs:
-            return f'params.{inp.id()}'
-        else:
-            raise RuntimeError
-
     def handle_cmdtool_inputs(self) -> None:
         for inp in ordering.cmdtool_inputs_arguments(self.tool):
             match inp:
@@ -110,7 +101,6 @@ class ProcessScriptGenerator:
                 case _:
                     self.handle_tool_argument(inp)
         
-
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         expression = unwrap_expression(
             value=arg.value,
@@ -140,6 +130,16 @@ class ProcessScriptGenerator:
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)
 
+
+
+    # def get_src_varname(self, inp: ToolInput) -> str:
+    #     # get variable name of feeder (process input or param)
+    #     if inp.id() in self.process_inputs:
+    #         return inp.id()
+    #     elif inp.id() in self.param_inputs:
+    #         return f'params.{inp.id()}'
+    #     else:
+    #         raise RuntimeError
 
 
 #                 # positionals
