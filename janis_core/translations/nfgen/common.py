@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, List
+from typing import Optional, List
 from textwrap import indent
-from . import formatting
+from . import settings
+from .casefmt import to_case
 
 
 def filter_null(iterable):
@@ -27,9 +28,10 @@ class ImportItem(NFBase):
         self.alias = alias
 
     def get_string(self) -> str:
+        name = to_case(self.name, settings.NEXTFLOW_PROCESS_CASE)
         if self.alias:
-            return f"{self.name} as {self.alias}"
-        return self.name
+            return f"{name} as {self.alias}"
+        return name
 
 
 class Import(NFBase):
@@ -78,6 +80,6 @@ class Function(NFBase):
     def get_string(self) -> str:
         return f"""
 def {self.name}({", ".join(self.parameters)}) {{
-  {indent(self.definition, '  ')}
+  {indent(self.definition, settings.NEXTFLOW_INDENT)}
 }}
 """

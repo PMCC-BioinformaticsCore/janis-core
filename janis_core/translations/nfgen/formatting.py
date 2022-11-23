@@ -1,9 +1,9 @@
 
 
 from textwrap import indent
+from . import settings
 
-
-NF_INDENT = '  '
+NF_INDENT = settings.NEXTFLOW_INDENT
 
 def call_fmt0(name: str) -> str:
     return f'{name}()\n'
@@ -22,12 +22,12 @@ def call_fmt2(name: str, inputs: list[str]) -> str:
 def format_process_call(name: str, inputs: list[str], ind: int=0) -> str:
     if len(inputs) == 0:
         call_str = call_fmt0(name)
-    elif len(inputs) == 1:
-        call_str = call_fmt1(name, inputs[0])
-    elif len(inputs) > 1:
-        call_str = call_fmt2(name, inputs)
     else:
-        raise RuntimeError()
+        call_str = call_fmt2(name, inputs)
+    # elif len(inputs) == 1:
+    #     call_str = call_fmt1(name, inputs[0])
+    # elif len(inputs) > 1:
+        # call_str = call_fmt2(name, inputs)
 
     return indent(call_str, ind * NF_INDENT)
 

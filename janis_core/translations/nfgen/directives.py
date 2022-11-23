@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from janis_core.translations.nfgen.common import NFBase
-
+from .casefmt import to_case
+from . import settings
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc
@@ -107,7 +108,8 @@ class PublishDirDirective(ProcessDirective):
     scope: list[str]
 
     def get_string(self) -> str:
-        subpath = '/'.join(self.scope).lower()
+        subpath = '/'.join(self.scope)
+        subpath = to_case(subpath, settings.NEXTFLOW_OUTDIR_CASE)
         if subpath == '':
             return f"publishDir \"$params.outdir\""
         else:

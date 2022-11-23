@@ -4,9 +4,12 @@ from collections import defaultdict
 from typing import Optional
 from janis_core.types import Array, File, String
 from .params import Param, getall
+from . import utils
+from . import settings
+
 
 DEFAULT_LINES = ['docker.enabled = true']
-INDENT = ' ' * 4
+INDENT = settings.NEXTFLOW_INDENT
 COMMENTER = '// '
 TEMPLATE = """\
 {defaults}
@@ -30,7 +33,7 @@ class ConfigBody:
     def __init__(self):
         self.outdir: Optional[Param] = None
         self.wfinput_params: list[Param] = []
-        self.process_params: dict[str, list[Param]] = defaultdict(list)
+        self.process_params: list[Param] = []
     
     def to_string(self) -> str:
         groups: list[str] = []
@@ -43,8 +46,8 @@ class ConfigBody:
             group_str = self.group_to_string('WORKFLOW INPUTS', self.wfinput_params)
             groups.append(group_str)
         
-        for scope_name, group in self.process_params.items():
-            group_str = self.group_to_string(scope_name, group)
+        if self.process_params:
+            group_str = self.group_to_string('PROCESS SPECIFIC', self.process_params)
             groups.append(group_str)
 
         return '\n'.join(groups)
@@ -103,12 +106,6 @@ class ConfigBody:
             lines = [f'{INDENT}{ln}' for ln in lines]
             return '\n'.join(lines)
 
-    def param_to_string_secondary_files(self, param: Param, group_width: int) -> str:
-        raise NotImplementedError
-    
-    def param_to_string_secondary_files_array(self, param: Param, group_width: int) -> str:
-        raise NotImplementedError
-
 
     
 
@@ -120,11 +117,10 @@ def generate_config_body(params: list[Param]) -> ConfigBody:
     for p in params:
         if p.name == 'outdir':
             cbody.outdir = p
-        elif p.ref_scope:
-            scope_name = f'{"_".join(p.ref_scope)}'
-            cbody.process_params[scope_name].append(p)
-        else:
+        elif p.is_wf_input:
             cbody.wfinput_params.append(p)
+        else:
+            cbody.process_params.append(p)
     return cbody
 
 def defaults_to_string() -> str:

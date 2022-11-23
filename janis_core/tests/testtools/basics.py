@@ -155,8 +155,8 @@ class ComponentsTestTool(CommandTool):
             ToolInput("pos_default", Int, default=95, position=2),
             ToolInput("pos_optional", String(optional=True), position=3),
 
-            ToolInput("flag_true", Boolean, position=4, prefix="--bool-true", default=True),
-            ToolInput("flag_false", Boolean, position=5, prefix="--bool-false", default=False),
+            ToolInput("flag_true", Boolean, position=4, prefix="--flag-true", default=True),
+            ToolInput("flag_false", Boolean, position=5, prefix="--flag-false", default=False),
             
             ToolInput("opt_basic", String, position=6, prefix="--opt-basic"),
             ToolInput("opt_default", Int, position=7, default=5, prefix="--opt-default"),
@@ -178,17 +178,10 @@ class SecondariesTestTool(CommandTool):
         return "SecondariesTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
-        return []
+        return ['echo']
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", BamBai, position=4)]
-
-    def arguments(self) -> list[ToolArgument]:
-        return [
-            ToolArgument("echo hello > out.bam", position=1, shell_quote=False),
-            ToolArgument("&& echo there > out.bam.bai", position=2, shell_quote=False),
-            ToolArgument("&& echo", position=3, shell_quote=False),
-        ]
 
     def outputs(self):
         return [

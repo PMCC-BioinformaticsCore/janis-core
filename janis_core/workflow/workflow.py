@@ -221,7 +221,7 @@ class StepNode(Node):
 
         self.__dict__[key] = value
 
-    def nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+    def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
         """
         Nextflow string representation of a StepNode
 
@@ -234,7 +234,7 @@ class StepNode(Node):
         """
         if len(self.outputs().keys()) >= 1:
             first_tag = list(self.outputs().keys())[0]
-            return self.get_item(first_tag).nextflow(
+            return self.get_item(first_tag).to_nextflow(
                 var_indicator=var_indicator, step_indicator=step_indicator
             )
 

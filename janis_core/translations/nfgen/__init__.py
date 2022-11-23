@@ -30,7 +30,7 @@ from .channels import ChannelOperation
 from .config import generate_config
 from .unwrap import unwrap_expression, unwrap_source, translate_string_formatter
 from .formatting import format_process_call
-from .utils import to_groovy_str
+from .utils import to_groovy
 from .register import register_workflow_inputs
 
 

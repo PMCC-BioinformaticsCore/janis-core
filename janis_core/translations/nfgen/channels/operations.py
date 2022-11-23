@@ -16,7 +16,7 @@ from ..casefmt import to_case
 from .. import settings
 from .channels import getall
 
-INDENT = ' ' * 4
+INDENT = settings.NEXTFLOW_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 

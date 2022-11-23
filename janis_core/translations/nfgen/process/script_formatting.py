@@ -2,7 +2,7 @@
 
 from typing import Optional, Any, Tuple
 from janis_core import ToolInput
-from janis_core.types import Boolean, Array
+from janis_core.types import Boolean, Array, File
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import params
 
@@ -40,7 +40,7 @@ prescript_template_map = {
     IType.POS_OPTIONAL: 'def {name} = {src} ? {src} : ""',
 
     IType.POS_BASIC_ARR:    'def {name} = {arr_join}',
-    IType.POS_DEFAULT_ARR:  'def {name} = {src} ? {arr_join} : {default}',
+    IType.POS_DEFAULT_ARR:  'def {name} = {src} ? {arr_join} : "{default}"',
     IType.POS_OPTIONAL_ARR: 'def {name} = {src} ? {arr_join} : ""',
 
     IType.OPT_BASIC:    '',
@@ -48,12 +48,12 @@ prescript_template_map = {
     IType.OPT_OPTIONAL: 'def {name} = {src} ? "{prefix}${{{src}}}" : ""',
 
     IType.OPT_BASIC_ARR:    'def {name} = {arr_join}',
-    IType.OPT_DEFAULT_ARR:  'def {name} = {src} ? {arr_join} : {default}',
+    IType.OPT_DEFAULT_ARR:  'def {name} = {src} ? {arr_join} : "{default}"',
     IType.OPT_OPTIONAL_ARR: 'def {name} = {src} ? "{prefix}" + {arr_join} : ""',
 }
 
-ARR_JOIN_BASIC      = '{src}.join({delim})'
-ARR_JOIN_PREFIXEACH = '{src}.collect{{ {prefix} + it }}.join({delim})'
+ARR_JOIN_BASIC      = "{src}.join('{delim}')"
+ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}.join('{delim}')"
 
 
 def get_itype(tinput: ToolInput) -> IType:
@@ -179,39 +179,77 @@ class InputFormatter:
     
     @property
     def default(self) -> Any:
-        if self.tinput.default is not None:
-            return utils.to_groovy_str(self.tinput.default, self.tinput)
-        return None
+        default = self.tinput.default
+        if default is not None:
+            if not isinstance(self.tinput.input_type, Array):
+                default = utils.to_groovy(self.tinput.default, self.tinput.input_type)
+            else:
+                default = self.eval_cmdline(inp=self.tinput, val=self.tinput.default)
+        return default
     
     @property
     def src(self) -> str:
         # data via channel
         if self.name in self.process_inputs:
-            return self.name
-        # data via param
+            return self.get_src_process_input()
         elif self.name in self.param_inputs:
-            src = self.sources[self.name]
-            node = utils.resolve_node(src)
-            param = params.get(node.id())
-            # this doesn't follow the usual pattern of .get() from params. 
-            # janis does weird stuff with names, so this is a workaround. 
-            # if self.scope:
-            #     name = f"{'_'.join(self.scope)}_{self.name}"
-            # else:
-            #     name = self.name
-            # param = params.get(name)
-            return f'params.{param.name}'
+            return self.get_src_param_input()
         else:
             raise NotImplementedError
     
+    def get_src_process_input(self) -> str:
+        # data supplied via process input
+        dtype = self.tinput.input_type
+        if isinstance(dtype, File) and dtype.has_secondary_files():
+            exts = utils.get_extensions(dtype)
+            name = exts[0]
+        else:
+            name = self.name
+        return name
+    
+    def get_src_param_input(self) -> str: 
+        # data supplied via global param
+        src = self.sources[self.name]
+        sel = src.source_map[0].source
+        param = params.get(sel.input_node.id())
+        # this doesn't follow the usual pattern of .get() from params. 
+        # janis does weird stuff with names, so this is a workaround. 
+        # if self.scope:
+        #     name = f"{'_'.join(self.scope)}_{self.name}"
+        # else:
+        #     name = self.name
+        # param = params.get(name)
+        return f'params.{param.name}'
+    
     @property
     def arr_join(self) -> Optional[str]:
-        if isinstance(self.tinput, Array):
+        if isinstance(self.tinput.input_type, Array):
             if self.tinput.prefix_applies_to_all_elements:
-                return ARR_JOIN_PREFIXEACH.format(self.src, self.prefix, self.delim)
+                return ARR_JOIN_PREFIXEACH.format(src=self.src, prefix=self.prefix, delim=self.delim)
             else:
-                return ARR_JOIN_BASIC.format(self.src, self.delim)
+                return ARR_JOIN_BASIC.format(src=self.src, delim=self.delim)
         return None
+
+    
+    ### HELPER METHODS
+    def eval_cmdline(self, inp: ToolInput, val: Any) -> str:
+        if isinstance(val, list):
+            basetype = utils.get_base_type(inp.input_type)
+            # ARR_JOIN_BASIC      = "{src}.join('{delim}')"
+            # ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}.join('{delim}')"
+            if inp.prefix_applies_to_all_elements:
+                vals_groovy = [utils.to_groovy(elem, basetype) for elem in val]
+                elems = [f'{self.prefix}{elem}' for elem in vals_groovy]
+                cmdline = ' '.join(elems)
+                return cmdline
+            else:
+                prefix = self.prefix if self.prefix else ''
+                vals_groovy = [utils.to_groovy(elem, basetype) for elem in val]
+                value = self.delim.join(vals_groovy)
+                cmdline = f'{prefix}{value}'
+                return cmdline
+        else:
+            raise NotImplementedError
 
 
     ### MAIN METHODS BY ToolInput TYPE

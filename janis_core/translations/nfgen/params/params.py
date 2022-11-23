@@ -174,7 +174,7 @@ class Param(NFBase):
             val: list[str] = []
         else:
             val = self.default
-        return utils.to_groovy_str(val, self.dtype)
+        return utils.to_groovy(val, self.dtype)
     
     @property
     def width(self) -> int:

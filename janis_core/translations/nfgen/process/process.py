@@ -44,45 +44,43 @@ class Process(NFBase):
         self.directives: list[ProcessDirective] = directives or []
         self.pre_script = pre_script
 
-    def prepare_script(self, prefix="  "):
-        script = ''
-        script += str(self.script).strip()
-        if self.script_quote:
-            q = 3 * self.script_quote
-            script = q + "\n" + script + "\n" + q
-
-        script = indent(script, prefix)
-
-        if self.pre_script:
-            pre_script = indent(self.pre_script, prefix)
-        else:
-            pre_script = ""
-
+    def prepare_script(self):
+        script_body = str(self.script).strip()
+        
         if self.script_type:
-            script = indent(f"{self.script_type.value}:\n{pre_script}\n" + script, "  ")
-
+            script = ''
+            script += f'{self.script_type.value}:\n'
+            script += f'{self.pre_script}\n' if self.pre_script else ''
+            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
+            script += f'{script_body}\n'
+            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
+            script = indent(script, settings.NEXTFLOW_INDENT)
+        else:
+            script = indent(script_body, settings.NEXTFLOW_INDENT)
+        
         return script
 
-    def prepare_inputs(self, prefix="  "):
+    def prepare_inputs(self):
         if not self.inputs:
             return None
         return indent(
-            "input:\n" + "\n".join("  " + i.get_string() for i in self.inputs), "  "
+            "input:\n" + "\n".join(i.get_string() for i in self.inputs), 
+            settings.NEXTFLOW_INDENT
         )
 
-    def prepare_outputs(self, prefix="  "):
+    def prepare_outputs(self):
         if not self.outputs:
             return None
         return indent(
-            "output:\n" + "\n".join(prefix + o.get_string() for o in self.outputs),
-            "  ",
+            "output:\n" + "\n".join(o.get_string() for o in self.outputs),
+            settings.NEXTFLOW_INDENT,
         )
 
-    def prepare_directives(self, prefix="  "):
+    def prepare_directives(self):
         if not self.directives:
             return None
         directives = order_directives(self.directives)
-        return "\n".join(prefix + d.get_string() for d in directives)
+        return "\n".join(settings.NEXTFLOW_INDENT + d.get_string() for d in directives)
 
     def get_string(self) -> str:
         components = filter_null(

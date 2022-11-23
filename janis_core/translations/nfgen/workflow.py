@@ -2,7 +2,7 @@ from textwrap import indent
 from typing import Optional, Union, List
 
 from janis_core.translations.nfgen.common import NFBase, filter_null
-
+from . import settings
 
 class WorkflowInput(NFBase):
     def __init__(self, name: str, as_param: Optional[str] = None):
@@ -53,34 +53,36 @@ class Workflow(NFBase):
     def inputs(self):
         return self.take
 
-    def prepare_main(self, prefix="  "):
+    def prepare_main(self):
         main = "\n".join(self.main) if isinstance(self.main, list) else self.main
 
         if self.take or self.emit or self.publish:
-            main = "main:\n" + indent(main, 2 * " ")
+            main = "main:\n" + indent(main, settings.NEXTFLOW_INDENT)
 
-        return indent(main, prefix)
+        return indent(main, settings.NEXTFLOW_INDENT)
 
-    def prepare_take(self, prefix="  "):
+    def prepare_take(self):
         if not self.take:
             return None
         return indent(
-            "take:\n" + "\n".join(prefix + i.get_string() for i in self.take), "  "
+            "take:\n" + "\n".join(prefix + i.get_string() for i in self.take), 
+            settings.NEXTFLOW_INDENT
         )
 
-    def prepare_emit(self, prefix="  "):
+    def prepare_emit(self):
         if not self.emit:
             return None
         return indent(
-            "emit:\n" + "\n".join(prefix + i.get_string() for i in self.emit), "  "
+            "emit:\n" + "\n".join(prefix + i.get_string() for i in self.emit), 
+            settings.NEXTFLOW_INDENT
         )
 
-    def prepare_publish(self, prefix="  "):
+    def prepare_publish(self):
         if not self.publish:
             return None
         return indent(
             "publish:\n" + "\n".join(prefix + i.get_string() for i in self.publish),
-            "  ",
+            settings.NEXTFLOW_INDENT
         )
 
     def get_string(self) -> str:

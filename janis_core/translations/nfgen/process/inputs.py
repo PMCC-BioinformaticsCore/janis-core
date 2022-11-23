@@ -109,19 +109,16 @@ def create_inputs_single(inp: ToolInput) -> list[ProcessInput]:
 def create_path_input(inp: ToolInput) -> PathProcessInput:
     new_input = PathProcessInput(name=inp.id())
     new_input.presents_as = inp.presents_as
-    print(new_input.get_string())
     return new_input
 
 def create_val_input(inp: ToolInput) -> ValProcessInput:
     new_input = ValProcessInput(name=inp.id())
-    print(new_input.get_string())
     return new_input
 
 def create_path_input_secondaries(inp: ToolInput, ext: str) -> PathProcessInput:
     # TODO ignoring secondaries_presents_as for now!
     name = f'{inp.id()}_{ext}s'
     new_input = PathProcessInput(name=name)
-    print(new_input.get_string())
     return new_input
 
 def create_tuple_input_secondaries(inp: ToolInput) -> TupleProcessInput:
@@ -140,5 +137,4 @@ def create_tuple_input_secondaries(inp: ToolInput) -> TupleProcessInput:
         qualifiers=qualifiers, 
         subnames=subnames
     )
-    print(new_input.get_string())
     return new_input

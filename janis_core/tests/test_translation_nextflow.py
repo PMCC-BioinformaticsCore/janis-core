@@ -86,7 +86,7 @@ from janis_core import (
     Boolean, 
     Filename
 )
-from janis_core.translations.nfgen.utils import to_groovy_str
+from janis_core.translations.nfgen.utils import to_groovy
 
 
 ### helper classes
@@ -117,29 +117,6 @@ def refresh_workflow_inputs(wf: Workflow) -> None:
     nfgen.channels.clear()
     nfgen.register_workflow_inputs(wf, scope=[])
 
-# def refresh_workflow_inputs(wf: Workflow) -> dict[str, str]:
-#     scope: list[str] = []
-#     nfgen.params.clear()
-#     nfgen.params.register(the_entity=wf, scope=scope)
-#     # for step in wf.step_nodes.values():
-#     #     current_scope = deepcopy(scope)
-#     #     current_scope.append(step.id())
-#     #     nfgen.params.register(the_entity=step.tool, sources=step.sources, scope=current_scope)
-#     params = nfgen.params.getall()
-#     return {p.name: p.groovy_value for p in params} 
-
-# def register_params_tool(tool: CommandTool) -> dict[str, str]:
-#     scope: list[str] = []
-#     nfgen.params.clear()
-#     nfgen.params.register(the_entity=tool, scope=scope)
-#     params = nfgen.params.getall()
-#     return {p.name: p.groovy_value for p in params} 
-
-# def register_channels(wf: Workflow) -> list[Channel]:
-#     nfgen.channels.clear()
-#     nfgen.channels.register(wf)
-#     return nfgen.channels.getall()
-
 
 
 class TestToGroovyStr(unittest.TestCase):
@@ -147,73 +124,73 @@ class TestToGroovyStr(unittest.TestCase):
     def test_string(self) -> None:
         inp = 'Hello'
         expected = "'Hello'"
-        actual = to_groovy_str(inp, String())
+        actual = to_groovy(inp, String())
         self.assertEquals(expected, actual)
     
     def test_numeric(self) -> None:
         # int
         inp = 5
         expected = '5'
-        actual = to_groovy_str(inp, Int())
+        actual = to_groovy(inp, Int())
         self.assertEquals(expected, actual)
         # float
         inp = 5.2
         expected = '5.2'
-        actual = to_groovy_str(inp, Float())
+        actual = to_groovy(inp, Float())
         self.assertEquals(expected, actual)
     
     def test_bool(self) -> None:
         # true
         inp = True
         expected = 'true'
-        actual = to_groovy_str(inp, Boolean())
+        actual = to_groovy(inp, Boolean())
         self.assertEquals(expected, actual)
         # false
         inp = False
         expected = 'false'
-        actual = to_groovy_str(inp, Boolean())
+        actual = to_groovy(inp, Boolean())
         self.assertEquals(expected, actual)
     
     def test_none(self) -> None:
         inp = None
         expected = 'null'
-        actual = to_groovy_str(inp, String())
+        actual = to_groovy(inp, String())
         self.assertEquals(expected, actual)
     
     def test_empty_array(self) -> None:
         inp = []
         expected = "[]"
-        actual = to_groovy_str(inp, String())
+        actual = to_groovy(inp, String())
         self.assertEquals(expected, actual)
     
     def test_string_array(self) -> None:
         inp = ['Hello']
         expected = "['Hello']"
-        actual = to_groovy_str(inp, String())
+        actual = to_groovy(inp, String())
         self.assertEquals(expected, actual)
     
     def test_numeric_array(self) -> None:
         # int
         inp = [1, 2, 3]
         expected = '[1, 2, 3]'
-        actual = to_groovy_str(inp, Int())
+        actual = to_groovy(inp, Int())
         self.assertEquals(expected, actual)
         # float
         inp = [1.1, 2.2, 3.3]
         expected = '[1.1, 2.2, 3.3]'
-        actual = to_groovy_str(inp, Float())
+        actual = to_groovy(inp, Float())
         self.assertEquals(expected, actual)
     
     def test_bool_array(self) -> None:
         inp = [True, False]
         expected = '[true, false]'
-        actual = to_groovy_str(inp)
+        actual = to_groovy(inp)
         self.assertEquals(expected, actual)
     
     def test_none_array(self) -> None:
         inp = [None, None]
         expected = '[null, null]'
-        actual = to_groovy_str(inp)
+        actual = to_groovy(inp)
         self.assertEquals(expected, actual)
 
 
@@ -843,13 +820,122 @@ class TestProcessOutputs(unittest.TestCase):
 
 class TestProcessScript(unittest.TestCase):
     """
-    Tests identifying tool inputs which should be process inputs.
-    Need a process input for each tool input in step sources
+    Tests of the process prescript and script sections.
     """
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+
+    def test_components_prescript(self) -> None:
+        wf = StepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_prescript = process.pre_script
+        expected_lines = {
+            'def pos_default = params.in_int ? params.in_int : 95',
+            'def pos_optional = params.in_str ? params.in_str : ""',
+            'def flag_true = params.in_bool == false ? "" : "--flag-true"',
+            'def flag_false = params.in_bool ? "--flag-false" : ""',
+            'def opt_default = params.in_int ? params.in_int : 5',
+            'def opt_optional = params.in_str ? "--opt-optional ${params.in_str}" : ""',
+        }
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
+    
+    def test_components_script(self) -> None:
+        wf = StepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_script = process.script
+        expected_lines = {
+            'echo',
+            '${pos_basic}',
+            '${pos_default}',
+            '${pos_optional}',
+            '${flag_true}',
+            '${flag_false}',
+            '--opt-basic ${params.in_str}',
+            '--opt-default ${opt_default}',
+            '${opt_optional}',
+        }
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
+    def test_components_array_prescript(self) -> None:
+        wf = ArrayStepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_prescript = process.pre_script
+        expected_lines = {
+            'def pos_basic = pos_basic.join(\' \')',
+            'def pos_basic2 = pos_basic2 ? pos_basic2.join(\' \') : ""',
+            'def pos_default = params.in_int_array ? params.in_int_array.join(\' \') : "1 2 3"',
+            'def pos_optional = params.in_str_array ? params.in_str_array.join(\' \') : ""',
+            'def flag_true = params.in_bool_array ? params.in_bool_array.join(\' \') : "--bool-true true"',
+            'def flag_false = params.in_bool_array ? params.in_bool_array.join(\' \') : "--bool-false true"',
+            'def opt_basic = params.in_str_array.join(\' \')',
+            'def opt_default = params.in_int_array ? params.in_int_array.collect{ "--opt-default " + it }.join(\' \') : "--opt-default 1 --opt-default 2 --opt-default 3"',
+            'def opt_optional = params.in_str_array ? "--opt-optional," + params.in_str_array.join(\',\') : ""',
+        }
+        print(actual_prescript)
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
+    
+    def test_components_array_script(self) -> None:
+        wf = ArrayStepInputsTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        actual_script = process.script
+        expected_lines = {
+            'echo',
+            '${pos_basic}',
+            '${pos_basic2}',
+            '${pos_default}',
+            '${pos_optional}',
+            '--opt-basic=${opt_basic}',
+            '--opt-default ${opt_default}',
+            '${opt_optional}',
+        }
+        print(actual_script)
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+    
+    def test_secondaries(self) -> None:
+        # name accession should be different?
+        wf = SecondariesIOTestWF()
+        refresh_workflow_inputs(wf)
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        
+        # pre-script
+        actual_pre_script = process.pre_script
+        expected_pre_script = {}
+        for ln in expected_pre_script:
+            self.assertIn(ln, actual_pre_script)
+        
+        # script
+        actual_script = process.script
+        expected_script = {
+            'echo',
+            '${bam}',
+        }
+        for ln in expected_script:
+            self.assertIn(ln, actual_script)
+    
+    @unittest.skip('not implemented')
+    def test_secondaries_array(self) -> None:
+        # unnecessary as format follows non-array secondaries (test above)
+        raise NotImplementedError
 
     def test_filename_generated_tool(self):
         # TODO FIX ME
@@ -1200,6 +1286,7 @@ class TestPlumbingBasic(unittest.TestCase):
 
 
 
+
 class TestPlumbingBasicArrays(unittest.TestCase):
     """
     This test group checks janis 'TInput' step inputs driven by workflow inputs
@@ -1254,6 +1341,8 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         actual = translator.gen_step_inval_dict(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
+
+
 
 
 class TestPlumbingScatter(unittest.TestCase):
@@ -1458,6 +1547,7 @@ class TestPlumbingCombinations(unittest.TestCase):
     @unittest.skip('not implemented')
     def test_scatter_connection_array(self) -> None:
         raise NotImplementedError
+
 
 
 

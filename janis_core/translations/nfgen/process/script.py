@@ -16,7 +16,7 @@ def gen_script_for_cmdtool(
     stdout_filename: str,
     scope: list[str],
     values: dict[str, Any],
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
         input_in_selectors=input_in_selectors,
@@ -52,7 +52,7 @@ class ProcessScriptGenerator:
         self.prescript: list[str] = []
         self.script: list[str] = []
 
-    def generate(self) -> Tuple[str, str]:
+    def generate(self) -> Tuple[Optional[str], str]:
         """Generate the script content of a Nextflow process for Janis command line tool"""
         self.handle_cmdtool_preprocessing()
         self.handle_cmdtool_base_command()
@@ -128,8 +128,10 @@ class ProcessScriptGenerator:
             line = expression
         self.script.append(line)
 
-    def finalise_prescript(self) -> str:
-        return '\n'.join(self.prescript)
+    def finalise_prescript(self) -> Optional[str]:
+        if self.prescript:
+            return '\n'.join(self.prescript)
+        return None
 
     def finalise_script(self) -> str:
         script = self.script

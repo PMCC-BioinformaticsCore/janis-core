@@ -33,23 +33,41 @@ def register_workflow_inputs(wf: Workflow, scope: list[str]) -> None:
             
             # array secondaries
             elif isinstance(inp.datatype, Array):
-                subtype = inp.datatype.subtype()
-                if isinstance(subtype, File) and subtype.has_secondary_files():
+                basetype = utils.get_base_type(inp.datatype)
+                if isinstance(basetype, File) and basetype.has_secondary_files():
                     register_wfinp_secondaries_array(inp, scope)
                     continue
 
             # anything else
-            register_wfinp(inp, scope, channel_input_ids)
+            is_wf_input = infer_true_wfinput(inp, wf)
+            register_wfinp(inp, scope, channel_input_ids, is_wf_input=is_wf_input)
             continue
         
         else:
             raise NotImplementedError
 
+
+def infer_true_wfinput(inp: InputNode, wf: Workflow) -> bool:
+    # file type, or
+    # referenced in multiple steps, or
+    # referenced in single step and scattered
+    basetype = utils.get_base_type(inp.datatype)
+    connections = utils.get_connections(inp, wf)
+    scatter_inputs = utils.get_scatter_wf_inputs(wf)
+    if isinstance(basetype, File):
+        return True
+    elif len(connections) > 1:
+        return True
+    elif len(connections) == 1 and inp.id() in scatter_inputs:
+        return True
+    return False
+
 # workflow inputs
 def register_wfinp(    
     inp: InputNode, 
     scope: list[str], 
-    channel_input_ids: set[str]
+    channel_input_ids: set[str],
+    is_wf_input: bool
     ) -> None:
     # param
     default: Any = inp.default if inp.default is not None else None
@@ -59,10 +77,11 @@ def register_wfinp(
         ref_scope=scope,
         dtype=inp.datatype,
         default=default,
-        is_wf_input=is_channel_input
+        is_wf_input=is_wf_input and is_channel_input
     )
     # channel
-    if is_channel_input:
+    # if is_channel_input:
+    if is_wf_input and is_channel_input:
         channels.add(
             ref_name=inp.id(),
             params=[p],
@@ -71,7 +90,6 @@ def register_wfinp(
             allow_null=channels.should_allow_null(inp),
             ref_scope=scope
         )
-    print()
 
 def register_wfinp_secondaries(    
     inp: InputNode, 
@@ -133,7 +151,6 @@ def register_wfinp_secondaries_array(
             ref_scope=scope,
             name_override=f'{inp.id()}_{ext}s'
         )
-    print()
 
 
 

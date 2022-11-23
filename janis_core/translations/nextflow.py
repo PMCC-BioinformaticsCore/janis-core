@@ -33,6 +33,7 @@ from janis_core.translations.translationbase import TranslatorBase
 from janis_core.workflow.workflow import StepNode, Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
+from janis_core.translations.nfgen.casefmt import to_case
 from janis_core.translations.nfgen import settings
 
 # class methods dont make sense. dislike this approach. 
@@ -76,7 +77,7 @@ class NextflowTranslator(TranslatorBase):
         operations: dict[str, nfgen.ChannelOperation] = {}
 
         # register params and channels for workflow inputs
-        nfgen.register_workflow_inputs(workflow, scope=scope)
+        nfgen.register_workflow_inputs(jworkflow, scope=scope)
 
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
@@ -425,7 +426,7 @@ class NextflowTranslator(TranslatorBase):
                 body.append(operation.get_string())
 
             if step_id in processes:
-                entity_name = processes[step_id].name
+                entity_name = to_case(processes[step_id].name, settings.NEXTFLOW_PROCESS_CASE)
                 entity_inputs = processes[step_id].inputs
             elif step_id in subworkflows:            
                 entity_name = subworkflows[step_id].name
@@ -1268,7 +1269,7 @@ class NextflowTranslator(TranslatorBase):
         outputs = {}
         for o in wf.output_nodes:
             if hasattr(wf.output_nodes[o].source, "nextflow"):
-                val = wf.output_nodes[o].source.nextflow(step_indicator=tool_var_prefix)
+                val = wf.output_nodes[o].source.to_nextflow(step_indicator=tool_var_prefix)
             else:
                 val = str(val)
 

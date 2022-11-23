@@ -486,12 +486,12 @@ class ArrayStepInputsTestWF(Workflow):
             ArrayComponentsTestTool(
                 pos_basic=self.inFileArray,
                 pos_basic2=self.inFileArrayOpt,
-                pos_default=self.inStrArray,
+                pos_default=self.inIntArray,
                 pos_optional=self.inStrArray,
                 flag_true=self.inBoolArray,
                 flag_false=self.inBoolArray,
                 opt_basic=self.inStrArray,
-                opt_default=self.inStrArray,
+                opt_default=self.inIntArray,
                 opt_optional=self.inStrArray,
             )
         )

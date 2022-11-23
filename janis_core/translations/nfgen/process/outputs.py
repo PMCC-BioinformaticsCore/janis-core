@@ -125,7 +125,6 @@ def create_stdout_output(out: ToolOutput) -> StdoutProcessOutput:
     # stdout
     optional = True if out.output_type.optional else False  # type: ignore
     new_output = StdoutProcessOutput(name=out.id(), is_optional=optional)
-    print(new_output.get_string())
     return new_output
 
 def create_path_output(out: ToolOutput) -> PathProcessOutput:
@@ -137,7 +136,6 @@ def create_path_output(out: ToolOutput) -> PathProcessOutput:
         is_optional=optional, 
         expression=expression
     )
-    print(new_output.get_string())
     return new_output
 
 def create_val_output(out: ToolOutput) -> ValProcessOutput:
@@ -149,7 +147,6 @@ def create_val_output(out: ToolOutput) -> ValProcessOutput:
         is_optional=optional, 
         expression=expression
     )
-    print(new_output.get_string())
     return new_output
 
 def create_tuple_output_secondaries(out: ToolOutput) -> TupleProcessOutput:
@@ -187,7 +184,6 @@ def create_tuple_output_secondaries(out: ToolOutput) -> TupleProcessOutput:
         qualifiers=qualifiers, 
         expressions=expressions
     )
-    print(new_output.get_string())
     return new_output
 
 def create_path_output_secondaries(out: ToolOutput, ext: str) -> PathProcessOutput:

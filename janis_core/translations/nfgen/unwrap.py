@@ -121,7 +121,6 @@ def get_channel_expression(
 
 
 
-
 def unwrap_expression(
     value: Any,
     input_in_selectors: dict[str, Any],
@@ -250,13 +249,13 @@ def unwrap_expression(
         )
         return value.to_nextflow(unwrap_expression_wrap, *value.args)
 
-    elif callable(getattr(value, "nextflow", None)):
+    elif callable(getattr(value, "to_nextflow", None)):
         if var_indicator is not None and step_indicator is not None:
-            return value.nextflow(
+            return value.to_nextflow(
                 var_indicator=var_indicator, step_indicator=step_indicator
             )
         else:
-            return value.nextflow()
+            return value.to_nextflow()
     
     elif isinstance(value, StepTagInput):
         return unwrap_expression(
@@ -270,7 +269,7 @@ def unwrap_expression(
     
     elif isinstance(value, Edge):
         if isinstance(value.source, InputNodeSelector):
-            return value.source.nextflow(var_indicator=var_indicator)
+            return value.source.to_nextflow(var_indicator=var_indicator)
         elif isinstance(value.source, StepOutputSelector):
             step_name = to_case(value.source.node.id(), settings.NEXTFLOW_PROCESS_CASE)
             return f'{step_name}.out.{value.source.tag}'

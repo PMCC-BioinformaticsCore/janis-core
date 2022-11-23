@@ -18,12 +18,15 @@ from janis_core import (
     Workflow
 )
 
+from collections import defaultdict
 from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core.translations.nfgen import ordering
 from janis_core.translations.nfgen import settings
 
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.operator import IndexOperator
+from janis_core.operators.standard import FirstOperator
+from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
 
 
 
@@ -87,9 +90,9 @@ def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
     for step in wf.step_nodes.values():
         for src in step.sources.values():
             scatter = src.source_map[0].scatter
-            node = resolve_node(src)
-            if scatter and isinstance(node, InputNode):
-                out.add(node.identifier)
+            sel = src.source_map[0].source
+            if scatter and isinstance(sel, InputNodeSelector):
+                out.add(sel.input_node.id())
     return out
 
 
@@ -238,9 +241,9 @@ def get_file_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a File type workflow input"""
     out: set[str] = set()
     for inname, src in sources.items():
-        node = resolve_node(src)
-        if isinstance(node, InputNode):
-            if isinstance(get_base_type_task_input(node), File):
+        sel = src.source_map[0].source
+        if isinstance(sel, InputNodeSelector):
+            if isinstance(get_base_type(sel.input_node.datatype), File):
                 out.add(inname)
     return out
 
@@ -249,8 +252,8 @@ def get_scatter_wfinp_input_ids(sources: dict[str, Any]) -> set[str]:
     out: set[str] = set()
     for inname, src in sources.items():
         scatter = src.source_map[0].scatter
-        node = resolve_node(src)
-        if scatter and isinstance(node, InputNode):
+        sel = src.source_map[0].source
+        if scatter and isinstance(sel, InputNodeSelector):
             out.add(inname)
     return out
 
@@ -258,9 +261,9 @@ def get_nonfile_wfinp_connected_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a non-File type workflow input"""
     out: set[str] = set()
     for inname, src in sources.items():
-        node = resolve_node(src)
-        if isinstance(node, InputNode):
-            if not isinstance(get_base_type_task_input(node), File):
+        sel = src.source_map[0].source
+        if isinstance(sel, InputNodeSelector):
+            if not isinstance(get_base_type(sel.input_node.datatype), File):
                 out.add(inname)
     return out
 
@@ -268,14 +271,23 @@ def get_connection_input_ids(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a step connection"""
     out: set[str] = set()
     for inname, src in sources.items():
-        node = resolve_node(src)
-        if isinstance(node, StepNode):
+        sel = src.source_map[0].source
+        if isinstance(sel, StepOutputSelector):
             out.add(inname)
     return out
 
 
 
+
 ### misc helper methods
+def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
+    connected: dict[str, list[str]] = defaultdict(list)
+    for step in wf.step_nodes.values():
+        for tinp_id, src in step.sources.items():
+            sel = src.source_map[0].source
+            if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
+                connected[step.id()].append(tinp_id)
+    return connected
 
 def get_extensions(dtype: File, allow_symbols: bool=False) -> list[str]:
     exts = dtype.get_extensions()
@@ -288,32 +300,6 @@ def get_extensions(dtype: File, allow_symbols: bool=False) -> list[str]:
 
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
-
-def resolve_node(source: StepTagInput) -> InputNode | StepNode:
-    # workflow input
-    if hasattr(source.source_map[0].source, 'input_node'):
-        node = source.source_map[0].source.input_node
-    
-    # connection
-    elif hasattr(source.source_map[0].source, 'node'):
-        node = source.source_map[0].source.node
-    
-    # workflow input / connection -> array type
-    elif hasattr(source.source_map[0].source, 'args'):
-        upstream = source.source_map[0].source.args[0]
-        if hasattr(upstream, 'node'):
-            node = upstream.node
-        elif hasattr(upstream, 'input_node'):
-            node = upstream.input_node
-    else:
-        raise NotImplementedError
-    return node
-
-def get_source_value(source: Any) -> Any:
-    node = resolve_node(source)
-    if isinstance(node, InputNode):
-        return node.default
-    return None
 
 def roughly_equivalent(val1: Any, val2: Any) -> bool:
     equivalents = {
@@ -360,8 +346,6 @@ def is_file_pair(task_input: ToolInput | InputNode) -> bool:
 def is_nullable(task_input: ToolInput | InputNode) -> bool:
     raise NotImplementedError
 
-
-
 def is_simple_path(text: str) -> bool:
     PATH = r'[\w./]+'
     text = text.strip('\'"')
@@ -371,7 +355,7 @@ def is_simple_path(text: str) -> bool:
             return True
     return False
 
-def to_groovy_str(val: Any, dtype: Optional[DataType]=None) -> Any:
+def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
     # must work with str version. 
     dtype = get_base_type(dtype)
     val = str(val)
