@@ -40,8 +40,8 @@ class ComponentTypeStrategy(CmdtoolInsArgsStrategy):
                     options.append(x)
             
             # flag or opt tool arguments
-            else:
-                if any([delim in x.value for delim in [' ', ':', '=']]):
+            elif isinstance(x, ToolArgument):
+                if x.value is None:
                     flags.append(x)
                 else:
                     options.append(x)

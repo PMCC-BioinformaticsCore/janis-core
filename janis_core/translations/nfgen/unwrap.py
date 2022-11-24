@@ -138,7 +138,6 @@ def unwrap_expression(
     The main logic to unwrap a janis expression and represent it in Nextflow translation
     """
     input_in_selectors = input_in_selectors if input_in_selectors else {}
-    assert(tool)
 
     if value is None:
         if quote_string:
