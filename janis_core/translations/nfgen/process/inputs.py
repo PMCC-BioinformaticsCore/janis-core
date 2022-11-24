@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from .. import utils
 
-from janis_core import ToolInput
+from janis_core import ToolInput, TInput
 from janis_core.types import File, Directory, Array, DataType
 
 
@@ -59,16 +59,17 @@ class TupleProcessInput(ProcessInput):
 
 
 
-def create_inputs(inp: ToolInput) -> list[ProcessInput]:
-    datatype: DataType = inp.input_type
+def create_inputs(inp: ToolInput | TInput) -> list[ProcessInput]:
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    datatype: DataType = dtype
     if isinstance(datatype, Array):
         return create_inputs_array(inp)
     else:
         return create_inputs_single(inp)
 
-
-def create_inputs_array(inp: ToolInput) -> list[ProcessInput]:
-    basetype: Optional[DataType] = utils.get_base_type(inp.input_type)
+def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    basetype: Optional[DataType] = utils.get_base_type(dtype)
     assert(basetype)
 
     # secondaries array
@@ -89,8 +90,9 @@ def create_inputs_array(inp: ToolInput) -> list[ProcessInput]:
     return [create_val_input(inp)]
 
 
-def create_inputs_single(inp: ToolInput) -> list[ProcessInput]:
-    basetype: Optional[DataType] = utils.get_base_type(inp.input_type)
+def create_inputs_single(inp: ToolInput | TInput) -> list[ProcessInput]:
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    basetype: Optional[DataType] = utils.get_base_type(dtype)
     assert(basetype)
         
     # file secondaries
@@ -106,28 +108,31 @@ def create_inputs_single(inp: ToolInput) -> list[ProcessInput]:
     return [create_val_input(inp)]
 
 
-def create_path_input(inp: ToolInput) -> PathProcessInput:
+def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
     new_input = PathProcessInput(name=inp.id())
-    new_input.presents_as = inp.presents_as
+    new_input.presents_as = None
+    if isinstance(inp, ToolInput):
+        new_input.presents_as = inp.presents_as
     return new_input
 
-def create_val_input(inp: ToolInput) -> ValProcessInput:
+def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:
     new_input = ValProcessInput(name=inp.id())
     return new_input
 
-def create_path_input_secondaries(inp: ToolInput, ext: str) -> PathProcessInput:
+def create_path_input_secondaries(inp: ToolInput | TInput, ext: str) -> PathProcessInput:
     # TODO ignoring secondaries_presents_as for now!
     name = f'{inp.id()}_{ext}s'
     new_input = PathProcessInput(name=name)
     return new_input
 
-def create_tuple_input_secondaries(inp: ToolInput) -> TupleProcessInput:
-    assert(isinstance(inp.input_type, File))
+def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    assert(isinstance(dtype, File))
     qualifiers: list[str] = []
     subnames: list[str] = []
 
     # tuple sub-element for each file
-    exts = utils.get_extensions(inp.input_type)
+    exts = utils.get_extensions(dtype)
     for ext in exts:
         qualifiers.append('path')
         subnames.append(ext)

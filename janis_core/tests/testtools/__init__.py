@@ -32,11 +32,13 @@ from .arrays import (
 )
 
 from .misc_codetools import (
-    SplitTextTestTool,
-    JoinArrayTestTool,
-    SumTestTool,
-    FileInputTestTool,
-    SecondaryInputTestTool
+    SplitTextPythonTestTool,
+    JoinArrayPythonTestTool,
+    SumTestPythonTool,
+    FileInputPythonTestTool,
+    FileOutputPythonTestTool,
+    SecondaryInputPythonTestTool,
+    MultiTypesInputPythonTool,
 )
 
 from .misc_commandtools import (

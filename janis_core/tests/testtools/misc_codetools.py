@@ -12,10 +12,10 @@ from janis_core.types import(
     Int
 ) 
 
-from .types import SecondaryTestType
+from .types import AppendedSecondaryTestType
 
 
-class SplitTextTestTool(PythonTool):
+class SplitTextPythonTestTool(PythonTool):
     @staticmethod
     def code_block(inp: str) -> dict:
         # list splits "abc" into ["a", "b", "c"]
@@ -25,7 +25,7 @@ class SplitTextTestTool(PythonTool):
         return [TOutput("out", Array(String()))]
 
 
-class JoinArrayTestTool(PythonTool):
+class JoinArrayPythonTestTool(PythonTool):
     @staticmethod
     def code_block(inp: Array(String())) -> dict:
         return {"out": " ".join(inp)}
@@ -34,7 +34,7 @@ class JoinArrayTestTool(PythonTool):
         return [TOutput("out", String())]
 
 
-class SumTestTool(PythonTool):
+class SumTestPythonTool(PythonTool):
     @staticmethod
     def code_block(inp1: int, inp2: int) -> dict:
         return {"out": inp1 + inp2}
@@ -43,7 +43,20 @@ class SumTestTool(PythonTool):
         return [TOutput("out", Int())]
 
 
-class FileInputTestTool(PythonTool):
+class MultiTypesInputPythonTool(PythonTool):
+    @staticmethod
+    def code_block(inp1: File, inp2: String, inp3: Int) -> dict:
+        from shutil import copyfile
+
+        copyfile(inp1, "./out.file")
+
+        return {"out": "./out.file"}
+
+    def outputs(self):
+        return [TOutput("out", File)]
+
+
+class FileInputPythonTestTool(PythonTool):
     @staticmethod
     def code_block(inp: File) -> dict:
         with open(inp) as f:
@@ -55,9 +68,22 @@ class FileInputTestTool(PythonTool):
         return [TOutput("out", String())]
 
 
-class SecondaryInputTestTool(PythonTool):
+class FileOutputPythonTestTool(PythonTool):
     @staticmethod
-    def code_block(inp: SecondaryTestType) -> dict:
+    def code_block(inp: File) -> dict:
+        from shutil import copyfile
+
+        copyfile(inp, "./out.file")
+
+        return {"out": "./out.file"}
+
+    def outputs(self):
+        return [TOutput("out", File)]
+
+
+class SecondaryInputPythonTestTool(PythonTool):
+    @staticmethod
+    def code_block(inp: AppendedSecondaryTestType) -> dict:
         with open(inp) as f:
             content = f.read()
 

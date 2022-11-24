@@ -45,7 +45,7 @@ class PythonTool(CodeTool, ABC):
 
     # Other internal methods
 
-    def inputs(self):
+    def inputs(self) -> list[TInput]:
         if self._cached_input_signature is None:
 
             import inspect

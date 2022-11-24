@@ -1,7 +1,7 @@
 
 
 from typing import Optional, Any, Tuple
-from janis_core import ToolInput
+from janis_core import ToolInput, TInput
 from janis_core.types import Boolean, Array, File
 from janis_core.translations.nfgen import utils
 from janis_core.translations.nfgen import params
@@ -99,6 +99,46 @@ def get_itype(tinput: ToolInput) -> IType:
         raise NotImplementedError
 
 
+
+### helper methods
+
+def get_src(
+    inp: ToolInput | TInput, 
+    process_inputs: set[str], 
+    param_inputs: set[str], 
+    sources: dict[str, Any]
+    ) -> str:
+    # get nextflow variable name which feeds data for this tool input
+    if inp.id() in process_inputs:
+        return get_src_process_input(inp)
+    elif inp.id() in param_inputs:
+        return get_src_param_input(inp, sources)
+    else:
+        raise NotImplementedError
+
+def get_src_process_input(inp: ToolInput | TInput) -> str:
+    # data fed via process input
+    dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
+    basetype = utils.get_base_type(dtype)
+    # secondary files (name mapped to ext of primary file)
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        exts = utils.get_extensions(basetype)
+        name = exts[0]
+    # everything else
+    else:
+        name = inp.id()
+    return name
+
+def get_src_param_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> str: 
+    # data fed via global param
+    src = sources[inp.id()]
+    sel = src.source_map[0].source
+    param = params.get(sel.input_node.id())
+    return f'params.{param.name}'
+
+
+
+
 class InputFormatter:
     def __init__(self, 
         tinput: ToolInput, 
@@ -189,37 +229,12 @@ class InputFormatter:
     
     @property
     def src(self) -> str:
-        # data via channel
-        if self.name in self.process_inputs:
-            return self.get_src_process_input()
-        elif self.name in self.param_inputs:
-            return self.get_src_param_input()
-        else:
-            raise NotImplementedError
-    
-    def get_src_process_input(self) -> str:
-        # data supplied via process input
-        dtype = self.tinput.input_type
-        if isinstance(dtype, File) and dtype.has_secondary_files():
-            exts = utils.get_extensions(dtype)
-            name = exts[0]
-        else:
-            name = self.name
-        return name
-    
-    def get_src_param_input(self) -> str: 
-        # data supplied via global param
-        src = self.sources[self.name]
-        sel = src.source_map[0].source
-        param = params.get(sel.input_node.id())
-        # this doesn't follow the usual pattern of .get() from params. 
-        # janis does weird stuff with names, so this is a workaround. 
-        # if self.scope:
-        #     name = f"{'_'.join(self.scope)}_{self.name}"
-        # else:
-        #     name = self.name
-        # param = params.get(name)
-        return f'params.{param.name}'
+        return get_src(
+            inp=self.tinput,
+            process_inputs=self.process_inputs,
+            param_inputs=self.param_inputs,
+            sources=self.sources
+        )
     
     @property
     def arr_join(self) -> Optional[str]:

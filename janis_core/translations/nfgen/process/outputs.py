@@ -3,12 +3,12 @@ from typing import Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from janis_core.types import File, Directory, Array, DataType, Stdout
-from janis_core import ToolOutput, CommandTool
+from janis_core import ToolOutput, TOutput, CommandTool, PythonTool
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 from ..unwrap import unwrap_expression
 from .. import utils
-
+from .. import settings
 
 @dataclass
 class ProcessOutput(ABC):
@@ -72,62 +72,70 @@ class TupleProcessOutput(ProcessOutput):
  
 
 
-def create_outputs(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
-    datatype: DataType = out.output_type
-    if isinstance(datatype, Array):
-        return create_outputs_array(out, tool)
+def create_outputs_cmdtool(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
+    if isinstance(out.output_type, Array):
+        return create_outputs_array_cmdtool(out, tool)
     else:
-        return create_outputs_single(out, tool)
+        return create_outputs_single_cmdtool(out, tool)
 
-def create_outputs_array(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
+def create_outputs_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOutput]:
+    if isinstance(out.outtype, Array):
+        return create_outputs_array_pythontool(out, tool)
+    else:
+        return create_outputs_single_pythontool(out, tool)
+
+
+
+
+### CMDTOOL ###
+
+def create_outputs_single_cmdtool(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
     basetype: Optional[DataType] = utils.get_base_type(out.output_type)
     assert(basetype)
-    
-    # secondaries array
-    if isinstance(basetype, File) and basetype.has_secondary_files():
-        # a path output per file type
-        outputs: list[ProcessOutput] = []
-        exts = utils.get_extensions(out.output_type, allow_symbols=True)
-        for ext in exts:
-            outputs.append(create_path_output_secondaries(out, tool, ext))
-        return outputs
 
-    # file array
-    if isinstance(basetype, (File, Directory)):
-        return [create_path_output(out, tool)]
-
-    # nonfile array
-    return [create_val_output(out, tool)]
-
-def create_outputs_single(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
-    basetype: Optional[DataType] = utils.get_base_type(out.output_type)
-    assert(basetype)
-    
     # stdout
     if isinstance(basetype, Stdout):
-        return [create_stdout_output(out, tool)]
+        return [create_stdout_output_cmdtool(out, tool)]
 
     # file secondaries
     if isinstance(basetype, File) and basetype.has_secondary_files():
-        outputs = [create_tuple_output_secondaries(out, tool)]
+        outputs = [create_tuple_output_secondaries_cmdtool(out, tool)]
         return outputs
     
     # file
     if isinstance(basetype, (File, Directory)):
-        return [create_path_output(out, tool)]
+        return [create_path_output_cmdtool(out, tool)]
     
     # nonfile
-    return [create_val_output(out, tool)]
+    return [create_val_output_cmdtool(out, tool)]
 
+def create_outputs_array_cmdtool(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
+    basetype: Optional[DataType] = utils.get_base_type(out.output_type)
+    assert(basetype)
 
+    # secondaries array
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        # a path output per file type
+        outputs: list[ProcessOutput] = []
+        exts = utils.get_extensions(basetype, allow_symbols=True)
+        for ext in exts:
+            outputs.append(create_path_output_secondaries_cmdtool(out, tool, ext))
+        return outputs
 
-def create_stdout_output(out: ToolOutput, tool: CommandTool) -> StdoutProcessOutput:
+    # file array
+    if isinstance(basetype, (File, Directory)):
+        return [create_path_output_cmdtool(out, tool)]
+
+    # nonfile array
+    return [create_val_output_cmdtool(out, tool)]
+
+def create_stdout_output_cmdtool(out: ToolOutput, tool: CommandTool) -> StdoutProcessOutput:
     # stdout
     optional = True if out.output_type.optional else False  # type: ignore
     new_output = StdoutProcessOutput(name=out.id(), is_optional=optional)
     return new_output
 
-def create_path_output(out: ToolOutput, tool: CommandTool) -> PathProcessOutput:
+def create_path_output_cmdtool(out: ToolOutput, tool: CommandTool) -> PathProcessOutput:
     # file
     optional = True if out.output_type.optional else False  # type: ignore
     expression = unwrap_expression(
@@ -140,7 +148,7 @@ def create_path_output(out: ToolOutput, tool: CommandTool) -> PathProcessOutput:
     )
     return new_output
 
-def create_val_output(out: ToolOutput, tool: CommandTool) -> ValProcessOutput:
+def create_val_output_cmdtool(out: ToolOutput, tool: CommandTool) -> ValProcessOutput:
     # nonfile
     optional = True if out.output_type.optional else False  # type: ignore
     expression = unwrap_expression(
@@ -153,7 +161,7 @@ def create_val_output(out: ToolOutput, tool: CommandTool) -> ValProcessOutput:
     )
     return new_output
 
-def create_tuple_output_secondaries(out: ToolOutput, tool: CommandTool) -> TupleProcessOutput:
+def create_tuple_output_secondaries_cmdtool(out: ToolOutput, tool: CommandTool) -> TupleProcessOutput:
     """
     secondaries
     eg BamBai:
@@ -192,13 +200,92 @@ def create_tuple_output_secondaries(out: ToolOutput, tool: CommandTool) -> Tuple
     )
     return new_output
 
-def create_path_output_secondaries(out: ToolOutput, tool: CommandTool, ext: str) -> PathProcessOutput:
+def create_path_output_secondaries_cmdtool(out: ToolOutput, tool: CommandTool, ext: str) -> PathProcessOutput:
     # array of secondaries
     print(new_output.get_string())
     raise NotImplementedError
 
 
 
+
+### PYTHONTOOL ###
+
+def create_outputs_single_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOutput]:
+    basetype: Optional[DataType] = utils.get_base_type(out.outtype)
+    assert(basetype)
+
+    # file secondaries
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        raise NotImplementedError
+        # outputs = [create_tuple_output_secondaries_pythontool(out, tool)]
+        # return outputs
+    
+    # file
+    if isinstance(basetype, (File, Directory)):
+        return [create_path_output_pythontool(out, tool)]
+    
+    # nonfile
+    return [create_val_output_pythontool(out, tool)]
+
+def create_outputs_array_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOutput]:
+    basetype: Optional[DataType] = utils.get_base_type(out.outtype)
+    assert(basetype)
+
+    # secondaries array
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        raise NotImplementedError
+
+    # file array
+    if isinstance(basetype, (File, Directory)):
+        raise NotImplementedError
+        # return [create_path_output_pythontool(out, tool)]
+
+    # nonfile array
+    return [create_val_output_array_pythontool(out, tool)]
+
+def create_path_output_pythontool(out: TOutput, tool: PythonTool) -> PathProcessOutput:
+    # file
+    optional = True if out.outtype.optional else False  # type: ignore
+    filename = f'"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{out.id()}"'
+    new_output = PathProcessOutput(
+        name=out.id(), 
+        is_optional=optional, 
+        expression=filename
+    )
+    return new_output
+
+def create_val_output_pythontool(out: TOutput, tool: PythonTool) -> ValProcessOutput:
+    # nonfile
+    optional = True if out.outtype.optional else False  # type: ignore
+    filename = f'{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{out.id()}'
+    expression = f'\"${{file(\"${{task.workDir}}/{filename}\").text}}"'
+    new_output = ValProcessOutput(
+        name=out.id(), 
+        is_optional=optional, 
+        expression=expression
+    )
+    return new_output
+
+def create_val_output_array_pythontool(out: TOutput, tool: PythonTool) -> ValProcessOutput:
+    # nonfile
+    optional = True if out.outtype.optional else False  # type: ignore
+    filename = f'{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{out.id()}'
+    expression = f'\"${{file(\"${{task.workDir}}/{filename}\").text.split(\',\')}}"'
+    new_output = ValProcessOutput(
+        name=out.id(), 
+        is_optional=optional, 
+        expression=expression
+    )
+    return new_output
+
+
+
+
+
+
+
+
+# OLD 
 # def get_expression(out: ToolOutput) -> str:
 #     # WildcardSelector
 #     if out.selector is not None:

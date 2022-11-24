@@ -51,7 +51,7 @@ class TInput(object):
         items = ["{self.id()}", self.intype.id()]
         if self.default is not None:
             items.append("default=" + str(self.default))
-        return f"ToolInput({', '.join(items)})"
+        return f"TInput({', '.join(items)})"
 
     def id(self):
         return self.tag
@@ -64,9 +64,9 @@ class TOutput(object):
         self.doc: Optional[OutputDocumentation] = doc
 
     def __repr__(self):
-        return f'ToolOutput("{self.id()}", {self.outtype.id()})'
+        return f'TOutput("{self.id()}", {self.outtype.id()})'
 
-    def id(self):
+    def id(self) -> str:
         return self.tag
 
 

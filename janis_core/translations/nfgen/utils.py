@@ -15,6 +15,7 @@ from janis_core import (
     ToolInput,
     TInput,
     CommandTool,
+    PythonTool,
     Workflow
 )
 
@@ -100,7 +101,7 @@ def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
 
 ### process inputs
 
-def get_process_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_process_input_ids(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     determine the tool inputs which should remnain as process inputs
     """
@@ -111,7 +112,7 @@ def get_process_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str
     else:
         raise RuntimeError
 
-def get_process_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_process_inputs_workflowmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are fed (via step inputs) using a file type workflow input
     inputs which are fed (via step inputs) using a connection
@@ -122,7 +123,7 @@ def get_process_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) 
     surviving_ids = file_wfinp_ids | scatter_wfinp_ids | step_conn_ids
     return surviving_ids
 
-def get_process_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_process_inputs_toolmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are file types
     non-file types usually fed values from params instead.
@@ -150,7 +151,7 @@ def get_process_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> s
 
 ### param inputs
 
-def get_param_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_param_input_ids(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     determine the tool inputs which should be fed a value via params
     """
@@ -161,7 +162,7 @@ def get_param_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
     else:
         raise RuntimeError
 
-def get_param_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_param_inputs_workflowmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are fed (via step inputs) using a non-File type workflow input
     """
@@ -174,7 +175,7 @@ def get_param_inputs_workflowmode(tool: CommandTool, sources: dict[str, Any]) ->
         surviving_ids = all_ids - process_ids
     return surviving_ids
 
-def get_param_inputs_toolmode(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
+def get_param_inputs_toolmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     nonfile types 
     
@@ -337,8 +338,10 @@ def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> Data
             dtype = task_input.input_type
         case InputNode():
             dtype = task_input.datatype
-        case _:
+        case TInput():
             dtype = task_input.intype
+        case _:
+            raise NotImplementedError
     return get_base_type(dtype)
 
 def is_path(task_input: ToolInput | InputNode) -> bool:

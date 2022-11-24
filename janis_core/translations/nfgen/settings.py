@@ -17,7 +17,8 @@ FINAL_STEP_NAME = "janis_outputs"
 TOOL_STDOUT_FILENAME = "janisstdout"
 CONFIG_FILENAME = "nextflow.config"
 NO_FILE_PATH_PREFIX = f"JANIS_NO_FILE"
-PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "janis_out_"
+PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "out_"
+PYTHON_SHEBANG = "#!/usr/bin/env python"
 
 # text case 
 NEXTFLOW_INDENT = '    '

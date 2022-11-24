@@ -291,7 +291,7 @@ class NextflowTranslator(TranslatorBase):
         """
         raise NotImplementedError
         if isinstance(tool, PythonTool):
-            process = cls.gen_process_from_codetool(tool=tool, values={}, scope=[])
+            process = cls.gen_process_from_codetool(tool=tool, sources={}, scope=[])
             process = cls.handle_container(
                 tool, process, with_container, allow_empty_container, container_override
             )
@@ -823,7 +823,7 @@ class NextflowTranslator(TranslatorBase):
     def gen_process_from_cmdtool(
         cls,
         tool: CommandTool,
-        values: dict[str, Any],   # values fed to tool inputs (step translation)
+        sources: dict[str, Any],   # values fed to tool inputs (step translation)
         scope: list[str],
     ) -> nfgen.Process:
         """
@@ -838,8 +838,9 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        # TODO HERE
-        
+        # name
+        process_name = scope[-1] if scope else tool.id()
+
         # directives
         #resources = cls.build_resources_input(tool, hints=None)
         resources = {}
@@ -849,7 +850,7 @@ class NextflowTranslator(TranslatorBase):
 
         # inputs
         process_inputs: list[nfgen.ProcessInput] = []
-        tinput_ids = nfgen.utils.get_process_input_ids(tool, values)
+        tinput_ids = nfgen.utils.get_process_input_ids(tool, sources)
         tinputs = nfgen.utils.items_with_id(tool.inputs(), tinput_ids)
         for i in tinputs:
             process_inputs += nfgen.process.create_inputs(i)
@@ -857,14 +858,13 @@ class NextflowTranslator(TranslatorBase):
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for o in tool.outputs():
-            process_outputs += nfgen.process.create_outputs(o, tool)
+            process_outputs += nfgen.process.create_outputs_cmdtool(o, tool)
 
         # script
-        process_name = scope[-1] if scope else tool.id()
         pre_script, script = nfgen.process.gen_script_for_cmdtool(
             tool=tool,
             scope=scope,
-            values=values,
+            values=sources,
             input_in_selectors=cls.INPUT_IN_SELECTORS, 
             stdout_filename=settings.TOOL_STDOUT_FILENAME
         )
@@ -925,8 +925,8 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def gen_process_from_codetool(
         cls,
-        tool: CommandTool,
-        values: dict[str, Any],   # values fed to tool inputs (step translation)
+        tool: PythonTool,
+        sources: dict[str, Any],   # values fed to tool inputs (step translation)
         scope: list[str],
     ) -> nfgen.Process:
         """
@@ -940,64 +940,48 @@ class NextflowTranslator(TranslatorBase):
         :type provided_inputs:
         :return:
         :rtype:
-        """
-        raise NotImplementedError
-        # step_inputs = cls.gen_step_inval_dict(step)
-        # inputs: List[TInput] = []
-        # outputs: List[TOutput] = tool.outputs()
+        """        
+        # name
+        process_name = scope[-1] if scope else tool.id()
 
-        # # construct script
-        # for i in step.tool.inputs():
-        #     if step_inputs is not None:
-        #         optional = i.intype.optional is None or i.intype.optional is True
-        #         if i.id() in step_inputs or i.default is not None or not optional:
-        #             inputs.append(i)
-        #         # note: Filename is set to optional=True, but they have a default value that is not set to i.default
-        #         if isinstance(i.intype, Filename):
-        #             inputs.append(i)
-        #     else:
-        #         inputs.append(i)
+        # directives
+        resources = {}
+        process_directives = cls.gen_directives_for_process(tool, resources, scope)
+        
+        # inputs
+        process_inputs: list[nfgen.ProcessInput] = []
+        
+        # inputs: python script
+        python_file_input = nfgen.process.PathProcessInput(
+            name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
+        )
+        process_inputs.append(python_file_input)
+        
+        # inputs: tool inputs
+        tinput_ids = nfgen.utils.get_process_input_ids(tool, sources)
+        tinputs = nfgen.utils.items_with_id(tool.inputs(), tinput_ids)
+        for i in tinputs:
+            process_inputs += nfgen.process.create_inputs(i)
 
-        # script = cls.prepare_script_for_python_code_tool(step.tool, inputs)
+        # outputs
+        process_outputs: list[nfgen.ProcessOutput] = []
+        for o in tool.outputs():
+            process_outputs += nfgen.process.create_outputs_pythontool(o, tool)
 
-        # process_name = name or step.id()
-        # process = nfgen.Process(
-        #     name=process_name,
-        #     script=script,
-        #     script_type=nfgen.ProcessScriptType.script,
-        # )
+        # script
+        script = cls.prepare_script_for_python_code_tool(tool, sources=sources)
 
-        # python_file_input = nfgen.ProcessInput(
-        #     qualifier=nfgen.InputProcessQualifier.path,
-        #     name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-        #     as_param=settings.PYTHON_CODE_FILE_PATH_PARAM,
-        # )
-        # process.inputs.append(python_file_input)
-        # for i in inputs:
-        #     qual = cls.get_input_qualifier_for_inptype(i.intype)
-        #     inp = nfgen.ProcessInput(qualifier=qual, name=i.id())
+        # process
+        process = nfgen.Process(
+            name=process_name,
+            script=script,
+            script_type=nfgen.ProcessScriptType.script,
+            inputs=process_inputs,
+            outputs=process_outputs,
+            directives=process_directives
+        )
 
-        #     if isinstance(i.intype, File) or (
-        #         isinstance(i.intype, Array) and isinstance(i.intype.subtype(), File)
-        #     ):
-        #         inp.as_param = settings.LIST_OF_FILES_PARAM
-
-        #     process.inputs.append(inp)
-
-        # for o in outputs:
-        #     qual, expression = cls.gen_output_expression(o)
-        #     out = nfgen.ProcessOutput(
-        #         qualifier=qual, name=o.id(), expression=expression
-        #     )
-        #     process.outputs.append(out)
-
-        # #resource_param_names = cls.get_resource_param_names(step.tool, name)
-        # #resources = cls.build_resources_input(tool, hints=None)
-        # resources = {}
-        # process.directives = cls.gen_directives_for_process(
-        #     resources, scope
-        # )
-        # return process
+        return process
 
     @classmethod
     def handle_process_args(
@@ -1195,7 +1179,7 @@ class NextflowTranslator(TranslatorBase):
     def gen_step_inval_dict(
         cls,
         tool: CommandTool,
-        values: dict[str, Any],
+        sources: dict[str, Any],
         scatter: Optional[ScatterDescription],
         inputs_replacement: str = "ch_",
         tool_id_prefix: str = "$",
@@ -1218,15 +1202,13 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        process_ids = nfgen.utils.get_process_input_ids(tool, values)
+        process_ids = nfgen.utils.get_process_input_ids(tool, sources)
         process_inputs = nfgen.utils.items_with_id(tool.inputs(), process_ids)
         process_inputs_names = [x.id() for x in process_inputs]
 
-
-
         for name in process_inputs_names:
-            if name in values:
-                src = values[name]
+            if name in sources:
+                src = sources[name]
                 inputs[name] = nfgen.unwrap_source(src, scatter)
 
                 #elif isinstance(node,)
@@ -1515,7 +1497,7 @@ return primary
         pass
 
     @classmethod
-    def prepare_script_for_python_code_tool(cls, tool: CodeTool, inputs) -> str:
+    def prepare_script_for_python_code_tool(cls, tool: PythonTool, sources: dict[str, Any]) -> str:
         """
         Generate the content of the script section in a Nextflow process for Janis python code tool
 
@@ -1526,40 +1508,43 @@ return primary
         :return:
         :rtype:
         """
-        PYTHON_SHEBANG = "#!/usr/bin/env python"
-        #python_script_filename = f"{tool.versioned_id()}"
-        python_script_filename = f"{tool.id()}"
+        python_script_filename=tool.id()
 
         # TODO: handle args of type list of string (need to quote them)
-        all_args = []
-        for i in inputs:
-            arg_value = f"${i.tag}"
-            if isinstance(i.intype, Array):
-                arg_value = f'"{arg_value}".split(" ")'
-            elif isinstance(i.intype, File) and i.intype.has_secondary_files():
-                arg_value = f'"{arg_value}".split(" ")[0]'
-            elif not isinstance(i.intype, (Array, Int, Float, Double)):
-                arg_value = f'"{arg_value}"'
+        args: list[str] = []
+        process_inputs = nfgen.utils.get_process_input_ids(tool, sources)
+        param_inputs = nfgen.utils.get_param_input_ids(tool, sources)
+        
+        for inp in tool.inputs():
+            if inp.id() in process_inputs or inp.id() in param_inputs:
+                src = nfgen.process.get_src(inp, process_inputs, param_inputs, sources)
 
-            arg_value = f"{i.tag}={arg_value}"
+                value = f"${{{src}}}"
+                if isinstance(inp.intype, Array):
+                    value = f'"{value}".split(" ")'
+                elif not isinstance(inp.intype, (Array, Int, Float, Double)):
+                    value = f'"{value}"'
+                arg = f"{inp.tag}={value}"
+                args.append(arg)  
+            elif inp.default is not None:
+                arg = f"{inp.tag}={inp.default}"
+                args.append(arg)  
 
-            all_args.append(arg_value)
+        args_str = ", ".join(a for a in args)
+        script = f"""\
+{settings.PYTHON_SHEBANG}
 
-        args = ", ".join(a for a in all_args)
-
-        script = f"""{PYTHON_SHEBANG}
 from {python_script_filename} import code_block
 import os
 import json
 
-result = code_block({args})
+result = code_block({args_str})
 
 work_dir = os.getenv("PYENV_DIR")
 for key in result:
-    with open(os.path.join("$workDir", f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
+    with open(os.path.join("${{task.workDir}}", f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
         f.write(json.dumps(result[key]))
 """
-
         return script
 
 

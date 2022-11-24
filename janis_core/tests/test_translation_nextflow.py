@@ -7,10 +7,10 @@ from janis_core.tests.testtools import (
     EchoTestTool,
     FilenameGeneratedTool,
     OperatorResourcesTestTool,
-    SplitTextTestTool,
-    SumTestTool,
-    JoinArrayTestTool,
-    FileInputTestTool,
+    SplitTextPythonTestTool,
+    SumTestPythonTool,
+    JoinArrayPythonTestTool,
+    FileInputPythonTestTool,
     CatTestTool,
     SecondaryInputTestTool,
     BasicTestTool,
@@ -58,6 +58,10 @@ from janis_core.tests.testworkflows import (
     AliasSelectorTestWF,
     ArraysOfSecondaryFilesOutputsTestWF,
     ForEachTestWF,
+
+    # codetools
+    InputsPythonToolTestWF,
+    OutputsPythonToolTestWF,
 
     # specific workflows
     AssemblyTestWF,
@@ -418,7 +422,7 @@ class TestParams(unittest.TestCase):
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
 
 
@@ -533,7 +537,7 @@ class TestChannels(unittest.TestCase):
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
 
 
@@ -595,7 +599,7 @@ class TestProcessDirectives(unittest.TestCase):
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
     
 
@@ -711,13 +715,49 @@ class TestProcessInputs(unittest.TestCase):
             'path inp_bais'
         }
         self.assertEqual(actual_inputs, expected_inputs)   
+    
+    def test_pythontool(self) -> None:
+        wf = InputsPythonToolTestWF()
+        refresh_workflow_inputs(wf)
+        
+        # File, String, Int input types
+        tool = wf.step_nodes["stp0"].tool
+        sources = wf.step_nodes["stp0"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp0'])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path PYTHON_CODE_FILE_PATH',
+            'path inp1',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        # Array(String) input type
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp1'])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path PYTHON_CODE_FILE_PATH',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        # File (secondaries) input type
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp2'])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path PYTHON_CODE_FILE_PATH',
+            'tuple path(bam), path(bai)',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
     
 
@@ -806,15 +846,42 @@ class TestProcessOutputs(unittest.TestCase):
     def test_secondaries_array(self) -> None:
         # highly unlikely workflow would do this
         raise NotImplementedError
+    
+    def test_pythontool(self) -> None:
+        wf = OutputsPythonToolTestWF()
+        refresh_workflow_inputs(wf)
+        
+        # file output
+        tool = wf.step_nodes["stp0"].tool
+        sources = wf.step_nodes["stp0"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp0'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "out_out", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # String output
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp1'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # Array(String) output
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp2'])
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'val "${file("${task.workDir}/out_out").text.split(\',\')}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
-
 
 
 
@@ -1013,21 +1080,60 @@ process filenamegeneratedtool
 """
         self.assertEqual(expected, p.get_string())
 
+    def test_pythontool(self) -> None:
+        wf = InputsPythonToolTestWF()
+        refresh_workflow_inputs(wf)
+        
+        # File, String, Int input types
+        tool = wf.step_nodes["stp0"].tool
+        sources = wf.step_nodes["stp0"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp0'])
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+        
+        # Array(String) input type
+        tool = wf.step_nodes["stp1"].tool
+        sources = wf.step_nodes["stp1"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp1'])
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp="${params.in_str_arr}".split(" "))',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+        
+        # File (secondaries) input type
+        tool = wf.step_nodes["stp2"].tool
+        sources = wf.step_nodes["stp2"].sources
+        process = translator.gen_process_from_codetool(tool, sources, scope=['stp2'])
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp="${bam}")',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
     
     @unittest.skip('not implemented')
-    def test_translate_codetool(self) -> None:
+    def test_translate_pythontool(self) -> None:
         raise NotImplementedError
-
 
 
 
 # distribute to the above TestProces___ classes
 # class TestProcessCodeTool(unittest.TestCase):
 #     def test_str_input(self):
-#         p = translator.gen_process_from_codetool(SplitTextTestTool())
+#         p = translator.gen_process_from_pythontool(SplitTextTestTool())
 #         expected = f"""
 # process TestSplitTextTool
 # {{
@@ -1065,7 +1171,7 @@ process filenamegeneratedtool
 #         self.assertEqual(expected, p.get_string())
 
 #     def test_int_input(self):
-#         p = translator.gen_process_from_codetool(SumTestTool())
+#         p = translator.gen_process_from_pythontool(SumTestTool())
 #         expected = f"""
 # process TestSumTool
 # {{
@@ -1104,7 +1210,7 @@ process filenamegeneratedtool
 #         self.assertEqual(expected, p.get_string())
 
 #     def test_array_input(self):
-#         p = translator.gen_process_from_codetool(JoinArrayTestTool())
+#         p = translator.gen_process_from_pythontool(JoinArrayTestTool())
 #         expected = f"""
 # process TestJoinArrayTool
 # {{
@@ -1142,7 +1248,7 @@ process filenamegeneratedtool
 #         self.assertEqual(expected, p.get_string())
 
 #     def test_file_input(self):
-#         p = translator.gen_process_from_codetool(FileInputTestTool())
+#         p = translator.gen_process_from_pythontool(FileInputTestTool())
 #         expected = f"""
 # process TestFileInput
 # {{
@@ -1180,7 +1286,7 @@ process filenamegeneratedtool
 #         self.assertEqual(expected, p.get_string())
 
 #     def test_file_with_secondary_input(self):
-#         p = translator.gen_process_from_codetool(
+#         p = translator.gen_process_from_pythontool(
 #             SecondaryInputTestTool()
 #         )
 #         expected = f"""

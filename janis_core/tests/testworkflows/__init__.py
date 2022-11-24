@@ -44,4 +44,9 @@ from .additional_features import (
     ForEachTestWF
 )
 
+from .codetools import (
+    InputsPythonToolTestWF,
+    OutputsPythonToolTestWF
+)
+
 from .assembly import w as AssemblyTestWF
