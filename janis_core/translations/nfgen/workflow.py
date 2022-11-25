@@ -1,10 +1,25 @@
 from textwrap import indent
-from typing import Optional, Union, List
+from typing import Optional
 
 from janis_core.translations.nfgen.common import NFBase, filter_null
 from . import settings
 
-class WorkflowInput(NFBase):
+class WorkflowTake(NFBase):
+    """
+    A nextflow workflow can accept channels as inputs.
+    These channels are assigned new names in the workflow `take:` section.
+    The only thing binding these channels is their argument position. 
+    eg 
+        // main wf
+        workflow {
+            my_pipeline(Channel.of(params.greeting))
+        }
+        // subwf
+        workflow my_pipeline {
+            take:
+            ch_greeting
+        }
+    """
     def __init__(self, name: str, as_param: Optional[str] = None):
         self.name = name
         self.as_param = as_param
@@ -13,8 +28,29 @@ class WorkflowInput(NFBase):
         return self.name
 
 
-class WorkflowOutput(NFBase):
-    def __init__(self, name, expression: Optional[str] = None):
+class WorkflowEmit(NFBase):
+    """
+    A nextflow workflow can broadcast channels as outputs. 
+    For translation, we always use named outputs.
+    eg
+        // main wf
+        workflow {
+            my_pipeline(Channel.of(params.greeting))
+            my_pipeline.out.mydata.view()
+        }
+        // sub wf
+        workflow my_pipeline {
+            take:
+            ch_greeting
+
+            main:
+            CONVERTTOUPPER(ch_greeting)
+
+            emit:
+            mydata = CONVERTTOUPPER.out.upper
+        }
+    """
+    def __init__(self, name: str, expression: Optional[str] = None):
         self.name = name
         self.expression = expression
 
@@ -25,80 +61,87 @@ class WorkflowOutput(NFBase):
         return self.name
 
 
-class WorkflowPublish(NFBase):
-    def __init__(self, name: str, to: str):
-        self.name = name
-        self.to = to
+# class WorkflowPublish(NFBase):
+#     def __init__(self, name: str, to: str):
+#         self.name = name
+#         self.to = to
 
-    def get_string(self) -> str:
-        return f"{self.name} to: {self.to}"
+#     def get_string(self) -> str:
+#         return f"{self.name} to: {self.to}"
 
 
 class Workflow(NFBase):
     def __init__(
         self,
-        name: Optional[str],
-        main: Optional[Union[str, List[str]]],
-        take: Optional[List[WorkflowInput]] = None,
-        emit: Optional[List[WorkflowOutput]] = None,
-        publish: Optional[List[WorkflowPublish]] = None,
+        name: str,
+        main: list[str],
+        take: Optional[list[WorkflowTake]]=None,
+        emit: Optional[list[WorkflowEmit]]=None,
+        # publish: Optional[list[WorkflowPublish]] = None,
     ):
         self.name = name
         self.main = main
         self.take = take or []
         self.emit = emit or []
-        self.publish = publish or []
+        # self.publish = publish or []
+
+    # @property
+    # def inputs(self) -> Optional[str]:
+    #     return self.take
 
     @property
-    def inputs(self):
-        return self.take
+    def is_subworkflow(self) -> bool:
+        if self.take or self.emit:
+            return True
+        return False
 
-    def prepare_main(self):
-        main = "\n".join(self.main) if isinstance(self.main, list) else self.main
-
-        if self.take or self.emit or self.publish:
+    @property
+    def main_block(self) -> Optional[str]:
+        main = "\n".join(self.main)
+        if self.is_subworkflow:
             main = "main:\n" + indent(main, settings.NEXTFLOW_INDENT)
-
         return indent(main, settings.NEXTFLOW_INDENT)
 
-    def prepare_take(self):
+    @property
+    def take_block(self) -> Optional[str]:
         if not self.take:
             return None
         return indent(
-            "take:\n" + "\n".join(prefix + i.get_string() for i in self.take), 
+            "take:\n" + "\n".join(i.get_string() for i in self.take), 
             settings.NEXTFLOW_INDENT
         )
 
-    def prepare_emit(self):
+    @property
+    def emit_block(self) -> Optional[str]:
         if not self.emit:
             return None
         return indent(
-            "emit:\n" + "\n".join(prefix + i.get_string() for i in self.emit), 
+            "emit:\n" + "\n".join(i.get_string() for i in self.emit), 
             settings.NEXTFLOW_INDENT
         )
 
-    def prepare_publish(self):
-        if not self.publish:
-            return None
-        return indent(
-            "publish:\n" + "\n".join(prefix + i.get_string() for i in self.publish),
-            settings.NEXTFLOW_INDENT
-        )
+    # @property
+    # def publish_block(self) -> Optional[str]:
+    #     if not self.publish:
+    #         return None
+    #     return indent(
+    #         "publish:\n" + "\n".join(i.get_string() for i in self.publish),
+    #         settings.NEXTFLOW_INDENT
+    #     )
 
     def get_string(self) -> str:
         components = filter_null(
             [
-                self.prepare_take(),
-                self.prepare_main(),
-                self.prepare_emit(),
-                self.prepare_publish(),
+                self.take_block,
+                self.main_block,
+                self.emit_block,
+                # self.publish_block,
             ]
         )
-        name = self.name or ""
         components_str = '\n'.join(components)
 
         return f"""\
-workflow {name} {{
+workflow {self.name} {{
 
 {components_str}
 

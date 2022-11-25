@@ -13,16 +13,17 @@ from .params import Param
 
         
 def register_workflow_inputs(wf: Workflow, scope: list[str]) -> None:
-    # get the workflow input ids for which channel(s) should be created
+    # register param(s) for each workflow input. 
+    # channel(s) may also be registered if necessary.
     if scope:
         # subworkflow
+        # dont manually create channels for subworkflows. 
+        # these are created in the subworkflow take: section
         channel_input_ids: set[str] = set()
     else:
         # main workflow
         channel_input_ids = utils.get_channel_input_ids(wf)
 
-    # register param(s) for each workflow input. 
-    # channel(s) may also be registered if necessary.
     for inp in wf.input_nodes.values():
         if (not params.exists(inp.id(), scope)):
             

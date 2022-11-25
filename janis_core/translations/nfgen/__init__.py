@@ -8,7 +8,7 @@
 """
 
 from .common import NFFile, Import, ImportItem, Function
-from .workflow import Workflow, WorkflowInput, WorkflowOutput, WorkflowPublish
+from .workflow import Workflow, WorkflowTake, WorkflowEmit
 from .directives import *  # so bad. 
 from .process.process import (
     Process,

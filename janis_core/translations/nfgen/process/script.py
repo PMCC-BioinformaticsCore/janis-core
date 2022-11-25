@@ -45,7 +45,7 @@ class ProcessScriptGenerator:
 
         # think this is ok?
         self.values = values if values is not None else {}
-        self.process_inputs = utils.get_process_input_ids(tool, self.values)
+        self.process_inputs = utils.get_input_ids(tool, self.values)
         self.param_inputs = utils.get_param_input_ids(tool, self.values)
         self.internal_inputs = utils.get_internal_input_ids(tool, self.values)
 
