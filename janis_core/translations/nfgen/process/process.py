@@ -23,7 +23,7 @@ class ProcessScriptType(Enum):
 class Process(NFBase):
     def __init__(
         self,
-        name: Optional[str],
+        name: str,
         script: str,
         script_type: Optional[ProcessScriptType] = None,
         script_quote: Optional[str] = '"',
@@ -33,7 +33,7 @@ class Process(NFBase):
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
-        self.name = name
+        self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
 
         self.script = script
         self.script_type = script_type
@@ -91,11 +91,10 @@ class Process(NFBase):
                 self.prepare_script(),
             ]
         )
-        name = to_case(self.name, settings.NEXTFLOW_PROCESS_CASE) if self.name else ""
         tool_definition = "\n\n".join(components)
 
         return f"""\
-process {name} {{
+process {self.name} {{
 {tool_definition}
 }}
 """

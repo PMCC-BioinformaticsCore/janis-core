@@ -3,6 +3,7 @@ from typing import Optional
 
 from janis_core.translations.nfgen.common import NFBase, filter_null
 from . import settings
+from .casefmt import to_case
 
 class WorkflowTake(NFBase):
     """
@@ -77,23 +78,18 @@ class Workflow(NFBase):
         main: list[str],
         take: Optional[list[WorkflowTake]]=None,
         emit: Optional[list[WorkflowEmit]]=None,
-        # publish: Optional[list[WorkflowPublish]] = None,
+        is_subworkflow: bool=False
     ):
-        self.name = name
+        self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
         self.main = main
         self.take = take or []
         self.emit = emit or []
+        self.is_subworkflow = is_subworkflow
         # self.publish = publish or []
 
     # @property
     # def inputs(self) -> Optional[str]:
     #     return self.take
-
-    @property
-    def is_subworkflow(self) -> bool:
-        if self.take or self.emit:
-            return True
-        return False
 
     @property
     def main_block(self) -> Optional[str]:

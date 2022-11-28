@@ -1,10 +1,8 @@
 
 
-from collections import defaultdict
 from typing import Optional
-from janis_core.types import Array, File, String
+from janis_core.types import File, String
 from .params import Param, getall
-from . import utils
 from . import settings
 
 
@@ -117,7 +115,7 @@ def generate_config_body(params: list[Param]) -> ConfigBody:
     for p in params:
         if p.name == 'outdir':
             cbody.outdir = p
-        elif p.is_wf_input:
+        elif p.is_channel_input:
             cbody.wfinput_params.append(p)
         else:
             cbody.process_params.append(p)

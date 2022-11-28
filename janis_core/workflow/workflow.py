@@ -1,5 +1,6 @@
 import copy
 import os
+from uuid import uuid4
 from abc import abstractmethod, ABC
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
@@ -104,6 +105,7 @@ class InputNode(Node):
         self.default = default
         self.doc: Optional[InputDocumentation] = doc
         self.value = value
+        self.uuid = str(uuid4())
 
     def as_operator(self):
         return InputNodeSelector(self)

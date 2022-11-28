@@ -3,7 +3,7 @@ import sys
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict, Set, Any
 
 from janis_core.types.common_data_types import Array
 from janis_core.tool.documentation import (
@@ -21,7 +21,6 @@ from janis_core.tool.test_classes import (
     TTestPreprocessor,
 )
 from nose.tools import nottest
-
 
 class ToolType(Enum):
     Workflow = "workflow"
@@ -88,7 +87,7 @@ class Tool(ABC, object):
         if meta:
             self.metadata = meta
 
-        self.connections = connections
+        self.connections: dict[str, Any] = connections
 
     def __repr__(self):
         return f"{str(self.type())}<{self.id()}>"

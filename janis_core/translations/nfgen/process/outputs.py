@@ -7,7 +7,7 @@ from janis_core import ToolOutput, TOutput, CommandTool, PythonTool
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 from ..unwrap import unwrap_expression
-from .. import utils
+from .. import nfgen_utils
 from .. import settings
 
 @dataclass
@@ -90,7 +90,7 @@ def create_outputs_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOut
 ### CMDTOOL ###
 
 def create_outputs_single_cmdtool(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
-    basetype: Optional[DataType] = utils.get_base_type(out.output_type)
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(out.output_type)
     assert(basetype)
 
     # stdout
@@ -98,7 +98,7 @@ def create_outputs_single_cmdtool(out: ToolOutput, tool: CommandTool) -> list[Pr
         return [create_stdout_output_cmdtool(out, tool)]
 
     # file secondaries
-    if isinstance(basetype, File) and basetype.has_secondary_files():
+    if nfgen_utils.is_secondary_type(out.output_type):
         outputs = [create_tuple_output_secondaries_cmdtool(out, tool)]
         return outputs
     
@@ -110,14 +110,14 @@ def create_outputs_single_cmdtool(out: ToolOutput, tool: CommandTool) -> list[Pr
     return [create_val_output_cmdtool(out, tool)]
 
 def create_outputs_array_cmdtool(out: ToolOutput, tool: CommandTool) -> list[ProcessOutput]:
-    basetype: Optional[DataType] = utils.get_base_type(out.output_type)
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(out.output_type)
     assert(basetype)
 
     # secondaries array
-    if isinstance(basetype, File) and basetype.has_secondary_files():
+    if nfgen_utils.is_array_secondary_type(out.output_type):
         # a path output per file type
         outputs: list[ProcessOutput] = []
-        exts = utils.get_extensions(basetype, allow_symbols=True)
+        exts = nfgen_utils.get_extensions(basetype, allow_symbols=True)
         for ext in exts:
             outputs.append(create_path_output_secondaries_cmdtool(out, tool, ext))
         return outputs
@@ -177,10 +177,10 @@ def create_tuple_output_secondaries_cmdtool(out: ToolOutput, tool: CommandTool) 
         out.selector, inputs_dict=tool.inputs_map(), tool=tool, for_output=True
     )
     primary_expr_unquoted = primary_expr.strip('"')
-    exts = utils.get_extensions(out.output_type, allow_symbols=True)
+    exts = nfgen_utils.get_extensions(out.output_type, allow_symbols=True)
     for ext in exts:
         # primary file
-        if ext not in out.secondaries_present_as:
+        if out.secondaries_present_as is None or ext not in out.secondaries_present_as:
             qual = 'path'
             expr = primary_expr
         # secondary file
@@ -211,11 +211,11 @@ def create_path_output_secondaries_cmdtool(out: ToolOutput, tool: CommandTool, e
 ### PYTHONTOOL ###
 
 def create_outputs_single_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOutput]:
-    basetype: Optional[DataType] = utils.get_base_type(out.outtype)
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(out.outtype)
     assert(basetype)
 
     # file secondaries
-    if isinstance(basetype, File) and basetype.has_secondary_files():
+    if nfgen_utils.is_secondary_type(out.outtype):
         raise NotImplementedError
         # outputs = [create_tuple_output_secondaries_pythontool(out, tool)]
         # return outputs
@@ -228,17 +228,21 @@ def create_outputs_single_pythontool(out: TOutput, tool: PythonTool) -> list[Pro
     return [create_val_output_pythontool(out, tool)]
 
 def create_outputs_array_pythontool(out: TOutput, tool: PythonTool) -> list[ProcessOutput]:
-    basetype: Optional[DataType] = utils.get_base_type(out.outtype)
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(out.outtype)
     assert(basetype)
 
     # secondaries array
-    if isinstance(basetype, File) and basetype.has_secondary_files():
-        raise NotImplementedError
+    if nfgen_utils.is_array_secondary_type(out.outtype):
+        # a path output per file type
+        outputs: list[ProcessOutput] = []
+        exts = nfgen_utils.get_extensions(basetype, allow_symbols=True)
+        for ext in exts:
+            outputs.append(create_path_output_secondaries_pythontool(out, tool, ext))
+        return outputs
 
     # file array
     if isinstance(basetype, (File, Directory)):
-        raise NotImplementedError
-        # return [create_path_output_pythontool(out, tool)]
+        return [create_path_output_pythontool(out, tool)]
 
     # nonfile array
     return [create_val_output_array_pythontool(out, tool)]
@@ -429,7 +433,7 @@ def create_val_output_array_pythontool(out: TOutput, tool: PythonTool) -> ValPro
 
 #     return nf_outputs
 
-# def gen_output_expression(cls, o: Union[TOutput, ToolOutput]):
+# def gen_output_expression(cls, o: Union[ToolOutput, ToolOutput]):
 #     """
 #     Based on the Janis output type, we generate string expression to represent outputs in Nextflow Process.
 
@@ -440,8 +444,8 @@ def create_val_output_array_pythontool(out: TOutput, tool: PythonTool) -> ValPro
 #     :return:
 #     :rtype:
 #     """
-#     if isinstance(o, TOutput):
-#         output_type = o.outtype
+#     if isinstance(o, ToolOutput):
+#         output_type = o.output_type
 #     elif isinstance(o, ToolOutput):
 #         output_type = o.output_type
 #     else:

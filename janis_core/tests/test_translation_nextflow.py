@@ -90,7 +90,7 @@ from janis_core import (
     Boolean, 
     Filename
 )
-from janis_core.translations.nfgen.utils import to_groovy
+from janis_core.translations.nfgen.nfgen_utils import to_groovy
 
 
 ### helper classes
@@ -119,7 +119,7 @@ class DataTypeNoSecondary(File):
 def refresh_workflow_inputs(wf: Workflow) -> None:
     nfgen.params.clear()
     nfgen.channels.clear()
-    nfgen.register_workflow_inputs(wf, scope=[])
+    nfgen.register_params_channels(wf, scope=[])
 
 
 

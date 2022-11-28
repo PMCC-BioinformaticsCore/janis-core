@@ -7,227 +7,217 @@ from janis_core.types import File, Array
 
 from . import params
 from . import channels
-from . import utils
+from . import nfgen_utils
 
-from .params import Param
-
+from copy import deepcopy
         
-def register_workflow_inputs(wf: Workflow, scope: list[str]) -> None:
+
+def register_params_channels(wf: Workflow, scope: list[str]) -> None:
     # register param(s) for each workflow input. 
     # channel(s) may also be registered if necessary.
-    if scope:
-        # subworkflow
-        # dont manually create channels for subworkflows. 
-        # these are created in the subworkflow take: section
-        channel_input_ids: set[str] = set()
-    else:
-        # main workflow
-        channel_input_ids = utils.get_channel_input_ids(wf)
 
-    for inp in wf.input_nodes.values():
-        if (not params.exists(inp.id(), scope)):
-            
-            # secondaries
-            if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
-                register_wfinp_secondaries(inp, scope)
+    # subworkflow
+    if scope:
+        channels_to_register: set[str] = set(wf.connections.keys())
+        params_to_register: set[str] = {x.id() for x in wf.input_nodes.values()} - channels_to_register
+    
+    # main workflow
+    else:
+        channels_to_register: set[str] = get_channel_input_ids(wf)
+        params_to_register: set[str] = {x.id() for x in wf.input_nodes.values()}
+
+    # handle this workflow
+    handler = ParamChannelRegisterer(wf, scope, channels_to_register, params_to_register)
+    handler.register()
+    
+    # handle nested workflows (subworkflows)
+    for step in wf.step_nodes.values():
+        if isinstance(step.tool, Workflow):
+            current_scope = deepcopy(scope)
+            current_scope.append(step.tool.id())
+            register_params_channels(step.tool, scope=current_scope)
+
+
+class ParamChannelRegisterer:
+    # horrid name, I know
+    def __init__(self, 
+        wf: Workflow, 
+        scope: list[str], 
+        channels_to_register: set[str], 
+        params_to_register: set[str]
+        ) -> None:
+        self.wf = wf
+        self.scope = scope
+        self.channels_to_register = channels_to_register
+        self.params_to_register = params_to_register
+    
+    def register(self) -> None:
+        for inp in self.wf.input_nodes.values():
+            if (not params.exists(inp.uuid)):
+                
+                # secondaries
+                if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
+                    self.register_wfinp_secondaries(inp)
+                    continue
+                
+                # array secondaries
+                elif isinstance(inp.datatype, Array):
+                    basetype = nfgen_utils.get_base_type(inp.datatype)
+                    if isinstance(basetype, File) and basetype.has_secondary_files():
+                        self.register_wfinp_secondaries_array(inp)
+                        continue
+
+                # anything else
+                self.register_wfinp(inp)
                 continue
             
-            # array secondaries
-            elif isinstance(inp.datatype, Array):
-                basetype = utils.get_base_type(inp.datatype)
-                if isinstance(basetype, File) and basetype.has_secondary_files():
-                    register_wfinp_secondaries_array(inp, scope)
-                    continue
-
-            # anything else
-            is_wf_input = infer_true_wfinput(inp, wf)
-            register_wfinp(inp, scope, channel_input_ids, is_wf_input=is_wf_input)
-            continue
-        
-        else:
-            raise NotImplementedError
-
-
-def infer_true_wfinput(inp: InputNode, wf: Workflow) -> bool:
-    # file type, or
-    # referenced in multiple steps, or
-    # referenced in single step and scattered
-    basetype = utils.get_base_type(inp.datatype)
-    connections = utils.get_connections(inp, wf)
-    scatter_inputs = utils.get_scatter_wf_inputs(wf)
-    if isinstance(basetype, File):
-        return True
-    elif len(connections) > 1:
-        return True
-    elif len(connections) == 1 and inp.id() in scatter_inputs:
-        return True
-    return False
-
-# workflow inputs
-def register_wfinp(    
-    inp: InputNode, 
-    scope: list[str], 
-    channel_input_ids: set[str],
-    is_wf_input: bool
-    ) -> None:
-    # param
-    default: Any = inp.default if inp.default is not None else None
-    is_channel_input = True if inp.id() in channel_input_ids else False
-    p = params.add(
-        ref_name=inp.id(),
-        ref_scope=scope,
-        dtype=inp.datatype,
-        default=default,
-        is_wf_input=is_wf_input and is_channel_input
-    )
-    # channel
-    # if is_channel_input:
-    if is_wf_input and is_channel_input:
-        channels.add(
-            ref_name=inp.id(),
-            params=[p],
-            method=channels.get_channel_method(inp),
-            collect=channels.should_collect(inp),
-            allow_null=channels.should_allow_null(inp),
-            ref_scope=scope
-        )
-
-def register_wfinp_secondaries(    
-    inp: InputNode, 
-    scope: list[str], 
-    ) -> None:
-    # get the extensions. each extension will create individual param. 
-    exts: list[str] = []
-    exts.append(inp.datatype.extension)
-    exts += inp.datatype.secondary_files()
-    exts = [x.split('.')[-1] for x in exts]
-    new_params: list[Param] = []
+            else:
+                raise NotImplementedError
     
-    # register a param for each individual file
-    for ext in exts:
-        p = params.add(
-            ref_name=inp.id(),
-            ref_scope=scope,
-            dtype=inp.datatype,
-            is_wf_input=True,
-            name_override=f'{inp.id()}_{ext}'
-        )
-        new_params.append(p)
-    
-    # register channel for the workflow input
-    channels.add(
-        ref_name=inp.id(),
-        params=new_params,
-        method='fromPath',
-        collect=True,
-        allow_null=channels.should_allow_null(inp),
-        ref_scope=scope
-    )
-
-def register_wfinp_secondaries_array(    
-    inp: InputNode, 
-    scope: list[str], 
-    ) -> None:
-    # get the extensions. 
-    # each extension will create individual param and individual channel.
-    basetype = utils.get_base_type(inp.datatype)
-    exts = utils.get_extensions(basetype)
-    for ext in exts:
-        # register a param for file array
-        p = params.add(
-            ref_name=inp.id(),
-            ref_scope=scope,
-            dtype=inp.datatype,
-            is_wf_input=True,
-            name_override=f'{inp.id()}_{ext}s'
-        )
-        
-        # register a channel for file array
-        channels.add(
-            ref_name=inp.id(),
-            params=[p],
-            method='fromPath',
-            collect=True,
-            allow_null=channels.should_allow_null(inp),
-            ref_scope=scope,
-            name_override=f'{inp.id()}_{ext}s'
-        )
-
-
-
-
-### OLD
-
-"""
-### DELEGATING FUNCTIONS
-
-def register(
-    the_entity: Optional[Workflow | CommandTool]=None,
-    the_dict: Optional[dict[str, Any]]=None, 
-    sources: Optional[dict[str, Any]]=None, 
-    scope: Optional[list[str]]=None, 
-    override: bool=True
-    ) -> None:
-
-    if not isinstance(scope, list):
-        scope = []
-    if isinstance(the_entity, Workflow):
-        register_params_for_wf_inputs(the_entity, scope, override)
-    elif isinstance(the_entity, CommandTool):
-        register_params_for_tool(the_entity, scope, override, sources)
-    elif the_dict is not None:
-        register_params_for_dict(the_dict, scope, override)
-    else:
-        raise RuntimeError("nothing to register: please supply 'the_entity' or 'the_dict'")
-
-def register_params_for_wf_inputs(
-    workflow: Workflow,
-    scope: list[str], 
-    override: bool
-    ) -> None:
-    # param_ids = utils.get_channel_input_ids(workflow)
-    # param_inputs = utils.items_with_id(list(workflow.input_nodes.values()), param_ids)
-    # for inp in param_inputs:
-    for inp in workflow.input_nodes.values():
+    def register_wfinp(self, inp: InputNode) -> None:
+        is_channel_input = True if inp.id() in self.channels_to_register else False
+        is_param_input = True if inp.id() in self.params_to_register else False
         default: Any = inp.default if inp.default is not None else None
-        # if sources is not None and inp.id() in sources:
-        #     src = sources[inp.id()]
-        #     default = utils.get_source_value(src)
-        register(inp, scope=scope, default=default, override=override)
 
-def register_params_for_tool(
-    tool: CommandTool, 
-    scope: list[str], 
-    override: bool,
-    sources: Optional[dict[str, Any]]=None, 
-    ) -> None:
-    # Registers a param tool or workflow inputs.
-    # Workflow / tool inputs which are exposed to the user must to be listed
-    # as part of the global params object. 
-    raise NotImplementedError
-    sources = sources if sources is not None else {}
-    param_ids = utils.get_param_input_ids(tool, sources=sources)
-    param_inputs = utils.items_with_id(tool.inputs(), param_ids)
-    for inp in param_inputs:
-        default = None
-        if sources is not None and inp.id() in sources:
-            src = sources[inp.id()]
-            default = utils.get_source_value(src)
-        register_toolinp_param(inp, scope=scope, default=default, override=override)
-
-def register_params_for_dict(
-    the_dict: dict[str, Any],
-    scope: list[str],
-    override: bool
-    ) -> None:
-    for k, v in the_dict.items():
-        if (not params.exists(k, scope)) or (params.exists(k, scope) and override):
-            add(
-                ref_name=k,
-                ref_scope=scope,
-                default=v,
-                is_wf_input=False
+        # register a param for the wf input
+        if is_param_input:
+            params.add(
+                var_name=inp.id(),
+                var_scope=self.scope,
+                dtype=inp.datatype,
+                default=default,
+                is_channel_input=is_channel_input,
+                janis_uuid=inp.uuid
+            )
+        
+        # register a channel for the wf input if required
+        if is_channel_input:
+            channels.add(
+                var_name=inp.id(),
+                params=params.getall(inp.uuid),
+                method=channels.get_channel_method(inp),
+                collect=channels.should_collect(inp),
+                allow_null=channels.should_allow_null(inp),
+                var_scope=self.scope,
+                janis_uuid=inp.uuid
             )
 
+    def register_wfinp_secondaries(self, inp: InputNode) -> None:
+        # get the extensions. each extension will create individual param. 
+        is_channel_input = True if inp.id() in self.channels_to_register else False
+        is_param_input = True if inp.id() in self.params_to_register else False
+        exts: list[str] = []
+        exts = nfgen_utils.get_extensions(inp.datatype)
+        
+        # register a param for each individual file
+        if is_param_input:
+            for ext in exts:
+                params.add(
+                    var_name=inp.id(),
+                    var_scope=self.scope,
+                    dtype=inp.datatype,
+                    is_channel_input=True,
+                    name_override=f'{inp.id()}_{ext}',
+                    janis_uuid=inp.uuid
+                )
 
-"""
+        # register channel for the workflow input
+        if is_channel_input:
+            channels.add(
+                var_name=inp.id(),
+                params=params.getall(inp.uuid),
+                method='fromPath',
+                collect=True,
+                allow_null=channels.should_allow_null(inp),
+                var_scope=self.scope,
+                janis_uuid=inp.uuid
+            )
+
+    def register_wfinp_secondaries_array(self, inp: InputNode) -> None:    
+        # get the extensions. 
+        # each extension will create individual param and individual channel.
+        is_param_input = True if inp.id() in self.params_to_register else False
+        is_channel_input = True if inp.id() in self.channels_to_register else False
+        basetype = nfgen_utils.get_base_type(inp.datatype)
+        exts = nfgen_utils.get_extensions(basetype)
+        
+        if is_param_input:
+            # register a param for each .ext
+            for ext in exts:
+                params.add(
+                    var_name=inp.id(),
+                    var_scope=self.scope,
+                    dtype=inp.datatype,
+                    is_channel_input=True,
+                    name_override=f'{inp.id()}_{ext}s',
+                    janis_uuid=inp.uuid
+                )
+            
+        if is_channel_input:
+            # register a channel for each .ext
+            for ext in exts:
+                channels.add(
+                    var_name=inp.id(),
+                    params=params.getall(inp.uuid),
+                    method='fromPath',
+                    collect=True,
+                    allow_null=channels.should_allow_null(inp),
+                    var_scope=self.scope,
+                    name_override=f'{inp.id()}_{ext}s',
+                    janis_uuid=inp.uuid
+                )
+
+
+
+# helper functions
+
+def get_channel_input_ids(wf: Workflow) -> set[str]:
+    """
+    Get the (assumed) true workflow inputs. 
+    Assume that a workflow input is an InputNode which:
+        - has the 'File' datatype
+        - is referenced in a step input
+    Everything else are static step inputs, or non-exposed tool inputs. 
+    """
+    source_inputs = get_source_inputs(wf)
+    file_inputs = get_file_wf_inputs(wf)
+    scatter_inputs = get_scatter_wf_inputs(wf)
+
+    channel_inputs: list[InputNode] = []
+    for name, inp in wf.input_nodes.items():
+        if name in source_inputs:
+            channel_inputs.append(inp)
+        elif name in file_inputs or name in scatter_inputs:
+            channel_inputs.append(inp)
+    
+    # final ordering
+    return {x.id() for x in channel_inputs}
+
+def get_source_inputs(wf: Workflow) -> set[str]:
+    source_inputs: set[str] = set()
+    if wf.connections:
+        source_inputs = source_inputs | set(wf.connections.keys())
+    return source_inputs
+
+def get_file_wf_inputs(wf: Workflow) -> set[str]:
+    # wf inputs with file type
+    out: set[str] = set()
+    for name, inp in wf.input_nodes.items():
+        dtype = nfgen_utils.get_base_type(inp.datatype)
+        if isinstance(dtype, File):
+            out.add(name)
+    return out
+
+def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
+    # scattered inputs are always fed via channels
+    out: set[str] = set()
+    for step in wf.step_nodes.values():
+        for src in step.sources.values():
+            scatter = src.source_map[0].scatter
+            node = nfgen_utils.resolve_node(src)
+            if scatter and isinstance(node, InputNode):
+                out.add(node.id())
+    return out
+
+
+

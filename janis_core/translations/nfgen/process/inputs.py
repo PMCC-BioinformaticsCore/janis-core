@@ -4,7 +4,7 @@ from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from .. import utils
+from .. import nfgen_utils
 
 from janis_core import ToolInput, TInput
 from janis_core.types import File, Directory, Array, DataType
@@ -60,7 +60,7 @@ class TupleProcessInput(ProcessInput):
 
 
 def create_inputs(inp: ToolInput | TInput) -> list[ProcessInput]:
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     datatype: DataType = dtype
     if isinstance(datatype, Array):
         return create_inputs_array(inp)
@@ -68,8 +68,8 @@ def create_inputs(inp: ToolInput | TInput) -> list[ProcessInput]:
         return create_inputs_single(inp)
 
 def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-    basetype: Optional[DataType] = utils.get_base_type(dtype)
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(dtype)
     assert(basetype)
 
     # secondaries array
@@ -77,7 +77,7 @@ def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
         # a path input per file type
         inputs: list[ProcessInput] = []
         # get all extensions 
-        exts = utils.get_extensions(basetype)
+        exts = nfgen_utils.get_extensions(basetype)
         for ext in exts:
             inputs.append(create_path_input_secondaries(inp, ext))
         return inputs
@@ -91,14 +91,14 @@ def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
 
 
 def create_inputs_single(inp: ToolInput | TInput) -> list[ProcessInput]:
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-    basetype: Optional[DataType] = utils.get_base_type(dtype)
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
+    basetype: Optional[DataType] = nfgen_utils.get_base_type(dtype)
     assert(basetype)
         
     # file secondaries
     if isinstance(basetype, File) and basetype.has_secondary_files():
         inputs = [create_tuple_input_secondaries(inp)]
-        return inputs
+        return inputs # type: ignore
     
     # file
     if isinstance(basetype, (File, Directory)):
@@ -126,13 +126,13 @@ def create_path_input_secondaries(inp: ToolInput | TInput, ext: str) -> PathProc
     return new_input
 
 def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     assert(isinstance(dtype, File))
     qualifiers: list[str] = []
     subnames: list[str] = []
 
     # tuple sub-element for each file
-    exts = utils.get_extensions(dtype)
+    exts = nfgen_utils.get_extensions(dtype)
     for ext in exts:
         qualifiers.append('path')
         subnames.append(ext)

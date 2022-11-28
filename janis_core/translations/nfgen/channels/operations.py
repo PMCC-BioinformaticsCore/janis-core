@@ -13,6 +13,7 @@ from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import StepOutputSelector
 from ..casefmt import to_case
+from ..common import NFBase
 from .. import settings
 from .channels import getall
 
@@ -20,7 +21,9 @@ INDENT = settings.NEXTFLOW_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
-class ChannelOperation(ABC):
+
+
+class ChannelOperation(NFBase):
     
     @abstractmethod
     def get_string(self) -> str:
@@ -80,7 +83,7 @@ def resolve_channel_name(src: StepTagInput) -> str:
     # workflow input
     source = src.source_map[0].source
     if isinstance(source, InputNodeSelector):
-        relevant_channels = getall(name=source.input_node.id())
+        relevant_channels = getall(janis_uuid=source.input_node.uuid)
         if relevant_channels and len(relevant_channels) == 1:
             return relevant_channels[0].name
         else:

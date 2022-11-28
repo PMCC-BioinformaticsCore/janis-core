@@ -3,7 +3,7 @@
 from typing import Optional, Any, Tuple
 from janis_core import ToolInput, TInput
 from janis_core.types import Boolean, Array, File
-from janis_core.translations.nfgen import utils
+from janis_core.translations.nfgen import nfgen_utils
 from janis_core.translations.nfgen import params
 
 from enum import Enum, auto
@@ -119,10 +119,10 @@ def get_src(
 def get_src_process_input(inp: ToolInput | TInput) -> str:
     # data fed via process input
     dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
-    basetype = utils.get_base_type(dtype)
+    basetype = nfgen_utils.get_base_type(dtype)
     # secondary files (name mapped to ext of primary file)
     if isinstance(basetype, File) and basetype.has_secondary_files():
-        exts = utils.get_extensions(basetype)
+        exts = nfgen_utils.get_extensions(basetype)
         name = exts[0]
     # everything else
     else:
@@ -133,7 +133,7 @@ def get_src_param_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> str
     # data fed via global param
     src = sources[inp.id()]
     sel = src.source_map[0].source
-    param = params.get(sel.input_node.id())
+    param = params.get(sel.input_node.uuid)
     return f'params.{param.name}'
 
 
@@ -222,7 +222,7 @@ class InputFormatter:
         default = self.tinput.default
         if default is not None:
             if not isinstance(self.tinput.input_type, Array):
-                default = utils.to_groovy(self.tinput.default, self.tinput.input_type)
+                default = nfgen_utils.to_groovy(self.tinput.default, self.tinput.input_type)
             else:
                 default = self.eval_cmdline(inp=self.tinput, val=self.tinput.default)
         return default
@@ -249,17 +249,17 @@ class InputFormatter:
     ### HELPER METHODS
     def eval_cmdline(self, inp: ToolInput, val: Any) -> str:
         if isinstance(val, list):
-            basetype = utils.get_base_type(inp.input_type)
+            basetype = nfgen_utils.get_base_type(inp.input_type)
             # ARR_JOIN_BASIC      = "{src}.join('{delim}')"
             # ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}.join('{delim}')"
             if inp.prefix_applies_to_all_elements:
-                vals_groovy = [utils.to_groovy(elem, basetype) for elem in val]
+                vals_groovy = [nfgen_utils.to_groovy(elem, basetype) for elem in val]
                 elems = [f'{self.prefix}{elem}' for elem in vals_groovy]
                 cmdline = ' '.join(elems)
                 return cmdline
             else:
                 prefix = self.prefix if self.prefix else ''
-                vals_groovy = [utils.to_groovy(elem, basetype) for elem in val]
+                vals_groovy = [nfgen_utils.to_groovy(elem, basetype) for elem in val]
                 value = self.delim.join(vals_groovy)
                 cmdline = f'{prefix}{value}'
                 return cmdline

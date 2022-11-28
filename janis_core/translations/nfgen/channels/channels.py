@@ -6,78 +6,20 @@ from dataclasses import dataclass
 from typing import Optional
 
 from janis_core.workflow.workflow import InputNode
-from janis_core.workflow.workflow import Workflow
-from janis_core.types import Array, File
+from janis_core.types import File
 from uuid import uuid4
 
 from ..common import NFBase
 from ..casefmt import to_case
-from .. import utils
+from .. import nfgen_utils
 from .. import settings
-from .. import params
 from ..params import Param
 
-
-
-### factory 
-
-# deprecate this
-def register(workflow: Workflow) -> None:
-    raise NotImplementedError
-    wfinp_ids = utils.get_channel_input_ids(workflow)
-    wfinps = utils.items_with_id(list(workflow.input_nodes.values()), wfinp_ids)
-    for inp in wfinps:
-        # array of secondaries
-        # split to channel per associated param
-        # for example - Array(indexedBam) will have 2 params, and 2 channels:
-        # params.indexed_bam_bams -> ch_indexed_bam_bams
-        # params.indexed_bam_bais -> ch_indexed_bam_bais
-        if isinstance(inp.datatype, Array):
-            subtype = inp.datatype.subtype()
-            if isinstance(subtype, File) and subtype.has_secondary_files():
-                register_channels_secondaries_array(inp)
-            else:
-                register_channel(inp)
-        
-        # other File type workflow inputs get single channel
-        else:
-            register_channel(inp)
-    
-def register_channels_secondaries_array(inp: InputNode) -> None:
-    raise NotImplementedError
-    subtype = inp.datatype.subtype()
-    exts: list[str] = []
-    exts.append(subtype.extension)
-    exts += subtype.secondary_files()
-    exts = [x.split('.')[-1] for x in exts]
-    for ext in exts:
-        name_override = f'{inp.id()}_{ext}s'
-        # param_name = 
-        param_name = to_case(param_name, settings.NEXTFLOW_PARAM_CASE)
-        param = params.get(inp.id())
-        add(
-            ref_name=inp.id(),
-            params=[param],
-            method=get_channel_method(inp),
-            collect=should_collect(inp),
-            allow_null=should_allow_null(inp),
-            name_override=name_override
-        )
-
-# def register_channel(inp: InputNode) -> None:
-#     add(
-#         ref_name=inp.id(),
-#         params=params.getall(reference=inp.id()),
-#         method=get_channel_method(inp),
-#         collect=should_collect(inp),
-#         allow_null=should_allow_null(inp),
-#         reference=inp.id()
-#     )
 
 def get_channel_method(wfinp: InputNode) -> str:
     # if utils.is_path(wfinp) and utils.is_file_pair(wfinp):
     #     method = 'fromFilePairs'
-    if utils.is_path(wfinp):
+    if nfgen_utils.is_path(wfinp):
         method = 'fromPath'
     else: 
         method = 'of'
@@ -145,6 +87,7 @@ class Channel(NFBase):
     collect: bool=False
     allow_null: bool=False
     name_override: Optional[str]=None
+    janis_uuid: Optional[str]=None
     condensed: bool=True 
 
     def __post_init__(self):
@@ -156,12 +99,11 @@ class Channel(NFBase):
             base = self.name_override
         else:
             base = self.ref_name
-        if self.ref_scope:
-            full = f"ch_{'_'.join(self.ref_scope)}_{base}"
-        else:
-            full = f'ch_{base}'
-        name = to_case(full, settings.NEXTFLOW_CHANNEL_CASE)
-        return name
+        # if self.ref_scope:
+        #     full = f"ch_{'_'.join(self.ref_scope)}_{base}"
+        base = to_case(base, settings.NEXTFLOW_CHANNEL_CASE)
+        full = f'ch_{base}'
+        return full
 
     @property
     def declaration(self) -> str:
@@ -201,11 +143,11 @@ class Channel(NFBase):
 
 class ChannelRegister(NFBase):
     def __init__(self):
-        self.channels: dict[str, Channel] = {}
+        self.channels: list[Channel] = []
 
     @property
     def ordered_channels(self) -> list[Channel]:
-        channels = list(self.channels.values())
+        channels = self.channels
         for orderer in orderers:
             channels = orderer.order(channels)
         return channels
@@ -222,38 +164,36 @@ class ChannelRegister(NFBase):
 channel_register = ChannelRegister()
 
 def add(
-    ref_name: str,
+    var_name: str,
     params: list[Param],
     method: str,
     collect: bool,
     allow_null: bool,
-    ref_scope: Optional[list[str]]=None,
+    var_scope: Optional[list[str]]=None,
     name_override: Optional[str]=None,
+    janis_uuid: Optional[str]=None
     ) -> None:
     global channel_register
-    ref_scope = ref_scope if ref_scope else []
-    new_ch = Channel(ref_name, ref_scope, params, method, collect, allow_null, name_override)
-    channel_register.channels[new_ch.name] = new_ch
+    var_scope = var_scope if var_scope else []
+    new_ch = Channel(var_name, var_scope, params, method, collect, allow_null, name_override, janis_uuid)
+    channel_register.channels.append(new_ch)
 
-def exists(name: str, scope: Optional[list[str]]=None) -> bool:
+def exists(janis_uuid: str) -> bool:
     global channel_register
-    scope = scope if scope else []
-    for channel in channel_register.ordered_channels:
-        if channel.ref_name == name and channel.ref_scope == scope:
-            return True
+    channels = getall(janis_uuid)
+    if channels:
+        return True
     return False
 
-def get(name: str) -> Channel:
+def get(janis_uuid: str) -> Channel:
     global channel_register 
-    return channel_register.channels[name]
+    return getall(janis_uuid)[0]
 
-def getall(name: Optional[str]=None, scope: Optional[list[str]]=None) -> list[Channel]:
+def getall(janis_uuid: Optional[str]=None) -> list[Channel]:
     global channel_register
     channels = channel_register.ordered_channels
-    if name:
-        channels = [x for x in channels if x.ref_name == name]
-    if scope:
-        channels = [x for x in channels if x.ref_scope == scope]
+    if janis_uuid:
+        channels = [x for x in channels if x.janis_uuid == janis_uuid]
     return channels
 
 def getstr() -> str:

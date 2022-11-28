@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from janis_core import CommandTool, ToolArgument, ToolInput
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import Boolean, File
-from . import utils
+from . import nfgen_utils
 
 
 class CmdtoolInsArgsStrategy(ABC):
@@ -58,7 +58,7 @@ class FilePriorityStrategy(CmdtoolInsArgsStrategy):
         bottom: list[ToolInput | ToolArgument] = []
         for elem in ins_args:
             if isinstance(elem, ToolInput):
-                dtype = utils.get_base_type_task_input(elem)
+                dtype = nfgen_utils.get_base_type_task_input(elem)
                 if isinstance(dtype, File):
                     top.append(elem)
                 else:

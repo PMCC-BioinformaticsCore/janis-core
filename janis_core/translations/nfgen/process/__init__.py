@@ -12,3 +12,7 @@ from .outputs import create_outputs_cmdtool
 from .outputs import create_outputs_pythontool
 
 from .ordering import order_directives
+from .script import get_process_inputs
+from .script import get_param_inputs
+
+from .process import Process, ProcessScriptType

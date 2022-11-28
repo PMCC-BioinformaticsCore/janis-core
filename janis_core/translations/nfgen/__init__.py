@@ -10,7 +10,8 @@
 from .common import NFFile, Import, ImportItem, Function
 from .workflow import Workflow, WorkflowTake, WorkflowEmit
 from .directives import *  # so bad. 
-from .process.process import (
+
+from .process import (
     Process,
     ProcessInput,
     ProcessOutput,
@@ -26,12 +27,13 @@ from . import params
 from . import ordering
 from . import process
 
+from .call import get_args
 from .channels import ChannelOperation
 from .config import generate_config
-from .unwrap import unwrap_expression, unwrap_source, translate_string_formatter
+from .unwrap import unwrap_expression, translate_string_formatter
 from .formatting import format_process_call
-from .utils import to_groovy
-from .register import register_workflow_inputs
+from .nfgen_utils import to_groovy
+from .register import register_params_channels
 
 
 

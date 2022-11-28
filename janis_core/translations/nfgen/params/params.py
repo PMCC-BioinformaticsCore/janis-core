@@ -5,9 +5,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from janis_core.workflow.workflow import InputNode
-from janis_core.workflow.workflow import Workflow
-from janis_core.tool.commandtool import CommandTool
 from janis_core.types import (
     DataType,
     String, 
@@ -16,49 +13,9 @@ from janis_core.types import (
 )
 
 from janis_core.translations.nfgen import NFBase
-from janis_core.translations.nfgen import utils
+from janis_core.translations.nfgen import nfgen_utils
 from janis_core.translations.nfgen.casefmt import to_case
 from janis_core.translations.nfgen import settings
-from uuid import uuid4
-
-
-
-
-"""
-MINIMAL PROCESS
-- wf inputs: param for all wf inputs
-- tool inputs: param for non-process-inputs fed value using step.sources
-
-FULL PROCESS
-- wf inputs: param for all wf inputs
-- tool inputs: param for all non-process-inputs
-"""
-
-
-
-
-# # tool inputs
-# def register_toolinp_param(
-#     inp: ToolInput, 
-#     scope: Optional[list[str]],
-#     default: Optional[Any]='__UwU_PlaceholdeR_UwU__',
-#     override: bool=False
-#     ) -> None:
-#     if (not exists(inp.id(), scope)) or (exists(inp.id(), scope) and override):
-#         # valid 'value' includes 'None', so must use placeholder
-#         if default != '__UwU_PlaceholdeR_UwU__':
-#             default = default
-#         else:
-#             default = inp.default 
-#         add(
-#             varname=inp.id(),
-#             reference=inp.id(),
-#             dtype=inp.input_type,
-#             scope=scope,
-#             default=default,
-#             is_wf_input=False
-#         )
-
 
 
 ### ORDERING
@@ -97,10 +54,8 @@ class FileTypePriority(OrderingMethod):
         top: list[Param] = []
         bottom: list[Param] = []
         for p in params:
-            dtype = p.dtype
-            while isinstance(dtype, Array):
-                dtype = dtype.subtype()
-            if isinstance(dtype, File):
+            basetype = nfgen_utils.get_base_type(p.dtype)
+            if isinstance(basetype, File):
                 top.append(p)
             else:
                 bottom.append(p)
@@ -109,7 +64,7 @@ class FileTypePriority(OrderingMethod):
 @dataclass
 class WfInputPriority(OrderingMethod):
     def order(self, params: list[Param]) -> list[Param]:
-        return sorted(params, key=lambda x: x.is_wf_input, reverse=True) 
+        return sorted(params, key=lambda x: x.is_channel_input, reverse=True) 
 
 orderers: list[OrderingMethod] = [
     #NotNullPriority(),
@@ -122,13 +77,14 @@ orderers: list[OrderingMethod] = [
 
 ### MAIN CLASSES  
 
+
 class ParamRegister(NFBase):
     def __init__(self):
-        self.params: dict[str, Param] = {}
+        self.params: list[Param] = []
 
     @property
     def ordered_params(self) -> list[Param]:
-        params = list(self.params.values())
+        params = self.params
         for orderer in orderers:
             params = orderer.order(params)
         return params
@@ -141,32 +97,33 @@ class ParamRegister(NFBase):
 
 @dataclass
 class Param(NFBase):
-    ref_name: str
-    ref_scope: list[str]
+    var_name: str
+    var_scope: list[str]
     dtype: Optional[DataType]=None
     default: Any=None
-    is_wf_input: bool=False
+    is_channel_input: bool=False
     name_override: Optional[str]=None
+    janis_uuid: Optional[str]=None
 
-    def __post_init__(self):
-        self.uuid = uuid4()
+    # def __post_init__(self):
+    #     self.uuid = str(uuid4())
 
     @property
     def name(self) -> str:
         if self.name_override:
-            base = self.name_override
+            base = to_case(self.name_override, settings.NEXTFLOW_PARAM_CASE)
         else:
-            base = self.ref_name
-        if self.ref_scope:
-            full = f"{'_'.join(self.ref_scope)}_{base}"
+            base = to_case(self.var_name, settings.NEXTFLOW_PARAM_CASE)
+        if self.var_scope:
+            scope = [to_case(x, settings.NEXTFLOW_PARAM_CASE) for x in self.var_scope]
+            name = f"{'.'.join(scope)}.{base}"
         else:
-            full = base
-        name = to_case(full, settings.NEXTFLOW_PARAM_CASE)
+            name = base
         return name
 
     @property
     def groovy_value(self) -> str:
-        # get the default value as string
+        # get the default value as groovy code string
         # TODO I am dubious about this
         # if self.default == '':
         #     val = None
@@ -174,7 +131,7 @@ class Param(NFBase):
             val: list[str] = []
         else:
             val = self.default
-        return utils.to_groovy(val, self.dtype)
+        return nfgen_utils.to_groovy(val, self.dtype)
     
     @property
     def width(self) -> int:
@@ -192,59 +149,57 @@ param_register = ParamRegister()
 
 default_params = [
     Param(
-        ref_name='outdir',
-        ref_scope=[],
+        var_name='outdir',
+        var_scope=[],
         dtype=String(),
         default='"outputs"',
-        is_wf_input=False,
+        is_channel_input=False,
     )
 ]
 
 for param in default_params:
-    param_register.params[param.name] = param
+    param_register.params.append(param)
 
 
 ### MODULE ENTRY POINTS
 
-def add(ref_name: str, 
-        ref_scope: Optional[list[str]]=None, 
+def add(var_name: str, 
+        var_scope: Optional[list[str]]=None, 
         dtype: Optional[DataType]=None, 
         default: Any=None,
-        is_wf_input: bool=False,
-        name_override: Optional[str]=None
+        is_channel_input: bool=False,
+        name_override: Optional[str]=None,
+        janis_uuid: Optional[str]=None
     ) -> Param:
     global param_register
-    ref_scope = ref_scope if ref_scope else []
+    var_scope = var_scope if var_scope else []
     param = Param(
-        ref_name=ref_name, 
-        ref_scope=ref_scope, 
+        var_name=var_name, 
+        var_scope=var_scope, 
         dtype=dtype, 
         default=default, 
-        is_wf_input=is_wf_input, 
-        name_override=name_override
+        is_channel_input=is_channel_input, 
+        name_override=name_override,
+        janis_uuid=janis_uuid
     )
-    param_register.params[param.name] = param
+    param_register.params.append(param)
     return param
     
-def exists(name: str, scope: Optional[list[str]]=None) -> bool:
+def exists(janis_uuid: str) -> bool:
     global param_register
-    scope = scope if scope else []
     for param in param_register.ordered_params:
-        if param.ref_name == name and param.ref_scope == scope:
+        if param.janis_uuid == janis_uuid:
             return True
     return False
 
-def get(name: str, scope: Optional[list[str]]=None) -> Param:
-    global param_register
-    return getall(name, scope)[0]
+def get(janis_uuid: str) -> Param:
+    return getall(janis_uuid)[0]
 
-def getall(name: Optional[str]=None, scope: Optional[list[str]]=None) -> list[Param]:
+def getall(janis_uuid: Optional[str]=None) -> list[Param]:
     global param_register
     params = param_register.ordered_params
-    if name:
-        params = [x for x in params if x.ref_name == name]
-    if scope:
-        params = [x for x in params if x.ref_scope == scope]
+    if janis_uuid:
+        params = [x for x in params if x.janis_uuid == janis_uuid]
     return params
 
 def serialize() -> dict[str, Any]:
@@ -257,6 +212,27 @@ def serialize() -> dict[str, Any]:
 def clear() -> None:
     global param_register 
     param_register = ParamRegister()
+
+
+# def add_link(upstream_janis_uuid: str, downstream_janis_uuid: str) -> None:
+#     global param_register
+#     assert(exists(upstream_janis_uuid))
+#     param_register.upstream[downstream_janis_uuid].append(upstream_janis_uuid)
+#     param_register.downstream[upstream_janis_uuid].append(downstream_janis_uuid)
+
+# def upstream(query: str) -> Optional[Param]:
+#     if query in param_register.upstream:
+#         upstream_janis_uuid = param_register.upstream[query][0]
+#         return get(upstream_janis_uuid)
+#     return None
+
+# def upstream_multi(query: str) -> list[Param]:
+#     params: list[Param] = []
+#     for upstream_janis_uuid in param_register.upstream[query]:
+#         params += getall(upstream_janis_uuid)
+#     return params
+
+
 
 
 
