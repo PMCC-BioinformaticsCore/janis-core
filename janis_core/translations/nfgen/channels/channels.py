@@ -88,7 +88,7 @@ class Channel(NFBase):
     allow_null: bool=False
     name_override: Optional[str]=None
     janis_uuid: Optional[str]=None
-    condensed: bool=True 
+    define: bool=False
 
     def __post_init__(self):
         self.uuid = uuid4() 
@@ -155,9 +155,10 @@ class ChannelRegister(NFBase):
     def get_string(self) -> str:
         outstr = ''
         channels = self.ordered_channels
-        width_col_1 = max([c.width for c in channels])
-        for c in channels:
-            outstr += f'{c.name:<{width_col_1}} = {c.get_string()}\n'
+        channels = [ch for ch in channels if ch.define]
+        width_col_1 = max([ch.width for ch in channels])
+        for ch in channels:
+            outstr += f'{ch.name:<{width_col_1}} = {ch.get_string()}\n'
         return outstr
 
 
@@ -171,11 +172,12 @@ def add(
     allow_null: bool,
     var_scope: Optional[list[str]]=None,
     name_override: Optional[str]=None,
-    janis_uuid: Optional[str]=None
+    janis_uuid: Optional[str]=None,
+    define: bool=False
     ) -> None:
     global channel_register
     var_scope = var_scope if var_scope else []
-    new_ch = Channel(var_name, var_scope, params, method, collect, allow_null, name_override, janis_uuid)
+    new_ch = Channel(var_name, var_scope, params, method, collect, allow_null, name_override, janis_uuid, define)
     channel_register.channels.append(new_ch)
 
 def exists(janis_uuid: str) -> bool:

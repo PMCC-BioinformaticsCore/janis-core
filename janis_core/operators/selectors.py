@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union, Optional
+from typing import Union, Optional, Type, Any
 
 from janis_core.types.data_types import ParseableType
 
@@ -274,7 +274,11 @@ SelectorOrValue = Union[Selector, int, str, float]
 
 class InputSelector(Selector):
     def __init__(
-        self, input_to_select, remove_file_extension=None, type_hint=File, **kwargs
+        self, 
+        input_to_select: str, 
+        remove_file_extension: Optional[bool]=None, 
+        type_hint: Type[DataType]=File, 
+        **kwargs: dict[str, Any]
     ):
         """
         :param input_to_select: The name of the input to select
@@ -290,7 +294,7 @@ class InputSelector(Selector):
 
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
-        self.type_hint = get_instantiated_type(type_hint) or File()
+        self.type_hint: DataType = get_instantiated_type(type_hint) or File()
 
         if "use_basename" in kwargs:
             use_basename = kwargs["use_basename"]
@@ -327,8 +331,11 @@ class InputSelector(Selector):
     def __repr__(self):
         return str(self)
 
-    def to_nextflow(self, prefix: str = "$params.", tool_id_prefix: str = ""):
-        return f"{tool_id_prefix}{self.input_to_select}"
+    def to_nextflow(self):
+        return self.input_to_select
+    
+    # def to_nextflow(self, prefix: str = "$params.", tool_id_prefix: str = ""):
+    #     return f"{tool_id_prefix}{self.input_to_select}"
 
 
 class InputNodeSelector(Selector):
@@ -367,6 +374,8 @@ class InputNodeSelector(Selector):
         return StringFormatter(f"{{{key}}}", **kwarg)
 
     def to_nextflow(self, var_indicator: str = "$params.", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return f"{var_indicator}{self.input_node.id()}"
 
 
@@ -413,8 +422,10 @@ class StepOutputSelector(Selector):
         return StringFormatter(f"{{{key}}}", **kwarg)
 
     def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return f'{step_indicator}{self.node.id()}.out.{self.tag}'
-
+    
 
 class WildcardSelector(Selector):
     def __init__(self, wildcard, select_first=False):
@@ -428,6 +439,8 @@ class WildcardSelector(Selector):
         raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
 
     def to_nextflow(self, prefix: str = "", tool_id_prefix: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return str(self.wildcard)
 
 
@@ -451,6 +464,8 @@ class AliasSelector(Selector):
         return f"({self.inner_selector} as {self.data_type})"
 
     def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return self.inner_selector.nextflow(var_indicator, step_indicator)
 
     def to_string_formatter(self):

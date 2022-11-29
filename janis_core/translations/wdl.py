@@ -76,7 +76,7 @@ from janis_core.utils.secondary import (
 from janis_core.utils.validators import Validators
 from janis_core.workflow.workflow import StepNode
 
-from .ordering import get_tool_input_positions
+from .wdl_ordering import get_tool_input_positions
 
 ## PRIMARY TRANSLATION METHODS
 

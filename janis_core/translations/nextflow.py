@@ -6,15 +6,11 @@ from typing import Tuple, Dict, List, Optional, Union, Any
 from janis_core.translations.nfgen import format_process_call
 from janis_core.operators.selectors import Selector
 from janis_core.types import (
-    DataType,
     Array,
     File,
     Int,
     Float,
     Double,
-    Directory,
-    Stdout,
-    Filename,
 )
 
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -22,9 +18,7 @@ from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 from janis_core.tool.commandtool import (
     CommandTool,
     ToolInput,
-    ToolOutput,
     Tool,
-    TOutput,
     TInput,
 )
 from janis_core.code.codetool import CodeTool
@@ -33,7 +27,6 @@ from janis_core.translations.translationbase import TranslatorBase
 from janis_core.workflow.workflow import StepNode, Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
-from janis_core.translations.nfgen.casefmt import to_case
 from janis_core.translations.nfgen import settings
 
 # class methods dont make sense. dislike this approach. 
@@ -54,7 +47,7 @@ from janis_core.translations.nfgen import settings
 
 
 class NextflowTranslator(TranslatorBase):
-    INPUT_IN_SELECTORS: dict[str, Any] = {}
+    # INPUT_IN_SELECTORS: dict[str, Any] = {}
 
     def __init__(self):
         super().__init__(name="nextflow")
@@ -83,7 +76,7 @@ class NextflowTranslator(TranslatorBase):
         # parse each step to a NFFile
         for step in jworkflow.step_nodes.values():
             current_scope = deepcopy(scope)
-            current_scope.append(step.tool.id())       
+            current_scope.append(step.id())       
             step_items = cls.gen_items_for_step(
                 step,
                 scope=current_scope,
@@ -471,8 +464,9 @@ class NextflowTranslator(TranslatorBase):
             # emit
             emit: list[nfgen.WorkflowEmit] = []
             for out in wf.output_nodes.values():
-                outname = f'{name}_{out.id()}'
-                expression = nfgen.unwrap_expression(out.source)
+                # outname = f'{name}_{out.id()}'
+                outname = out.id()
+                expression = nfgen.unwrap_expression(value=out.source)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
         # main
@@ -914,20 +908,21 @@ class NextflowTranslator(TranslatorBase):
         process_inputs: list[nfgen.ProcessInput] = []
         tinput_ids = nfgen.process.get_process_inputs(sources)
         tinputs = nfgen.nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
+        tinputs = nfgen.ordering.order_janis_process_inputs(tinputs)
         for i in tinputs:
             process_inputs += nfgen.process.create_inputs(i)
 
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for out in tool.outputs():
-            process_outputs += nfgen.process.create_outputs_cmdtool(out, tool)
+            process_outputs += nfgen.process.create_outputs(out, tool, sources)
 
         # script
         pre_script, script = nfgen.process.gen_script_for_cmdtool(
             tool=tool,
             scope=scope,
-            values=sources,
-            input_in_selectors=cls.INPUT_IN_SELECTORS, 
+            sources=sources,
+            # input_in_selectors=cls.INPUT_IN_SELECTORS, 
             stdout_filename=settings.TOOL_STDOUT_FILENAME
         )
         
@@ -1022,13 +1017,14 @@ class NextflowTranslator(TranslatorBase):
         # inputs: tool inputs
         tinput_ids = nfgen.process.get_process_inputs(sources)
         tinputs = nfgen.nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
+        tinputs = nfgen.ordering.order_janis_process_inputs(tinputs)
         for i in tinputs:
             process_inputs += nfgen.process.create_inputs(i)
 
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for out in tool.outputs():
-            process_outputs += nfgen.process.create_outputs_pythontool(out, tool)
+            process_outputs += nfgen.process.create_outputs(out, tool, sources)
 
         # script
         script = cls.prepare_script_for_python_code_tool(tool, sources=sources)
@@ -1407,7 +1403,7 @@ return primary
         quote_string=True,
         tool=None,
         for_output=False,
-        inputs_dict=None,
+        # inputs_dict=None,
         skip_inputs_lookup=False,
         in_shell_script=False,
         var_indicator=None,
@@ -1415,17 +1411,17 @@ return primary
         **debugkwargs,
     ): 
         return nfgen.unwrap_expression(
-            value,
-            input_in_selectors=cls.INPUT_IN_SELECTORS,
+            value=value,
+            # input_in_selectors=cls.INPUT_IN_SELECTORS,
             quote_string=quote_string,
             tool=tool,
             for_output=for_output,
-            inputs_dict=inputs_dict,
+            # inputs_dict=inputs_dict,
             skip_inputs_lookup=skip_inputs_lookup,
             in_shell_script=in_shell_script,
-            var_indicator=var_indicator,
-            step_indicator=step_indicator,
-            debugkwargs=debugkwargs
+            # var_indicator=var_indicator,
+            # step_indicator=step_indicator,
+            # debugkwargs=debugkwargs
         )       
 
     @classmethod

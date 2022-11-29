@@ -1,4 +1,6 @@
 
+
+
 from typing import Type
 from abc import ABC, abstractmethod
 
@@ -37,7 +39,7 @@ class AlphabeticalDirectiveOrderer(DirectiveOrderer):
         return sorted(directives, key=lambda x: type(x).__name__)
 
 
-def order_directives(directives: list[ProcessDirective]) -> list[ProcessDirective]:
+def order_nf_directives(directives: list[ProcessDirective]) -> list[ProcessDirective]:
     for orderer in [AlphabeticalDirectiveOrderer, PriorityDirectiveOrderer]:
         directives = orderer().order(directives)
     return directives

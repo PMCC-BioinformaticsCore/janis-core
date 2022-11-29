@@ -1,39 +1,34 @@
 
 from typing import Any, Tuple, Optional
 
-from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core import (
-    File,
     CommandTool,
     ToolArgument,
     ToolInput,
-    TInput,
 )
 
+from ..unwrap import unwrap_expression
 from .. import ordering
 from .. import settings
-from .. import channels
-from .. import params
 from .. import nfgen_utils as nfgen_utils
-from janis_core.translations.nfgen.unwrap import unwrap_expression
 
+from . import common
 from .script_formatting import format_input
-
 
 
 def gen_script_for_cmdtool(
     tool: CommandTool,
-    input_in_selectors: dict[str, Any],
+    # input_in_selectors: dict[str, Any],
     stdout_filename: str,
     scope: list[str],
-    values: dict[str, Any],
+    sources: dict[str, Any],
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
-        input_in_selectors=input_in_selectors,
+        # input_in_selectors=input_in_selectors,
         stdout_filename=stdout_filename,
         scope=scope,
-        values=values,
+        sources=sources,
     ).generate()
 
 
@@ -42,23 +37,23 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        input_in_selectors: dict[str, Any],
+        # input_in_selectors: dict[str, Any],
         stdout_filename: str,
         scope: list[str],
-        values: Optional[dict[str, Any]]=None,
+        sources: Optional[dict[str, Any]]=None,
     ):
         assert(tool)
         self.tool = tool
         self.scope = scope
         self.process_name = scope[-1] if scope else tool.id()
-        self.input_in_selectors = input_in_selectors
+        # self.input_in_selectors = input_in_selectors
         self.stdout_filename = stdout_filename
 
         # think this is ok?
-        self.values = values if values is not None else {}
-        self.process_inputs = get_process_inputs(self.values)
-        self.param_inputs = get_param_inputs(self.values)
-        self.internal_inputs = get_internal_input_ids(tool, self.values)
+        self.sources = sources if sources is not None else {}
+        self.process_inputs = common.get_process_inputs(self.sources)
+        self.param_inputs = common.get_param_inputs(self.sources)
+        self.internal_inputs = common.get_internal_input_ids(tool, self.sources)
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -76,9 +71,13 @@ class ProcessScriptGenerator:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 value=dirpath, 
-                input_in_selectors=self.input_in_selectors,
-                inputs_dict=self.tool.inputs_map(),
+                # input_in_selectors=self.input_in_selectors,
+                # inputs_dict=self.tool.inputs_map(),
                 tool=self.tool, 
+                sources=self.sources,
+                process_inputs=self.process_inputs,
+                param_inputs=self.param_inputs,
+                internal_inputs=self.internal_inputs,
                 in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}'"
@@ -93,7 +92,7 @@ class ProcessScriptGenerator:
                 self.script += [str(bc)]
 
     def handle_cmdtool_inputs(self) -> None:
-        for inp in ordering.cmdtool_inputs_arguments(self.tool):
+        for inp in ordering.order_cmdtool_inputs_arguments(self.tool):
             match inp:
                 case ToolInput():
                     prescript_ln, script_ln = format_input(
@@ -101,7 +100,7 @@ class ProcessScriptGenerator:
                         self.process_inputs, 
                         self.param_inputs, 
                         scope=self.scope,
-                        sources=self.values
+                        sources=self.sources
                     )
                     if prescript_ln is not None:
                         self.prescript.append(prescript_ln)
@@ -115,9 +114,13 @@ class ProcessScriptGenerator:
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         expression = unwrap_expression(
             value=arg.value,
-            input_in_selectors=self.input_in_selectors,
+            # input_in_selectors=self.input_in_selectors,
             tool=self.tool,
-            inputs_dict=self.tool.inputs_map(),
+            # inputs_dict=self.tool.inputs_map(),
+            sources=self.sources,
+            process_inputs=self.process_inputs,
+            param_inputs=self.param_inputs,
+            internal_inputs=self.internal_inputs,
             skip_inputs_lookup=True,
             quote_string=False,
             in_shell_script=True,
@@ -146,194 +149,6 @@ class ProcessScriptGenerator:
 
 
 
-
-### process inputs
-
-def get_process_inputs(sources: dict[str, Any]) -> set[str]:
-    """
-    determine the tool inputs which should remnain as process inputs
-    """
-    if settings.MODE == 'workflow':
-        return get_process_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool':  # type: ignore
-        return get_process_inputs_toolmode(sources)
-    else:
-        raise RuntimeError
-
-def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
-    """
-    inputs which are fed (via step inputs) using a file type workflow input
-    inputs which are fed (via step inputs) using a connection
-    inputs which are involved in scatter
-    """
-    channel_wfinp_ids = get_channel_process_inputs(sources)
-    step_conn_ids = get_connection_process_inputs(sources)
-    scatter_wfinp_ids = get_scatter_process_inputs(sources)
-    surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids
-    return surviving_ids
-
-def get_process_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
-    """
-    inputs which are file types
-    non-file types usually fed values from params instead.
-    
-    if MINIMAL_PROCESS:
-        - remove inputs which are optional
-        - remove inputs with defaults
-    """
-    all_inputs: list[TInput] = list(tool.inputs_map().values())
-    
-    surviving_ids = get_all_input_ids(all_inputs)
-    file_ids = get_file_input_ids(all_inputs)
-    optional_ids = get_optional_input_ids(all_inputs)
-    default_ids = get_default_input_ids(all_inputs)
-    
-    if settings.MINIMAL_PROCESS:
-        surviving_ids = surviving_ids & file_ids
-        surviving_ids = surviving_ids - optional_ids
-        surviving_ids = surviving_ids - default_ids
-    else:
-        surviving_ids = surviving_ids & file_ids
-
-    return surviving_ids
-
-
-
-
-### param inputs
-
-def get_param_inputs(sources: dict[str, Any]) -> set[str]:
-    """
-    determine the tool inputs which should be fed a value via params
-    """
-    if settings.MODE == 'workflow':
-        return get_param_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool':  # type: ignore
-        return get_param_inputs_toolmode(sources)
-    else:
-        raise RuntimeError
-
-def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
-    """
-    inputs which are fed (via step inputs) using a non-File type workflow input
-    """
-    if settings.MINIMAL_PROCESS:
-        surviving_ids = get_param_process_inputs(sources)
-        surviving_ids = surviving_ids - get_process_inputs(sources)
-    else:
-        all_inputs: list[TInput] = list(tool.inputs_map().values())
-        all_ids = get_all_input_ids(all_inputs)
-        process_ids = get_process_inputs(sources)
-        surviving_ids = all_ids - process_ids
-    return surviving_ids
-
-def get_param_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
-    """
-    nonfile types 
-    
-    if MINIMAL_PROCESS:
-        - remove inputs which are optional
-        - remove inputs with defaults
-    """
-    
-    all_inputs: list[TInput] = list(tool.inputs_map().values())
-    
-    surviving_ids = get_all_input_ids(all_inputs)
-    file_ids = get_file_input_ids(all_inputs)
-    optional_ids = get_optional_input_ids(all_inputs)
-    default_ids = get_default_input_ids(all_inputs)
-    
-    if settings.MINIMAL_PROCESS:
-        surviving_ids = surviving_ids - file_ids
-        surviving_ids = surviving_ids - optional_ids
-        surviving_ids = surviving_ids - default_ids
-    else:
-        surviving_ids = surviving_ids - file_ids
-
-    return surviving_ids
-
-
-### internal inputs
-
-def get_internal_input_ids(tool: CommandTool, sources: dict[str, Any]) -> set[str]:
-    """
-    internal inputs = all inputs - process inputs - param inputs
-    """
-    all_inputs: list[TInput] = list(tool.inputs_map().values())
-
-    surviving_ids = get_all_input_ids(all_inputs)
-    process_inputs = get_process_inputs(sources)
-    param_inputs = get_param_inputs(sources)
-    
-    surviving_ids = surviving_ids - process_inputs
-    surviving_ids = surviving_ids - param_inputs
-    return surviving_ids
-
-
-
-###  helper methods
-
-# based on TInput info
-def get_all_input_ids(tinputs: list[TInput]) -> set[str]:
-    return {x.id() for x in tinputs}
-
-def get_file_input_ids(tinputs: list[TInput]) -> set[str]:
-    """get tool inputs (ids) for tool inputs which are File types"""
-    return {x.id() for x in tinputs if isinstance(nfgen_utils.get_base_type(x.intype), File)}
-
-def get_optional_input_ids(tinputs: list[TInput]) -> set[str]:
-    """get tool inputs (ids) for tool inputs which are optional"""
-    out: set[str] = set()
-    for tinp in tinputs:
-        basetype = nfgen_utils.get_base_type(tinp.intype)
-        if basetype and basetype.optional:
-            out.add(tinp.id())
-    return out
-
-def get_default_input_ids(tinputs: list[TInput]) -> set[str]:
-    """get tool inputs (ids) for tool inputs with a default value"""
-    return {x.id() for x in tinputs if x.default is not None}
-
-
-# based on step info
-def get_channel_process_inputs(sources: dict[str, Any]) -> set[str]:
-    """get tool inputs (ids) which are being fed a value from a channel"""
-    out: set[str] = set()
-    for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
-        if isinstance(node, InputNode):
-            if channels.exists(node.uuid):
-                out.add(tag)
-    return out
-
-def get_param_process_inputs(sources: dict[str, Any]) -> set[str]:
-    """get tool inputs (ids) which are being fed a value from a channel"""
-    out: set[str] = set()
-    for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
-        if isinstance(node, InputNode):
-            if params.exists(node.uuid):
-                out.add(tag)
-    return out
-
-def get_connection_process_inputs(sources: dict[str, Any]) -> set[str]:
-    """get tool inputs (ids) which are being fed a value from a step connection"""
-    out: set[str] = set()
-    for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
-        if isinstance(node, StepNode):
-            out.add(tag)
-    return out
-
-def get_scatter_process_inputs(sources: dict[str, Any]) -> set[str]:
-    """get tool inputs (ids) which are being scattered on"""
-    out: set[str] = set()
-    for inname, src in sources.items():
-        scatter = src.source_map[0].scatter
-        node = nfgen_utils.resolve_node(src)
-        if scatter and isinstance(node, InputNode):
-            out.add(inname)
-    return out
 
 
 

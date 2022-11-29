@@ -11,8 +11,7 @@ from .. import settings
 
 from .inputs import ProcessInput
 from .outputs import ProcessOutput
-from .ordering import order_directives
-
+from .. import ordering
 
 class ProcessScriptType(Enum):
     script = "script"
@@ -79,7 +78,7 @@ class Process(NFBase):
     def prepare_directives(self):
         if not self.directives:
             return None
-        directives = order_directives(self.directives)
+        directives = ordering.order_nf_directives(self.directives)
         return "\n".join(settings.NEXTFLOW_INDENT + d.get_string() for d in directives)
 
     def get_string(self) -> str:

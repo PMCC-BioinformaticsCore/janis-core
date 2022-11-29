@@ -16,40 +16,54 @@ def register_params_channels(wf: Workflow, scope: list[str]) -> None:
     # register param(s) for each workflow input. 
     # channel(s) may also be registered if necessary.
 
-    # subworkflow
-    if scope:
-        channels_to_register: set[str] = set(wf.connections.keys())
-        params_to_register: set[str] = {x.id() for x in wf.input_nodes.values()} - channels_to_register
-    
-    # main workflow
-    else:
-        channels_to_register: set[str] = get_channel_input_ids(wf)
-        params_to_register: set[str] = {x.id() for x in wf.input_nodes.values()}
-
     # handle this workflow
-    handler = ParamChannelRegisterer(wf, scope, channels_to_register, params_to_register)
+    handler = ParamChannelRegisterer(wf, scope)
     handler.register()
     
     # handle nested workflows (subworkflows)
     for step in wf.step_nodes.values():
         if isinstance(step.tool, Workflow):
             current_scope = deepcopy(scope)
-            current_scope.append(step.tool.id())
+            current_scope.append(step.id())
             register_params_channels(step.tool, scope=current_scope)
+
 
 
 class ParamChannelRegisterer:
     # horrid name, I know
-    def __init__(self, 
-        wf: Workflow, 
-        scope: list[str], 
-        channels_to_register: set[str], 
-        params_to_register: set[str]
-        ) -> None:
+    def __init__(self, wf: Workflow, scope: list[str]) -> None:
         self.wf = wf
         self.scope = scope
-        self.channels_to_register = channels_to_register
-        self.params_to_register = params_to_register
+
+    @property
+    def is_subworkflow(self) -> bool:
+        if self.scope:
+            return True
+        return False
+
+    @property
+    def channels_to_register_wfinps(self) -> set[str]:
+        if self.scope:
+            items: set[str] = set(self.wf.connections.keys())
+        else:
+            items: set[str] = get_channel_input_ids(self.wf)
+        return items
+    
+    @property
+    def params_to_register_wfinps(self) -> set[str]:
+        if self.scope:
+            items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
+        else:
+            items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
+        return items
+
+    # @property
+    # def params_to_register_toolouts(self) -> set[str]:
+    #     if self.scope:
+    #         items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
+    #     else:
+    #         items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
+    #     return items
     
     def register(self) -> None:
         for inp in self.wf.input_nodes.values():
@@ -75,8 +89,8 @@ class ParamChannelRegisterer:
                 raise NotImplementedError
     
     def register_wfinp(self, inp: InputNode) -> None:
-        is_channel_input = True if inp.id() in self.channels_to_register else False
-        is_param_input = True if inp.id() in self.params_to_register else False
+        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
+        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         default: Any = inp.default if inp.default is not None else None
 
         # register a param for the wf input
@@ -87,7 +101,7 @@ class ParamChannelRegisterer:
                 dtype=inp.datatype,
                 default=default,
                 is_channel_input=is_channel_input,
-                janis_uuid=inp.uuid
+                janis_uuid=inp.uuid,
             )
         
         # register a channel for the wf input if required
@@ -99,13 +113,14 @@ class ParamChannelRegisterer:
                 collect=channels.should_collect(inp),
                 allow_null=channels.should_allow_null(inp),
                 var_scope=self.scope,
-                janis_uuid=inp.uuid
+                janis_uuid=inp.uuid,
+                define=False if self.is_subworkflow else True
             )
 
     def register_wfinp_secondaries(self, inp: InputNode) -> None:
         # get the extensions. each extension will create individual param. 
-        is_channel_input = True if inp.id() in self.channels_to_register else False
-        is_param_input = True if inp.id() in self.params_to_register else False
+        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
+        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         exts: list[str] = []
         exts = nfgen_utils.get_extensions(inp.datatype)
         
@@ -130,14 +145,15 @@ class ParamChannelRegisterer:
                 collect=True,
                 allow_null=channels.should_allow_null(inp),
                 var_scope=self.scope,
-                janis_uuid=inp.uuid
+                janis_uuid=inp.uuid,
+                define=False if self.is_subworkflow else True
             )
 
     def register_wfinp_secondaries_array(self, inp: InputNode) -> None:    
         # get the extensions. 
         # each extension will create individual param and individual channel.
-        is_param_input = True if inp.id() in self.params_to_register else False
-        is_channel_input = True if inp.id() in self.channels_to_register else False
+        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
+        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         basetype = nfgen_utils.get_base_type(inp.datatype)
         exts = nfgen_utils.get_extensions(basetype)
         
@@ -164,9 +180,9 @@ class ParamChannelRegisterer:
                     allow_null=channels.should_allow_null(inp),
                     var_scope=self.scope,
                     name_override=f'{inp.id()}_{ext}s',
-                    janis_uuid=inp.uuid
+                    janis_uuid=inp.uuid,
+                    define=False if self.is_subworkflow else True
                 )
-
 
 
 # helper functions

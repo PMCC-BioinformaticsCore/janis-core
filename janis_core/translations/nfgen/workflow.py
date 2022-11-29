@@ -95,7 +95,7 @@ class Workflow(NFBase):
     def main_block(self) -> Optional[str]:
         main = "\n".join(self.main)
         if self.is_subworkflow:
-            main = "main:\n" + indent(main, settings.NEXTFLOW_INDENT)
+            main = "main:\n" + main
         return indent(main, settings.NEXTFLOW_INDENT)
 
     @property
@@ -103,7 +103,7 @@ class Workflow(NFBase):
         if not self.take:
             return None
         return indent(
-            "take:\n" + "\n".join(i.get_string() for i in self.take), 
+            "take:\n" + "\n".join(i.get_string() for i in self.take) + '\n', 
             settings.NEXTFLOW_INDENT
         )
 
@@ -112,7 +112,7 @@ class Workflow(NFBase):
         if not self.emit:
             return None
         return indent(
-            "emit:\n" + "\n".join(i.get_string() for i in self.emit), 
+            "emit:\n" + "\n".join(i.get_string() for i in self.emit),
             settings.NEXTFLOW_INDENT
         )
 

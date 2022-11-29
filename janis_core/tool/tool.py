@@ -52,7 +52,7 @@ class TInput(object):
             items.append("default=" + str(self.default))
         return f"TInput({', '.join(items)})"
 
-    def id(self):
+    def id(self) -> str:
         return self.tag
 
 
