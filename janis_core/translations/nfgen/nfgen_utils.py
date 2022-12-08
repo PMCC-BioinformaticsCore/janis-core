@@ -52,17 +52,6 @@ shoud should be included.
 # def is_channel_input() -> bool:
 #     pass
 
-def is_secondary_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
-    if isinstance(basetype, File) and basetype.has_secondary_files():
-        return True
-    return False
-
-def is_array_secondary_type(dtype: DataType) -> bool:
-    if isinstance(dtype, Array) and is_secondary_type(dtype):
-        return True
-    return False
-
 
 def resolve_node(node: Any) -> Any:
     if isinstance(node, StepTagInput):
@@ -93,15 +82,6 @@ def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
             if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
                 connected[step.id()].append(tinp_id)
     return connected
-
-def get_extensions(dtype: File, allow_symbols: bool=False) -> list[str]:
-    exts = [dtype.get_extensions()[0]]
-    secondary_exts = dtype.secondary_files()
-    if secondary_exts:
-        exts += secondary_exts
-    if not allow_symbols:
-        exts = [x.rsplit('.')[-1] for x in exts]
-    return exts
 
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]

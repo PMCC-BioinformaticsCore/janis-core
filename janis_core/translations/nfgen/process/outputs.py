@@ -16,6 +16,7 @@ from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 from ..unwrap import unwrap_expression
 from .. import nfgen_utils
+from .. import secondaries
 from .. import settings
 from . import common
 
@@ -114,7 +115,7 @@ class CmdtoolProcessOutputFactory:
 
     def handle_selector(self) -> Any:
         return unwrap_expression(
-            value=self.out.selector, 
+            val=self.out.selector, 
             tool=self.tool, 
             for_output=True,
             # inputs_dict=self.tool.inputs_map(), # TODO HERE
@@ -143,7 +144,7 @@ class CmdtoolProcessOutputFactory:
             process_outs = [self.create_stdout_output()]
 
         # file secondaries
-        elif nfgen_utils.is_secondary_type(self.dtype):
+        elif secondaries.is_secondary_type(self.dtype):
             process_outs = [self.create_tuple_output_secondaries()]
         
         # file
@@ -160,10 +161,10 @@ class CmdtoolProcessOutputFactory:
         process_outs: list[ProcessOutput] = []
 
         # secondaries array
-        if nfgen_utils.is_array_secondary_type(self.dtype):
+        if secondaries.is_array_secondary_type(self.dtype):
             # a path output per file type
             assert(isinstance(self.basetype, File))
-            exts = nfgen_utils.get_extensions(self.basetype, allow_symbols=True)
+            exts = secondaries.get_names(self.basetype)
             for ext in exts:
                 process_outs.append(self.create_path_output_secondaries(ext))
 
@@ -219,7 +220,7 @@ class CmdtoolProcessOutputFactory:
         
         primary_expr = self.handle_selector()
         primary_expr_unquoted = primary_expr.strip('"')
-        exts = nfgen_utils.get_extensions(self.dtype, allow_symbols=True)
+        exts = secondaries.get_names(self.dtype)
         for ext in exts:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
@@ -326,7 +327,7 @@ class PythonToolProcessOutputFactory:
     
     def create_outputs_single(self) -> list[ProcessOutput]:
         # file secondaries
-        if nfgen_utils.is_secondary_type(self.dtype):
+        if secondaries.is_secondary_type(self.dtype):
             raise NotImplementedError
             # outputs = [create_tuple_output_secondaries(out, tool)]
             # return outputs
@@ -340,11 +341,11 @@ class PythonToolProcessOutputFactory:
 
     def create_outputs_array(self) -> list[ProcessOutput]:
         # secondaries array
-        if nfgen_utils.is_array_secondary_type(self.dtype):
+        if secondaries.is_array_secondary_type(self.dtype):
             # a path output per file type
             outputs: list[ProcessOutput] = []
             assert(isinstance(self.basetype, File))
-            exts = nfgen_utils.get_extensions(self.basetype, allow_symbols=True)
+            exts = secondaries.get_names(self.basetype)
             for ext in exts:
                 outputs.append(self.create_path_output_secondaries(ext))
             return outputs

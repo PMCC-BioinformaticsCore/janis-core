@@ -1,10 +1,66 @@
 
+from janis_core import ToolInput
+from janis_core.types import (
+    File,
+    Array,
+    DataType
+)
+from . import nfgen_utils
 
-from janis_core.types import DataType
+
+"""
+def apply_secondary_file_format_to_filename()  EXISTS 
+    - from janis_core.utils.secondary import apply_secondary_file_format_to_filename
+    - applies janis ext conventions to create full filename (incl wildcards)
+"""
 
 
-def derive_names(name: str, datatype: DataType) -> list[str]:
-    raise NotImplementedError
+def get_extensions(dtype: File) -> list[str]:
+    """returns extension of each file for File types with secondaries"""
+    primary_ext: str = ''
+    secondary_exts: list[str] = []
+
+    # primary extension
+    if len(dtype.get_extensions()) > 0:
+        primary_ext = dtype.get_extensions()[0]
+    else:
+        primary_ext = 'primary'
+    
+    # secondary extensions
+    if dtype.secondary_files() is not None:
+        secondary_exts = dtype.secondary_files()
+    else:
+        secondary_exts = []
+
+    return sort_extensions(primary_ext, secondary_exts)
+
+def get_names(dtype: File) -> list[str]:
+    """returns name of each file for File types with secondaries"""
+    exts = get_extensions(dtype)
+    return remove_symbols(exts)
+ 
+def sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
+    out: list[str] = []
+    out.append(primary_ext)
+    secondary_exts = sorted(secondary_exts, key=lambda x: x.rsplit('.')[-1])
+    out += secondary_exts
+    return out
+
+def remove_symbols(exts: list[str]) -> list[str]:
+    return [x.rsplit('.')[-1] for x in exts]
+
+def is_secondary_type(dtype: DataType) -> bool:
+    basetype = nfgen_utils.get_base_type(dtype)
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        return True
+    return False
+
+def is_array_secondary_type(dtype: DataType) -> bool:
+    if isinstance(dtype, Array) and is_secondary_type(dtype):
+        return True
+    return False
+
+
 
 
 """

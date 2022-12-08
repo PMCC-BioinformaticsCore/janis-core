@@ -40,6 +40,7 @@ def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     channel_wfinp_ids = get_channel_process_inputs(sources)
     step_conn_ids = get_connection_process_inputs(sources)
     scatter_wfinp_ids = get_scatter_process_inputs(sources)
+    # input_selector_ids = get_input_selector_inputs(sources)
     surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids
     return surviving_ids
 

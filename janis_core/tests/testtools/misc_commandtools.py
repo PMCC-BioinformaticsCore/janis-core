@@ -158,7 +158,7 @@ class FilenameGeneratedTool(SingleTestTool):
 
 class BasicTestTool(CommandTool):
     def tool(self):
-        return "TestTranslationtool"
+        return "BasicTestTool"
 
     def base_command(self):
         return "echo"

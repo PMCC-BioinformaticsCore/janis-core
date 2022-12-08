@@ -13,6 +13,7 @@ from janis_core import (
 
 from janis_core.tests.testtools import (
     EchoTestTool,
+    BasicTestTool,
     CatTestTool,
     SecondaryOutputTestTool,
 )
@@ -87,12 +88,6 @@ class ConditionStepTestWF(Workflow):
 
 
 class AliasSelectorTestWF(Workflow):
-    def id(self) -> str:
-        return "TestWorkflowWithAliasSelectorWorkflow"
-
-    def friendly_name(self):
-        return "Test Workflow with alias selector in the output"
-
     def constructor(self):
         self.input("inp", String, value="abc")
 
@@ -100,6 +95,38 @@ class AliasSelectorTestWF(Workflow):
         self.step("stp2", CatTestTool(inp=self.stp1.out.as_type(File)))
 
         self.output("out", source=self.stp1.out)
+    
+    def friendly_name(self):
+        return "TEST: AliasSelectorTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class IndexOperatorTestWF(Workflow):
+    def constructor(self):
+        self.input("inFileArr", Array(File()))
+        self.step("stp1", EchoTestTool(inp=self.inFileArr[0]))
+        self.output("out", source=self.stp1.out)
+    
+    def friendly_name(self):
+        return "TEST: AliasSelectorTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class StringFormatterTestWF(Workflow):
+    def constructor(self):
+        self.input("inStr", String())
+        self.step("stp1", BasicTestTool(testtool=self.inStr))
+        self.output("std", source=self.stp1.std)
+    
+    def friendly_name(self):
+        return "TEST: StringFormatterTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
 
 
 class ForEachTestWF(Workflow):

@@ -20,7 +20,8 @@ from janis_core.tests.testtools import (
     StringTestTool,
     IntTestTool,
     WildcardSelectorTestTool,
-    InputSelectorTestTool,
+    FileInputSelectorTestTool,
+    StringInputSelectorTestTool,
     ComponentsTestTool,
     SecondariesTestTool,
     SecondariesReplacedTestTool,
@@ -108,18 +109,23 @@ class WildcardSelectorOutputTestWF(Workflow):
 
 
 # all InputSelector use cases
-class InputSelectorOutputTestWF(Workflow):
+class InputSelectorTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
+        self.input('inStr', String)
         self.input('inFileArr', Array(File))
 
         self.step(
             "stp1", 
-            InputSelectorTestTool(inp=self.inFile)
+            FileInputSelectorTestTool(inp=self.inFile)
         )
         self.step(
             "stp2", 
+            StringInputSelectorTestTool(inp=self.inStr)
+        )
+        self.step(
+            "stp3", 
             ArrayInputSelectorTestTool(inp=self.inFileArr)
         )
 

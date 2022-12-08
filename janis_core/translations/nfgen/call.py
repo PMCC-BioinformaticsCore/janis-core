@@ -53,13 +53,16 @@ def get_args(
             src = sources[name]
             scatter_target = True if scatter and name in scatter.fields else False
             scatter_method = scatter.method if scatter else None
-            args = unwrap_expression(
-                value=src,
+            res = unwrap_expression(
+                val=src,
                 sources=sources,
                 scatter_target=scatter_target,
                 scatter_method=scatter_method
             )
-            call_args += args
+            if isinstance(res, list):
+                call_args += res
+            else:
+                call_args.append(res)
     return call_args
 
 
@@ -162,7 +165,7 @@ if settings.PYTHON_CODE_FILE_PATH_PARAM in value:
 #     conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
 
 #     # arrays of secondaries
-#     if nfgen_utils.is_array_secondary_type(conn_out.outtype):
+#     if secondaries.is_array_secondary_type(conn_out.outtype):
 #         raise NotImplementedError
 #     else:
 #         upstream_step_id = to_case(upstream_step.id(), settings.NEXTFLOW_PROCESS_CASE)

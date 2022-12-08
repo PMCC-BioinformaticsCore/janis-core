@@ -466,7 +466,7 @@ class NextflowTranslator(TranslatorBase):
             for out in wf.output_nodes.values():
                 # outname = f'{name}_{out.id()}'
                 outname = out.id()
-                expression = nfgen.unwrap_expression(value=out.source)
+                expression = nfgen.unwrap_expression(val=out.source)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
         # main
@@ -744,7 +744,7 @@ class NextflowTranslator(TranslatorBase):
     #     :return:
     #     :rtype:
     #     """
-    #     wf_outputs = cls.gen_wf_tool_outputs(workflow)
+    #     wf_outputs = cls.gen_wf_tool_outputs(workflow: Workflow)
     #     output_dict = workflow.outputs_map()
 
     #     inputs = []
@@ -1263,14 +1263,19 @@ class NextflowTranslator(TranslatorBase):
 
         inputs = {}
         process_ids = nfgen.process.get_process_inputs(sources)
-        process_inputs = nfgen.nfgen_utils.items_with_id(tool.inputs(), process_ids)
-        process_inputs_names = [x.id() for x in process_inputs]
 
-        for name in process_inputs_names:
+        for name in process_ids:
             if name in sources:
                 src = sources[name]
+                scatter_target = True if name in scatter.fields else False
 
-                inputs[name] = nfgen.unwrap_source(src, scatter)
+                inputs[name] = nfgen.unwrap_expression(
+                    val=src, 
+                    tool=tool,
+                    sources=sources,
+                    scatter_target=scatter_target,
+                    scatter_method=scatter.method,
+                )
 
                 #elif isinstance(node,)
 
@@ -1411,7 +1416,7 @@ return primary
         **debugkwargs,
     ): 
         return nfgen.unwrap_expression(
-            value=value,
+            val=value,
             # input_in_selectors=cls.INPUT_IN_SELECTORS,
             quote_string=quote_string,
             tool=tool,
@@ -1507,7 +1512,7 @@ return primary
 
 
     @staticmethod
-    def workflow_filename(workflow):
+    def workflow_filename(workflow: Workflow) -> str:
         """
         Generate the main workflow filename
 
@@ -1520,7 +1525,7 @@ return primary
         return workflow.id() + ".nf"
 
     @staticmethod
-    def inputs_filename(workflow):
+    def inputs_filename(workflow: Workflow) -> str:
         """
         Generate the input filename
 
@@ -1533,16 +1538,18 @@ return primary
         return 'nextflow.config'
 
     @staticmethod
-    def tool_filename(tool):
-        prefix = tool
+    def tool_filename(tool: str | Tool) -> str:
+        prefix: str = '' 
         if isinstance(tool, Tool):
             #prefix = tool.versioned_id()
             prefix = tool.id()
+        else:
+            prefix = tool
 
         return prefix + ".nf"
 
     @staticmethod
-    def resources_filename(workflow):
+    def resources_filename(workflow: Workflow) -> str:
         """
         Generate resoureces filename
 

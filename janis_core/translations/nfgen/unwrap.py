@@ -1,13 +1,14 @@
 
 from typing import Any, Optional
 
-from janis_core import Logger
 from janis_core import (
     CommandTool, 
+    PythonTool,
     TInput, 
     Operator, 
     AliasSelector, 
     InputSelector, 
+    ResourceSelector,
     FirstOperator,
     WildcardSelector, 
     StringFormatter
@@ -19,7 +20,6 @@ from janis_core.workflow.workflow import StepNode, InputNode
 from janis_core.types import (
     Filename,
     File,
-    Directory,
     DataType
 )
 from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
@@ -28,6 +28,7 @@ from . import settings
 from . import channels
 from . import params
 from . import nfgen_utils
+from . import secondaries
 
 from .scatter import cartesian_cross_subname
 from .casefmt import to_case
@@ -35,7 +36,7 @@ from .process.inputs import create_inputs
 
 
 def unwrap_expression(
-    value: Any,
+    val: Any,
     
     tool: Optional[CommandTool]=None,
     quote_string: bool=True,
@@ -74,7 +75,8 @@ def unwrap_expression(
         scatter_target=scatter_target,
         scatter_method=scatter_method
     )
-    return unwrapper.unwrap(value)
+    return unwrapper.unwrap(val)
+
 
 
 class Unwrapper:
@@ -141,8 +143,8 @@ class Unwrapper:
         
         # first
         elif isinstance(val, FirstOperator):
-            # TODO implement properly
-            return self.unwrap(val.args[0][0])
+            resolved_list = self.unwrap(val.args[0])
+            return f'{resolved_list}.first()'
         
         # index
         elif isinstance(val, IndexOperator):
@@ -219,16 +221,17 @@ class Unwrapper:
             unwrap(IndexOperator(InputSelector("reads"), 1)) -> "reads2"
 
             """
-            if self.for_output:
-                return self.unwrap_input_selector_output(sel=val)
-            else:
-                return self.unwrap_input_selector(sel=val)
+            return self.unwrap_input_selector(sel=val)
 
         # workflow input
+        elif isinstance(val, InputNode):
+            return self.unwrap_input_node(val)
+        
+        # workflow input selector
         elif isinstance(val, InputNodeSelector):
-            return self.unwrap_input_node(val.input_node)
+            return self.unwrap(val.input_node)
 
-        # step output
+        # step output selector
         elif isinstance(val, StepOutputSelector):
             return self.unwrap_connection(val)
             # step_name = to_case(val.node.id(), settings.NEXTFLOW_PROCESS_CASE)
@@ -283,8 +286,9 @@ class Unwrapper:
         dtype = inp.intype # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
         # secondary files (name mapped to ext of primary file)
+        # TODO secondaries
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            exts = nfgen_utils.get_extensions(basetype)
+            exts = secondaries.get_extensions(basetype)
             name = exts[0]
         # everything else
         else:
@@ -312,7 +316,7 @@ class Unwrapper:
         if isinstance(op.args[0], InputSelector):
             sel = op.args[0]
             inp = self.get_input_by_id(sel.input_to_select)
-            if nfgen_utils.is_secondary_type(inp.intype):
+            if secondaries.is_secondary_type(inp.intype):
                 process_in = create_inputs(inp)[0]
                 print()
 
@@ -326,23 +330,23 @@ class Unwrapper:
 
     def unwrap_connection(self, sel: StepOutputSelector) -> Any:
         # if scatter & output type is Array, use .flatten()
-        args: list[str] = []
         upstream_step: StepNode = sel.node
         upstream_out: str = sel.tag
         conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
 
         # arrays of secondaries
-        if nfgen_utils.is_array_secondary_type(conn_out.outtype):
+        if secondaries.is_array_secondary_type(conn_out.outtype):
+            out: list[str] = []
             raise NotImplementedError
+        
+        # everything else
         else:
             upstream_step_id = to_case(upstream_step.id(), settings.NEXTFLOW_PROCESS_CASE)
             channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
-            arg = self.get_channel_expression(
-                    channel_name=channel_name,
-                    upstream_dtype=conn_out.outtype,
-                )
-            args.append(arg)
-        return args
+            return self.get_channel_expression(
+                channel_name=channel_name,
+                upstream_dtype=conn_out.outtype,
+            )
 
     def unwrap_input_node(self, node: InputNode) -> Any:
         if channels.exists(janis_uuid=node.uuid):
@@ -359,26 +363,27 @@ class Unwrapper:
         ch_name.flatten()           = array -> singles (scatter.dot)
         cartesian_cross.ch_subname  = scatter.cross  
         """
-        args: list[str] = []
         relevant_channels = channels.getall(janis_uuid=node.uuid)
         
         # arrays of secondaries
         if relevant_channels and len(relevant_channels) > 1:
+            out: list[str] = []
             for ch in relevant_channels:
-                arg = self.get_channel_expression(
+                ch_expr = self.get_channel_expression(
                     channel_name=ch.name,
                     upstream_dtype=node.datatype,
                 )
-                args.append(arg)
+                out.append(ch_expr)
         
         # everything else
         elif relevant_channels and len(relevant_channels) == 1:
-            arg = self.get_channel_expression(
+            return self.get_channel_expression(
                 channel_name=relevant_channels[0].name,
                 upstream_dtype=node.datatype,
             )
-            args.append(arg)
-        return args
+        
+        else:
+            raise NotImplementedError
 
     def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
         # scatter
@@ -395,7 +400,7 @@ class Unwrapper:
 
     def unwrap_operator(self, operator: Operator) -> Any:
         unwrap_expression_wrap = lambda x: unwrap_expression(
-            value=x,
+            val=x,
             tool=self.tool,
             # inputs_dict=self.inputs_dict,
             quote_string=self.quote_string,
@@ -444,26 +449,26 @@ class Unwrapper:
         return arg_val
 
 
-    def unwrap_input_selector_output(self, sel: InputSelector) -> Optional[str]:
-        """
-        Generate a string expression to represent a filename in Nextflow
-        """
-        inp = self.get_input_by_id(sel.input_to_select)
-        src = self.get_src_variable(inp)
-        if src is None:
-            return None
+    # def unwrap_input_selector_output(self, sel: InputSelector) -> Optional[str]:
+    #     """
+    #     Generate a string expression to represent a filename in Nextflow
+    #     """
+    #     inp = self.get_input_by_id(sel.input_to_select)
+    #     src = self.get_src_variable(inp)
+    #     if src is None:
+    #         return None
 
-        dtype: DataType = inp.intype # type: ignore
+    #     dtype: DataType = inp.intype # type: ignore
 
-        if nfgen_utils.is_array_secondary_type(dtype):
-            raise NotImplementedError
-        if nfgen_utils.is_secondary_type(dtype):
-            raise NotImplementedError
+    #     if secondaries.is_array_secondary_type(dtype):
+    #         raise NotImplementedError
+    #     if secondaries.is_secondary_type(dtype):
+    #         raise NotImplementedError
         
-        # HERE
-        if not self.tool:
-            raise NotImplementedError
-            return f"${sel.input_to_select}.name"
+    #     # HERE
+    #     if not self.tool:
+    #         raise NotImplementedError
+    #         return f"${sel.input_to_select}.name"
             # raise Exception(
             #     f"Couldn't generate filename as an internal error occurred (self.inputs_dict did not contain {inp.input_to_select})"
             # )
@@ -473,21 +478,21 @@ class Unwrapper:
         #         f"The InputSelector '{sel.input_to_select}' did not select a valid input"
         #     )
 
-        if isinstance(dtype, File):
-            base = src
+        # if isinstance(dtype, File):
+        #     base = src
 
-            if dtype.has_secondary_files():
-                base = f"{base}[0]"
+        #     if dtype.has_secondary_files():
+        #         base = f"{base}[0]"
 
-            if sel.remove_file_extension and dtype.get_extensions():
-                base = f"{base}.simpleName"
+        #     if sel.remove_file_extension and dtype.get_extensions():
+        #         base = f"{base}.simpleName"
 
             # elif hasattr(inp, "localise_file") and inp.localise_file:
             #     base = f"{base}.name"
 
-        elif isinstance(dtype, Filename):
-            self.for_output = True
-            base = f"{self.unwrap(dtype)}"
+        # elif isinstance(dtype, Filename):
+        #     self.for_output = True
+        #     base = f"{self.unwrap(dtype)}"
         
         # elif (
         #     dtype.is_array()
@@ -497,8 +502,8 @@ class Unwrapper:
         # ):
         #     base = f"{src}.map{{ el.name }}"
         
-        else:
-            base = f"{src}"
+        # else:
+        #     base = f"{src}"
 
         # if intype.optional:
         #     replacement = f'{base}, optional: true'
@@ -510,85 +515,61 @@ class Unwrapper:
         # replacement = f'{base}'
 
         # return f"\"${{{replacement}}}\""
-        return base
+        # return base
 
 
     def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
         """
         Translate Janis InputSelector data type into Nextflow expressions
         """
-        inp = self.get_input_by_id(sel.input_to_select)
-        src = self.get_src_variable(inp)
-        if src is None:
+        # TODO arrays
+        # TODO secondaries
+        # TODO runtime inputs
+        # skip_lookup = expr.startswith("runtime_")
+    
+        if not sel.input_to_select:
+            raise Exception("No input was selected for input selector: " + str(sel))
+        
+        # resource selectors
+        if isinstance(sel, ResourceSelector):
+            tool_resources = self.build_resources_dict()
+            expr = tool_resources[sel.input_to_select]
+            dtype: DataType  = sel.resource_type
+
+        # normal input selector
+        else:
+            inp = self.get_input_by_id(sel.input_to_select)
+            # TODO HERE - unwrap again if value driven by InputSelector()
+            expr = self.get_src_variable(inp)
+            dtype: DataType = inp.intype # type: ignore
+
+        if expr is None:
             return None
-
-        # HERE
-        inputs_dict = self.tool.inputs_map()
-
-        # if self.tool.versioned_id() not in self.input_in_selectors:
-        #     self.input_in_selectors[self.tool.versioned_id()] = set()
-
-        # self.input_in_selectors[self.tool.versioned_id()].add(sel.input_to_select)
-
-        expr: str = sel.input_to_select
-        if not expr:
-            raise Exception(
-                "No input was selected for input selector: " + str(sel)
-                # Why is this here???? GH
-            )
-
-        skip_lookup = self.skip_inputs_lookup or expr.startswith("runtime_")
-
-        if not skip_lookup:
-
-            if inputs_dict is None:
-                raise Exception(
-                    f"An internal error occurred when translating input selector '{expr}': the inputs dictionary was None"
-                )
-            if sel.input_to_select not in inputs_dict:
-                raise Exception(
-                    f"Couldn't find the input '{expr}' for the InputSelector(\"{expr}\")"
-                )
-
-            tinp: TInput = inputs_dict[sel.input_to_select]
-
-            intype = tinp.intype
-
-            if intype.is_base_type((File, Directory)):
-                if intype.has_secondary_files():
-                    # TODO HERE
-                    expr = f"{expr}[0]"
-
+        
+        if isinstance(dtype, File):
+            if self.for_output:
+                expr = f"{expr}.name"
+            
             if sel.remove_file_extension:
-                if intype.is_base_type((File, Directory)):
+                expr = f"{expr}.simpleName"
 
-                    potential_extensions = (
-                        intype.get_extensions() if intype.is_base_type(File) else None
-                    )
-                    if sel.remove_file_extension and potential_extensions:
-                        expr = f"{expr}.simpleName"
-
-                elif intype.is_array() and isinstance(
-                    intype.fundamental_type(), (File, Directory)
-                ):
-                    inner_type = intype.fundamental_type()
-                    extensions = (
-                        inner_type.get_extensions()
-                        if isinstance(inner_type, File)
-                        else None
-                    )
-
-                    inner_sel = f"el.basename"
-                    if extensions:
-                        for ext in extensions:
-                            inner_sel += f'.replace(/{ext}$/, "")'
-                    expr = f"{expr}.map(function(el) {{ return {inner_sel}; }})"
-                else:
-                    Logger.warn(
-                        f"InputSelector {expr} is requesting to remove_file_extension but it has type {tinp.intype.id()}"
-                    )
-
-        if self.in_shell_script:
-            expr = f"${{{expr}}}"
+            if self.in_shell_script:
+                expr = f"${{{expr}}}"
+        
+        elif isinstance(dtype, Filename):
+            self.for_output = True
+            expr = f"{self.unwrap(dtype)}"
+        
+        else:
+            expr = f"{expr}"
 
         return expr
+
+    def build_resources_dict(self) -> dict[str, Any]:
+        assert(self.tool)
+        return {
+            'runtime_cpu': self.tool.cpus({}),
+            'runtime_memory': self.tool.memory({}),
+            'runtime_seconds': self.tool.time({}),
+            'runtime_disk': self.tool.disk({}),
+        }

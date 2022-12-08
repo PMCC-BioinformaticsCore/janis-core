@@ -3,8 +3,9 @@
 from typing import Optional, Any, Tuple
 from janis_core import ToolInput, TInput
 from janis_core.types import Boolean, Array, File
-from janis_core.translations.nfgen import nfgen_utils
-from janis_core.translations.nfgen import params
+from .. import nfgen_utils
+from .. import secondaries
+from .. import params
 
 from enum import Enum, auto
 
@@ -122,7 +123,7 @@ def get_src_process_input(inp: ToolInput | TInput) -> str:
     basetype = nfgen_utils.get_base_type(dtype)
     # secondary files (name mapped to ext of primary file)
     if isinstance(basetype, File) and basetype.has_secondary_files():
-        exts = nfgen_utils.get_extensions(basetype)
+        exts = secondaries.get_extensions(basetype)
         name = exts[0]
     # everything else
     else:

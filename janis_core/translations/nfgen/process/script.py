@@ -70,7 +70,7 @@ class ProcessScriptGenerator:
     def handle_cmdtool_preprocessing(self) -> None:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
-                value=dirpath, 
+                val=dirpath, 
                 # input_in_selectors=self.input_in_selectors,
                 # inputs_dict=self.tool.inputs_map(),
                 tool=self.tool, 
@@ -113,7 +113,7 @@ class ProcessScriptGenerator:
         
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         expression = unwrap_expression(
-            value=arg.value,
+            val=arg.value,
             # input_in_selectors=self.input_in_selectors,
             tool=self.tool,
             # inputs_dict=self.tool.inputs_map(),

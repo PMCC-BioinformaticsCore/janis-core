@@ -1,4 +1,3 @@
-from copy import deepcopy
 import unittest
 import regex as re
 
@@ -16,6 +15,7 @@ from janis_core.tests.testtools import (
     BasicTestTool,
     AppendedSecondaryOutputTestTool,
     ReplacedSecondaryOutputTestTool,
+    FileInputSelectorTestTool,
 )
 
 from janis_core.tests.testworkflows import (
@@ -23,7 +23,7 @@ from janis_core.tests.testworkflows import (
     # basics
     BasicIOTestWF,
     WildcardSelectorOutputTestWF,
-    InputSelectorOutputTestWF,
+    InputSelectorTestWF,
     StepInputsTestWF,
     StepInputsWFInputTestWF,
     StepInputsStaticTestWF,
@@ -58,6 +58,8 @@ from janis_core.tests.testworkflows import (
     AliasSelectorTestWF,
     ArraysOfSecondaryFilesOutputsTestWF,
     ForEachTestWF,
+    IndexOperatorTestWF,
+    StringFormatterTestWF,
 
     # codetools
     InputsPythonToolTestWF,
@@ -804,7 +806,7 @@ class TestProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_input_selector(self) -> None:
-        wf = InputSelectorOutputTestWF()
+        wf = InputSelectorTestWF()
         refresh_workflow_inputs(wf)
         # singles
         tool = wf.step_nodes["stp1"].tool
@@ -1913,82 +1915,242 @@ class TestStepFeatures(unittest.TestCase):
     def test_with_expression(self):
         w2 = StepInputExpressionTestWF()
         w2_step_keys = list(w2.step_nodes.keys())
-
-        expected = {
-            "inp": "$params.mystring ? $params.mystring : $params.mystring_backup"
-        }
-        self.assertEqual(
-            expected,
-            translator.gen_step_inval_dict(w2.step_nodes["print"].tool),
-        )
-
-
+        expected = {"inp": "$params.mystring ? $params.mystring : $params.mystring_backup"}
+        actual = translator.gen_step_inval_dict(w2.step_nodes["print"].tool)
+        self.assertEqual(actual, expected)
 
 
 class TestUnwrap(unittest.TestCase):
-    any_tool = BasicTestTool()
 
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    def test_input_node(self) -> None:
+        wf = StepConnectionsTestWF()
+        refresh_workflow_inputs(wf)
+
+        # file input (channel)
+        node = wf.input_nodes['inFile']
+        actual = nfgen.unwrap_expression(node)
+        expected = 'ch_in_file'
+        self.assertEqual(actual, expected)
+
+        # nonfile input (param)
+        node = wf.input_nodes['inStr']
+        actual = nfgen.unwrap_expression(node)
+        expected = 'params.in_str'
+        self.assertEqual(actual, expected)
+
+    def test_step_connection(self) -> None:
+        wf = StepConnectionsTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "stp2"
+        inp_id = 'inp'
+        sources = wf.step_nodes[step_id].sources
+        src = sources[inp_id]
+        actual = nfgen.unwrap_expression(src)
+        expected = 'STP1.out.out'
+        self.assertEqual(actual, expected)
+
+    def test_alias_selector(self) -> None:
+        wf = AliasSelectorTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "stp2"
+        inp_id = 'inp'
+        sources = wf.step_nodes[step_id].sources
+        src = sources[inp_id]
+        actual = nfgen.unwrap_expression(src)
+        expected = 'STP1.out.out'
+        self.assertEqual(actual, expected)
+    
+    def test_first_operator(self) -> None:
+        wf = ConditionStepTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "print"
+        inp_id = 'inp'
+        sources = wf.step_nodes[step_id].sources
+        src = sources[inp_id]
+        actual = nfgen.unwrap_expression(src)
+        expected = '[params.mystring, GET_STRING.out.out].first()'
+        self.assertEqual(actual, expected)
+    
+    def test_index_operator(self) -> None:
+        wf = IndexOperatorTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "stp1"
+        inp_id = 'inp'
+        sources = wf.step_nodes[step_id].sources
+        src = sources[inp_id]
+        actual = nfgen.unwrap_expression(src)
+        expected = 'ch_in_file_arr[0]'
+        self.assertEqual(actual, expected)
+
+    def test_input_selector_process_input(self) -> None:
+        wf = InputSelectorTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp1'
+        output_id = 'out'
+        process_inputs = {'inp'}
+        param_inputs = {}
+        internal_inputs = {}
+        tool = wf.step_nodes[step_id].tool
+        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
+        actual = nfgen.unwrap_expression(
+            val=sel, 
+            tool=tool, 
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+        )
+        expected = "inp"
+        self.assertEqual(actual, expected)
+
+    def test_input_selector_param_input(self) -> None:
+        wf = InputSelectorTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp2'
+        output_id = 'out'
+        process_inputs = {}
+        param_inputs = {'inp'}
+        internal_inputs = {}
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
+        actual = nfgen.unwrap_expression(
+            val=sel, 
+            tool=tool, 
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+        )
+        expected = "params.in_str"
+        self.assertEqual(actual, expected)
+
+
+
+
+class TestStringFormatter(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+    
     def test_string_formatter(self):
-        b = StringFormatter("no format")
-        res = nfgen.translate_string_formatter(b, self.any_tool, {})
+        tool = BasicTestTool()
+        sf = StringFormatter("no format")
+        res = nfgen.unwrap_expression(sf, tool)
         self.assertEqual("no format", res)
 
-    def test_string_formatter_one_string_param(self):
-        b = StringFormatter("there's {one} arg", one="a string")
-        res = nfgen.translate_string_formatter(b, self.any_tool, {})
-        self.assertEqual("there's ${'a string'} arg", res)
-
-    def test_string_formatter_one_input_selector_param(self):
-        b = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
-        res = nfgen.translate_string_formatter(
-            b, self.any_tool, input_in_selectors={}, inputs_dict=self.any_tool.inputs_map(),
+    def test_string_formatter_string(self):
+        tool = BasicTestTool()
+        sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
+        res = nfgen.unwrap_expression(sf, tool)
+        self.assertEqual("there's a ${\"string\"} arg", res)
+    
+    def test_string_formatter_inputselector_process_input(self):
+        tool = BasicTestTool()
+        sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        process_inputs = {'testtool'}
+        param_inputs = {}
+        internal_inputs = {}
+        actual = nfgen.unwrap_expression(
+            val=sf, 
+            tool=tool,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
         )
-        self.assertEqual("an input ${testtool}", res)
+        expected = 'an input ${testtool}'
+        self.assertEqual(actual, expected)
+    
+    def test_string_formatter_inputselector_param_input(self):
+        wf = StringFormatterTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process_inputs = {}
+        param_inputs = {'testtool'}
+        internal_inputs = {}
+        sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        actual = nfgen.unwrap_expression(
+            val=sf, 
+            tool=tool,
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+        )
+        expected = 'an input ${params.in_str}'
+        self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
         tool = InputQualityTestTool()
-        b = StringFormatter(
+        sf = StringFormatter(
             "{username}:{password}",
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        res = nfgen.translate_string_formatter(
-            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        sources = {}
+        process_inputs = {'user', 'static'}
+        param_inputs = {}
+        internal_inputs = {}
+        actual = nfgen.unwrap_expression(
+            val=sf,
+            tool=tool,
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
         )
-        self.assertEqual(
-            "${user}:${static}",
-            res,
-        )
+        expected = '${user}:${static}'
+        self.assertEqual(actual, expected)
 
     def test_escaped_characters(self):
         tool = InputQualityTestTool()
-        b = StringFormatter(
+        sf = StringFormatter(
             "{username}\\t{password}",
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        res = nfgen.translate_string_formatter(
-            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        sources = {}
+        process_inputs = {'user', 'static'}
+        param_inputs = {}
+        internal_inputs = {}
+        actual = nfgen.unwrap_expression(
+            val=sf,
+            tool=tool,
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
         )
-        self.assertEqual("${user}\\t${static}", res)
-
-        res2 = nfgen.translate_string_formatter(
-            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map(),
-        )
-        self.assertEqual("${user}\\\\t${static}", res2)
+        expected = '${user}\\t${static}'
+        self.assertEqual(actual, expected)
 
     def test_expression_arg(self):
         tool = BasicTestTool()
-        b = StringFormatter(
+        sf = StringFormatter(
             "{name}:{items}",
             name=InputSelector("testtool"),
             items=JoinOperator(InputSelector("arrayInp"), separator=";"),
         )
-
-        res = nfgen.translate_string_formatter(
-            b, tool, input_in_selectors={}, inputs_dict=tool.inputs_map()
+        sources = {}
+        process_inputs = {'testtool', 'arrayInp'}
+        param_inputs = {}
+        internal_inputs = {}
+        actual = nfgen.unwrap_expression(
+            val=sf,
+            tool=tool,
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
         )
-        self.assertEqual("${testtool}:${arrayInp.join(';')}", res)
+        expected = "${testtool}:${arrayInp.join(\";\")}"
+        self.assertEqual(actual, expected)
 
 
 

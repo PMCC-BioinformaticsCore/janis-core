@@ -107,36 +107,48 @@ class ResourcesTestTool(CommandTool):
 
 
 
-
-class OutputTestTool(CommandTool):
-    def tool(self) -> str:
-        return "OutputTestTool"
-
+class EchoBase(CommandTool):
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"
-
-    def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", File, position=1)]
-
+    
     def container(self) -> str:
         return "ubuntu:latest"
 
     def version(self) -> str:
         return "TEST"
 
-class WildcardSelectorTestTool(OutputTestTool):
+
+class WildcardSelectorTestTool(EchoBase):
     def tool(self) -> str:
         return "WildcardSelectorTestTool"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", File, position=1)]
 
     def outputs(self):
         return [ToolOutput("out", File, selector=WildcardSelector('myfile.txt'))]
 
-class InputSelectorTestTool(OutputTestTool):
+
+class FileInputSelectorTestTool(EchoBase):
     def tool(self) -> str:
         return "InputSelectorTestTool"
 
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", File, position=1)]
+
     def outputs(self):
         return [ToolOutput("out", File, selector=InputSelector('inp'))]
+
+
+class StringInputSelectorTestTool(EchoBase):
+    def tool(self) -> str:
+        return "InputSelectorTestTool"
+    
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", String, position=1)]
+
+    def outputs(self):
+        return [ToolOutput("out", String, selector=InputSelector('inp'))]
 
 
 

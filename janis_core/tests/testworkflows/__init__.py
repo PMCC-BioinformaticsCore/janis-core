@@ -5,7 +5,7 @@ from .core_features import (
     # basics
     BasicIOTestWF,
     WildcardSelectorOutputTestWF,
-    InputSelectorOutputTestWF,
+    InputSelectorTestWF,
     StepInputsTestWF,
     StepInputsWFInputTestWF,
     StepInputsStaticTestWF,
@@ -41,7 +41,9 @@ from .additional_features import (
     ConditionStepTestWF,
     AliasSelectorTestWF,
     ArraysOfSecondaryFilesOutputsTestWF,
-    ForEachTestWF
+    ForEachTestWF,
+    IndexOperatorTestWF,
+    StringFormatterTestWF,
 )
 
 from .codetools import (
