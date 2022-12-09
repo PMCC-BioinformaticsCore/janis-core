@@ -123,7 +123,7 @@ def get_src_process_input(inp: ToolInput | TInput) -> str:
     basetype = nfgen_utils.get_base_type(dtype)
     # secondary files (name mapped to ext of primary file)
     if isinstance(basetype, File) and basetype.has_secondary_files():
-        exts = secondaries.get_extensions(basetype)
+        exts = secondaries.get_names(basetype)
         name = exts[0]
     # everything else
     else:

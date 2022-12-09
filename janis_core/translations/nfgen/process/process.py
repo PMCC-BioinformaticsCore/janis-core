@@ -22,6 +22,7 @@ class ProcessScriptType(Enum):
 class Process(NFBase):
     def __init__(
         self,
+        # scope: list[str],
         name: str,
         script: str,
         script_type: Optional[ProcessScriptType] = None,
@@ -32,6 +33,7 @@ class Process(NFBase):
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
+        # self.scope = scope
         self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
 
         self.script = script

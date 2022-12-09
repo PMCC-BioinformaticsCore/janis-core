@@ -93,7 +93,8 @@ class TranslatorBase(ABC):
 
     __metaclass__ = TranslatorMeta
 
-    DIR_TOOLS = "tools"
+    DIR_TOOLS: str = "tools"
+    SUBDIRS_TO_CREATE: list[str] = []  # this is if you want to write tools / workflows to subfolders
 
     def __init__(self, name):
         self.name = name
@@ -108,7 +109,7 @@ class TranslatorBase(ABC):
         write_inputs_file=True,
         export_path=ExportPathKeywords.default,
         should_validate=False,
-        should_zip=True,
+        should_zip=True,   
         merge_resources=False,
         hints=None,
         allow_null_if_not_optional=True,
@@ -121,9 +122,10 @@ class TranslatorBase(ABC):
         container_override=None,
         render_comments: bool = True
     ):
-
+        should_zip = False # TODO attention this may need to be True to avoid breaking tests
         str_tool, tr_tools, tr_helpers = None, [], {}
 
+        # GENERATE MAIN FILE
         if tool.type() == ToolType.Workflow:
             tr_tool, tr_tools = self.translate_workflow(
                 tool,
@@ -153,8 +155,26 @@ class TranslatorBase(ABC):
             )
             str_tool = self.stringify_translated_tool(tr_tool)
 
-        tr_helpers = self.translate_helper_files(tool)
+        # GENERATE SUBFILES - COMMANDTOOLS, PYTHONTOOLS & SUBWORKFLOWS
+        # [filepath, filecontents] for subfiles (tools, subworkflows etc)
+        str_tools = [
+            (
+                os.path.join(self.DIR_TOOLS, self.tool_filename(t)),
+                self.stringify_translated_workflow(tr_tools[t]),
+            )
+            for t in tr_tools
+        ]
 
+        # GENERATE AUXILIARY FILES
+        # {filepath: filecontents} for auxiliary files (PythonTool code.py files etc)
+        tr_helpers = self.translate_helper_files(tool)
+        str_helpers = [
+            (os.path.join(self.DIR_TOOLS, filename), tr_helpers[filename])
+            for filename, file_content in tr_helpers.items()
+        ]
+
+        # GENERATE INPUT CONFIG
+        # {name: value} for inputs config file (nextflow.config, inputs.yaml etc)
         tr_inp = self.build_inputs_file(
             tool,
             recursive=False,
@@ -165,23 +185,15 @@ class TranslatorBase(ABC):
             max_mem=max_mem,
             max_duration=max_duration,
         )
-        tr_res = self.build_resources_input(tool, hints)
-
+        # inputs config file contents
         str_inp = self.stringify_translated_inputs(tr_inp)
-        str_tools = [
-            (
-                os.path.join(self.DIR_TOOLS, self.tool_filename(t)),
-                self.stringify_translated_workflow(tr_tools[t]),
-            )
-            for t in tr_tools
-        ]
+
+        # {name: value} for resource inputs config
+        tr_res = self.build_resources_input(tool, hints)
+        # resource config file contents
         str_resources = self.stringify_translated_inputs(tr_res)
 
-        str_helpers = [
-            (os.path.join(self.DIR_TOOLS, filename), tr_helpers[filename])
-            for filename, file_content in tr_helpers.items()
-        ]
-
+        # WRITING TO CONSOLE
         if to_console:
             print("=== WORKFLOW ===")
             print(str_tool)
@@ -194,63 +206,76 @@ class TranslatorBase(ABC):
                 print("\n=== RESOURCES ===")
                 print(str_resources)
 
-        d = ExportPathKeywords.resolve(
-            export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
-        )
-
-        fn_workflow = self.workflow_filename(tool)
-        fn_inputs = self.inputs_filename(tool)
-        fn_resources = self.resources_filename(tool)
-
-        if to_disk and write_inputs_file:
-            if not os.path.isdir(d):
-                os.makedirs(d)
-
-            with open(os.path.join(d, fn_inputs), "w+") as f:
-                Logger.log(f"Writing {fn_inputs} to disk")
-                f.write(str_inp)
-                Logger.log(f"Written {fn_inputs} to disk")
-        else:
-            Logger.log("Skipping writing input (yaml) job file")
-
+        # WRITING TO DISK        
         if to_disk:
+            # setting filepaths
+            fn_workflow = self.workflow_filename(tool)
+            fn_inputs = self.inputs_filename(tool)
+            fn_resources = self.resources_filename(tool)
+            basedir = ExportPathKeywords.resolve(
+                export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
+            )
 
-            toolsdir = os.path.join(d, self.DIR_TOOLS)
-            if not os.path.isdir(toolsdir):
-                os.makedirs(toolsdir)
+            # generating subfolders
+            subfolders: list[str] = []
+            subfolders.append(self.DIR_TOOLS)
+            subfolders += self.SUBDIRS_TO_CREATE
+            for subfolder in subfolders:
+                path = os.path.join(basedir, subfolder)
+                if not os.path.isdir(path):
+                    os.makedirs(path)
 
-            Logger.info(f"Exporting tool files to '{d}'")
+            # writing inputs config file
+            if write_inputs_file:
+                if not os.path.isdir(basedir):
+                    os.makedirs(basedir)
 
-            with open(os.path.join(d, fn_workflow), "w+") as wf:
-                Logger.log(f"Writing {fn_workflow} to disk")
-                wf.write(str_tool)
-                Logger.log(f"Wrote {fn_workflow}  to disk")
+                with open(os.path.join(basedir, fn_inputs), "w+") as f:
+                    Logger.log(f"Writing {fn_inputs} to disk")
+                    f.write(str_inp)
+                    Logger.log(f"Written {fn_inputs} to disk")
+            else:
+                Logger.log("Skipping writing input (yaml) job file")
 
-            for (fn_helper, disk_str_helper) in str_helpers:
-                with open(os.path.join(d, fn_helper), "w+") as helperfp:
-                    Logger.log(f"Writing {fn_helper} to disk")
-                    helperfp.write(disk_str_helper)
-                    Logger.log(f"Written {fn_helper} to disk")
-
-            for (fn_tool, disk_str_tool) in str_tools:
-                with open(os.path.join(d, fn_tool), "w+") as toolfp:
-                    Logger.log(f"Writing {fn_tool} to disk")
-                    toolfp.write(disk_str_tool)
-                    Logger.log(f"Written {fn_tool} to disk")
-
+            # writing resources config file
             if not merge_resources and with_resource_overrides:
                 print("\n=== RESOURCES ===")
-                with open(os.path.join(d, fn_resources), "w+") as wf:
+                with open(os.path.join(basedir, fn_resources), "w+") as wf:
                     Logger.log(f"Writing {fn_resources} to disk")
                     wf.write(str_inp)
                     Logger.log(f"Wrote {fn_resources}  to disk")
                 print(str_resources)
 
+            # writing workflow / tool files
+            Logger.info(f"Exporting tool files to '{basedir}'")
+
+            # writing main workflow
+            with open(os.path.join(basedir, fn_workflow), "w+") as wf:
+                Logger.log(f"Writing {fn_workflow} to disk")
+                wf.write(str_tool)
+                Logger.log(f"Wrote {fn_workflow}  to disk")
+
+            # writing tools, subworkflows
+            for (fn_tool, disk_str_tool) in str_tools:
+                path = os.path.join(basedir, fn_tool)
+                with open(path, "w+") as toolfp:
+                    Logger.log(f"Writing {fn_tool} to disk")
+                    toolfp.write(disk_str_tool)
+                    Logger.log(f"Written {fn_tool} to disk")
+            
+            # writing helper files 
+            for (fn_helper, disk_str_helper) in str_helpers:
+                with open(os.path.join(basedir, fn_helper), "w+") as helperfp:
+                    Logger.log(f"Writing {fn_helper} to disk")
+                    helperfp.write(disk_str_helper)
+                    Logger.log(f"Written {fn_helper} to disk")
+
+            # zipping tools file
             import subprocess
 
             if should_zip:
                 Logger.debug("Zipping tools")
-                with Path(d):
+                with Path(basedir):
                     FNULL = open(os.devnull, "w")
                     zip_result = subprocess.run(
                         ["zip", "-r", "tools.zip", "tools/"], stdout=FNULL
@@ -261,7 +286,7 @@ class TranslatorBase(ABC):
                         Logger.critical(str(zip_result.stderr.decode()))
 
             if should_validate:
-                with Path(d):
+                with Path(basedir):
 
                     Logger.info(f"Validating outputted {self.name}")
 

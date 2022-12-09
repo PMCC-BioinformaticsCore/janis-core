@@ -1,3 +1,6 @@
+
+import os
+
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from textwrap import indent
@@ -20,7 +23,6 @@ class NFBase(ABC):
     @abstractmethod
     def get_string(self) -> str:
         raise Exception("Subclass must override .get_string() method")
-
 
 class ImportItem(NFBase):
     def __init__(self, name: str, alias: Optional[str] = None):
@@ -49,10 +51,9 @@ class Import(NFBase):
         return f"include {{ {items} }} from '{self.source}'"
 
 
-
-
 class NFFile(NFBase):
-    def __init__(self, imports: List[Import], items: List[NFBase], name: Optional[str]=None):
+    def __init__(self, subtype: str, imports: List[Import], items: List[NFBase], name: Optional[str]=None):
+        self.subtype = subtype
         self.imports = imports
         self.items = items
         self._name = name
@@ -60,6 +61,16 @@ class NFFile(NFBase):
     @property
     def name(self) -> str:
         return self._name  # type: ignore
+    
+    @property
+    def path(self) -> str:
+        if self.subtype == 'process':
+            directory = 'modules'
+        elif self.subtype == 'sub_workflow':
+            directory = 'subworkflows'
+        elif self.subtype == 'main_workflow':
+            directory = ''
+        return os.path.join(directory, self.name)
 
     def get_string(self) -> str:
         components = [f"nextflow.enable.dsl=2"]

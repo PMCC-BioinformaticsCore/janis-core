@@ -32,7 +32,7 @@ from .channels import ChannelOperation
 from .config import generate_config
 from .unwrap import unwrap_expression
 from .formatting import format_process_call
-from .nfgen_utils import to_groovy
+from .nfgen_utils import to_groovy, get_construct_name
 from .register import register_params_channels
 
 

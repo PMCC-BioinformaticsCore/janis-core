@@ -9,12 +9,20 @@ from janis_core import (
     CommandTool,
     PythonTool,
     TInput,
+    ToolInput,
+    ToolArgument
 )
 
 from .. import settings
 from .. import channels
 from .. import params
 from .. import nfgen_utils as nfgen_utils
+
+
+
+
+
+# def get_derived_inputs(tool: PythonTool | CommandTool, sources: dict[str, Any]) -> set[str]:
 
 
 
@@ -40,7 +48,7 @@ def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     channel_wfinp_ids = get_channel_process_inputs(sources)
     step_conn_ids = get_connection_process_inputs(sources)
     scatter_wfinp_ids = get_scatter_process_inputs(sources)
-    # input_selector_ids = get_input_selector_inputs(sources)
+    # derived_inputs = get_derived_inputs(sources)
     surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids
     return surviving_ids
 
@@ -79,6 +87,8 @@ def get_param_inputs(sources: dict[str, Any]) -> set[str]:
     """
     determine the tool inputs which should be fed a value via params
     """
+    # if isinstance(tool, PythonTool):
+    #     raise NotImplementedError
     if settings.MODE == 'workflow':
         return get_param_inputs_workflowmode(sources)
     elif settings.MODE == 'tool':  # type: ignore
@@ -91,8 +101,10 @@ def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     inputs which are fed (via step inputs) using a non-File type workflow input
     """
     if settings.MINIMAL_PROCESS:
-        surviving_ids = get_param_process_inputs(sources)
-        surviving_ids = surviving_ids - get_process_inputs(sources)
+        process_input_ids = get_process_inputs(sources)
+        param_input_ids = get_param_process_inputs(sources)
+        # referenced_input_ids = get_referenced_inputs(tool)
+        surviving_ids = param_input_ids - process_input_ids
     else:
         raise NotImplementedError
         all_inputs: list[TInput] = list(tool.inputs_map().values())
@@ -100,6 +112,17 @@ def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
         process_ids = get_process_inputs(sources)
         surviving_ids = all_ids - process_ids
     return surviving_ids
+
+# def get_referenced_inputs(tool: CommandTool) -> set[str]:
+#     out: set[str] = set()
+    
+#     for inp in tool.inputs():
+#         pass
+    
+#     for arg in tool.arguments():
+#         if not isinstance(inp.value)
+    
+#     return out
 
 def get_param_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
     """

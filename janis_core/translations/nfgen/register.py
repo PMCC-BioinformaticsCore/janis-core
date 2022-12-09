@@ -123,7 +123,7 @@ class ParamChannelRegisterer:
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         exts: list[str] = []
-        exts = secondaries.get_extensions(inp.datatype)
+        exts = secondaries.get_names(inp.datatype)
         
         # register a param for each individual file
         if is_param_input:
@@ -156,7 +156,7 @@ class ParamChannelRegisterer:
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         basetype = nfgen_utils.get_base_type(inp.datatype)
-        exts = secondaries.get_extensions(basetype)
+        exts = secondaries.get_names(basetype)
         
         if is_param_input:
             # register a param for each .ext

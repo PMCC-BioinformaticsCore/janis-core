@@ -1,9 +1,9 @@
 from textwrap import indent
 from typing import Optional
 
-from janis_core.translations.nfgen.common import NFBase, filter_null
-from . import settings
+from .common import NFBase, filter_null
 from .casefmt import to_case
+from . import settings
 
 class WorkflowTake(NFBase):
     """
@@ -74,22 +74,19 @@ class WorkflowEmit(NFBase):
 class Workflow(NFBase):
     def __init__(
         self,
+        # scope: list[str],
         name: str,
         main: list[str],
         take: Optional[list[WorkflowTake]]=None,
         emit: Optional[list[WorkflowEmit]]=None,
         is_subworkflow: bool=False
     ):
+        # self.scope = scope
         self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
         self.main = main
         self.take = take or []
         self.emit = emit or []
         self.is_subworkflow = is_subworkflow
-        # self.publish = publish or []
-
-    # @property
-    # def inputs(self) -> Optional[str]:
-    #     return self.take
 
     @property
     def main_block(self) -> Optional[str]:

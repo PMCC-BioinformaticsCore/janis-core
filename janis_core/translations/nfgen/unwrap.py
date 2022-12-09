@@ -1,17 +1,11 @@
 
 from typing import Any, Optional
+NoneType = type(None)
 
 from janis_core import (
     CommandTool, 
-    PythonTool,
-    TInput, 
-    Operator, 
-    AliasSelector, 
-    InputSelector, 
-    ResourceSelector,
-    FirstOperator,
-    WildcardSelector, 
-    StringFormatter
+    ToolInput, 
+    Operator
 )
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.operator import IndexOperator
@@ -22,7 +16,49 @@ from janis_core.types import (
     File,
     DataType
 )
-from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
+
+from janis_core.operators.logical import (
+    IsDefined,
+    If,
+    AssertNotNull,
+    FloorOperator,
+    CeilOperator,
+    RoundOperator
+)
+from janis_core.operators.standard import (
+    ReadContents,
+    ReadJsonOperator,
+    JoinOperator,
+    BasenameOperator,
+    TransposeOperator,
+    LengthOperator,
+    RangeOperator,
+    FlattenOperator,
+    ApplyPrefixOperator,
+    FileSizeOperator,
+    FirstOperator,
+    FilterNullOperator,
+    ReplaceOperator
+)
+from janis_core.operators.operator import (
+    IndexOperator,
+    AsStringOperator,
+    AsBoolOperator,
+    AsIntOperator,
+    AsFloatOperator,
+)
+from janis_core.operators.selectors import (
+    InputNodeSelector, 
+    StepOutputSelector,
+    AliasSelector, 
+    InputSelector, 
+    MemorySelector,
+    CpuSelector,
+    DiskSelector,
+    TimeSelector,
+    WildcardSelector, 
+)
+from janis_core.operators.stringformatter import StringFormatter
 
 from . import settings
 from . import channels
@@ -40,7 +76,6 @@ def unwrap_expression(
     
     tool: Optional[CommandTool]=None,
     quote_string: bool=True,
-    for_output: bool=False,
     skip_inputs_lookup: bool=False,
     in_shell_script: bool=False, 
     
@@ -51,19 +86,11 @@ def unwrap_expression(
 
     scatter_target: bool=False,
     scatter_method: Optional[ScatterMethod]=None,
-    
-    # input_in_selectors: Optional[dict[str, Any]]=None,
-    # inputs_dict: Optional[dict[str, TInput]]=None,
-    # var_indicator: Optional[str]=None,
-    # step_indicator: Optional[str]=None,
-    # **debugkwargs: Any,
-) -> Any:
+    ) -> Any:
+
     unwrapper = Unwrapper(
-        # input_in_selectors=input_in_selectors,
         tool=tool,
-        # inputs_dict=inputs_dict,
         quote_string=quote_string,
-        for_output=for_output,
         skip_inputs_lookup=skip_inputs_lookup,
         in_shell_script=in_shell_script,
 
@@ -85,11 +112,8 @@ class Unwrapper:
     """
     def __init__(
         self,
-        # input_in_selectors: Optional[dict[str, Any]]=None,
         tool: Optional[CommandTool]=None,
-        # inputs_dict: Optional[dict[str, TInput]]=None,
         quote_string: bool=True,
-        for_output: bool=False,
         skip_inputs_lookup: bool=False,
         in_shell_script: bool=False, 
 
@@ -101,11 +125,8 @@ class Unwrapper:
         scatter_target: bool=False,
         scatter_method: Optional[ScatterMethod]=None,
     ) -> None:
-        # self.input_in_selectors = input_in_selectors if input_in_selectors else {}
         self.tool = tool
-        # self.inputs_dict = inputs_dict
         self.quote_string = quote_string
-        self.for_output = for_output
         self.skip_inputs_lookup = skip_inputs_lookup
         self.in_shell_script = in_shell_script
 
@@ -117,149 +138,94 @@ class Unwrapper:
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
 
-    def unwrap(self, val: Any) -> Any:
-        ### ERRORS 
+        self.func_switchboard = {
+            # primitives
+            NoneType: self.unwrap_null,
+            str: self.unwrap_str,
+            bool: self.unwrap_bool,
+            int: self.unwrap_int,
+            float: self.unwrap_float,
+            list: self.unwrap_list,
 
-        if isinstance(val, StepNode):
+            # logical operators
+            IsDefined: self.unwrap_is_defined_operator,
+            If: self.unwrap_if_operator,
+            AssertNotNull: self.unwrap_assert_not_null_operator,
+            FloorOperator: self.unwrap_floor_operator,
+            CeilOperator: self.unwrap_ceil_operator,
+            RoundOperator: self.unwrap_round_operator,
+
+            # operator operators
+            IndexOperator: self.unwrap_index_operator,
+            AsStringOperator: self.unwrap_as_string_operator,
+            AsBoolOperator: self.unwrap_as_bool_operator,
+            AsIntOperator: self.unwrap_as_int_operator,
+            AsFloatOperator: self.unwrap_as_float_operator,
+            
+            # standard operators
+            ReadContents: self.unwrap_read_contents_operator,
+            ReadJsonOperator: self.unwrap_read_json_operator,
+            JoinOperator: self.unwrap_join_operator,
+            BasenameOperator: self.unwrap_basename_operator,
+            TransposeOperator: self.unwrap_transpose_operator,
+            LengthOperator: self.unwrap_length_operator,
+            RangeOperator: self.unwrap_range_operator,
+            FlattenOperator: self.unwrap_flatten_operator,
+            ApplyPrefixOperator: self.unwrap_apply_prefix_operator,
+            FileSizeOperator: self.unwrap_file_size_operator,
+            FirstOperator: self.unwrap_first_operator,
+            FilterNullOperator: self.unwrap_filter_null_operator,
+            ReplaceOperator: self.unwrap_replace_operator,
+            
+            # selectors
+            AliasSelector: self.unwrap_alias_selector,
+            InputNodeSelector: self.unwrap_input_node_selector,
+            WildcardSelector: self.unwrap_wildcard_selector,
+            InputSelector: self.unwrap_input_selector,
+            StepOutputSelector: self.unwrap_step_output_selector,
+            MemorySelector: self.unwrap_memory_selector,
+            CpuSelector: self.unwrap_cpu_selector,
+            DiskSelector: self.unwrap_disk_selector,
+            TimeSelector: self.unwrap_time_selector,
+
+            # misc 
+            StepTagInput: self.unwrap_step_tag_input,
+            Edge: self.unwrap_edge,
+            StringFormatter: self.unwrap_string_formatter,
+            Filename: self.unwrap_filename,
+            InputNode: self.unwrap_input_node,
+        }
+    
+    ### SWITCHBOARD ###
+
+    def unwrap(self, val: Any) -> Any:
+        
+        # most cases
+        vtype = type(val)
+        if type(val) in self.func_switchboard:
+            func = self.func_switchboard[type(val)]
+            return func(val)
+
+        # anything else with a .to_nextflow() method
+        elif callable(getattr(val, "to_nextflow", None)):
+            return self.unwrap_operator(val)
+        
+        # errors 
+
+        elif isinstance(val, StepNode):
             raise Exception(
                 f"The Step node '{val.id()}' was found when unwrapping an expression, "
                 f"you might not have selected an output."
             )
 
-        ### INTERMEDIATE NODES 
-
-        # step source
-        if isinstance(val, StepTagInput):
-            self.quote_string = False
-            return self.unwrap(val.source_map[0])
-
-        # edge
-        elif isinstance(val, Edge):
-            return self.unwrap(val.source)
-
-        # alias
-        elif isinstance(val, AliasSelector):
-            return self.unwrap(val.inner_selector)
-        
-        # first
-        elif isinstance(val, FirstOperator):
-            resolved_list = self.unwrap(val.args[0])
-            return f'{resolved_list}.first()'
-        
-        # index
-        elif isinstance(val, IndexOperator):
-            return self.unwrap_index_operator(val)
-
-        ### LEAF NODES
-
-        # None
-        elif val is None:
-            if self.quote_string:
-                return "null"
-            return None
-
-        # str
-        elif isinstance(val, str):
-            if self.quote_string:
-                return f'"{val}"'
-            return val
-
-        # bool
-        elif isinstance(val, bool):
-            if self.quote_string:
-                return f'"{val}"'
-            return val
-
-        # numeric
-        elif isinstance(val, int) or isinstance(val, float):
-            return str(val)
-
-        # list
-        if isinstance(val, list):
-            # toolid = str(debugkwargs.get("tool_id", "unwrap_list_expression"))
-            elements: list[Any] = []
-            for elem in val:
-                el = self.unwrap(val=elem)
-                elements.append(el)
-            list_representation = f"[{', '.join(elements)}]"
-            return list_representation
-
-        # Filename
-        elif isinstance(val, Filename):
-            formatted = val.generated_filename()
-            return formatted
-
-        elif isinstance(val, StringFormatter):
-            assert(self.tool)
-            # self.in_shell_script = False
-            # self.skip_inputs_lookup = False
-            return self.translate_string_formatter(val)
-
-        # tool input
-        elif isinstance(val, InputSelector):
-            """
-            TODO: edge case for secondaries 
-
-            ToolInput("reads", FastqGzPair),
-            ToolInput(
-                "read1",
-                FastqGz(optional=True),
-                default=IndexOperator(InputSelector("reads"), 0),
-                position=5,
-            ),
-            ToolInput(
-                "read2",
-                FastqGz(optional=True),
-                default=IndexOperator(InputSelector("reads"), 1),
-                position=6,
-            ),
-
-            janis: ToolInput("reads", FastqGzPair)
-            nextflow: tuple path(reads1), path(reads2)
-
-            unwrap(IndexOperator(InputSelector("reads"), 0)) -> "reads1"
-            unwrap(IndexOperator(InputSelector("reads"), 1)) -> "reads2"
-
-            """
-            return self.unwrap_input_selector(sel=val)
-
-        # workflow input
-        elif isinstance(val, InputNode):
-            return self.unwrap_input_node(val)
-        
-        # workflow input selector
-        elif isinstance(val, InputNodeSelector):
-            return self.unwrap(val.input_node)
-
-        # step output selector
-        elif isinstance(val, StepOutputSelector):
-            return self.unwrap_connection(val)
-            # step_name = to_case(val.node.id(), settings.NEXTFLOW_PROCESS_CASE)
-            # return f'{step_name}.out.{val.tag}'
-
-        elif isinstance(val, WildcardSelector):
-            return f'"{val.wildcard}"'
-
-        # any other Operators
-        elif isinstance(val, Operator):
-            return self.unwrap_operator(val)
-        
-        # anything else with a .to_nextflow() method
-        elif callable(getattr(val, "to_nextflow", None)):
-            return val.to_nextflow()
-            # if var_indicator is not None and step_indicator is not None:
-            #     return value.to_nextflow(
-            #         var_indicator=var_indicator, step_indicator=step_indicator
-            #     )
-            # else:
-
         raise Exception(
             "Could not detect type %s to convert to input value" % type(val)
         )
 
-    ### HELPER METHODS
 
-    def get_src_variable(self, inp: TInput) -> Optional[str]:
+    ### HELPERS ###
+
+    def get_src_variable(self, inp: ToolInput) -> Optional[str]:
         assert(self.process_inputs is not None)
         assert(self.param_inputs is not None)
         assert(self.internal_inputs is not None)
@@ -281,21 +247,21 @@ class Unwrapper:
 
         return src
 
-    def get_src_process_input(self, inp: TInput) -> str:
+    def get_src_process_input(self, inp: ToolInput) -> str:
         # data fed via process input
-        dtype = inp.intype # type: ignore
+        dtype = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
         # secondary files (name mapped to ext of primary file)
         # TODO secondaries
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            exts = secondaries.get_extensions(basetype)
+            exts = secondaries.get_names(basetype)
             name = exts[0]
         # everything else
         else:
             name = inp.id()
         return name
 
-    def get_src_param_input(self, inp: TInput) -> str: 
+    def get_src_param_input(self, inp: ToolInput) -> str: 
         # data fed via global param
         assert(self.sources is not None)
         src = self.sources[inp.id()]
@@ -303,11 +269,99 @@ class Unwrapper:
         param = params.get(sel.input_node.uuid)
         return f'params.{param.name}'
 
-    def get_input_by_id(self, inname: str) -> TInput:
+    def get_input_by_id(self, inname: str) -> ToolInput:
         assert(self.tool is not None)
-        inputs_dict = self.tool.inputs_map()
-        inp = inputs_dict[inname]
-        return inp
+        inputs = [x for x in self.tool.inputs() if x.id() == inname]
+        return inputs[0]
+    
+    def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
+        # scatter
+        if self.scatter_target:
+            # ch_bams -> ch_cartesian_cross.bams
+            if self.scatter_method == ScatterMethod.cross:
+                return cartesian_cross_subname(channel_name)
+            # ch_bams -> ch_bams.flatten()
+            elif self.scatter_method == ScatterMethod.dot:
+                if upstream_dtype.is_array():
+                    return f'{channel_name}.flatten()'
+        # everything else
+        return channel_name
+
+    def build_resources_dict(self) -> dict[str, Any]:
+        assert(self.tool)
+        return {
+            'runtime_cpu': self.tool.cpus({}),
+            'runtime_memory': self.tool.memory({}),
+            'runtime_seconds': self.tool.time({}),
+            'runtime_disk': self.tool.disk({}),
+        }
+
+
+    ### LOGIC ###
+
+    # primitives
+    def unwrap_null(self, val: Any) -> Any:
+        return "null"
+        # if self.quote_string:
+        #     return "null"
+        # return None
+
+    def unwrap_str(self, val: str) -> Any:
+        if self.quote_string:
+            return f'"{val}"'
+        return val
+    
+    def unwrap_bool(self, val: bool) -> Any:
+        if self.quote_string:
+            return f'"{val}"'
+        return val
+
+    def unwrap_int(self, val: int) -> Any:
+        return str(val)
+    
+    def unwrap_float(self, val: float) -> Any:
+        return str(val)
+    
+    def unwrap_list(self, val: list[Any]) -> Any:
+        elements: list[Any] = []
+        for elem in val:
+            el = self.unwrap(val=elem)
+            elements.append(el)
+        list_representation = f"[{', '.join(elements)}]"
+        return list_representation
+
+
+    # logical operators
+    
+    def unwrap_is_defined_operator(self, op: IsDefined) -> str:
+        # TODO VALIDATE
+        arg = self.unwrap(op.args[0])
+        return f"binding.hasVariable({arg})"
+        
+    def unwrap_if_operator(self, op: If) -> str:
+        cond = self.unwrap(op.args[0])
+        v1 = self.unwrap(op.args[1])
+        v2 = self.unwrap(op.args[2])
+        return f"{cond} ? {v1} : {v2}"
+
+    def unwrap_assert_not_null_operator(self, op: AssertNotNull) -> str:
+        arg = self.unwrap(op.args[0])
+        return f'assert {arg[0]} != null'
+
+    def unwrap_floor_operator(self, op: FloorOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"Math.floor({arg})"
+
+    def unwrap_ceil_operator(self, op: CeilOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"Math.ceil({arg})"
+
+    def unwrap_round_operator(self, op: RoundOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"Math.round({arg})"
+
+    
+    # operator operators
 
     def unwrap_index_operator(self, op: IndexOperator) -> Any:
         self.quote_string = False
@@ -316,7 +370,7 @@ class Unwrapper:
         if isinstance(op.args[0], InputSelector):
             sel = op.args[0]
             inp = self.get_input_by_id(sel.input_to_select)
-            if secondaries.is_secondary_type(inp.intype):
+            if secondaries.is_secondary_type(inp.input_type):
                 process_in = create_inputs(inp)[0]
                 print()
 
@@ -327,8 +381,132 @@ class Unwrapper:
         index = op.args[1]
         expr = self.unwrap(op.args[0])
         return f"{expr}[{index}]"
+    
+    def unwrap_as_string_operator(self, op: AsStringOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.toString()"
+    
+    def unwrap_as_bool_operator(self, op: AsBoolOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.toBoolean()"
+    
+    def unwrap_as_int_operator(self, op: AsIntOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.toInteger()"
+    
+    def unwrap_as_float_operator(self, op: AsFloatOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"Float.valueOf({arg})"
+    
+    
+    # standard operators
+    
+    def unwrap_read_contents_operator(self, op: ReadContents) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.text"
+        
+    def unwrap_read_json_operator(self, op: ReadJsonOperator) -> str:
+        raise NotImplementedError
+    
+    def unwrap_join_operator(self, op: JoinOperator) -> str:
+        iterable = self.unwrap(op.args[0])
+        separator = self.unwrap(op.args[1])
+        return f"{iterable}.join({separator})"
+    
+    def unwrap_basename_operator(self, op: BasenameOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.name"
+    
+    def unwrap_transpose_operator(self, op: TransposeOperator) -> str:
+        raise NotImplementedError
+    
+    def unwrap_length_operator(self, op: LengthOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.size"
+    
+    def unwrap_range_operator(self, op: RangeOperator) -> str:
+        ceil = self.unwrap(op.args[0])
+        return f'0..{ceil}'
+    
+    def unwrap_flatten_operator(self, op: FlattenOperator) -> str:
+        # TODO VALIDATE
+        arg = self.unwrap(op.args[0])
+        return f'{arg}.flatten()'
+    
+    def unwrap_apply_prefix_operator(self, op: ApplyPrefixOperator) -> str:
+        prefix = self.unwrap(op.args[0])
+        iterable = self.unwrap(op.args[1])
+        return f"{iterable}.map{{item -> {prefix} + item}}"
+    
+    def unwrap_file_size_operator(self, op: FileSizeOperator) -> str:
+        fbytes = self.unwrap(op.args[0])
+        return f"({fbytes}.size / 1048576)"
+    
+    def unwrap_first_operator(self, op: FirstOperator) -> str:
+        resolved_list = self.unwrap(op.args[0])
+        return f'{resolved_list}.first()'
+    
+    def unwrap_filter_null_operator(self, op: FilterNullOperator) -> str:
+        iterable = self.unwrap(op.args[0])
+        return f"{iterable}.filter{{item -> item != null}}"
+    
+    def unwrap_replace_operator(self, op: ReplaceOperator) -> str:
+        # TODO VALIDATE
+        base = self.unwrap(op.args[0])
+        pattern = self.unwrap(op.args[1])
+        replacement = self.unwrap(op.args[2])
+        return f"{base}.replaceAll({pattern}, {replacement})"
 
-    def unwrap_connection(self, sel: StepOutputSelector) -> Any:
+    
+    # selectors
+
+    def unwrap_alias_selector(self, val: AliasSelector) -> Any:
+        return self.unwrap(val.inner_selector)
+
+    def unwrap_input_node_selector(self, sel: InputNodeSelector) -> Any:
+        return self.unwrap(sel.input_node)
+
+    def unwrap_wildcard_selector(self, sel: WildcardSelector) -> str:
+        return f'"{sel.wildcard}"'
+
+    def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
+        """
+        Translate Janis InputSelector data type into Nextflow expressions
+        """
+        # TODO arrays
+        # TODO secondaries
+        # TODO runtime inputs
+        # skip_lookup = expr.startswith("runtime_")
+    
+        if not sel.input_to_select:
+            raise Exception("No input was selected for input selector: " + str(sel))
+        
+        inp = self.get_input_by_id(sel.input_to_select)
+        dtype: DataType = inp.input_type # type: ignore
+        
+        if isinstance(dtype, Filename):
+            expr = f"{self.unwrap(dtype)}"
+            print()
+
+        elif isinstance(dtype, File):
+            expr = self.get_src_variable(inp)
+            
+            if sel.remove_file_extension:
+                expr = f"{expr}.simpleName"
+            
+            # elif self.for_output:
+            #     expr = f"{expr}.name"
+            
+            if self.in_shell_script:
+                expr = f"${{{expr}}}"
+        
+        else:
+            expr = self.get_src_variable(inp)
+
+        expr = self.unwrap(expr)
+        return expr
+
+    def unwrap_step_output_selector(self, sel: StepOutputSelector) -> Any:
         # if scatter & output type is Array, use .flatten()
         upstream_step: StepNode = sel.node
         upstream_out: str = sel.tag
@@ -347,7 +525,69 @@ class Unwrapper:
                 channel_name=channel_name,
                 upstream_dtype=conn_out.outtype,
             )
+    
+    def unwrap_memory_selector(self, sel: MemorySelector) -> Any:
+        assert(self.tool)
+        return self.tool.memory({})
 
+    def unwrap_cpu_selector(self, sel: CpuSelector) -> Any:
+        assert(self.tool)
+        return self.tool.cpus({})
+
+    def unwrap_disk_selector(self, sel: DiskSelector) -> Any:
+        assert(self.tool)
+        return self.tool.disk({})
+
+    def unwrap_time_selector(self, sel: TimeSelector) -> Any:
+        assert(self.tool)
+        return self.tool.time({})
+
+    # misc
+
+    def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
+        # TODO save state of self.quote string
+        self.quote_string = False
+        return self.unwrap(val.source_map[0])
+    
+    def unwrap_edge(self, val: Edge) -> Any:
+        return self.unwrap(val.source)
+    
+    def unwrap_string_formatter(self, selector: StringFormatter) -> str:
+        """
+        Translate Janis StringFormatter data type to Nextflow
+        """
+        assert(self.tool)
+        if len(selector.kwargs) == 0:
+            return str(selector)
+
+        kwarg_replacements: dict[str, Any] = {}
+        for k, v in selector.kwargs.items():
+            kwarg_replacements[k] = self.unwrap(v)
+
+        arg_val = selector._format
+        for k in selector.kwargs:
+            arg_val = arg_val.replace(f"{{{k}}}", f"${{{str(kwarg_replacements[k])}}}")
+
+        if self.in_shell_script:
+            arg_val = arg_val.replace("\\", "\\\\")
+
+        return arg_val
+
+    def unwrap_filename(self, fn: Filename) -> str:
+        self.quote_string = False
+        
+        prefix = self.unwrap(fn.prefix) or ''
+        suffix = self.unwrap(fn.suffix) or ''
+        extension = self.unwrap(fn.extension) or ''
+        
+        if suffix != '':
+            if str(suffix).startswith("."):
+                suffix = str(suffix)
+            else:
+                suffix = f'-{suffix}'
+
+        return prefix + suffix + extension
+        
     def unwrap_input_node(self, node: InputNode) -> Any:
         if channels.exists(janis_uuid=node.uuid):
             return self.unwrap_channel(node)
@@ -385,26 +625,11 @@ class Unwrapper:
         else:
             raise NotImplementedError
 
-    def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
-        # scatter
-        if self.scatter_target:
-            # ch_bams -> ch_cartesian_cross.bams
-            if self.scatter_method == ScatterMethod.cross:
-                return cartesian_cross_subname(channel_name)
-            # ch_bams -> ch_bams.flatten()
-            elif self.scatter_method == ScatterMethod.dot:
-                if upstream_dtype.is_array():
-                    return f'{channel_name}.flatten()'
-        # everything else
-        return channel_name
-
-    def unwrap_operator(self, operator: Operator) -> Any:
+    def unwrap_operator(self, op: Operator) -> Any:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
             tool=self.tool,
-            # inputs_dict=self.inputs_dict,
             quote_string=self.quote_string,
-            for_output=self.for_output,
             skip_inputs_lookup=self.skip_inputs_lookup,
             in_shell_script=self.in_shell_script,
 
@@ -415,161 +640,9 @@ class Unwrapper:
 
             scatter_target=self.scatter_target,
             scatter_method=self.scatter_method
-
-            # # input_in_selectors=self.input_in_selectors,
-            # quote_string=self.quote_string,
-            # tool=self.tool,
-            # for_output=self.for_output,
-            # # inputs_dict=self.inputs_dict,
-            # skip_inputs_lookup=self.skip_inputs_lookup,
-            # in_shell_script=self.in_shell_script,
-            # # **debugkwargs,
         )
-        return operator.to_nextflow(unwrap_expression_wrap, *operator.args)
+        return op.to_nextflow(unwrap_expression_wrap, *op.args)
 
 
-    def translate_string_formatter(self, selector: StringFormatter) -> str:
-        """
-        Translate Janis StringFormatter data type to Nextflow
-        """
-        if len(selector.kwargs) == 0:
-            return str(selector)
 
-        kwarg_replacements: dict[str, Any] = {}
-        for k, v in selector.kwargs.items():
-            kwarg_replacements[k] = self.unwrap(v)
-
-        arg_val = selector._format
-        for k in selector.kwargs:
-            arg_val = arg_val.replace(f"{{{k}}}", f"${{{str(kwarg_replacements[k])}}}")
-
-        if self.in_shell_script:
-            arg_val = arg_val.replace("\\", "\\\\")
-
-        return arg_val
-
-
-    # def unwrap_input_selector_output(self, sel: InputSelector) -> Optional[str]:
-    #     """
-    #     Generate a string expression to represent a filename in Nextflow
-    #     """
-    #     inp = self.get_input_by_id(sel.input_to_select)
-    #     src = self.get_src_variable(inp)
-    #     if src is None:
-    #         return None
-
-    #     dtype: DataType = inp.intype # type: ignore
-
-    #     if secondaries.is_array_secondary_type(dtype):
-    #         raise NotImplementedError
-    #     if secondaries.is_secondary_type(dtype):
-    #         raise NotImplementedError
-        
-    #     # HERE
-    #     if not self.tool:
-    #         raise NotImplementedError
-    #         return f"${sel.input_to_select}.name"
-            # raise Exception(
-            #     f"Couldn't generate filename as an internal error occurred (self.inputs_dict did not contain {inp.input_to_select})"
-            # )
-        
-        # if sel.input_to_select not in inputs_dict:
-        #     raise Exception(
-        #         f"The InputSelector '{sel.input_to_select}' did not select a valid input"
-        #     )
-
-        # if isinstance(dtype, File):
-        #     base = src
-
-        #     if dtype.has_secondary_files():
-        #         base = f"{base}[0]"
-
-        #     if sel.remove_file_extension and dtype.get_extensions():
-        #         base = f"{base}.simpleName"
-
-            # elif hasattr(inp, "localise_file") and inp.localise_file:
-            #     base = f"{base}.name"
-
-        # elif isinstance(dtype, Filename):
-        #     self.for_output = True
-        #     base = f"{self.unwrap(dtype)}"
-        
-        # elif (
-        #     dtype.is_array()
-        #     and isinstance(dtype.fundamental_type(), (File, Directory))
-        #     and hasattr(inp, "localise_file")
-        #     and inp.localise_file
-        # ):
-        #     base = f"{src}.map{{ el.name }}"
-        
-        # else:
-        #     base = f"{src}"
-
-        # if intype.optional:
-        #     replacement = f'{base}, optional: true'
-        #     # default = '"generated"'
-        #     # if isinstance(intype, Filename):
-        #     #     default = base
-        #     # replacement = f"({sel.input_to_select} && {sel.input_to_select} != 'None' && {sel.input_to_select} != '' ? {sel.input_to_select} : {default})"
-        # else:
-        # replacement = f'{base}'
-
-        # return f"\"${{{replacement}}}\""
-        # return base
-
-
-    def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
-        """
-        Translate Janis InputSelector data type into Nextflow expressions
-        """
-        # TODO arrays
-        # TODO secondaries
-        # TODO runtime inputs
-        # skip_lookup = expr.startswith("runtime_")
     
-        if not sel.input_to_select:
-            raise Exception("No input was selected for input selector: " + str(sel))
-        
-        # resource selectors
-        if isinstance(sel, ResourceSelector):
-            tool_resources = self.build_resources_dict()
-            expr = tool_resources[sel.input_to_select]
-            dtype: DataType  = sel.resource_type
-
-        # normal input selector
-        else:
-            inp = self.get_input_by_id(sel.input_to_select)
-            # TODO HERE - unwrap again if value driven by InputSelector()
-            expr = self.get_src_variable(inp)
-            dtype: DataType = inp.intype # type: ignore
-
-        if expr is None:
-            return None
-        
-        if isinstance(dtype, File):
-            if self.for_output:
-                expr = f"{expr}.name"
-            
-            if sel.remove_file_extension:
-                expr = f"{expr}.simpleName"
-
-            if self.in_shell_script:
-                expr = f"${{{expr}}}"
-        
-        elif isinstance(dtype, Filename):
-            self.for_output = True
-            expr = f"{self.unwrap(dtype)}"
-        
-        else:
-            expr = f"{expr}"
-
-        return expr
-
-    def build_resources_dict(self) -> dict[str, Any]:
-        assert(self.tool)
-        return {
-            'runtime_cpu': self.tool.cpus({}),
-            'runtime_memory': self.tool.memory({}),
-            'runtime_seconds': self.tool.time({}),
-            'runtime_disk': self.tool.disk({}),
-        }

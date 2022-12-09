@@ -11,9 +11,9 @@ from uuid import uuid4
 
 from ..common import NFBase
 from ..casefmt import to_case
+from ..params import Param
 from .. import nfgen_utils
 from .. import settings
-from ..params import Param
 
 
 def get_channel_method(wfinp: InputNode) -> str:

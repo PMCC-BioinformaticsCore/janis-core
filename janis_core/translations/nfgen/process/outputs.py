@@ -117,7 +117,6 @@ class CmdtoolProcessOutputFactory:
         return unwrap_expression(
             val=self.out.selector, 
             tool=self.tool, 
-            for_output=True,
             # inputs_dict=self.tool.inputs_map(), # TODO HERE
             sources=self.sources,
             process_inputs=self.process_inputs,
@@ -220,12 +219,12 @@ class CmdtoolProcessOutputFactory:
         
         primary_expr = self.handle_selector()
         primary_expr_unquoted = primary_expr.strip('"')
-        exts = secondaries.get_names(self.dtype)
+        exts = secondaries.get_extensions(self.dtype)
         for ext in exts:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
                 qual = 'path'
-                expr = primary_expr
+                expr = f'"{primary_expr}"'
             # secondary file
             else:
                 secondary_ext = self.out.secondaries_present_as[ext]

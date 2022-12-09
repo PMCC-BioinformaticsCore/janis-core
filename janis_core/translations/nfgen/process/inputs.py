@@ -78,7 +78,7 @@ def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
         # a path input per file type
         inputs: list[ProcessInput] = []
         # get all extensions 
-        exts = secondaries.get_extensions(basetype)
+        exts = secondaries.get_names(basetype)
         for ext in exts:
             inputs.append(create_path_input_secondaries(inp, ext))
         return inputs
@@ -133,7 +133,7 @@ def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput
     subnames: list[str] = []
 
     # tuple sub-element for each file
-    exts = secondaries.get_extensions(dtype)
+    exts = secondaries.get_names(dtype)
     for ext in exts:
         qualifiers.append('path')
         subnames.append(ext)
