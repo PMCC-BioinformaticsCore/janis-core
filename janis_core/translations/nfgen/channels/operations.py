@@ -17,7 +17,7 @@ from ..common import NFBase
 from .. import settings
 from .channels import getall
 
-INDENT = settings.NEXTFLOW_INDENT
+INDENT = settings.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
@@ -91,7 +91,7 @@ def resolve_channel_name(src: StepTagInput) -> str:
     # step output
     elif isinstance(source, StepOutputSelector):
         conn_step: StepNode     = source.node
-        conn_step_id: str       = to_case(conn_step.id(), settings.NEXTFLOW_PROCESS_CASE)
+        conn_step_id: str       = to_case(conn_step.id(), settings.NF_PROCESS_CASE)
         conn_out_id: str        = source.tag
         channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
         return channel_name

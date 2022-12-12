@@ -90,8 +90,6 @@ class ParamRegister(NFBase):
         return params
     
     def get_string(self) -> str:
-        # leave this unimplemented! 
-        # architecture mandates the method has to exist, but not needed. 
         raise NotImplementedError  
 
 
@@ -105,17 +103,15 @@ class Param(NFBase):
     name_override: Optional[str]=None
     janis_uuid: Optional[str]=None
 
-    # def __post_init__(self):
-    #     self.uuid = str(uuid4())
-
     @property
     def name(self) -> str:
         if self.name_override:
-            base = to_case(self.name_override, settings.NEXTFLOW_PARAM_CASE)
+            base = to_case(self.name_override, settings.NF_PARAM_CASE)
         else:
-            base = to_case(self.var_name, settings.NEXTFLOW_PARAM_CASE)
-        if self.var_scope:
-            scope = [to_case(x, settings.NEXTFLOW_PARAM_CASE) for x in self.var_scope]
+            base = to_case(self.var_name, settings.NF_PARAM_CASE)
+        scope = self.var_scope[1:]
+        if scope:
+            scope = [to_case(x, settings.NF_PARAM_CASE) for x in scope]
             name = f"{'.'.join(scope)}.{base}"
         else:
             name = base
@@ -125,8 +121,6 @@ class Param(NFBase):
     def groovy_value(self) -> str:
         # get the default value as groovy code string
         # TODO I am dubious about this
-        # if self.default == '':
-        #     val = None
         if isinstance(self.dtype, Array) and self.default is None:
             val: list[str] = []
         else:
@@ -138,8 +132,6 @@ class Param(NFBase):
         return len(self.name)
 
     def get_string(self) -> str:
-        # leave this unimplemented! 
-        # architecture mandates the method has to exist, but not needed. 
         raise NotImplementedError  
 
 
@@ -150,7 +142,7 @@ param_register = ParamRegister()
 default_params = [
     Param(
         var_name='outdir',
-        var_scope=[],
+        var_scope=[settings.NF_MAIN_NAME],
         dtype=String(),
         default='"outputs"',
         is_channel_input=False,
@@ -164,7 +156,7 @@ for param in default_params:
 ### MODULE ENTRY POINTS
 
 def add(var_name: str, 
-        var_scope: Optional[list[str]]=None, 
+        var_scope: list[str], 
         dtype: Optional[DataType]=None, 
         default: Any=None,
         is_channel_input: bool=False,
@@ -172,7 +164,6 @@ def add(var_name: str,
         janis_uuid: Optional[str]=None
     ) -> Param:
     global param_register
-    var_scope = var_scope if var_scope else []
     param = Param(
         var_name=var_name, 
         var_scope=var_scope, 
@@ -212,29 +203,6 @@ def serialize() -> dict[str, Any]:
 def clear() -> None:
     global param_register 
     param_register = ParamRegister()
-
-
-# def add_link(upstream_janis_uuid: str, downstream_janis_uuid: str) -> None:
-#     global param_register
-#     assert(exists(upstream_janis_uuid))
-#     param_register.upstream[downstream_janis_uuid].append(upstream_janis_uuid)
-#     param_register.downstream[upstream_janis_uuid].append(downstream_janis_uuid)
-
-# def upstream(query: str) -> Optional[Param]:
-#     if query in param_register.upstream:
-#         upstream_janis_uuid = param_register.upstream[query][0]
-#         return get(upstream_janis_uuid)
-#     return None
-
-# def upstream_multi(query: str) -> list[Param]:
-#     params: list[Param] = []
-#     for upstream_janis_uuid in param_register.upstream[query]:
-#         params += getall(upstream_janis_uuid)
-#     return params
-
-
-
-
 
 
 

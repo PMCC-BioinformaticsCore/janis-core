@@ -1,7 +1,7 @@
 
 from . import settings
 
-INDENT = settings.NEXTFLOW_INDENT
+INDENT = settings.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 """

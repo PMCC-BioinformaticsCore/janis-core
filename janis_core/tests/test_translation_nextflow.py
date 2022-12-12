@@ -67,6 +67,7 @@ from janis_core.tests.testworkflows import (
 
     # specific workflows
     AssemblyTestWF,
+    SubworkflowTestWF,
 )
 
 from janis_core import (
@@ -121,7 +122,8 @@ class DataTypeNoSecondary(File):
 def refresh_workflow_inputs(wf: Workflow) -> None:
     nfgen.params.clear()
     nfgen.channels.clear()
-    nfgen.register_params_channels(wf, scope=[])
+    scope = [settings.NF_MAIN_NAME]
+    nfgen.register_params_channels(wf, scope=scope)
 
 
 
@@ -1008,7 +1010,7 @@ class TestProcessScript(unittest.TestCase):
 
     def test_filename_generated_tool(self):
         # TODO FIX ME
-        scope = []
+        scope: list[str] = [settings.NF_MAIN_NAME]
         values = {}
         tool = FilenameGeneratedTool()
         p = translator.gen_process_from_cmdtool(tool, values, scope)
@@ -2152,6 +2154,122 @@ class TestStringFormatter(unittest.TestCase):
         expected = "${testtool}:${arrayInp.join(\";\")}"
         self.assertEqual(actual, expected)
 
+
+
+class TestSubWorkflows(unittest.TestCase):
+    # sometimes logic here a bit more complex or weird 
+    # due to subworkflows. apologies. 
+    
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    @unittest.skip('not implemented')
+    def test_param_system(self) -> None:
+        # currently params system doesnt reach to subworkflows. 
+        # will implement in future (time permitting)
+        raise NotImplementedError
+    
+    def test_channel_system(self) -> None:
+        wf = SubworkflowTestWF()
+        refresh_workflow_inputs(wf)
+
+        step_id = 'apples_subworkflow'
+        subwf = wf.step_nodes[step_id].tool
+        for inp in subwf.input_nodes.values():
+            relevant_channel = nfgen.channels.get(inp.uuid)
+            assert(relevant_channel)   # 1 channel per each subworkflow input
+    
+    def test_files_created(self) -> None:
+        wf = SubworkflowTestWF()
+        mainstr, substr_dict = translator.translate_workflow(wf)
+        expected_filepaths = set([
+            'modules/file_tool',
+            'modules/string_tool',
+            'modules/int_tool',
+            'subworkflows/oranges_subworkflow',
+            'subworkflows/apples_subworkflow',
+        ])
+        actual_filepaths = set(substr_dict.keys())
+        self.assertEqual(actual_filepaths, expected_filepaths)
+
+    def test_structure(self) -> None:
+        # take main emit
+        wf = SubworkflowTestWF()
+        mainstr, substr_dict = translator.translate_workflow(wf)
+        self.assertNotIn('take:', mainstr)
+        self.assertNotIn('main:', mainstr)
+        self.assertNotIn('emit:', mainstr)
+        subwfstr = substr_dict['subworkflows/oranges_subworkflow']
+        self.assertIn('take:', subwfstr)
+        self.assertIn('main:', subwfstr)
+        self.assertIn('emit:', subwfstr)
+
+    def test_call(self) -> None:
+        # translate workflow, building all nf items and files
+        wf = SubworkflowTestWF()
+        translator.translate_workflow(wf)
+
+        # focusing in on specific subworkflow
+        step_id = 'apples_subworkflow'
+        step_node = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+
+        # generate nf subworkflow call()
+        args = nfgen.get_args(step_node.tool, step_node.sources, step_node.scatter)
+
+        # generate nf subworkflow object
+        nf_workflow = translator.gen_workflow(
+            name=step_id, 
+            scope=scope,
+            wf=step_node.tool
+        )
+        
+        # check the arg order matches the subworkflow input channel order
+        expected_arg_order = ['params.in_int', 'params.in_str']
+        expected_channel_order = ['ch_in_int', 'ch_in_str']
+        actual_arg_order = args
+        actual_channel_order = [t.get_string() for t in nf_workflow.take]
+
+        self.assertEquals(actual_arg_order, expected_arg_order)
+        self.assertEquals(actual_channel_order, expected_channel_order)
+
+    def test_imports(self) -> None:
+        # translate workflow, building all nf items and files
+        wf = SubworkflowTestWF()
+        translator.translate_workflow(wf)
+
+        # focusing in on specific subworkflow
+        step_id = 'apples_subworkflow'
+        scope = [settings.NF_MAIN_NAME, step_id]
+        subwf_file = translator.file_register.get(scope)
+
+        self.assertEquals(len(subwf_file.imports), 2)
+
+        expected_imports = [
+            {
+                'name': 'string_tool', 
+                'source': 'modules/string_tool'
+            },
+            {
+                'name': 'oranges_subworkflow', 
+                'source': 'subworkflows/oranges_subworkflow'
+            },
+        ]
+        actual_imports = []
+        for nf_import in subwf_file.imports:
+            import_item = {
+                'name': nf_import.items[0].name, 
+                'source': nf_import.source
+            },
+            actual_imports += import_item
+        
+        self.assertEquals(actual_imports, expected_imports)
+    
+    @unittest.skip('not implemented')
+    def test_nested(self) -> None:
+        raise NotImplementedError
+    
 
 
 

@@ -76,6 +76,11 @@ orderers: list[OrderingMethod] = [
     MandatoryPriority()
 ]
 
+def order(channels: list[Channel]) -> list[Channel]:
+    for orderer in orderers:
+        channels = orderer.order(channels)
+    return channels
+
 ### main class 
 
 @dataclass
@@ -99,9 +104,7 @@ class Channel(NFBase):
             base = self.name_override
         else:
             base = self.ref_name
-        # if self.ref_scope:
-        #     full = f"ch_{'_'.join(self.ref_scope)}_{base}"
-        base = to_case(base, settings.NEXTFLOW_CHANNEL_CASE)
+        base = to_case(base, settings.NF_CHANNEL_CASE)
         full = f'ch_{base}'
         return full
 
@@ -147,10 +150,7 @@ class ChannelRegister(NFBase):
 
     @property
     def ordered_channels(self) -> list[Channel]:
-        channels = self.channels
-        for orderer in orderers:
-            channels = orderer.order(channels)
-        return channels
+        return order(self.channels)
 
     def get_string(self) -> str:
         outstr = ''
@@ -166,17 +166,16 @@ channel_register = ChannelRegister()
 
 def add(
     var_name: str,
+    var_scope: list[str],
     params: list[Param],
     method: str,
     collect: bool,
     allow_null: bool,
-    var_scope: Optional[list[str]]=None,
     name_override: Optional[str]=None,
     janis_uuid: Optional[str]=None,
     define: bool=False
     ) -> None:
     global channel_register
-    var_scope = var_scope if var_scope else []
     new_ch = Channel(var_name, var_scope, params, method, collect, allow_null, name_override, janis_uuid, define)
     channel_register.channels.append(new_ch)
 

@@ -23,7 +23,7 @@ class MandatoryWinpStrategy(WinpStrategy):
         return sorted(inputs, key=lambda x: x.datatype.optional == True)
 
 workflow_input_strategies = [
-    #AlphabeticalWinpStrategy, 
+    AlphabeticalWinpStrategy, 
     FileWinpStrategy,
     MandatoryWinpStrategy,
 ]

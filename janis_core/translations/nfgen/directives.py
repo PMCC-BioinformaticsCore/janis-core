@@ -8,25 +8,16 @@ from .casefmt import to_case
 from . import settings
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
-# why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc
-
-# implemented
-# class ProcessDirective(NFBase, ABC):
-#     def __init__(self, name: str, value: Any):
-#         self.name = name
-#         self.value = value
-
-#     def get_string(self) -> str:
-#         return f'{self.name} "{self.value}"'
+# why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
 
 
 def format_param_name(resname: str, scope: list[str]) -> str:
+    scope = scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
     if len(scope) > 0:
         pname = f"{'_'.join(scope)}_{resname}"
     else:
         pname = resname
     return pname
-    # return pname.lower()
 
 
 @dataclass
@@ -108,8 +99,9 @@ class PublishDirDirective(ProcessDirective):
     scope: list[str]
 
     def get_string(self) -> str:
-        subpath = '/'.join(self.scope)
-        subpath = to_case(subpath, settings.NEXTFLOW_OUTDIR_CASE)
+        scope = self.scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
+        subpath = '/'.join(scope)
+        subpath = to_case(subpath, settings.NF_OUTDIR_CASE)
         if subpath == '':
             return f"publishDir \"$params.outdir\""
         else:

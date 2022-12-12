@@ -29,6 +29,7 @@ from . import process
 
 from .call import get_args
 from .channels import ChannelOperation
+from .channels import Channel
 from .config import generate_config
 from .unwrap import unwrap_expression
 from .formatting import format_process_call

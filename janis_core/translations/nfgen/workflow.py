@@ -74,15 +74,13 @@ class WorkflowEmit(NFBase):
 class Workflow(NFBase):
     def __init__(
         self,
-        # scope: list[str],
         name: str,
         main: list[str],
         take: Optional[list[WorkflowTake]]=None,
         emit: Optional[list[WorkflowEmit]]=None,
         is_subworkflow: bool=False
     ):
-        # self.scope = scope
-        self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
+        self.name = to_case(name, settings.NF_PROCESS_CASE)
         self.main = main
         self.take = take or []
         self.emit = emit or []
@@ -93,7 +91,7 @@ class Workflow(NFBase):
         main = "\n".join(self.main)
         if self.is_subworkflow:
             main = "main:\n" + main
-        return indent(main, settings.NEXTFLOW_INDENT)
+        return indent(main, settings.NF_INDENT)
 
     @property
     def take_block(self) -> Optional[str]:
@@ -101,7 +99,7 @@ class Workflow(NFBase):
             return None
         return indent(
             "take:\n" + "\n".join(i.get_string() for i in self.take) + '\n', 
-            settings.NEXTFLOW_INDENT
+            settings.NF_INDENT
         )
 
     @property
@@ -110,17 +108,8 @@ class Workflow(NFBase):
             return None
         return indent(
             "emit:\n" + "\n".join(i.get_string() for i in self.emit),
-            settings.NEXTFLOW_INDENT
+            settings.NF_INDENT
         )
-
-    # @property
-    # def publish_block(self) -> Optional[str]:
-    #     if not self.publish:
-    #         return None
-    #     return indent(
-    #         "publish:\n" + "\n".join(i.get_string() for i in self.publish),
-    #         settings.NEXTFLOW_INDENT
-    #     )
 
     def get_string(self) -> str:
         components = filter_null(
@@ -128,7 +117,6 @@ class Workflow(NFBase):
                 self.take_block,
                 self.main_block,
                 self.emit_block,
-                # self.publish_block,
             ]
         )
         components_str = '\n'.join(components)

@@ -25,11 +25,10 @@ from janis_core.tool.commandtool import (
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.translations.translationbase import TranslatorBase
-from janis_core.workflow.workflow import StepNode, Workflow, WorkflowBase
+from janis_core.workflow.workflow import Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
 from janis_core.translations.nfgen import settings
-
 
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
@@ -50,65 +49,93 @@ from janis_core.translations.nfgen import settings
 # - GH Dec 2022
 
 
+
+
+def scope_to_dot_notation(scope: list[str]) -> str:
+    return '.'.join(scope)
+    # if not scope:
+    #     dot = settings.NF_MAIN_WF_NAME
+    # else:
+    #     dot = '.'.join(scope)
+    # return dot
+
+def dot_to_scope_notation(dot: str) -> list[str]:
+    return dot.split('.')
+
+
+class NFFileRegister:
+    # TODO CHECK
+    """
+    Stores generated nf files. 
+    Organised by {scope: file}.
+    Each entity (ie workflow, subworkflow, tool) only will have 1 file.
+    """
+    def __init__(self):
+        self.files: dict[str, nfgen.NFFile] = {}
+
+    def add(self, scope: list[str], nf_file: nfgen.NFFile) -> None:
+        label = scope_to_dot_notation(scope)
+        self.files[label] = nf_file
+    
+    def get(self, scope: list[str]) -> nfgen.NFFile:
+        label = scope_to_dot_notation(scope)
+        return self.files[label]
+
+    def get_children(self, scope: list[str], direct_only: bool=True) -> list[nfgen.NFFile]:
+        label = scope_to_dot_notation(scope)
+        
+        # items with current scope
+        child_files: list[nfgen.NFFile] = []
+        
+        # items with child scope
+        depth = len(scope)
+        for label, nf_file in self.files.items():
+            label_split = dot_to_scope_notation(label)
+            # ignore the main workflow file (it throws things off)
+            if label_split != [settings.NF_MAIN_NAME]:
+                # does the scope match the start of the label?
+                if label_split[:depth] == scope:
+                    # if we only want direct children
+                    if not direct_only:
+                        child_files.append(nf_file)
+                    elif direct_only and len(label_split) == depth + 1:
+                        child_files.append(nf_file)
+        return child_files
+    
+
+class NFItemRegister:
+    # TODO CHECK
+    """
+    Stores generated nf items. 
+    Organised by {scope: [items]}.
+    Some entities may have multiple items. 
+    """
+    def __init__(self):
+        self.items: dict[str, list[nfgen.NFBase]] = defaultdict(list)
+
+    def add(self, scope: list[str], nf_item: nfgen.NFBase) -> None:
+        label = scope_to_dot_notation(scope)
+        self.items[label].append(nf_item)
+
+    def get(self, scope: list[str]) -> list[nfgen.NFBase]:
+        # items with current scope
+        label = scope_to_dot_notation(scope)
+        nf_items = deepcopy(self.items[label])
+        return nf_items
+    
+
 class NextflowTranslator(TranslatorBase):
     DIR_TOOLS: str = "" # dont change
     SUBDIRS_TO_CREATE: list[str] = [
         'modules',
         'subworkflows',
     ]
-    nf_files: dict[str, nfgen.NFFile] = {}
-    nf_items: dict[str, list[nfgen.NFBase]] = defaultdict(list)
+
+    file_register: NFFileRegister = NFFileRegister()
+    item_register: NFItemRegister = NFItemRegister()
 
     def __init__(self):
         super().__init__(name="nextflow")
-        # self.nf_items: dict[str, list[nfgen.NFBase]] = defaultdict(list)
-        # self.files: dict[str, str] = {}
-
-    @classmethod
-    def scope_to_dot_notation(cls, scope: list[str]) -> str:
-        if not scope:
-            label = ''
-        else:
-            label = '.'.join(scope)
-        return label
-
-    @classmethod
-    def add_to_nf_files(cls, scope: list[str], nf_file: nfgen.NFFile) -> None:
-        # TODO CHECK
-        label = cls.scope_to_dot_notation(scope)
-        cls.nf_files[label] = nf_file
-    
-    @classmethod
-    def add_to_nf_items(cls, scope: list[str], nf_item: nfgen.NFBase) -> None:
-        # TODO CHECK
-        label = cls.scope_to_dot_notation(scope)
-        cls.nf_items[label].append(nf_item)
-    
-    @classmethod
-    def get_nf_file(cls, scope: list[str]) -> nfgen.NFFile:
-        label = cls.scope_to_dot_notation(scope)
-        return cls.nf_files[label]
-    
-    @classmethod
-    def get_nf_items(cls, scope: list[str], include_direct_children: bool=False) -> list[nfgen.NFBase]:
-        label = cls.scope_to_dot_notation(scope)
-        
-        # items with current scope
-        nf_items = deepcopy(cls.nf_items[label])
-        
-        # items with child scope
-        if include_direct_children:
-            levels = len(scope)
-            for label, items in cls.nf_items.items():
-                label_split = label.split('.')
-                # ignore the main workflow file (it throws things off)
-                if label_split != ['']:
-                    # does the scope match the start of the label?
-                    if label_split[:levels] == scope:
-                        # is the label only 1 level below? 
-                        if len(label_split) == levels + 1:
-                            nf_items += items
-        return nf_items
 
     @classmethod
     def translate_workflow(
@@ -121,49 +148,30 @@ class NextflowTranslator(TranslatorBase):
         render_comments: bool = True
     ) -> Tuple[Any, dict[str, Any]]:
 
-        # avoiding passing junk params
+        # set class variables to avoid passing junk params
         cls.with_container = with_container
         cls.with_resource_overrides = with_resource_overrides
         cls.allow_empty_container = allow_empty_container
         cls.container_override = container_override
         cls.render_comments = render_comments
 
-        scope: list[str] = []
+        # blank scope - main wf has not parent
+        scope: list[str] = [settings.NF_MAIN_NAME]
 
         # register params and channels for workflow inputs
         nfgen.register_params_channels(jworkflow, scope)
 
+        # main logic
         cls.update_files(scope, jworkflow, sources={})
 
-        # # parse each step to a NFFile
-        # for step in jworkflow.step_nodes.values():
-        #     current_scope = deepcopy(scope)
-        #     current_scope.append(step.id())       
-        #     nf_items = cls.gen_items_for_step(step, scope=current_scope)
-        #     nf_file = nfgen.NFFile(
-        #         subtype=nfgen.get_construct_name(step.tool),
-        #         imports=[], 
-        #         items=[x[1] for x in nf_items],
-        #         name=step.id()  # TODO here name clash checking
-        #     )
-        #     self.add_to_nf_files(scope, nf_file)
+        # get the main wf file and all sub files
+        main_file = cls.file_register.get(scope)  # main nf workflow usually
+        sub_files = cls.file_register.get_children(scope, direct_only=False)
 
-        #     files[nf_file.path] = nf_file
-
-        # # handle imports
-        # imports = cls.collect_workflow_imports(files)
-        
-        # # create object & NFFile for workflow
-        # workflow = cls.gen_workflow(
-        #     wf=jworkflow, 
-        #     nf_items=nf_items,
-        # )
-        # channels = nfgen.channels.channel_register
-        # nf_file = nfgen.NFFile(subtype='', imports=imports, items=[channels, workflow])
-
-        # generate strings for each file
-        tool_scripts: dict[str, str] = {path: nffile.get_string() for path, nffile in files.items()}
-        return (nf_file.get_string(), tool_scripts)
+        # return format (gen str for each file)
+        main_file_str = main_file.get_string()
+        sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
+        return (main_file_str, sub_files_str)
 
 
     @classmethod
@@ -180,45 +188,43 @@ class NextflowTranslator(TranslatorBase):
         2. write any nextflow items that are processes or workflows to file.
         3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
         """
-        identifier: str = scope[-1] if scope else '__main_file__'
+        identifier: str = scope[-1] if scope else settings.NF_MAIN_NAME
         subtype: str = nfgen.get_construct_name(tool, scope)
 
         # any groovy code
         if scatter and scatter.method == ScatterMethod.cross:
             operation_item = nfgen.channels.gen_scatter_cross_operation(sources, scatter)
-            cls.add_to_nf_items(scope, operation_item)
+            cls.item_register.add(scope, operation_item)
 
         # command tool
         if isinstance(tool, CommandTool):
             # item
             process_item = cls.gen_process_from_cmdtool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
-            cls.add_to_nf_items(scope, process_item)
+            cls.item_register.add(scope, process_item)
             # file
             process_file = nfgen.NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=[], 
-                items=cls.get_nf_items(scope),
+                items=cls.item_register.get(scope),
             )
-            cls.add_to_nf_files(scope, process_file)
-            print()
+            cls.file_register.add(scope, process_file)
 
         # python tool
         elif isinstance(tool, PythonTool):
             # item
             process_item = cls.gen_process_from_codetool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
-            cls.add_to_nf_items(scope, process_item)
+            cls.item_register.add(scope, process_item)
             # file
             process_file = nfgen.NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=[], 
-                items=cls.get_nf_items(scope),
+                items=cls.item_register.get(scope),
             )
-            cls.add_to_nf_files(scope, process_file)
-            print()
+            cls.file_register.add(scope, process_file)
 
         # workflow
         elif isinstance(tool, WorkflowBase):
@@ -236,9 +242,9 @@ class NextflowTranslator(TranslatorBase):
                 )
 
             # item: channels item (if main workflow object)
-            if identifier == '__main_file__':
+            if identifier == settings.NF_MAIN_NAME:
                 channels_item = nfgen.channels.channel_register
-                cls.add_to_nf_items(scope, channels_item)
+                cls.item_register.add(scope, channels_item)
 
             # item: workflow body
             workflow_item = cls.gen_workflow(
@@ -246,13 +252,13 @@ class NextflowTranslator(TranslatorBase):
                 scope=scope,
                 wf=wf
             )
-            cls.add_to_nf_items(scope, workflow_item)
+            cls.item_register.add(scope, workflow_item)
 
             # imports
             imports: list[nfgen.Import] = []
-            for sub_file in sub_nf_files:
-                nf_item = nfgen.ImportItem(name=sub_file.name)
-                nf_import = nfgen.Import(items=[nf_item], source=sub_file.path)
+            for nf_file in cls.file_register.get_children(scope):
+                nf_item = nfgen.ImportItem(name=nf_file.name)
+                nf_import = nfgen.Import(items=[nf_item], source=nf_file.path)
                 imports.append(nf_import)
 
             # file: workflow file            
@@ -260,10 +266,9 @@ class NextflowTranslator(TranslatorBase):
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=imports, 
-                items=sub_nf_items,
+                items=cls.item_register.get(scope),
             )
-            cls.add_to_nf_files(scope, workflow_file)
-            print()
+            cls.file_register.add(scope, workflow_file)
 
         else:
             raise Exception(
@@ -373,7 +378,7 @@ class NextflowTranslator(TranslatorBase):
         """
         settings.MODE = 'tool'
         file_items: list[nfgen.NFBase] = []
-        scope: list[str] = []
+        scope: list[str] = [settings.NF_MAIN_NAME]
         values: dict[str, Any] = {}
 
         main_p = cls.gen_process_from_cmdtool(tool, values, scope)
@@ -463,8 +468,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        # TODO IMPORTS HERE PLS
-        is_subworkflow = True if scope else False
+        is_subworkflow = True if scope[-1] != settings.NF_MAIN_NAME else False
 
         take: list[nfgen.WorkflowTake] = []
         emit: list[nfgen.WorkflowEmit] = []
@@ -472,10 +476,17 @@ class NextflowTranslator(TranslatorBase):
 
         if is_subworkflow:
             # take
+            
+            # (get channels & order)
+            channels: list[nfgen.Channel] = []
             for inp in wf.input_nodes.values():
-                if nfgen.channels.exists(inp.uuid):
-                    ch = nfgen.channels.get(inp.uuid)
-                    take.append(nfgen.WorkflowTake(ch.name))
+                assert(nfgen.channels.exists(inp.uuid))
+                channels += nfgen.channels.getall(inp.uuid)
+            channels = nfgen.channels.order(channels)
+
+            # (nf objects)
+            for ch in channels:
+                take.append(nfgen.WorkflowTake(ch.name))
             
             # emit
             emit: list[nfgen.WorkflowEmit] = []
@@ -484,29 +495,29 @@ class NextflowTranslator(TranslatorBase):
                 expression = nfgen.unwrap_expression(val=out.source)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
-        # main
-        nf_items = cls.get_nf_items(scope, include_direct_children=True)
+        # main (workflow step calls, channel operations)
+        for step in wf.step_nodes.values():
+            current_scope = deepcopy(scope)
+            current_scope.append(step.id())
+            nf_items = cls.item_register.get(current_scope)
+            for nf_item in nf_items:
+                if isinstance(nf_item, nfgen.ChannelOperation):
+                    main.append(nf_item.get_string())
+                    continue
+                
+                elif isinstance(nf_item, nfgen.Process):
+                    entity_name = nf_item.name
+                    entity_inputs = nf_item.inputs
 
-        for step_id, nf_item in nf_items:
-            step = wf.step_nodes[step_id]
+                elif isinstance(nf_item, nfgen.Workflow):
+                    entity_name = nf_item.name
+                    entity_inputs = nf_item.take
 
-            if isinstance(nf_item, nfgen.ChannelOperation):
-                main.append(nf_item.get_string())
-                continue
+                else:
+                    raise NotImplementedError
             
-            elif isinstance(nf_item, nfgen.Process):
-                entity_name = nf_item.name
-                entity_inputs = nf_item.inputs
-
-            elif isinstance(nf_item, nfgen.Workflow):
-                entity_name = nf_item.name
-                entity_inputs = nf_item.take
-
-            else:
-                raise NotImplementedError
-            
-            args = nfgen.get_args(step.tool, step.sources, step.scatter)
-            main.append(format_process_call(entity_name, args))
+                args = nfgen.get_args(step.tool, step.sources, step.scatter)
+                main.append(format_process_call(entity_name, args))
 
         return nfgen.Workflow(name, main, take, emit, is_subworkflow)
         
@@ -1023,7 +1034,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        scope = []
+        scope: list[str] = [settings.NF_MAIN_NAME]
         if additional_inputs:
             nfgen.params.register_params_for_additional_inputs(additional_inputs, scope)
         if merge_resources:

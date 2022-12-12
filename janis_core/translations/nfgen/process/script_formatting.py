@@ -145,14 +145,12 @@ class InputFormatter:
         tinput: ToolInput, 
         process_inputs: set[str], 
         param_inputs: set[str], 
-        scope: list[str],
         sources: dict[str, Any]
     ) -> None:
 
         self.tinput = tinput
         self.process_inputs = process_inputs
         self.param_inputs = param_inputs
-        self.scope = scope
         self.sources = sources
         self.itype = get_itype(tinput)
         self.prescript_template = prescript_template_map[self.itype]
@@ -513,8 +511,7 @@ def format_input(
     tinput: ToolInput, 
     process_inputs: set[str], 
     param_inputs: set[str],
-    scope: list[str],
     sources: dict[str, Any]
     ) -> Tuple[Optional[str], Optional[str]]:
-    return InputFormatter(tinput, process_inputs, param_inputs, scope, sources).format()
+    return InputFormatter(tinput, process_inputs, param_inputs, sources).format()
 

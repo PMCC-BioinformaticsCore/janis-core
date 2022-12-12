@@ -7,7 +7,7 @@ from . import settings
 
 
 DEFAULT_LINES = ['docker.enabled = true']
-INDENT = settings.NEXTFLOW_INDENT
+INDENT = settings.NF_INDENT
 COMMENTER = '// '
 TEMPLATE = """\
 {defaults}

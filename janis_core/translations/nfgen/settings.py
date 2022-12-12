@@ -21,11 +21,12 @@ PYTHON_CODE_OUTPUT_FILENAME_PREFIX = "out_"
 PYTHON_SHEBANG = "#!/usr/bin/env python"
 
 # text case 
-NEXTFLOW_INDENT = '    '
-NEXTFLOW_OUTDIR_CASE = 'snake'
-NEXTFLOW_PARAM_CASE = 'snake'
-NEXTFLOW_CHANNEL_CASE = 'snake'
-NEXTFLOW_PROCESS_CASE = 'snake_caps'
+NF_INDENT = '    '
+NF_OUTDIR_CASE = 'snake'
+NF_PARAM_CASE = 'snake'
+NF_CHANNEL_CASE = 'snake'
+NF_PROCESS_CASE = 'snake_caps'
+NF_MAIN_NAME = 'main'
 
 # process translation
 MINIMAL_PROCESS = True

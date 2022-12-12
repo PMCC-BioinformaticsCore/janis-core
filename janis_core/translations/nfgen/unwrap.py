@@ -519,7 +519,7 @@ class Unwrapper:
         
         # everything else
         else:
-            upstream_step_id = to_case(upstream_step.id(), settings.NEXTFLOW_PROCESS_CASE)
+            upstream_step_id = to_case(upstream_step.id(), settings.NF_PROCESS_CASE)
             channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
             return self.get_channel_expression(
                 channel_name=channel_name,

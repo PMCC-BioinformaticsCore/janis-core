@@ -18,14 +18,12 @@ from .script_formatting import format_input
 
 def gen_script_for_cmdtool(
     tool: CommandTool,
-    # input_in_selectors: dict[str, Any],
     stdout_filename: str,
     scope: list[str],
     sources: dict[str, Any],
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
-        # input_in_selectors=input_in_selectors,
         stdout_filename=stdout_filename,
         scope=scope,
         sources=sources,
@@ -37,7 +35,6 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        # input_in_selectors: dict[str, Any],
         stdout_filename: str,
         scope: list[str],
         sources: Optional[dict[str, Any]]=None,
@@ -45,8 +42,7 @@ class ProcessScriptGenerator:
         assert(tool)
         self.tool = tool
         self.scope = scope
-        self.process_name = scope[-1] if scope else tool.id()
-        # self.input_in_selectors = input_in_selectors
+        self.process_name = scope[-1]
         self.stdout_filename = stdout_filename
 
         # think this is ok?
@@ -71,8 +67,6 @@ class ProcessScriptGenerator:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 val=dirpath, 
-                # input_in_selectors=self.input_in_selectors,
-                # inputs_dict=self.tool.inputs_map(),
                 tool=self.tool, 
                 sources=self.sources,
                 process_inputs=self.process_inputs,
@@ -99,7 +93,6 @@ class ProcessScriptGenerator:
                         inp, 
                         self.process_inputs, 
                         self.param_inputs, 
-                        scope=self.scope,
                         sources=self.sources
                     )
                     if prescript_ln is not None:
@@ -114,9 +107,7 @@ class ProcessScriptGenerator:
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         expression = unwrap_expression(
             val=arg.value,
-            # input_in_selectors=self.input_in_selectors,
             tool=self.tool,
-            # inputs_dict=self.tool.inputs_map(),
             sources=self.sources,
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,

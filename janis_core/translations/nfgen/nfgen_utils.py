@@ -50,6 +50,10 @@ shoud should be included.
 
 
 
+
+
+
+
 ### misc helper methods
 # def is_channel_input() -> bool:
 #     pass
@@ -59,9 +63,9 @@ def get_construct_name(tool: CommandTool | PythonTool | Workflow, scope: list[st
     construct_type = ''
     if isinstance(tool, CommandTool) or isinstance(tool, PythonTool):
         construct_type = 'process'
-    elif isinstance(tool, Workflow) and not scope:
+    elif isinstance(tool, Workflow) and len(scope) == 1:  # scope = ['main']  (the main workflow)
         construct_type = 'main_workflow'
-    elif isinstance(tool, Workflow):
+    elif isinstance(tool, Workflow) and len(scope) > 1: # scope = ['main', 'sub', ...] 
         construct_type = 'sub_workflow'
     else:
         raise NotImplementedError

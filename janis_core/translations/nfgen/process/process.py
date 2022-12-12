@@ -22,7 +22,6 @@ class ProcessScriptType(Enum):
 class Process(NFBase):
     def __init__(
         self,
-        # scope: list[str],
         name: str,
         script: str,
         script_type: Optional[ProcessScriptType] = None,
@@ -33,8 +32,7 @@ class Process(NFBase):
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
-        # self.scope = scope
-        self.name = to_case(name, settings.NEXTFLOW_PROCESS_CASE)
+        self.name = to_case(name, settings.NF_PROCESS_CASE)
 
         self.script = script
         self.script_type = script_type
@@ -55,9 +53,9 @@ class Process(NFBase):
             script += f'{3 * self.script_quote}\n' if self.script_quote else ''
             script += f'{script_body}\n'
             script += f'{3 * self.script_quote}\n' if self.script_quote else ''
-            script = indent(script, settings.NEXTFLOW_INDENT)
+            script = indent(script, settings.NF_INDENT)
         else:
-            script = indent(script_body, settings.NEXTFLOW_INDENT)
+            script = indent(script_body, settings.NF_INDENT)
         
         return script
 
@@ -66,7 +64,7 @@ class Process(NFBase):
             return None
         return indent(
             "input:\n" + "\n".join(i.get_string() for i in self.inputs), 
-            settings.NEXTFLOW_INDENT
+            settings.NF_INDENT
         )
 
     def prepare_outputs(self):
@@ -74,14 +72,14 @@ class Process(NFBase):
             return None
         return indent(
             "output:\n" + "\n".join(o.get_string() for o in self.outputs),
-            settings.NEXTFLOW_INDENT,
+            settings.NF_INDENT,
         )
 
     def prepare_directives(self):
         if not self.directives:
             return None
         directives = ordering.order_nf_directives(self.directives)
-        return "\n".join(settings.NEXTFLOW_INDENT + d.get_string() for d in directives)
+        return "\n".join(settings.NF_INDENT + d.get_string() for d in directives)
 
     def get_string(self) -> str:
         components = filter_null(

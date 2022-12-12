@@ -3,7 +3,9 @@
 from textwrap import indent
 from . import settings
 
-NF_INDENT = settings.NEXTFLOW_INDENT
+NF_INDENT = settings.NF_INDENT
+
+
 
 def call_fmt0(name: str) -> str:
     return f'{name}()\n'

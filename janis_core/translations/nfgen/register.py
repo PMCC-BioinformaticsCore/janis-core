@@ -9,6 +9,7 @@ from . import params
 from . import channels
 from . import nfgen_utils
 from . import secondaries
+from . import settings
 
 from copy import deepcopy
         
@@ -29,42 +30,33 @@ def register_params_channels(wf: Workflow, scope: list[str]) -> None:
             register_params_channels(step.tool, scope=current_scope)
 
 
-
 class ParamChannelRegisterer:
-    # horrid name, I know
+    # sorry about horrid name
     def __init__(self, wf: Workflow, scope: list[str]) -> None:
         self.wf = wf
         self.scope = scope
 
     @property
     def is_subworkflow(self) -> bool:
-        if self.scope:
+        if self.scope != [settings.NF_MAIN_NAME]:
             return True
         return False
 
     @property
     def channels_to_register_wfinps(self) -> set[str]:
-        if self.scope:
-            items: set[str] = set(self.wf.connections.keys())
-        else:
+        if self.scope == [settings.NF_MAIN_NAME]:
             items: set[str] = get_channel_input_ids(self.wf)
+        else:
+            items: set[str] = set(self.wf.connections.keys())
         return items
     
     @property
     def params_to_register_wfinps(self) -> set[str]:
-        if self.scope:
-            items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
-        else:
+        if self.scope == [settings.NF_MAIN_NAME]:
             items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
+        else:
+            items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
         return items
-
-    # @property
-    # def params_to_register_toolouts(self) -> set[str]:
-    #     if self.scope:
-    #         items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
-    #     else:
-    #         items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
-    #     return items
     
     def register(self) -> None:
         for inp in self.wf.input_nodes.values():

@@ -30,7 +30,7 @@ class ImportItem(NFBase):
         self.alias = alias
 
     def get_string(self) -> str:
-        name = to_case(self.name, settings.NEXTFLOW_PROCESS_CASE)
+        name = to_case(self.name, settings.NF_PROCESS_CASE)
         if self.alias:
             return f"{name} as {self.alias}"
         return name
@@ -91,6 +91,6 @@ class Function(NFBase):
     def get_string(self) -> str:
         return f"""
 def {self.name}({", ".join(self.parameters)}) {{
-  {indent(self.definition, settings.NEXTFLOW_INDENT)}
+  {indent(self.definition, settings.NF_INDENT)}
 }}
 """
