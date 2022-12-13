@@ -1,32 +1,38 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
 
-from janis_core.translations.nfgen.common import NFBase
 from .casefmt import to_case
 from . import settings
+from .params import Param
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
 
 
-def format_param_name(resname: str, scope: list[str]) -> str:
-    scope = scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
-    if len(scope) > 0:
-        pname = f"{'_'.join(scope)}_{resname}"
-    else:
-        pname = resname
-    return pname
-
-
 @dataclass
-class ProcessDirective(NFBase, ABC):
+class ProcessDirective(ABC):
 
     @abstractmethod
     def get_string(self) -> str:
         ...
 
+@dataclass
+class PublishDirDirective(ProcessDirective):
+    scope: list[str]
+
+    def get_string(self) -> str:
+        scope = self.scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
+        subpath = '/'.join(scope)
+        subpath = to_case(subpath, settings.NF_OUTDIR_CASE)
+        if subpath == '':
+            return f"publishDir \"$params.outdir\""
+        else:
+            return f"publishDir \"${{params.outdir}}/{subpath}\""
+
+        #return f"publishDir \"$params.outdir/$task.process\""
+        #return f"publishDir \"$launchDir/{self.process_name}\""
+    
 @dataclass
 class CacheDirective(ProcessDirective):
     enabled: bool
@@ -50,78 +56,33 @@ class DebugDirective(ProcessDirective):
 
 @dataclass
 class CpusDirective(ProcessDirective):
-    scope: list[str]
-    resname: str
-    default: Any
-
-    def get_string_old2(self) -> str:
-        return f"cpus \"${{{self.resname} ? {self.resname} : ''}}\""
-    
-    def get_string_old(self) -> str:
-        return f"cpus \"${{{self.resname}}}\""
+    param: Param
 
     def get_string(self) -> str:
-        pname = format_param_name(self.resname, self.scope)
-        return f'cpus "${{params.{pname}}}"'
-        # return f'cpus "$params.{pname}"'.lower()
+        return f'cpus \"${{params.{self.param.name}}}\"'
 
 @dataclass
 class DiskDirective(ProcessDirective):
-    scope: list[str]
-    resname: str
-    default: Any
-    
-    def get_string_old1(self) -> str:
-        return f"disk \"${{{self.resname} ? {self.resname} + 'GB': ''}}\""
-    
-    def get_string_old2(self) -> str:
-        return f"disk {self.resname} ? \"{{{self.resname} + 'GB'}}\" : null"
+    param: Param
     
     def get_string(self) -> str:
-        pname = format_param_name(self.resname, self.scope)
-        return f"disk \"${{params.{pname}}}\""
+        return f'disk \"${{params.{self.param.name}}}\"'
 
 @dataclass
 class MemoryDirective(ProcessDirective):
-    scope: list[str]
-    resname: str
-    default: Any
-    
-    def get_string_old(self) -> str:
-        return f"memory \"${{{self.resname} ? {self.resname} + 'GB': ''}}\""
+    param: Param
     
     def get_string(self) -> str:
-        pname = format_param_name(self.resname, self.scope)
-        return f"memory \"${{params.{pname}}}\""
+        return f'memory \"${{params.{self.param.name}}}\"'
 
-@dataclass
-class PublishDirDirective(ProcessDirective):
-    scope: list[str]
-
-    def get_string(self) -> str:
-        scope = self.scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
-        subpath = '/'.join(scope)
-        subpath = to_case(subpath, settings.NF_OUTDIR_CASE)
-        if subpath == '':
-            return f"publishDir \"$params.outdir\""
-        else:
-            return f"publishDir \"${{params.outdir}}/{subpath}\""
-
-        #return f"publishDir \"$params.outdir/$task.process\""
-        #return f"publishDir \"$launchDir/{self.process_name}\""
-    
 @dataclass
 class TimeDirective(ProcessDirective):
-    scope: list[str]
-    resname: str
-    default: Any
-    
-    def get_string_old(self) -> str:
-        return f"time \"${{{self.resname} + 's'}}\""
+    param: Param
     
     def get_string(self) -> str:
-        pname = format_param_name(self.resname, self.scope)
-        return f"time \"${{params.{pname}}}\""
+        return f'time \"${{params.{self.param.name}}}\"'
+
+
 
 
 

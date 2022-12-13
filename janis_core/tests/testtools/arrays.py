@@ -218,7 +218,7 @@ class ArrayStepTool(CommandTool):
         return "echo"
 
     def inputs(self):
-        return [ToolInput("inps", Array(String()), position=1)]
+        return [ToolInput("inp", Array(String()), position=1)]
 
     def outputs(self):
         return [ToolOutput("out", Array(File()), glob=WildcardSelector("*"))]

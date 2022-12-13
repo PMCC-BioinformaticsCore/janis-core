@@ -13,6 +13,7 @@ from .core_features import (
     StepInputsMinimalTestWF,
     StepConnectionsTestWF,
     DirectivesTestWF,
+    FilenameGeneratedTestWF,
 
     # arrays
     ArrayIOTestWF,

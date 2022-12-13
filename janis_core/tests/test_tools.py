@@ -20,14 +20,14 @@ class TestContainers(TestCase):
 
         w.step("stp1", BasicTestTool(testtool=w.inp))
         w.step("stp1_v2", VersionTestTool(testtool=w.inp))
-        w.step("stp2", ArrayStepTool(inps=w.aInp))
+        w.step("stp2", ArrayStepTool(inp=w.aInp))
 
         cons = w.containers()
         self.assertSetEqual(
-            {"ArrayStepTool", "TestTranslationtool", "TestTranslationtool_v0_0_2"},
+            {"ArrayStepTool", "BasicTestTool", "BasicTestTool_v0_0_2"},
             set(cons.keys()),
         )
 
         self.assertIsNone(cons["ArrayStepTool"])
-        self.assertEqual("ubuntu:latest", cons["TestTranslationtool"])
-        self.assertEqual("ubuntu:latest", cons["TestTranslationtool_v0_0_2"])
+        self.assertEqual("ubuntu:latest", cons["BasicTestTool"])
+        self.assertEqual("ubuntu:latest", cons["BasicTestTool_v0_0_2"])

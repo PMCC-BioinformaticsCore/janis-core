@@ -13,7 +13,6 @@ from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import StepOutputSelector
 from ..casefmt import to_case
-from ..common import NFBase
 from .. import settings
 from .channels import getall
 
@@ -22,12 +21,9 @@ CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
 
+class ChannelOperation(ABC):
+    pass
 
-class ChannelOperation(NFBase):
-    
-    @abstractmethod
-    def get_string(self) -> str:
-        ...
 
 @dataclass 
 class CartesianCrossOperation(ChannelOperation):

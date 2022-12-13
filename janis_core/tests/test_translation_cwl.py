@@ -117,7 +117,7 @@ id: tid
 
     def test_tools_filename(self):
         self.assertEqual(
-            "TestTranslationtool.cwl", self.translator.tool_filename(BasicTestTool())
+            "BasicTestTool.cwl", self.translator.tool_filename(BasicTestTool())
         )
 
     def test_inputs_filename(self):
@@ -513,10 +513,10 @@ class TestCwlOutputGeneration(unittest.TestCase):
     def test_localised_out(self):
 
         inps = {"inp": ToolInput("inp", File, position=1, localise_file=True)}
-        out = ToolOutput("out", File, selector=InputSelector("inp"))
+        outs = ToolOutput("out", File, selector=InputSelector("inp"))
 
         cwlout = cwl.translate_tool_output(
-            out, inps, environment="dev-test_localised_out", tool=None
+            outs, inps, environment="dev-test_localised_out", tool=None
         )
         ob: cwlgen.CommandOutputBinding = cwlout.outputBinding
         self.assertEqual("$(inputs.inp.basename)", ob.glob)
@@ -573,26 +573,26 @@ class TestCwlMaxResources(unittest.TestCase):
     def test_cores(self):
         tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
-        self.assertEqual(2, resources["testtranslationtool_runtime_cpu"])
+        self.assertEqual(2, resources["basictesttool_runtime_cpu"])
 
     def test_max_cores(self):
         tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_cores=1
         )
-        self.assertEqual(1, resources["testtranslationtool_runtime_cpu"])
+        self.assertEqual(1, resources["basictesttool_runtime_cpu"])
 
     def test_memory(self):
         tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(tool.wrapped_in_wf(), {})
-        self.assertEqual(2, resources["testtranslationtool_runtime_memory"])
+        self.assertEqual(2, resources["basictesttool_runtime_memory"])
 
     def test_max_memory(self):
         tool = BasicTestTool()
         resources = CwlTranslator.build_resources_input(
             tool.wrapped_in_wf(), {}, max_mem=1
         )
-        self.assertEqual(1, resources["testtranslationtool_runtime_memory"])
+        self.assertEqual(1, resources["basictesttool_runtime_memory"])
 
 
 class TestEmptyContainer(unittest.TestCase):
@@ -613,7 +613,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
-        w.step("stp1", ArrayStepTool(inps=w.inp1))
+        w.step("stp1", ArrayStepTool(inp=w.inp1))
 
         c, _, _ = CwlTranslator().translate(
             w, to_console=False, allow_empty_container=True
@@ -693,7 +693,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.step(
             "print",
             ArrayStepTool(
-                inps=[
+                inp=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -868,8 +868,8 @@ class TestCWLRunRefs(unittest.TestCase):
         wf_cwl, _ = CwlTranslator.translate_workflow(w)
         stps = {stp.id: stp for stp in wf_cwl.steps}
 
-        self.assertEqual("tools/TestTranslationtool.cwl", stps["stp1"].run)
-        self.assertEqual("tools/TestTranslationtool_v0_0_2.cwl", stps["stp2"].run)
+        self.assertEqual("tools/BasicTestTool.cwl", stps["stp1"].run)
+        self.assertEqual("tools/BasicTestTool_v0_0_2.cwl", stps["stp2"].run)
 
 
 class TestCwlResourceOperators(unittest.TestCase):
@@ -1078,7 +1078,7 @@ hints:
 - class: ToolTimeLimit
   timelimit: |-
     $([inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0])
-id: TestTranslationtool
+id: BasicTestTool
 """
 
 
@@ -1101,13 +1101,13 @@ outputs: []
 steps:
 - id: stp1
   in:
-  - id: inps
+  - id: inp
     source:
     - inp1
     linkMerge: merge_nested
   run: tools/ArrayStepTool.cwl
   out:
-  - id: outs
+  - id: out
 id: test_add_single_to_array_edge
 """
 
@@ -1177,20 +1177,20 @@ outputs:
   type:
     type: array
     items: File
-  outputSource: print/outs
+  outputSource: print/out
 
 steps:
 - id: print
   in:
-  - id: _print_inps_inp1
+  - id: _print_inp_inp1
     source: inp1
-  - id: _print_inps_inp2
+  - id: _print_inp_inp2
     source: inp2
-  - id: inps
+  - id: inp
     valueFrom: |-
-      $([(inputs._print_inps_inp1 != null) ? inputs._print_inps_inp1 : "default1", (inputs._print_inps_inp2 != null) ? (inputs._print_inps_inp2 + "_suffix") : ""])
+      $([(inputs._print_inp_inp1 != null) ? inputs._print_inp_inp1 : "default1", (inputs._print_inp_inp2 != null) ? (inputs._print_inp_inp2 + "_suffix") : ""])
   run: tools/ArrayStepTool.cwl
   out:
-  - id: outs
+  - id: out
 id: cwl_test_array_step_input
 """

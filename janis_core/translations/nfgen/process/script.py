@@ -90,9 +90,11 @@ class ProcessScriptGenerator:
             match inp:
                 case ToolInput():
                     prescript_ln, script_ln = format_input(
-                        inp, 
-                        self.process_inputs, 
-                        self.param_inputs, 
+                        tinput=inp, 
+                        tool=self.tool,
+                        process_inputs=self.process_inputs, 
+                        param_inputs=self.param_inputs, 
+                        internal_inputs=self.internal_inputs,
                         sources=self.sources
                     )
                     if prescript_ln is not None:
@@ -112,8 +114,6 @@ class ProcessScriptGenerator:
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
-            skip_inputs_lookup=True,
-            quote_string=False,
             in_shell_script=True,
         )
         if arg.prefix is not None:

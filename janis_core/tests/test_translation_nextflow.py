@@ -60,6 +60,7 @@ from janis_core.tests.testworkflows import (
     ForEachTestWF,
     IndexOperatorTestWF,
     StringFormatterTestWF,
+    FilenameGeneratedTestWF,
 
     # codetools
     InputsPythonToolTestWF,
@@ -465,7 +466,7 @@ class TestChannels(unittest.TestCase):
         """
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        relevant_channel_names = {
+        expected_channel_names = {
             'ch_fastqc1_adapters',
             'ch_fastqc1_contaminants',
             'ch_fastqc1_limits',
@@ -473,9 +474,14 @@ class TestChannels(unittest.TestCase):
             'ch_fastqc2_contaminants',
             'ch_fastqc2_limits',
         }
-        for name in relevant_channel_names:
-            channel = nfgen.channels.get(name)
-            self.assertTrue(channel)
+        all_channels = nfgen.channels.getall()
+        optional_channels = [ch for ch in all_channels if ch.name in expected_channel_names]
+
+        # check each expected channel exists
+        self.assertEqual(len(optional_channels), len(expected_channel_names))
+        
+        # for each optional channel, check it has correct format
+        for channel in optional_channels:
             self.assertIn('.ifEmpty( null )', channel.get_string())
 
     def test_nonfile_no_channel(self) -> None:
@@ -515,7 +521,8 @@ class TestChannels(unittest.TestCase):
             'ch_in_alignments',
         }
         self.assertEqual(channels_ids, expected_ids)
-        alignments_ch = nfgen.channels.get('ch_in_alignments')
+        inp = wf.input_nodes['inAlignments']
+        alignments_ch = nfgen.channels.get(inp.uuid)
         self.assertTrue(len(alignments_ch.params) == 2)
         self.assertTrue(alignments_ch.collect)
     
@@ -566,7 +573,7 @@ class TestProcessDirectives(unittest.TestCase):
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         process = translator.handle_container(tool, process)
-        directives = nfgen.process.order_directives(process.directives)
+        directives = nfgen.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
         expected_order = [
             'ContainerDirective',
@@ -582,18 +589,19 @@ class TestProcessDirectives(unittest.TestCase):
     def test_directives(self) -> None:
         wf = DirectivesTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=[settings.NF_MAIN_NAME, step_id])
         process = translator.handle_container(tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
             'publishDir "${params.outdir}/stp1"',
             'debug true',
-            'disk "${params.stp1_disk}"',
-            'memory "${params.stp1_memory}"',
-            'time "${params.stp1_time}"'
+            'disk "${params.stp1.disk}"',
+            'memory "${params.stp1.memory}"',
+            'time "${params.stp1.time}"'
         }
         for direc in expected_directives:
             self.assertIn(direc, actual_directives)
@@ -815,15 +823,15 @@ class TestProcessOutputs(unittest.TestCase):
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path inp, emit: out'}
+        expected_outputs = {'path "${inp}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
         # arrays
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
+        tool = wf.step_nodes["stp3"].tool
+        sources = wf.step_nodes["stp3"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp3'])
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path inp, emit: out'}
+        expected_outputs = {'path "${inp}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_secondaries(self) -> None:
@@ -1009,12 +1017,16 @@ class TestProcessScript(unittest.TestCase):
         raise NotImplementedError
 
     def test_filename_generated_tool(self):
-        # TODO FIX ME
-        scope: list[str] = [settings.NF_MAIN_NAME]
-        values = {}
-        tool = FilenameGeneratedTool()
-        p = translator.gen_process_from_cmdtool(tool, values, scope)
-        print(p.get_string())
+        wf = FilenameGeneratedTestWF()
+        refresh_workflow_inputs(wf)
+        
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        print(tool.inputs)
+        sources = wf.step_nodes[step_id].sources
+        scope: list[str] = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        print(process.get_string())
 
         expected = f"""
 process filenamegeneratedtool
@@ -1082,7 +1094,7 @@ process filenamegeneratedtool
 
 
 """
-        self.assertEqual(expected, p.get_string())
+        self.assertEqual(expected, process.get_string())
 
     def test_pythontool(self) -> None:
         wf = InputsPythonToolTestWF()
@@ -1351,11 +1363,11 @@ class TestPlumbingBasic(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
-        expected = {
-            "pos_basic": "ch_in_file",
-            "pos_basic2": "ch_in_file_opt",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "ch_in_file",
+            "ch_in_file_opt",
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
         
     # static step inputs
@@ -1375,7 +1387,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        actual = nfgen.get_args(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -1386,8 +1398,10 @@ class TestPlumbingBasic(unittest.TestCase):
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
-        expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "STP1.out.out"
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
     @unittest.skip('not implemented')
@@ -1415,8 +1429,10 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
-        expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "STP1.out.out"
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_workflow_inputs_array(self) -> None:
@@ -1425,11 +1441,11 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
-        expected = {
-            "pos_basic": "ch_in_file_array",
-            "pos_basic2": "ch_in_file_array_opt",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "ch_in_file_array",
+            "ch_in_file_array_opt",
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
     def test_static_step_inputs_array(self):
@@ -1448,7 +1464,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        actual = nfgen.get_args(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -1471,8 +1487,10 @@ class TestPlumbingScatter(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
-        expected = {"inp": "ch_in_file_array.flatten()"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "ch_in_file_array.flatten()"
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_dot(self) -> None:
@@ -1481,11 +1499,11 @@ class TestPlumbingScatter(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
-        expected = {
-            "pos_basic": "ch_in_file_array.flatten()",
-            "opt_basic": "ch_in_str_array.flatten()",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "ch_in_file_array.flatten()",
+            "ch_in_str_array.flatten()",
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_cross(self) -> None:
@@ -1509,11 +1527,11 @@ ch_in_file_array.flatten()
         self.assertEqual(expected_op, actual_op)
 
         # step input values
-        expected = {
-            "pos_basic": "ch_cartesian_cross.in_file_array",
-            "opt_basic": "ch_cartesian_cross.in_str_array",
-        }
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "ch_cartesian_cross.in_file_array",
+            "ch_cartesian_cross.in_str_array",
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_connection(self) -> None:
@@ -1523,15 +1541,19 @@ ch_in_file_array.flatten()
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
-        expected = {"inp": "STP1.out.out"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "STP1.out.out"
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
         # array -> single
         tool = wf.step_nodes["stp4"].tool
         sources = wf.step_nodes["stp4"].sources
         scatter = wf.step_nodes["stp4"].scatter
-        expected = {"inp": "STP3.out.out.flatten()"}
-        actual = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected = [
+            "STP3.out.out.flatten()"
+        ]
+        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
 
@@ -1571,9 +1593,9 @@ class TestPlumbingSecondaries(unittest.TestCase):
         self.assertEquals(actual_params, expected_params)
         
         # channel created correctly?
-        reference = 'inAlignments'
+        inp = wf.input_nodes['inAlignments']
         expected_channel = 'ch_in_alignments = Channel.fromPath( params.in_alignments_bam, params.in_alignments_bai ).collect()'
-        channel = nfgen.channels.getall(reference)[0]
+        channel = nfgen.channels.getall(inp.uuid)[0]
         actual_channel = channel.declaration
         self.assertEquals(actual_channel, expected_channel)
         
@@ -1581,8 +1603,10 @@ class TestPlumbingSecondaries(unittest.TestCase):
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         scatter = wf.step_nodes["stp1"].scatter
-        expected_inputs = {"inp": "ch_in_alignments"}
-        actual_inputs = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected_inputs = [
+            "ch_in_alignments"
+        ]
+        actual_inputs = nfgen.get_args(tool, sources, scatter)
         self.assertEquals(actual_inputs, expected_inputs)
     
     def test_secondaries_connections(self) -> None:
@@ -1592,8 +1616,10 @@ class TestPlumbingSecondaries(unittest.TestCase):
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         scatter = wf.step_nodes["stp2"].scatter
-        expected_inputs = {"inp": "STP1.out.out"}
-        actual_inputs = translator.gen_step_inval_dict(tool, sources, scatter)
+        expected_inputs = [
+            "STP1.out.out"
+        ]
+        actual_inputs = nfgen.get_args(tool, sources, scatter)
         self.assertEquals(actual_inputs, expected_inputs)
 
 
@@ -1909,16 +1935,17 @@ class TestStepFeatures(unittest.TestCase):
         tool = workflow.step_nodes[step_id].tool
         sources = workflow.step_nodes[step_id].sources
         scatter = workflow.step_nodes[step_id].scatter
-        inputs = translator.gen_step_inval_dict(tool, sources, scatter)
-        expected = {"inp": "[$params.mystring, $get_string.out.out].first()"}
-
+        inputs = nfgen.get_args(tool, sources, scatter)
+        expected = [
+            "[$params.mystring, $get_string.out.out].first()"
+        ]
         self.assertEqual(expected, inputs)
 
     def test_with_expression(self):
         w2 = StepInputExpressionTestWF()
         w2_step_keys = list(w2.step_nodes.keys())
         expected = {"inp": "$params.mystring ? $params.mystring : $params.mystring_backup"}
-        actual = translator.gen_step_inval_dict(w2.step_nodes["print"].tool)
+        actual = nfgen.get_args(w2.step_nodes["print"].tool)
         self.assertEqual(actual, expected)
 
 
@@ -2005,7 +2032,7 @@ class TestUnwrap(unittest.TestCase):
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
         )
-        expected = "inp"
+        expected = 'inp'
         self.assertEqual(actual, expected)
 
     def test_input_selector_param_input(self) -> None:

@@ -9,16 +9,23 @@
 
 from .common import NFFile, Import, ImportItem, Function
 from .workflow import Workflow, WorkflowTake, WorkflowEmit
-from .directives import *  # so bad. 
+from .directives import (
+    DiskDirective,
+    CpusDirective,
+    TimeDirective,
+    DebugDirective,
+    CacheDirective,
+    MemoryDirective,
+    ProcessDirective,
+    PublishDirDirective,
+    ContainerDirective
+)
 
 from .process import (
     Process,
     ProcessInput,
     ProcessOutput,
     ProcessScriptType,
-    # InputProcessQualifier,
-    # OutputProcessQualifier,
-    # TupleElementForOutput
 )
 
 from . import settings

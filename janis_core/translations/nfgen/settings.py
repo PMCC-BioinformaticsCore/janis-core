@@ -1,7 +1,7 @@
 
 
-# from typing import Optional
-# from typing import Any
+from typing import Optional
+
 
 
 # params
@@ -32,21 +32,16 @@ NF_MAIN_NAME = 'main'
 MINIMAL_PROCESS = True
 JANIS_ASSISTANT = False
 
+# comments
+RENDER_COMMENTS = True
+
 # translation mode
 MODE = 'workflow'
 
+# resources
+WITH_RESOURCE_OVERRIDES = False
 
-# def configure(key: Optional[str]=None, val: Optional[Any]=None, dict_config: Optional[dict[str, Any]]=None) -> None:
-#     if key is not None and val is not None:
-#         configure_keyval(key, val)
-#     elif dict_config is not None:
-#         configure_dict(dict_config)
-#     else:
-#         raise RuntimeError
-
-# def configure_keyval(key: str, val: Any) -> None:
-#     globals()[key] = val
-
-# def configure_dict(dict_config: dict[str, Any]) -> None:
-#     for key, val in dict_config.items():
-#         globals()[key] = val
+# containers
+WITH_CONTAINER = True
+ALLOW_EMPTY_CONTAINER = False
+CONTAINER_OVERRIDE = None

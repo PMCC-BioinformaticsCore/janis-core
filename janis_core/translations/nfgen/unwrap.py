@@ -75,8 +75,6 @@ def unwrap_expression(
     val: Any,
     
     tool: Optional[CommandTool]=None,
-    quote_string: bool=True,
-    skip_inputs_lookup: bool=False,
     in_shell_script: bool=False, 
     
     sources: Optional[dict[str, Any]]=None,
@@ -90,8 +88,6 @@ def unwrap_expression(
 
     unwrapper = Unwrapper(
         tool=tool,
-        quote_string=quote_string,
-        skip_inputs_lookup=skip_inputs_lookup,
         in_shell_script=in_shell_script,
 
         sources=sources,
@@ -113,7 +109,6 @@ class Unwrapper:
     def __init__(
         self,
         tool: Optional[CommandTool]=None,
-        quote_string: bool=True,
         skip_inputs_lookup: bool=False,
         in_shell_script: bool=False, 
 
@@ -126,7 +121,6 @@ class Unwrapper:
         scatter_method: Optional[ScatterMethod]=None,
     ) -> None:
         self.tool = tool
-        self.quote_string = quote_string
         self.skip_inputs_lookup = skip_inputs_lookup
         self.in_shell_script = in_shell_script
 
@@ -301,20 +295,13 @@ class Unwrapper:
 
     # primitives
     def unwrap_null(self, val: Any) -> Any:
-        return "null"
-        # if self.quote_string:
-        #     return "null"
-        # return None
+        return None
 
     def unwrap_str(self, val: str) -> Any:
-        if self.quote_string:
-            return f'"{val}"'
-        return val
+        return str(val)
     
     def unwrap_bool(self, val: bool) -> Any:
-        if self.quote_string:
-            return f'"{val}"'
-        return val
+        return str(val)
 
     def unwrap_int(self, val: int) -> Any:
         return str(val)
@@ -326,7 +313,7 @@ class Unwrapper:
         elements: list[Any] = []
         for elem in val:
             el = self.unwrap(val=elem)
-            elements.append(el)
+            elements.append(str(el))
         list_representation = f"[{', '.join(elements)}]"
         return list_representation
 
@@ -364,8 +351,6 @@ class Unwrapper:
     # operator operators
 
     def unwrap_index_operator(self, op: IndexOperator) -> Any:
-        self.quote_string = False
-        
         # special case: janis secondary -> nextflow tuple
         if isinstance(op.args[0], InputSelector):
             sel = op.args[0]
@@ -467,7 +452,7 @@ class Unwrapper:
         return self.unwrap(sel.input_node)
 
     def unwrap_wildcard_selector(self, sel: WildcardSelector) -> str:
-        return f'"{sel.wildcard}"'
+        return f'{sel.wildcard}'
 
     def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
         """
@@ -483,25 +468,25 @@ class Unwrapper:
         
         inp = self.get_input_by_id(sel.input_to_select)
         dtype: DataType = inp.input_type # type: ignore
+        basetype = nfgen_utils.get_base_type(dtype)
         
-        if isinstance(dtype, Filename):
-            expr = f"{self.unwrap(dtype)}"
-            print()
-
-        elif isinstance(dtype, File):
-            expr = self.get_src_variable(inp)
-            
-            if sel.remove_file_extension:
-                expr = f"{expr}.simpleName"
-            
-            # elif self.for_output:
-            #     expr = f"{expr}.name"
-            
-            if self.in_shell_script:
-                expr = f"${{{expr}}}"
+        if isinstance(basetype, Filename):
+            expr = self.unwrap(dtype)
         
         else:
-            expr = self.get_src_variable(inp)
+            if isinstance(basetype, File):
+                expr = self.get_src_variable(inp)
+                
+                if sel.remove_file_extension:
+                    expr = f'{expr}.simpleName'
+                
+                # elif self.for_output:
+                #     expr = f"{expr}.name"
+            else:
+                expr = self.get_src_variable(inp)
+            
+            if self.in_shell_script:
+                expr = f'${{{expr}}}'
 
         expr = self.unwrap(expr)
         return expr
@@ -546,7 +531,6 @@ class Unwrapper:
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
         # TODO save state of self.quote string
-        self.quote_string = False
         return self.unwrap(val.source_map[0])
     
     def unwrap_edge(self, val: Edge) -> Any:
@@ -574,8 +558,6 @@ class Unwrapper:
         return arg_val
 
     def unwrap_filename(self, fn: Filename) -> str:
-        self.quote_string = False
-        
         prefix = self.unwrap(fn.prefix) or ''
         suffix = self.unwrap(fn.suffix) or ''
         extension = self.unwrap(fn.extension) or ''
@@ -629,8 +611,6 @@ class Unwrapper:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
             tool=self.tool,
-            quote_string=self.quote_string,
-            skip_inputs_lookup=self.skip_inputs_lookup,
             in_shell_script=self.in_shell_script,
 
             sources=self.sources,

@@ -1,11 +1,12 @@
 
 
 from typing import Optional, Any, Tuple
-from janis_core import ToolInput, TInput
-from janis_core.types import Boolean, Array, File
+from janis_core import ToolInput, TInput, CommandTool
+from janis_core.types import Boolean, Array, File, Filename
 from .. import nfgen_utils
 from .. import secondaries
 from .. import params
+from .. unwrap import unwrap_expression
 
 from enum import Enum, auto
 
@@ -103,10 +104,10 @@ def get_itype(tinput: ToolInput) -> IType:
 
 ### helper methods
 
-def get_src(
+def get_nf_variable_name(
     inp: ToolInput | TInput, 
     process_inputs: set[str], 
-    param_inputs: set[str], 
+    param_inputs: set[str],
     sources: dict[str, Any]
     ) -> str:
     # get nextflow variable name which feeds data for this tool input
@@ -143,14 +144,18 @@ def get_src_param_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> str
 class InputFormatter:
     def __init__(self, 
         tinput: ToolInput, 
+        tool: CommandTool,
         process_inputs: set[str], 
         param_inputs: set[str], 
+        internal_inputs: set[str], 
         sources: dict[str, Any]
     ) -> None:
 
         self.tinput = tinput
-        self.process_inputs = process_inputs
-        self.param_inputs = param_inputs
+        self.tool = tool
+        self.process_inputs = process_inputs    # ToolInput which has corresponding process input
+        self.param_inputs = param_inputs        # ToolInput which has corresponding global param
+        self.internal_inputs = internal_inputs  # ToolInput which has no corresponding process input or param
         self.sources = sources
         self.itype = get_itype(tinput)
         self.prescript_template = prescript_template_map[self.itype]
@@ -179,12 +184,25 @@ class InputFormatter:
 
     ### PUBLIC METHODS
     def format(self) -> Tuple[Optional[str], Optional[str]]:
-        func = self.func_map[self.itype]
-        prescript, script = func()
+        if self.should_ignore:
+            prescript = None
+            script = None
+        
+        elif self.should_autofill:
+            prescript = None
+            script = self.autofill_script_expr()
+        
+        else:
+            formatting_func = self.func_map[self.itype]
+            prescript, script = formatting_func()
+        
         return prescript, script
-
     
     ### HELPER PROPERTIES
+    @property
+    def name(self) -> str:
+        return self.tinput.id()
+
     @property
     def prefix(self) -> Optional[str]:
         if self.tinput.prefix is None:
@@ -195,6 +213,27 @@ class InputFormatter:
             return self.tinput.prefix
         else:
             return f'{self.tinput.prefix}{self.delim}'
+        
+    @property
+    def delim(self) -> str:
+        return self.tinput.separator if self.tinput.separator else ' '
+    
+    @property
+    def default(self) -> Any:
+        default = self.tinput.default
+        dtype = self.tinput.input_type
+        basetype = nfgen_utils.get_base_type(dtype)
+        
+        # get unwrapped default
+        if default is None and isinstance(basetype, Filename):
+            default = self.unwrap(basetype)
+        else:
+            default = self.unwrap(default)
+        
+        # if default is not None:
+        #     default = nfgen_utils.to_groovy(default, self.tinput.input_type)
+        
+        return default
     
     @property
     def is_process_input(self) -> bool:
@@ -207,28 +246,69 @@ class InputFormatter:
         if self.name in self.param_inputs:
             return True
         return False
-
-    @property
-    def name(self) -> str:
-        return self.tinput.id()
-        
-    @property
-    def delim(self) -> str:
-        return self.tinput.separator if self.tinput.separator else ' '
     
     @property
-    def default(self) -> Any:
-        default = self.tinput.default
-        if default is not None:
-            if not isinstance(self.tinput.input_type, Array):
-                default = nfgen_utils.to_groovy(self.tinput.default, self.tinput.input_type)
-            else:
-                default = self.eval_cmdline(inp=self.tinput, val=self.tinput.default)
-        return default
+    def is_internal_input(self) -> bool:
+        # ToolInput which references another ToolInput using InputSelector
+        """
+        ToolArgument(
+            value=StringFormatter(
+                "my string {VALUE}",
+                VALUE=InputSelector(
+                    input_to_select="ref_fasta"
+                )
+            )
+        )
+        ToolOutput(
+            tag="outp",
+            output_type=VcfTabix(),
+            selector=WildcardSelector(
+                wildcard=BasenameOperator(
+                    InputSelector(input_to_select="input_file", type_hint=File())
+                )
+            ),
+            doc=OutputDocumentation(doc=None),
+        )
+
+        ToolArgument: value
+        ToolOutput: selector
+
+        """
+        if self.name in self.internal_inputs:
+            return True
+        return False
+
+    @property
+    def should_ignore(self) -> bool:
+        if self.is_internal_input and not self.should_autofill:
+            return True
+        return False
+    
+    @property
+    def should_autofill(self) -> bool:
+        """
+        For ToolInputs which are not fed via a process input or a param,
+        should a static value be evaluated? 
+        eg. 
+            ToolInput('myinp', String, default='hello!')
+            Additional info: 
+                In the step call for the Tool with ToolInput above, if no
+                value is given for this ToolInput, we should use its default value. 
+                This default value can be directly injected into the script. 
+                If there was no default, we can't autofill anything.  
+        
+        Other cases for autofill exist including where values are driven using InputSelectors. 
+        """
+        if self.is_internal_input:
+            if self.tinput.default is not None:
+                return True
+            elif isinstance(self.tinput.input_type, Filename):
+                return True
+        return False
     
     @property
     def src(self) -> str:
-        return get_src(
+        return get_nf_variable_name(
             inp=self.tinput,
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
@@ -246,16 +326,27 @@ class InputFormatter:
 
     
     ### HELPER METHODS
+    def unwrap(self, val: Any) -> Any:
+        return unwrap_expression(
+            val=val,
+            tool=self.tool,
+            sources=self.sources,
+            process_inputs=self.process_inputs,
+            param_inputs=self.param_inputs,
+            internal_inputs=self.internal_inputs,
+            in_shell_script=True,
+        )
+
     def eval_cmdline(self, inp: ToolInput, val: Any) -> str:
         if isinstance(val, list):
             basetype = nfgen_utils.get_base_type(inp.input_type)
-            # ARR_JOIN_BASIC      = "{src}.join('{delim}')"
-            # ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}.join('{delim}')"
+            
             if inp.prefix_applies_to_all_elements:
                 vals_groovy = [nfgen_utils.to_groovy(elem, basetype) for elem in val]
                 elems = [f'{self.prefix}{elem}' for elem in vals_groovy]
                 cmdline = ' '.join(elems)
                 return cmdline
+            
             else:
                 prefix = self.prefix if self.prefix else ''
                 vals_groovy = [nfgen_utils.to_groovy(elem, basetype) for elem in val]
@@ -266,73 +357,110 @@ class InputFormatter:
             raise NotImplementedError
 
 
-    ### MAIN METHODS BY ToolInput TYPE
-    def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
-        # if fed by param or process input, there will be prescript var definition
-        if not self.is_param_input and not self.is_process_input:
-            prescript = None
-            script = self.prefix
-        else:
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                prefix=self.prefix
+    ### AUTOFILL METHODS BY IType
+    def autofill_script_expr(self) -> Optional[str]: 
+        # when autofill is possible, returns the str expression
+        # which can be injected directly into the nf script block.
+        if self.itype == IType.FLAG_TRUE:
+            expr = self.prefix
+        
+        elif self.itype == IType.FLAG_FALSE:
+            expr = None
+        
+        elif self.itype == IType.POS_BASIC:
+            # TODO TEST IMPORTANT
+            expr = self.default
+        
+        elif self.itype == IType.POS_BASIC_ARR:
+            # TODO TEST IMPORTANT
+            expr = self.default
+
+        elif self.itype == IType.POS_DEFAULT:
+            expr = self.default
+        
+        elif self.itype == IType.POS_DEFAULT_ARR:
+            expr = self.default
+        
+        elif self.itype == IType.OPT_BASIC:
+            expr = '{prefix}{default}'.format(
+                prefix=self.prefix, 
+                default=self.default
             )
-            script = '${{{var}}}'.format(var=self.name)
+        
+        elif self.itype == IType.OPT_BASIC_ARR:
+            # TODO TEST IMPORTANT
+            expr = self.eval_cmdline(
+                inp=self.tinput, 
+                val=self.default
+            )
+
+        elif self.itype == IType.OPT_DEFAULT:
+            expr = '{prefix}{default}'.format(
+                prefix=self.prefix, 
+                default=self.default
+            )
+        
+        elif self.itype == IType.OPT_DEFAULT_ARR:
+            # TODO TEST IMPORTANT
+            expr = self.eval_cmdline(
+                inp=self.tinput, 
+                val=self.default
+            )
+
+        else:
+            raise NotImplementedError(f'cannot autofill a {self.itype}')
+        
+        return expr
+        
+
+
+
+    ### FORMATTING METHODS BY IType
+    def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            prefix=self.prefix
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def flag_false(self) -> Tuple[Optional[str], Optional[str]]:
-        # if fed by param or process input, there will be prescript var definition
-        if not self.is_param_input and not self.is_process_input:
-            prescript = None
-            script = self.prefix
-        else:
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                prefix=self.prefix
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            prefix=self.prefix
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def pos_basic(self) -> Tuple[Optional[str], Optional[str]]:
-        # Mandatory: always fed value via process input or param input
-        # TODO dubious about this
+        """
+        A basic positional. Has no prefix, and is mandatory.
+        Will have either a process input or param input, or will be fed a value via InputSelector.
+        """
         prescript = None
         script = '${{{var}}}'.format(var=self.src)
         return prescript, script
 
     def pos_default(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # if internal input, value is directly injected
-            prescript = None  
-            script = self.default
-        else:
-            # if has param or is process input, there will be prescript var definition
-            prescript = self.prescript_template.format(
-                name=self.name,
-                src=self.src,
-                default=self.default
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name,
+            src=self.src,
+            default=self.default
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def pos_optional(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # if internal input
-            prescript = None  # no prescript needed - input is ignored
-            script = None  # no script needed - input is ignored
-        else:
-            # there will be prescript var definition
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def pos_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        # always has a prescript var to format array
         prescript = self.prescript_template.format(
             name=self.name, 
             arr_join=self.arr_join
@@ -341,77 +469,48 @@ class InputFormatter:
         return prescript, script
 
     def pos_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal input
-            prescript = None  # no prescript needed - value is directly injected
-            script = self.default
-        else:
-            # fed from param or process input
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                arr_join=self.arr_join, 
-                default=self.default
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            arr_join=self.arr_join, 
+            default=self.default
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def pos_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal input
-            prescript = None  # no prescript needed - input is ignored
-            script = None  # no script needed - input is ignored
-        else:
-            # fed by param or process input
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                arr_join=self.arr_join
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            arr_join=self.arr_join
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def opt_basic(self) -> Tuple[Optional[str], Optional[str]]:
-        # Mandatory: always fed value via process input or param input
-        # TODO DUBIOUSSSSSS
-        prescript = None   # no prescript needed
+        prescript = None  
         script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.src)
         return prescript, script
 
     def opt_default(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal
-            prescript = None  # no prescript needed - value is directly injected
-            script = '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
-        else:
-            # fed by param or process input
-            prescript = self.prescript_template.format(
-                name=self.name,
-                src=self.src,
-                default=self.default
-            )
-            script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name,
+            src=self.src,
+            default=self.default
+        )
+        script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
         return prescript, script
 
     def opt_optional(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal
-            prescript = None  # no prescript needed - input is ignored
-            script = None
-        else:
-            # external
-            prescript = self.prescript_template.format(
-                name=self.name,
-                src=self.src,
-                prefix=self.prefix
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name,
+            src=self.src,
+            prefix=self.prefix
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
     def opt_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        # Mandatory: always fed value via process input or param input
-        # always has a prescript var to format array
-        # TODO DUBIOUSSSSSS
         prescript = self.prescript_template.format(
             name=self.name, 
             arr_join=self.arr_join
@@ -420,35 +519,23 @@ class InputFormatter:
         return prescript, script
 
     def opt_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal
-            prescript = None  # no prescript needed - value is directly injected
-            script = '{prefix}{default}'.format(prefix=self.prefix, default=self.default)
-        else:
-            # external
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                arr_join=self.arr_join, 
-                default=self.default
-            )
-            script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            arr_join=self.arr_join, 
+            default=self.default
+        )
+        script = '{prefix}${{{var}}}'.format(prefix=self.prefix, var=self.name)
         return prescript, script
 
     def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        if not self.is_param_input and not self.is_process_input:
-            # internal
-            prescript = None  # no prescript needed
-            script = None     # input is ignored
-        else:
-            # external
-            prescript = self.prescript_template.format(
-                name=self.name, 
-                src=self.src, 
-                prefix=self.prefix,
-                arr_join=self.arr_join
-            )
-            script = '${{{var}}}'.format(var=self.name)
+        prescript = self.prescript_template.format(
+            name=self.name, 
+            src=self.src, 
+            prefix=self.prefix,
+            arr_join=self.arr_join
+        )
+        script = '${{{var}}}'.format(var=self.name)
         return prescript, script
 
 
@@ -474,13 +561,15 @@ def is_option(tinput: ToolInput) -> bool:
 
 # bool features
 def is_basic(tinput: ToolInput) -> bool:
-    if not tinput.input_type.optional:
+    if not is_optional(tinput):
         if tinput.default == None:
             return True
     return False
 
 def is_optional(tinput: ToolInput) -> bool:
-    if tinput.input_type.optional == True:
+    if isinstance(tinput.input_type, Filename):
+        return False
+    elif tinput.input_type.optional == True:
         return True
     return False
 
@@ -509,9 +598,18 @@ def is_array(tinput: ToolInput) -> bool:
 
 def format_input(
     tinput: ToolInput, 
+    tool: CommandTool,
     process_inputs: set[str], 
     param_inputs: set[str],
+    internal_inputs: set[str],
     sources: dict[str, Any]
     ) -> Tuple[Optional[str], Optional[str]]:
-    return InputFormatter(tinput, process_inputs, param_inputs, sources).format()
+    return InputFormatter(
+        tinput=tinput, 
+        tool=tool, 
+        process_inputs=process_inputs, 
+        param_inputs=param_inputs, 
+        internal_inputs=internal_inputs, 
+        sources=sources
+    ).format()
 

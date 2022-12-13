@@ -1,30 +1,14 @@
 
 import os
 
-from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, Any
 from textwrap import indent
+
 from . import settings
 from .casefmt import to_case
 
 
-def filter_null(iterable):
-    if iterable is None:
-        return None
-    if not isinstance(iterable, list):
-        raise Exception(
-            f"filter_null: Expected iterable ('{str(iterable)}') to be of type list, received '{type(iterable)}'"
-        )
-
-    return [el for el in iterable if el is not None]
-
-
-class NFBase(ABC):
-    @abstractmethod
-    def get_string(self) -> str:
-        raise Exception("Subclass must override .get_string() method")
-
-class ImportItem(NFBase):
+class ImportItem:
     def __init__(self, name: str, alias: Optional[str] = None):
         self.name = name
         self.alias = alias
@@ -36,8 +20,8 @@ class ImportItem(NFBase):
         return name
 
 
-class Import(NFBase):
-    def __init__(self, items: List[ImportItem], source: str):
+class Import:
+    def __init__(self, items: list[ImportItem], source: str):
         self.items = items
         self.source = source
 
@@ -51,8 +35,8 @@ class Import(NFBase):
         return f"include {{ {items} }} from '{self.source}'"
 
 
-class NFFile(NFBase):
-    def __init__(self, subtype: str, imports: List[Import], items: List[NFBase], name: Optional[str]=None):
+class NFFile:
+    def __init__(self, subtype: str, imports: list[Import], items: list[Any], name: Optional[str]=None):
         self.subtype = subtype
         self.imports = imports
         self.items = items
@@ -82,8 +66,8 @@ class NFFile(NFBase):
 
         return "\n\n".join(components)
     
-class Function(NFBase):
-    def __init__(self, name: str, parameters: List[str], definition: str):
+class Function:
+    def __init__(self, name: str, parameters: list[str], definition: str):
         self.name = name
         self.definition = definition
         self.parameters = parameters

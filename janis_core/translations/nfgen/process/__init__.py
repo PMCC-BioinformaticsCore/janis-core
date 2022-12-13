@@ -1,6 +1,6 @@
 
 from .script import gen_script_for_cmdtool
-from .script_formatting import get_src
+from .script_formatting import get_nf_variable_name
 
 from .inputs import ProcessInput, PathProcessInput
 from .inputs import create_inputs

@@ -4,7 +4,6 @@ from textwrap import indent
 
 from typing import Optional
 
-from ..common import NFBase, filter_null
 from ..directives import ProcessDirective
 from ..casefmt import to_case
 from .. import settings
@@ -13,13 +12,25 @@ from .inputs import ProcessInput
 from .outputs import ProcessOutput
 from .. import ordering
 
+
+def filter_null(iterable):
+    if iterable is None:
+        return None
+    if not isinstance(iterable, list):
+        raise Exception(
+            f"filter_null: Expected iterable ('{str(iterable)}') to be of type list, received '{type(iterable)}'"
+        )
+
+    return [el for el in iterable if el is not None]
+
+
 class ProcessScriptType(Enum):
     script = "script"
     shell = "shell"
     exec = "exec"
 
 
-class Process(NFBase):
+class Process:
     def __init__(
         self,
         name: str,

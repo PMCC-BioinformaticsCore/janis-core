@@ -113,11 +113,11 @@ class CmdtoolProcessOutputFactory:
     def dtype(self) -> DataType:
         return self.out.output_type
 
-    def handle_selector(self) -> Any:
+    def unwrap_collection_expression(self) -> Any:
         return unwrap_expression(
             val=self.out.selector, 
             tool=self.tool, 
-            # inputs_dict=self.tool.inputs_map(), # TODO HERE
+            in_shell_script=True,
             sources=self.sources,
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
@@ -133,7 +133,7 @@ class CmdtoolProcessOutputFactory:
             return self.create_outputs_single()
 
     def should_discard(self) -> bool:
-        # TODO
+        # TODO?
         return False
     
     def create_outputs_single(self) -> list[ProcessOutput]:
@@ -186,7 +186,8 @@ class CmdtoolProcessOutputFactory:
     def create_path_output(self) -> PathProcessOutput:
         # create output for file types
         optional = True if self.dtype.optional else False
-        expression = self.handle_selector()
+        expression = self.unwrap_collection_expression()
+        expression = f'"{expression}"'
         new_output = PathProcessOutput(
             name=self.out.id(), 
             is_optional=optional, 
@@ -197,7 +198,8 @@ class CmdtoolProcessOutputFactory:
     def create_val_output(self) -> ValProcessOutput:
         # create output for nonfile types
         optional = True if self.dtype.optional else False  
-        expression = self.handle_selector()
+        expression = self.unwrap_collection_expression()
+        expression = f'"{expression}"'
         new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=optional, 
@@ -217,8 +219,7 @@ class CmdtoolProcessOutputFactory:
         qualifiers: list[str] = []
         expressions: list[str] = []
         
-        primary_expr = self.handle_selector()
-        primary_expr_unquoted = primary_expr.strip('"')
+        primary_expr = self.unwrap_collection_expression()
         exts = secondaries.get_extensions(self.dtype)
         for ext in exts:
             # primary file
@@ -228,7 +229,7 @@ class CmdtoolProcessOutputFactory:
             # secondary file
             else:
                 secondary_ext = self.out.secondaries_present_as[ext]
-                secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr_unquoted, secondary_ext)
+                secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
                 qual = 'path'
                 expr = f'"{secondary_expr}"'
             qualifiers.append(qual)

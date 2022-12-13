@@ -209,7 +209,7 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
 
     def test_tools_filename(self):
         self.assertEqual(
-            "TestTranslationtool.wdl", self.translator.tool_filename(BasicTestTool().id())
+            "BasicTestTool.wdl", self.translator.tool_filename(BasicTestTool().id())
         )
 
     def test_inputs_filename(self):
@@ -796,7 +796,7 @@ class TestWdlMaxResources(unittest.TestCase):
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
-            2, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
+            2, resources["BasicTestToolWf.basictesttool_runtime_cpu"]
         )
 
     def test_max_cores(self):
@@ -805,7 +805,7 @@ class TestWdlMaxResources(unittest.TestCase):
             tool.wrapped_in_wf(), {}, max_cores=1, is_root=True
         )
         self.assertEqual(
-            1, resources["TestTranslationtoolWf.testtranslationtool_runtime_cpu"]
+            1, resources["BasicTestToolWf.basictesttool_runtime_cpu"]
         )
 
     def test_memory(self):
@@ -814,7 +814,7 @@ class TestWdlMaxResources(unittest.TestCase):
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
-            2, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
+            2, resources["BasicTestToolWf.basictesttool_runtime_memory"]
         )
 
     def test_max_memory(self):
@@ -823,7 +823,7 @@ class TestWdlMaxResources(unittest.TestCase):
             tool.wrapped_in_wf(), {}, max_mem=1, is_root=True
         )
         self.assertEqual(
-            1, resources["TestTranslationtoolWf.testtranslationtool_runtime_memory"]
+            1, resources["BasicTestToolWf.basictesttool_runtime_memory"]
         )
 
 
@@ -1162,6 +1162,9 @@ class TestWdlContainerOverride(unittest.TestCase):
 
 
 class TestWDLRunRefs(unittest.TestCase):
+    def setUp(self) -> None:
+        self.maxDiff = None
+
     def test_two_similar_tools(self):
         w = WorkflowBuilder("testTwoToolsWithSameId")
 
@@ -1175,17 +1178,17 @@ class TestWDLRunRefs(unittest.TestCase):
 
         expected = """\
 version development
-import "tools/TestTranslationtool.wdl" as T
-import "tools/TestTranslationtool_v0_0_2.wdl" as T2
+import "tools/BasicTestTool.wdl" as B
+import "tools/BasicTestTool_v0_0_2.wdl" as B2
 workflow testTwoToolsWithSameId {
   input {
     String inp
   }
-  call T.TestTranslationtool as stp1 {
+  call B.BasicTestTool as stp1 {
     input:
       testtool=inp
   }
-  call T2.TestTranslationtool as stp2 {
+  call B2.BasicTestTool as stp2 {
     input:
       testtool=inp
   }
@@ -1400,7 +1403,7 @@ workflow StepInputExpressionTestWF {
         wf.step(
             "print",
             ArrayStepTool(
-                inps=[
+                inp=[
                     If(IsDefined(wf.inp1), wf.inp1, "default1"),
                     If(IsDefined(wf.inp2), wf.inp2 + "_suffix", ""),
                 ]
@@ -1421,10 +1424,10 @@ workflow cwl_test_array_step_input {
   }
   call A.ArrayStepTool as print {
     input:
-      inps=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
+      inp=[if (defined(inp1)) then inp1 else "default1", if (defined(inp2)) then (inp2 + "_suffix") else ""]
   }
   output {
-    Array[File] out = print.outs
+    Array[File] out = print.out
   }
 }"""
 

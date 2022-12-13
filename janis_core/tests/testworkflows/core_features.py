@@ -35,6 +35,7 @@ from janis_core.tests.testtools import (
 
     ArrayComponentsTestTool,
     ArraySecondariesTestTool,
+    FilenameGeneratedTool
 )
 
 
@@ -354,6 +355,36 @@ class StepInputsMinimalTestWF(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+
+class FilenameGeneratedTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inStr', String)
+        self.input('inStrOpt', String(optional=True))
+        self.input('inFile', File)
+        self.input('inFileOpt', File(optional=True))
+
+        self.step(
+            "stp1", 
+            FilenameGeneratedTool(
+                inp=self.inStr,
+                inpOptional=self.inStrOpt,
+                fileInp=self.inFile,
+                fileInpOptional=self.inFileOpt,
+            )
+        )
+
+        self.output("out", File, source=self.stp1.out)
+
+    def friendly_name(self):
+        return "TEST: FilenameGeneratedTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+    
 
 
 

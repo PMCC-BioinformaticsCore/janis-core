@@ -3,6 +3,7 @@ import os
 import re
 import posixpath
 from collections import defaultdict
+from typing import Protocol
 
 from typing import Tuple, Dict, List, Optional, Any
 from janis_core.translations.nfgen import format_process_call
@@ -49,15 +50,12 @@ from janis_core.translations.nfgen import settings
 # - GH Dec 2022
 
 
-
+class IGetStringMethod(Protocol):
+    def get_string(self) -> str:
+        ... 
 
 def scope_to_dot_notation(scope: list[str]) -> str:
     return '.'.join(scope)
-    # if not scope:
-    #     dot = settings.NF_MAIN_WF_NAME
-    # else:
-    #     dot = '.'.join(scope)
-    # return dot
 
 def dot_to_scope_notation(dot: str) -> list[str]:
     return dot.split('.')
@@ -111,13 +109,13 @@ class NFItemRegister:
     Some entities may have multiple items. 
     """
     def __init__(self):
-        self.items: dict[str, list[nfgen.NFBase]] = defaultdict(list)
+        self.items: dict[str, list[IGetStringMethod]] = defaultdict(list)
 
-    def add(self, scope: list[str], nf_item: nfgen.NFBase) -> None:
+    def add(self, scope: list[str], nf_item: IGetStringMethod) -> None:
         label = scope_to_dot_notation(scope)
         self.items[label].append(nf_item)
 
-    def get(self, scope: list[str]) -> list[nfgen.NFBase]:
+    def get(self, scope: list[str]) -> list[IGetStringMethod]:
         # items with current scope
         label = scope_to_dot_notation(scope)
         nf_items = deepcopy(self.items[label])
@@ -149,11 +147,11 @@ class NextflowTranslator(TranslatorBase):
     ) -> Tuple[Any, dict[str, Any]]:
 
         # set class variables to avoid passing junk params
-        cls.with_container = with_container
-        cls.with_resource_overrides = with_resource_overrides
-        cls.allow_empty_container = allow_empty_container
-        cls.container_override = container_override
-        cls.render_comments = render_comments
+        settings.WITH_CONTAINER = with_container
+        settings.ALLOW_EMPTY_CONTAINER = allow_empty_container
+        settings.CONTAINER_OVERRIDE = container_override
+        settings.WITH_RESOURCE_OVERRIDES = with_resource_overrides
+        settings.RENDER_COMMENTS = render_comments
 
         # blank scope - main wf has not parent
         scope: list[str] = [settings.NF_MAIN_NAME]
@@ -181,7 +179,7 @@ class NextflowTranslator(TranslatorBase):
         tool: Workflow | CommandTool | PythonTool,
         sources: dict[str, Any],
         scatter: Optional[ScatterDescription]=None,
-        ) -> list[nfgen.NFBase]:
+        ) -> list[IGetStringMethod]:
         
         """
         1. generate all nextflow items (currently: nfgen.Process, nfgen.Workflow, nfgen.ChannelOperation).
@@ -377,7 +375,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         settings.MODE = 'tool'
-        file_items: list[nfgen.NFBase] = []
+        file_items: list[IGetStringMethod] = []
         scope: list[str] = [settings.NF_MAIN_NAME]
         values: dict[str, Any] = {}
 
@@ -492,7 +490,7 @@ class NextflowTranslator(TranslatorBase):
             emit: list[nfgen.WorkflowEmit] = []
             for out in wf.output_nodes.values():
                 outname = out.id()
-                expression = nfgen.unwrap_expression(val=out.source)
+                expression = nfgen.unwrap_expression(val=out.source, in_shell_script=True)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
         # main (workflow step calls, channel operations)
@@ -543,20 +541,20 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        if cls.with_container:
+        if settings.WITH_CONTAINER:
             container = (
                 NextflowTranslator.get_container_override_for_tool(
-                    tool, cls.container_override
+                    tool, settings.CONTAINER_OVERRIDE
                 )
                 or tool.container()
             )
 
         if container is not None:
-            container_expr = nfgen.unwrap_expression(container, tool=tool, quote_string=False)
+            container_expr = nfgen.unwrap_expression(container, tool=tool)
             directive = nfgen.ContainerDirective(container_expr)
             process.directives.append(directive)
 
-        elif not cls.allow_empty_container:
+        elif not settings.ALLOW_EMPTY_CONTAINER:
             raise Exception(
                 f"The tool '{tool.id()}' did not have a container and no container override was specified. "
                 f"Although not recommended, Janis can export empty docker containers with the parameter "
@@ -654,13 +652,11 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         # name
-        process_name = scope[-1] if scope else tool.id()
+        process_name = scope[-1]
 
         # directives
         resources = {}
-        process_directives = cls.gen_directives_for_process(
-            tool, resources, scope
-        )
+        process_directives = cls.gen_directives_for_process(tool, resources, scope)
 
         # inputs
         process_inputs: list[nfgen.ProcessInput] = []
@@ -698,35 +694,49 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def gen_directives_for_process(
-        cls, tool: CommandTool, resources: dict[str, Any], scope: Optional[list[str]]=None
+        cls, tool: CommandTool, resources: dict[str, Any], scope: list[str]
     ) -> list[nfgen.ProcessDirective]:
-        scope = scope if scope else []
+
+        # TODO REFACTOR
 
         nf_directives: dict[str, nfgen.ProcessDirective] = {}
         nf_directives['publishDir'] = nfgen.PublishDirDirective(scope)
         nf_directives['debug'] = nfgen.DebugDirective(debug='true')
 
         # Add directives from input resources
-
         for res, val in resources.items():
             if res.endswith("runtime_cpu"):
-                nf_directives['cpus'] = nfgen.CpusDirective(scope, res, val)
+                param = nfgen.params.add(var_name='cpus', var_scope=scope, default=val)
+                nf_directives['cpus'] = nfgen.CpusDirective(param)
+            
             elif res.endswith("runtime_memory"):
-                nf_directives['memory'] = nfgen.MemoryDirective(scope, res, val)
+                param = nfgen.params.add(var_name='memory', var_scope=scope, default=val)
+                nf_directives['memory'] = nfgen.MemoryDirective(param)
+            
             elif res.endswith("runtime_seconds"):
-                nf_directives['time'] = nfgen.TimeDirective(scope, res, val)
+                param = nfgen.params.add(var_name='time', var_scope=scope, default=val)
+                nf_directives['time'] = nfgen.TimeDirective(param)
+            
             elif res.endswith("runtime_disk"):
-                nf_directives['disk'] = nfgen.DiskDirective(scope, res, val)
+                param = nfgen.params.add(var_name='disk', var_scope=scope, default=val)
+                nf_directives['disk'] = nfgen.DiskDirective(param)
         
         # Add directives from tool resources
-        if 'cpus' not in nf_directives and tool.cpus({}) is not None:           
-            nf_directives['cpus'] = nfgen.CpusDirective(scope, 'cpus', tool.cpus({}))
+        if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
+            param = nfgen.params.add(var_name='cpus', var_scope=scope, default=tool.cpus({}))
+            nf_directives['cpus'] = nfgen.CpusDirective(param)
+        
         if 'memory' not in nf_directives and tool.memory({}) is not None:
-            nf_directives['memory'] = nfgen.MemoryDirective(scope, 'memory', tool.memory({}))
+            param = nfgen.params.add(var_name='memory', var_scope=scope, default=tool.memory({}))
+            nf_directives['memory'] = nfgen.MemoryDirective(param)
+        
         if 'disk' not in nf_directives and tool.disk({}) is not None:
-            nf_directives['disk'] = nfgen.DiskDirective(scope, 'disk', tool.disk({}))
+            param = nfgen.params.add(var_name='disk', var_scope=scope, default=tool.disk({}))
+            nf_directives['disk'] = nfgen.DiskDirective(param)
+        
         if 'time' not in nf_directives and tool.time({}) is not None:
-            nf_directives['time'] = nfgen.TimeDirective(scope, 'time', tool.time({}))
+            param = nfgen.params.add(var_name='time', var_scope=scope, default=tool.time({}))
+            nf_directives['time'] = nfgen.TimeDirective(param)
         
         final_directives: list[nfgen.ProcessDirective] = []
         for direc in nf_directives.values():
@@ -931,18 +941,19 @@ class NextflowTranslator(TranslatorBase):
 
         inputs = {}
         process_ids = nfgen.process.get_process_inputs(sources)
+        scatter_method = scatter.method if scatter else None
 
         for name in process_ids:
             if name in sources:
                 src = sources[name]
-                scatter_target = True if name in scatter.fields else False
+                scatter_target = True if scatter and name in scatter.fields else False
 
                 inputs[name] = nfgen.unwrap_expression(
                     val=src, 
                     tool=tool,
                     sources=sources,
                     scatter_target=scatter_target,
-                    scatter_method=scatter.method,
+                    scatter_method=scatter_method,
                 )
         return inputs
 
@@ -975,7 +986,6 @@ class NextflowTranslator(TranslatorBase):
     def unwrap_expression(
         cls,
         value,
-        quote_string=True,
         tool=None,
         # inputs_dict=None,
         skip_inputs_lookup=False,
@@ -987,10 +997,8 @@ class NextflowTranslator(TranslatorBase):
         return nfgen.unwrap_expression(
             val=value,
             # input_in_selectors=cls.INPUT_IN_SELECTORS,
-            quote_string=quote_string,
             tool=tool,
             # inputs_dict=inputs_dict,
-            skip_inputs_lookup=skip_inputs_lookup,
             in_shell_script=in_shell_script,
             # var_indicator=var_indicator,
             # step_indicator=step_indicator,
@@ -1154,7 +1162,7 @@ class NextflowTranslator(TranslatorBase):
         
         for inp in tool.inputs():
             if inp.id() in process_inputs or inp.id() in param_inputs:
-                src = nfgen.process.get_src(inp, process_inputs, param_inputs, sources)
+                src = nfgen.process.get_nf_variable_name(inp, process_inputs, param_inputs, sources)
 
                 value = f"${{{src}}}"
                 if isinstance(inp.intype, Array):

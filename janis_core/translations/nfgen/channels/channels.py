@@ -9,7 +9,6 @@ from janis_core.workflow.workflow import InputNode
 from janis_core.types import File
 from uuid import uuid4
 
-from ..common import NFBase
 from ..casefmt import to_case
 from ..params import Param
 from .. import nfgen_utils
@@ -84,7 +83,7 @@ def order(channels: list[Channel]) -> list[Channel]:
 ### main class 
 
 @dataclass
-class Channel(NFBase):
+class Channel:
     ref_name: str
     ref_scope: list[str]
     params: list[Param]
@@ -144,7 +143,7 @@ class Channel(NFBase):
 
 ### register for channels
 
-class ChannelRegister(NFBase):
+class ChannelRegister:
     def __init__(self):
         self.channels: list[Channel] = []
 

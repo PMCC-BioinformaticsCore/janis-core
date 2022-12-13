@@ -149,11 +149,12 @@ class ParamChannelRegisterer:
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         basetype = nfgen_utils.get_base_type(inp.datatype)
         exts = secondaries.get_names(basetype)
-        
-        if is_param_input:
-            # register a param for each .ext
-            for ext in exts:
-                params.add(
+
+        for ext in exts:
+            ext_params: list[params.Param] = []
+            # should we register a param?
+            if is_param_input:
+                new_param = params.add(
                     var_name=inp.id(),
                     var_scope=self.scope,
                     dtype=inp.datatype,
@@ -161,13 +162,13 @@ class ParamChannelRegisterer:
                     name_override=f'{inp.id()}_{ext}s',
                     janis_uuid=inp.uuid
                 )
+                ext_params.append(new_param)
             
-        if is_channel_input:
-            # register a channel for each .ext
-            for ext in exts:
+            # should we register a channel?
+            if is_channel_input:
                 channels.add(
                     var_name=inp.id(),
-                    params=params.getall(inp.uuid),
+                    params=ext_params,
                     method='fromPath',
                     collect=True,
                     allow_null=channels.should_allow_null(inp),

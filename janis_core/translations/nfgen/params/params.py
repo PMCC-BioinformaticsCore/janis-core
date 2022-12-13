@@ -12,7 +12,6 @@ from janis_core.types import (
     File
 )
 
-from janis_core.translations.nfgen import NFBase
 from janis_core.translations.nfgen import nfgen_utils
 from janis_core.translations.nfgen.casefmt import to_case
 from janis_core.translations.nfgen import settings
@@ -78,7 +77,7 @@ orderers: list[OrderingMethod] = [
 ### MAIN CLASSES  
 
 
-class ParamRegister(NFBase):
+class ParamRegister:
     def __init__(self):
         self.params: list[Param] = []
 
@@ -94,7 +93,7 @@ class ParamRegister(NFBase):
 
 
 @dataclass
-class Param(NFBase):
+class Param:
     var_name: str
     var_scope: list[str]
     dtype: Optional[DataType]=None

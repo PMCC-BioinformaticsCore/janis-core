@@ -1,11 +1,22 @@
 from textwrap import indent
 from typing import Optional
 
-from .common import NFBase, filter_null
 from .casefmt import to_case
 from . import settings
 
-class WorkflowTake(NFBase):
+
+def filter_null(iterable):
+    if iterable is None:
+        return None
+    if not isinstance(iterable, list):
+        raise Exception(
+            f"filter_null: Expected iterable ('{str(iterable)}') to be of type list, received '{type(iterable)}'"
+        )
+
+    return [el for el in iterable if el is not None]
+
+
+class WorkflowTake:
     """
     A nextflow workflow can accept channels as inputs.
     These channels are assigned new names in the workflow `take:` section.
@@ -29,7 +40,7 @@ class WorkflowTake(NFBase):
         return self.name
 
 
-class WorkflowEmit(NFBase):
+class WorkflowEmit:
     """
     A nextflow workflow can broadcast channels as outputs. 
     For translation, we always use named outputs.
@@ -62,7 +73,7 @@ class WorkflowEmit(NFBase):
         return self.name
 
 
-# class WorkflowPublish(NFBase):
+# class WorkflowPublish:
 #     def __init__(self, name: str, to: str):
 #         self.name = name
 #         self.to = to
@@ -71,7 +82,7 @@ class WorkflowEmit(NFBase):
 #         return f"{self.name} to: {self.to}"
 
 
-class Workflow(NFBase):
+class Workflow:
     def __init__(
         self,
         name: str,
