@@ -248,6 +248,7 @@ class NextflowTranslator(TranslatorBase):
             workflow_item = cls.gen_workflow(
                 name=identifier,
                 scope=scope,
+                sources=sources,
                 wf=wf
             )
             cls.item_register.add(scope, workflow_item)
@@ -452,6 +453,7 @@ class NextflowTranslator(TranslatorBase):
         cls,
         name: str,
         scope: list[str],
+        sources: dict[str, Any],
         wf: WorkflowBase,
     ) -> nfgen.Workflow:
         """
@@ -473,44 +475,42 @@ class NextflowTranslator(TranslatorBase):
         main: list[str] = []
 
         if is_subworkflow:
-            # take
+            # TAKE
+            # which wf inputs should we keep?
+            all_inputs = list(wf.input_nodes.values())
+            relevant_input_ids = set(sources.keys())
+            relevant_inputs = nfgen.nfgen_utils.items_with_id(all_inputs, relevant_input_ids)
             
-            # (get channels & order)
+            # confirm channels exist & collect
             channels: list[nfgen.Channel] = []
-            for inp in wf.input_nodes.values():
+            for inp in relevant_inputs:
                 assert(nfgen.channels.exists(inp.uuid))
                 channels += nfgen.channels.getall(inp.uuid)
             channels = nfgen.channels.order(channels)
 
-            # (nf objects)
+            # create nf WorkflowTake objects
             for ch in channels:
                 take.append(nfgen.WorkflowTake(ch.name))
             
-            # emit
+            # EMIT
             emit: list[nfgen.WorkflowEmit] = []
             for out in wf.output_nodes.values():
                 outname = out.id()
                 expression = nfgen.unwrap_expression(val=out.source, in_shell_script=True)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
-        # main (workflow step calls, channel operations)
+        # MAIN (workflow step calls, channel operations)
         for step in wf.step_nodes.values():
             current_scope = deepcopy(scope)
             current_scope.append(step.id())
             nf_items = cls.item_register.get(current_scope)
+            
             for nf_item in nf_items:
                 if isinstance(nf_item, nfgen.ChannelOperation):
                     main.append(nf_item.get_string())
                     continue
-                
-                elif isinstance(nf_item, nfgen.Process):
+                elif isinstance(nf_item, nfgen.Process) or isinstance(nf_item, nfgen.Workflow):
                     entity_name = nf_item.name
-                    entity_inputs = nf_item.inputs
-
-                elif isinstance(nf_item, nfgen.Workflow):
-                    entity_name = nf_item.name
-                    entity_inputs = nf_item.take
-
                 else:
                     raise NotImplementedError
             
