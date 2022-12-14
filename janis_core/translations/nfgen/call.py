@@ -33,7 +33,7 @@ def get_args(
     # everything else
     else:
         # CommandTool / PythonTool - order via process inputs 
-        process_ids = process.get_process_inputs(sources)
+        process_ids = process.inputs.get_process_inputs(sources)
         process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
         process_inputs = ordering.order_janis_process_inputs(process_inputs)
         inputs_ids = [x.id() for x in process_inputs]

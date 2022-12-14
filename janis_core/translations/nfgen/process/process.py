@@ -8,7 +8,7 @@ from ..directives import ProcessDirective
 from ..casefmt import to_case
 from .. import settings
 
-from .inputs import ProcessInput
+from .inputs.factory import ProcessInput
 from .outputs import ProcessOutput
 from .. import ordering
 

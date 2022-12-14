@@ -1,64 +1,39 @@
 
 
-from typing import Optional
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from typing import Optional, Any
 
-from .. import nfgen_utils
-from .. import secondaries
+from janis_core import (
+    ToolInput, 
+    TInput,
+    CommandTool,
+    PythonTool,
+    File, 
+    Directory, 
+    Array, 
+    DataType
+)
 
-from janis_core import ToolInput, TInput
-from janis_core.types import File, Directory, Array, DataType
+from ... import nfgen_utils
+from ... import secondaries
+from ... import ordering
+from .janis import get_process_inputs
 
-
-@dataclass
-class ProcessInput(ABC):
-    name: str
-    
-    @abstractmethod
-    def get_string(self) -> str:
-        ...
-
-
-@dataclass
-class ValProcessInput(ProcessInput):
-
-    def get_string(self) -> str:
-        return f'val {self.name}'
-
-
-@dataclass
-class PathProcessInput(ProcessInput):
-    presents_as: Optional[str]=None
-
-    @property
-    def stage_as(self) -> str:
-        if self.presents_as:
-            return f", stageAs: '{self.presents_as}'"
-        return ''
-    
-    def get_string(self) -> str:
-        return f'path {self.name}{self.stage_as}'
+from .model import (
+    ProcessInput, 
+    PathProcessInput,
+    ValProcessInput,
+    TupleProcessInput
+)
 
 
-@dataclass
-class TupleProcessInput(ProcessInput):
-    qualifiers: list[str]
-    subnames: list[str]
-
-    @property
-    def fields(self) -> str:
-        out: str = ''
-        for qual, subname in zip(self.qualifiers, self.subnames):
-            out += f'{qual}({subname}), '
-        out = out.rstrip(', ') # strip off the last comma & space
-        return out
-
-    def get_string(self) -> str:
-        return f'tuple {self.fields}'
-
-
-
+def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[ProcessInput]:
+    process_inputs: list[ProcessInput] = []
+    tinput_ids = get_process_inputs(sources)
+    tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
+    tinputs = ordering.order_janis_process_inputs(tinputs)
+    for i in tinputs:
+        process_inputs += create_inputs(i)
+    return process_inputs
 
 def create_inputs(inp: ToolInput | TInput) -> list[ProcessInput]:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore

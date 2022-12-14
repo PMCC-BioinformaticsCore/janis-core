@@ -131,7 +131,7 @@ class WildcardSelectorTestTool(EchoBase):
 
 class FileInputSelectorTestTool(EchoBase):
     def tool(self) -> str:
-        return "InputSelectorTestTool"
+        return "FileInputSelectorTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", File, position=1)]
@@ -142,7 +142,7 @@ class FileInputSelectorTestTool(EchoBase):
 
 class StringInputSelectorTestTool(EchoBase):
     def tool(self) -> str:
-        return "InputSelectorTestTool"
+        return "StringInputSelectorTestTool"
     
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", String, position=1)]

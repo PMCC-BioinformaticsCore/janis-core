@@ -1,13 +1,13 @@
 
 
 from typing import Optional, Any, Tuple
-from janis_core import ToolInput, TInput, CommandTool
+from janis_core import ToolInput, TInput, CommandTool, InputSelector
 from janis_core.types import Boolean, Array, File, Filename
 from .. import nfgen_utils
 from .. import secondaries
 from .. import params
 from .. unwrap import unwrap_expression
-
+from ..entity_trace import trace_janis_entities
 from enum import Enum, auto
 
 
@@ -303,7 +303,9 @@ class InputFormatter:
             if self.tinput.default is not None:
                 return True
             elif isinstance(self.tinput.input_type, Filename):
-                return True
+                entity_counts = trace_janis_entities(self.tinput.input_type)
+                if entity_counts['InputSelector'] > 0:
+                    return True
         return False
     
     @property

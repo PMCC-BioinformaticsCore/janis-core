@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from janis_core.workflow.workflow import Workflow, InputNode
-from janis_core.types import File, Array
+from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
+from janis_core.types import File, Array, Filename
 
 from . import params
 from . import channels
@@ -29,6 +29,8 @@ def register_params_channels(wf: Workflow, scope: list[str]) -> None:
             current_scope.append(step.id())
             register_params_channels(step.tool, scope=current_scope)
 
+
+# entity_counts = trace_janis_entities(self.tinput.input_type)
 
 class ParamChannelRegisterer:
     # sorry about horrid name
@@ -60,26 +62,21 @@ class ParamChannelRegisterer:
     
     def register(self) -> None:
         for inp in self.wf.input_nodes.values():
-            if (not params.exists(inp.uuid)):
-                
-                # secondaries
-                if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
-                    self.register_wfinp_secondaries(inp)
-                    continue
-                
-                # array secondaries
-                elif isinstance(inp.datatype, Array):
-                    basetype = nfgen_utils.get_base_type(inp.datatype)
-                    if isinstance(basetype, File) and basetype.has_secondary_files():
-                        self.register_wfinp_secondaries_array(inp)
-                        continue
-
-                # anything else
-                self.register_wfinp(inp)
+            # secondaries
+            if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
+                self.register_wfinp_secondaries(inp)
                 continue
             
-            else:
-                raise NotImplementedError
+            # array secondaries
+            elif isinstance(inp.datatype, Array):
+                basetype = nfgen_utils.get_base_type(inp.datatype)
+                if isinstance(basetype, File) and basetype.has_secondary_files():
+                    self.register_wfinp_secondaries_array(inp)
+                    continue
+
+            # anything else
+            self.register_wfinp(inp)
+            continue
     
     def register_wfinp(self, inp: InputNode) -> None:
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
@@ -183,34 +180,34 @@ class ParamChannelRegisterer:
 
 def get_channel_input_ids(wf: Workflow) -> set[str]:
     """
-    Get the (assumed) true workflow inputs. 
-    Assume that a workflow input is an InputNode which:
-        - has the 'File' datatype
-        - is referenced in a step input
-    Everything else are static step inputs, or non-exposed tool inputs. 
+    Get the wf inputs for which we will create a nf channel.
     """
-    source_inputs = get_source_inputs(wf)
+    subworkflow_inputs = get_subworkflow_inputs(wf)
     file_inputs = get_file_wf_inputs(wf)
+    filename_inputs = get_filename_wf_inputs(wf)
     scatter_inputs = get_scatter_wf_inputs(wf)
 
     channel_inputs: list[InputNode] = []
     for name, inp in wf.input_nodes.items():
-        if name in source_inputs:
+        if name in subworkflow_inputs:
             channel_inputs.append(inp)
-        elif name in file_inputs or name in scatter_inputs:
+        elif name in file_inputs or name in filename_inputs or name in scatter_inputs:
             channel_inputs.append(inp)
     
     # final ordering
     return {x.id() for x in channel_inputs}
 
-def get_source_inputs(wf: Workflow) -> set[str]:
-    source_inputs: set[str] = set()
+def get_subworkflow_inputs(wf: Workflow) -> set[str]:
+    # for subworkflows. 
+    # for a given subworkflow, ensures each wf input which was specified
+    # in the step call becomes a channel.
+    subworkflow_inputs: set[str] = set()
     if wf.connections:
-        source_inputs = source_inputs | set(wf.connections.keys())
-    return source_inputs
+        subworkflow_inputs = subworkflow_inputs | set(wf.connections.keys())
+    return subworkflow_inputs
 
 def get_file_wf_inputs(wf: Workflow) -> set[str]:
-    # wf inputs with file type
+    # wf inputs with file type are fed via channels.
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
         dtype = nfgen_utils.get_base_type(inp.datatype)
@@ -218,8 +215,70 @@ def get_file_wf_inputs(wf: Workflow) -> set[str]:
             out.add(name)
     return out
 
+def get_filename_wf_inputs(wf: Workflow) -> set[str]:
+    """
+    Edge case!
+    ToolInputs which have Filename DataType may require channel.
+    
+    For a ToolInput which uses InputSelector:
+        - Assume it derives name using the InputSelector (another ToolInput)
+        - Therefore ToolInput is internal to the (future) process
+        - Don't create channel
+    
+    For a ToolInput which does not use InputSelector:
+        - String value does actually need to be supplied to ToolInput
+        - Therefore param or channel needed to feed value to (future) process input
+        - Create channel  (because Filenames move similarly to Files in workflow)
+
+    [eg InputSelector]
+
+    inside BwaMem_SamToolsView:
+        ToolInput(
+            "outputFilename",
+            Filename(prefix=InputSelector("sampleName"), extension=".bam"),
+            position=8,
+            shell_quote=False,
+            prefix="-o",
+            doc="output file name [stdout]",
+        ),
+
+    [eg no InputSelector]
+
+    step call:
+        BcfToolsNorm(
+            vcf=self.sortSomatic1.out,
+            reference=self.reference,
+            outputType="v",
+            outputFilename="normalised.vcf",
+        ),
+
+    inside BcfToolsNorm:
+        ToolInput(
+            "outputFilename",
+            Filename(extension=".vcf.gz"),
+            prefix="-o",
+            doc="--output: When output consists of a single stream, "
+            "write it to FILE rather than to standard output, where it is written by default.",
+        ),
+    """
+    out: set[str] = set()
+    for step in wf.step_nodes.values():
+        
+        # CommandTools
+        if isinstance(step.tool, CommandTool):
+            # get all tool inputs with Filename type
+            filename_inputs = [x for x in step.tool.inputs() if isinstance(x.input_type, Filename)]
+            # if fed value from wf input, mark wf input for channel creation
+            for inp in filename_inputs:
+                if inp.id() in step.sources:
+                    src = step.sources[inp.id()]
+                    node = nfgen_utils.resolve_node(src)
+                    if isinstance(node, InputNode):
+                        out.add(node.id())
+    return out
+
 def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
-    # scattered inputs are always fed via channels
+    # scattered inputs of steps are fed via channels.
     out: set[str] = set()
     for step in wf.step_nodes.values():
         for src in step.sources.values():

@@ -23,9 +23,14 @@ from .directives import (
 
 from .process import (
     Process,
-    ProcessInput,
     ProcessOutput,
     ProcessScriptType,
+)
+from .process.inputs import (
+    ProcessInput,
+    ValProcessInput,
+    PathProcessInput,
+    TupleProcessInput
 )
 
 from . import settings

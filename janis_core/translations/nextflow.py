@@ -274,79 +274,6 @@ class NextflowTranslator(TranslatorBase):
                 f"Nextflow translation for this {tool.__class__} is not yet supported"
             )
 
-
-    # @classmethod
-    # def gen_items_for_step(
-    #     cls,
-    #     step: StepNode,
-    #     scope: list[str],
-    # ) -> list[Tuple[str, nfgen.NFBase]]:
-    #     """
-    #     For each of the workflow step, we need to generate a Nextflow subworkflow or process object
-
-    #     :param tool:
-    #     :type tool:
-    #     :param step_id:
-    #     :type step_id:
-    #     :param step_keys:
-    #     :type step_keys:
-    #     :param with_container:
-    #     :type with_container:
-    #     :param with_resource_overrides:
-    #     :type with_resource_overrides:
-    #     :param allow_empty_container:
-    #     :type allow_empty_container:
-    #     :param container_override:
-    #     :type container_override:
-    #     :return:
-    #     :rtype:
-    #     """
-
-    #     nf_items: dict[str, list[nfgen.NFBase]] = defaultdict(list)
-    #     if step.scatter and step.scatter.method == ScatterMethod.cross:
-    #         operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
-
-    #         nf_items.append((step.id(), operation))
-
-    #     if isinstance(step.tool, CommandTool):
-    #         process = cls.gen_process_from_cmdtool(step.tool, step.sources, scope)
-    #         process = cls.handle_container(step.tool, process)
-    #         nf_items.append((step.id(), process))
-    #         return nf_items
-
-    #     elif isinstance(step.tool, PythonTool):
-    #         process = cls.gen_process_from_codetool(step.tool, step.sources, scope)
-    #         process = cls.handle_container(step.tool, process)
-    #         nf_items.append((step.id(), process))
-    #         return nf_items
-
-    #     elif isinstance(step.tool, WorkflowBase):
-    #         subworkflow = step.tool
-    #         sub_nf_items: list[Tuple[str, nfgen.NFBase]] = []
-    #         for substep in subworkflow.step_nodes.values():
-    #             current_scope = deepcopy(scope)
-    #             current_scope.append(substep.id())
-    #             sub_nf_items += cls.gen_items_for_step(substep, current_scope)
-    #         workflow_item = cls.gen_workflow(
-    #             # TODO IMPORTS HERE PLS
-    #             # scope=scope,
-    #             wf=subworkflow, 
-    #             nf_items=sub_nf_items, 
-    #             name=step.id(), 
-    #             is_subworkflow=True
-    #         )
-    #         nf_items.append((step.id(), workflow_item))
-    #         nf_items += sub_nf_items
-    #         return nf_items
-
-    #     elif isinstance(step.tool, CodeTool):
-    #         raise Exception("Only PythonTool code tool is supported for the moment")
-        
-    #     else:
-    #         raise Exception(
-    #             f"Nextflow translation for this {step.tool.__class__} is not yet supported"
-    #         )
-
     @classmethod
     def translate_tool_internal(
         cls,
@@ -659,12 +586,7 @@ class NextflowTranslator(TranslatorBase):
         process_directives = cls.gen_directives_for_process(tool, resources, scope)
 
         # inputs
-        process_inputs: list[nfgen.ProcessInput] = []
-        tinput_ids = nfgen.process.get_process_inputs(sources)
-        tinputs = nfgen.nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
-        tinputs = nfgen.ordering.order_janis_process_inputs(tinputs)
-        for i in tinputs:
-            process_inputs += nfgen.process.create_inputs(i)
+        process_inputs = nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
 
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
@@ -776,17 +698,13 @@ class NextflowTranslator(TranslatorBase):
         process_inputs: list[nfgen.ProcessInput] = []
         
         # inputs: python script
-        python_file_input = nfgen.process.PathProcessInput(
+        python_file_input = nfgen.PathProcessInput(
             name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
         )
         process_inputs.append(python_file_input)
         
         # inputs: tool inputs
-        tinput_ids = nfgen.process.get_process_inputs(sources)
-        tinputs = nfgen.nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
-        tinputs = nfgen.ordering.order_janis_process_inputs(tinputs)
-        for i in tinputs:
-            process_inputs += nfgen.process.create_inputs(i)
+        process_inputs = nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
 
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
@@ -940,7 +858,7 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        process_ids = nfgen.process.get_process_inputs(sources)
+        process_ids = nfgen.process.inputs.get_process_inputs(sources)
         scatter_method = scatter.method if scatter else None
 
         for name in process_ids:
@@ -1157,8 +1075,8 @@ class NextflowTranslator(TranslatorBase):
 
         # TODO: handle args of type list of string (need to quote them)
         args: list[str] = []
-        process_inputs = nfgen.process.get_process_inputs(sources)
-        param_inputs = nfgen.process.get_param_inputs(sources)
+        process_inputs = nfgen.process.inputs.get_process_inputs(sources)
+        param_inputs = nfgen.process.inputs.get_param_inputs(sources)
         
         for inp in tool.inputs():
             if inp.id() in process_inputs or inp.id() in param_inputs:

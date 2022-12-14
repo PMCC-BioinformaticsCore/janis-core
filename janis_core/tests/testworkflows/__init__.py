@@ -53,4 +53,5 @@ from .codetools import (
 )
 
 from .assembly import w as AssemblyTestWF
+from .filenames import FilenameTestWF
 from .subworkflow import SubworkflowTestWF

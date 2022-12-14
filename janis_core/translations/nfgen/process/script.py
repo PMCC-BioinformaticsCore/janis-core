@@ -12,7 +12,7 @@ from .. import ordering
 from .. import settings
 from .. import nfgen_utils as nfgen_utils
 
-from . import common
+from . import inputs
 from .script_formatting import format_input
 
 
@@ -47,9 +47,9 @@ class ProcessScriptGenerator:
 
         # think this is ok?
         self.sources = sources if sources is not None else {}
-        self.process_inputs = common.get_process_inputs(self.sources)
-        self.param_inputs = common.get_param_inputs(self.sources)
-        self.internal_inputs = common.get_internal_input_ids(tool, self.sources)
+        self.process_inputs = inputs.get_process_inputs(self.sources)
+        self.param_inputs = inputs.get_param_inputs(self.sources)
+        self.internal_inputs = inputs.get_internal_inputs(tool, self.sources)
 
         self.prescript: list[str] = []
         self.script: list[str] = []

@@ -68,7 +68,7 @@ from . import secondaries
 
 from .scatter import cartesian_cross_subname
 from .casefmt import to_case
-from .process.inputs import create_inputs
+from .process.inputs.factory import create_inputs
 
 
 def unwrap_expression(

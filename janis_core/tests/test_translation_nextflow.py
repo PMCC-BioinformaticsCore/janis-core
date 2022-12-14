@@ -69,6 +69,7 @@ from janis_core.tests.testworkflows import (
     # specific workflows
     AssemblyTestWF,
     SubworkflowTestWF,
+    FilenameTestWF,
 )
 
 from janis_core import (
@@ -539,6 +540,16 @@ class TestChannels(unittest.TestCase):
             self.assertTrue(len(channel.params) == 1)
             self.assertTrue(channel.collect)
 
+    def test_filename_types(self) -> None:
+        wf = FilenameTestWF()
+        refresh_workflow_inputs(wf)
+        channels_ids = {c.name for c in nfgen.channels.getall()}
+        expected_ids = {
+            'ch_in_file',
+            'ch_in_str',
+        }
+        self.assertEqual(channels_ids, expected_ids)
+
     @unittest.skip('not implemented')
     def test_channel_methods(self) -> None:
         raise NotImplementedError
@@ -761,6 +772,31 @@ class TestProcessInputs(unittest.TestCase):
         expected_inputs = {
             'path PYTHON_CODE_FILE_PATH',
             'tuple path(bam), path(bai)',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+
+    def test_filename_types(self) -> None:
+        wf = FilenameTestWF()
+        refresh_workflow_inputs(wf)
+
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=[settings.NF_MAIN_NAME, step_id])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path inp1',
+            'val inp2',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        step_id = 'stp2'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=[settings.NF_MAIN_NAME, step_id])
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path inp1',
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
@@ -1136,6 +1172,38 @@ process filenamegeneratedtool
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
+    def test_filename_types(self) -> None:
+        wf = FilenameTestWF()
+        refresh_workflow_inputs(wf)
+
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=[settings.NF_MAIN_NAME, step_id])
+        actual_script = process.script
+        expected_lines = {
+            'echo',
+            '${inp1}',
+            '${inp2}',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
+        step_id = 'stp2'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=[settings.NF_MAIN_NAME, step_id])
+        actual_script = process.script
+        expected_lines = {
+            'echo',
+            '${inp1}',
+            '${inp1.simpleName}.processed.txt',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
@@ -1402,6 +1470,31 @@ class TestPlumbingBasic(unittest.TestCase):
             "STP1.out.out"
         ]
         actual = nfgen.get_args(tool, sources, scatter)
+        self.assertEqual(expected, actual)
+
+    def test_filename_types(self) -> None:
+        wf = FilenameTestWF()
+        refresh_workflow_inputs(wf)
+
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        scatter = wf.step_nodes[step_id].scatter
+        actual = nfgen.get_args(tool, sources, scatter)
+        expected = [
+            "ch_in_file",
+            "ch_in_str",
+        ]
+        self.assertEqual(expected, actual)
+        
+        step_id = 'stp2'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        scatter = wf.step_nodes[step_id].scatter
+        actual = nfgen.get_args(tool, sources, scatter)
+        expected = [
+            "ch_in_file",
+        ]
         self.assertEqual(expected, actual)
 
     @unittest.skip('not implemented')
