@@ -1,5 +1,6 @@
 
 from typing import Any, Optional
+from copy import deepcopy
 NoneType = type(None)
 
 from janis_core import (
@@ -128,6 +129,7 @@ class Unwrapper:
         self.skip_inputs_lookup = skip_inputs_lookup
         self.in_shell_script = in_shell_script
         self.quote_strings = quote_strings
+        self.handling_variable_reference = False
 
         self.sources = sources
         self.process_inputs = process_inputs
@@ -233,9 +235,11 @@ class Unwrapper:
         assert(self.internal_inputs is not None)
         
         if inp.id() in self.process_inputs:
+            self.handling_variable_reference = True
             src = self.get_src_process_input(inp)
         
         elif inp.id() in self.param_inputs:
+            self.handling_variable_reference = True
             src = self.get_src_param_input(inp)
         
         elif inp.id() in self.internal_inputs and inp.default is not None:
@@ -302,7 +306,7 @@ class Unwrapper:
     ### LOGIC ###
 
     # primitives
-    def unwrap_null(self, val: Any) -> Any:
+    def unwrap_null(self, val: None) -> None:
         return None
 
     def unwrap_str(self, val: str) -> Any:
@@ -311,14 +315,14 @@ class Unwrapper:
         else:
             return str(val)
     
-    def unwrap_bool(self, val: bool) -> Any:
-        return str(val)
+    def unwrap_bool(self, val: bool) -> bool:
+        return val
 
-    def unwrap_int(self, val: int) -> Any:
-        return str(val)
+    def unwrap_int(self, val: int) -> int:
+        return val
     
-    def unwrap_float(self, val: float) -> Any:
-        return str(val)
+    def unwrap_float(self, val: float) -> float:
+        return val
     
     def unwrap_list(self, val: list[Any]) -> Any:
         elements: list[Any] = []
@@ -480,6 +484,8 @@ class Unwrapper:
         # TODO secondaries
         # TODO runtime inputs
         # skip_lookup = expr.startswith("runtime_")
+
+        hvr_backup = deepcopy(self.handling_variable_reference)
     
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
@@ -503,10 +509,10 @@ class Unwrapper:
             else:
                 expr = self.get_src_variable(inp)
             
-            if self.in_shell_script:
+            if self.in_shell_script and self.handling_variable_reference:
                 expr = f'${{{expr}}}'
 
-        expr = self.unwrap(expr)
+        self.handling_variable_reference = hvr_backup
         return expr
 
     def unwrap_step_output_selector(self, sel: StepOutputSelector) -> Any:
@@ -559,16 +565,18 @@ class Unwrapper:
         Translate Janis StringFormatter data type to Nextflow
         """
         assert(self.tool)
+
         if len(selector.kwargs) == 0:
             return str(selector)
 
         kwarg_replacements: dict[str, Any] = {}
+
         for k, v in selector.kwargs.items():
             kwarg_replacements[k] = self.unwrap(v)
 
         arg_val = selector._format
         for k in selector.kwargs:
-            arg_val = arg_val.replace(f"{{{k}}}", f"${{{str(kwarg_replacements[k])}}}")
+            arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
 
         if self.in_shell_script:
             arg_val = arg_val.replace("\\", "\\\\")

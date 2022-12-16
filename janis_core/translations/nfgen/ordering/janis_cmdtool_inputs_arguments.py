@@ -10,12 +10,7 @@ class CmdtoolInsArgsStrategy(ABC):
     @abstractmethod
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
         ...
-
-class PositionStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda x: x.position if x.position else 0)
         
-
 class AlphabeticalStrategy(CmdtoolInsArgsStrategy):
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
         return sorted(ins_args, key=lambda x: x.prefix or 'zzz')
@@ -77,20 +72,39 @@ class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
                 bottom.append(x)
         return top + bottom
 
+
+class PositionStrategy(CmdtoolInsArgsStrategy):
+    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
+        return sorted(ins_args, key=lambda a: (a.position or 0))
+
+class NoPrefixPriorityStrategy(CmdtoolInsArgsStrategy):
+    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
+        return sorted(ins_args, key=lambda a: (a.prefix is None))
+
+
 ins_args_strategies = [
+    # aesthetic
     AlphabeticalStrategy,
     FilePriorityStrategy,
     ComponentTypeStrategy,
     ExposedPriorityStrategy,
     InsPriorityStrategy,
+    # correctness
+    NoPrefixPriorityStrategy,
     PositionStrategy
 ]
 
 def order_cmdtool_inputs_arguments(tool: CommandTool) -> list[ToolInput | ToolArgument]:
     ins_args: list[ToolInput | ToolArgument] = []
-    ins_args += tool.inputs()
+
     if tool.arguments():
-        ins_args += tool.arguments()
+        ins_args += [a for a in tool.arguments() if a.position is not None or a.prefix is not None]
+    
+    if tool.inputs():
+        ins_args += [a for a in tool.inputs() if a.position is not None or a.prefix is not None]
+    
     for strategy in ins_args_strategies:
         ins_args = strategy().order(ins_args, tool)
+    
     return ins_args
+

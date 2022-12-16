@@ -1,13 +1,12 @@
 
 
 from typing import Optional, Any, Tuple
-from janis_core import ToolInput, TInput, CommandTool, InputSelector
+from janis_core import ToolInput, TInput, CommandTool
 from janis_core.types import Boolean, Array, File, Filename
 from .. import nfgen_utils
 from .. import secondaries
 from .. import params
 from .. unwrap import unwrap_expression
-from ..entity_trace import trace_janis_entities
 from enum import Enum, auto
 
 
@@ -182,10 +181,11 @@ class InputFormatter:
         }
 
 
-    ### PUBLIC METHODS
+    ### PUBLIC METHOD
     def format(self) -> Tuple[Optional[str], Optional[str]]:
-        # if isinstance(self.tinput.input_type, Filename):
-        #     print()
+        if self.tool.id() == 'BwaMemSamtoolsView' and self.tinput.prefix == '-R':
+            print()
+
         if self.should_ignore:
             prescript = None
             script = None
@@ -200,6 +200,7 @@ class InputFormatter:
         
         return prescript, script
     
+
     ### HELPER PROPERTIES
     @property
     def name(self) -> str:
