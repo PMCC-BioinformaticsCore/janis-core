@@ -92,12 +92,13 @@ class TranslatorBase(ABC):
     """
 
     __metaclass__ = TranslatorMeta
+    basedir: str = ''
 
     DIR_TOOLS: str = "tools"
     SUBDIRS_TO_CREATE: list[str] = []  # this is if you want to write tools / workflows to subfolders
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, name: str):
+        self.name: str = name
 
     def translate(
         self,
@@ -122,6 +123,9 @@ class TranslatorBase(ABC):
         container_override=None,
         render_comments: bool = True
     ):
+        self.__class__.basedir = ExportPathKeywords.resolve(
+            export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
+        )
         should_zip = False # TODO attention this may need to be True to avoid breaking tests
         str_tool, tr_tools, tr_helpers = None, [], {}
 
@@ -209,12 +213,10 @@ class TranslatorBase(ABC):
         # WRITING TO DISK        
         if to_disk:
             # setting filepaths
+            basedir = self.__class__.basedir
             fn_workflow = self.workflow_filename(tool)
             fn_inputs = self.inputs_filename(tool)
             fn_resources = self.resources_filename(tool)
-            basedir = ExportPathKeywords.resolve(
-                export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
-            )
 
             # generating subfolders
             subfolders: list[str] = []

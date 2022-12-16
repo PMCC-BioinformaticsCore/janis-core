@@ -1,9 +1,11 @@
 
 
+import os
 from typing import Any
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
 from janis_core.types import File, Array, Filename
+from janis_core import PythonTool
 
 from . import params
 from . import channels
@@ -12,7 +14,7 @@ from . import secondaries
 from . import settings
 
 from copy import deepcopy
-        
+    
 
 def register_params_channels(wf: Workflow, scope: list[str]) -> None:
     # register param(s) for each workflow input. 
@@ -30,7 +32,14 @@ def register_params_channels(wf: Workflow, scope: list[str]) -> None:
             register_params_channels(step.tool, scope=current_scope)
 
 
-# entity_counts = trace_janis_entities(self.tinput.input_type)
+def get_code_file_path(tool: PythonTool) -> str:
+    basedir = settings.BASE_OUTDIR
+    subfolder = settings.CODE_FILES_OUTDIR
+    filename = tool.id()
+    filepath = os.path.join(basedir, subfolder, filename)
+    filepath += '.py'
+    return filepath
+
 
 class ParamChannelRegisterer:
     # sorry about horrid name
@@ -61,6 +70,30 @@ class ParamChannelRegisterer:
         return items
     
     def register(self) -> None:
+        self.register_wf_inputs()
+        self.register_python_tools()
+
+    def register_python_tools(self) -> None:
+        # A param will be registered for the code_file of each PythonTool.
+        for step in self.wf.step_nodes.values():
+            current_scope = deepcopy(self.scope)
+            current_scope.append(step.id())
+            if isinstance(step.tool, PythonTool):
+                default = get_code_file_path(step.tool)
+                params.add(
+                    var_name='code_file',
+                    var_scope=current_scope,
+                    dtype=File(),
+                    default=default,
+                    is_channel_input=False,
+                    janis_uuid=None,
+                )
+
+
+
+    def register_wf_inputs(self) -> None:
+        # registers param for each wf input which requires a param.
+        # registers channel for each wf input which requires a channel.
         for inp in self.wf.input_nodes.values():
             # secondaries
             if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():

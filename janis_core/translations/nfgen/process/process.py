@@ -9,7 +9,7 @@ from ..casefmt import to_case
 from .. import settings
 
 from .inputs.factory import ProcessInput
-from .outputs import ProcessOutput
+from .outputs.model import ProcessOutput
 from .. import ordering
 
 

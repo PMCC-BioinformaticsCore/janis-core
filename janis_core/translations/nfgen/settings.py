@@ -1,6 +1,5 @@
 
 
-from typing import Optional
 
 
 
@@ -8,7 +7,7 @@ from typing import Optional
 PARAM_VAR = "%PARAM%"
 LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
 LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
-PYTHON_CODE_FILE_PATH_PARAM = "%PYTHON_CODE_FILE_PATH%"
+PYTHON_CODE_FILE_SYMBOL = "code_file"
 
 # filenames
 OUTPUT_METADATA_FILENAME = "janis.outputs.metadata"
@@ -40,6 +39,12 @@ MODE = 'workflow'
 
 # resources
 WITH_RESOURCE_OVERRIDES = False
+
+# directories
+BASE_OUTDIR = ''
+PROCESS_OUTDIR = 'modules'
+SUBWORKFLOW_OUTDIR = 'subworkflows'
+CODE_FILES_OUTDIR = 'templates'
 
 # containers
 WITH_CONTAINER = True

@@ -46,6 +46,7 @@ from janis_core.operators.operator import (
     AsBoolOperator,
     AsIntOperator,
     AsFloatOperator,
+    TwoValueOperator
 )
 from janis_core.operators.selectors import (
     InputNodeSelector, 
@@ -75,7 +76,8 @@ def unwrap_expression(
     val: Any,
     
     tool: Optional[CommandTool]=None,
-    in_shell_script: bool=False, 
+    in_shell_script: bool=False,
+    quote_strings: bool=False,
     
     sources: Optional[dict[str, Any]]=None,
     process_inputs: Optional[set[str]]=None,
@@ -89,6 +91,7 @@ def unwrap_expression(
     unwrapper = Unwrapper(
         tool=tool,
         in_shell_script=in_shell_script,
+        quote_strings=quote_strings,
 
         sources=sources,
         process_inputs=process_inputs,
@@ -111,6 +114,7 @@ class Unwrapper:
         tool: Optional[CommandTool]=None,
         skip_inputs_lookup: bool=False,
         in_shell_script: bool=False, 
+        quote_strings: bool=False,
 
         sources: Optional[dict[str, Any]]=None,
         process_inputs: Optional[set[str]]=None,
@@ -123,6 +127,7 @@ class Unwrapper:
         self.tool = tool
         self.skip_inputs_lookup = skip_inputs_lookup
         self.in_shell_script = in_shell_script
+        self.quote_strings = quote_strings
 
         self.sources = sources
         self.process_inputs = process_inputs
@@ -199,6 +204,9 @@ class Unwrapper:
         if type(val) in self.func_switchboard:
             func = self.func_switchboard[type(val)]
             return func(val)
+
+        elif isinstance(val, TwoValueOperator):
+            return self.unwrap_two_value_operator(val)
 
         # anything else with a .to_nextflow() method
         elif callable(getattr(val, "to_nextflow", None)):
@@ -298,7 +306,10 @@ class Unwrapper:
         return None
 
     def unwrap_str(self, val: str) -> Any:
-        return str(val)
+        if self.quote_strings:
+            return f'"{val}"'
+        else:
+            return str(val)
     
     def unwrap_bool(self, val: bool) -> Any:
         return str(val)
@@ -346,6 +357,13 @@ class Unwrapper:
     def unwrap_round_operator(self, op: RoundOperator) -> str:
         arg = self.unwrap(op.args[0])
         return f"Math.round({arg})"
+
+    def unwrap_two_value_operator(self, op: TwoValueOperator) -> str:
+        arg1 = self.unwrap(op.args[0])
+        arg2 = self.unwrap(op.args[1])
+        return f'{arg1} {op.nextflow_symbol()} {arg2}'
+
+    
 
     
     # operator operators

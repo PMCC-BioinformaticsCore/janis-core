@@ -1,6 +1,6 @@
 
 
-from typing import Any, Type
+from typing import Any
 from collections import defaultdict
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -119,6 +119,9 @@ class EntityTracer:
             # FirstOperator: self.first_operator,
             # FilterNullOperator: self.filter_null_operator,
             # ReplaceOperator: self.replace_operator,
+
+            # primitives
+            list: self.trace_list,
             
             # selectors
             AliasSelector: self.alias_selector,
@@ -154,6 +157,7 @@ class EntityTracer:
         elif etype in self.custom_trace_funcs:
             func = self.custom_trace_funcs[etype]
             func(entity)
+        
 
 
     def operator_single_arg_trace(self, entity: Operator) -> None:
@@ -162,6 +166,10 @@ class EntityTracer:
     def operator_multi_arg_trace(self, entity: Operator) -> None:
         for arg in entity.args:
             self.trace(arg)
+
+    def trace_list(self, entity: list[Any]) -> None:
+        for item in entity:
+            self.trace(item)
 
 
     # def is_defined_operator(self, entity: IsDefined) -> None:

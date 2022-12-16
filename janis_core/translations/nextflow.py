@@ -123,10 +123,11 @@ class NFItemRegister:
     
 
 class NextflowTranslator(TranslatorBase):
-    DIR_TOOLS: str = "" # dont change
+    DIR_TOOLS: str = '' # DO NOT ALTER
     SUBDIRS_TO_CREATE: list[str] = [
-        'modules',
-        'subworkflows',
+        settings.PROCESS_OUTDIR,
+        settings.SUBWORKFLOW_OUTDIR,
+        settings.CODE_FILES_OUTDIR,
     ]
 
     file_register: NFFileRegister = NFFileRegister()
@@ -147,6 +148,7 @@ class NextflowTranslator(TranslatorBase):
     ) -> Tuple[Any, dict[str, Any]]:
 
         # set class variables to avoid passing junk params
+        settings.BASE_OUTDIR = cls.basedir
         settings.WITH_CONTAINER = with_container
         settings.ALLOW_EMPTY_CONTAINER = allow_empty_container
         settings.CONTAINER_OVERRIDE = container_override
@@ -441,7 +443,7 @@ class NextflowTranslator(TranslatorBase):
                 else:
                     raise NotImplementedError
             
-                args = nfgen.get_args(step.tool, step.sources, step.scatter)
+                args = nfgen.get_args(step, current_scope)
                 main.append(format_process_call(entity_name, args))
 
         return nfgen.Workflow(name, main, take, emit, is_subworkflow)
@@ -521,9 +523,12 @@ class NextflowTranslator(TranslatorBase):
     def gen_python_code_files(cls, tool: PythonTool, helpers: dict):
         # Python files for Python code tools
         if isinstance(tool, PythonTool):
-            helpers["__init__.py"] = ""
+            # helpers["__init__.py"] = ""
             #helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
-            helpers[f"{tool.id()}.py"] = cls.gen_python_script(tool)
+            subdir = settings.CODE_FILES_OUTDIR
+            filename = f'{tool.id()}.py'
+            filepath = os.path.join(subdir, filename)
+            helpers[filepath] = cls.gen_python_script(tool)
             return helpers
 
         elif isinstance(tool, WorkflowBase):
@@ -553,7 +558,7 @@ class NextflowTranslator(TranslatorBase):
                 file_imports.append(i_item)
 
             imp = nfgen.Import(
-                file_imports, os.path.join(".", cls.DIR_TOOLS, filename)
+                file_imports, os.path.join(".", settings.PROCESS_OUTDIR, filename)
             )
             imports.append(imp)
 
@@ -580,6 +585,8 @@ class NextflowTranslator(TranslatorBase):
         """
         # name
         process_name = scope[-1]
+        if process_name == 'cutadapt':
+            print()
 
         # directives
         resources = {}
@@ -591,7 +598,7 @@ class NextflowTranslator(TranslatorBase):
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for out in tool.outputs():
-            process_outputs += nfgen.process.create_outputs(out, tool, sources)
+            process_outputs.append(nfgen.process.create_output(out, tool, sources))
 
         # script
         pre_script, script = nfgen.process.gen_script_for_cmdtool(
@@ -698,18 +705,16 @@ class NextflowTranslator(TranslatorBase):
         process_inputs: list[nfgen.ProcessInput] = []
         
         # inputs: python script
-        python_file_input = nfgen.PathProcessInput(
-            name=settings.PYTHON_CODE_FILE_PATH_PARAM.strip("%"),
-        )
+        python_file_input = nfgen.PathProcessInput(name=settings.PYTHON_CODE_FILE_SYMBOL)
         process_inputs.append(python_file_input)
-        
+
         # inputs: tool inputs
-        process_inputs = nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
+        process_inputs += nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
 
         # outputs
         process_outputs: list[nfgen.ProcessOutput] = []
         for out in tool.outputs():
-            process_outputs += nfgen.process.create_outputs(out, tool, sources)
+            process_outputs.append(nfgen.process.create_output(out, tool, sources))
 
         # script
         script = cls.prepare_script_for_python_code_tool(tool, sources=sources)
@@ -813,13 +818,13 @@ class NextflowTranslator(TranslatorBase):
                         settings.LIST_OF_FILE_PAIRS_PARAM,
                         f"Channel.from({p}).map{{ pair -> pair }}",
                     )
-                elif settings.PYTHON_CODE_FILE_PATH_PARAM in i.as_param:
+                elif settings.PYTHON_CODE_FILE_SYMBOL in i.as_param:
                     path_to_python_code_file = posixpath.join(
-                        #"$baseDir", cls.DIR_TOOLS, f"{tool.versioned_id()}.py"
-                        "$baseDir", cls.DIR_TOOLS, f"{tool.id()}.py"
+                        #"$baseDir", settings.PROCESS_OUTDIR, f"{tool.versioned_id()}.py"
+                        "$baseDir", settings.PROCESS_OUTDIR, f"{tool.id()}.py"
                     )
                     p = i.as_param.replace(
-                        settings.PYTHON_CODE_FILE_PATH_PARAM, f'"{path_to_python_code_file}"'
+                        settings.PYTHON_CODE_FILE_SYMBOL, f'"{path_to_python_code_file}"'
                     )
             args_list.append(p)
 
@@ -1071,8 +1076,6 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        python_script_filename=tool.id()
-
         # TODO: handle args of type list of string (need to quote them)
         args: list[str] = []
         process_inputs = nfgen.process.inputs.get_process_inputs(sources)
@@ -1097,7 +1100,7 @@ class NextflowTranslator(TranslatorBase):
         script = f"""\
 {settings.PYTHON_SHEBANG}
 
-from {python_script_filename} import code_block
+from ${{code_file.simpleName}} import code_block
 import os
 import json
 

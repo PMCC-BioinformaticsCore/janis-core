@@ -184,6 +184,8 @@ class InputFormatter:
 
     ### PUBLIC METHODS
     def format(self) -> Tuple[Optional[str], Optional[str]]:
+        # if isinstance(self.tinput.input_type, Filename):
+        #     print()
         if self.should_ignore:
             prescript = None
             script = None
@@ -226,6 +228,11 @@ class InputFormatter:
         
         # get unwrapped default
         if default is None and isinstance(basetype, Filename):
+            # entity_counts = trace_janis_entities(self.tinput.input_type)
+            # if entity_counts['InputSelector'] > 0:
+            #     return True
+            # else:
+            #     return False
             default = self.unwrap(basetype)
         else:
             default = self.unwrap(default)
@@ -303,9 +310,7 @@ class InputFormatter:
             if self.tinput.default is not None:
                 return True
             elif isinstance(self.tinput.input_type, Filename):
-                entity_counts = trace_janis_entities(self.tinput.input_type)
-                if entity_counts['InputSelector'] > 0:
-                    return True
+                return True
         return False
     
     @property
