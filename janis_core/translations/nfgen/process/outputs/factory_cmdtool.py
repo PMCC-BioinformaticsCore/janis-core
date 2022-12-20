@@ -1,16 +1,20 @@
 
 
-from typing import Any, Optional
+from typing import Any
 from enum import Enum, auto
 
 from janis_core.types import File, DataType, Stdout
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core import (
     ToolOutput, 
-    CommandTool, 
-    Selector
+    CommandTool,
+    WildcardSelector,
+    InputSelector,
+    Selector,
+    Filename
 )
 
+from ...entity_trace import trace_janis_entities
 from ...unwrap import unwrap_expression
 from ... import nfgen_utils
 from ... import secondaries
@@ -104,6 +108,31 @@ def has_n_collectors(out: ToolOutput, n: int) -> bool:
     return False
 
 
+class FmtType(Enum):
+    REFERENCE    = auto()
+    WILDCARD     = auto()
+    FILENAME_REF = auto()
+    FILENAME_GEN = auto()
+    COMPLEX      = auto()
+
+def get_fmttype(out: ToolOutput, tool: CommandTool) -> FmtType:
+    if isinstance(out.selector, WildcardSelector):
+        return FmtType.WILDCARD
+    elif isinstance(out.selector, InputSelector):
+        tinput = tool.inputs_map()[out.selector.input_to_select]
+        if isinstance(tinput.intype, Filename):
+            entity_counts = trace_janis_entities(tinput.intype)
+            entities = set(entity_counts.keys())
+            whitelisted = set(['Filename', 'str', 'NoneType'])
+            if entities.issubset(whitelisted):
+                return FmtType.FILENAME_GEN
+            else:
+                return FmtType.FILENAME_REF
+        else:
+            return FmtType.REFERENCE
+    else:
+        return FmtType.COMPLEX
+
 
 ### CMDTOOL OUTPUTS ###
 class CmdtoolProcessOutputFactory:
@@ -115,6 +144,7 @@ class CmdtoolProcessOutputFactory:
         self.param_inputs = inputs.get_param_inputs(self.sources)
         self.internal_inputs = inputs.get_internal_inputs(self.tool, self.sources)
         self.otype = get_otype(self.out)
+        self.ftype = get_fmttype(self.out, self.tool)
         self.strategy_map = {
             OType.STDOUT: self.stdout_output,
             OType.NON_FILE: self.non_file_output,
@@ -124,6 +154,10 @@ class CmdtoolProcessOutputFactory:
             OType.SECONDARIES: self.secondaries_output,
             OType.SECONDARIES_ARRAY: self.secondaries_array_output,
         }
+        
+        self.add_braces: bool = False
+        self.add_quotes: bool = False
+
 
     # helper properties
     @property
@@ -145,26 +179,47 @@ class CmdtoolProcessOutputFactory:
         # TODO?
         return False
         
-    def unwrap_collection_expression(self, expr: Any) -> Any:
+    def unwrap_collection_expression(self, expr: Any) -> str:
+        if self.ftype == FmtType.REFERENCE:
+            self.add_braces = False
+            self.add_quotes = False
+            expr = self.unwrap(expr)  
+        elif self.ftype == FmtType.WILDCARD:
+            self.add_braces = False
+            self.add_quotes = False
+            expr = self.unwrap(expr)  
+            expr = f'"{expr}"'
+        elif self.ftype == FmtType.FILENAME_GEN:
+            self.add_braces = False
+            self.add_quotes = False
+            expr = self.unwrap(expr)
+            expr = f'"{expr}"'
+        elif self.ftype == FmtType.FILENAME_REF:
+            self.add_braces = True
+            self.add_quotes = False
+            expr = self.unwrap(expr)
+            expr = f'"{expr}"'
+        else:
+            self.add_braces = True
+            self.add_quotes = True
+            expr = self.unwrap(expr)
+            expr = f'"{expr}"'
+        return expr
+
+    def unwrap(self, expr: Any):
         return unwrap_expression(
-            val=expr, 
-            tool=self.tool, 
-            in_shell_script=True,
-            # quote_strings=True,
-            quote_strings=False,
+            val=expr,
+            tool=self.tool,
             sources=self.sources,
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
+            add_curly_braces=self.add_braces,
+            add_quotes_to_strs=self.add_quotes,
         )
-
+    
+    # public method
     def create(self) -> ProcessOutput:
-        if self.tool.id() == 'cutadapt':
-            print()
-
-        # if self.should_discard():
-        #     return None
-
         strategy = self.strategy_map[self.otype]
         process_output = strategy()
         return process_output
@@ -175,7 +230,6 @@ class CmdtoolProcessOutputFactory:
     
     def non_file_output(self) -> ValProcessOutput:
         expr = self.unwrap_collection_expression(self.out.selector)
-        expr = f'"{expr}"'
         new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
@@ -185,7 +239,6 @@ class CmdtoolProcessOutputFactory:
     
     def file_output(self) -> PathProcessOutput:
         expr = self.unwrap_collection_expression(self.out.selector)
-        expr = f'"{expr}"'
         new_output = PathProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
@@ -200,7 +253,6 @@ class CmdtoolProcessOutputFactory:
         
         for item in self.out.selector:
             expr = self.unwrap_collection_expression(item)
-            expr = f'"{expr}"'
             expressions.append(expr)
         
         new_output = TupleProcessOutput(
@@ -230,13 +282,15 @@ class CmdtoolProcessOutputFactory:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
                 qual = 'path'
-                expr = f'"{primary_expr}"'
+                expr = primary_expr
+                # expr = f'"{primary_expr}"'
             # secondary file
             else:
                 secondary_ext = self.out.secondaries_present_as[ext]
                 secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
                 qual = 'path'
-                expr = f'"{secondary_expr}"'
+                expr = secondary_expr
+                # expr = f'"{secondary_expr}"'
             qualifiers.append(qual)
             expressions.append(expr)
 

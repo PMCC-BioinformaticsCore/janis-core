@@ -1,5 +1,5 @@
 
-from typing import Any, Optional
+from typing import Any, Optional, Type
 from copy import deepcopy
 NoneType = type(None)
 
@@ -59,6 +59,7 @@ from janis_core.operators.selectors import (
     DiskSelector,
     TimeSelector,
     WildcardSelector, 
+    Selector
 )
 from janis_core.operators.stringformatter import StringFormatter
 
@@ -77,8 +78,8 @@ def unwrap_expression(
     val: Any,
     
     tool: Optional[CommandTool]=None,
-    in_shell_script: bool=False,
-    quote_strings: bool=False,
+    add_curly_braces: bool=False,
+    add_quotes_to_strs: bool=False,
     
     sources: Optional[dict[str, Any]]=None,
     process_inputs: Optional[set[str]]=None,
@@ -91,8 +92,8 @@ def unwrap_expression(
 
     unwrapper = Unwrapper(
         tool=tool,
-        in_shell_script=in_shell_script,
-        quote_strings=quote_strings,
+        add_curly_braces=add_curly_braces,
+        add_quotes_to_strs=add_quotes_to_strs,
 
         sources=sources,
         process_inputs=process_inputs,
@@ -113,9 +114,8 @@ class Unwrapper:
     def __init__(
         self,
         tool: Optional[CommandTool]=None,
-        skip_inputs_lookup: bool=False,
-        in_shell_script: bool=False, 
-        quote_strings: bool=False,
+        add_curly_braces: bool=False, 
+        add_quotes_to_strs: bool=False,
 
         sources: Optional[dict[str, Any]]=None,
         process_inputs: Optional[set[str]]=None,
@@ -126,11 +126,6 @@ class Unwrapper:
         scatter_method: Optional[ScatterMethod]=None,
     ) -> None:
         self.tool = tool
-        self.skip_inputs_lookup = skip_inputs_lookup
-        self.in_shell_script = in_shell_script
-        self.quote_strings = quote_strings
-        self.handling_variable_reference = False
-
         self.sources = sources
         self.process_inputs = process_inputs
         self.param_inputs = param_inputs
@@ -138,6 +133,17 @@ class Unwrapper:
 
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
+
+        self.add_quotes_to_strs = add_quotes_to_strs
+        self.add_curly_braces = add_curly_braces
+        self.operator_stack: list[str] = []
+        self.operator_stack_ignore: list[Type[Any]] = [
+            WildcardSelector,
+            AliasSelector,
+            InputNodeSelector,
+            StepOutputSelector,
+            StringFormatter,
+        ]
 
         self.func_switchboard = {
             # primitives
@@ -197,22 +203,33 @@ class Unwrapper:
             InputNode: self.unwrap_input_node,
         }
     
+    
     ### SWITCHBOARD ###
 
     def unwrap(self, val: Any) -> Any:
+        if self.tool and self.tool.id() == 'Gatk4BaseRecalibrator':
+            print()
+        
+        added_to_stack = False
+        vtype = type(val)
+
+        if isinstance(val, Selector) and vtype not in self.operator_stack_ignore:
+            added_to_stack = True
+            self.operator_stack.append(val.__class__.__name__)
+            print()
         
         # most cases
-        vtype = type(val)
         if type(val) in self.func_switchboard:
             func = self.func_switchboard[type(val)]
-            return func(val)
+            expr = func(val)
+            print()
 
         elif isinstance(val, TwoValueOperator):
-            return self.unwrap_two_value_operator(val)
+            expr = self.unwrap_two_value_operator(val)
 
         # anything else with a .to_nextflow() method
         elif callable(getattr(val, "to_nextflow", None)):
-            return self.unwrap_operator(val)
+            expr = self.unwrap_operator(val)
         
         # errors 
 
@@ -222,9 +239,28 @@ class Unwrapper:
                 f"you might not have selected an output."
             )
 
-        raise Exception(
-            "Could not detect type %s to convert to input value" % type(val)
-        )
+        else:
+            raise Exception(
+                "Could not detect type %s to convert to input value" % type(val)
+            )
+
+        if self.tool and self.tool.id() == 'Gatk4ApplyBQSR':
+            print()
+        if vtype == str and self.add_quotes_to_strs:
+            expr = f"'{expr}'"
+        if isinstance(expr, str) and self.add_curly_braces:
+            if len(self.operator_stack) == 1:
+                if self.operator_stack[0] == val.__class__.__name__:
+                    expr = f'${{{expr}}}'
+
+        if added_to_stack:
+            vtype_name = self.operator_stack.pop(-1)
+            assert(vtype_name) == val.__class__.__name__
+
+        if isinstance(expr, str) and 'generated.addbamstats.vcf' in expr:
+            print()
+        
+        return expr
 
 
     ### HELPERS ###
@@ -235,11 +271,9 @@ class Unwrapper:
         assert(self.internal_inputs is not None)
         
         if inp.id() in self.process_inputs:
-            self.handling_variable_reference = True
             src = self.get_src_process_input(inp)
         
         elif inp.id() in self.param_inputs:
-            self.handling_variable_reference = True
             src = self.get_src_param_input(inp)
         
         elif inp.id() in self.internal_inputs and inp.default is not None:
@@ -264,7 +298,7 @@ class Unwrapper:
             name = exts[0]
         # everything else
         else:
-            name = inp.id()
+            name = inp.id()        
         return name
 
     def get_src_param_input(self, inp: ToolInput) -> str: 
@@ -273,7 +307,8 @@ class Unwrapper:
         src = self.sources[inp.id()]
         sel = src.source_map[0].source
         param = params.get(sel.input_node.uuid)
-        return f'params.{param.name}'
+        param = f'params.{param.name}'
+        return param
 
     def get_input_by_id(self, inname: str) -> ToolInput:
         assert(self.tool is not None)
@@ -306,25 +341,24 @@ class Unwrapper:
     ### LOGIC ###
 
     # primitives
+    def unwrap_str(self, val: str) -> str:
+        return val
+    
     def unwrap_null(self, val: None) -> None:
         return None
+    
+    def unwrap_bool(self, val: bool) -> str:
+        if val == True:
+            return 'true'
+        return 'false'
 
-    def unwrap_str(self, val: str) -> Any:
-        if self.quote_strings:
-            return f'"{val}"'
-        else:
-            return str(val)
+    def unwrap_int(self, val: int) -> str:
+        return str(val)
     
-    def unwrap_bool(self, val: bool) -> bool:
-        return val
-
-    def unwrap_int(self, val: int) -> int:
-        return val
+    def unwrap_float(self, val: float) -> str:
+        return str(val)
     
-    def unwrap_float(self, val: float) -> float:
-        return val
-    
-    def unwrap_list(self, val: list[Any]) -> Any:
+    def unwrap_list(self, val: list[Any]) -> str:
         elements: list[Any] = []
         for elem in val:
             el = self.unwrap(val=elem)
@@ -334,9 +368,7 @@ class Unwrapper:
 
 
     # logical operators
-    
     def unwrap_is_defined_operator(self, op: IsDefined) -> str:
-        # TODO VALIDATE
         arg = self.unwrap(op.args[0])
         return f"binding.hasVariable({arg})"
         
@@ -363,15 +395,14 @@ class Unwrapper:
         return f"Math.round({arg})"
 
     def unwrap_two_value_operator(self, op: TwoValueOperator) -> str:
+        self.add_quotes_to_strs = True
         arg1 = self.unwrap(op.args[0])
         arg2 = self.unwrap(op.args[1])
+        self.add_quotes_to_strs = False
         return f'{arg1} {op.nextflow_symbol()} {arg2}'
 
     
-
-    
     # operator operators
-
     def unwrap_index_operator(self, op: IndexOperator) -> Any:
         # special case: janis secondary -> nextflow tuple
         if isinstance(op.args[0], InputSelector):
@@ -407,7 +438,6 @@ class Unwrapper:
     
     
     # standard operators
-    
     def unwrap_read_contents_operator(self, op: ReadContents) -> str:
         arg = self.unwrap(op.args[0])
         return f"{arg}.text"
@@ -464,107 +494,35 @@ class Unwrapper:
         replacement = self.unwrap(op.args[2])
         return f"{base}.replaceAll({pattern}, {replacement})"
 
-    
-    # selectors
+    # other operators
+    def unwrap_operator(self, op: Operator) -> Any:
+        unwrap_expression_wrap = lambda x: unwrap_expression(
+            val=x,
+            tool=self.tool,
+            add_curly_braces=self.add_curly_braces,
 
+            sources=self.sources,
+            process_inputs=self.process_inputs,
+            param_inputs=self.param_inputs,
+            internal_inputs=self.internal_inputs,
+
+            scatter_target=self.scatter_target,
+            scatter_method=self.scatter_method
+        )
+        return op.to_nextflow(unwrap_expression_wrap, *op.args)
+
+    # selectors
     def unwrap_alias_selector(self, val: AliasSelector) -> Any:
         return self.unwrap(val.inner_selector)
-
-    def unwrap_input_node_selector(self, sel: InputNodeSelector) -> Any:
-        return self.unwrap(sel.input_node)
-
-    def unwrap_wildcard_selector(self, sel: WildcardSelector) -> str:
-        return f'{sel.wildcard}'
-
-    def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
-        """
-        Translate Janis InputSelector data type into Nextflow expressions
-        """
-        # TODO arrays
-        # TODO secondaries
-        # TODO runtime inputs
-        # skip_lookup = expr.startswith("runtime_")
-
-        hvr_backup = deepcopy(self.handling_variable_reference)
     
-        if not sel.input_to_select:
-            raise Exception("No input was selected for input selector: " + str(sel))
-        
-        inp = self.get_input_by_id(sel.input_to_select)
-        dtype: DataType = inp.input_type # type: ignore
-        basetype = nfgen_utils.get_base_type(dtype)
-        
-        if isinstance(basetype, Filename):
-            expr = self.unwrap(dtype)
-        
-        else:
-            if isinstance(basetype, File):
-                expr = self.get_src_variable(inp)
-                
-                if sel.remove_file_extension:
-                    expr = f'{expr}.simpleName'
-                
-                # elif self.for_output:
-                #     expr = f"{expr}.name"
-            else:
-                expr = self.get_src_variable(inp)
-            
-            if self.in_shell_script and self.handling_variable_reference:
-                expr = f'${{{expr}}}'
-
-        self.handling_variable_reference = hvr_backup
-        return expr
-
-    def unwrap_step_output_selector(self, sel: StepOutputSelector) -> Any:
-        # if scatter & output type is Array, use .flatten()
-        upstream_step: StepNode = sel.node
-        upstream_out: str = sel.tag
-        conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
-
-        # arrays of secondaries
-        if secondaries.is_array_secondary_type(conn_out.outtype):
-            out: list[str] = []
-            raise NotImplementedError
-        
-        # everything else
-        else:
-            upstream_step_id = to_case(upstream_step.id(), settings.NF_PROCESS_CASE)
-            channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
-            return self.get_channel_expression(
-                channel_name=channel_name,
-                upstream_dtype=conn_out.outtype,
-            )
-    
-    def unwrap_memory_selector(self, sel: MemorySelector) -> Any:
-        assert(self.tool)
-        return self.tool.memory({})
-
-    def unwrap_cpu_selector(self, sel: CpuSelector) -> Any:
-        assert(self.tool)
-        return self.tool.cpus({})
-
-    def unwrap_disk_selector(self, sel: DiskSelector) -> Any:
-        assert(self.tool)
-        return self.tool.disk({})
-
-    def unwrap_time_selector(self, sel: TimeSelector) -> Any:
-        assert(self.tool)
-        return self.tool.time({})
-
     # misc
-
-    def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
-        # TODO save state of self.quote string
-        return self.unwrap(val.source_map[0])
-    
-    def unwrap_edge(self, val: Edge) -> Any:
-        return self.unwrap(val.source)
-    
     def unwrap_string_formatter(self, selector: StringFormatter) -> str:
         """
         Translate Janis StringFormatter data type to Nextflow
         """
         assert(self.tool)
+        if self.tool.id() == 'Gatk4ApplyBQSR':
+            print()
 
         if len(selector.kwargs) == 0:
             return str(selector)
@@ -578,7 +536,7 @@ class Unwrapper:
         for k in selector.kwargs:
             arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
 
-        if self.in_shell_script:
+        if self.add_curly_braces:
             arg_val = arg_val.replace("\\", "\\\\")
 
         return arg_val
@@ -595,14 +553,58 @@ class Unwrapper:
                 suffix = f'-{suffix}'
 
         return prefix + suffix + extension
+
+
+    ### PROCESSES ###
+
+    def unwrap_wildcard_selector(self, sel: WildcardSelector) -> str:
+        return f'{sel.wildcard}'
+
+    def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
+        """
+        Translate Janis InputSelector data type into Nextflow expressions
+        """
+        # TODO arrays
+        # TODO secondaries
+        # TODO runtime inputs
+    
+        if not sel.input_to_select:
+            raise Exception("No input was selected for input selector: " + str(sel))
         
-    def unwrap_input_node(self, node: InputNode) -> Any:
-        if channels.exists(janis_uuid=node.uuid):
-            return self.unwrap_channel(node)
+        inp = self.get_input_by_id(sel.input_to_select)
+        dtype: DataType = inp.input_type # type: ignore
+        basetype = nfgen_utils.get_base_type(dtype)
+
+        if isinstance(basetype, Filename):
+            expr = self.unwrap(dtype)
         
-        elif params.exists(janis_uuid=node.uuid):
-            param = params.get(janis_uuid=node.uuid)
-            return f'params.{param.name}'
+        else:
+            expr = self.get_src_variable(inp)
+            if isinstance(basetype, File) and sel.remove_file_extension:
+                expr = f'{expr}.simpleName'
+            # if self.add_curly_braces:
+            #     expr = f'${{{expr}}}'
+
+        return expr
+        
+    def unwrap_memory_selector(self, sel: MemorySelector) -> Any:
+        assert(self.tool)
+        return self.tool.memory({})
+
+    def unwrap_cpu_selector(self, sel: CpuSelector) -> Any:
+        assert(self.tool)
+        return self.tool.cpus({})
+
+    def unwrap_disk_selector(self, sel: DiskSelector) -> Any:
+        assert(self.tool)
+        return self.tool.disk({})
+
+    def unwrap_time_selector(self, sel: TimeSelector) -> Any:
+        assert(self.tool)
+        return self.tool.time({})
+
+
+    ### WORKFLOW PLUMBING ###
 
     def unwrap_channel(self, node: InputNode) -> Any:
         """
@@ -633,21 +635,45 @@ class Unwrapper:
         else:
             raise NotImplementedError
 
-    def unwrap_operator(self, op: Operator) -> Any:
-        unwrap_expression_wrap = lambda x: unwrap_expression(
-            val=x,
-            tool=self.tool,
-            in_shell_script=self.in_shell_script,
+    def unwrap_input_node_selector(self, sel: InputNodeSelector) -> Any:
+        return self.unwrap(sel.input_node)
+            
+    def unwrap_input_node(self, node: InputNode) -> Any:
+        if channels.exists(janis_uuid=node.uuid):
+            return self.unwrap_channel(node)
+        
+        elif params.exists(janis_uuid=node.uuid):
+            param = params.get(janis_uuid=node.uuid)
+            return f'params.{param.name}'
 
-            sources=self.sources,
-            process_inputs=self.process_inputs,
-            param_inputs=self.param_inputs,
-            internal_inputs=self.internal_inputs,
+    def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
+        # TODO save state of self.quote string
+        return self.unwrap(val.source_map[0])
+    
+    def unwrap_edge(self, val: Edge) -> Any:
+        return self.unwrap(val.source)
 
-            scatter_target=self.scatter_target,
-            scatter_method=self.scatter_method
-        )
-        return op.to_nextflow(unwrap_expression_wrap, *op.args)
+    def unwrap_step_output_selector(self, sel: StepOutputSelector) -> Any:
+        # if scatter & output type is Array, use .flatten()
+        upstream_step: StepNode = sel.node
+        upstream_out: str = sel.tag
+        conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
+
+        # arrays of secondaries
+        if secondaries.is_array_secondary_type(conn_out.outtype):
+            out: list[str] = []
+            raise NotImplementedError
+        
+        # everything else
+        else:
+            upstream_step_id = to_case(upstream_step.id(), settings.NF_PROCESS_CASE)
+            channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
+            return self.get_channel_expression(
+                channel_name=channel_name,
+                upstream_dtype=conn_out.outtype,
+            )
+
+
 
 
 

@@ -70,6 +70,7 @@ from janis_core.tests.testworkflows import (
     AssemblyTestWF,
     SubworkflowTestWF,
     FilenameTestWF,
+    OutputCollectionTestWF,
 )
 
 from janis_core import (
@@ -1428,23 +1429,23 @@ class TestPlumbingBasic(unittest.TestCase):
     def test_workflow_inputs(self):
         wf = StepInputsWFInputTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
         expected = [
             "ch_in_file",
             "ch_in_file_opt",
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
+        actual = nfgen.get_args(step, scope)
         self.assertEqual(expected, actual)
         
     # static step inputs
     def test_static_inputs(self):
         wf = StepInputsTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
         not_expected = {
             'pos_default',
             'pos_default',
@@ -1455,7 +1456,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = nfgen.get_args(tool, sources, scatter)
+        actual = nfgen.get_args(step, scope)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -1463,13 +1464,13 @@ class TestPlumbingBasic(unittest.TestCase):
     def test_connections_files(self) -> None:
         wf = StepConnectionsTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
         expected = [
             "STP1.out.out"
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
+        actual = nfgen.get_args(step, scope)
         self.assertEqual(expected, actual)
 
     def test_filename_types(self) -> None:
@@ -2042,11 +2043,88 @@ class TestStepFeatures(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class TestUnwrap(unittest.TestCase):
+
+class TestUnwrapOutput(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = OutputCollectionTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_wildcard(self) -> None:
+        step_id = "stp1"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "myfile.txt", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+
+    def test_input_selector(self) -> None:
+        step_id = "stp4"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path params.stp4_output_filename, emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_input_selector_filename_reference(self) -> None:
+        step_id = "stp3"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "${inp.simpleName}.recalibrated.bam", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_input_selector_filename_generated(self) -> None:
+        step_id = "stp2"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_complex(self) -> None:
+        # two_value operator etc. uses ${} syntax around whole phrase.
+        # strings inside are quoted. 
+        step_id = "stp5"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+
+
+
+class TestUnwrapScript(unittest.TestCase):
 
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+    
+    @unittest.skip('not implemented')
+    def test_filename_generated(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_filename_input_selector(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_two_value_operator(self) -> None:
+        raise NotImplementedError
+
+
 
     def test_input_node(self) -> None:
         wf = StepConnectionsTestWF()
@@ -2149,8 +2227,7 @@ class TestUnwrap(unittest.TestCase):
         )
         expected = "params.in_str"
         self.assertEqual(actual, expected)
-
-
+    
 
 
 class TestStringFormatter(unittest.TestCase):

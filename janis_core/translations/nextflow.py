@@ -425,7 +425,7 @@ class NextflowTranslator(TranslatorBase):
             emit: list[nfgen.WorkflowEmit] = []
             for out in wf.output_nodes.values():
                 outname = out.id()
-                expression = nfgen.unwrap_expression(val=out.source, in_shell_script=True)
+                expression = nfgen.unwrap_expression(val=out.source, add_curly_braces=True)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
 
         # MAIN (workflow step calls, channel operations)
@@ -922,7 +922,7 @@ class NextflowTranslator(TranslatorBase):
             # input_in_selectors=cls.INPUT_IN_SELECTORS,
             tool=tool,
             # inputs_dict=inputs_dict,
-            in_shell_script=in_shell_script,
+            add_curly_braces=in_shell_script,
             # var_indicator=var_indicator,
             # step_indicator=step_indicator,
             # debugkwargs=debugkwargs
