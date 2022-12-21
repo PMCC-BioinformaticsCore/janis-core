@@ -191,12 +191,17 @@ class ScriptFormatter:
         default = self.tinput.default
         if default is None and isinstance(self.basetype, Filename):
             default = self.unwrap(self.basetype)
+        elif self.itype in [IType.POS_DEFAULT_ARR, IType.OPT_DEFAULT_ARR]:
+            default = self.eval_cmdline(default)
         else:
             default = self.unwrap(default)
-        
         return default
 
     def unwrap(self, val: Any) -> Any:
+        if self.tool.id() == 'BwaMemSamtoolsView':
+            print()
+        if self.tinput.id() == 'sampleName':
+            print()
         return unwrap_expression(
             val=val,
             tool=self.tool,

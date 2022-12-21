@@ -19,7 +19,7 @@ class AlphabeticalStrategy(OrderingStrategy):
 
 class PathPriorityStrategy(OrderingStrategy):
     def order(self, inputs: list[ToolInput | TInput]) -> list[ToolInput | TInput]:
-        out = sorted(inputs, key=lambda x: self.is_path(x))
+        out = sorted(inputs, key=lambda x: self.is_path(x), reverse=True)
         return out
     
     def is_path(self, inp: ToolInput | TInput) -> bool:
@@ -31,14 +31,15 @@ class PathPriorityStrategy(OrderingStrategy):
 
 class TuplePriorityStrategy(OrderingStrategy):
     def order(self, inputs: list[ToolInput | TInput]) -> list[ToolInput | TInput]:
-        out = sorted(inputs, key=lambda x: self.is_tuple(x))
+        out = sorted(inputs, key=lambda x: self.is_tuple(x), reverse=True)
         return out
     
     def is_tuple(self, inp: ToolInput | TInput) -> bool:
+        # File type with secondaries represented as tuple process input
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-        basetype = nfgen_utils.get_base_type(dtype)
-        if not isinstance(dtype, Array) and isinstance(basetype, File):
-            return True
+        if not isinstance(dtype, Array):
+            if isinstance(dtype, File) and dtype.has_secondary_files():
+                return True
         return False
 
 class MandatoryPriorityStrategy(OrderingStrategy):

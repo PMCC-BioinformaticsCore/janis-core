@@ -40,7 +40,8 @@ def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     channel_wfinp_ids = get_channel_process_inputs(sources)
     step_conn_ids = get_connection_process_inputs(sources)
     scatter_wfinp_ids = get_scatter_process_inputs(sources)
-    surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids
+    complex_expr_ids = get_complex_expression_inputs(sources)
+    surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids | complex_expr_ids
     return surviving_ids
 
 def get_process_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
@@ -221,5 +222,14 @@ def get_scatter_process_inputs(sources: dict[str, Any]) -> set[str]:
         scatter = src.source_map[0].scatter
         node = nfgen_utils.resolve_node(src)
         if scatter and isinstance(node, InputNode):
+            out.add(inname)
+    return out
+
+def get_complex_expression_inputs(sources: dict[str, Any]) -> set[str]:
+    """get tool inputs (ids) which are being scattered on"""
+    out: set[str] = set()
+    for inname, src in sources.items():
+        node = nfgen_utils.resolve_node(src)
+        if not isinstance(node, InputNode) and not isinstance(node, StepNode):
             out.add(inname)
     return out

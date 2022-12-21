@@ -159,6 +159,8 @@ class NextflowTranslator(TranslatorBase):
         scope: list[str] = [settings.NF_MAIN_NAME]
 
         # register params and channels for workflow inputs
+        nfgen.params.clear()
+        nfgen.channels.clear()
         nfgen.register_params_channels(jworkflow, scope)
 
         # main logic

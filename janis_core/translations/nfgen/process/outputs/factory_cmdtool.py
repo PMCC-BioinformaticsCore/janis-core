@@ -41,7 +41,10 @@ class OType(Enum):
 
 
 def get_otype(out: ToolOutput) -> OType:
-    if is_secondary_type(out) and is_array_type(out):
+    if is_stdout_type(out):
+        return OType.STDOUT
+    
+    elif is_secondary_type(out) and is_array_type(out):
         return OType.SECONDARIES_ARRAY
     
     elif is_secondary_type(out):
@@ -58,9 +61,6 @@ def get_otype(out: ToolOutput) -> OType:
     
     elif is_non_file_type(out) and has_n_collectors(out, n=1):
         return OType.NON_FILE
-
-    elif is_stdout_type(out):
-        return OType.STDOUT
 
     else:
         raise NotImplementedError
@@ -158,6 +158,8 @@ class CmdtoolProcessOutputFactory:
         self.add_braces: bool = False
         self.add_quotes: bool = False
 
+        
+
 
     # helper properties
     @property
@@ -180,6 +182,14 @@ class CmdtoolProcessOutputFactory:
         return False
         
     def unwrap_collection_expression(self, expr: Any) -> str:
+        # edge case - if referencing input (via InputSelector) and that
+        # input is a Filename type, unwrap the Filename, not the InputSelector directly. 
+        # results in cleaner format. 
+        if isinstance(expr, InputSelector):
+            inp = self.tool.inputs_map()[expr.input_to_select]
+            if isinstance(inp.intype, Filename):
+                expr = inp.intype
+
         if self.ftype == FmtType.REFERENCE:
             self.add_braces = False
             self.add_quotes = False
@@ -199,11 +209,13 @@ class CmdtoolProcessOutputFactory:
             self.add_quotes = False
             expr = self.unwrap(expr)
             expr = f'"{expr}"'
-        else:
+        elif self.ftype == FmtType.COMPLEX:
             self.add_braces = True
             self.add_quotes = True
             expr = self.unwrap(expr)
             expr = f'"{expr}"'
+        else:
+            raise NotImplementedError
         return expr
 
     def unwrap(self, expr: Any):
@@ -277,20 +289,19 @@ class CmdtoolProcessOutputFactory:
         expressions: list[str] = []
         
         primary_expr = self.unwrap_collection_expression(self.out.selector)
+        primary_expr = primary_expr.strip('"')
         exts = secondaries.get_extensions(self.dtype)
         for ext in exts:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
                 qual = 'path'
-                expr = primary_expr
-                # expr = f'"{primary_expr}"'
+                expr = f'"{primary_expr}"'
             # secondary file
             else:
                 secondary_ext = self.out.secondaries_present_as[ext]
                 secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
                 qual = 'path'
-                expr = secondary_expr
-                # expr = f'"{secondary_expr}"'
+                expr = f'"{secondary_expr}"'
             qualifiers.append(qual)
             expressions.append(expr)
 

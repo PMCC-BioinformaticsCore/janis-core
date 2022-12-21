@@ -46,9 +46,11 @@ class OutputCollectionTestWF(Workflow):
         
         self.step(
             "stp5", 
-            AddOperatorTestTool(
-                inp=self.inFile,
-            )
+            AddOperatorTestTool(inp=self.inFile)
+        )
+        self.step(
+            "stp6", 
+            FilepairTestTool(inp=self.inFile)
         )
 
     def friendly_name(self):
@@ -247,6 +249,43 @@ class AddOperatorTestTool(CatToolBase):
                 File(),
                 selector=InputSelector("outputFilename")
                 + ".gz",
+            ),
+        ]
+
+
+class FilepairTestTool(CatToolBase):
+    
+    def friendly_name(self):
+        return "TEST: FilepairTestTool"
+
+    def tool(self):
+        return "FilepairTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput(
+                "inp",
+                File(),
+                position=1,
+            ),
+            ToolInput(
+                "outputFilename",
+                Filename(
+                    prefix=InputSelector("inp", remove_file_extension=True),
+                ),
+                position=2,
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                File(),
+                selector=[
+                    (InputSelector("outputFilename") + '-R1.fastq'),
+                    (InputSelector("outputFilename") + '-R2.fastq'),
+                ]
             ),
         ]
 

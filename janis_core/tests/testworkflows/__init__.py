@@ -56,3 +56,4 @@ from .assembly import w as AssemblyTestWF
 from .filenames import FilenameTestWF
 from .subworkflow import SubworkflowTestWF
 from .outputs import OutputCollectionTestWF
+from .unwrap import UnwrapTestWF

@@ -78,19 +78,8 @@ def resolve_node(node: Any) -> Any:
         return node.input_node
     elif isinstance(node, StepOutputSelector):
         return node.node
-    elif isinstance(node, IndexOperator):
-        return resolve_node(node.args[0])
-    elif isinstance(node, FirstOperator):
-        return resolve_node(node.args[0])
-    elif isinstance(node, AliasSelector):
-        return resolve_node(node.inner_selector)
-    elif isinstance(node, list):
-        # TODO this is first selector?
-        if len(node) > 0:
-            return node[0]
-        return None
     else:
-        raise NotImplementedError
+        return node
 
 def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
     connected: dict[str, list[str]] = defaultdict(list)

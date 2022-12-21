@@ -30,13 +30,10 @@ class OType(Enum):
 def get_otype(out: TOutput) -> OType:
     if is_file_type(out):
         return OType.FILE
-    
     elif is_non_file_type(out) and is_array_type(out):
         return OType.NON_FILE_ARRAY
-    
-    elif is_non_file_type(out) and is_array_type(out):
+    elif is_non_file_type(out):
         return OType.NON_FILE
-
     else:
         raise NotImplementedError
 

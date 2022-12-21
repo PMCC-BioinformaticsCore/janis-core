@@ -3,19 +3,7 @@ import regex as re
 
 from janis_core.tests.testtools import (
     InputQualityTestTool,
-    EchoTestTool,
-    FilenameGeneratedTool,
-    OperatorResourcesTestTool,
-    SplitTextPythonTestTool,
-    SumTestPythonTool,
-    JoinArrayPythonTestTool,
-    FileInputPythonTestTool,
-    CatTestTool,
-    SecondaryInputTestTool,
     BasicTestTool,
-    AppendedSecondaryOutputTestTool,
-    ReplacedSecondaryOutputTestTool,
-    FileInputSelectorTestTool,
 )
 
 from janis_core.tests.testworkflows import (
@@ -71,12 +59,11 @@ from janis_core.tests.testworkflows import (
     SubworkflowTestWF,
     FilenameTestWF,
     OutputCollectionTestWF,
+    UnwrapTestWF,
 )
 
 from janis_core import (
-    WorkflowBuilder,
     Workflow,
-    CommandTool,
     InputSelector,
     StringFormatter,
     JoinOperator,
@@ -85,22 +72,17 @@ from janis_core import (
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nfgen
 from janis_core.translations.nfgen import settings
-from janis_core.translations.nfgen.params import Param
-from janis_core.translations.nfgen.channels import Channel
 from janis_core import (
-    Array, 
     String, 
     Int, 
     Float, 
     File, 
     Boolean, 
-    Filename
 )
 from janis_core.translations.nfgen.nfgen_utils import to_groovy
 
 
 ### helper classes
-
 
 class DataTypeWithSecondary(File):
     @staticmethod
@@ -123,9 +105,9 @@ class DataTypeNoSecondary(File):
 
 
 def refresh_workflow_inputs(wf: Workflow) -> None:
+    scope = [settings.NF_MAIN_NAME]
     nfgen.params.clear()
     nfgen.channels.clear()
-    scope = [settings.NF_MAIN_NAME]
     nfgen.register_params_channels(wf, scope=scope)
 
 
@@ -591,6 +573,7 @@ class TestProcessDirectives(unittest.TestCase):
             'ContainerDirective',
             'PublishDirDirective',
             'DebugDirective',
+            'CpusDirective',
             'DiskDirective',
             'MemoryDirective',
             'TimeDirective',
@@ -820,55 +803,101 @@ class TestProcessOutputs(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-    
+        self.wf = OutputCollectionTestWF()
+        refresh_workflow_inputs(self.wf)
+
     def test_stdout(self):
         wf = BasicIOTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
-        actual_outputs = {inp.get_string() for inp in process.outputs}
-        expected_outputs = {
-            'stdout, emit: out',
-        }
+        step_id = "stp1"
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'stdout, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)  
 
-    def test_wildcard_selector(self) -> None:
-        wf = WildcardSelectorOutputTestWF()
-        refresh_workflow_inputs(wf)
-        # singles
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+    def test_wildcard(self) -> None:
+        step_id = "stp1"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "myfile.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
-        
-        # arrays
+    
+    def test_wildcard_array(self) -> None:
+        wf = WildcardSelectorOutputTestWF()
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp2"].tool
         sources = wf.step_nodes["stp2"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "*.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
-
+    
     def test_input_selector(self) -> None:
         wf = InputSelectorTestWF()
         refresh_workflow_inputs(wf)
-        # singles
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp}", emit: out'}
+        expected_outputs = {'path inp, emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+
+    def test_input_selector_param(self) -> None:
+        step_id = "stp4"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path params.stp4_output_filename, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
-        # arrays
+    def test_input_selector_array(self) -> None:
+        wf = InputSelectorTestWF()
+        refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp3"].tool
         sources = wf.step_nodes["stp3"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp3'])
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp}", emit: out'}
+        expected_outputs = {'path inp, emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_input_selector_filename_reference(self) -> None:
+        step_id = "stp3"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "${inp.simpleName}.recalibrated.bam", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_input_selector_filename_generated(self) -> None:
+        step_id = "stp2"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_file_pair(self) -> None:
+        # eg read1.fastq, read2.fastq
+        # collection method is list, len(list) == 2.
+        step_id = "stp6"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "[${inp.simpleName + \'-R1.fastq\'}, ${inp.simpleName + \'-R2.fastq\'}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_secondaries(self) -> None:
@@ -895,6 +924,18 @@ class TestProcessOutputs(unittest.TestCase):
     def test_secondaries_array(self) -> None:
         # highly unlikely workflow would do this
         raise NotImplementedError
+        
+    def test_complex_expression(self) -> None:
+        # two_value operator etc. uses ${} syntax around whole phrase.
+        # strings inside are quoted. 
+        step_id = "stp5"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
     
     def test_pythontool(self) -> None:
         wf = OutputsPythonToolTestWF()
@@ -968,7 +1009,7 @@ class TestProcessScript(unittest.TestCase):
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_script = process.script
-        expected_lines = {
+        expected_lines = [
             'echo',
             '${pos_basic}',
             '${pos_default}',
@@ -978,7 +1019,7 @@ class TestProcessScript(unittest.TestCase):
             '--opt-basic ${params.in_str}',
             '--opt-default ${opt_default}',
             '${opt_optional}',
-        }
+        ]
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
@@ -989,17 +1030,16 @@ class TestProcessScript(unittest.TestCase):
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_prescript = process.pre_script
-        expected_lines = {
+        expected_lines = [
             'def pos_basic = pos_basic.join(\' \')',
             'def pos_basic2 = pos_basic2 ? pos_basic2.join(\' \') : ""',
             'def pos_default = params.in_int_array ? params.in_int_array.join(\' \') : "1 2 3"',
             'def pos_optional = params.in_str_array ? params.in_str_array.join(\' \') : ""',
-            'def flag_true = params.in_bool_array ? params.in_bool_array.join(\' \') : "--bool-true true"',
-            'def flag_false = params.in_bool_array ? params.in_bool_array.join(\' \') : "--bool-false true"',
             'def opt_basic = params.in_str_array.join(\' \')',
             'def opt_default = params.in_int_array ? params.in_int_array.collect{ "--opt-default " + it }.join(\' \') : "--opt-default 1 --opt-default 2 --opt-default 3"',
             'def opt_optional = params.in_str_array ? "--opt-optional," + params.in_str_array.join(\',\') : ""',
-        }
+            
+        ]
         print(actual_prescript)
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
@@ -1011,7 +1051,7 @@ class TestProcessScript(unittest.TestCase):
         sources = wf.step_nodes["stp1"].sources
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_script = process.script
-        expected_lines = {
+        expected_lines = [
             'echo',
             '${pos_basic}',
             '${pos_basic2}',
@@ -1020,7 +1060,7 @@ class TestProcessScript(unittest.TestCase):
             '--opt-basic=${opt_basic}',
             '--opt-default ${opt_default}',
             '${opt_optional}',
-        }
+        ]
         print(actual_script)
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
@@ -1056,80 +1096,34 @@ class TestProcessScript(unittest.TestCase):
     def test_filename_generated_tool(self):
         wf = FilenameGeneratedTestWF()
         refresh_workflow_inputs(wf)
-        
         step_id = 'stp1'
         tool = wf.step_nodes[step_id].tool
-        print(tool.inputs)
         sources = wf.step_nodes[step_id].sources
         scope: list[str] = [settings.NF_MAIN_NAME, step_id]
         process = translator.gen_process_from_cmdtool(tool, sources, scope)
         print(process.get_string())
+        expected = """\
+process STP1 {
+    publishDir "${params.outdir}/stp1"
+    debug true
 
-        expected = f"""
-process filenamegeneratedtool
-{{
     input:
-    val inp
-    val inpOptional
     path fileInp
     path fileInpOptional
-    val generatedInp
-    val generatedInpOptional
-    val generatedFileInp
-    val generatedFileInpOptional
 
     output:
-    val "${{'*'}}" , emit: out
-
-    publishDir "$launchDir/filenamegeneratedtool"
-    memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-    cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-    disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-    time "${{params.runtime_seconds + 's'}}"
+    val "*", emit: out
 
     script:
-
-    def generatedInp = generatedInp && generatedInp != 'None' ? generatedInp : inp + '' + ''
-
-    def generatedInpOptional = generatedInpOptional && generatedInpOptional != 'None' ? generatedInpOptional : inpOptional + '' + ''
-
-    def generatedFileInp = generatedFileInp && generatedFileInp != 'None' ? generatedFileInp : fileInp.simpleName + '.transformed' + '.fnp'
-
-    def generatedFileInpOptional = generatedFileInpOptional && generatedFileInpOptional != 'None' ? generatedFileInpOptional : fileInpOptional.simpleName + '.optional' + '.txt'
-
-    def inpWithPrefix = apply_prefix(inp, ' ', 'False')
-
-    def inpOptionalWithPrefix = optional(inpOptional, ' ', 'False')
-
-    def fileInpWithPrefix = apply_prefix(fileInp, ' ', 'False')
-
-    def fileInpOptionalWithPrefix = optional(fileInpOptional, ' ', 'False')
-
-    def generatedInpWithPrefix = optional(generatedInp, ' ', 'False')
-
-    def generatedInpOptionalWithPrefix = optional(generatedInpOptional, ' ', 'False')
-
-    def generatedFileInpWithPrefix = optional(generatedFileInp, ' ', 'False')
-
-    def generatedFileInpOptionalWithPrefix = optional(generatedFileInpOptional, ' ', 'False')
-
-    def runtime_memory = params.runtime_memory
-
-    def runtime_cpu = params.runtime_cpu
-
-    def runtime_disks = params.runtime_disks
-
-    def runtime_seconds = params.runtime_seconds
     \"\"\"
     echo \\
-    $generatedInpWithPrefix \\
-    $generatedInpOptionalWithPrefix \\
-    $generatedFileInpWithPrefix \\
-    $generatedFileInpOptionalWithPrefix | tee janisstdout_filenamegeneratedtool
+    ${params.in_str} \\
+    ${params.in_str_opt} \\
+    ${fileInp.simpleName}.transformed.fnp \\
+    ${fileInpOptional.simpleName}.optional.txt \\
     \"\"\"
-}}
 
-
+}
 """
         self.assertEqual(expected, process.get_string())
 
@@ -1215,203 +1209,6 @@ process filenamegeneratedtool
 
 
 
-# distribute to the above TestProces___ classes
-# class TestProcessCodeTool(unittest.TestCase):
-#     def test_str_input(self):
-#         p = translator.gen_process_from_pythontool(SplitTextTestTool())
-#         expected = f"""
-# process TestSplitTextTool
-# {{
-#   input:
-#     path PYTHON_CODE_FILE_PATH
-#     val inp
-
-#   output:
-#     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
-
-#   publishDir "$launchDir/TestSplitTextTool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-#     \"\"\"
-#     #!/usr/bin/env python
-#     from TestSplitTextTool import code_block
-#     import os
-#     import json
-
-#     result = code_block(inp="$inp")
-
-#     work_dir = os.getenv("PYENV_DIR")
-#     for key in result:
-#         with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
-#             f.write(json.dumps(result[key]))
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_int_input(self):
-#         p = translator.gen_process_from_pythontool(SumTestTool())
-#         expected = f"""
-# process TestSumTool
-# {{
-#   input:
-#     path PYTHON_CODE_FILE_PATH
-#     val inp1
-#     val inp2
-
-#   output:
-#     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
-
-#   publishDir "$launchDir/TestSumTool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-#     \"\"\"
-#     #!/usr/bin/env python
-#     from TestSumTool import code_block
-#     import os
-#     import json
-
-#     result = code_block(inp1=$inp1, inp2=$inp2)
-
-#     work_dir = os.getenv("PYENV_DIR")
-#     for key in result:
-#         with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
-#             f.write(json.dumps(result[key]))
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_array_input(self):
-#         p = translator.gen_process_from_pythontool(JoinArrayTestTool())
-#         expected = f"""
-# process TestJoinArrayTool
-# {{
-#   input:
-#     path PYTHON_CODE_FILE_PATH
-#     val inp
-
-#   output:
-#     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
-
-#   publishDir "$launchDir/TestJoinArrayTool"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-#     \"\"\"
-#     #!/usr/bin/env python
-#     from TestJoinArrayTool import code_block
-#     import os
-#     import json
-
-#     result = code_block(inp="$inp".split(" "))
-
-#     work_dir = os.getenv("PYENV_DIR")
-#     for key in result:
-#         with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
-#             f.write(json.dumps(result[key]))
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_file_input(self):
-#         p = translator.gen_process_from_pythontool(FileInputTestTool())
-#         expected = f"""
-# process TestFileInput
-# {{
-#   input:
-#     path PYTHON_CODE_FILE_PATH
-#     path inp
-
-#   output:
-#     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
-
-#   publishDir "$launchDir/TestFileInput"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-#     \"\"\"
-#     #!/usr/bin/env python
-#     from TestFileInput import code_block
-#     import os
-#     import json
-
-#     result = code_block(inp="$inp")
-
-#     work_dir = os.getenv("PYENV_DIR")
-#     for key in result:
-#         with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
-#             f.write(json.dumps(result[key]))
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-#     def test_file_with_secondary_input(self):
-#         p = translator.gen_process_from_pythontool(
-#             SecondaryInputTestTool()
-#         )
-#         expected = f"""
-# process TestFileWithSecondaryInput
-# {{
-#   input:
-#     path PYTHON_CODE_FILE_PATH
-#     path inp
-
-#   output:
-#     val "${{file("$workDir/janis_out_out").text.replace('[', '').replace(']', '').split(', ')}}" , emit: out
-
-#   publishDir "$launchDir/TestFileWithSecondaryInput"
-#   memory "${{params.runtime_memory ? params.runtime_memory + 'GB': ''}}"
-#   cpus "${{params.runtime_cpu ? params.runtime_cpu : ''}}"
-#   disk "${{params.runtime_disks ? params.runtime_disks + 'GB': ''}}"
-#   time "${{params.runtime_seconds + 's'}}"
-
-#   script:
-#     \"\"\"
-#     #!/usr/bin/env python
-#     from TestFileWithSecondaryInput import code_block
-#     import os
-#     import json
-
-#     result = code_block(inp="$inp".split(" ")[0])
-
-#     work_dir = os.getenv("PYENV_DIR")
-#     for key in result:
-#         with open(os.path.join("$workDir", f"janis_out_{{key}}"), "w") as f:
-#             f.write(json.dumps(result[key]))
-#     \"\"\"
-# }}
-
-
-# """
-#         self.assertEqual(expected, p.get_string())
-
-
-
 
 class TestPlumbingBasic(unittest.TestCase):
     """
@@ -1432,11 +1229,11 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_file_opt",
         ]
-        actual = nfgen.get_args(step, scope)
         self.assertEqual(expected, actual)
         
     # static step inputs
@@ -1464,24 +1261,20 @@ class TestPlumbingBasic(unittest.TestCase):
     def test_connections_files(self) -> None:
         wf = StepConnectionsTestWF()
         refresh_workflow_inputs(wf)
-        step_id = 'stp1'
+        step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = [settings.NF_MAIN_NAME, step_id]
-        expected = [
-            "STP1.out.out"
-        ]
+        expected = ["STP1.out.out"]
         actual = nfgen.get_args(step, scope)
         self.assertEqual(expected, actual)
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
         refresh_workflow_inputs(wf)
-
         step_id = 'stp1'
-        tool = wf.step_nodes[step_id].tool
-        sources = wf.step_nodes[step_id].sources
-        scatter = wf.step_nodes[step_id].scatter
-        actual = nfgen.get_args(tool, sources, scatter)
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_str",
@@ -1489,10 +1282,9 @@ class TestPlumbingBasic(unittest.TestCase):
         self.assertEqual(expected, actual)
         
         step_id = 'stp2'
-        tool = wf.step_nodes[step_id].tool
-        sources = wf.step_nodes[step_id].sources
-        scatter = wf.step_nodes[step_id].scatter
-        actual = nfgen.get_args(tool, sources, scatter)
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file",
         ]
@@ -1520,34 +1312,35 @@ class TestPlumbingBasicArrays(unittest.TestCase):
     def test_array_connections(self) -> None:
         wf = ArrayStepConnectionsTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp2'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "STP1.out.out"
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_workflow_inputs_array(self) -> None:
         wf = ArrayStepInputsTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file_array",
             "ch_in_file_array_opt",
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
     def test_static_step_inputs_array(self):
         wf = ArrayStepInputsTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp2'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         not_expected = {
             'pos_default',
             'pos_default',
@@ -1558,7 +1351,6 @@ class TestPlumbingBasicArrays(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = nfgen.get_args(tool, sources, scatter)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -1578,37 +1370,38 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_scatter_basic(self) -> None:
         wf = BasicScatterTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file_array.flatten()"
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_dot(self) -> None:
         wf = ScatterDotTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "ch_in_file_array.flatten()",
             "ch_in_str_array.flatten()",
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_cross(self) -> None:
         wf = ScatterCrossTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
 
         # cartesian cross channel manipulation in workflow
-        operation = nfgen.channels.gen_scatter_cross_operation(sources, scatter)
+        operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
         actual_op = operation.get_string()
         expected_op = """\
 ch_in_file_array.flatten()
@@ -1625,29 +1418,28 @@ ch_in_file_array.flatten()
             "ch_cartesian_cross.in_file_array",
             "ch_cartesian_cross.in_str_array",
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
     
     def test_scatter_connection(self) -> None:
         wf = ChainedScatterTestWF()
         refresh_workflow_inputs(wf)
         # single -> single
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp2'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "STP1.out.out"
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
         # array -> single
-        tool = wf.step_nodes["stp4"].tool
-        sources = wf.step_nodes["stp4"].sources
-        scatter = wf.step_nodes["stp4"].scatter
+        step_id = 'stp4'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
             "STP3.out.out.flatten()"
         ]
-        actual = nfgen.get_args(tool, sources, scatter)
         self.assertEqual(expected, actual)
 
 
@@ -1694,26 +1486,26 @@ class TestPlumbingSecondaries(unittest.TestCase):
         self.assertEquals(actual_channel, expected_channel)
         
         # step inputs created correctly?
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        scatter = wf.step_nodes["stp1"].scatter
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual_inputs = nfgen.get_args(step, scope)
         expected_inputs = [
             "ch_in_alignments"
         ]
-        actual_inputs = nfgen.get_args(tool, sources, scatter)
         self.assertEquals(actual_inputs, expected_inputs)
     
     def test_secondaries_connections(self) -> None:
         wf = SecondariesConnectionsTestWF()
         refresh_workflow_inputs(wf)
         # step inputs created correctly?
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        scatter = wf.step_nodes["stp2"].scatter
+        step_id = 'stp2'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual_inputs = nfgen.get_args(step, scope)
         expected_inputs = [
             "STP1.out.out"
         ]
-        actual_inputs = nfgen.get_args(tool, sources, scatter)
         self.assertEquals(actual_inputs, expected_inputs)
 
 
@@ -1924,22 +1716,27 @@ class TestNextflowConfig(unittest.TestCase):
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
+    # 'in_bool_array': fr'\[\]',
+    # 'stp2_flag_true': fr'\[true\]',
+    # 'stp2_flag_false': fr'\[true\]',
     'in_file_array': fr"""\[
         // list files here
     \]""",
+    'in_file_array_opt': fr"""\[
+        // list files here
+    \]""",
+    
     'in_str_array': fr"""\[
         // list strings here
     \]""",
     'in_int_array': fr'\[\]',
-    'in_bool_array': fr'\[\]',
+
     'stp2_pos_default': fr'\[4, 5, 6\]',
     'stp2_pos_optional': fr"""\[
         'hi',
         'there',
         'friend',
     \]""",
-    'stp2_flag_true': fr'\[true\]',
-    'stp2_flag_false': fr'\[true\]',
     'stp2_opt_basic': fr"""\[
         'hi',
         'there',
@@ -2023,98 +1820,52 @@ class TestStepFeatures(unittest.TestCase):
         settings.MODE = 'workflow'
 
     def test_first_selector(self):
-        workflow = ConditionStepTestWF()
-
-        step_id = "print"
-        tool = workflow.step_nodes[step_id].tool
-        sources = workflow.step_nodes[step_id].sources
-        scatter = workflow.step_nodes[step_id].scatter
-        inputs = nfgen.get_args(tool, sources, scatter)
+        wf = ConditionStepTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'print'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
         expected = [
-            "[$params.mystring, $get_string.out.out].first()"
+            "[params.mystring, GET_STRING.out.out].first()"
         ]
-        self.assertEqual(expected, inputs)
+        self.assertEqual(actual, expected)
 
     def test_with_expression(self):
-        w2 = StepInputExpressionTestWF()
-        w2_step_keys = list(w2.step_nodes.keys())
-        expected = {"inp": "$params.mystring ? $params.mystring : $params.mystring_backup"}
-        actual = nfgen.get_args(w2.step_nodes["print"].tool)
+        wf = StepInputExpressionTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'print'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual = nfgen.get_args(step, scope)
+        expected = [
+            "binding.hasVariable(params.mystring) ? params.mystring : params.mystring_backup"
+        ]
         self.assertEqual(actual, expected)
 
 
 
-class TestUnwrapOutput(unittest.TestCase):
-    
+class TestUnwrap(unittest.TestCase):
+
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
-        self.wf = OutputCollectionTestWF()
+        wf = UnwrapTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        self.prescript, self.script = nfgen.process.gen_script_for_cmdtool(
+            tool=tool,
+            scope=[settings.NF_MAIN_NAME, step_id],
+            sources=sources,
+            stdout_filename='out'
+        )
+        self.wf = StepConnectionsTestWF()
         refresh_workflow_inputs(self.wf)
 
-    def test_wildcard(self) -> None:
-        step_id = "stp1"
-        tool = self.wf.step_nodes[step_id].tool
-        sources = self.wf.step_nodes[step_id].sources
-        scope = [settings.NF_MAIN_NAME, step_id]
-        process = translator.gen_process_from_cmdtool(tool, sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "myfile.txt", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-
-    def test_input_selector(self) -> None:
-        step_id = "stp4"
-        tool = self.wf.step_nodes[step_id].tool
-        sources = self.wf.step_nodes[step_id].sources
-        scope = [settings.NF_MAIN_NAME, step_id]
-        process = translator.gen_process_from_cmdtool(tool, sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path params.stp4_output_filename, emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-    
-    def test_input_selector_filename_reference(self) -> None:
-        step_id = "stp3"
-        tool = self.wf.step_nodes[step_id].tool
-        sources = self.wf.step_nodes[step_id].sources
-        scope = [settings.NF_MAIN_NAME, step_id]
-        process = translator.gen_process_from_cmdtool(tool, sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp.simpleName}.recalibrated.bam", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-    
-    def test_input_selector_filename_generated(self) -> None:
-        step_id = "stp2"
-        tool = self.wf.step_nodes[step_id].tool
-        sources = self.wf.step_nodes[step_id].sources
-        scope = [settings.NF_MAIN_NAME, step_id]
-        process = translator.gen_process_from_cmdtool(tool, sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-    
-    def test_complex(self) -> None:
-        # two_value operator etc. uses ${} syntax around whole phrase.
-        # strings inside are quoted. 
-        step_id = "stp5"
-        tool = self.wf.step_nodes[step_id].tool
-        sources = self.wf.step_nodes[step_id].sources
-        scope = [settings.NF_MAIN_NAME, step_id]
-        process = translator.gen_process_from_cmdtool(tool, sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-
-
-
-class TestUnwrapScript(unittest.TestCase):
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-    
-    @unittest.skip('not implemented')
     def test_filename_generated(self) -> None:
-        raise NotImplementedError
+        self.assertIn("--filenameGen myfile.gz", self.script)
     
     @unittest.skip('not implemented')
     def test_filename_input_selector(self) -> None:
@@ -2124,20 +1875,60 @@ class TestUnwrapScript(unittest.TestCase):
     def test_two_value_operator(self) -> None:
         raise NotImplementedError
 
-
-
-    def test_input_node(self) -> None:
-        wf = StepConnectionsTestWF()
+    def test_input_selector_process_input(self) -> None:
+        wf = InputSelectorTestWF()
         refresh_workflow_inputs(wf)
+        step_id = 'stp1'
+        output_id = 'out'
+        process_inputs = {'inp'}
+        param_inputs = {}
+        internal_inputs = {}
+        tool = wf.step_nodes[step_id].tool
+        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
+        actual = nfgen.unwrap_expression(
+            val=sel, 
+            tool=tool, 
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+            add_curly_braces=True
+        )
+        expected = '${inp}'
+        self.assertEqual(actual, expected)
 
+    def test_input_selector_param_input(self) -> None:
+        wf = InputSelectorTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp2'
+        output_id = 'out'
+        process_inputs = {}
+        param_inputs = {'inp'}
+        internal_inputs = {}
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
+        actual = nfgen.unwrap_expression(
+            val=sel, 
+            tool=tool, 
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+            add_curly_braces=True
+        )
+        expected = "${params.in_str}"
+        self.assertEqual(actual, expected)
+    
+    def test_input_node_channel(self) -> None:
         # file input (channel)
-        node = wf.input_nodes['inFile']
+        node = self.wf.input_nodes['inFile']
         actual = nfgen.unwrap_expression(node)
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
 
+    def test_input_node_param(self) -> None:
         # nonfile input (param)
-        node = wf.input_nodes['inStr']
+        node = self.wf.input_nodes['inStr']
         actual = nfgen.unwrap_expression(node)
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
@@ -2147,12 +1938,12 @@ class TestUnwrapScript(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = "stp2"
         inp_id = 'inp'
-        sources = wf.step_nodes[step_id].sources
+        sources = self.wf.step_nodes[step_id].sources
         src = sources[inp_id]
         actual = nfgen.unwrap_expression(src)
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
-
+    
     def test_alias_selector(self) -> None:
         wf = AliasSelectorTestWF()
         refresh_workflow_inputs(wf)
@@ -2186,48 +1977,7 @@ class TestUnwrapScript(unittest.TestCase):
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
-    def test_input_selector_process_input(self) -> None:
-        wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp1'
-        output_id = 'out'
-        process_inputs = {'inp'}
-        param_inputs = {}
-        internal_inputs = {}
-        tool = wf.step_nodes[step_id].tool
-        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
-        actual = nfgen.unwrap_expression(
-            val=sel, 
-            tool=tool, 
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
-        )
-        expected = 'inp'
-        self.assertEqual(actual, expected)
 
-    def test_input_selector_param_input(self) -> None:
-        wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp2'
-        output_id = 'out'
-        process_inputs = {}
-        param_inputs = {'inp'}
-        internal_inputs = {}
-        tool = wf.step_nodes[step_id].tool
-        sources = wf.step_nodes[step_id].sources
-        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
-        actual = nfgen.unwrap_expression(
-            val=sel, 
-            tool=tool, 
-            sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
-        )
-        expected = "params.in_str"
-        self.assertEqual(actual, expected)
-    
 
 
 class TestStringFormatter(unittest.TestCase):
@@ -2360,6 +2110,8 @@ class TestSubWorkflows(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+        self.wf = SubworkflowTestWF()
+        refresh_workflow_inputs(self.wf)
 
     @unittest.skip('not implemented')
     def test_param_system(self) -> None:
@@ -2368,18 +2120,14 @@ class TestSubWorkflows(unittest.TestCase):
         raise NotImplementedError
     
     def test_channel_system(self) -> None:
-        wf = SubworkflowTestWF()
-        refresh_workflow_inputs(wf)
-
         step_id = 'apples_subworkflow'
-        subwf = wf.step_nodes[step_id].tool
+        subwf = self.wf.step_nodes[step_id].tool
         for inp in subwf.input_nodes.values():
             relevant_channel = nfgen.channels.get(inp.uuid)
             assert(relevant_channel)   # 1 channel per each subworkflow input
     
     def test_files_created(self) -> None:
-        wf = SubworkflowTestWF()
-        mainstr, substr_dict = translator.translate_workflow(wf)
+        mainstr, substr_dict = translator.translate_workflow(self.wf)
         expected_filepaths = set([
             'modules/file_tool',
             'modules/string_tool',
@@ -2392,8 +2140,7 @@ class TestSubWorkflows(unittest.TestCase):
 
     def test_structure(self) -> None:
         # take main emit
-        wf = SubworkflowTestWF()
-        mainstr, substr_dict = translator.translate_workflow(wf)
+        mainstr, substr_dict = translator.translate_workflow(self.wf)
         self.assertNotIn('take:', mainstr)
         self.assertNotIn('main:', mainstr)
         self.assertNotIn('emit:', mainstr)
@@ -2404,22 +2151,20 @@ class TestSubWorkflows(unittest.TestCase):
 
     def test_call(self) -> None:
         # translate workflow, building all nf items and files
-        wf = SubworkflowTestWF()
-        translator.translate_workflow(wf)
+        translator.translate_workflow(self.wf)
 
         # focusing in on specific subworkflow
         step_id = 'apples_subworkflow'
-        step_node = wf.step_nodes[step_id]
+        step = self.wf.step_nodes[step_id]
         scope = [settings.NF_MAIN_NAME, step_id]
-
-        # generate nf subworkflow call()
-        args = nfgen.get_args(step_node.tool, step_node.sources, step_node.scatter)
+        args = nfgen.get_args(step, scope)
 
         # generate nf subworkflow object
         nf_workflow = translator.gen_workflow(
             name=step_id, 
             scope=scope,
-            wf=step_node.tool
+            sources=step.sources,
+            wf=step.tool
         )
         
         # check the arg order matches the subworkflow input channel order
@@ -2467,182 +2212,3 @@ class TestSubWorkflows(unittest.TestCase):
     def test_nested(self) -> None:
         raise NotImplementedError
     
-
-
-
-"""
-FROM TestNextflowConfig
-
-    def test_input_in_input_value_nooptional_default(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_value_nooptional_default")
-        wf.input("inpId", String(), default="1")
-        ai = {"inpId": "2"}
-        self.assertDictEqual(
-            {"inpId": "2"}, translator.build_inputs_file(wf, additional_inputs=ai)
-        )
-
-    def test_input_in_input_value_optional_nodefault(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_value_optional_nodefault")
-        wf.input("inpId", String(optional=True))
-        ai = {"inpId": "2"}
-        self.assertDictEqual(
-            {"inpId": "2"}, translator.build_inputs_file(wf, additional_inputs=ai)
-        )
-
-    def test_input_in_input_value_optional_default(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_value_optional_default")
-        wf.input("inpId", String(optional=True), default="1")
-        ai = {"inpId": "2"}
-        self.assertDictEqual(
-            {"inpId": "2"}, translator.build_inputs_file(wf, additional_inputs=ai)
-        )
-
-    def test_input_in_input_novalue_nooptional_nodefault(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_novalue_nooptional_nodefault")
-        wf.input("inpId", String())
-        # included because no value, no default, and not optional
-        self.assertDictEqual({"inpId": ""}, translator.build_inputs_file(wf))
-
-    def test_input_in_input_novalue_nooptional_default(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_novalue_nooptional_default")
-        wf.input("inpId", String(), default="1")
-        self.assertDictEqual({"inpId": "1"}, translator.build_inputs_file(wf))
-
-    def test_input_in_input_novalue_optional_nodefault(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_novalue_optional_nodefault")
-        wf.input("inpId", String(optional=True))
-        self.assertDictEqual({"inpId": ""}, translator.build_inputs_file(wf))
-
-    def test_input_in_input_novalue_optional_default(self):
-        wf = WorkflowBuilder("test_nf_input_in_input_novalue_optional_default")
-        wf.input("inpId", String(optional=True), default="1")
-        self.assertDictEqual({"inpId": "1"}, translator.build_inputs_file(wf))
-
-    def test_bool_input_type_value(self):
-        wf = WorkflowBuilder("test_bool_input")
-        wf.input("inpBool", Boolean())
-        ai = {"inpBool": True}
-        self.assertDictEqual(
-            ai, translator.build_inputs_file(wf, additional_inputs=ai)
-        )
-
-    def test_bool_input_type_novalue_default(self):
-        wf = WorkflowBuilder("test_bool_input")
-        wf.input("inpBool", Boolean(), default=False)
-        self.assertDictEqual({"inpBool": False}, translator.build_inputs_file(wf))
-
-    def test_bool_input_type_value_default(self):
-        wf = WorkflowBuilder("test_bool_input")
-        wf.input("inpBool", Boolean(), default=False)
-        ai = {"inpBool": True}
-        self.assertDictEqual(
-            ai, translator.build_inputs_file(wf, additional_inputs=ai)
-        )
-
-    def test_file_type_with_secondary_value(self):
-        wf = WorkflowBuilder("test_file_input")
-        wf.input("inp", DataTypeWithSecondary())
-        ai = {"inp": "/my/path/filename.doc"}
-        self.assertDictEqual(
-            {
-                "inp": [
-                    "/my/path/filename.doc",
-                    "/my/path/filename.doc.txt",
-                    "/my/path/filename.doc.csv",
-                ]
-            },
-            translator.build_inputs_file(wf, additional_inputs=ai),
-        )
-
-    def test_file_type_no_secondary_value(self):
-        wf = WorkflowBuilder("test_file_input")
-        wf.input("inp", DataTypeNoSecondary())
-        ai = {"inp": "/my/path/filename.doc"}
-        self.assertDictEqual(
-            {"inp": "/my/path/filename.doc"},
-            translator.build_inputs_file(wf, additional_inputs=ai),
-        )
-
-    def test_file_type_with_secondary_no_value(self):
-        wf = WorkflowBuilder("test_file_input")
-        wf.input("inp", DataTypeWithSecondary())
-        self.assertDictEqual(
-            {"inp": f"/{settings.NO_FILE_PATH_PREFIX}1"},
-            translator.build_inputs_file(wf),
-        )
-
-    def test_file_type_no_secondary_no_value(self):
-        wf = WorkflowBuilder("test_file_input")
-        wf.input("inp", DataTypeNoSecondary())
-        self.assertDictEqual(
-            {"inp": f"/{settings.NO_FILE_PATH_PREFIX}1"},
-            translator.build_inputs_file(wf),
-        )
-
-    def test_file_type_no_secondary_multiple_inputs(self):
-        wf = WorkflowBuilder("test_file_input")
-        wf.input("inp", DataTypeNoSecondary())
-        wf.input("inp2", DataTypeNoSecondary())
-        self.assertDictEqual(
-            {
-                "inp": f"/{settings.NO_FILE_PATH_PREFIX}1",
-                "inp2": f"/{settings.NO_FILE_PATH_PREFIX}2",
-            },
-            translator.build_inputs_file(wf),
-        )
-
-    def test_bool_filename_type_no_value(self):
-        wf = WorkflowBuilder("test_filename_input")
-        wf.input("inp", String(), default="somefancyname")
-        wf.input(
-            "inpFile",
-            Filename(prefix=InputSelector("inp"), suffix="part1", extension=".doc"),
-        )
-        # Note: we don't want to set default filenames into json input file
-        self.assertDictEqual(
-            {"inp": "somefancyname", "inpFile": ""},
-            translator.build_inputs_file(wf),
-
-
-
-class TestGenerateWfToolOutputs(unittest.TestCase):
-    w1 = ArraysOfSecondaryFilesOutputsTestWF()
-    w2 = StepInputExpressionTestWF()
-    w3 = AliasSelectorTestWF()
-
-    def test_without_prefix(self):
-        assert translator.gen_wf_tool_outputs(self.w1) == {"out": "stp.out.out"}
-        assert translator.gen_wf_tool_outputs(self.w2) == {"out": "print.out.out"}
-        assert translator.gen_wf_tool_outputs(self.w3) == {"out": "stp1.out.out"}
-
-    def test_with_prefix(self):
-        expected1 = {"out": "subworkflow_stp.out.out"}
-        self.assertEqual(
-            expected1, translator.gen_wf_tool_outputs(self.w1, "subworkflow_")
-        )
-
-        expected2 = {"out": "subworkflowprint.out.out"}
-        self.assertEqual(
-            expected2, translator.gen_wf_tool_outputs(self.w2, "subworkflow")
-        )
-
-
-
-
-class TestPrepareInputVars(unittest.TestCase):
-    def test_secondary_files(self):
-        inp = ToolInput("bam", DataTypeWithSecondary(), prefix="-I")
-
-        res = translator.gen_input_var_definition(inp, "bam")
-        expected = "apply_prefix(bam[0], '-I ', 'False')"
-        self.assertEqual(res, expected)
-
-    def test_array_with_secondary_files(self):
-
-        inp = ToolInput("bams", Array(DataTypeWithSecondary()), prefix="-I")
-
-        res = translator.gen_input_var_definition(inp, "bams")
-        expected = "apply_prefix(get_primary_files(bams).join(' '), '-I ', 'False')"
-
-        self.assertEqual(res, expected)
-"""

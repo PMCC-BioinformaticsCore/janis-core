@@ -142,8 +142,8 @@ class ArrayComponentsTestTool(CommandTool):
             ToolInput("pos_default", Array(Int), default=[1, 2, 3], position=2),
             ToolInput("pos_optional", Array(String, optional=True), position=3),
 
-            ToolInput("flag_true", Array(Boolean), position=4, prefix="--bool-true", default=[True]),
-            ToolInput("flag_false", Array(Boolean), position=5, prefix="--bool-false", default=[True]),
+            # ToolInput("flag_true", Array(Boolean), position=4, prefix="--bool-true", default=[True]),
+            # ToolInput("flag_false", Array(Boolean), position=5, prefix="--bool-false", default=[True]),
             
             ToolInput("opt_basic", Array(String), position=6, prefix="--opt-basic=", separate_value_from_prefix=False),
             ToolInput("opt_default", Array(Int), position=7, default=[1, 2, 3], prefix="--opt-default", prefix_applies_to_all_elements=True),

@@ -515,7 +515,7 @@ class ArrayStepInputsTestWF(Workflow):
         self.input('inFileArrayOpt', Array(File, optional=True))
         self.input('inStrArray', Array(String))
         self.input('inIntArray', Array(Int))
-        self.input('inBoolArray', Array(Boolean))
+        # self.input('inBoolArray', Array(Boolean))
 
         # full inputs
         self.step(
@@ -525,8 +525,8 @@ class ArrayStepInputsTestWF(Workflow):
                 pos_basic2=self.inFileArrayOpt,
                 pos_default=self.inIntArray,
                 pos_optional=self.inStrArray,
-                flag_true=self.inBoolArray,
-                flag_false=self.inBoolArray,
+                # flag_true=self.inBoolArray,
+                # flag_false=self.inBoolArray,
                 opt_basic=self.inStrArray,
                 opt_default=self.inIntArray,
                 opt_optional=self.inStrArray,
@@ -539,8 +539,8 @@ class ArrayStepInputsTestWF(Workflow):
                 pos_basic=self.inFileArray,
                 pos_default=[4,5,6],
                 pos_optional=["hi", "there", "friend"],
-                flag_true=[True],
-                flag_false=[True],
+                # flag_true=[True],
+                # flag_false=[True],
                 opt_basic=["hi", "there", "friend"],
                 opt_default=[4,5,6],
                 opt_optional=["hi", "there", "friend"],
