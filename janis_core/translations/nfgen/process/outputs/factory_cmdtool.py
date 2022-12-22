@@ -243,8 +243,8 @@ class CmdtoolProcessOutputFactory:
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
-            add_curly_braces=self.add_braces,
-            add_quotes_to_strs=self.add_quotes,
+            in_shell_script=self.add_braces,
+            quote_strings=self.add_quotes,
         )
     
     # public method

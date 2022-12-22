@@ -160,48 +160,6 @@ class ArrayComponentsTestTool(CommandTool):
         return "TEST"
 
 
-# TODO FAILS if using outArray ToolOutput due to secondaries_present_as
-class ArraySecondariesTestTool(CommandTool):
-    def tool(self) -> str:
-        return "ArraySecondariesTestTool"
-
-    def base_command(self) -> Optional[str | list[str]]:
-        return []
-
-    def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", Array(BamBai), position=6)]
-
-    def arguments(self) -> list[ToolArgument]:
-        return [
-            ToolArgument("echo 1 > out1.bam", position=1, shell_quote=False),
-            ToolArgument("&& echo 1 > out1.bam.bai", position=2, shell_quote=False),
-            ToolArgument("&& echo 2 > out2.bam", position=3, shell_quote=False),
-            ToolArgument("&& echo 2 > out2.bam.bai", position=4, shell_quote=False),
-            ToolArgument("&& echo", position=5, shell_quote=False),
-        ]
-
-    def outputs(self):
-        return [
-            ToolOutput("out", Stdout),
-            # ToolOutput(
-            #     "outArray", 
-            #     Array(BamBai),
-            #     selector=WildcardSelector("*.bam"),
-            #     # secondaries_present_as={".bai": ".bai"},
-            # )
-        ]
-
-    def container(self) -> str:
-        return "ubuntu:latest"
-
-    def version(self) -> str:
-        return "TEST"
-
-
-
-
-
-
 
 
 ### this stuff is old. leave. ###

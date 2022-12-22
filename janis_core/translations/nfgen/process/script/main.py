@@ -99,7 +99,7 @@ class ProcessScriptGenerator:
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
-            add_curly_braces=True,
+            in_shell_script=True,
         )
         line = f'{prefix}{space}{expr}'
         self.script.append(line)
@@ -113,7 +113,7 @@ class ProcessScriptGenerator:
                 process_inputs=self.process_inputs,
                 param_inputs=self.param_inputs,
                 internal_inputs=self.internal_inputs,
-                add_curly_braces=True
+                in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}'"
             self.script.append(line)

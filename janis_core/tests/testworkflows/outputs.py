@@ -21,7 +21,6 @@ from janis_core.types import (
 from janis_unix import Csv, Tsv
 
 
-
 # WORKFLOW
 class OutputCollectionTestWF(Workflow):
 

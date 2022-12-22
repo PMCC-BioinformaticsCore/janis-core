@@ -33,12 +33,10 @@ from janis_core.tests.testworkflows import (
     ScatterCrossTestWF,
 
     # secondaries
-    SecondariesIOTestWF,
-    SecondariesConnectionsTestWF,
+    SecondariesTestWF,
 
     # combos
     ScatterSecondariesTestWF,
-    ArraySecondariesTestWF,
 
     # additional features
     StepInputExpressionTestWF,
@@ -387,24 +385,24 @@ class TestParams(unittest.TestCase):
         self.assertEquals(actual_params, expected_params)
 
     def test_secondaries_inputs(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
             'in_alignments_bam': 'null',
             'in_alignments_bai': 'null',
         }
-        self.assertEquals(actual_params, expected_params)
+        self.assertDictContainsSubset(expected_params, actual_params)
     
     def test_secondaries_array_inputs(self) -> None:
-        wf = ArraySecondariesTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
-            'in_alignments_bams': '[]',
-            'in_alignments_bais': '[]',
+            'in_alignments_arr_bams': '[]',
+            'in_alignments_arr_bais': '[]',
         }
-        self.assertEquals(actual_params, expected_params)
+        self.assertDictContainsSubset(expected_params, actual_params)
     
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -498,30 +496,32 @@ class TestChannels(unittest.TestCase):
             self.assertTrue(c.collect)
         
     def test_secondaries_inputs(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_alignments',
         }
-        self.assertEqual(channels_ids, expected_ids)
+        for expected_id in expected_ids:
+            self.assertIn(expected_id, channels_ids)
         inp = wf.input_nodes['inAlignments']
         alignments_ch = nfgen.channels.get(inp.uuid)
         self.assertTrue(len(alignments_ch.params) == 2)
         self.assertTrue(alignments_ch.collect)
     
     def test_secondaries_array_inputs(self) -> None:
-        wf = ArraySecondariesTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
-            'ch_in_alignments_bams',
-            'ch_in_alignments_bais',
+            'ch_in_alignments_arr_bams',
+            'ch_in_alignments_arr_bais',
         }
-        self.assertEqual(channels_ids, expected_ids)
-        for channel in nfgen.channels.getall():
-            self.assertTrue(len(channel.params) == 1)
-            self.assertTrue(channel.collect)
+        channels = nfgen.channels.getall()
+        channels = [ch for ch in channels if ch.name in expected_ids]
+        assert(len(channels) == 2)
+        for ch in channels:
+            self.assertTrue(len(ch.params) == 1)
+            self.assertTrue(ch.collect)
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
@@ -701,7 +701,7 @@ class TestProcessInputs(unittest.TestCase):
         self.assertEqual(actual_inputs, expected_inputs)
 
     def test_secondaries(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
@@ -710,16 +710,16 @@ class TestProcessInputs(unittest.TestCase):
         expected_inputs = {'tuple path(bam), path(bai)'}
         self.assertEqual(actual_inputs, expected_inputs)   
     
-    def test_secondaries_array_inputs(self) -> None:
-        wf = ArraySecondariesTestWF()
+    def test_secondaries_array(self) -> None:
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        tool = wf.step_nodes["stp4"].tool
+        sources = wf.step_nodes["stp4"].sources
+        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp4'])
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path inp_bams',
-            'path inp_bais'
+            'path bams',
+            'path bais'
         }
         self.assertEqual(actual_inputs, expected_inputs)   
     
@@ -733,7 +733,7 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_codetool(tool, sources, scope=['stp0'])
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path PYTHON_CODE_FILE_PATH',
+            'path code_file',
             'path inp1',
         }
         self.assertEqual(actual_inputs, expected_inputs)
@@ -744,7 +744,7 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_codetool(tool, sources, scope=['stp1'])
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path PYTHON_CODE_FILE_PATH',
+            'path code_file',
         }
         self.assertEqual(actual_inputs, expected_inputs)
         
@@ -754,7 +754,7 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_codetool(tool, sources, scope=['stp2'])
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path PYTHON_CODE_FILE_PATH',
+            'path code_file',
             'tuple path(bam), path(bai)',
         }
         self.assertEqual(actual_inputs, expected_inputs)
@@ -914,21 +914,25 @@ class TestProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_secondaries(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp1"].tool
-        sources = wf.step_nodes["stp1"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
+        step_id = 'stp1'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bam.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_secondaries_replaced(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        tool = wf.step_nodes["stp2"].tool
-        sources = wf.step_nodes["stp2"].sources
-        process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp2'])
+        step_id = 'stp3'
+        tool = wf.step_nodes[step_id].tool
+        sources = wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1091,7 +1095,7 @@ class TestProcessScript(unittest.TestCase):
     
     def test_secondaries(self) -> None:
         # name accession should be different?
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         tool = wf.step_nodes["stp1"].tool
         sources = wf.step_nodes["stp1"].sources
@@ -1105,9 +1109,13 @@ class TestProcessScript(unittest.TestCase):
         
         # script
         actual_script = process.script
+        print(actual_script)
         expected_script = {
             'echo',
             '${bam}',
+            '--inp ${bam}',
+            '--inp-index-0 ${bam}',
+            '--inp-index-1 ${bai}',
         }
         for ln in expected_script:
             self.assertIn(ln, actual_script)
@@ -1492,7 +1500,7 @@ class TestPlumbingSecondaries(unittest.TestCase):
         settings.MODE = 'workflow'
     
     def test_secondaries_workflow_inputs(self) -> None:
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         # params created correctly?
         actual_params = nfgen.params.serialize()
@@ -1500,14 +1508,14 @@ class TestPlumbingSecondaries(unittest.TestCase):
             'in_alignments_bam': 'null',
             'in_alignments_bai': 'null',
         }
-        self.assertEquals(actual_params, expected_params)
+        self.assertDictContainsSubset(expected_params, actual_params)
         
-        # channel created correctly?
+        # channels created correctly?
         inp = wf.input_nodes['inAlignments']
-        expected_channel = 'ch_in_alignments = Channel.fromPath( params.in_alignments_bam, params.in_alignments_bai ).collect()'
-        channel = nfgen.channels.getall(inp.uuid)[0]
-        actual_channel = channel.declaration
-        self.assertEquals(actual_channel, expected_channel)
+        ch_expected = 'ch_in_alignments = Channel.fromPath( params.in_alignments_bam, params.in_alignments_bai ).collect()'
+        ch_actual = nfgen.channels.getall(inp.uuid)[0]
+        ch_actual = ch_actual.declaration
+        self.assertEquals(ch_actual, ch_expected)
         
         # step inputs created correctly?
         step_id = 'stp1'
@@ -1519,8 +1527,39 @@ class TestPlumbingSecondaries(unittest.TestCase):
         ]
         self.assertEquals(actual_inputs, expected_inputs)
     
+    def test_secondaries_array_workflow_inputs(self) -> None:
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        # params created correctly?
+        actual_params = nfgen.params.serialize()
+        expected_params = {
+            'in_alignments_arr_bams': '[]',
+            'in_alignments_arr_bais': '[]',
+        }
+        self.assertDictContainsSubset(expected_params, actual_params)
+        
+        # channels created correctly?
+        inp = wf.input_nodes['inAlignmentsArr']
+        ch1_expected = 'ch_in_alignments_arr_bais = Channel.fromPath( params.in_alignments_arr_bais ).collect()'
+        ch2_expected = 'ch_in_alignments_arr_bams = Channel.fromPath( params.in_alignments_arr_bams ).collect()'
+        ch1_actual, ch2_actual = nfgen.channels.getall(inp.uuid)
+        ch1_actual, ch2_actual = ch1_actual.declaration, ch2_actual.declaration
+        self.assertEquals(ch1_actual, ch1_expected)
+        self.assertEquals(ch2_actual, ch2_expected)
+        
+        # step inputs created correctly?
+        step_id = 'stp4'
+        step = wf.step_nodes[step_id]
+        scope = [settings.NF_MAIN_NAME, step_id]
+        actual_inputs = nfgen.get_args(step, scope)
+        expected_inputs = [
+            "ch_in_alignments_arr_bais",
+            "ch_in_alignments_arr_bams",
+        ]
+        self.assertEquals(actual_inputs, expected_inputs)
+    
     def test_secondaries_connections(self) -> None:
-        wf = SecondariesConnectionsTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         # step inputs created correctly?
         step_id = 'stp2'
@@ -1676,12 +1715,16 @@ class TestNextflowConfig(unittest.TestCase):
             self.assertGreater(len(matches), 0)
     
     def test_file_secondaries_workflow_inputs(self):
-        wf = SecondariesIOTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
+        # expected_values = {
+        #     'in_alignments_bam': 'null',
+        #     'in_alignments_bai': 'null',
+        # }
         expected_values = {
-            'in_alignments_bam': 'null',
-            'in_alignments_bai': 'null',
+            'bam': 'null',
+            'bai': 'null',
         }
         print(config)
         for name, val in expected_values.items():
@@ -1690,14 +1733,14 @@ class TestNextflowConfig(unittest.TestCase):
             self.assertGreater(len(matches), 0)
     
     def test_file_secondaries_array_workflow_inputs(self):
-        wf = ArraySecondariesTestWF()
+        wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
-    'in_alignments_bams': fr"""\[
+    'in_alignments_arr_bams': fr"""\[
         // list files here
     \]""",
-    'in_alignments_bais': fr"""\[
+    'in_alignments_arr_bais': fr"""\[
         // list files here
     \]""",
         }
@@ -2014,7 +2057,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
-            add_curly_braces=True
+            in_shell_script=True
         )
         expected = 'an input ${testtool}'
         self.assertEqual(actual, expected)
@@ -2036,7 +2079,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
-            add_curly_braces=True
+            in_shell_script=True
         )
         expected = 'an input ${params.in_str}'
         self.assertEqual(actual, expected)
@@ -2059,7 +2102,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
-            add_curly_braces=True
+            in_shell_script=True
         )
         expected = '${user}:${static}'
         self.assertEqual(actual, expected)
@@ -2075,17 +2118,26 @@ class TestStringFormatter(unittest.TestCase):
         process_inputs = {'user', 'static'}
         param_inputs = {}
         internal_inputs = {}
-        actual = nfgen.unwrap_expression(
+        actual_scripting = nfgen.unwrap_expression(
             val=sf,
             tool=tool,
             sources=sources,
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
-            add_curly_braces=True
+            in_shell_script=False
         )
-        expected = '${user}\\t${static}'
-        self.assertEqual(actual, expected)
+        actual_shell = nfgen.unwrap_expression(
+            val=sf,
+            tool=tool,
+            sources=sources,
+            process_inputs=process_inputs,
+            param_inputs=param_inputs,
+            internal_inputs=internal_inputs,
+            in_shell_script=True
+        )
+        self.assertEqual('user\\tstatic', actual_scripting)
+        self.assertEqual('${user}\\\\t${static}', actual_shell)
 
     def test_expression_arg(self):
         tool = BasicTestTool()
@@ -2105,8 +2157,9 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
+            in_shell_script=True
         )
-        expected = "${testtool}:${arrayInp.join(\";\")}"
+        expected = "${testtool}:${arrayInp.join(';')}"
         self.assertEqual(actual, expected)
 
 

@@ -16,8 +16,6 @@ from .basics import (
     FileInputSelectorTestTool,
     StringInputSelectorTestTool,
     ComponentsTestTool,
-    SecondariesTestTool,
-    SecondariesReplacedTestTool,
     ResourcesTestTool
 )
 
@@ -29,7 +27,6 @@ from .arrays import (
     ArrayWildcardSelectorTestTool,
     ArrayInputSelectorTestTool,
     ArrayComponentsTestTool,
-    ArraySecondariesTestTool
 )
 
 from .misc_codetools import (

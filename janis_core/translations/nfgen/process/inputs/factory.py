@@ -51,12 +51,7 @@ def create_inputs_array(inp: ToolInput | TInput) -> list[ProcessInput]:
     # secondaries array
     if isinstance(basetype, File) and basetype.has_secondary_files():
         # a path input per file type
-        inputs: list[ProcessInput] = []
-        # get all extensions 
-        exts = secondaries.get_names(basetype)
-        for ext in exts:
-            inputs.append(create_path_input_secondaries(inp, ext))
-        return inputs
+        return create_path_input_secondaries(inp)
 
     # file array
     if isinstance(basetype, (File, Directory)):
@@ -95,11 +90,15 @@ def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:
     new_input = ValProcessInput(name=inp.id())
     return new_input
 
-def create_path_input_secondaries(inp: ToolInput | TInput, ext: str) -> PathProcessInput:
+def create_path_input_secondaries(inp: ToolInput | TInput) -> list[ProcessInput]:
     # TODO ignoring secondaries_presents_as for now!
-    name = f'{inp.id()}_{ext}s'
-    new_input = PathProcessInput(name=name)
-    return new_input
+    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
+    inputs: list[ProcessInput] = []
+    names = secondaries.get_names(dtype)
+    for name in names:
+        new_input = PathProcessInput(name=name)
+        inputs.append(new_input)
+    return inputs
 
 def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
@@ -108,10 +107,10 @@ def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput
     subnames: list[str] = []
 
     # tuple sub-element for each file
-    exts = secondaries.get_names(dtype)
-    for ext in exts:
+    names = secondaries.get_names(dtype)
+    for name in names:
         qualifiers.append('path')
-        subnames.append(ext)
+        subnames.append(name)
     
     new_input = TupleProcessInput(
         name=inp.id(), 

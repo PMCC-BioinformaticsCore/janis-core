@@ -23,8 +23,8 @@ def process_input_varname(inp: ToolInput | TInput, process_inputs: set[str], par
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         basetype = nfgen_utils.get_base_type(dtype)
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            exts = secondaries.get_names(basetype)
-            name = exts[0]
+            names = secondaries.get_names(basetype)
+            name = names[0]
         # everything else
         else:
             name = inp.id()

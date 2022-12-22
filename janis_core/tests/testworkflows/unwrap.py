@@ -21,11 +21,7 @@ from janis_core.types import (
 from janis_bioinformatics.data_types import BamBai
 
 
-"""
-- two value operator (FirstOperator, AddOperator)
-- index operator
-- alias selector
-"""
+# TODO alias selector
 
 
 # WORKFLOW
@@ -149,13 +145,23 @@ class UnwrapTestTool(CommandTool):
             ),
             ToolArgument(
                 IndexOperator(InputSelector("inBamBai"), 0),
-                prefix="--IndexOperatorSecondaries",
+                prefix="--IndexOperatorSecondariesBam",
                 position=9,
             ),
             ToolArgument(
-                IndexOperator(InputSelector("inBamBaiArr"), 0),
-                prefix="--IndexOperatorArraySecondaries",
+                IndexOperator(InputSelector("inBamBai"), 1),
+                prefix="--IndexOperatorSecondariesBai",
                 position=10,
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("inBamBaiArr"), 0),
+                prefix="--IndexOperatorArraySecondariesBams",
+                position=11,
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("inBamBaiArr"), 1),
+                prefix="--IndexOperatorArraySecondariesBais",
+                position=12,
             ),
         ]
 

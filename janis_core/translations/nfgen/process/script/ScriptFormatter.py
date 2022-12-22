@@ -90,9 +90,6 @@ class ScriptFormatter:
         prescript: Optional[str] = None
         script: Optional[str] = None
         
-        if self.tool.id() == 'BwaMemSamtoolsView' and self.tinput.prefix == '-R':
-            print()
-
         if self.should_ignore:
             pass
 
@@ -198,10 +195,6 @@ class ScriptFormatter:
         return default
 
     def unwrap(self, val: Any) -> Any:
-        if self.tool.id() == 'BwaMemSamtoolsView':
-            print()
-        if self.tinput.id() == 'sampleName':
-            print()
         return unwrap_expression(
             val=val,
             tool=self.tool,
@@ -209,7 +202,7 @@ class ScriptFormatter:
             process_inputs=self.process_inputs,
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
-            add_curly_braces=True,
+            in_shell_script=True,
         )
     
     @property

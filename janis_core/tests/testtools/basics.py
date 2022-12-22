@@ -8,15 +8,8 @@ from janis_core import (
     CommandTool,
     ToolArgument,
     WildcardSelector,
-    InputSelector
-
-)
-
-from .types import (
-    SecondaryTestType,
-    AppendedSecondaryTestType,
-    ReplacedSecondaryTestType,
-    NonEscapedSecondaryTestType
+    InputSelector,
+    IndexOperator
 )
 
 from janis_core.types import (
@@ -151,8 +144,6 @@ class StringInputSelectorTestTool(EchoBase):
         return [ToolOutput("out", String, selector=InputSelector('inp'))]
 
 
-
-
 class ComponentsTestTool(CommandTool):
     def tool(self) -> str:
         return "ComponentStdoutTestTool"
@@ -183,67 +174,4 @@ class ComponentsTestTool(CommandTool):
 
     def version(self) -> str:
         return "TEST"
-
-
-class SecondariesTestTool(CommandTool):
-    def tool(self) -> str:
-        return "SecondariesTestTool"
-
-    def base_command(self) -> Optional[str | list[str]]:
-        return ['echo']
-
-    def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", BamBai, position=4)]
-
-    def outputs(self):
-        return [
-            ToolOutput(
-                "out", 
-                BamBai,
-                selector=WildcardSelector("*.bam"),
-                secondaries_present_as={".bai": ".bai"},
-            )
-        ]
-
-    def container(self) -> str:
-        return "ubuntu:latest"
-
-    def version(self) -> str:
-        return "TEST"
-
-
-class SecondariesReplacedTestTool(CommandTool):
-    def tool(self) -> str:
-        return "SecondariesReplacedTestTool"
-
-    def base_command(self) -> Optional[str | list[str]]:
-        return []
-
-    def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", BamBai, position=4)]
-
-    def arguments(self) -> list[ToolArgument]:
-        return [
-            ToolArgument("echo hello > out.bam", position=1, shell_quote=False),
-            ToolArgument("&& echo there > out.bam.bai", position=2, shell_quote=False),
-            ToolArgument("&& echo", position=3, shell_quote=False),
-        ]
-
-    def outputs(self):
-        return [
-            ToolOutput(
-                "out", 
-                BamBai,
-                selector=WildcardSelector("*.bam"),
-                secondaries_present_as={".bai": "^.bai"},
-            )
-        ]
-
-    def container(self) -> str:
-        return "ubuntu:latest"
-
-    def version(self) -> str:
-        return "TEST"
-
-
 

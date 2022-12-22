@@ -34,10 +34,21 @@ def get_extensions(dtype: File) -> list[str]:
 
     return sort_extensions(primary_ext, secondary_exts)
 
-def get_names(dtype: File) -> list[str]:
+def get_names(dtype: DataType) -> list[str]:
     """returns name of each file for File types with secondaries"""
-    exts = get_extensions(dtype)
-    return remove_symbols(exts)
+    basetype: File = nfgen_utils.get_base_type(dtype)
+    exts = get_extensions(basetype)
+    exts = remove_symbols(exts)
+    
+    # Array(Secondary())
+    if isinstance(dtype, Array):
+        exts = [f'{ext}s' for ext in exts]
+        return exts
+    
+    # Secondary
+    else:
+        return exts
+
  
 def sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
     out: list[str] = []

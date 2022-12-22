@@ -50,7 +50,6 @@ def get_args(step: StepNode, scope: list[str]):
     if isinstance(tool, PythonTool):
         scope_joined = '.'.join(scope[1:])
         call_args = [f'params.{scope_joined}.code_file'] + call_args
-        print()
 
     return call_args
 

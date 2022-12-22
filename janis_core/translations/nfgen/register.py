@@ -144,18 +144,19 @@ class ParamChannelRegisterer:
         # get the extensions. each extension will create individual param. 
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
-        exts: list[str] = []
-        exts = secondaries.get_names(inp.datatype)
+        names: list[str] = []
+        names = secondaries.get_names(inp.datatype)
         
         # register a param for each individual file
         if is_param_input:
-            for ext in exts:
+            for name in names:
                 params.add(
                     var_name=inp.id(),
                     var_scope=self.scope,
                     dtype=inp.datatype,
                     is_channel_input=True,
-                    name_override=f'{inp.id()}_{ext}',
+                    # name_override=name,
+                    name_override=f'{inp.id()}_{name}',
                     janis_uuid=inp.uuid
                 )
 
@@ -178,10 +179,10 @@ class ParamChannelRegisterer:
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         basetype = nfgen_utils.get_base_type(inp.datatype)
-        exts = secondaries.get_names(basetype)
+        names = secondaries.get_names(basetype)
 
-        for ext in exts:
-            ext_params: list[params.Param] = []
+        for name in names:
+            secondary_params: list[params.Param] = []
             # should we register a param?
             if is_param_input:
                 new_param = params.add(
@@ -189,21 +190,21 @@ class ParamChannelRegisterer:
                     var_scope=self.scope,
                     dtype=inp.datatype,
                     is_channel_input=True,
-                    name_override=f'{inp.id()}_{ext}s',
+                    name_override=f'{inp.id()}_{name}s',
                     janis_uuid=inp.uuid
                 )
-                ext_params.append(new_param)
+                secondary_params.append(new_param)
             
             # should we register a channel?
             if is_channel_input:
                 channels.add(
                     var_name=inp.id(),
-                    params=ext_params,
+                    params=secondary_params,
                     method='fromPath',
                     collect=True,
                     allow_null=channels.should_allow_null(inp),
                     var_scope=self.scope,
-                    name_override=f'{inp.id()}_{ext}s',
+                    name_override=f'{inp.id()}_{name}s',
                     janis_uuid=inp.uuid,
                     define=False if self.is_subworkflow else True
                 )

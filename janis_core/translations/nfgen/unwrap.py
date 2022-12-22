@@ -78,8 +78,8 @@ def unwrap_expression(
     val: Any,
     
     tool: Optional[CommandTool]=None,
-    add_curly_braces: bool=False,
-    add_quotes_to_strs: bool=False,
+    in_shell_script: bool=False,
+    quote_strings: bool=False,
     
     sources: Optional[dict[str, Any]]=None,
     process_inputs: Optional[set[str]]=None,
@@ -92,8 +92,8 @@ def unwrap_expression(
 
     unwrapper = Unwrapper(
         tool=tool,
-        add_curly_braces=add_curly_braces,
-        add_quotes_to_strs=add_quotes_to_strs,
+        in_shell_script=in_shell_script,
+        quote_strings=quote_strings,
 
         sources=sources,
         process_inputs=process_inputs,
@@ -114,8 +114,8 @@ class Unwrapper:
     def __init__(
         self,
         tool: Optional[CommandTool]=None,
-        add_curly_braces: bool=False, 
-        add_quotes_to_strs: bool=False,
+        in_shell_script: bool=False, 
+        quote_strings: bool=False,
 
         sources: Optional[dict[str, Any]]=None,
         process_inputs: Optional[set[str]]=None,
@@ -134,8 +134,8 @@ class Unwrapper:
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
 
-        self.add_quotes_to_strs = add_quotes_to_strs
-        self.add_curly_braces = add_curly_braces
+        self.quote_strings = quote_strings
+        self.in_shell_script = in_shell_script
         
         self.operator_stack: list[str] = []
         self.operator_stack_ignore: list[Type[Any]] = [
@@ -208,9 +208,6 @@ class Unwrapper:
     ### SWITCHBOARD ###
 
     def unwrap(self, val: Any) -> Any:
-        if self.tool and self.tool.id() == 'Gatk4BaseRecalibrator':
-            print()
-        
         added_to_stack = False
         vtype = type(val)
 
@@ -243,14 +240,11 @@ class Unwrapper:
                 "Could not detect type %s to convert to input value" % type(val)
             )
 
-        if self.tool and self.tool.id() == 'Gatk4ApplyBQSR':
-            print()
-        
         if vtype == str:
-            if self.add_quotes_to_strs or len(self.operator_stack) > 0:
+            if self.quote_strings or len(self.operator_stack) > 0:
                 expr = f"'{expr}'"
         
-        if isinstance(expr, str) and self.add_curly_braces:
+        if isinstance(expr, str) and self.in_shell_script:
             if len(self.operator_stack) == 1:
                 if self.operator_stack[0] == val.__class__.__name__:
                     expr = f'${{{expr}}}'
@@ -259,9 +253,6 @@ class Unwrapper:
             vtype_name = self.operator_stack.pop(-1)
             assert(vtype_name) == val.__class__.__name__
 
-        if isinstance(expr, str) and 'generated.addbamstats.vcf' in expr:
-            print()
-        
         return expr
 
 
@@ -296,8 +287,8 @@ class Unwrapper:
         # secondary files (name mapped to ext of primary file)
         # TODO secondaries
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            exts = secondaries.get_names(basetype)
-            name = exts[0]
+            names = secondaries.get_names(dtype)
+            name = names[0]
         # everything else
         else:
             name = inp.id()        
@@ -406,20 +397,26 @@ class Unwrapper:
     
     # operator operators
     def unwrap_index_operator(self, op: IndexOperator) -> Any:
-        # special case: janis secondary -> nextflow tuple
-        if isinstance(op.args[0], InputSelector):
-            sel = op.args[0]
-            inp = self.get_input_by_id(sel.input_to_select)
-            if secondaries.is_secondary_type(inp.input_type):
-                process_in = create_inputs(inp)[0]
-                print()
-
-        # special case: janis array secondary -> multiple nextflow path
-        # maybe this is just in unwrap_input_selector()
-
-        # everything else
+        obj = op.args[0]
         index = op.args[1]
-        expr = self.unwrap(op.args[0])
+        
+        # secondaries
+        if isinstance(obj, InputSelector):
+            sel = obj
+            inp = self.get_input_by_id(sel.input_to_select)
+            
+            # special case: janis secondary array -> multiple nextflow path
+            if secondaries.is_secondary_type(inp.input_type) and inp.input_type.is_array():
+                path_inputs = create_inputs(inp)  # the multiple path inputs
+                return path_inputs[index].name
+
+            # special case: janis secondary -> nextflow tuple
+            elif secondaries.is_secondary_type(inp.input_type):
+                tuple_input = create_inputs(inp)[0]  # the process input tuple
+                return tuple_input.subnames[index] 
+        
+        # everything else
+        expr = self.unwrap(obj)
         return f"{expr}[{index}]"
     
     def unwrap_as_string_operator(self, op: AsStringOperator) -> str:
@@ -500,7 +497,7 @@ class Unwrapper:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
             tool=self.tool,
-            add_curly_braces=self.add_curly_braces,
+            in_shell_script=self.in_shell_script,
 
             sources=self.sources,
             process_inputs=self.process_inputs,
@@ -522,9 +519,6 @@ class Unwrapper:
         Translate Janis StringFormatter data type to Nextflow
         """
         assert(self.tool)
-        if self.tool.id() == 'Gatk4ApplyBQSR':
-            print()
-
         if len(selector.kwargs) == 0:
             return str(selector)
 
@@ -537,7 +531,7 @@ class Unwrapper:
         for k in selector.kwargs:
             arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
 
-        if self.add_curly_braces:
+        if self.in_shell_script:
             arg_val = arg_val.replace("\\", "\\\\")
 
         return arg_val
@@ -648,6 +642,7 @@ class Unwrapper:
                     upstream_dtype=node.datatype,
                 )
                 out.append(ch_expr)
+            return out
         
         # everything else
         elif relevant_channels and len(relevant_channels) == 1:

@@ -10,13 +10,9 @@ from janis_core.types import (
     File,
     Array,
     Int,
-    Boolean,
-    Float,
-   
 )
 
 from janis_core.tests.testtools import (
-    FileTestTool,
     FileInputPythonTestTool,
     FileOutputPythonTestTool,
     SplitTextPythonTestTool,
