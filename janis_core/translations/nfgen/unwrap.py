@@ -136,6 +136,7 @@ class Unwrapper:
 
         self.add_quotes_to_strs = add_quotes_to_strs
         self.add_curly_braces = add_curly_braces
+        
         self.operator_stack: list[str] = []
         self.operator_stack_ignore: list[Type[Any]] = [
             WildcardSelector,
@@ -216,13 +217,11 @@ class Unwrapper:
         if isinstance(val, Selector) and vtype not in self.operator_stack_ignore:
             added_to_stack = True
             self.operator_stack.append(val.__class__.__name__)
-            print()
         
         # most cases
         if type(val) in self.func_switchboard:
             func = self.func_switchboard[type(val)]
             expr = func(val)
-            print()
 
         elif isinstance(val, TwoValueOperator):
             expr = self.unwrap_two_value_operator(val)
@@ -246,8 +245,11 @@ class Unwrapper:
 
         if self.tool and self.tool.id() == 'Gatk4ApplyBQSR':
             print()
-        if vtype == str and self.add_quotes_to_strs:
-            expr = f"'{expr}'"
+        
+        if vtype == str:
+            if self.add_quotes_to_strs or len(self.operator_stack) > 0:
+                expr = f"'{expr}'"
+        
         if isinstance(expr, str) and self.add_curly_braces:
             if len(self.operator_stack) == 1:
                 if self.operator_stack[0] == val.__class__.__name__:
@@ -395,10 +397,10 @@ class Unwrapper:
         return f"Math.round({arg})"
 
     def unwrap_two_value_operator(self, op: TwoValueOperator) -> str:
-        self.add_quotes_to_strs = True
+        # self.add_quotes_to_strs = True
         arg1 = self.unwrap(op.args[0])
         arg2 = self.unwrap(op.args[1])
-        self.add_quotes_to_strs = False
+        # self.add_quotes_to_strs = False
         return f'{arg1} {op.nextflow_symbol()} {arg2}'
 
     
@@ -488,7 +490,6 @@ class Unwrapper:
         return f"{iterable}.filter{{item -> item != null}}"
     
     def unwrap_replace_operator(self, op: ReplaceOperator) -> str:
-        # TODO VALIDATE
         base = self.unwrap(op.args[0])
         pattern = self.unwrap(op.args[1])
         replacement = self.unwrap(op.args[2])
@@ -542,17 +543,40 @@ class Unwrapper:
         return arg_val
 
     def unwrap_filename(self, fn: Filename) -> str:
+        """
+        ${outputFilename}.fastq.gz
+        ${outputFilename + '.fastq.gz'}
+        ${outputFilename + '.fastq.gz'}
+        ${[outputFilename, 'generated'].first()}
+        ${[outputFilename, 'generated'].first()}.metrics.txt
+        """
+
+
+
+        # want to handle filename as complete unit.
+        # backup = deepcopy(self.add_quotes_to_strs)
+        # self.add_quotes_to_strs = False
+
         prefix = self.unwrap(fn.prefix) or ''
         suffix = self.unwrap(fn.suffix) or ''
         extension = self.unwrap(fn.extension) or ''
-        
+
         if suffix != '':
             if str(suffix).startswith("."):
                 suffix = str(suffix)
             else:
                 suffix = f'-{suffix}'
 
-        return prefix + suffix + extension
+        # edge case: inside curly braces (each component wrapped in string)
+        if len(self.operator_stack) > 0:
+            if all([x.startswith("'") or x == '' for x in [prefix, suffix, extension]]):
+                prefix = prefix.strip("'")
+                suffix = suffix.strip("'")
+                extension = extension.strip("'")
+                return f"'{prefix}{suffix}{extension}'"
+        
+        # output format: general
+        return f'{prefix}{suffix}{extension}'
 
 
     ### PROCESSES ###

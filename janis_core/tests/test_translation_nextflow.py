@@ -570,9 +570,9 @@ class TestProcessDirectives(unittest.TestCase):
         directives = nfgen.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
         expected_order = [
+            'DebugDirective',
             'ContainerDirective',
             'PublishDirDirective',
-            'DebugDirective',
             'CpusDirective',
             'DiskDirective',
             'MemoryDirective',
@@ -806,6 +806,10 @@ class TestProcessOutputs(unittest.TestCase):
         self.wf = OutputCollectionTestWF()
         refresh_workflow_inputs(self.wf)
 
+    def test_get_fmttype(self) -> None:
+        pass
+        # get_fmttype
+
     def test_stdout(self):
         wf = BasicIOTestWF()
         refresh_workflow_inputs(wf)
@@ -887,7 +891,16 @@ class TestProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
-    
+
+        step_id = "stp7"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "${\'generated.csv\' + \'.csv\'}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+            
     def test_file_pair(self) -> None:
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
@@ -935,6 +948,17 @@ class TestProcessOutputs(unittest.TestCase):
         process = translator.gen_process_from_cmdtool(tool, sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_edge_markduplicates_metrics(self) -> None:
+        step_id = "stp8"
+        tool = self.wf.step_nodes[step_id].tool
+        sources = self.wf.step_nodes[step_id].sources
+        scope = [settings.NF_MAIN_NAME, step_id]
+        process = translator.gen_process_from_cmdtool(tool, sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        print(process.outputs[0].get_string())
+        expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].first()}.metrics.txt", emit: metrics'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_pythontool(self) -> None:
@@ -1104,8 +1128,8 @@ class TestProcessScript(unittest.TestCase):
         print(process.get_string())
         expected = """\
 process STP1 {
-    publishDir "${params.outdir}/stp1"
     debug true
+    publishDir "${params.outdir}/stp1"
 
     input:
     path fileInp
@@ -1863,62 +1887,42 @@ class TestUnwrap(unittest.TestCase):
         )
         self.wf = StepConnectionsTestWF()
         refresh_workflow_inputs(self.wf)
+        print(self.script)
 
+    # PROCESS RELATED
     def test_filename_generated(self) -> None:
-        self.assertIn("--filenameGen myfile.gz", self.script)
+        self.assertIn("--filenameGen generated.gz", self.script)
     
-    @unittest.skip('not implemented')
-    def test_filename_input_selector(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_two_value_operator(self) -> None:
-        raise NotImplementedError
+    def test_filename_reference(self) -> None:
+        self.assertIn("--filenameRef ${inFile.simpleName}.fastq.gz", self.script)
 
     def test_input_selector_process_input(self) -> None:
-        wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp1'
-        output_id = 'out'
-        process_inputs = {'inp'}
-        param_inputs = {}
-        internal_inputs = {}
-        tool = wf.step_nodes[step_id].tool
-        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
-        actual = nfgen.unwrap_expression(
-            val=sel, 
-            tool=tool, 
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
-            add_curly_braces=True
-        )
-        expected = '${inp}'
-        self.assertEqual(actual, expected)
+        self.assertIn("--inputSelectorProcess ${inFile}", self.script)
 
     def test_input_selector_param_input(self) -> None:
-        wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp2'
-        output_id = 'out'
-        process_inputs = {}
-        param_inputs = {'inp'}
-        internal_inputs = {}
-        tool = wf.step_nodes[step_id].tool
-        sources = wf.step_nodes[step_id].sources
-        sel = [x.selector for x in tool.outputs() if x.id() == output_id][0]
-        actual = nfgen.unwrap_expression(
-            val=sel, 
-            tool=tool, 
-            sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
-            add_curly_braces=True
-        )
-        expected = "${params.in_str}"
-        self.assertEqual(actual, expected)
+        self.assertIn("--inputSelectorParam ${params.in_str}", self.script)
+       
+    def test_list(self) -> None:
+        self.assertIn("--list [1, 2, 3, 4, 5]", self.script) # this is correct
+       
+    def test_two_value_operator(self) -> None:
+        self.assertIn("--TwoValueOperator ${inFile + '.gz'}", self.script)
     
+    def test_first_operator(self) -> None:
+        self.assertIn("--FirstOperator ${[params.in_str, []].first()}", self.script)
+    
+    def test_index_operator(self) -> None:
+        self.assertIn("--IndexOperator ${inFileArr[0]}", self.script)
+    
+    def test_index_operator_secondaries(self) -> None:
+        self.assertIn("--IndexOperatorSecondariesBam ${bam}", self.script)
+        self.assertIn("--IndexOperatorSecondariesBai ${bai}", self.script)
+    
+    def test_index_operator_secondaries_array(self) -> None:
+        self.assertIn("--IndexOperatorArraySecondariesBams ${bams}", self.script)
+        self.assertIn("--IndexOperatorArraySecondariesBais ${bais}", self.script)
+    
+    # WORKFLOW RELATED
     def test_input_node_channel(self) -> None:
         # file input (channel)
         node = self.wf.input_nodes['inFile']
@@ -1944,7 +1948,7 @@ class TestUnwrap(unittest.TestCase):
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
-    def test_alias_selector(self) -> None:
+    def test_alias_selector_wf(self) -> None:
         wf = AliasSelectorTestWF()
         refresh_workflow_inputs(wf)
         step_id = "stp2"
@@ -1955,7 +1959,7 @@ class TestUnwrap(unittest.TestCase):
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
-    def test_first_operator(self) -> None:
+    def test_first_operator_wf(self) -> None:
         wf = ConditionStepTestWF()
         refresh_workflow_inputs(wf)
         step_id = "print"
@@ -1966,7 +1970,7 @@ class TestUnwrap(unittest.TestCase):
         expected = '[params.mystring, GET_STRING.out.out].first()'
         self.assertEqual(actual, expected)
     
-    def test_index_operator(self) -> None:
+    def test_index_operator_wf(self) -> None:
         wf = IndexOperatorTestWF()
         refresh_workflow_inputs(wf)
         step_id = "stp1"

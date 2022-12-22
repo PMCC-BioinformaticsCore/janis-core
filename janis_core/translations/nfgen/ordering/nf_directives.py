@@ -16,9 +16,9 @@ from ..directives import (
 )
 
 directive_priorities: dict[Type[ProcessDirective], int] = {
+    DebugDirective: 0,
     ContainerDirective: 1,
     PublishDirDirective: 2,
-    DebugDirective: 3,
     CpusDirective: 9,
     DiskDirective: 9,
     MemoryDirective: 9,

@@ -116,20 +116,39 @@ class FmtType(Enum):
     COMPLEX      = auto()
 
 def get_fmttype(out: ToolOutput, tool: CommandTool) -> FmtType:
+    # output uses WildcardSelector
     if isinstance(out.selector, WildcardSelector):
         return FmtType.WILDCARD
+
+    # output uses InputSelector
     elif isinstance(out.selector, InputSelector):
         tinput = tool.inputs_map()[out.selector.input_to_select]
+        
+        # ToolInput is Filename type
         if isinstance(tinput.intype, Filename):
-            entity_counts = trace_janis_entities(tinput.intype)
+            entity_counts = trace_janis_entities(tinput.intype, tool=tool)
             entities = set(entity_counts.keys())
-            whitelisted = set(['Filename', 'str', 'NoneType'])
-            if entities.issubset(whitelisted):
+            filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
+            filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
+        
+            # ToolInput does not refer to another ToolInput
+            # This must be first as less specific
+            if entities.issubset(filename_gen_whitelist):
                 return FmtType.FILENAME_GEN
-            else:
+            
+            # ToolInput refers to another ToolInput
+            elif entities.issubset(filename_ref_whitelist):
                 return FmtType.FILENAME_REF
+            
+            # ToolInput uses complex logic
+            elif isinstance(tinput.intype, Filename):
+                return FmtType.COMPLEX
+        
+        # ToolInput is not Filename type (direct reference)
         else:
             return FmtType.REFERENCE
+    
+    # anything else
     else:
         return FmtType.COMPLEX
 
@@ -157,8 +176,6 @@ class CmdtoolProcessOutputFactory:
         
         self.add_braces: bool = False
         self.add_quotes: bool = False
-
-        
 
 
     # helper properties
@@ -211,7 +228,7 @@ class CmdtoolProcessOutputFactory:
             expr = f'"{expr}"'
         elif self.ftype == FmtType.COMPLEX:
             self.add_braces = True
-            self.add_quotes = True
+            self.add_quotes = False
             expr = self.unwrap(expr)
             expr = f'"{expr}"'
         else:

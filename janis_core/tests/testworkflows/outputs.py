@@ -3,19 +3,23 @@
 from typing import Optional
 
 from janis_core import (
+    Workflow,
     CommandTool,
     ToolInput,
     ToolArgument,
     ToolOutput,
     InputSelector,
     WildcardSelector,
-    Workflow
+    FirstOperator,
 )
 from janis_core.types import (
     Filename,
     File,
-    String
+    String,
 )
+
+from janis_unix import Csv, Tsv
+
 
 
 # WORKFLOW
@@ -51,6 +55,16 @@ class OutputCollectionTestWF(Workflow):
         self.step(
             "stp6", 
             FilepairTestTool(inp=self.inFile)
+        )
+        self.step(
+            "stp7", 
+            StringAddOperatorTestTool()
+        )
+        self.step(
+            "stp8", 
+            MarkDuplicatesMetricsTestTool(
+                outputPrefix='hello'
+            )
         )
 
     def friendly_name(self):
@@ -290,3 +304,57 @@ class FilepairTestTool(CatToolBase):
         ]
 
 
+
+class StringAddOperatorTestTool(CatToolBase):
+    
+    def friendly_name(self):
+        return "TEST: StringAddOperatorTestTool"
+
+    def tool(self):
+        return "StringAddOperatorTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput(
+                "outputPrefix",
+                Filename(extension=".csv"),
+                prefix="-o",
+                doc="prefix of output summary csv",
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", 
+                Csv(),
+                glob=InputSelector("outputPrefix") + ".csv"
+            )
+        ]
+
+
+class MarkDuplicatesMetricsTestTool(CatToolBase):
+    
+    def friendly_name(self):
+        return "TEST: MarkDuplicatesMetricsTestTool"
+
+    def tool(self):
+        return "MarkDuplicatesMetricsTestTool"
+
+    def inputs(self):
+        prefix = FirstOperator([InputSelector("outputPrefix"), "generated"])
+        return [
+            ToolInput("outputPrefix", String(optional=True)),
+            ToolInput(
+                "metricsFilename",
+                Filename(prefix=prefix, suffix=".metrics", extension=".txt"),
+                position=10,
+                prefix="-M",
+                doc="The output file to write marked records to.",
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput("metrics", Tsv(), glob=InputSelector("metricsFilename")),
+        ]

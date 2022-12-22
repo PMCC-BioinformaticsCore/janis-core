@@ -1,6 +1,6 @@
 
 
-from typing import Any
+from typing import Any, Optional
 from collections import defaultdict
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -48,17 +48,18 @@ from janis_core.operators.selectors import (
     WildcardSelector, 
 )
 from janis_core.operators.stringformatter import StringFormatter
+from janis_core import CommandTool
 
-
-def trace_janis_entities(entity: Any) -> dict[str, int]:
-    tracer = EntityTracer()
+def trace_janis_entities(entity: Any, tool: Optional[CommandTool]=None) -> dict[str, int]:
+    tracer = EntityTracer(tool)
     tracer.trace(entity)
     return tracer.counter
 
 
 class EntityTracer:
     
-    def __init__(self):
+    def __init__(self, tool: Optional[CommandTool]=None):
+        self.tool = tool
         self.counter: dict[str, int] = defaultdict(int)
         self.single_arg_trace_types = {
             IsDefined,
@@ -261,8 +262,14 @@ class EntityTracer:
         self.trace(entity.wildcard)
 
     def input_selector(self, entity: InputSelector) -> None:
-        # TODO check
+        assert(self.tool)
+        tinput = self.tool.inputs_map()[entity.input_to_select]
+        
+        # the string used as InputSelector reference
         self.trace(entity.input_to_select)
+        # the datatype if it is a Filename type
+        if isinstance(tinput.intype, Filename):
+            self.trace(tinput.intype)
 
     def step_output_selector(self, entity: StepOutputSelector) -> None:
         # TODO check

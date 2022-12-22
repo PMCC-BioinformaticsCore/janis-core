@@ -246,7 +246,8 @@ class NextflowTranslator(TranslatorBase):
             # item: channels item (if main workflow object)
             if identifier == settings.NF_MAIN_NAME:
                 channels_item = nfgen.channels.channel_register
-                cls.item_register.add(scope, channels_item)
+                if len(channels_item.ordered_channels) > 0:
+                    cls.item_register.add(scope, channels_item)
 
             # item: workflow body
             workflow_item = cls.gen_workflow(
