@@ -2000,7 +2000,7 @@ class TestStringFormatter(unittest.TestCase):
         tool = BasicTestTool()
         sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
         res = nfgen.unwrap_expression(sf, tool)
-        self.assertEqual("there's a ${\"string\"} arg", res)
+        self.assertEqual("there's a string arg", res)
     
     def test_string_formatter_inputselector_process_input(self):
         tool = BasicTestTool()
@@ -2014,6 +2014,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
+            add_curly_braces=True
         )
         expected = 'an input ${testtool}'
         self.assertEqual(actual, expected)
@@ -2035,6 +2036,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
+            add_curly_braces=True
         )
         expected = 'an input ${params.in_str}'
         self.assertEqual(actual, expected)
@@ -2057,6 +2059,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
+            add_curly_braces=True
         )
         expected = '${user}:${static}'
         self.assertEqual(actual, expected)
@@ -2079,6 +2082,7 @@ class TestStringFormatter(unittest.TestCase):
             process_inputs=process_inputs,
             param_inputs=param_inputs,
             internal_inputs=internal_inputs,
+            add_curly_braces=True
         )
         expected = '${user}\\t${static}'
         self.assertEqual(actual, expected)
