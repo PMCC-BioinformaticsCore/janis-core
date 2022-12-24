@@ -2,7 +2,7 @@
 
 
 from typing import Any
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 
 from janis_core import ToolOutput
@@ -12,7 +12,8 @@ from janis_core.utils.scatter import ScatterDescription
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import StepOutputSelector
-from ..casefmt import to_case
+
+from .. import naming
 from .. import settings
 from .channels import getall
 
@@ -87,7 +88,7 @@ def resolve_channel_name(src: StepTagInput) -> str:
     # step output
     elif isinstance(source, StepOutputSelector):
         conn_step: StepNode     = source.node
-        conn_step_id: str       = to_case(conn_step.id(), settings.NF_PROCESS_CASE)
+        conn_step_id: str       = naming.get_varname_process(conn_step.id())
         conn_out_id: str        = source.tag
         channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
         return channel_name

@@ -1,6 +1,5 @@
 
 from .script import gen_script_for_cmdtool
-from .script import get_nf_variable_name
 
 from . import inputs
 

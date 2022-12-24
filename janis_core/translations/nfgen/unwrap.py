@@ -1,6 +1,5 @@
 
 from typing import Any, Optional, Type
-from copy import deepcopy
 NoneType = type(None)
 
 from janis_core import (
@@ -67,7 +66,7 @@ from . import settings
 from . import channels
 from . import params
 from . import nfgen_utils
-from . import secondaries
+from . import naming
 
 from .scatter import cartesian_cross_subname
 from .casefmt import to_case
@@ -287,7 +286,7 @@ class Unwrapper:
         # secondary files (name mapped to ext of primary file)
         # TODO secondaries
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = secondaries.get_names(dtype)
+            names = naming.get_varname_secondaries(dtype)
             name = names[0]
         # everything else
         else:
@@ -406,12 +405,12 @@ class Unwrapper:
             inp = self.get_input_by_id(sel.input_to_select)
             
             # special case: janis secondary array -> multiple nextflow path
-            if secondaries.is_secondary_type(inp.input_type) and inp.input_type.is_array():
+            if nfgen_utils.is_secondary_type(inp.input_type) and inp.input_type.is_array():
                 path_inputs = create_inputs(inp)  # the multiple path inputs
                 return path_inputs[index].name
 
             # special case: janis secondary -> nextflow tuple
-            elif secondaries.is_secondary_type(inp.input_type):
+            elif nfgen_utils.is_secondary_type(inp.input_type):
                 tuple_input = create_inputs(inp)[0]  # the process input tuple
                 return tuple_input.subnames[index] 
         
@@ -679,13 +678,13 @@ class Unwrapper:
         conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
 
         # arrays of secondaries
-        if secondaries.is_array_secondary_type(conn_out.outtype):
+        if nfgen_utils.is_array_secondary_type(conn_out.outtype):
             out: list[str] = []
             raise NotImplementedError
         
         # everything else
         else:
-            upstream_step_id = to_case(upstream_step.id(), settings.NF_PROCESS_CASE)
+            upstream_step_id = naming.get_varname_process(upstream_step.id())
             channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
             return self.get_channel_expression(
                 channel_name=channel_name,

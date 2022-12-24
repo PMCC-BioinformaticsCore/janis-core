@@ -5,7 +5,7 @@ from typing import Optional, Any
 from textwrap import indent
 
 from . import settings
-from .casefmt import to_case
+from . import naming
 
 
 class ImportItem:
@@ -14,7 +14,7 @@ class ImportItem:
         self.alias = alias
 
     def get_string(self) -> str:
-        name = to_case(self.name, settings.NF_PROCESS_CASE)
+        name = naming.get_varname_process(self.name)
         if self.alias:
             return f"{name} as {self.alias}"
         return name

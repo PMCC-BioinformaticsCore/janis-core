@@ -12,9 +12,9 @@ from janis_core.types import (
     File
 )
 
-from janis_core.translations.nfgen import nfgen_utils
-from janis_core.translations.nfgen.casefmt import to_case
-from janis_core.translations.nfgen import settings
+from .. import nfgen_utils
+from .. import settings
+from .. import naming
 
 
 ### ORDERING
@@ -99,22 +99,14 @@ class Param:
     dtype: Optional[DataType]=None
     default: Any=None
     is_channel_input: bool=False
+    is_subworkflow_param: bool=False
     name_override: Optional[str]=None
     janis_uuid: Optional[str]=None
 
     @property
     def name(self) -> str:
-        if self.name_override:
-            base = to_case(self.name_override, settings.NF_PARAM_CASE)
-        else:
-            base = to_case(self.var_name, settings.NF_PARAM_CASE)
-        scope = self.var_scope[1:]
-        if scope:
-            scope = [to_case(x, settings.NF_PARAM_CASE) for x in scope]
-            name = f"{'.'.join(scope)}.{base}"
-        else:
-            name = base
-        return name
+        basename = self.name_override if self.name_override else self.var_name
+        return naming.get_varname_param(basename, self.var_scope)
 
     @property
     def groovy_value(self) -> str:

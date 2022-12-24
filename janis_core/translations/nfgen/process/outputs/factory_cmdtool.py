@@ -17,7 +17,6 @@ from janis_core import (
 from ...entity_trace import trace_janis_entities
 from ...unwrap import unwrap_expression
 from ... import nfgen_utils
-from ... import secondaries
 from .. import inputs
 
 from .model import (
@@ -78,7 +77,7 @@ def is_file_type(out: ToolOutput) -> bool:
     return False
 
 def is_secondary_type(out: ToolOutput) -> bool:
-    if secondaries.is_secondary_type(out.output_type):
+    if nfgen_utils.is_secondary_type(out.output_type):
         return True
     return False
 
@@ -170,8 +169,8 @@ class CmdtoolProcessOutputFactory:
             OType.FILE: self.file_output,
             OType.FILE_PAIR: self.file_pair_output,
             OType.FILE_ARRAY: self.file_array_output,
-            OType.SECONDARIES: self.secondaries_output,
-            OType.SECONDARIES_ARRAY: self.secondaries_array_output,
+            OType.SECONDARIES: self._output,
+            OType.SECONDARIES_ARRAY: self._array_output,
         }
         
         self.add_braces: bool = False
@@ -295,9 +294,9 @@ class CmdtoolProcessOutputFactory:
     def file_array_output(self) -> PathProcessOutput:
         return self.file_output()
     
-    def secondaries_output(self) -> TupleProcessOutput:
+    def _output(self) -> TupleProcessOutput:
         """
-        secondaries
+        
         eg BamBai:
             selector=WildcardSelector("*.bam"),
             secondaries_present_as={".bai": ".bai"},
@@ -307,7 +306,7 @@ class CmdtoolProcessOutputFactory:
         
         primary_expr = self.unwrap_collection_expression(self.out.selector)
         primary_expr = primary_expr.strip('"')
-        exts = secondaries.get_extensions(self.dtype)
+        exts = nfgen_utils.get_extensions(self.dtype)
         for ext in exts:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
@@ -330,5 +329,5 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def secondaries_array_output(self) -> SecondariesArrayProcessOutput:
+    def _array_output(self) -> SecondariesArrayProcessOutput:
         raise NotImplementedError

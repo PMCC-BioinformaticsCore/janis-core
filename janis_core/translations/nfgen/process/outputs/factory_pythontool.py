@@ -115,7 +115,7 @@ class PythonToolProcessOutputFactory:
     #     # array of secondaries
     #     outputs: list[ProcessOutput] = []
     #     assert(isinstance(self.basetype, File))
-    #     exts = secondaries.get_names(self.basetype)
+    #     exts = naming.get_name_secondaries(self.basetype)
     #     for ext in exts:
     #         outputs.append(self.create_path_output_secondaries(ext))
     #     return outputs

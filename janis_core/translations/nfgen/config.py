@@ -27,11 +27,47 @@ def generate_config() -> str:
     return config
 
 
+
+"""
+
+docker.enabled = true
+
+params {
+
+    // INPUTS
+    fastqs          = []
+    reference_fasta = null
+    reference_amb   = null
+
+    // PROCESSES
+    sample_name           = null
+    allele_freq_threshold = 0.05
+    min_mapping_qual      = null
+
+    // SUBWORKFLOW: ALIGN_AND_SORT
+    align_and_sort.bwamem.mark_shorter_splits    = true
+    align_and_sort.cutadapt.quality_cutoff       = 15
+    align_and_sort.cutadapt.minimum_length       = 50
+    align_and_sort.sortsam.sort_order            = 'coordinate'
+    align_and_sort.sortsam.create_index          = true
+    align_and_sort.sortsam.validation_stringency = 'SILENT'
+    align_and_sort.sortsam.max_records_in_ram    = 5000000
+
+    // SUBWORKFLOW: MERGE_AND_MARKDUPS
+    merge_and_markdups.create_index                                          = true
+    merge_and_markdups.max_records_in_ram                                    = 5000000
+    merge_and_markdups.merge_sam_files.use_threading                         = true
+    merge_and_markdups.merge_sam_files.validation_stringency                 = 'SILENT'
+
+"""
+
+
 class ConfigBody:
     def __init__(self):
         self.outdir: Optional[Param] = None
         self.wfinput_params: list[Param] = []
         self.process_params: list[Param] = []
+        self.subworkflow_params: dict[str, list[Param]] = {}
     
     def to_string(self) -> str:
         groups: list[str] = []
@@ -41,13 +77,19 @@ class ConfigBody:
             groups.append(group_str)
         
         if self.wfinput_params:
-            group_str = self.group_to_string('WORKFLOW INPUTS', self.wfinput_params)
+            group_str = self.group_to_string('INPUTS', self.wfinput_params)
             groups.append(group_str)
         
         if self.process_params:
-            group_str = self.group_to_string('PROCESS SPECIFIC', self.process_params)
+            group_str = self.group_to_string('PROCESSES', self.process_params)
             groups.append(group_str)
-
+        
+        if self.subworkflow_params:
+            for subwf_label, group in self.subworkflow_params.items():
+                label = f'SUBWORKFLOW: {subwf_label}'
+                group_str = self.group_to_string(label, group)
+                groups.append(group_str)
+        
         return '\n'.join(groups)
 
     def group_to_string(self, heading: str, group: list[Param]) -> str:
@@ -115,6 +157,9 @@ def generate_config_body(params: list[Param]) -> ConfigBody:
     for p in params:
         if p.name == 'outdir':
             cbody.outdir = p
+        elif p.is_subworkflow_param:
+            # TODO
+            pass
         elif p.is_channel_input:
             cbody.wfinput_params.append(p)
         else:

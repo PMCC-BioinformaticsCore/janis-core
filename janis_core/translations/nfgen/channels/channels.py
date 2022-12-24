@@ -9,10 +9,9 @@ from janis_core.workflow.workflow import InputNode
 from janis_core.types import File
 from uuid import uuid4
 
-from ..casefmt import to_case
 from ..params import Param
 from .. import nfgen_utils
-from .. import settings
+from .. import naming
 
 
 def get_channel_method(wfinp: InputNode) -> str:
@@ -84,29 +83,17 @@ def order(channels: list[Channel]) -> list[Channel]:
 
 @dataclass
 class Channel:
-    ref_name: str
-    ref_scope: list[str]
+    name: str
     params: list[Param]
     method: str
     collect: bool=False
     allow_null: bool=False
-    name_override: Optional[str]=None
     janis_uuid: Optional[str]=None
     define: bool=False
 
     def __post_init__(self):
         self.uuid = uuid4() 
     
-    @property
-    def name(self) -> str:
-        if self.name_override:
-            base = self.name_override
-        else:
-            base = self.ref_name
-        base = to_case(base, settings.NF_CHANNEL_CASE)
-        full = f'ch_{base}'
-        return full
-
     @property
     def declaration(self) -> str:
         return f'{self.name} = {self.get_string()}'
@@ -164,8 +151,7 @@ class ChannelRegister:
 channel_register = ChannelRegister()
 
 def add(
-    var_name: str,
-    var_scope: list[str],
+    janis_tag: str,
     params: list[Param],
     method: str,
     collect: bool,
@@ -175,7 +161,15 @@ def add(
     define: bool=False
     ) -> None:
     global channel_register
-    new_ch = Channel(var_name, var_scope, params, method, collect, allow_null, name_override, janis_uuid, define)
+    # channel name
+    if name_override:
+        basename = name_override
+    else:
+        basename = janis_tag
+    name = naming.get_varname_channel(basename)
+    # create channel
+    new_ch = Channel(name, params, method, collect, allow_null, janis_uuid, define)
+    # add channel
     channel_register.channels.append(new_ch)
 
 def exists(janis_uuid: str) -> bool:

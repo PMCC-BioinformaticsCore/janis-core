@@ -1,8 +1,8 @@
 from textwrap import indent
 from typing import Optional
 
-from .casefmt import to_case
 from . import settings
+from . import naming
 
 
 def filter_null(iterable):
@@ -91,7 +91,7 @@ class Workflow:
         emit: Optional[list[WorkflowEmit]]=None,
         is_subworkflow: bool=False
     ):
-        self.name = to_case(name, settings.NF_PROCESS_CASE)
+        self.name = naming.get_varname_workflow(name)
         self.main = main
         self.take = take or []
         self.emit = emit or []

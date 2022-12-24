@@ -6,9 +6,9 @@ from typing import Optional, Any, Tuple
 from janis_core import ToolInput, CommandTool
 from janis_core.types import Boolean, Array, Filename, DataType
 
+from ... import naming
 from ... import nfgen_utils
 from ...unwrap import unwrap_expression
-from .varname import get_nf_variable_name
 from .itype import IType, get_itype
 
 
@@ -153,7 +153,7 @@ class ScriptFormatter:
 
     @property
     def src(self) -> Optional[str]:
-        return get_nf_variable_name(
+        return naming.get_varname_toolinput(
             self.tinput,
             self.process_inputs,
             self.param_inputs,

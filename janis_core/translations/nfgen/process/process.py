@@ -5,8 +5,8 @@ from textwrap import indent
 from typing import Optional
 
 from ..directives import ProcessDirective
-from ..casefmt import to_case
 from .. import settings
+from .. import naming
 
 from .inputs.factory import ProcessInput
 from .outputs.model import ProcessOutput
@@ -43,8 +43,7 @@ class Process:
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
-        self.name = to_case(name, settings.NF_PROCESS_CASE)
-
+        self.name = naming.get_varname_process(name)
         self.script = script
         self.script_type = script_type
         self.script_quote = script_quote

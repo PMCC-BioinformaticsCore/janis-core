@@ -472,15 +472,15 @@ class TestChannels(unittest.TestCase):
         """
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        nonfile_wf_input_ids = {
+        nonfile_wf_input_ids = [
             'unicycler_kmers',
             'unicycler_scores',
             'unicycler_startGeneCov',
             'unicycler_startGeneId',
-        }
-        channel_janis_references = {c.ref_name for c in nfgen.channels.getall()}
-        for winp_id in nonfile_wf_input_ids:
-            self.assertNotIn(winp_id, channel_janis_references)
+        ]
+        for inp_id in nonfile_wf_input_ids:
+            node = wf.input_nodes[inp_id]
+            self.assertFalse(nfgen.channels.exists(node.uuid))
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
@@ -695,8 +695,8 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_cmdtool(tool, sources, scope=['stp1'])
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path pos_basic',
-            'path pos_basic2',
+            'path pos_basics',
+            'path pos_basic2s',
         }
         self.assertEqual(actual_inputs, expected_inputs)
 

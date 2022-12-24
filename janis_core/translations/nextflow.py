@@ -191,7 +191,7 @@ class NextflowTranslator(TranslatorBase):
         3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
         """
         identifier: str = scope[-1] if scope else settings.NF_MAIN_NAME
-        subtype: str = nfgen.get_construct_name(tool, scope)
+        subtype: str = nfgen.naming.get_construct_name(tool, scope)
 
         # any groovy code
         if scatter and scatter.method == ScatterMethod.cross:
@@ -1084,7 +1084,7 @@ class NextflowTranslator(TranslatorBase):
         
         for inp in tool.inputs():
             if inp.id() in process_inputs or inp.id() in param_inputs:
-                src = nfgen.process.get_nf_variable_name(inp, process_inputs, param_inputs, sources)
+                src = nfgen.naming.get_varname_toolinput(inp, process_inputs, param_inputs, sources)
 
                 value = f"${{{src}}}"
                 if isinstance(inp.intype, Array):
