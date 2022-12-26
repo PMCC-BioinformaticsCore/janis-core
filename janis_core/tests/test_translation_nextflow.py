@@ -415,6 +415,151 @@ class TestParams(unittest.TestCase):
 
 
 
+class TestFileFormatting(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.maxDiff = None
+
+    def test_main_workflow(self) -> None:
+        wf = AssemblyTestWF()
+        mainstr, substr_dict = translator.translate_workflow(wf)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "include { FASTQC1 } from './modules/fastqc1'",
+            "include { FASTQC2 } from './modules/fastqc2'",
+            "include { FASTQC3 } from './modules/fastqc3'",
+            "include { CAT_TEST_TOOL } from './modules/CatTestTool'",
+            "include { UNICYCLER } from './modules/unicycler'",
+            "ch_in_forward_reads     = Channel.fromPath( params.in_forward_reads )",
+            "ch_in_long_reads        = Channel.fromPath( params.in_long_reads )",
+            "ch_in_reverse_reads     = Channel.fromPath( params.in_reverse_reads )",
+            "ch_test_input           = Channel.fromPath( params.test_input )",
+            "ch_fastqc1_adapters     = Channel.fromPath( params.fastqc1_adapters ).ifEmpty( null )",
+            "ch_fastqc1_contaminants = Channel.fromPath( params.fastqc1_contaminants ).ifEmpty( null )",
+            "ch_fastqc1_limits       = Channel.fromPath( params.fastqc1_limits ).ifEmpty( null )",
+            "ch_fastqc2_adapters     = Channel.fromPath( params.fastqc2_adapters ).ifEmpty( null )",
+            "ch_fastqc2_contaminants = Channel.fromPath( params.fastqc2_contaminants ).ifEmpty( null )",
+            "ch_fastqc2_limits       = Channel.fromPath( params.fastqc2_limits ).ifEmpty( null )",
+            "workflow  {",
+            "FASTQC1(",
+            "ch_in_forward_reads,",
+            "ch_fastqc1_adapters,",
+            "ch_fastqc1_contaminants,",
+            "ch_fastqc1_limits",
+            ")",
+            "FASTQC2(",
+            "ch_in_reverse_reads,",
+            "ch_fastqc2_adapters,",
+            "ch_fastqc2_contaminants,",
+            "ch_fastqc2_limits",
+            ")",
+            "FASTQC3(",
+            "ch_test_input",
+            ")",
+            "CAT_TEST_TOOL(",
+            "FASTQC3.out.outTextFile",
+            ")",
+            "UNICYCLER(",
+            "ch_in_forward_reads,",
+            "ch_in_reverse_reads,",
+            "ch_in_long_reads",
+            ")",
+            "}",
+        ]
+        actual_lines = mainstr.split('\n')
+        actual_lines = [ln.strip() for ln in actual_lines]
+        actual_lines = [ln for ln in actual_lines if ln != '']
+        self.assertEqual(actual_lines, expected_lines)
+
+    def test_process(self) -> None:
+        wf = AssemblyTestWF()
+        refresh_workflow_inputs(wf)
+        mainstr, substr_dict = translator.translate_workflow(wf)
+        expected_lines = [
+            'nextflow.enable.dsl=2',
+            'process FASTQC1 {',
+            'debug true',
+            'container "quay.io/biocontainers/fastqc:0.11.8--2"',
+            'publishDir "${params.outdir}/fastqc1"',
+            'input:',
+            'path inputFile',
+            'path adapters',
+            'path contaminants',
+            'path limits',
+            'output:',
+            'path "output.html", emit: outHtmlFile',
+            'path "output.txt", emit: outTextFile',
+            'script:',
+            'def adapters = adapters ? "--adapters ${adapters}" : ""',
+            'def contaminants = contaminants ? "--contaminants ${contaminants}" : ""',
+            'def limits = limits ? "--limits ${limits}" : ""',
+            '"""',
+            'fastqc \\',
+            '${adapters} \\',
+            '${contaminants} \\',
+            '${limits} \\',
+            '--kmers 7 \\',
+            '${inputFile} \\',
+            '"""',
+            '}',
+        ]
+        process_str = substr_dict['modules/fastqc1']
+        print(process_str)
+        actual_lines = process_str.split('\n')
+        actual_lines = [ln.strip() for ln in actual_lines]
+        actual_lines = [ln for ln in actual_lines if ln != '']
+        self.assertEqual(actual_lines, expected_lines)
+    
+    def test_subworkflow(self) -> None:
+        wf = SubworkflowTestWF()
+        mainstr, substr_dict = translator.translate_workflow(wf)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "include { STRING_TOOL } from '../modules/string_tool'",
+            "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'",
+            "workflow APPLES_SUBWORKFLOW {",
+            "take:",
+            "ch_in_int",
+            "ch_in_str",
+            "main:",
+            "STRING_TOOL(",
+            "ch_in_str",
+            ")",
+            "ORANGES_SUBWORKFLOW(",
+            "STRING_TOOL.out.out,",
+            "ch_in_int",
+            ")",
+            "emit:",
+            "outStringFile = STRING_TOOL.out.out",
+            "outIntFile = ORANGES_SUBWORKFLOW.out.out",
+            "}",
+        ]
+        subwf_str = substr_dict['subworkflows/apples_subworkflow']
+        actual_lines = subwf_str.split('\n')
+        actual_lines = [ln.strip() for ln in actual_lines]
+        actual_lines = [ln for ln in actual_lines if ln != '']
+        self.assertEqual(actual_lines, expected_lines)
+    
+    def test_config(self) -> None:
+        # TODO expand this to subworkflow with subworkflow, process specific params
+        wf = SubworkflowTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_lines = [
+            "docker.enabled = true",
+            "params {",
+            "// INPUTS",
+            "in_file  = null",
+            "in_str   = null",
+            "in_int   = null",
+            "}",
+        ]
+        actual_lines = config.split('\n')
+        actual_lines = [ln.strip() for ln in actual_lines]
+        actual_lines = [ln for ln in actual_lines if ln != '']
+        self.assertEqual(actual_lines, expected_lines)
 
 class TestChannels(unittest.TestCase):
     
@@ -2196,6 +2341,7 @@ class TestSubWorkflows(unittest.TestCase):
             assert(relevant_channel)   # 1 channel per each subworkflow input
     
     def test_files_created(self) -> None:
+        refresh_workflow_inputs(self.wf)
         mainstr, substr_dict = translator.translate_workflow(self.wf)
         expected_filepaths = set([
             'modules/file_tool',
@@ -2262,11 +2408,11 @@ class TestSubWorkflows(unittest.TestCase):
         expected_imports = [
             {
                 'name': 'string_tool', 
-                'source': 'modules/string_tool'
+                'source': '../modules/string_tool'
             },
             {
                 'name': 'oranges_subworkflow', 
-                'source': 'subworkflows/oranges_subworkflow'
+                'source': './oranges_subworkflow'
             },
         ]
         actual_imports = []

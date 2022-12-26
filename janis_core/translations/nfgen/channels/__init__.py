@@ -11,7 +11,6 @@ from .channels import order
 from .channels import get_channel_method
 from .channels import should_collect
 from .channels import should_allow_null
-from .channels import channel_register
 
 
 from .operations import ChannelOperation, CartesianCrossOperation, gen_scatter_cross_operation

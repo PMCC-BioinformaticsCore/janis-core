@@ -163,8 +163,7 @@ class NextflowTranslator(TranslatorBase):
         nfgen.register_params_channels(jworkflow, scope)
 
         # main logic
-        identifier = scope.labels[-1]
-        cls.update_files(identifier, scope, jworkflow, sources={})
+        cls.update_files('', scope, jworkflow, sources={})
 
         # get the main wf file and all sub files
         main_file = cls.file_register.get(scope)  # main nf workflow usually
@@ -245,8 +244,8 @@ class NextflowTranslator(TranslatorBase):
                 )
 
             # item: channels item (if main workflow object)
-            if identifier == settings.NF_MAIN_NAME:
-                channels_item = nfgen.channels.channel_register
+            if scope.labels == [settings.NF_MAIN_NAME]:
+                channels_item = nfgen.channels.channels.channel_register # bad naming
                 if len(channels_item.ordered_channels) > 0:
                     cls.item_register.add(scope, channels_item)
 
@@ -262,8 +261,21 @@ class NextflowTranslator(TranslatorBase):
             # imports
             imports: list[nfgen.Import] = []
             for nf_file in cls.file_register.get_children(scope):
+                # get the relative import path. this is ugly last-min code. 
+                # (main wf)
+                if len(scope.labels) == 1: 
+                    source = f'./{nf_file.path}'
+                # (subwf)
+                elif settings.SUBWORKFLOW_OUTDIR in nf_file.path:
+                    folder = os.path.split(nf_file.path)[-1]
+                    source = f'./{folder}'
+                elif settings.PROCESS_OUTDIR in nf_file.path:
+                    source = f'../{nf_file.path}'
+                else:
+                    raise NotImplementedError
+                
                 nf_item = nfgen.ImportItem(name=nf_file.name)
-                nf_import = nfgen.Import(items=[nf_item], source=nf_file.path)
+                nf_import = nfgen.Import(items=[nf_item], source=source)
                 imports.append(nf_import)
 
             # file: workflow file            
@@ -431,7 +443,7 @@ class NextflowTranslator(TranslatorBase):
                 outname = out.id()
                 expression = nfgen.unwrap_expression(val=out.source, in_shell_script=True)
                 emit.append(nfgen.WorkflowEmit(outname, expression))
-
+        
         # MAIN (workflow step calls, channel operations)
         for step in wf.step_nodes.values():
             current_scope = deepcopy(scope)

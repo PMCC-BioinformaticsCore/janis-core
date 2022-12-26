@@ -314,8 +314,14 @@ class CmdtoolProcessOutputFactory:
                 expr = f'"{primary_expr}"'
             # secondary file
             else:
+                wrap_curly_braces = False
+                if primary_expr.startswith('${') and primary_expr.endswith('}'):
+                    wrap_curly_braces = True
+                base_expr = primary_expr.strip('${}')
                 secondary_ext = self.out.secondaries_present_as[ext]
-                secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
+                secondary_expr: str = apply_secondary_file_format_to_filename(base_expr, secondary_ext)
+                if wrap_curly_braces:
+                    secondary_expr = f'${{{secondary_expr}}}'
                 qual = 'path'
                 expr = f'"{secondary_expr}"'
             qualifiers.append(qual)
