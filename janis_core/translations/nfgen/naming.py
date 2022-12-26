@@ -2,7 +2,6 @@
 
 from typing import Optional, Any
 
-from janis_core.workflow.workflow import StepNode
 from janis_core.types import (
     File,
     Array
@@ -17,6 +16,7 @@ from janis_core import (
 )
 
 from .casefmt import to_case
+from .scope import Scope
 from . import nfgen_utils
 from . import params
 from . import settings
@@ -49,53 +49,56 @@ Fixing these items
 
 ### GENERAL
 
-def get_varname_workflow(basename: str) -> str:
+def gen_varname_workflow(basename: str) -> str:
     return to_case(basename, settings.NF_PROCESS_CASE)
 
-def get_varname_process(basename: str) -> str:
+def gen_varname_process(basename: str) -> str:
     return to_case(basename, settings.NF_PROCESS_CASE)
 
-def get_varname_channel(basename: str) -> str:
+def gen_varname_channel(janis_tag: str, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
+    basename = name_override if name_override else janis_tag
+    # basename = _handle_plurals(basename, dtype)
     name = to_case(basename, settings.NF_CHANNEL_CASE)
     name = f'ch_{name}'
     return name
 
-def get_varname_param(basename: str, scope: list[str]) -> str:
+def gen_varname_param(janis_tag: str, scope: Scope, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
+    basename = name_override if name_override else janis_tag
+    # basename = _handle_plurals(basename, dtype)
     name = to_case(basename, settings.NF_PARAM_CASE)
-    if len(scope) > 1:
-        scope = scope[1:]
-        scope = [to_case(x, settings.NF_PARAM_CASE) for x in scope]
-        name = f"{'.'.join(scope)}.{name}"
+    depth = len(scope.items)
+    if depth > 1:
+        scope_labels = scope.labels[1:]
+        scope_labels = [to_case(x, settings.NF_PARAM_CASE) for x in scope_labels]
+        name = f"{'.'.join(scope_labels)}.{name}"
     return name
 
+def _handle_plurals(basename: str, dtype: Optional[DataType]) -> str:
+    # add 's' plural for array types
+    if _should_make_plural(dtype):
+        basename = _make_plural(basename)
+    return basename
+
+def _should_make_plural(dtype: Optional[DataType]) -> bool:
+    if dtype and dtype.is_array():
+        return True
+    return False
+
+def _make_plural(basename: str) -> str:
+    if not basename.endswith('s'):
+        basename = f'{basename}s'
+    return basename
 
 
 ### PROCESS SPECIFIC
 
-def get_varname_secondaries(dtype: DataType) -> list[str]:
-    """returns name of each file for File types with secondaries"""
-    basetype: File = nfgen_utils.get_base_type(dtype)
-    exts = nfgen_utils.get_extensions(basetype)
-    exts = _remove_symbols(exts)
-    
-    # Array(Secondary())
-    if isinstance(dtype, Array):
-        exts = [f'{ext}s' for ext in exts]
-        return exts
-    
-    # Secondary
-    else:
-        return exts
-    
-def _remove_symbols(exts: list[str]) -> list[str]:
-    return [x.rsplit('.')[-1] for x in exts]
-
-def get_varname_toolinput(inp: ToolInput | TInput, process_inputs: set[str], param_inputs: set[str], sources: dict[str, Any]) -> Optional[str]:
+def gen_varname_toolinput(inp: ToolInput | TInput, process_inputs: set[str], param_inputs: set[str], sources: dict[str, Any]) -> Optional[str]:
     if inp.id() in process_inputs:
         return _process_input_varname(inp, process_inputs, param_inputs)
     elif inp.id() in param_inputs:
         return _param_input_varname(inp, sources)
     else:
+        return None
         # internal inputs in the future
         raise NotImplementedError
 
@@ -107,12 +110,34 @@ def _process_input_varname(inp: ToolInput | TInput, process_inputs: set[str], pa
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         basetype = nfgen_utils.get_base_type(dtype)
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = get_varname_secondaries(basetype)
+            names = _gen_varname_toolinput_secondaries(dtype)
             name = names[0]
+            print()
         # everything else
         else:
             name = inp.id()
+            # name = _handle_plurals(name, dtype)
+            print()
     return name
+
+def _gen_varname_toolinput_secondaries(dtype: DataType) -> list[str]:
+    """returns name of each file for File types with secondaries"""
+    basetype: File = nfgen_utils.get_base_type(dtype)
+    exts = nfgen_utils.get_extensions(basetype)
+    exts = _remove_symbols(exts)
+    
+    # Array(Secondary())
+    # plurals handled here as special case (not _handle_plurals())
+    if isinstance(dtype, Array):
+        exts = [f'{ext}s' for ext in exts]
+        return exts
+    
+    # Secondary
+    else:
+        return exts
+    
+def _remove_symbols(exts: list[str]) -> list[str]:
+    return [x.rsplit('.')[-1] for x in exts]
     
 def _param_input_varname(inp: ToolInput | TInput, sources: dict[str, Any]) -> Optional[str]: 
     # data fed via global param
@@ -125,13 +150,14 @@ def _param_input_varname(inp: ToolInput | TInput, sources: dict[str, Any]) -> Op
 
 ### ENTITY LABELS
 
-def get_construct_name(tool: CommandTool | PythonTool | Workflow, scope: list[str]) -> str:
+def get_construct_name(tool: CommandTool | PythonTool | Workflow, scope: Scope) -> str:
     construct_type = ''
+    depth = len(scope.items)
     if isinstance(tool, CommandTool) or isinstance(tool, PythonTool):
         construct_type = 'process'
-    elif isinstance(tool, Workflow) and len(scope) == 1:  # scope = ['main']  (the main workflow)
+    elif isinstance(tool, Workflow) and depth == 1:  # scope = ['main']  (the main workflow)
         construct_type = 'main_workflow'
-    elif isinstance(tool, Workflow) and len(scope) > 1: # scope = ['main', 'sub', ...] 
+    elif isinstance(tool, Workflow) and depth > 1: # scope = ['main', 'sub', ...] 
         construct_type = 'sub_workflow'
     else:
         raise NotImplementedError

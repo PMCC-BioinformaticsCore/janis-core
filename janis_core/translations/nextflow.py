@@ -4,15 +4,18 @@ import re
 import posixpath
 from collections import defaultdict
 from typing import Protocol
+NoneType = type(None)
 
 from typing import Tuple, Dict, List, Optional, Any
 from janis_core.translations.nfgen import format_process_call
 from janis_core.operators.selectors import Selector
 from janis_core.types import (
     Array,
+    DataType,
     Int,
     Float,
     Double,
+    Boolean
 )
 
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -30,6 +33,7 @@ from janis_core.workflow.workflow import Workflow, WorkflowBase
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 from janis_core.translations import nfgen
 from janis_core.translations.nfgen import settings
+from janis_core.translations.nfgen import Scope
 
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
@@ -54,9 +58,6 @@ class IGetStringMethod(Protocol):
     def get_string(self) -> str:
         ... 
 
-def scope_to_dot_notation(scope: list[str]) -> str:
-    return '.'.join(scope)
-
 def dot_to_scope_notation(dot: str) -> list[str]:
     return dot.split('.')
 
@@ -71,28 +72,26 @@ class NFFileRegister:
     def __init__(self):
         self.files: dict[str, nfgen.NFFile] = {}
 
-    def add(self, scope: list[str], nf_file: nfgen.NFFile) -> None:
-        label = scope_to_dot_notation(scope)
+    def add(self, scope: Scope, nf_file: nfgen.NFFile) -> None:
+        label = scope.to_string()
         self.files[label] = nf_file
     
-    def get(self, scope: list[str]) -> nfgen.NFFile:
-        label = scope_to_dot_notation(scope)
+    def get(self, scope: Scope) -> nfgen.NFFile:
+        label = scope.to_string()
         return self.files[label]
 
-    def get_children(self, scope: list[str], direct_only: bool=True) -> list[nfgen.NFFile]:
-        label = scope_to_dot_notation(scope)
-        
+    def get_children(self, scope: Scope, direct_only: bool=True) -> list[nfgen.NFFile]:
         # items with current scope
         child_files: list[nfgen.NFFile] = []
         
         # items with child scope
-        depth = len(scope)
+        depth = len(scope.items)
         for label, nf_file in self.files.items():
             label_split = dot_to_scope_notation(label)
             # ignore the main workflow file (it throws things off)
             if label_split != [settings.NF_MAIN_NAME]:
                 # does the scope match the start of the label?
-                if label_split[:depth] == scope:
+                if label_split[:depth] == scope.labels:
                     # if we only want direct children
                     if not direct_only:
                         child_files.append(nf_file)
@@ -111,14 +110,14 @@ class NFItemRegister:
     def __init__(self):
         self.items: dict[str, list[IGetStringMethod]] = defaultdict(list)
 
-    def add(self, scope: list[str], nf_item: IGetStringMethod) -> None:
-        label = scope_to_dot_notation(scope)
+    def add(self, scope: Scope, nf_item: IGetStringMethod) -> None:
+        label = scope.to_string()
         self.items[label].append(nf_item)
 
-    def get(self, scope: list[str]) -> list[IGetStringMethod]:
+    def get(self, scope: Scope) -> list[IGetStringMethod]:
         # items with current scope
-        label = scope_to_dot_notation(scope)
-        nf_items = deepcopy(self.items[label])
+        label = scope.to_string()
+        nf_items = deepcopy(self.items[label]) # ???
         return nf_items
     
 
@@ -156,7 +155,7 @@ class NextflowTranslator(TranslatorBase):
         settings.RENDER_COMMENTS = render_comments
 
         # blank scope - main wf has not parent
-        scope: list[str] = [settings.NF_MAIN_NAME]
+        scope = nfgen.Scope()
 
         # register params and channels for workflow inputs
         nfgen.params.clear()
@@ -164,7 +163,8 @@ class NextflowTranslator(TranslatorBase):
         nfgen.register_params_channels(jworkflow, scope)
 
         # main logic
-        cls.update_files(scope, jworkflow, sources={})
+        identifier = scope.labels[-1]
+        cls.update_files(identifier, scope, jworkflow, sources={})
 
         # get the main wf file and all sub files
         main_file = cls.file_register.get(scope)  # main nf workflow usually
@@ -179,7 +179,8 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def update_files(
         cls, 
-        scope: list[str],
+        identifier: str,
+        scope: Scope,
         tool: Workflow | CommandTool | PythonTool,
         sources: dict[str, Any],
         scatter: Optional[ScatterDescription]=None,
@@ -190,7 +191,6 @@ class NextflowTranslator(TranslatorBase):
         2. write any nextflow items that are processes or workflows to file.
         3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
         """
-        identifier: str = scope[-1] if scope else settings.NF_MAIN_NAME
         subtype: str = nfgen.naming.get_construct_name(tool, scope)
 
         # any groovy code
@@ -235,8 +235,9 @@ class NextflowTranslator(TranslatorBase):
             wf = tool
             for substep in wf.step_nodes.values():
                 current_scope = deepcopy(scope)
-                current_scope.append(substep.id())
+                current_scope.update(substep)
                 cls.update_files(
+                    identifier=current_scope.labels[-1],
                     scope=current_scope,
                     tool=substep.tool,
                     sources=substep.sources,
@@ -309,7 +310,7 @@ class NextflowTranslator(TranslatorBase):
         """
         settings.MODE = 'tool'
         file_items: list[IGetStringMethod] = []
-        scope: list[str] = [settings.NF_MAIN_NAME]
+        scope: Scope = nfgen.Scope()
         values: dict[str, Any] = {}
 
         main_p = cls.gen_process_from_cmdtool(tool, values, scope)
@@ -384,7 +385,7 @@ class NextflowTranslator(TranslatorBase):
     def gen_workflow(
         cls,
         name: str,
-        scope: list[str],
+        scope: Scope,
         sources: dict[str, Any],
         wf: WorkflowBase,
     ) -> nfgen.Workflow:
@@ -400,7 +401,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        is_subworkflow = True if scope[-1] != settings.NF_MAIN_NAME else False
+        is_subworkflow = True if scope.labels[-1] != settings.NF_MAIN_NAME else False
 
         take: list[nfgen.WorkflowTake] = []
         emit: list[nfgen.WorkflowEmit] = []
@@ -434,7 +435,7 @@ class NextflowTranslator(TranslatorBase):
         # MAIN (workflow step calls, channel operations)
         for step in wf.step_nodes.values():
             current_scope = deepcopy(scope)
-            current_scope.append(step.id())
+            current_scope.update(step)
             nf_items = cls.item_register.get(current_scope)
             
             for nf_item in nf_items:
@@ -446,7 +447,7 @@ class NextflowTranslator(TranslatorBase):
                 else:
                     raise NotImplementedError
             
-                args = nfgen.get_args(step, current_scope)
+                args = nfgen.call.get_args(step, current_scope)
                 main.append(format_process_call(entity_name, args))
 
         return nfgen.Workflow(name, main, take, emit, is_subworkflow)
@@ -572,7 +573,7 @@ class NextflowTranslator(TranslatorBase):
         cls,
         tool: CommandTool,
         sources: dict[str, Any],   # values fed to tool inputs (step translation)
-        scope: list[str],
+        scope: Scope,
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for a Janis Command line tool
@@ -587,7 +588,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         # name
-        process_name = scope[-1]
+        process_name = scope.labels[-1]
 
         # directives
         resources = {}
@@ -597,9 +598,7 @@ class NextflowTranslator(TranslatorBase):
         process_inputs = nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
 
         # outputs
-        process_outputs: list[nfgen.ProcessOutput] = []
-        for out in tool.outputs():
-            process_outputs.append(nfgen.process.create_output(out, tool, sources))
+        process_outputs = nfgen.process.outputs.create_nextflow_process_outputs(tool, sources)
 
         # script
         pre_script, script = nfgen.process.gen_script_for_cmdtool(
@@ -624,11 +623,10 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def gen_directives_for_process(
-        cls, tool: CommandTool, resources: dict[str, Any], scope: list[str]
+        cls, tool: CommandTool, resources: dict[str, Any], scope: Scope
     ) -> list[nfgen.ProcessDirective]:
-
+        
         # TODO REFACTOR
-
         nf_directives: dict[str, nfgen.ProcessDirective] = {}
         nf_directives['publishDir'] = nfgen.PublishDirDirective(scope)
         nf_directives['debug'] = nfgen.DebugDirective(debug='true')
@@ -636,36 +634,36 @@ class NextflowTranslator(TranslatorBase):
         # Add directives from input resources
         for res, val in resources.items():
             if res.endswith("runtime_cpu"):
-                param = nfgen.params.add(var_name='cpus', var_scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='cpus', scope=scope, default=val)
                 nf_directives['cpus'] = nfgen.CpusDirective(param)
             
             elif res.endswith("runtime_memory"):
-                param = nfgen.params.add(var_name='memory', var_scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='memory', scope=scope, default=val)
                 nf_directives['memory'] = nfgen.MemoryDirective(param)
             
             elif res.endswith("runtime_seconds"):
-                param = nfgen.params.add(var_name='time', var_scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='time', scope=scope, default=val)
                 nf_directives['time'] = nfgen.TimeDirective(param)
             
             elif res.endswith("runtime_disk"):
-                param = nfgen.params.add(var_name='disk', var_scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='disk', scope=scope, default=val)
                 nf_directives['disk'] = nfgen.DiskDirective(param)
         
         # Add directives from tool resources
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
-            param = nfgen.params.add(var_name='cpus', var_scope=scope, default=tool.cpus({}))
+            param = nfgen.params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}))
             nf_directives['cpus'] = nfgen.CpusDirective(param)
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
-            param = nfgen.params.add(var_name='memory', var_scope=scope, default=tool.memory({}))
+            param = nfgen.params.add(janis_tag='memory', scope=scope, default=tool.memory({}))
             nf_directives['memory'] = nfgen.MemoryDirective(param)
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
-            param = nfgen.params.add(var_name='disk', var_scope=scope, default=tool.disk({}))
+            param = nfgen.params.add(janis_tag='disk', scope=scope, default=tool.disk({}))
             nf_directives['disk'] = nfgen.DiskDirective(param)
         
         if 'time' not in nf_directives and tool.time({}) is not None:
-            param = nfgen.params.add(var_name='time', var_scope=scope, default=tool.time({}))
+            param = nfgen.params.add(janis_tag='time', scope=scope, default=tool.time({}))
             nf_directives['time'] = nfgen.TimeDirective(param)
         
         final_directives: list[nfgen.ProcessDirective] = []
@@ -681,7 +679,7 @@ class NextflowTranslator(TranslatorBase):
         cls,
         tool: PythonTool,
         sources: dict[str, Any],   # values fed to tool inputs (step translation)
-        scope: list[str],
+        scope: Scope,
     ) -> nfgen.Process:
         """
         Generate a Nextflow Process object for Janis python code tool
@@ -696,7 +694,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """        
         # name
-        process_name = scope[-1] if scope else tool.id()
+        process_name = scope.labels[-1] if scope.labels else tool.id()
 
         # directives
         resources = {}
@@ -713,9 +711,7 @@ class NextflowTranslator(TranslatorBase):
         process_inputs += nfgen.process.inputs.create_nextflow_process_inputs(tool, sources)
 
         # outputs
-        process_outputs: list[nfgen.ProcessOutput] = []
-        for out in tool.outputs():
-            process_outputs.append(nfgen.process.create_output(out, tool, sources))
+        process_outputs = nfgen.process.outputs.create_nextflow_process_outputs(tool, sources)
 
         # script
         script = cls.prepare_script_for_python_code_tool(tool, sources=sources)
@@ -966,7 +962,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        scope: list[str] = [settings.NF_MAIN_NAME]
+        scope: Scope = nfgen.Scope()
         if additional_inputs:
             nfgen.params.register_params_for_additional_inputs(additional_inputs, scope)
         if merge_resources:
@@ -1083,19 +1079,31 @@ class NextflowTranslator(TranslatorBase):
         param_inputs = nfgen.process.inputs.get_param_inputs(sources)
         
         for inp in tool.inputs():
-            if inp.id() in process_inputs or inp.id() in param_inputs:
-                src = nfgen.naming.get_varname_toolinput(inp, process_inputs, param_inputs, sources)
+            tag: str = inp.tag
+            value: Any = None
+            dtype: DataType = inp.intype
 
-                value = f"${{{src}}}"
-                if isinstance(inp.intype, Array):
+            if inp.id() in process_inputs or inp.id() in param_inputs:
+                src = nfgen.naming.gen_varname_toolinput(inp, process_inputs, param_inputs, sources)
+                value = f'${{{src}}}'
+                if isinstance(dtype, Array):
                     value = f'"{value}".split(" ")'
-                elif not isinstance(inp.intype, (Array, Int, Float, Double)):
-                    value = f'"{value}"'
-                arg = f"{inp.tag}={value}"
-                args.append(arg)  
+
             elif inp.default is not None:
-                arg = f"{inp.tag}={inp.default}"
-                args.append(arg)  
+                value = inp.default
+
+            elif inp.intype.optional == True:
+                value = None
+
+            else:
+                raise NotImplementedError
+
+            # wrap in quotes unless numeric or bool
+            if not isinstance(dtype, (Array, Int, Float, Double, Boolean, NoneType)):
+                value = f'"{value}"'
+
+            arg = f"{tag}={value}"
+            args.append(arg)  
 
         args_str = ", ".join(a for a in args)
         script = f"""\

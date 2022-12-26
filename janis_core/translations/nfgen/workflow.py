@@ -91,7 +91,7 @@ class Workflow:
         emit: Optional[list[WorkflowEmit]]=None,
         is_subworkflow: bool=False
     ):
-        self.name = naming.get_varname_workflow(name)
+        self.name = naming.gen_varname_workflow(name)
         self.main = main
         self.take = take or []
         self.emit = emit or []

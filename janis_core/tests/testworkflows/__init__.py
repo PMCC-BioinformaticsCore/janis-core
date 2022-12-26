@@ -30,6 +30,7 @@ from .combos import ScatterSecondariesTestWF
 from .outputs import OutputCollectionTestWF
 from .unwrap import UnwrapTestWF
 from .subworkflow import SubworkflowTestWF
+from .naming import NamingTestWF
 
 from .assembly import w as AssemblyTestWF
 

@@ -94,7 +94,7 @@ def create_path_input_secondaries(inp: ToolInput | TInput) -> list[ProcessInput]
     # TODO ignoring secondaries_presents_as for now!
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     inputs: list[ProcessInput] = []
-    names = naming.get_varname_secondaries(dtype)
+    names = naming._gen_varname_toolinput_secondaries(dtype)
     for name in names:
         new_input = PathProcessInput(name=name)
         inputs.append(new_input)
@@ -107,7 +107,7 @@ def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput
     subnames: list[str] = []
 
     # tuple sub-element for each file
-    names = naming.get_varname_secondaries(dtype)
+    names = naming._gen_varname_toolinput_secondaries(dtype)
     for name in names:
         qualifiers.append('path')
         subnames.append(name)

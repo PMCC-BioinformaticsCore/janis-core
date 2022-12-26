@@ -11,12 +11,13 @@ from . import params
 from . import channels
 from . import nfgen_utils
 from . import naming
-from . import settings
 
+from . import settings
+from .scope import Scope
 from copy import deepcopy
     
 
-def register_params_channels(wf: Workflow, scope: list[str]) -> None:
+def register_params_channels(wf: Workflow, scope: Scope) -> None:
     # register param(s) for each workflow input. 
     # channel(s) may also be registered if necessary.
 
@@ -28,7 +29,7 @@ def register_params_channels(wf: Workflow, scope: list[str]) -> None:
     for step in wf.step_nodes.values():
         if isinstance(step.tool, Workflow):
             current_scope = deepcopy(scope)
-            current_scope.append(step.id())
+            current_scope.update(step)
             register_params_channels(step.tool, scope=current_scope)
 
 
@@ -43,19 +44,19 @@ def get_code_file_path(tool: PythonTool) -> str:
 
 class ParamChannelRegisterer:
     # sorry about horrid name
-    def __init__(self, wf: Workflow, scope: list[str]) -> None:
+    def __init__(self, wf: Workflow, scope: Scope) -> None:
         self.wf = wf
         self.scope = scope
 
     @property
     def is_subworkflow(self) -> bool:
-        if self.scope != [settings.NF_MAIN_NAME]:
+        if self.scope.labels != [settings.NF_MAIN_NAME]:
             return True
         return False
 
     @property
     def channels_to_register_wfinps(self) -> set[str]:
-        if self.scope == [settings.NF_MAIN_NAME]:
+        if self.scope.labels == [settings.NF_MAIN_NAME]:
             items: set[str] = get_channel_input_ids(self.wf)
         else:
             items: set[str] = set(self.wf.connections.keys())
@@ -63,7 +64,7 @@ class ParamChannelRegisterer:
     
     @property
     def params_to_register_wfinps(self) -> set[str]:
-        if self.scope == [settings.NF_MAIN_NAME]:
+        if self.scope.labels == [settings.NF_MAIN_NAME]:
             items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
         else:
             items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
@@ -77,19 +78,17 @@ class ParamChannelRegisterer:
         # A param will be registered for the code_file of each PythonTool.
         for step in self.wf.step_nodes.values():
             current_scope = deepcopy(self.scope)
-            current_scope.append(step.id())
+            current_scope.update(step)
             if isinstance(step.tool, PythonTool):
                 default = get_code_file_path(step.tool)
                 params.add(
-                    var_name='code_file',
-                    var_scope=current_scope,
-                    dtype=File(),
+                    janis_tag='code_file',
+                    scope=current_scope,
                     default=default,
                     is_channel_input=False,
+                    janis_dtype=File(),
                     janis_uuid=None,
                 )
-
-
 
     def register_wf_inputs(self) -> None:
         # registers param for each wf input which requires a param.
@@ -119,11 +118,11 @@ class ParamChannelRegisterer:
         # register a param for the wf input
         if is_param_input:
             params.add(
-                var_name=inp.id(),
-                var_scope=self.scope,
-                dtype=inp.datatype,
+                janis_tag=inp.id(),
+                scope=self.scope,
                 default=default,
                 is_channel_input=is_channel_input,
+                janis_dtype=inp.datatype,
                 janis_uuid=inp.uuid,
             )
         
@@ -135,6 +134,7 @@ class ParamChannelRegisterer:
                 method=channels.get_channel_method(inp),
                 collect=channels.should_collect(inp),
                 allow_null=channels.should_allow_null(inp),
+                janis_dtype=inp.datatype,
                 janis_uuid=inp.uuid,
                 define=False if self.is_subworkflow else True
             )
@@ -144,18 +144,18 @@ class ParamChannelRegisterer:
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         names: list[str] = []
-        names = naming.get_varname_secondaries(inp.datatype)
+        names = naming._gen_varname_toolinput_secondaries(inp.datatype)
         
         # register a param for each individual file
         if is_param_input:
             for name in names:
                 params.add(
-                    var_name=inp.id(),
-                    var_scope=self.scope,
-                    dtype=inp.datatype,
+                    janis_tag=inp.id(),
+                    scope=self.scope,
                     is_channel_input=True,
                     # name_override=name,
                     name_override=f'{inp.id()}_{name}',
+                    janis_dtype=inp.datatype,
                     janis_uuid=inp.uuid
                 )
 
@@ -167,6 +167,7 @@ class ParamChannelRegisterer:
                 method='fromPath',
                 collect=True,
                 allow_null=channels.should_allow_null(inp),
+                janis_dtype=inp.datatype,
                 janis_uuid=inp.uuid,
                 define=False if self.is_subworkflow else True
             )
@@ -177,18 +178,18 @@ class ParamChannelRegisterer:
         is_param_input = True if inp.id() in self.params_to_register_wfinps else False
         is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
         basetype = nfgen_utils.get_base_type(inp.datatype)
-        names = naming.get_varname_secondaries(basetype)
+        names = naming._gen_varname_toolinput_secondaries(basetype)
 
         for name in names:
             secondary_params: list[params.Param] = []
             # should we register a param?
             if is_param_input:
                 new_param = params.add(
-                    var_name=inp.id(),
-                    var_scope=self.scope,
-                    dtype=inp.datatype,
+                    janis_tag=inp.id(),
+                    scope=self.scope,
                     is_channel_input=True,
                     name_override=f'{inp.id()}_{name}s',
+                    janis_dtype=inp.datatype,
                     janis_uuid=inp.uuid
                 )
                 secondary_params.append(new_param)
@@ -202,6 +203,7 @@ class ParamChannelRegisterer:
                     collect=True,
                     allow_null=channels.should_allow_null(inp),
                     name_override=f'{inp.id()}_{name}s',
+                    janis_dtype=inp.datatype,
                     janis_uuid=inp.uuid,
                     define=False if self.is_subworkflow else True
                 )

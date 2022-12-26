@@ -12,13 +12,13 @@ from . import nfgen_utils
 from . import ordering
 
 from .unwrap import unwrap_expression
+from .scope import Scope
 
 
-
-def get_args(step: StepNode, scope: list[str]):
+def get_args(step: StepNode, scope: Scope):
     tool: CommandTool | PythonTool | Workflow   = step.tool     
     sources: dict[str, Any]                     = step.sources  
-    scatter: Optional[ScatterDescription]       = step.scatter  
+    scatter: Optional[ScatterDescription]       = step.scatter
 
     # input ids which we need args for (in correct order)
     if isinstance(tool, Workflow):
@@ -48,7 +48,7 @@ def get_args(step: StepNode, scope: list[str]):
     # add extra arg in case of python tool - the code file.
     # a param with the same name will have already been created. 
     if isinstance(tool, PythonTool):
-        scope_joined = '.'.join(scope[1:])
+        scope_joined = scope.to_string(ignore_base_item=True)
         call_args = [f'params.{scope_joined}.code_file'] + call_args
 
     return call_args

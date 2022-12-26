@@ -88,7 +88,7 @@ def resolve_channel_name(src: StepTagInput) -> str:
     # step output
     elif isinstance(source, StepOutputSelector):
         conn_step: StepNode     = source.node
-        conn_step_id: str       = naming.get_varname_process(conn_step.id())
+        conn_step_id: str       = naming.gen_varname_process(conn_step.id())
         conn_out_id: str        = source.tag
         channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
         return channel_name

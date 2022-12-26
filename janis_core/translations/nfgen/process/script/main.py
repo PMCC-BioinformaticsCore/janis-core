@@ -8,6 +8,7 @@ from janis_core import (
 )
 
 from ...unwrap import unwrap_expression
+from ...scope import Scope
 from ... import ordering
 from ... import settings
 from ... import nfgen_utils as nfgen_utils
@@ -18,7 +19,7 @@ from .ScriptFormatter import ScriptFormatter
 def gen_script_for_cmdtool(
     tool: CommandTool,
     stdout_filename: str,
-    scope: list[str],
+    scope: Scope,
     sources: dict[str, Any],
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
@@ -35,12 +36,12 @@ class ProcessScriptGenerator:
         self,
         tool: CommandTool, 
         stdout_filename: str,
-        scope: list[str],
+        scope: Scope,
         sources: Optional[dict[str, Any]]=None,
     ):
         self.tool = tool
         self.scope = scope
-        self.process_name = scope[-1]
+        self.process_name = scope.labels[-1]
         self.stdout_filename = stdout_filename
 
         self.sources = sources if sources is not None else {}

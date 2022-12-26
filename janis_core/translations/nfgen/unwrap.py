@@ -286,7 +286,7 @@ class Unwrapper:
         # secondary files (name mapped to ext of primary file)
         # TODO secondaries
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = naming.get_varname_secondaries(dtype)
+            names = naming._gen_varname_toolinput_secondaries(dtype)
             name = names[0]
         # everything else
         else:
@@ -684,7 +684,7 @@ class Unwrapper:
         
         # everything else
         else:
-            upstream_step_id = naming.get_varname_process(upstream_step.id())
+            upstream_step_id = naming.gen_varname_process(upstream_step.id())
             channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
             return self.get_channel_expression(
                 channel_name=channel_name,

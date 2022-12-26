@@ -196,22 +196,22 @@ class TestWorkflow(TestCase):
     def test_add_scatter_nested_arrays(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(str)))
-        stp = w.step("stp", ArrayStepTool(inp=w.inp), scatter="inps")
+        stp = w.step("stp", ArrayStepTool(inp=w.inp), scatter="inp")
 
-        e = w.stp.sources["inps"].source_map[0]
+        e = w.stp.sources["inp"].source_map[0]
 
         self.assertTrue(e.compatible_types)
-        self.assertListEqual(["inps"], stp.scatter.fields)
+        self.assertListEqual(["inp"], stp.scatter.fields)
 
     def test_add_scatter_nested_arrays_incompatible(self):
         w = WorkflowBuilder("scatterededge")
         w.input("inp", Array(Array(int)))
-        stp = w.step("stp", ArrayStepTool(inp=w.inp), scatter="inps")
+        stp = w.step("stp", ArrayStepTool(inp=w.inp), scatter="inp")
 
-        e = w.stp.sources["inps"].source_map[0]
+        e = w.stp.sources["inp"].source_map[0]
 
         self.assertFalse(e.compatible_types)
-        self.assertListEqual(["inps"], stp.scatter.fields)
+        self.assertListEqual(["inp"], stp.scatter.fields)
 
     def test_add_non_scatter(self):
         w = WorkflowBuilder("scatterededge")
@@ -225,7 +225,7 @@ class TestWorkflow(TestCase):
         w.input("inp", Array(String()))
         w.step("stp", ArrayStepTool(inp=w.inp))
 
-        e = w.stp.sources["inps"].source_map[0]
+        e = w.stp.sources["inp"].source_map[0]
         self.assertFalse(e.scatter)
 
     def test_invalid_scatter_field(self):
@@ -258,7 +258,7 @@ class TestWorkflow(TestCase):
         stp = w.step("mergeStp2", ArrayStepTool(inp=w.scatteredStp1))
 
         e1 = w.scatteredStp1.sources["input1"].source_map[0]
-        e2 = w.mergeStp2.sources["inps"].source_map[0]
+        e2 = w.mergeStp2.sources["inp"].source_map[0]
 
         self.assertTrue(e1.scatter)
         self.assertFalse(e2.scatter)
@@ -282,7 +282,7 @@ class TestWorkflow(TestCase):
         w.input("inp1", String())
         w.step("stp1", ArrayStepTool(inp=w.inp1))
 
-        e = w.stp1.sources["inps"].source_map[0]
+        e = w.stp1.sources["inp"].source_map[0]
         self.assertTrue(w.has_multiple_inputs)
         self.assertTrue(e.compatible_types)
 

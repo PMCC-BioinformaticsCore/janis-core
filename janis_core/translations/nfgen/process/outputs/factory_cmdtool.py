@@ -169,8 +169,8 @@ class CmdtoolProcessOutputFactory:
             OType.FILE: self.file_output,
             OType.FILE_PAIR: self.file_pair_output,
             OType.FILE_ARRAY: self.file_array_output,
-            OType.SECONDARIES: self._output,
-            OType.SECONDARIES_ARRAY: self._array_output,
+            OType.SECONDARIES: self._secondaries_output,
+            OType.SECONDARIES_ARRAY: self._secondaries_array_output,
         }
         
         self.add_braces: bool = False
@@ -294,7 +294,7 @@ class CmdtoolProcessOutputFactory:
     def file_array_output(self) -> PathProcessOutput:
         return self.file_output()
     
-    def _output(self) -> TupleProcessOutput:
+    def _secondaries_output(self) -> TupleProcessOutput:
         """
         
         eg BamBai:
@@ -329,5 +329,5 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def _array_output(self) -> SecondariesArrayProcessOutput:
+    def _secondaries_array_output(self) -> SecondariesArrayProcessOutput:
         raise NotImplementedError

@@ -43,7 +43,7 @@ class Process:
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
     ):
-        self.name = naming.get_varname_process(name)
+        self.name = naming.gen_varname_process(name)
         self.script = script
         self.script_type = script_type
         self.script_quote = script_quote

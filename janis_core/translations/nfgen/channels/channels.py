@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from janis_core.workflow.workflow import InputNode
-from janis_core.types import File
+from janis_core.types import File, DataType
 from uuid import uuid4
 
 from ..params import Param
@@ -157,16 +157,13 @@ def add(
     collect: bool,
     allow_null: bool,
     name_override: Optional[str]=None,
+    janis_dtype: Optional[DataType]=None,
     janis_uuid: Optional[str]=None,
     define: bool=False
     ) -> None:
     global channel_register
     # channel name
-    if name_override:
-        basename = name_override
-    else:
-        basename = janis_tag
-    name = naming.get_varname_channel(basename)
+    name = naming.gen_varname_channel(janis_tag, name_override, janis_dtype)
     # create channel
     new_ch = Channel(name, params, method, collect, allow_null, janis_uuid, define)
     # add channel

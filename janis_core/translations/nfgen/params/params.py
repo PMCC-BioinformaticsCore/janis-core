@@ -13,8 +13,8 @@ from janis_core.types import (
 )
 
 from .. import nfgen_utils
-from .. import settings
 from .. import naming
+from ..scope import Scope
 
 
 ### ORDERING
@@ -41,7 +41,7 @@ class MandatoryPriority(OrderingMethod):
         top: list[Param] = []
         bottom: list[Param] = []
         for p in params:
-            if p.dtype and p.dtype.optional == False:
+            if p.janis_type and p.janis_type.optional == False:
                 top.append(p)
             else:
                 bottom.append(p)
@@ -53,7 +53,7 @@ class FileTypePriority(OrderingMethod):
         top: list[Param] = []
         bottom: list[Param] = []
         for p in params:
-            basetype = nfgen_utils.get_base_type(p.dtype)
+            basetype = nfgen_utils.get_base_type(p.janis_type)
             if isinstance(basetype, File):
                 top.append(p)
             else:
@@ -94,29 +94,22 @@ class ParamRegister:
 
 @dataclass
 class Param:
-    var_name: str
-    var_scope: list[str]
-    dtype: Optional[DataType]=None
+    name: str
+    scope: Scope
     default: Any=None
     is_channel_input: bool=False
-    is_subworkflow_param: bool=False
-    name_override: Optional[str]=None
+    janis_type: Optional[DataType]=None
     janis_uuid: Optional[str]=None
-
-    @property
-    def name(self) -> str:
-        basename = self.name_override if self.name_override else self.var_name
-        return naming.get_varname_param(basename, self.var_scope)
 
     @property
     def groovy_value(self) -> str:
         # get the default value as groovy code string
         # TODO I am dubious about this
-        if isinstance(self.dtype, Array) and self.default is None:
+        if isinstance(self.janis_type, Array) and self.default is None:
             val: list[str] = []
         else:
             val = self.default
-        return nfgen_utils.to_groovy(val, self.dtype)
+        return nfgen_utils.to_groovy(val, self.janis_type)
     
     @property
     def width(self) -> int:
@@ -132,10 +125,10 @@ param_register = ParamRegister()
 
 default_params = [
     Param(
-        var_name='outdir',
-        var_scope=[settings.NF_MAIN_NAME],
-        dtype=String(),
+        name='outdir',
+        scope=Scope(),
         default='"outputs"',
+        janis_type=String(),
         is_channel_input=False,
     )
 ]
@@ -146,24 +139,20 @@ for param in default_params:
 
 ### MODULE ENTRY POINTS
 
-def add(var_name: str, 
-        var_scope: list[str], 
-        dtype: Optional[DataType]=None, 
+def add(janis_tag: str, 
+        scope: Scope,
         default: Any=None,
         is_channel_input: bool=False,
         name_override: Optional[str]=None,
+        janis_dtype: Optional[DataType]=None, 
         janis_uuid: Optional[str]=None
     ) -> Param:
     global param_register
-    param = Param(
-        var_name=var_name, 
-        var_scope=var_scope, 
-        dtype=dtype, 
-        default=default, 
-        is_channel_input=is_channel_input, 
-        name_override=name_override,
-        janis_uuid=janis_uuid
-    )
+    # channel name
+    name = naming.gen_varname_param(janis_tag, scope, name_override, janis_dtype)
+    # create param
+    param = Param(name, scope, default, is_channel_input, janis_dtype, janis_uuid)
+    # register param
     param_register.params.append(param)
     return param
     

@@ -23,9 +23,9 @@ from .directives import (
 
 from .process import (
     Process,
-    ProcessOutput,
     ProcessScriptType,
 )
+from .process.outputs import ProcessOutput
 from .process.inputs import (
     ProcessInput,
     ValProcessInput,
@@ -39,8 +39,9 @@ from . import params
 from . import ordering
 from . import process
 from . import naming
+from . import call
 
-from .call import get_args
+from .scope import Scope
 from .channels import ChannelOperation
 from .channels import Channel
 from .config import generate_config

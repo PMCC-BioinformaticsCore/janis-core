@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from .casefmt import to_case
-from . import settings
 from .params import Param
+from .scope import Scope
+from . import settings
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
@@ -19,10 +20,10 @@ class ProcessDirective(ABC):
 
 @dataclass
 class PublishDirDirective(ProcessDirective):
-    scope: list[str]
+    scope: Scope
 
     def get_string(self) -> str:
-        scope = self.scope[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
+        scope = self.scope.labels[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
         subpath = '/'.join(scope)
         subpath = to_case(subpath, settings.NF_OUTDIR_CASE)
         if subpath == '':
