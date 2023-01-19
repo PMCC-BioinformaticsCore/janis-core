@@ -81,6 +81,7 @@ def get_itype(tinput: ToolInput) -> IType:
         return IType.OPT_OPTIONAL
 
     else:
+        # some future IType
         raise NotImplementedError
 
 

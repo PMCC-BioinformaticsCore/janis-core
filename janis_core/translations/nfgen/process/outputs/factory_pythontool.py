@@ -35,6 +35,7 @@ def get_otype(out: TOutput) -> OType:
     elif is_non_file_type(out):
         return OType.NON_FILE
     else:
+        # some future OType
         raise NotImplementedError
 
 def is_file_type(out: TOutput) -> bool:

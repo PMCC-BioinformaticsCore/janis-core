@@ -81,10 +81,10 @@ def resolve_channel_name(src: StepTagInput) -> str:
     source = src.source_map[0].source
     if isinstance(source, InputNodeSelector):
         relevant_channels = getall(janis_uuid=source.input_node.uuid)
-        if relevant_channels and len(relevant_channels) == 1:
-            return relevant_channels[0].name
-        else:
-            raise NotImplementedError
+        assert(relevant_channels)
+        assert(len(relevant_channels) == 1)
+        return relevant_channels[0].name
+        
     # step output
     elif isinstance(source, StepOutputSelector):
         conn_step: StepNode     = source.node
@@ -92,8 +92,8 @@ def resolve_channel_name(src: StepTagInput) -> str:
         conn_out_id: str        = source.tag
         channel_name: str       = f'{conn_step_id}.out.{conn_out_id}'
         return channel_name
-    else:
-        raise NotImplementedError
+    
+    raise NotImplementedError
 
 def resolve_channel_dtype(src: StepTagInput) -> DataType:
     # workflow input
@@ -106,5 +106,5 @@ def resolve_channel_dtype(src: StepTagInput) -> DataType:
         conn_out_id: str        = source.tag
         conn_out: ToolOutput    = [x for x in conn_step.tool.outputs() if x.tag == conn_out_id][0]
         return conn_out.output_type
-    else:
-        raise NotImplementedError
+    
+    raise NotImplementedError

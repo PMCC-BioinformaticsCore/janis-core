@@ -1,6 +1,6 @@
 
 
-from .factory import create_inputs
+from .factory import create_input
 from .factory import create_nextflow_process_inputs
 
 from .janis import get_process_inputs

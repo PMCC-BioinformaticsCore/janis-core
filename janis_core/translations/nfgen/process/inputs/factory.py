@@ -31,78 +31,69 @@ def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict
     tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
     tinputs = ordering.order_janis_process_inputs(tinputs)
     for i in tinputs:
-        process_inputs += create_inputs(i)
+        process_inputs.append(create_input(i))
     return process_inputs
 
-def create_inputs(inp: ToolInput | TInput) -> list[ProcessInput]:
+def create_input(inp: ToolInput | TInput) -> ProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     basetype: Optional[DataType] = nfgen_utils.get_base_type(dtype)
     assert(basetype)
     
     # @secondariesarray
     # secondaries array
-    if dtype.is_array() and isinstance(basetype, File) and basetype.has_secondary_files():
-        return [create_path_input(inp)]
+    if nfgen_utils.is_array_secondary_type(dtype):
+        return create_path_input_secondaries_array(inp)
+    
+    # secondaries
+    if nfgen_utils.is_secondary_type(dtype):
+        return create_tuple_input_secondaries(inp)
     
     # file array
     elif dtype.is_array() and isinstance(basetype, (File, Directory)):
-        return [create_path_input(inp)]
+        return create_path_input(inp)
+    
+    # file
+    elif isinstance(basetype, (File, Directory)):
+        return create_path_input(inp)
     
     # nonfile array
     elif dtype.is_array(): 
-        return [create_val_input(inp)]
-    
-    # secondaries
-    elif isinstance(basetype, File) and basetype.has_secondary_files():
-        inputs = [create_tuple_input_secondaries(inp)]
-        return inputs # type: ignore
+        return create_val_input(inp)
 
-    # file
-    elif isinstance(basetype, (File, Directory)):
-        return [create_path_input(inp)]
-    
     # nonfile 
     else:
-        return [create_val_input(inp)]
+        return create_val_input(inp)
 
-
-# @unused
-def create_path_input_secondaries_array_alt(inp: ToolInput | TInput) -> list[ProcessInput]:
+def create_path_input_secondaries_array(inp: ToolInput | TInput) -> ProcessInput:
     # TODO ignoring secondaries_presents_as for now!
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
-    inputs: list[ProcessInput] = []
-    names = naming.gen_varname_toolinput_secondaries(dtype)
-    for name in names:
-        new_input = PathProcessInput(name=name)
-        inputs.append(new_input)
-    return inputs
-
-def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
-    new_input = PathProcessInput(name=inp.id())
-    new_input.presents_as = None
-    if isinstance(inp, ToolInput):
-        new_input.presents_as = inp.presents_as
-    return new_input
-
-def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:
-    new_input = ValProcessInput(name=inp.id())
+    name = naming.process_input_secondaries_array(inp)
+    new_input = PathProcessInput(name=name)
     return new_input
 
 def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     assert(isinstance(dtype, File))
-    qualifiers: list[str] = []
-    subnames: list[str] = []
 
     # tuple sub-element for each file
-    names = naming.gen_varname_toolinput_secondaries(dtype)
-    for name in names:
-        qualifiers.append('path')
-        subnames.append(name)
+    subnames = naming.process_input_secondaries(dtype)
+    qualifiers = ['path'] * len(subnames)
     
     new_input = TupleProcessInput(
         name=inp.id(), 
         qualifiers=qualifiers, 
         subnames=subnames
     )
+    return new_input
+
+def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
+    name = naming.process_input_generic(inp)
+    new_input = PathProcessInput(name=name)
+    new_input.presents_as = None
+    if isinstance(inp, ToolInput):
+        new_input.presents_as = inp.presents_as
+    return new_input
+
+def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:
+    name = naming.process_input_generic(inp)
+    new_input = ValProcessInput(name=name)
     return new_input

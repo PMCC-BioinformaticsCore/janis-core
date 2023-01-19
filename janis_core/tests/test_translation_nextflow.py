@@ -59,6 +59,7 @@ from janis_core.tests.testworkflows import (
     OutputCollectionTestWF,
     UnwrapTestWF,
     NamingTestWF,
+    PlumbingTypeMismatchTestWF,
 )
 
 from janis_core import (
@@ -1416,6 +1417,111 @@ process STP1 {
 
 
 
+class TestPlumbingTypeMismatch(unittest.TestCase):
+    """
+    This test group checks we can handle array / single datatype mismatches
+    in a workflow. This occurs in wgsgermline. 
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = PlumbingTypeMismatchTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_array_to_single(self):
+        step_id = 'array_to_single'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_file_array.flatten().first()'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_single_to_array(self):
+        step_id = 'single_to_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_file.collect()'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_secondary_array_to_secondary(self):
+        step_id = 'secondary_array_to_secondary'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_secondary_array.flatten().collate( 2 ).first()'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_secondary_to_secondary_array(self):
+        step_id = 'secondary_to_secondary_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_secondary.flatten().collect()'
+        ]
+        self.assertEqual(actual, expected)
+
+
+
+
+class TestPlumbingScatter(unittest.TestCase):
+    """
+    This test group checks whether data is being fed correctly
+    to / between steps. 
+    We need to ensure the following situations are handled:
+        - secondary and secondary array types
+        - scattering for each type
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+
+    @unittest.skip('not implemented')
+    def test_scatter_to_scatter(self):
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_scatter_to_single(self):
+        # (subscatter)
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_scatter_to_array(self):
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_array_to_scatter(self):
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_scatter_secondary_to_scatter_secondary(self):
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_scatter_secondary_to_secondary(self):
+        # (subscatter)
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_scatter_secondary_to_secondary_array(self):
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_secondary_array_to_scatter_secondary(self):
+        raise NotImplementedError
+    
+
 
 class TestPlumbingBasic(unittest.TestCase):
     """
@@ -1572,7 +1678,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 
 
 
-class TestPlumbingScatter(unittest.TestCase):
+class TestPlumbingScatterALT(unittest.TestCase):
     """
     This test group checks that janis scatter declarations are being handled 
     correctly to produce the desired nextflow workflow. 

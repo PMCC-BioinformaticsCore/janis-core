@@ -153,7 +153,7 @@ class ScriptFormatter:
 
     @property
     def src(self) -> Optional[str]:
-        return naming.gen_varname_toolinput(
+        return naming.get_varname_toolinput(
             self.tinput,
             self.process_inputs,
             self.param_inputs,

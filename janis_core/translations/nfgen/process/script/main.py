@@ -63,27 +63,21 @@ class ProcessScriptGenerator:
     
     def handle_cmdtool_inputs(self) -> None:
         for inp in ordering.order_cmdtool_inputs_arguments(self.tool):
-            
-            match inp:
-                case ToolInput():
-                    prescript, script = ScriptFormatter(
-                        tinput=inp, 
-                        tool=self.tool, 
-                        process_inputs=self.process_inputs, 
-                        param_inputs=self.param_inputs, 
-                        internal_inputs=self.internal_inputs, 
-                        sources=self.sources
-                    ).format()
-                    if prescript:
-                        self.prescript.append(prescript)
-                    if script:
-                        self.script.append(script)
-                
-                case ToolArgument():
-                    self.handle_tool_argument(inp)
-                
-                case _:
-                    raise NotImplementedError
+            if isinstance(inp, ToolInput):
+                prescript, script = ScriptFormatter(
+                    tinput=inp, 
+                    tool=self.tool, 
+                    process_inputs=self.process_inputs, 
+                    param_inputs=self.param_inputs, 
+                    internal_inputs=self.internal_inputs, 
+                    sources=self.sources
+                ).format()
+                if prescript:
+                    self.prescript.append(prescript)
+                if script:
+                    self.script.append(script)
+            else:
+                self.handle_tool_argument(inp)
 
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         prefix = ''

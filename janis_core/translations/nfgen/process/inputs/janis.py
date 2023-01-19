@@ -54,21 +54,21 @@ def get_process_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
         - remove inputs with defaults
     """
     raise NotImplementedError
-    all_inputs: list[TInput] = list(tool.inputs_map().values())
+    # all_inputs: list[TInput] = list(tool.inputs_map().values())
     
-    surviving_ids = get_all_input_ids(all_inputs)
-    file_ids = get_file_input_ids(all_inputs)
-    optional_ids = get_optional_input_ids(all_inputs)
-    default_ids = get_default_input_ids(all_inputs)
+    # surviving_ids = get_all_input_ids(all_inputs)
+    # file_ids = get_file_input_ids(all_inputs)
+    # optional_ids = get_optional_input_ids(all_inputs)
+    # default_ids = get_default_input_ids(all_inputs)
     
-    if settings.MINIMAL_PROCESS:
-        surviving_ids = surviving_ids & file_ids
-        surviving_ids = surviving_ids - optional_ids
-        surviving_ids = surviving_ids - default_ids
-    else:
-        surviving_ids = surviving_ids & file_ids
+    # if settings.MINIMAL_PROCESS:
+    #     surviving_ids = surviving_ids & file_ids
+    #     surviving_ids = surviving_ids - optional_ids
+    #     surviving_ids = surviving_ids - default_ids
+    # else:
+    #     surviving_ids = surviving_ids & file_ids
 
-    return surviving_ids
+    # return surviving_ids
 
 
 
@@ -79,14 +79,11 @@ def get_param_inputs(sources: dict[str, Any]) -> set[str]:
     """
     get the tool inputs which will be fed values via params
     """
-    # if isinstance(tool, PythonTool):
-    #     raise NotImplementedError
     if settings.MODE == 'workflow':
         return get_param_inputs_workflowmode(sources)
     elif settings.MODE == 'tool':  # type: ignore
         return get_param_inputs_toolmode(sources)
-    else:
-        raise RuntimeError
+    raise RuntimeError('DEV: settings.MODE must be either "workflow" or "tool"')
 
 def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     """
@@ -95,26 +92,9 @@ def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     if settings.MINIMAL_PROCESS:
         process_input_ids = get_process_inputs(sources)
         param_input_ids = get_param_process_inputs(sources)
-        # referenced_input_ids = get_referenced_inputs(tool)
         surviving_ids = param_input_ids - process_input_ids
-    else:
-        raise NotImplementedError
-        all_inputs: list[TInput] = list(tool.inputs_map().values())
-        all_ids = get_all_input_ids(all_inputs)
-        process_ids = get_process_inputs(sources)
-        surviving_ids = all_ids - process_ids
-    return surviving_ids
-
-# def get_referenced_inputs(tool: CommandTool) -> set[str]:
-#     out: set[str] = set()
-    
-#     for inp in tool.inputs():
-#         pass
-    
-#     for arg in tool.arguments():
-#         if not isinstance(inp.value)
-    
-#     return out
+        return surviving_ids    
+    raise NotImplementedError
 
 def get_param_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
     """

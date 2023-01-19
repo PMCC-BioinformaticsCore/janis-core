@@ -143,9 +143,9 @@ class ChannelRegistrationHelper:
             param_name = params.getall(self.inp.uuid)[0].name
             # @secondaryarrays
             if nfgen_utils.is_array_secondary_type(self.inp.datatype):
-                src = f'{param_name}.flatten()'
+                src = f'params.{param_name}.flatten()'
             else:
-                src = param_name
+                src = f'params.{param_name}'
         return src
 
     def register(self) -> None:
@@ -182,10 +182,10 @@ class ChannelRegistrationHelper:
 
     def get_operations_secondary_array(self) -> str:
         exts = nfgen_utils.get_extensions(self.basetype)
-        buffer_size = len(exts)
+        size = len(exts)
         
         ops: str = ''
-        ops += f'.buffer( size: {buffer_size} )'
+        ops += f'.collate( {size} )'
         if self.inp.datatype.optional:
             ops += '.ifEmpty( null )'
         return ops

@@ -32,6 +32,8 @@ from .unwrap import UnwrapTestWF
 from .subworkflow import SubworkflowTestWF
 from .naming import NamingTestWF
 
+from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
+
 from .assembly import w as AssemblyTestWF
 
 from .additional_features import (

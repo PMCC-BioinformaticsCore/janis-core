@@ -1,8 +1,20 @@
 
 
+
+from janis_core.types import DataType
+
 from .. import settings
 
 INDENT = settings.NF_INDENT
+
+
+
+def is_scatter_relationship(srcscatter: bool, destscatter: bool) -> bool:
+    raise NotImplementedError
+
+def handle_scatter_relationship(srcscatter: bool, destscatter: bool, srctype: DataType, desttype: DataType) -> bool:
+    raise NotImplementedError
+
 
 
 

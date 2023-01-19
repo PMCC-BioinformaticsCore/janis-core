@@ -163,15 +163,15 @@ def is_path(task_input: ToolInput | InputNode) -> bool:
         return True
     return False
 
-def is_file_pair(task_input: ToolInput | InputNode) -> bool:
-    datatype = get_base_type_task_input(task_input)
-    if isinstance(datatype, File):
-        if datatype.has_secondary_files():
-            if len(datatype.secondary_files()) == 1:
-                return True
-            if len(datatype.secondary_files()) > 1:
-                raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
-    return False
+# def is_file_pair(task_input: ToolInput | InputNode) -> bool:
+#     datatype = get_base_type_task_input(task_input)
+#     if isinstance(datatype, File):
+#         if datatype.has_secondary_files():
+#             if len(datatype.secondary_files()) == 1:
+#                 return True
+#             if len(datatype.secondary_files()) > 1:
+#                 raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
+#     return False
 
 
 ### SECONDARIES
@@ -243,9 +243,6 @@ def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
             if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
                 connected[step.id()].append(tinp_id)
     return connected
-
-def is_nullable(task_input: ToolInput | InputNode) -> bool:
-    raise NotImplementedError
 
 def is_simple_path(text: str) -> bool:
     PATH = r'[\w./]+'

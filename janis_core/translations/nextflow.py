@@ -1096,7 +1096,7 @@ class NextflowTranslator(TranslatorBase):
             dtype: DataType = inp.intype
 
             if inp.id() in process_inputs or inp.id() in param_inputs:
-                src = nfgen.naming.gen_varname_toolinput(inp, process_inputs, param_inputs, sources)
+                src = nfgen.naming.get_varname_toolinput(inp, process_inputs, param_inputs, sources)
                 value = f'${{{src}}}'
                 if isinstance(dtype, Array):
                     value = f'"{value}".split(" ")'

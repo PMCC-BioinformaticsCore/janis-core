@@ -62,6 +62,7 @@ def get_otype(out: ToolOutput) -> OType:
         return OType.NON_FILE
 
     else:
+        # some future OType
         raise NotImplementedError
 
 
@@ -231,6 +232,7 @@ class CmdtoolProcessOutputFactory:
             expr = self.unwrap(expr)
             expr = f'"{expr}"'
         else:
+            # some future FmtType
             raise NotImplementedError
         return expr
 

@@ -68,7 +68,7 @@ from . import nfgen_utils
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
-from .process.inputs.factory import create_inputs
+from .process.inputs.factory import create_input
 
 
 def unwrap_expression(
@@ -273,7 +273,9 @@ class Unwrapper:
             src = None
         
         else:
-            raise NotImplementedError
+            # something went wrong - inp is not accounted for 
+            # across process inputs, param inputs, or internal inputs
+            raise RuntimeError
 
         return src
 
@@ -281,10 +283,9 @@ class Unwrapper:
         # data fed via process input
         dtype = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
-        # secondary files (name mapped to ext of primary file)
-        # @secondariesarray
+        # secondary files (name mapped to ext of primary file) @secondariesarray 
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = naming.gen_varname_toolinput_secondaries(dtype)
+            names = naming.process_input_secondaries(dtype)
             name = names[0]
         # everything else
         else:
@@ -405,13 +406,14 @@ class Unwrapper:
             
             # special case: janis secondary array -> multiple nextflow path
             # @secondariesarray
-            if nfgen_utils.is_secondary_type(inp.input_type) and inp.input_type.is_array():
-                path_inputs = create_inputs(inp)  # the multiple path inputs
+            if nfgen_utils.is_array_secondary_type(inp.input_type):
+                raise NotImplementedError
+                path_inputs = create_input(inp)  # the multiple path inputs
                 return path_inputs[index].name
 
             # special case: janis secondary -> nextflow tuple
             elif nfgen_utils.is_secondary_type(inp.input_type):
-                tuple_input = create_inputs(inp)[0]  # the process input tuple
+                tuple_input = create_input(inp)[0]  # the process input tuple
                 return tuple_input.subnames[index] 
         
         # everything else
@@ -631,28 +633,12 @@ class Unwrapper:
         cartesian_cross.ch_subname  = scatter.cross  
         """
         relevant_channels = channels.getall(janis_uuid=node.uuid)
-        
-        # arrays of secondaries
-        if relevant_channels and len(relevant_channels) > 1:
-            # @secondariesarray
-            out: list[str] = []
-            for ch in relevant_channels:
-                ch_expr = self.get_channel_expression(
-                    channel_name=ch.name,
-                    upstream_dtype=node.datatype,
-                )
-                out.append(ch_expr)
-            return out
-        
-        # everything else
-        elif relevant_channels and len(relevant_channels) == 1:
-            return self.get_channel_expression(
-                channel_name=relevant_channels[0].name,
-                upstream_dtype=node.datatype,
-            )
-        
-        else:
-            raise NotImplementedError
+        assert(relevant_channels)
+        assert(len(relevant_channels) == 1)
+        return self.get_channel_expression(
+            channel_name=relevant_channels[0].name,
+            upstream_dtype=node.datatype,
+        )
 
     def unwrap_input_node_selector(self, sel: InputNodeSelector) -> Any:
         return self.unwrap(sel.input_node)
@@ -681,7 +667,8 @@ class Unwrapper:
         # arrays of secondaries
         # @secondariesarray
         if nfgen_utils.is_array_secondary_type(conn_out.outtype):
-            raise NotImplementedError
+            raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')
+
         
         # everything else
         else:
