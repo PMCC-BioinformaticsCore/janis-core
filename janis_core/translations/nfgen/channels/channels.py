@@ -5,38 +5,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from janis_core.workflow.workflow import InputNode
-from janis_core.types import File, DataType
+from janis_core.types import DataType
 from uuid import uuid4
 
-from ..params import Param
-from .. import nfgen_utils
 from .. import naming
-
-
-def get_channel_method(wfinp: InputNode) -> str:
-    # if utils.is_path(wfinp) and utils.is_file_pair(wfinp):
-    #     method = 'fromFilePairs'
-    if nfgen_utils.is_path(wfinp):
-        method = 'fromPath'
-    else: 
-        method = 'of'
-    return method
-
-def should_collect(wfinp: InputNode) -> bool:
-    if wfinp.datatype.is_array():
-        return True
-    elif wfinp.default is not None:
-        if isinstance(wfinp.default, list):
-            return True
-    elif isinstance(wfinp.datatype, File) and wfinp.datatype.has_secondary_files():
-        return True
-    return False
-
-def should_allow_null(wfinp: InputNode) -> bool:
-    if wfinp.datatype.optional:
-        return True
-    return False
 
 
 ### ordering 
@@ -60,7 +32,7 @@ class FileTypePriority(OrderingMethod):
 @dataclass
 class MandatoryPriority(OrderingMethod):
     def order(self, channels: list[Channel]) -> list[Channel]:
-        return sorted(channels, key=lambda x: x.allow_null == False, reverse=True)
+        return sorted(channels, key=lambda x: 'ifEmpty' in x.operations if x.operations else False, reverse=True)
     
 @dataclass
 class Alphabetical(OrderingMethod):
@@ -84,10 +56,9 @@ def order(channels: list[Channel]) -> list[Channel]:
 @dataclass
 class Channel:
     name: str
-    params: list[Param]
+    source: str
     method: str
-    collect: bool=False
-    allow_null: bool=False
+    operations: Optional[str]=None
     janis_uuid: Optional[str]=None
     define: bool=False
 
@@ -98,34 +69,30 @@ class Channel:
     def declaration(self) -> str:
         return f'{self.name} = {self.get_string()}'
 
-    @property
-    def source(self) -> str:
-        param_names = [f'params.{p.name}' for p in self.params]
-        if len(param_names) == 1:
-            return param_names[0]
-        else:
-            return ', '.join(param_names)
+    # @property
+    # def source(self) -> str:
+    #     param_names = [f'params.{p.name}' for p in self.params]
+    #     if len(param_names) == 1:
+    #         return param_names[0]
+    #     elif len(param_names) == 2:
+    #         return f"[{', '.join(param_names)}]"
+    #     elif len(param_names) >= 3:
+    #         expr = ''
+    #         expr += '[\n'
+    #         for pname in param_names:
+    #             expr += f'{settings.NF_INDENT}{pname},\n'
+    #         expr += ']'
+    #         return expr
+    #     else:
+    #         raise RuntimeError('DEV: should have 1+ param but didnt.')
     
     @property
     def width(self) -> int:
         return len(self.name)
 
     def get_string(self) -> str:
-        return self.get_string_condensed()
-        
-    def get_string_condensed(self) -> str:
-        collect = '.collect()' if self.collect else ''
-        ifempty = '.ifEmpty( null )' if self.allow_null else ''
-        return f'Channel.{self.method}( {self.source} ){collect}{ifempty}'
+        return f'Channel.{self.method}( {self.source} ){self.operations}'
 
-    def get_string_expanded(self) -> str:
-        channel_str = ''
-        channel_str += 'Channel\n'
-        channel_str += f'  .{self.method}( {self.source} )\n'
-        channel_str += f'  .collect()\n' if self.collect else ''
-        channel_str += f'  .ifEmpty( null )\n' if self.allow_null else ''
-        channel_str += f'  .set{{ {self.name} }}\n'
-        return channel_str
     
 
 ### register for channels
@@ -152,10 +119,9 @@ channel_register = ChannelRegister()
 
 def add(
     janis_tag: str,
-    params: list[Param],
     method: str,
-    collect: bool,
-    allow_null: bool,
+    source: str,
+    operations: Optional[str]=None,
     name_override: Optional[str]=None,
     janis_dtype: Optional[DataType]=None,
     janis_uuid: Optional[str]=None,
@@ -165,7 +131,7 @@ def add(
     # channel name
     name = naming.gen_varname_channel(janis_tag, name_override, janis_dtype)
     # create channel
-    new_ch = Channel(name, params, method, collect, allow_null, janis_uuid, define)
+    new_ch = Channel(name, source, method, operations, janis_uuid, define)
     # add channel
     channel_register.channels.append(new_ch)
 

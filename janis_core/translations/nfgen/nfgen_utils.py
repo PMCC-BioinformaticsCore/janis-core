@@ -183,7 +183,8 @@ def is_secondary_type(dtype: DataType) -> bool:
     return False
 
 def is_array_secondary_type(dtype: DataType) -> bool:
-    if isinstance(dtype, Array) and is_secondary_type(dtype):
+    basetype = get_base_type(dtype)
+    if dtype.is_array() and isinstance(basetype, File) and basetype.has_secondary_files():
         return True
     return False
 

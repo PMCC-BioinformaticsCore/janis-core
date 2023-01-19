@@ -2,17 +2,48 @@
 
 
 from typing import Any, Optional
+from textwrap import indent
 
 from janis_core import CommandTool, PythonTool, Workflow
 from janis_core.workflow.workflow import StepNode
 from janis_core.utils.scatter import ScatterDescription
 
-from . import process
-from . import nfgen_utils
-from . import ordering
+from .. import process
+from .. import nfgen_utils
+from .. import ordering
+from .. import settings
 
-from .unwrap import unwrap_expression
-from .scope import Scope
+from ..unwrap import unwrap_expression
+from ..scope import Scope
+
+
+NF_INDENT = settings.NF_INDENT
+
+def format_process_call(name: str, inputs: list[str], ind: int=0) -> str:
+    if len(inputs) == 0:
+        call_str = _call_fmt0(name)
+    else:
+        call_str = _call_fmt2(name, inputs)
+    # elif len(inputs) == 1:
+    #     call_str = call_fmt1(name, inputs[0])
+    # elif len(inputs) > 1:
+        # call_str = call_fmt2(name, inputs)
+
+    return indent(call_str, ind * NF_INDENT)
+
+def _call_fmt0(name: str) -> str:
+    return f'{name}()\n'
+
+def _call_fmt1(name: str, input: str) -> str:
+    return f'{name}( {input} )\n'
+
+def _call_fmt2(name: str, inputs: list[str]) -> str:
+    call_str = f'{name}(\n'
+    for i, inp in enumerate(inputs):
+        comma = ',' if i < len(inputs) - 1 else ''
+        call_str += f'{NF_INDENT}{inp}{comma}\n'
+    call_str += ')\n'
+    return call_str
 
 
 def get_args(step: StepNode, scope: Scope):
@@ -54,7 +85,6 @@ def get_args(step: StepNode, scope: Scope):
     return call_args
 
 
-
 def get_input_ids_workflow(tool: Workflow, sources: dict[str, Any]):
     # sub Workflow - order via workflow inputs
     # (ignore workflow inputs which don't appear in the original janis step call)
@@ -62,6 +92,7 @@ def get_input_ids_workflow(tool: Workflow, sources: dict[str, Any]):
     subwf_inputs = nfgen_utils.items_with_id(list(tool.input_nodes.values()), subwf_ids)
     subwf_inputs = ordering.order_workflow_inputs(subwf_inputs)
     return [x.id() for x in subwf_inputs]
+
 
 def get_input_ids_tool(tool: CommandTool | PythonTool, sources: dict[str, Any]):
     # CommandTool / PythonTool - order via process inputs 

@@ -111,6 +111,7 @@ class PythonToolProcessOutputFactory:
         )
         return new_output
 
+    # @unused
     # def create_path_output_secondaries(self, ext: str) -> PathProcessOutput:
     #     # array of secondaries
     #     outputs: list[ProcessOutput] = []

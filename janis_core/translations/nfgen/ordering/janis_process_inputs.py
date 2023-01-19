@@ -37,9 +37,9 @@ class TuplePriorityStrategy(OrderingStrategy):
     def is_tuple(self, inp: ToolInput | TInput) -> bool:
         # File type with secondaries represented as tuple process input
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-        if not isinstance(dtype, Array):
-            if isinstance(dtype, File) and dtype.has_secondary_files():
-                return True
+        basetype = nfgen_utils.get_base_type(dtype)
+        if isinstance(basetype, File) and basetype.has_secondary_files():
+            return True
         return False
 
 class MandatoryPriorityStrategy(OrderingStrategy):

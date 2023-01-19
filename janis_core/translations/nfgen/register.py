@@ -3,14 +3,13 @@
 import os
 from typing import Any
 
-from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
-from janis_core.types import File, Array, Filename
+from janis_core.workflow.workflow import Workflow, InputNode, CommandTool, StepNode
+from janis_core.types import File, Filename, Directory, DataType
 from janis_core import PythonTool
 
 from . import params
 from . import channels
 from . import nfgen_utils
-from . import naming
 
 from . import settings
 from .scope import Scope
@@ -18,207 +17,233 @@ from copy import deepcopy
     
 
 def register_params_channels(wf: Workflow, scope: Scope) -> None:
-    # register param(s) for each workflow input. 
-    # channel(s) may also be registered if necessary.
+    """
+    register param(s) for each workflow input. 
+    channel(s) may also be registered if necessary.
+    """
 
-    # handle this workflow
-    handler = ParamChannelRegisterer(wf, scope)
-    handler.register()
+    param_inputs = _get_param_inputs_to_register(wf, scope)
+    channel_inputs = _get_channel_inputs_to_register(wf, scope)
+
+    for inp in wf.input_nodes.values():
+        is_param_input = True if inp.id() in param_inputs else False
+        is_channel_input = True if inp.id() in channel_inputs else False
+        if is_param_input:
+            ParamRegistrationHelper(inp, scope, is_channel_input).register()
+        if is_channel_input:
+            ChannelRegistrationHelper(inp, scope).register()
     
-    # handle nested workflows (subworkflows)
+    # repeat for nested workflows (subworkflows)
     for step in wf.step_nodes.values():
         if isinstance(step.tool, Workflow):
             current_scope = deepcopy(scope)
             current_scope.update(step)
+            register_params_python_tool(step, current_scope)
             register_params_channels(step.tool, scope=current_scope)
 
 
-def get_code_file_path(tool: PythonTool) -> str:
-    basedir = settings.BASE_OUTDIR
-    subfolder = settings.CODE_FILES_OUTDIR
-    filename = tool.id()
-    filepath = os.path.join(basedir, subfolder, filename)
-    filepath += '.py'
-    return filepath
+def register_params_python_tool(step: StepNode, current_scope: Scope) -> None:
+    """A param will be registered for the code_file of each PythonTool."""
+    if isinstance(step.tool, PythonTool):
+        default = _get_code_file_path(step.tool)
+        params.add(
+            janis_tag='code_file',
+            scope=current_scope,
+            default=default,
+            is_channel_input=False,
+            janis_dtype=File(),
+            janis_uuid=None,
+        )
 
 
-class ParamChannelRegisterer:
-    # sorry about horrid name
-    def __init__(self, wf: Workflow, scope: Scope) -> None:
-        self.wf = wf
+# helper classes 
+
+class ParamRegistrationHelper:
+    def __init__(self, inp: InputNode, scope: Scope, is_channel_input: bool) -> None:
+        self.inp = inp
         self.scope = scope
+        self.is_channel_input = is_channel_input
+
+    def register(self) -> None:
+        """registers param for each wf input which requires a param."""
+        
+        # secondaries array
+        if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+            self.register_param_secondaries_array()
+        
+        # secondaries
+        if nfgen_utils.is_secondary_type(self.inp.datatype):
+            self.register_param_secondaries()
+
+        # anything else
+        else:
+            self.register_param()
+    
+    def register_param_secondaries_array(self) -> None:  
+        # @secondariesarray
+        params.add(
+            janis_tag=self.inp.id(),
+            scope=self.scope,
+            is_channel_input=True,
+            janis_dtype=self.inp.datatype,
+            janis_uuid=self.inp.uuid
+        )
+    
+    def register_param_secondaries(self) -> None:
+        params.add(
+            janis_tag=self.inp.id(),
+            scope=self.scope,
+            is_channel_input=True,
+            janis_dtype=self.inp.datatype,
+            janis_uuid=self.inp.uuid
+        )
+    
+    def register_param(self) -> None:
+        params.add(
+            janis_tag=self.inp.id(),
+            scope=self.scope,
+            default=self.inp.default if self.inp.default is not None else None,
+            is_channel_input=self.is_channel_input,
+            janis_dtype=self.inp.datatype,
+            janis_uuid=self.inp.uuid,
+        )
+
+
+
+# channels
+
+class ChannelRegistrationHelper:
+    def __init__(self, inp: InputNode, scope: Scope) -> None:
+        self.inp = inp
+        self.scope = scope
+
+    @property
+    def basetype(self) -> DataType:
+        return nfgen_utils.get_base_type(self.inp.datatype)
 
     @property
     def is_subworkflow(self) -> bool:
         if self.scope.labels != [settings.NF_MAIN_NAME]:
             return True
         return False
+    
+    @property
+    def method(self) -> str:
+        if isinstance(self.basetype, File) or isinstance(self.basetype, Filename) or isinstance(self.basetype, Directory):
+            method = 'fromPath'
+        else: 
+            method = 'of'
+        return method
 
     @property
-    def channels_to_register_wfinps(self) -> set[str]:
-        if self.scope.labels == [settings.NF_MAIN_NAME]:
-            items: set[str] = get_channel_input_ids(self.wf)
+    def source(self) -> str:
+        if self.is_subworkflow:
+            src = ''
         else:
-            items: set[str] = set(self.wf.connections.keys())
-        return items
-    
-    @property
-    def params_to_register_wfinps(self) -> set[str]:
-        if self.scope.labels == [settings.NF_MAIN_NAME]:
-            items: set[str] = {x.id() for x in self.wf.input_nodes.values()}
-        else:
-            items: set[str] = {x.id() for x in self.wf.input_nodes.values()} - self.channels_to_register_wfinps
-        return items
-    
+            param_name = params.getall(self.inp.uuid)[0].name
+            # @secondaryarrays
+            if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+                src = f'{param_name}.flatten()'
+            else:
+                src = param_name
+        return src
+
     def register(self) -> None:
-        self.register_wf_inputs()
-        self.register_python_tools()
+        operations = self.get_operations()
+        channels.add(
+            janis_tag=self.inp.id(),
+            method=self.method,
+            source=self.source,
+            operations=operations,
+            janis_dtype=self.inp.datatype,
+            janis_uuid=self.inp.uuid,
+            define=False if self.is_subworkflow else True
+        )
 
-    def register_python_tools(self) -> None:
-        # A param will be registered for the code_file of each PythonTool.
-        for step in self.wf.step_nodes.values():
-            current_scope = deepcopy(self.scope)
-            current_scope.update(step)
-            if isinstance(step.tool, PythonTool):
-                default = get_code_file_path(step.tool)
-                params.add(
-                    janis_tag='code_file',
-                    scope=current_scope,
-                    default=default,
-                    is_channel_input=False,
-                    janis_dtype=File(),
-                    janis_uuid=None,
-                )
-
-    def register_wf_inputs(self) -> None:
-        # registers param for each wf input which requires a param.
-        # registers channel for each wf input which requires a channel.
-        for inp in self.wf.input_nodes.values():
-            # secondaries
-            if isinstance(inp.datatype, File) and inp.datatype.has_secondary_files():
-                self.register_wfinp_secondaries(inp)
-                continue
-            
-            # array secondaries
-            elif isinstance(inp.datatype, Array):
-                basetype = nfgen_utils.get_base_type(inp.datatype)
-                if isinstance(basetype, File) and basetype.has_secondary_files():
-                    self.register_wfinp_secondaries_array(inp)
-                    continue
-
-            # anything else
-            self.register_wfinp(inp)
-            continue
-    
-    def register_wfinp(self, inp: InputNode) -> None:
-        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
-        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
-        default: Any = inp.default if inp.default is not None else None
-
-        # register a param for the wf input
-        if is_param_input:
-            params.add(
-                janis_tag=inp.id(),
-                scope=self.scope,
-                default=default,
-                is_channel_input=is_channel_input,
-                janis_dtype=inp.datatype,
-                janis_uuid=inp.uuid,
-            )
+    def get_operations(self) -> str:
+        if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+            ops = self.get_operations_secondary_array()
         
-        # register a channel for the wf input if required
-        if is_channel_input:
-            channels.add(
-                janis_tag=inp.id(),
-                params=params.getall(inp.uuid),
-                method=channels.get_channel_method(inp),
-                collect=channels.should_collect(inp),
-                allow_null=channels.should_allow_null(inp),
-                janis_dtype=inp.datatype,
-                janis_uuid=inp.uuid,
-                define=False if self.is_subworkflow else True
-            )
-
-    def register_wfinp_secondaries(self, inp: InputNode) -> None:
-        # get the extensions. each extension will create individual param. 
-        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
-        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
-        names: list[str] = []
-        names = naming._gen_varname_toolinput_secondaries(inp.datatype)
+        elif nfgen_utils.is_secondary_type(self.inp.datatype):
+            ops = self.get_operations_secondary()
         
-        # register a param for each individual file
-        if is_param_input:
-            for name in names:
-                params.add(
-                    janis_tag=inp.id(),
-                    scope=self.scope,
-                    is_channel_input=True,
-                    # name_override=name,
-                    name_override=f'{inp.id()}_{name}',
-                    janis_dtype=inp.datatype,
-                    janis_uuid=inp.uuid
-                )
+        elif isinstance(self.basetype, File) or isinstance(self.basetype, Filename) or isinstance(self.basetype, Directory):
+            if self.inp.datatype.is_array():
+                ops = self.get_operations_file_array()
+            else:
+                ops = self.get_operations_generic()
+        
+        elif self.inp.datatype.is_array():
+            ops = self.get_operations_nonfile_array()
+        
+        else:
+            ops = self.get_operations_generic()
+        return ops
 
-        # register channel for the workflow input
-        if is_channel_input:
-            channels.add(
-                janis_tag=inp.id(),
-                params=params.getall(inp.uuid),
-                method='fromPath',
-                collect=True,
-                allow_null=channels.should_allow_null(inp),
-                janis_dtype=inp.datatype,
-                janis_uuid=inp.uuid,
-                define=False if self.is_subworkflow else True
-            )
+    def get_operations_secondary_array(self) -> str:
+        exts = nfgen_utils.get_extensions(self.basetype)
+        buffer_size = len(exts)
+        
+        ops: str = ''
+        ops += f'.buffer( size: {buffer_size} )'
+        if self.inp.datatype.optional:
+            ops += '.ifEmpty( null )'
+        return ops
 
-    def register_wfinp_secondaries_array(self, inp: InputNode) -> None:    
-        # get the extensions. 
-        # each extension will create individual param and individual channel.
-        is_param_input = True if inp.id() in self.params_to_register_wfinps else False
-        is_channel_input = True if inp.id() in self.channels_to_register_wfinps else False
-        basetype = nfgen_utils.get_base_type(inp.datatype)
-        names = naming._gen_varname_toolinput_secondaries(basetype)
+    def get_operations_secondary(self) -> str:
+        ops: str = ''
+        ops += '.collect()'
+        if self.inp.datatype.optional:
+            ops += '.ifEmpty( null )'
+        return ops
 
-        for name in names:
-            secondary_params: list[params.Param] = []
-            # should we register a param?
-            if is_param_input:
-                new_param = params.add(
-                    janis_tag=inp.id(),
-                    scope=self.scope,
-                    is_channel_input=True,
-                    name_override=f'{inp.id()}_{name}s',
-                    janis_dtype=inp.datatype,
-                    janis_uuid=inp.uuid
-                )
-                secondary_params.append(new_param)
-            
-            # should we register a channel?
-            if is_channel_input:
-                channels.add(
-                    janis_tag=inp.id(),
-                    params=secondary_params,
-                    method='fromPath',
-                    collect=True,
-                    allow_null=channels.should_allow_null(inp),
-                    name_override=f'{inp.id()}_{name}s',
-                    janis_dtype=inp.datatype,
-                    janis_uuid=inp.uuid,
-                    define=False if self.is_subworkflow else True
-                )
+    def get_operations_file_array(self) -> str:
+        ops: str = ''
+        ops += '.collect()'
+        if self.inp.datatype.optional:
+            ops += '.ifEmpty( null )'
+        return ops
+
+    def get_operations_nonfile_array(self) -> str:
+        ops: str = ''
+        ops += '.toList()'
+        if self.inp.datatype.optional:
+            ops += '.ifEmpty( null )'
+        return ops
+
+    def get_operations_generic(self) -> str:
+        ops: str = ''
+        if self.inp.datatype.optional:
+            ops += '.ifEmpty( null )'
+        return ops
 
 
-# helper functions
 
-def get_channel_input_ids(wf: Workflow) -> set[str]:
+# helper functions 
+# these identify which workflow inputs should have a param / channel created. 
+
+def _get_channel_inputs_to_register(wf: Workflow, scope: Scope) -> set[str]:
+    if scope.labels == [settings.NF_MAIN_NAME]:
+        items: set[str] = _get_channel_input_ids(wf)
+    else:
+        items: set[str] = set(wf.connections.keys())
+    return items
+
+def _get_param_inputs_to_register(wf: Workflow, scope: Scope) -> set[str]:
+    if scope.labels == [settings.NF_MAIN_NAME]:
+        items: set[str] = {x.id() for x in wf.input_nodes.values()}
+    else:
+        items: set[str] = {x.id() for x in wf.input_nodes.values()} - _get_channel_inputs_to_register(wf, scope)
+    return items
+
+def _get_channel_input_ids(wf: Workflow) -> set[str]:
     """
     Get the wf inputs for which we will create a nf channel.
     """
-    subworkflow_inputs = get_subworkflow_inputs(wf)
-    file_inputs = get_file_wf_inputs(wf)
-    filename_inputs = get_filename_wf_inputs(wf)
-    scatter_inputs = get_scatter_wf_inputs(wf)
+    subworkflow_inputs = _get_subworkflow_inputs(wf)
+    file_inputs = _get_file_wf_inputs(wf)
+    filename_inputs = _get_filename_wf_inputs(wf)
+    scatter_inputs = _get_scatter_wf_inputs(wf)
 
     channel_inputs: list[InputNode] = []
     for name, inp in wf.input_nodes.items():
@@ -230,7 +255,7 @@ def get_channel_input_ids(wf: Workflow) -> set[str]:
     # final ordering
     return {x.id() for x in channel_inputs}
 
-def get_subworkflow_inputs(wf: Workflow) -> set[str]:
+def _get_subworkflow_inputs(wf: Workflow) -> set[str]:
     # for subworkflows. 
     # for a given subworkflow, ensures each wf input which was specified
     # in the step call becomes a channel.
@@ -239,7 +264,7 @@ def get_subworkflow_inputs(wf: Workflow) -> set[str]:
         subworkflow_inputs = subworkflow_inputs | set(wf.connections.keys())
     return subworkflow_inputs
 
-def get_file_wf_inputs(wf: Workflow) -> set[str]:
+def _get_file_wf_inputs(wf: Workflow) -> set[str]:
     # wf inputs with file type are fed via channels.
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
@@ -248,7 +273,7 @@ def get_file_wf_inputs(wf: Workflow) -> set[str]:
             out.add(name)
     return out
 
-def get_filename_wf_inputs(wf: Workflow) -> set[str]:
+def _get_filename_wf_inputs(wf: Workflow) -> set[str]:
     """
     Edge case!
     ToolInputs which have Filename DataType may require channel.
@@ -310,7 +335,7 @@ def get_filename_wf_inputs(wf: Workflow) -> set[str]:
                         out.add(node.id())
     return out
 
-def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
+def _get_scatter_wf_inputs(wf: Workflow) -> set[str]:
     # scattered inputs of steps are fed via channels.
     out: set[str] = set()
     for step in wf.step_nodes.values():
@@ -321,5 +346,12 @@ def get_scatter_wf_inputs(wf: Workflow) -> set[str]:
                 out.add(node.id())
     return out
 
+def _get_code_file_path(tool: PythonTool) -> str:
+    basedir = settings.BASE_OUTDIR
+    subfolder = settings.CODE_FILES_OUTDIR
+    filename = tool.id()
+    filepath = os.path.join(basedir, subfolder, filename)
+    filepath += '.py'
+    return filepath
 
 

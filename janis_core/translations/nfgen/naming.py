@@ -73,17 +73,20 @@ def gen_varname_param(janis_tag: str, scope: Scope, name_override: Optional[str]
         name = f"{'.'.join(scope_labels)}.{name}"
     return name
 
+# @unused
 def _handle_plurals(basename: str, dtype: Optional[DataType]) -> str:
     # add 's' plural for array types
     if _should_make_plural(dtype):
         basename = _make_plural(basename)
     return basename
 
+# @unused
 def _should_make_plural(dtype: Optional[DataType]) -> bool:
     if dtype and dtype.is_array():
         return True
     return False
 
+# @unused
 def _make_plural(basename: str) -> str:
     if not basename.endswith('s'):
         basename = f'{basename}s'
@@ -102,43 +105,6 @@ def gen_varname_toolinput(inp: ToolInput | TInput, process_inputs: set[str], par
         # internal inputs in the future
         raise NotImplementedError
 
-def _process_input_varname(inp: ToolInput | TInput, process_inputs: set[str], param_inputs: set[str]) -> Optional[str]:
-    # data fed via process input
-    name: Optional[str] = None
-    if inp.id() in process_inputs:
-        # secondary files (name mapped to ext of primary file)
-        dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-        basetype = nfgen_utils.get_base_type(dtype)
-        if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = _gen_varname_toolinput_secondaries(dtype)
-            name = names[0]
-            print()
-        # everything else
-        else:
-            name = inp.id()
-            # name = _handle_plurals(name, dtype)
-            print()
-    return name
-
-def _gen_varname_toolinput_secondaries(dtype: DataType) -> list[str]:
-    """returns name of each file for File types with secondaries"""
-    basetype: File = nfgen_utils.get_base_type(dtype)
-    exts = nfgen_utils.get_extensions(basetype)
-    exts = _remove_symbols(exts)
-    
-    # Array(Secondary())
-    # plurals handled here as special case (not _handle_plurals())
-    if isinstance(dtype, Array):
-        exts = [f'{ext}s' for ext in exts]
-        return exts
-    
-    # Secondary
-    else:
-        return exts
-    
-def _remove_symbols(exts: list[str]) -> list[str]:
-    return [x.rsplit('.')[-1] for x in exts]
-    
 def _param_input_varname(inp: ToolInput | TInput, sources: dict[str, Any]) -> Optional[str]: 
     # data fed via global param
     src = sources[inp.id()]
@@ -146,6 +112,43 @@ def _param_input_varname(inp: ToolInput | TInput, sources: dict[str, Any]) -> Op
     param = params.get(sel.input_node.uuid)
     return f'params.{param.name}'
 
+def _process_input_varname(inp: ToolInput | TInput, process_inputs: set[str], param_inputs: set[str]) -> Optional[str]:
+    # data fed via process input
+    name: Optional[str] = None
+    if inp.id() in process_inputs:
+        name = inp.id()
+        
+        # # secondary files (name mapped to ext of primary file)
+        # dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+        # basetype = nfgen_utils.get_base_type(dtype)
+        # if isinstance(basetype, File) and basetype.has_secondary_files():
+        #     names = _gen_varname_toolinput_secondaries(dtype)
+        #     name = names[0]
+        # # everything else
+        # else:
+        #     # name = _handle_plurals(name, dtype)
+
+    return name
+
+def gen_varname_toolinput_secondaries(dtype: DataType) -> list[str]:
+    """returns name of each file for File types with secondaries"""
+    basetype: File = nfgen_utils.get_base_type(dtype)
+    exts = nfgen_utils.get_extensions(basetype)
+    exts = _remove_symbols(exts)
+    # # @unused    
+    # # Array(Secondary())
+    # # plurals handled here as special case (not _handle_plurals())
+    # if isinstance(dtype, Array):
+    #     exts = [f'{ext}s' for ext in exts]
+    #     return exts
+    return exts
+
+    
+    
+# @unused
+def _remove_symbols(exts: list[str]) -> list[str]:
+    return [x.rsplit('.')[-1] for x in exts]
+    
 
 
 ### ENTITY LABELS

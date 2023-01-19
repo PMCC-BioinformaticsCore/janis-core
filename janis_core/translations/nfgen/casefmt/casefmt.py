@@ -14,8 +14,6 @@ def to_case(text: str, case: str='snake') -> str:
     - snake (snake_case)\n
     - snake_caps (SNAKE_CAPS)
     """
-    if text == 'NamingTestWF':
-        print()
     text_split = split_words(text)
     mapping_func = mapping_func_map[case]
     final_text = mapping_func(text_split)
@@ -86,39 +84,30 @@ mapping_func_map = {
 # my_text8 = 'HelloThere_friend2'
 # my_text9 = 'HelloThere_friendB'
 
-# print()
 # print(my_text1)
 # print(to_case(my_text1, case='snake_caps'))
 
-# print()
 # print(my_text2)
 # print(to_case(my_text2, case='snake_caps'))
 
-# print()
 # print(my_text3)
 # print(to_case(my_text3, case='snake_caps'))
 
-# print()
 # print(my_text4)
 # print(to_case(my_text4, case='snake_caps'))
 
-# print()
 # print(my_text5)
 # print(to_case(my_text5, case='snake_caps'))
 
-# print()
 # print(my_text6)
 # print(to_case(my_text6, case='snake_caps'))
 
-# print()
 # print(my_text7)
 # print(to_case(my_text7, case='snake_caps'))
 
-# print()
 # print(my_text8)
 # print(to_case(my_text8, case='snake_caps'))
 
-# print()
 # print(my_text9)
 # print(to_case(my_text9, case='snake_caps'))
 

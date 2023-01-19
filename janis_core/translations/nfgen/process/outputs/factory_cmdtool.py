@@ -336,4 +336,4 @@ class CmdtoolProcessOutputFactory:
         return new_output
     
     def _secondaries_array_output(self) -> SecondariesArrayProcessOutput:
-        raise NotImplementedError
+        raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')

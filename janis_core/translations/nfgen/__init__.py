@@ -39,14 +39,14 @@ from . import params
 from . import ordering
 from . import process
 from . import naming
-from . import call
+from .plumbing import call
 
 from .scope import Scope
 from .channels import ChannelOperation
 from .channels import Channel
 from .config import generate_config
 from .unwrap import unwrap_expression
-from .formatting import format_process_call
+from .plumbing import format_process_call
 from .nfgen_utils import to_groovy
 from .register import register_params_channels
 

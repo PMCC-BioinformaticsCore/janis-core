@@ -40,7 +40,7 @@ githuburl = vsn["GITHUB_URL"]
 
 
 setup(
-    name="janis-pipelines.core",
+    name="janis-pipelines.core.grace",
     version=__version__,
     description=DESCRIPTION,
     url=githuburl,
@@ -52,12 +52,12 @@ setup(
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
         "importlib-metadata",
-        "illusional.wdlgen >= 0.3.0",
+        "illusional.wdlgen.grace == 0.3.1.2",
+        "galaxy2janis == 0.1.3.2",
         "ruamel.yaml >= 0.12.4, <= 0.16.5",
         "tabulate",
         "path",
         "cwlformat == 2020.5.19",
-        #"galaxy2janis==0.1.2", add back in for v0.12.0 release
         "cwl-utils==0.15",
         "graphviz",
         "nose",

@@ -62,14 +62,12 @@ from janis_core.operators.selectors import (
 )
 from janis_core.operators.stringformatter import StringFormatter
 
-from . import settings
 from . import channels
 from . import params
 from . import nfgen_utils
 from . import naming
 
-from .scatter import cartesian_cross_subname
-from .casefmt import to_case
+# from .plumbing import cartesian_cross_subname
 from .process.inputs.factory import create_inputs
 
 
@@ -284,9 +282,9 @@ class Unwrapper:
         dtype = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
         # secondary files (name mapped to ext of primary file)
-        # TODO secondaries
+        # @secondariesarray
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = naming._gen_varname_toolinput_secondaries(dtype)
+            names = naming.gen_varname_toolinput_secondaries(dtype)
             name = names[0]
         # everything else
         else:
@@ -312,7 +310,8 @@ class Unwrapper:
         if self.scatter_target:
             # ch_bams -> ch_cartesian_cross.bams
             if self.scatter_method == ScatterMethod.cross:
-                return cartesian_cross_subname(channel_name)
+                raise NotImplementedError
+                # return cartesian_cross_subname(channel_name)
             # ch_bams -> ch_bams.flatten()
             elif self.scatter_method == ScatterMethod.dot:
                 if upstream_dtype.is_array():
@@ -405,6 +404,7 @@ class Unwrapper:
             inp = self.get_input_by_id(sel.input_to_select)
             
             # special case: janis secondary array -> multiple nextflow path
+            # @secondariesarray
             if nfgen_utils.is_secondary_type(inp.input_type) and inp.input_type.is_array():
                 path_inputs = create_inputs(inp)  # the multiple path inputs
                 return path_inputs[index].name
@@ -634,6 +634,7 @@ class Unwrapper:
         
         # arrays of secondaries
         if relevant_channels and len(relevant_channels) > 1:
+            # @secondariesarray
             out: list[str] = []
             for ch in relevant_channels:
                 ch_expr = self.get_channel_expression(
@@ -678,8 +679,8 @@ class Unwrapper:
         conn_out = [x for x in upstream_step.tool.tool_outputs() if x.tag == upstream_out][0]
 
         # arrays of secondaries
+        # @secondariesarray
         if nfgen_utils.is_array_secondary_type(conn_out.outtype):
-            out: list[str] = []
             raise NotImplementedError
         
         # everything else

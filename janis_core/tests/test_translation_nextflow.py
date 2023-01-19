@@ -872,6 +872,20 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
+            'path inp',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)   
+    
+    @unittest.skip('alternative format for secondaries')
+    def test_secondaries_array_alt_fmt(self) -> None:
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes["stp4"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
             'path bams',
             'path bais'
         }
@@ -1090,6 +1104,7 @@ class TestProcessOutputs(unittest.TestCase):
     
     @unittest.skip('not implemented')
     def test_secondaries_array(self) -> None:
+        # TODO make this an unsupported feature in release version
         # highly unlikely workflow would do this
         raise NotImplementedError
         
@@ -1685,7 +1700,7 @@ class TestPlumbingSecondaries(unittest.TestCase):
         
         # channels created correctly?
         inp = wf.input_nodes['inAlignments']
-        ch_expected = 'ch_in_alignments = Channel.fromPath( params.in_alignments_bam, params.in_alignments_bai ).collect()'
+        ch_expected = 'ch_in_alignments = Channel.fromPath( [params.in_alignments_bam, params.in_alignments_bai] ).collect()'
         ch_actual = nfgen.channels.getall(inp.uuid)[0]
         ch_actual = ch_actual.declaration
         self.assertEquals(ch_actual, ch_expected)

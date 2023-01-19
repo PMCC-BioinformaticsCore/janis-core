@@ -1,25 +1,59 @@
 
+from typing import Optional
+
+from janis_core import (
+    Workflow,
+    CommandTool,
+    ToolInput,
+    ToolOutput,
+)
+
+from janis_core.types import (
+    String,
+    Array,
+    Stdout
+)
 
 
+class TestWF(Workflow):
 
-class MyClass:
-    files: dict[int, str] = {}
+    def constructor(self):
+        self.input('myStringArray', Array(String()))
 
-    @classmethod
-    def run(cls) -> None:
-        for i in range(10):
-            cls.update(i, chr(i))
+        self.step(
+            "stp1", 
+            TestTool( 
+                myStringArray=self.myStringArray,
+            )
+        )
 
-        print(cls.files)
+    def friendly_name(self):
+        return "TEST: TestWF"
 
-    @classmethod
-    def update(cls, i: int, char: str) -> None:
-        cls.files[i] = char
-
-
-MyClass.run()
-MyClass.run()
-
+    def id(self) -> str:
+        return self.__class__.__name__
 
 
+class TestTool(CommandTool):
+    def tool(self) -> str:
+        return "TestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput('myStringArray', Array(String()), prefix='--myStringArray', position=1),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput("stdout", Stdout())
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
 
