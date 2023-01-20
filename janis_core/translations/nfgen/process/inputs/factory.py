@@ -71,11 +71,8 @@ def create_path_input_secondaries_array(inp: ToolInput | TInput) -> ProcessInput
     return new_input
 
 def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
-    dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
-    assert(isinstance(dtype, File))
-
     # tuple sub-element for each file
-    subnames = naming.process_input_secondaries(dtype)
+    subnames = naming.process_input_secondaries(inp)
     qualifiers = ['path'] * len(subnames)
     
     new_input = TupleProcessInput(

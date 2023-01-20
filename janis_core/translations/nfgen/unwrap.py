@@ -285,7 +285,7 @@ class Unwrapper:
         basetype = nfgen_utils.get_base_type(dtype)
         # secondary files (name mapped to ext of primary file) @secondariesarray 
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = naming.process_input_secondaries(dtype)
+            names = naming.process_input_secondaries(inp)
             name = names[0]
         # everything else
         else:
@@ -404,16 +404,9 @@ class Unwrapper:
             sel = obj
             inp = self.get_input_by_id(sel.input_to_select)
             
-            # special case: janis secondary array -> multiple nextflow path
-            # @secondariesarray
-            if nfgen_utils.is_array_secondary_type(inp.input_type):
-                raise NotImplementedError
-                path_inputs = create_input(inp)  # the multiple path inputs
-                return path_inputs[index].name
-
             # special case: janis secondary -> nextflow tuple
-            elif nfgen_utils.is_secondary_type(inp.input_type):
-                tuple_input = create_input(inp)[0]  # the process input tuple
+            if nfgen_utils.is_secondary_type(inp.input_type):
+                tuple_input = create_input(inp)  # the process input tuple
                 return tuple_input.subnames[index] 
         
         # everything else
@@ -594,15 +587,22 @@ class Unwrapper:
         dtype: DataType = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
 
-        if isinstance(basetype, Filename):
+        # @secondariesarray
+        if nfgen_utils.is_array_secondary_type(dtype):
+            """
+            example: Array(BamBai)
+            process input name: indexed_bam_array_flat
+            primary files name: bams
+            """
+            expr = naming.process_input_secondaries_array_primary_files(inp)
+
+        elif isinstance(basetype, Filename):
             expr = self.unwrap(dtype)
         
         else:
             expr = self.get_src_variable(inp)
             if isinstance(basetype, File) and sel.remove_file_extension:
                 expr = f'{expr}.simpleName'
-            # if self.add_curly_braces:
-            #     expr = f'${{{expr}}}'
 
         return expr
         
@@ -628,7 +628,7 @@ class Unwrapper:
     def unwrap_channel(self, node: InputNode) -> Any:
         """
         ch_name                     = same type (most cases)
-        ch_name.collect()           = singles -> array (workflow input array channel creation)
+        ch_name.toList()            = singles -> array (workflow input array channel creation)
         ch_name.flatten()           = array -> singles (scatter.dot)
         cartesian_cross.ch_subname  = scatter.cross  
         """
@@ -678,9 +678,3 @@ class Unwrapper:
                 channel_name=channel_name,
                 upstream_dtype=conn_out.outtype,
             )
-
-
-
-
-
-    

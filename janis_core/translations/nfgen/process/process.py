@@ -7,10 +7,10 @@ from typing import Optional
 from ..directives import ProcessDirective
 from .. import settings
 from .. import naming
+from .. import ordering
 
 from .inputs.factory import ProcessInput
 from .outputs.model import ProcessOutput
-from .. import ordering
 
 
 def filter_null(iterable):

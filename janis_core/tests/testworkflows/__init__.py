@@ -20,6 +20,7 @@ from .scatter import BasicScatterTestWF
 from .scatter import ChainedScatterTestWF
 from .scatter import ScatterDotTestWF
 from .scatter import ScatterCrossTestWF
+from .scatter import ComprehensiveScatterTestWF
 
 from .secondaries import SecondariesTestWF
 from .secondaries import SecondariesTestTool
@@ -33,6 +34,7 @@ from .subworkflow import SubworkflowTestWF
 from .naming import NamingTestWF
 
 from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
+from .trace import EntityTraceTestWF
 
 from .assembly import w as AssemblyTestWF
 

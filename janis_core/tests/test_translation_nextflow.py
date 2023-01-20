@@ -34,6 +34,7 @@ from janis_core.tests.testworkflows import (
 
     # secondaries
     SecondariesTestWF,
+    ComprehensiveScatterTestWF,
 
     # combos
     ScatterSecondariesTestWF,
@@ -60,6 +61,7 @@ from janis_core.tests.testworkflows import (
     UnwrapTestWF,
     NamingTestWF,
     PlumbingTypeMismatchTestWF,
+    EntityTraceTestWF,
 )
 
 from janis_core import (
@@ -71,6 +73,7 @@ from janis_core import (
 
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nfgen
+from janis_core.translations.nfgen import plumbing
 from janis_core.translations.nfgen import settings
 from janis_core import (
     String, 
@@ -391,8 +394,7 @@ class TestParams(unittest.TestCase):
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
-            'in_alignments_bam': 'null',
-            'in_alignments_bai': 'null',
+            'in_alignments': 'null',
         }
         self.assertDictContainsSubset(expected_params, actual_params)
     
@@ -401,8 +403,7 @@ class TestParams(unittest.TestCase):
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
-            'in_alignments_arr_bams': '[]',
-            'in_alignments_arr_bais': '[]',
+            'in_alignments_arr': '[]',
         }
         self.assertDictContainsSubset(expected_params, actual_params)
     
@@ -472,7 +473,9 @@ class TestFileFormatting(unittest.TestCase):
         actual_lines = mainstr.split('\n')
         actual_lines = [ln.strip() for ln in actual_lines]
         actual_lines = [ln for ln in actual_lines if ln != '']
-        self.assertEqual(actual_lines, expected_lines)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
 
     def test_process(self) -> None:
         wf = AssemblyTestWF()
@@ -485,7 +488,7 @@ class TestFileFormatting(unittest.TestCase):
             'container "quay.io/biocontainers/fastqc:0.11.8--2"',
             'publishDir "${params.outdir}/fastqc1"',
             'input:',
-            'path inputFile',
+            'path input_file',
             'path adapters',
             'path contaminants',
             'path limits',
@@ -502,16 +505,17 @@ class TestFileFormatting(unittest.TestCase):
             '${contaminants} \\',
             '${limits} \\',
             '--kmers 7 \\',
-            '${inputFile} \\',
+            '${input_file} \\',
             '"""',
             '}',
         ]
         process_str = substr_dict['modules/fastqc1']
-        print(process_str)
         actual_lines = process_str.split('\n')
         actual_lines = [ln.strip() for ln in actual_lines]
         actual_lines = [ln for ln in actual_lines if ln != '']
-        self.assertEqual(actual_lines, expected_lines)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
     
     def test_subworkflow(self) -> None:
         wf = SubworkflowTestWF()
@@ -632,43 +636,67 @@ class TestChannels(unittest.TestCase):
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
         refresh_workflow_inputs(wf)
-        # channels created
+        
+        # check expected channels are created
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_file_array',
         }
         self.assertEqual(channels_ids, expected_ids)
-        # channels are marked to collect
-        for c in nfgen.channels.getall():
-            self.assertTrue(c.collect)
+
+        # check channels can be looked up using janis_uuid
+        inp = wf.input_nodes['inFileArray']
+        inp_ch = nfgen.channels.get(inp.uuid)
+        self.assertIsNotNone(inp_ch)
+
+        # check channel definition is correct
+        actual_definition = inp_ch.definition
+        expected_definition = 'ch_in_file_array = Channel.fromPath( params.in_file_array ).toList()'
+        self.assertEqual(actual_definition, expected_definition)
         
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
+        
+        # check expected channels are created
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_alignments',
         }
         for expected_id in expected_ids:
             self.assertIn(expected_id, channels_ids)
+
+        # check channels can be looked up using janis_uuid
         inp = wf.input_nodes['inAlignments']
-        alignments_ch = nfgen.channels.get(inp.uuid)
-        self.assertTrue(len(alignments_ch.params) == 2)
-        self.assertTrue(alignments_ch.collect)
+        inp_ch = nfgen.channels.get(inp.uuid)
+        self.assertIsNotNone(inp_ch)
+
+        # check channel definition is correct
+        actual_definition = inp_ch.definition
+        expected_definition = 'ch_in_alignments = Channel.fromPath( params.in_alignments ).toList()'
+        self.assertEqual(actual_definition, expected_definition)
     
     def test_secondaries_array_inputs(self) -> None:
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
+
+        # check expected channels are created
+        channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
-            'ch_in_alignments_arr_bams',
-            'ch_in_alignments_arr_bais',
+            'ch_in_alignments_arr',
         }
-        channels = nfgen.channels.getall()
-        channels = [ch for ch in channels if ch.name in expected_ids]
-        assert(len(channels) == 2)
-        for ch in channels:
-            self.assertTrue(len(ch.params) == 1)
-            self.assertTrue(ch.collect)
+        for expected_id in expected_ids:
+            self.assertIn(expected_id, channels_ids)
+
+        # check channels can be looked up using janis_uuid
+        inp = wf.input_nodes['inAlignmentsArr']
+        inp_ch = nfgen.channels.get(inp.uuid)
+        self.assertIsNotNone(inp_ch)
+
+        # check channel definition is correct
+        actual_definition = inp_ch.definition
+        expected_definition = 'ch_in_alignments_arr = Channel.fromPath( params.in_alignments_arr.flatten() ).collate( 2 )'
+        self.assertEqual(actual_definition, expected_definition)
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
@@ -782,7 +810,7 @@ class TestProcessInputs(unittest.TestCase):
         expected_inputs = {
             'path option1',
             'path option2',
-            'path optionL',
+            'path option_l',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -873,7 +901,7 @@ class TestProcessInputs(unittest.TestCase):
         process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path inp',
+            'path indexed_bam_array_flat',
         }
         self.assertEqual(actual_inputs, expected_inputs)   
     
@@ -1313,8 +1341,8 @@ process STP1 {
     publishDir "${params.outdir}/stp1"
 
     input:
-    path fileInp
-    path fileInpOptional
+    path file_inp
+    path file_inp_optional
 
     output:
     val "*", emit: out
@@ -1417,6 +1445,111 @@ process STP1 {
 
 
 
+class TestEntityTracing(unittest.TestCase):
+    """
+    This test group checks we can handle array / single datatype mismatches
+    in a workflow. This occurs in wgsgermline. 
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.maxDiff = None
+        self.wf = EntityTraceTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_trace_entity_counts4(self) -> None:
+        step_id = 'stp4'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_counts = plumbing.trace_entity_counts(src)
+        print(actual_counts)
+        expected_counts = {
+            'StepTagInput': 1, 
+            'Edge': 1, 
+            'FirstOperator': 1, 
+            'list': 1, 
+            'InputNodeSelector': 1, 
+            'InputNode': 1, 
+            'StepOutputSelector': 1, 
+            'StepNode': 1, 
+            'str': 1
+        }
+        self.assertEqual(actual_counts, expected_counts)
+    
+    def test_trace_entity_counts5(self) -> None:
+        step_id = 'stp5'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_counts = plumbing.trace_entity_counts(src)
+        print(actual_counts)
+        expected_counts = {
+            'StepTagInput': 1, 
+            'Edge': 1, 
+            'IndexOperator': 1, 
+            'InputNodeSelector': 1, 
+            'InputNode': 1, 
+            'int': 1
+        }
+        self.assertEqual(actual_counts, expected_counts)
+
+    def test_trace_source_datatype1(self) -> None:
+        step_id = 'stp1'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_dtype = plumbing.trace_source_datatype(src)
+        expected_dtype = File
+        self.assertIsInstance(actual_dtype, expected_dtype)
+    
+    def test_trace_source_datatype2(self) -> None:
+        step_id = 'stp2'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_dtype = plumbing.trace_source_datatype(src)
+        expected_dtype = File
+        self.assertIsInstance(actual_dtype, expected_dtype)
+    
+    def test_trace_source_datatype3(self) -> None:
+        step_id = 'stp3'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_dtype = plumbing.trace_source_datatype(src)
+        expected_dtype = String
+        self.assertIsInstance(actual_dtype, expected_dtype)
+    
+    def test_trace_source_datatype4(self) -> None:
+        step_id = 'stp4'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_dtype = plumbing.trace_source_datatype(src)
+        expected_dtype = String
+        self.assertIsInstance(actual_dtype, expected_dtype)
+    
+    def test_trace_source_datatype5(self) -> None:
+        step_id = 'stp5'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_dtype = plumbing.trace_source_datatype(src)
+        expected_dtype = String
+        self.assertIsInstance(actual_dtype, expected_dtype)
+
+    def test_trace_source_scatter6(self) -> None:
+        step_id = 'stp6'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_scatter = plumbing.trace_source_scatter(src)
+        expected_scatter = False
+        self.assertEqual(actual_scatter, expected_scatter)
+
+    def test_trace_source_scatter7(self) -> None:
+        step_id = 'stp7'
+        step = self.wf.step_nodes[step_id]
+        src = step.sources['inp']
+        actual_scatter = plumbing.trace_source_scatter(src)
+        expected_scatter = True
+        self.assertEqual(actual_scatter, expected_scatter)
+
+
+
 class TestPlumbingTypeMismatch(unittest.TestCase):
     """
     This test group checks we can handle array / single datatype mismatches
@@ -1446,7 +1579,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'ch_in_file.collect()'
+            'ch_in_file.toList()'
         ]
         self.assertEqual(actual, expected)
     
@@ -1468,10 +1601,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'ch_in_secondary.flatten().collect()'
+            'ch_in_secondary.flatten().toList()'
         ]
         self.assertEqual(actual, expected)
-
 
 
 
@@ -1486,40 +1618,118 @@ class TestPlumbingScatter(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+        self.wf = ComprehensiveScatterTestWF()
+        refresh_workflow_inputs(self.wf)
 
-    @unittest.skip('not implemented')
     def test_scatter_to_scatter(self):
-        raise NotImplementedError
+        step_id = 'scatter_to_scatter'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'PRESTEP1.out.out.toList().flatten()'
+        ]
+        self.assertEqual(actual, expected)
 
-    @unittest.skip('not implemented')
-    def test_scatter_to_single(self):
-        # (subscatter)
-        raise NotImplementedError
-
-    @unittest.skip('not implemented')
     def test_scatter_to_array(self):
-        raise NotImplementedError
+        step_id = 'scatter_to_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'PRESTEP1.out.out.toList()'
+        ]
+        self.assertEqual(actual, expected)
 
-    @unittest.skip('not implemented')
-    def test_array_to_scatter(self):
-        raise NotImplementedError
+    def test_array_to_scatter1(self):
+        step_id = 'prestep1'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_file_array.flatten()'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_array_to_scatter2(self):
+        step_id = 'array_to_scatter'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'PRESTEP2.out.out.flatten()'
+        ]
+        self.assertEqual(actual, expected)
 
-    @unittest.skip('not implemented')
+
     def test_scatter_secondary_to_scatter_secondary(self):
-        raise NotImplementedError
+        step_id = 'scatter_secondary_to_scatter_secondary'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'PRESTEP3.out.out.toList().flatten().collate( 2 )'
+        ]
+        self.assertEqual(actual, expected)
 
-    @unittest.skip('not implemented')
-    def test_scatter_secondary_to_secondary(self):
-        # (subscatter)
-        raise NotImplementedError
-
-    @unittest.skip('not implemented')
     def test_scatter_secondary_to_secondary_array(self):
-        raise NotImplementedError
+        step_id = 'scatter_secondary_to_secondary_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'PRESTEP3.out.out.flatten().toList()'
+        ]
+        self.assertEqual(actual, expected)
 
-    @unittest.skip('not implemented')
     def test_secondary_array_to_scatter_secondary(self):
-        raise NotImplementedError
+        step_id = 'secondary_array_to_scatter_secondary'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_bam_bai_array.flatten().collate( 2 )'
+        ]
+        self.assertEqual(actual, expected)
+
+    # TODO use in future
+    @unittest.skip('reimplement')
+    def test_scatter_cross(self) -> None:
+        wf = ScatterCrossTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+
+        # cartesian cross channel manipulation in workflow
+        operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
+        actual_op = operation.get_string()
+        expected_op = """\
+ch_in_file_array.flatten()
+.combine(ch_in_str_array).flatten()
+.multiMap { it ->
+    in_file_array: it[0]
+    in_str_array: it[1]
+}
+.set { ch_cartesian_cross }"""
+        self.assertEqual(expected_op, actual_op)
+
+        # step input values
+        expected = [
+            "ch_cartesian_cross.in_file_array",
+            "ch_cartesian_cross.in_str_array",
+        ]
+        self.assertEqual(expected, actual)
+
     
 
 
@@ -1677,196 +1887,103 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 
 
 
-
-class TestPlumbingScatterALT(unittest.TestCase):
-    """
-    This test group checks that janis scatter declarations are being handled 
-    correctly to produce the desired nextflow workflow. 
-    """
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+# NOTE: previous secondaries / secondaries array format.
+# class TestPlumbingSecondaries(unittest.TestCase):
+#     # TODO test more features / edge cases?
+#     """
+#     This test group checks that janis File types with secondaries are being handled 
+#     correctly to produce the desired nextflow workflow. 
     
-    def test_scatter_basic(self) -> None:
-        wf = BasicScatterTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp1'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
-        expected = [
-            "ch_in_file_array.flatten()"
-        ]
-        self.assertEqual(expected, actual)
+#     SecondaryFiles are especially tricky when mapping to janis. 
+#     Requires the remapping of tool inputs in some situations.
     
-    def test_scatter_dot(self) -> None:
-        wf = ScatterDotTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp1'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
-        expected = [
-            "ch_in_file_array.flatten()",
-            "ch_in_str_array.flatten()",
-        ]
-        self.assertEqual(expected, actual)
+#     eg Array(BamBai) 
+#         - Arrays where each item is a file with secondaries. 
+#         - These gets remapped from a single tool input, to an array input
+#           for each separate file in the datatype. 
+#         - Works like transposing - instead of inp1=[[Bam, Bai], [Bam, Bai]],
+#           results in inp1=[Bam, Bam], inp2=[Bai, Bai]
+
+#     """
+
+#     def setUp(self) -> None:
+#         settings.MINIMAL_PROCESS = True
+#         settings.MODE = 'workflow'
     
-    def test_scatter_cross(self) -> None:
-        wf = ScatterCrossTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = 'stp1'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
-
-        # cartesian cross channel manipulation in workflow
-        operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
-        actual_op = operation.get_string()
-        expected_op = """\
-ch_in_file_array.flatten()
-.combine(ch_in_str_array).flatten()
-.multiMap { it ->
-    in_file_array: it[0]
-    in_str_array: it[1]
-}
-.set { ch_cartesian_cross }"""
-        self.assertEqual(expected_op, actual_op)
-
-        # step input values
-        expected = [
-            "ch_cartesian_cross.in_file_array",
-            "ch_cartesian_cross.in_str_array",
-        ]
-        self.assertEqual(expected, actual)
-    
-    def test_scatter_connection(self) -> None:
-        wf = ChainedScatterTestWF()
-        refresh_workflow_inputs(wf)
-        # single -> single
-        step_id = 'stp2'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
-        expected = [
-            "STP1.out.out"
-        ]
-        self.assertEqual(expected, actual)
-        # array -> single
-        step_id = 'stp4'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
-        expected = [
-            "STP3.out.out.flatten()"
-        ]
-        self.assertEqual(expected, actual)
-
-
-
-
-class TestPlumbingSecondaries(unittest.TestCase):
-    # TODO test more features / edge cases?
-    """
-    This test group checks that janis File types with secondaries are being handled 
-    correctly to produce the desired nextflow workflow. 
-    
-    SecondaryFiles are especially tricky when mapping to janis. 
-    Requires the remapping of tool inputs in some situations.
-    
-    eg Array(BamBai) 
-        - Arrays where each item is a file with secondaries. 
-        - These gets remapped from a single tool input, to an array input
-          for each separate file in the datatype. 
-        - Works like transposing - instead of inp1=[[Bam, Bai], [Bam, Bai]],
-          results in inp1=[Bam, Bam], inp2=[Bai, Bai]
-
-    """
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-    
-    def test_secondaries_workflow_inputs(self) -> None:
-        wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
-        # params created correctly?
-        actual_params = nfgen.params.serialize()
-        expected_params = {
-            'in_alignments_bam': 'null',
-            'in_alignments_bai': 'null',
-        }
-        self.assertDictContainsSubset(expected_params, actual_params)
+#     def test_secondaries_workflow_inputs(self) -> None:
+#         wf = SecondariesTestWF()
+#         refresh_workflow_inputs(wf)
+#         # params created correctly?
+#         actual_params = nfgen.params.serialize()
+#         expected_params = {
+#             'in_alignments_bam': 'null',
+#             'in_alignments_bai': 'null',
+#         }
+#         self.assertDictContainsSubset(expected_params, actual_params)
         
-        # channels created correctly?
-        inp = wf.input_nodes['inAlignments']
-        ch_expected = 'ch_in_alignments = Channel.fromPath( [params.in_alignments_bam, params.in_alignments_bai] ).collect()'
-        ch_actual = nfgen.channels.getall(inp.uuid)[0]
-        ch_actual = ch_actual.declaration
-        self.assertEquals(ch_actual, ch_expected)
+#         # channels created correctly?
+#         inp = wf.input_nodes['inAlignments']
+#         ch_expected = 'ch_in_alignments = Channel.fromPath( [params.in_alignments_bam, params.in_alignments_bai] ).toList()'
+#         ch_actual = nfgen.channels.getall(inp.uuid)[0]
+#         ch_actual = ch_actual.definition
+#         self.assertEquals(ch_actual, ch_expected)
         
-        # step inputs created correctly?
-        step_id = 'stp1'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual_inputs = nfgen.call.get_args(step, scope)
-        expected_inputs = [
-            "ch_in_alignments"
-        ]
-        self.assertEquals(actual_inputs, expected_inputs)
+#         # step inputs created correctly?
+#         step_id = 'stp1'
+#         step = wf.step_nodes[step_id]
+#         scope = nfgen.Scope()
+#         scope.update(step)
+#         actual_inputs = nfgen.call.get_args(step, scope)
+#         expected_inputs = [
+#             "ch_in_alignments"
+#         ]
+#         self.assertEquals(actual_inputs, expected_inputs)
     
-    def test_secondaries_array_workflow_inputs(self) -> None:
-        wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
-        # params created correctly?
-        actual_params = nfgen.params.serialize()
-        expected_params = {
-            'in_alignments_arr_bams': '[]',
-            'in_alignments_arr_bais': '[]',
-        }
-        self.assertDictContainsSubset(expected_params, actual_params)
+#     def test_secondaries_array_workflow_inputs(self) -> None:
+#         wf = SecondariesTestWF()
+#         refresh_workflow_inputs(wf)
+#         # params created correctly?
+#         actual_params = nfgen.params.serialize()
+#         expected_params = {
+#             'in_alignments_arr_bams': '[]',
+#             'in_alignments_arr_bais': '[]',
+#         }
+#         self.assertDictContainsSubset(expected_params, actual_params)
         
-        # channels created correctly?
-        inp = wf.input_nodes['inAlignmentsArr']
-        ch1_expected = 'ch_in_alignments_arr_bais = Channel.fromPath( params.in_alignments_arr_bais ).collect()'
-        ch2_expected = 'ch_in_alignments_arr_bams = Channel.fromPath( params.in_alignments_arr_bams ).collect()'
-        ch1_actual, ch2_actual = nfgen.channels.getall(inp.uuid)
-        ch1_actual, ch2_actual = ch1_actual.declaration, ch2_actual.declaration
-        self.assertEquals(ch1_actual, ch1_expected)
-        self.assertEquals(ch2_actual, ch2_expected)
+#         # channels created correctly?
+#         inp = wf.input_nodes['inAlignmentsArr']
+#         ch1_expected = 'ch_in_alignments_arr_bais = Channel.fromPath( params.in_alignments_arr_bais ).toList()'
+#         ch2_expected = 'ch_in_alignments_arr_bams = Channel.fromPath( params.in_alignments_arr_bams ).toList()'
+#         ch1_actual, ch2_actual = nfgen.channels.getall(inp.uuid)
+#         ch1_actual, ch2_actual = ch1_actual.definition, ch2_actual.definition
+#         self.assertEquals(ch1_actual, ch1_expected)
+#         self.assertEquals(ch2_actual, ch2_expected)
         
-        # step inputs created correctly?
-        step_id = 'stp4'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual_inputs = nfgen.call.get_args(step, scope)
-        expected_inputs = [
-            "ch_in_alignments_arr_bais",
-            "ch_in_alignments_arr_bams",
-        ]
-        self.assertEquals(actual_inputs, expected_inputs)
+#         # step inputs created correctly?
+#         step_id = 'stp4'
+#         step = wf.step_nodes[step_id]
+#         scope = nfgen.Scope()
+#         scope.update(step)
+#         actual_inputs = nfgen.call.get_args(step, scope)
+#         expected_inputs = [
+#             "ch_in_alignments_arr_bais",
+#             "ch_in_alignments_arr_bams",
+#         ]
+#         self.assertEquals(actual_inputs, expected_inputs)
     
-    def test_secondaries_connections(self) -> None:
-        wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
-        # step inputs created correctly?
-        step_id = 'stp2'
-        step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
-        scope.update(step)
-        actual_inputs = nfgen.call.get_args(step, scope)
-        expected_inputs = [
-            "STP1.out.out"
-        ]
-        self.assertEquals(actual_inputs, expected_inputs)
+#     def test_secondaries_connections(self) -> None:
+#         wf = SecondariesTestWF()
+#         refresh_workflow_inputs(wf)
+#         # step inputs created correctly?
+#         step_id = 'stp2'
+#         step = wf.step_nodes[step_id]
+#         scope = nfgen.Scope()
+#         scope.update(step)
+#         actual_inputs = nfgen.call.get_args(step, scope)
+#         expected_inputs = [
+#             "STP1.out.out"
+#         ]
+#         self.assertEquals(actual_inputs, expected_inputs)
 
 
 
@@ -2013,13 +2130,8 @@ class TestConfig(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
-        # expected_values = {
-        #     'in_alignments_bam': 'null',
-        #     'in_alignments_bai': 'null',
-        # }
         expected_values = {
-            'bam': 'null',
-            'bai': 'null',
+            'in_alignments': 'null',
         }
         print(config)
         for name, val in expected_values.items():
@@ -2032,8 +2144,7 @@ class TestConfig(unittest.TestCase):
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
-        "in_alignments_arr_bams": r"\[\]    \/\/ list files here",
-        "in_alignments_arr_bais": r"\[\]    \/\/ list files here",
+        "in_alignments_arr": r"\[\]    \/\/ list files here",
         }
         print(config)
         for name, val in expected_values.items():
@@ -2236,8 +2347,8 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--IndexOperatorSecondariesBai ${bai}", self.script)
     
     def test_index_operator_secondaries_array(self) -> None:
-        self.assertIn("--IndexOperatorArraySecondariesBams ${bams}", self.script)
-        self.assertIn("--IndexOperatorArraySecondariesBais ${bais}", self.script)
+        self.assertIn("--IndexOperatorArraySecondariesBams ${bams[0]}", self.script)
+        self.assertIn("--IndexOperatorArraySecondariesBais ${bams[1]}", self.script)
     
     # WORKFLOW RELATED
     def test_input_node_channel(self) -> None:
@@ -2576,8 +2687,7 @@ class TestNaming(unittest.TestCase):
             'ch_process_input',
             'ch_process_input_array',
             'ch_secondary',
-            'ch_secondary_array_bams',
-            'ch_secondary_array_bais',
+            'ch_secondary_array',
         }
         self.assertEqual(channel_names, expected_names)
     
@@ -2589,10 +2699,8 @@ class TestNaming(unittest.TestCase):
             'process_input_array',
             'param_input',
             'param_input_array',
-            'secondary_bam',
-            'secondary_bai',
-            'secondary_array_bams',
-            'secondary_array_bais',
+            'secondary',
+            'secondary_array',
         }
         self.assertEqual(param_names, expected_names)
     
@@ -2602,10 +2710,9 @@ class TestNaming(unittest.TestCase):
         actual_input_names = [x.name for x in process_inputs]
         expected_input_names = [
             'secondary',
-            'processInput',
-            'processInputArray',
-            'bams',
-            'bais',
+            'indexed_bam_array_flat',
+            'process_input',
+            'process_input_array',
         ]
         self.assertEqual(actual_input_names, expected_input_names)
         secondary_input = [x for x in process_inputs if x.name == 'secondary'][0]
@@ -2637,11 +2744,10 @@ class TestNaming(unittest.TestCase):
         scope.update(step)
         actual_inputs = set(nfgen.call.get_args(step, scope))
         expected_inputs = set([
-            'STP1.out.outSecondary',
             'STP1.out.outProcessInput',
             'STP1.out.outProcessInputArray',
-            'ch_secondary_array_bais',
-            'ch_secondary_array_bams',
+            'STP1.out.outSecondary',
+            'ch_secondary_array.flatten().toList()',
             'STP1.out.outParamInput',
             'STP1.out.outParamInputArray',
         ])

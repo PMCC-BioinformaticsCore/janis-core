@@ -13,7 +13,7 @@ from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import StepOutputSelector
 
-from .. import naming
+from .. import naming 
 from .. import settings
 from .channels import getall
 

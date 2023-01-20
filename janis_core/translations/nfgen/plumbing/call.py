@@ -1,12 +1,12 @@
 
 
 
-from typing import Any
+from typing import Any, Optional
 from textwrap import indent
 
 from janis_core import CommandTool, PythonTool, Workflow, TInput
 from janis_core.workflow.workflow import StepNode
-from janis_core.types import DataType
+from janis_core.types import DataType, Stdout
 
 from .. import process
 from .. import nfgen_utils
@@ -16,14 +16,18 @@ from .. import settings
 from ..unwrap import unwrap_expression
 from ..scope import Scope
 
+from . import trace
+
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import handle_datatype_mismatch
 
-from .scatter_relationship import is_scatter_relationship
-from .scatter_relationship import handle_scatter_relationship
+from .scatter import is_scatter_relationship
+from .scatter import handle_scatter_relationship
 
 NF_INDENT = settings.NF_INDENT
 
+
+# move to unwrap.py
 
 def get_args(step: StepNode, scope: Scope):
     tool: CommandTool | PythonTool | Workflow   = step.tool     
@@ -46,20 +50,27 @@ def get_args(step: StepNode, scope: Scope):
                 raise NotImplementedError
                 call_args += arg
 
-            # handle datatype relationship
-            src_type: DataType = get_src_type(src)
-            dest_type: DataType = get_dest_type(tool, name)
-            if is_datatype_mismatch(src_type, dest_type):
-                suffix = handle_datatype_mismatch(src_type, dest_type)
-                arg.append(suffix)
-            
-            # handle scatter relationship
+            # plumbing info
             src_scatter: bool = is_src_scatter(src)
             dest_scatter: bool = is_dest_scatter(name, step)
+            src_type: DataType = get_src_type(src)
+            dest_type: DataType = get_dest_type(tool, name)
+            
+            # handle scatter relationship
             if is_scatter_relationship(src_scatter, dest_scatter):
                 suffix = handle_scatter_relationship(src_scatter, dest_scatter, src_type, dest_type)
-                arg.append(suffix)
+                arg = f'{arg}{suffix}'
             
+            # handle datatype relationship
+            elif is_datatype_mismatch(src_type, dest_type):
+                suffix = handle_datatype_mismatch(src_type, dest_type)
+                arg = f'{arg}{suffix}'
+
+            # handle secondary array process input format
+            elif nfgen_utils.is_array_secondary_type(dest_type):
+                suffix = '.flatten().toList()'
+                arg = f'{arg}{suffix}'
+
             call_args.append(arg)
             
     # add extra arg in case of python tool - the code file.
@@ -133,18 +144,25 @@ def get_input_ids_tool(tool: CommandTool | PythonTool, sources: dict[str, Any]) 
 # helpers:
 # identifying types for the data source (upstream wf input or step output)
 # and the data destination (tool input)
-def get_src_type(src: Any) -> DataType:
-    raise NotImplementedError
+def get_src_type(src: Any) -> Optional[DataType]:
+    dtype = trace.trace_source_datatype(src)
+    if isinstance(dtype, Stdout):
+        return dtype.subtype
+    else:
+        return dtype
 
 def get_dest_type(tool: Workflow | CommandTool | PythonTool, name: str) -> DataType:
-    
-    raise NotImplementedError
+    tinputs = tool.inputs_map()
+    tinp = tinputs[name]
+    return tinp.intype
 
 def is_src_scatter(src: Any) -> bool:
-    raise NotImplementedError
+    return trace.trace_source_scatter(src)
 
 def is_dest_scatter(name: str, step: StepNode) -> bool:
-    raise NotImplementedError
+    if step.scatter and name in step.scatter.fields:
+        return True
+    return False
 
 
 

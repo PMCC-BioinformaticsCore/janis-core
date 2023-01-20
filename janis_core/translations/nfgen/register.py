@@ -72,7 +72,7 @@ class ParamRegistrationHelper:
             self.register_param_secondaries_array()
         
         # secondaries
-        if nfgen_utils.is_secondary_type(self.inp.datatype):
+        elif nfgen_utils.is_secondary_type(self.inp.datatype):
             self.register_param_secondaries()
 
         # anything else
@@ -192,14 +192,14 @@ class ChannelRegistrationHelper:
 
     def get_operations_secondary(self) -> str:
         ops: str = ''
-        ops += '.collect()'
+        ops += '.toList()'
         if self.inp.datatype.optional:
             ops += '.ifEmpty( null )'
         return ops
 
     def get_operations_file_array(self) -> str:
         ops: str = ''
-        ops += '.collect()'
+        ops += '.toList()'
         if self.inp.datatype.optional:
             ops += '.ifEmpty( null )'
         return ops

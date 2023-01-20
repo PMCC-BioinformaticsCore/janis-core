@@ -1,8 +1,14 @@
 
+from typing import Optional
+
 from janis_core import (
     Workflow,
     ScatterDescription,
-    ScatterMethods
+    ScatterMethods,
+    CommandTool,
+    ToolInput,
+    ToolOutput,
+    WildcardSelector
 )
 from janis_core.types import (
     String,
@@ -17,6 +23,8 @@ from janis_core.tests.testtools import (
     ComponentsTestTool,
     ArrayFileTestTool,
 )
+
+from janis_bioinformatics.data_types.bam import BamBai
 
 
 # --------- #
@@ -181,3 +189,135 @@ class ScatterCrossTestWF(Workflow):
 
 
 
+
+class ComprehensiveScatterTestWF(Workflow):
+
+    def constructor(self):
+        self.input('inFileArray', Array(File))
+        self.input('inBamBaiArray', Array(BamBai))
+
+        # non-secondary
+        self.step(
+            "prestep1", 
+            FileTestTool(inp=self.inFileArray),
+            scatter="inp"
+        )
+        self.step(
+            "prestep2", 
+            FileArrayTestTool(inp=self.inFileArray),
+        )
+        self.step(
+            "scatter_to_scatter", 
+            FileTestTool(inp=self.prestep1.out),
+            scatter="inp"
+        )
+        self.step(
+            "scatter_to_array", 
+            FileArrayTestTool(inp=self.prestep1.out),
+        )
+        self.step(
+            "array_to_scatter", 
+            FileTestTool(inp=self.prestep2.out),
+            scatter="inp"
+        )
+
+        # secondary
+        self.step(
+            "prestep3", 
+            BamBaiTestTool(inp=self.inBamBaiArray),
+            scatter="inp"
+        )
+        self.step(
+            "scatter_secondary_to_scatter_secondary", 
+            BamBaiTestTool(inp=self.prestep3.out),
+            scatter="inp"
+        )
+        self.step(
+            "scatter_secondary_to_secondary_array", 
+            BamBaiArrayTestTool(inp=self.prestep3.out),
+        )
+        self.step(
+            "secondary_array_to_scatter_secondary", 
+            BamBaiTestTool(inp=self.inBamBaiArray),
+            scatter="inp"
+        )
+
+    def friendly_name(self):
+        return "TEST: BasicScatterTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+
+class FileArrayTestTool(CommandTool):
+    def tool(self) -> str:
+        return "FileArrayTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Array(File()))]
+
+    def outputs(self):
+        return [ToolOutput("out", Array(File()), selector=WildcardSelector('*.fasta'))]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class BamBaiTestTool(CommandTool):
+    def tool(self) -> str:
+        return "BamBaiTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", BamBai())]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", 
+                BamBai(), 
+                selector=WildcardSelector("*.bam"),
+                secondaries_present_as={".bai": ".bai"},
+            ),
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class BamBaiArrayTestTool(CommandTool):
+    def tool(self) -> str:
+        return "BamBaiArrayTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Array(BamBai()))]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", 
+                BamBai(), 
+                selector=WildcardSelector("*.bam"),
+                secondaries_present_as={".bai": ".bai"},
+            ),
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"

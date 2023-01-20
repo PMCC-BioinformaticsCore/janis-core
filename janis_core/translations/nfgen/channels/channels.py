@@ -66,7 +66,7 @@ class Channel:
         self.uuid = uuid4() 
     
     @property
-    def declaration(self) -> str:
+    def definition(self) -> str:
         return f'{self.name} = {self.get_string()}'
 
     # @property

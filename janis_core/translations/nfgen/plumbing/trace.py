@@ -1,11 +1,13 @@
 
 
+from abc import ABC, abstractmethod
 from typing import Any, Optional
 from collections import defaultdict
 
+
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.operator import IndexOperator, Operator
-from janis_core.types import Filename
+from janis_core.types import Filename, DataType, Stdout
 from janis_core.operators.logical import (
     IsDefined,
     If,
@@ -50,17 +52,42 @@ from janis_core.operators.selectors import (
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core import CommandTool
 
-def trace_janis_entities(entity: Any, tool: Optional[CommandTool]=None) -> dict[str, int]:
-    tracer = EntityTracer(tool)
+from .. import nfgen_utils
+
+
+
+def trace_entity_counts(entity: Any, tool: Optional[CommandTool]=None) -> dict[str, int]:
+    tracer = EntityCountTracer(tool)
     tracer.trace(entity)
     return tracer.counter
 
+def trace_source_datatype(entity: Any, tool: Optional[CommandTool]=None) -> Optional[DataType]:
+    tracer = SourceDatatypeTracer(tool)
+    tracer.trace(entity)
+    src_types = tracer.datatypes
+    if len(src_types) == 0:
+        return None
+    elif len(src_types) == 1:
+        return src_types[0]
+    elif len(src_types) > 1:
+        # remove types from Stdout as these are just janis guesses
+        src_types = [x for x in src_types if not isinstance(x, Stdout)]
+        # return first remaining type
+        return src_types[0]
+    return 
 
-class EntityTracer:
+def trace_source_scatter(entity: Any, tool: Optional[CommandTool]=None) -> bool:
+    tracer = SourceScatterTracer(tool)
+    tracer.trace(entity)
+    return tracer.source_scatter
+
+
+
+
+class Tracer(ABC):
     
     def __init__(self, tool: Optional[CommandTool]=None):
         self.tool = tool
-        self.counter: dict[str, int] = defaultdict(int)
         self.single_arg_trace_types = {
             IsDefined,
             AssertNotNull,
@@ -89,38 +116,8 @@ class EntityTracer:
             ApplyPrefixOperator,
             ReplaceOperator,
         }
+
         self.custom_trace_funcs = {
-
-            # logical operators
-            # IsDefined: self.is_defined_operator,
-            # If: self.if_operator,
-            # AssertNotNull: self.assert_not_null_operator,
-            # FloorOperator: self.floor_operator,
-            # CeilOperator: self.ceil_operator,
-            # RoundOperator: self.round_operator,
-
-            # operator operators
-            # IndexOperator: self.index_operator,
-            # AsStringOperator: self.as_string_operator,
-            # AsBoolOperator: self.as_bool_operator,
-            # AsIntOperator: self.as_int_operator,
-            # AsFloatOperator: self.as_float_operator,
-            
-            # standard operators
-            # ReadContents: self.read_contents_operator,
-            # ReadJsonOperator: self.read_json_operator,
-            # JoinOperator: self.join_operator,
-            # BasenameOperator: self.basename_operator,
-            # TransposeOperator: self.transpose_operator,
-            # LengthOperator: self.length_operator,
-            # RangeOperator: self.range_operator,
-            # FlattenOperator: self.flatten_operator,
-            # ApplyPrefixOperator: self.apply_prefix_operator,
-            # FileSizeOperator: self.file_size_operator,
-            # FirstOperator: self.first_operator,
-            # FilterNullOperator: self.filter_null_operator,
-            # ReplaceOperator: self.replace_operator,
-
             # primitives
             list: self.trace_list,
             
@@ -143,23 +140,9 @@ class EntityTracer:
             # InputNode: self.input_node,
         }
 
-    
+    @abstractmethod
     def trace(self, entity: Any) -> None:
-        etype = type(entity)
-        ename = entity.__class__.__name__
-        self.counter[ename] += 1
-
-        if etype in self.single_arg_trace_types:
-            self.operator_single_arg_trace(entity)
-        
-        elif etype in self.multi_arg_trace_types:
-            self.operator_multi_arg_trace(entity)
-
-        elif etype in self.custom_trace_funcs:
-            func = self.custom_trace_funcs[etype]
-            func(entity)
-        
-
+        ...
 
     def operator_single_arg_trace(self, entity: Operator) -> None:
         self.trace(entity.args[0])
@@ -171,84 +154,6 @@ class EntityTracer:
     def trace_list(self, entity: list[Any]) -> None:
         for item in entity:
             self.trace(item)
-
-
-    # def is_defined_operator(self, entity: IsDefined) -> None:
-    #     self.trace(entity.args[0])
-
-    # def if_operator(self, entity: If) -> None:
-    #     for arg in entity.args:
-    #         self.trace(arg)
-
-    # def assert_not_null_operator(self, entity: AssertNotNull) -> None:
-    #     self.trace(entity.args[0])
-
-    # def floor_operator(self, entity: FloorOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def ceil_operator(self, entity: CeilOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def round_operator(self, entity: RoundOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def index_operator(self, entity: IndexOperator) -> None:
-    #     for arg in entity.args:
-    #         self.trace(arg)
-
-    # def as_string_operator(self, entity: AsStringOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def as_bool_operator(self, entity: AsBoolOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def as_int_operator(self, entity: AsIntOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def as_float_operator(self, entity: AsFloatOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def read_contents_operator(self, entity: ReadContents) -> None:
-    #     self.trace(entity.args[0])
-
-    # def read_json_operator(self, entity: ReadJsonOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def join_operator(self, entity: JoinOperator) -> None:
-    #     for arg in entity.args:
-    #         self.trace(arg)
-
-    # def basename_operator(self, entity: BasenameOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def transpose_operator(self, entity: TransposeOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def length_operator(self, entity: LengthOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def range_operator(self, entity: RangeOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def flatten_operator(self, entity: FlattenOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def apply_prefix_operator(self, entity: ApplyPrefixOperator) -> None:
-    #     for arg in entity.args:
-    #         self.trace(arg)
-
-    # def file_size_operator(self, entity: FileSizeOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def first_operator(self, entity: FirstOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def filter_null_operator(self, entity: FilterNullOperator) -> None:
-    #     self.trace(entity.args[0])
-
-    # def replace_operator(self, entity: ReplaceOperator) -> None:
-    #     for arg in entity.args:
-    #         self.trace(arg)
 
     def alias_selector(self, entity: AliasSelector) -> None:
         self.trace(entity.inner_selector)
@@ -315,6 +220,130 @@ class EntityTracer:
 
 
  
+
+class EntityCountTracer(Tracer):
+
+    def __init__(self, tool: Optional[CommandTool]=None):
+        super().__init__(tool)
+        self.counter: dict[str, int] = defaultdict(int)
+    
+    def trace(self, entity: Any) -> None:
+        etype = type(entity)
+        ename = entity.__class__.__name__
+        self.counter[ename] += 1
+
+        if etype in self.custom_trace_funcs:
+            func = self.custom_trace_funcs[etype]
+            func(entity)
+        
+        elif etype in self.single_arg_trace_types:
+            self.operator_single_arg_trace(entity)
+        
+        elif etype in self.multi_arg_trace_types:
+            self.operator_multi_arg_trace(entity)
+        
+        else:
+            pass
+
+
+class SourceDatatypeTracer(Tracer):
+
+    def __init__(self, tool: Optional[CommandTool]=None):
+        super().__init__(tool)
+        self.datatypes: list[DataType] = []
+    
+    def trace(self, entity: Any) -> None:
+        # reached a leaf node (a data source)
+        if self.have_reached_source(entity):
+            self.handle_source(entity)
+
+        # edge case: IndexOperator, where the target is the source
+        elif isinstance(entity, IndexOperator):
+            target: Any = entity.args[0]  # type: ignore
+            if self.have_reached_source(target):
+                self.handle_source(target, array_to_single=True)
+
+        # other nodes: continue tracing
+        else:
+            etype = type(entity)
+            if etype in self.custom_trace_funcs:
+                func = self.custom_trace_funcs[etype]
+                func(entity)
+            
+            elif etype in self.single_arg_trace_types:
+                self.operator_single_arg_trace(entity)
+            
+            elif etype in self.multi_arg_trace_types:
+                self.operator_multi_arg_trace(entity)
+            
+            else:
+                pass
+
+    def have_reached_source(self, entity: Any) -> bool:
+        if isinstance(entity, InputNodeSelector) or isinstance(entity, StepOutputSelector):
+            return True
+        return False
+
+    def handle_source(self, entity: InputNodeSelector | StepOutputSelector, array_to_single: bool=False) -> None:
+        # reached an InputNodeSelector: get source datatype from InputNode
+        if isinstance(entity, InputNodeSelector):
+            dtype = entity.input_node.datatype
+        
+        # reached a StepOutputSelector: get source datatype from ToolOutput
+        elif isinstance(entity, StepOutputSelector):
+            step = entity.node
+            outtag = entity.tag
+            tout = step.tool.outputs_map()[outtag]
+            dtype = tout.outtype
+        
+        else:
+            raise RuntimeError
+        
+        # if the datatype is an Array(File()), but we are selecting a specific index
+        # (via IndexOperator), the datatype will actually be File()
+        assert(dtype)
+        if array_to_single and dtype.is_array():
+            dtype = nfgen_utils.get_base_type(dtype)
+        
+        self.datatypes.append(dtype)
+
+
+
+class SourceScatterTracer(Tracer):
+    
+    def __init__(self, tool: Optional[CommandTool]=None):
+        super().__init__(tool)
+        self.source_scatter: bool = False
+
+    def trace(self, entity: Any) -> None:
+        # only steps have scatter, so only StepOutputSelector needs to be checked. 
+        if isinstance(entity, StepOutputSelector):
+            self.handle_step_output_selector(entity)
+
+        # other nodes: continue tracing
+        else:
+            etype = type(entity)
+            if etype in self.custom_trace_funcs:
+                func = self.custom_trace_funcs[etype]
+                func(entity)
+            
+            elif etype in self.single_arg_trace_types:
+                self.operator_single_arg_trace(entity)
+            
+            elif etype in self.multi_arg_trace_types:
+                self.operator_multi_arg_trace(entity)
+            
+            else:
+                pass
+
+    def handle_step_output_selector(self, entity: StepOutputSelector) -> None:
+        # we have found the step which feeds the data.
+        # check if the step is scattered. 
+        step = entity.node
+        if step.scatter:
+            self.source_scatter = True
+        
+
 
 
 

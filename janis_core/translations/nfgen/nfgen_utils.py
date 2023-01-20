@@ -26,7 +26,6 @@ from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
 
 
-
 """
 FOR THIS SECTION
 
@@ -141,7 +140,7 @@ def _cast_keywords(val: str) -> str:
 def get_base_type(dtype: Optional[DataType]) -> Optional[DataType]:
     if dtype is None:
         return dtype
-    while isinstance(dtype, Array):
+    while isinstance(dtype, Array) and dtype.subtype():
         dtype = dtype.subtype()
     return dtype
 
@@ -174,12 +173,33 @@ def is_path(task_input: ToolInput | InputNode) -> bool:
 #     return False
 
 
-### SECONDARIES
+# FILE PAIRS
+
+known_file_pair_types = set([
+    'FastqPair',
+    'FastqGzPair',
+])
+
+def is_file_pair_type(dtype: DataType) -> bool:
+    if dtype.name() in known_file_pair_types:
+        return True
+    return False
+
+def is_array_file_pair_type(dtype: DataType) -> bool:
+    if dtype.is_array():
+        if is_file_pair_type(dtype.subtype()):
+            return True
+    return False
+
+
+
+### SECONDARIES 
 
 def is_secondary_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
-    if isinstance(basetype, File) and basetype.has_secondary_files():
-        return True
+    if not is_array_secondary_type(dtype):
+        basetype = get_base_type(dtype)
+        if isinstance(basetype, File) and basetype.has_secondary_files():
+            return True
     return False
 
 def is_array_secondary_type(dtype: DataType) -> bool:

@@ -14,7 +14,7 @@ from janis_core import (
     Filename
 )
 
-from ...entity_trace import trace_janis_entities
+from ...plumbing import trace_entity_counts
 from ...unwrap import unwrap_expression
 from ... import nfgen_utils
 from .. import inputs
@@ -78,9 +78,7 @@ def is_file_type(out: ToolOutput) -> bool:
     return False
 
 def is_secondary_type(out: ToolOutput) -> bool:
-    if nfgen_utils.is_secondary_type(out.output_type):
-        return True
-    return False
+    return nfgen_utils.is_secondary_type(out.output_type)
 
 def is_array_type(out: ToolOutput) -> bool:
     if out.output_type.is_array():
@@ -126,7 +124,7 @@ def get_fmttype(out: ToolOutput, tool: CommandTool) -> FmtType:
         
         # ToolInput is Filename type
         if isinstance(tinput.intype, Filename):
-            entity_counts = trace_janis_entities(tinput.intype, tool=tool)
+            entity_counts = trace_entity_counts(tinput.intype, tool=tool)
             entities = set(entity_counts.keys())
             filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
             filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
