@@ -18,8 +18,8 @@ from ..scope import Scope
 
 from . import trace
 
-from .datatype_mismatch import is_datatype_mismatch
-from .datatype_mismatch import handle_datatype_mismatch
+from .datatype_mismatch import requires_data_operation
+from .datatype_mismatch import handle_data_operation
 
 from .scatter import is_scatter_relationship
 from .scatter import handle_scatter_relationship
@@ -53,22 +53,20 @@ def get_args(step: StepNode, scope: Scope):
             # plumbing info
             src_scatter: bool = is_src_scatter(src)
             dest_scatter: bool = is_dest_scatter(name, step)
-            src_type: DataType = get_src_type(src)
-            dest_type: DataType = get_dest_type(tool, name)
+            srctype: DataType = get_src_type(src)
+            desttype: DataType = get_dest_type(tool, name)
             
             # handle scatter relationship
-            if is_scatter_relationship(src_scatter, dest_scatter):
-                suffix = handle_scatter_relationship(src_scatter, dest_scatter, src_type, dest_type)
-                arg = f'{arg}{suffix}'
-            
+            if name == 'three_prime_adapter_read1':
+                print()
+                
+            # if is_scatter_relationship(src_scatter, dest_scatter):
+            #     suffix = handle_scatter_relationship(src_scatter, dest_scatter, src_type, dest_type)
+            #     arg = f'{arg}{suffix}'
+                        
             # handle datatype relationship
-            elif is_datatype_mismatch(src_type, dest_type):
-                suffix = handle_datatype_mismatch(src_type, dest_type)
-                arg = f'{arg}{suffix}'
-
-            # handle secondary array process input format
-            elif nfgen_utils.is_array_secondary_type(dest_type):
-                suffix = '.flatten().toList()'
+            if requires_data_operation(srctype, desttype, src_scatter, dest_scatter):
+                suffix = handle_data_operation(srctype, desttype, src_scatter, dest_scatter)
                 arg = f'{arg}{suffix}'
 
             call_args.append(arg)
@@ -145,6 +143,8 @@ def get_input_ids_tool(tool: CommandTool | PythonTool, sources: dict[str, Any]) 
 # identifying types for the data source (upstream wf input or step output)
 # and the data destination (tool input)
 def get_src_type(src: Any) -> Optional[DataType]:
+    # the srctype corresponds to either a workflow input, or step output.
+    # scattering doesn't matter. 
     dtype = trace.trace_source_datatype(src)
     if isinstance(dtype, Stdout):
         return dtype.subtype
@@ -152,6 +152,8 @@ def get_src_type(src: Any) -> Optional[DataType]:
         return dtype
 
 def get_dest_type(tool: Workflow | CommandTool | PythonTool, name: str) -> DataType:
+    # the desttype corresponds to a tool input. 
+    # scattering doesn't matter. 
     tinputs = tool.inputs_map()
     tinp = tinputs[name]
     return tinp.intype

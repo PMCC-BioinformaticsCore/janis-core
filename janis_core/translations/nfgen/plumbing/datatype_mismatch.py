@@ -2,24 +2,23 @@
 
 from janis_core.types import DataType
 
-from .. import nfgen_utils
-
 from .common import array_type
 from .common import single_type
 from .common import secondary_type
 from .common import secondary_array_type
+from .common import get_collate_size
 
 
 # public
 # check if mismatch is occuring between source and dest 
-def is_datatype_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    if array_type(srctype) and single_type(desttype):
-        return True
-    elif single_type(srctype) and array_type(desttype):
+def requires_data_operation(srctype: DataType, desttype: DataType, src_scatter: bool, dest_scatter: bool) -> bool:
+    if secondary_array_type(desttype):
         return True
     elif secondary_array_type(srctype) and secondary_type(desttype):
         return True
-    elif secondary_type(srctype) and secondary_array_type(desttype):
+    if array_type(srctype) and single_type(desttype):
+        return True
+    elif single_type(srctype) and array_type(desttype):
         return True
     return False
 
@@ -28,25 +27,22 @@ def is_datatype_mismatch(srctype: DataType, desttype: DataType) -> bool:
 # handle a mismatch we have encountered
 # each function returns an expression we can tack onto channel 
 # (during process / subworkflow call) to fix
-def handle_datatype_mismatch(srctype: DataType, desttype: DataType) -> str:
-    "delegate the mismatch to specific handling function"
-    if array_type(srctype) and single_type(desttype):
-        return '.flatten().first()'
+def handle_data_operation(srctype: DataType, desttype: DataType, src_scatter: bool, dest_scatter: bool) -> str:
+    # handle secondary array process input format
+    if secondary_array_type(desttype):
+        operation = '.flatten().toList()'
+    
+    elif array_type(srctype) and single_type(desttype):
+        operation = '.flatten().first()'
     
     elif single_type(srctype) and array_type(desttype):
-        return '.toList()'
+        operation = '.toList()'
     
     elif secondary_array_type(srctype) and secondary_type(desttype):
-        basetype = nfgen_utils.get_base_type(srctype)
-        exts = nfgen_utils.get_extensions(basetype)
-        size = len(exts)
-        return f'.flatten().collate( {size} ).first()'
-    
-    elif secondary_type(srctype) and secondary_array_type(desttype):
-        return '.flatten().toList()'
+        size = get_collate_size(srctype)
+        operation = f'.flatten().collate( {size} ).first()'
     
     else:
         raise RuntimeError('DEV: there should be a type mismatch here, but apparently not?')
 
-
-
+    return operation

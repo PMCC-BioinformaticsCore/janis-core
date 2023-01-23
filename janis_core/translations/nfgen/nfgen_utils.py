@@ -137,10 +137,8 @@ def _cast_keywords(val: str) -> str:
 
 ### TYPES 
 
-def get_base_type(dtype: Optional[DataType]) -> Optional[DataType]:
-    if dtype is None:
-        return dtype
-    while isinstance(dtype, Array) and dtype.subtype():
+def get_base_type(dtype: DataType) -> DataType:
+    while dtype.name() == 'Array' and dtype.subtype():
         dtype = dtype.subtype()
     return dtype
 
@@ -181,13 +179,14 @@ known_file_pair_types = set([
 ])
 
 def is_file_pair_type(dtype: DataType) -> bool:
-    if dtype.name() in known_file_pair_types:
+    basetype = get_base_type(dtype)
+    if basetype.name() in known_file_pair_types:
         return True
     return False
 
 def is_array_file_pair_type(dtype: DataType) -> bool:
-    if dtype.is_array():
-        if is_file_pair_type(dtype.subtype()):
+    if dtype.name() == 'Array':
+        if is_file_pair_type(dtype):
             return True
     return False
 
@@ -208,7 +207,7 @@ def is_array_secondary_type(dtype: DataType) -> bool:
         return True
     return False
 
-def get_extensions(dtype: File) -> list[str]:
+def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
     """returns extension of each file for File types with secondaries"""
     primary_ext: str = ''
     secondary_exts: list[str] = []
@@ -225,7 +224,11 @@ def get_extensions(dtype: File) -> list[str]:
     else:
         secondary_exts = []
 
-    return _sort_extensions(primary_ext, secondary_exts)
+    exts = _sort_extensions(primary_ext, secondary_exts)
+    if remove_symbols:
+        exts = [x.rsplit('.')[-1] for x in exts]
+    return exts
+
 
 def _sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
     out: list[str] = []

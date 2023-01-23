@@ -1,45 +1,14 @@
 
 
-"""
-
-docker.enabled = true
-
-params {
-
-    // INPUTS
-    fastqs          = []
-    reference_fasta = null
-    reference_amb   = null
-
-    // PROCESSES
-    sample_name           = null
-    allele_freq_threshold = 0.05
-    min_mapping_qual      = null
-
-    // SUBWORKFLOW: ALIGN_AND_SORT
-    align_and_sort.bwamem.mark_shorter_splits    = true
-    align_and_sort.cutadapt.quality_cutoff       = 15
-    align_and_sort.cutadapt.minimum_length       = 50
-    align_and_sort.sortsam.sort_order            = 'coordinate'
-    align_and_sort.sortsam.create_index          = true
-    align_and_sort.sortsam.validation_stringency = 'SILENT'
-    align_and_sort.sortsam.max_records_in_ram    = 5000000
-
-    // SUBWORKFLOW: MERGE_AND_MARKDUPS
-    merge_and_markdups.create_index                                          = true
-    merge_and_markdups.max_records_in_ram                                    = 5000000
-    merge_and_markdups.merge_sam_files.use_threading                         = true
-    merge_and_markdups.merge_sam_files.validation_stringency                 = 'SILENT'
-
-"""
-
 from __future__ import annotations
 from collections import defaultdict
-from typing import Optional
-from janis_core.types import File, String
+from janis_core.types import File
+
+from . import settings
+from . import nfgen_utils
 from .params import Param, getall
 from .casefmt import to_case
-from . import settings
+
 
 DEFAULT_LINES = ['docker.enabled = true']
 INDENT = settings.NF_INDENT
@@ -80,7 +49,6 @@ class ParamGroup:
 
     def to_string(self) -> str:
         heading = f'{INDENT}{COMMENTER}{self.heading}\n'
-        
         out: str = ''
         out += heading
         for param in self.params:
@@ -89,38 +57,111 @@ class ParamGroup:
     
     def param_to_string(self, param: Param) -> str:
         dtype = param.janis_type
-        comment: Optional[str] = None
-        if dtype:
-            if dtype.is_array() and isinstance(dtype.subtype(), File):
-                comment = 'list files here'
-            if dtype.is_array() and isinstance(dtype.subtype(), String):
-                comment = 'list strings here'
-        # everything else
-        return self.param_to_string_inline(param, comment)
 
-    def param_to_string_inline(self, param: Param, comment: Optional[str]=None) -> str:
-        line = f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
-        if comment:
-            line += f'{INDENT}// {comment}'
-        return line
+        if nfgen_utils.is_array_secondary_type(dtype):
+            return self.format_param_array_secondary(param)
+        
+        elif nfgen_utils.is_secondary_type(dtype):
+            return self.format_param_secondary(param)
+        
+        elif nfgen_utils.is_array_file_pair_type(dtype):
+            return self.format_param_array_file_pair(param)
 
-    def param_to_string_multiline(self, param: Param, comment: str) -> str:
-        lines: list[str] = []
-        if isinstance(param.default, list):
-            lines.append(f'{param.name:<{self.linewidth}} = [')
-            for val in param.default:
-                if isinstance(val, str):
-                    val = f"'{val}'"
-                lines.append(f'{INDENT}{val},')
-            lines.append(']')
-            lines = [f'{INDENT}{ln}' for ln in lines]
-            return '\n'.join(lines)
+        elif nfgen_utils.is_file_pair_type(dtype):
+            return self.format_param_file_pair(param)
+
+        elif dtype.is_array():
+            return self.format_param_array(param)
+        
         else:
-            lines.append(f'{param.name:<{self.linewidth}} = [')
-            lines.append(f'{INDENT}// {comment}')
-            lines.append(']')
-            lines = [f'{INDENT}{ln}' for ln in lines]
-            return '\n'.join(lines)
+            return self.format_param_single(param)
+
+
+    def format_param_array_secondary(self, param: Param) -> str:
+        dtype = param.janis_type
+        basetype = nfgen_utils.get_base_type(dtype)
+        exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+
+        text: str = ''
+        text += f'{INDENT}// array of {basetype.name()}\n'
+        text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
+        text += f'{INDENT}{INDENT}[\n'
+        for ext in exts:
+            text += f'{INDENT}{INDENT}{INDENT}// {ext}\n'
+        text += f'{INDENT}{INDENT}],\n'
+        text += f'{INDENT}]\n'
+        print(text)
+        return text
+
+    def format_param_secondary(self, param: Param) -> str:
+        dtype = param.janis_type
+        basetype = nfgen_utils.get_base_type(dtype)
+        exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+
+        text: str = ''
+        text += f'{INDENT}// {basetype.name()}\n'
+        text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
+        for ext in exts:
+            text += f'{INDENT}{INDENT}// {ext}\n'
+        text += f'{INDENT}]\n'
+        print(text)
+        return text
+
+    def format_param_array_file_pair(self, param: Param) -> str:
+        text = f"""\
+{INDENT}{param.name:<{self.linewidth}} = [
+{INDENT}{INDENT}[
+{INDENT}{INDENT}{INDENT}// read 1
+{INDENT}{INDENT}{INDENT}// read 2
+{INDENT}{INDENT}],
+{INDENT}]"""
+        return text
+
+    def format_param_file_pair(self, param: Param) -> str:
+        text = f"""\
+{INDENT}{param.name:<{self.linewidth}} = [
+{INDENT}{INDENT}// read 1
+{INDENT}{INDENT}// read 2
+{INDENT}]"""
+        return text
+    
+    def format_param_array(self, param: Param) -> str:
+        basetype = nfgen_utils.get_base_type(param.janis_type)
+        if isinstance(basetype, File):
+            comment = 'list files here'
+        else:
+            comment = 'list values here'
+        text = f"""\
+{INDENT}{param.name:<{self.linewidth}} = [
+{INDENT}{INDENT}// {comment}
+{INDENT}]"""
+        print(text)
+        return text
+
+    def format_param_single(self, param: Param) -> str:
+        return f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
+
+
+
+
+
+    # def param_to_string_multiline(self, param: Param, comment: str) -> str:
+    #     lines: list[str] = []
+    #     if isinstance(param.default, list):
+    #         lines.append(f'{param.name:<{self.linewidth}} = [')
+    #         for val in param.default:
+    #             if isinstance(val, str):
+    #                 val = f"'{val}'"
+    #             lines.append(f'{INDENT}{val},')
+    #         lines.append(']')
+    #         lines = [f'{INDENT}{ln}' for ln in lines]
+    #         return '\n'.join(lines)
+    #     else:
+    #         lines.append(f'{param.name:<{self.linewidth}} = [')
+    #         lines.append(f'{INDENT}// {comment}')
+    #         lines.append(']')
+    #         lines = [f'{INDENT}{ln}' for ln in lines]
+    #         return '\n'.join(lines)
 
 
 

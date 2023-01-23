@@ -28,8 +28,8 @@ class PlumbingTypeMismatchTestWF(Workflow):
             SecondaryInputTestTool(inp=self.inSecondaryArray)
         )
         self.step(
-            "secondary_to_secondary_array", 
-            SecondaryArrayInputTestTool(inp=self.inSecondary)
+            "secondary_array_to_secondary_array", 
+            SecondaryArrayInputTestTool(inp=self.inSecondaryArray)
         )
 
     def friendly_name(self):

@@ -15,7 +15,8 @@ from janis_core.types import (
     Int,
     Float,
     Double,
-    Boolean
+    Boolean,
+    String
 )
 
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
@@ -646,36 +647,36 @@ class NextflowTranslator(TranslatorBase):
         # Add directives from input resources
         for res, val in resources.items():
             if res.endswith("runtime_cpu"):
-                param = nfgen.params.add(janis_tag='cpus', scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='cpus', scope=scope, default=val, janis_dtype=Int())
                 nf_directives['cpus'] = nfgen.CpusDirective(param)
             
             elif res.endswith("runtime_memory"):
-                param = nfgen.params.add(janis_tag='memory', scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='memory', scope=scope, default=val, janis_dtype=Int())
                 nf_directives['memory'] = nfgen.MemoryDirective(param)
             
             elif res.endswith("runtime_seconds"):
-                param = nfgen.params.add(janis_tag='time', scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='time', scope=scope, default=val, janis_dtype=Int())
                 nf_directives['time'] = nfgen.TimeDirective(param)
             
             elif res.endswith("runtime_disk"):
-                param = nfgen.params.add(janis_tag='disk', scope=scope, default=val)
+                param = nfgen.params.add(janis_tag='disk', scope=scope, default=val, janis_dtype=Int())
                 nf_directives['disk'] = nfgen.DiskDirective(param)
         
         # Add directives from tool resources
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
-            param = nfgen.params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}))
+            param = nfgen.params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}), janis_dtype=Int())
             nf_directives['cpus'] = nfgen.CpusDirective(param)
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
-            param = nfgen.params.add(janis_tag='memory', scope=scope, default=tool.memory({}))
+            param = nfgen.params.add(janis_tag='memory', scope=scope, default=tool.memory({}), janis_dtype=Int())
             nf_directives['memory'] = nfgen.MemoryDirective(param)
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
-            param = nfgen.params.add(janis_tag='disk', scope=scope, default=tool.disk({}))
+            param = nfgen.params.add(janis_tag='disk', scope=scope, default=tool.disk({}), janis_dtype=Int())
             nf_directives['disk'] = nfgen.DiskDirective(param)
         
         if 'time' not in nf_directives and tool.time({}) is not None:
-            param = nfgen.params.add(janis_tag='time', scope=scope, default=tool.time({}))
+            param = nfgen.params.add(janis_tag='time', scope=scope, default=tool.time({}), janis_dtype=Int())
             nf_directives['time'] = nfgen.TimeDirective(param)
         
         final_directives: list[nfgen.ProcessDirective] = []
@@ -1127,9 +1128,9 @@ import json
 
 result = code_block({args_str})
 
-work_dir = os.getenv("PYENV_DIR")
+work_dir = os.getcwd()
 for key in result:
-    with open(os.path.join("${{task.workDir}}", f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
+    with open(os.path.join(work_dir, f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
         f.write(json.dumps(result[key]))
 """
         return script

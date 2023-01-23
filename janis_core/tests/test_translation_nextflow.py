@@ -62,6 +62,7 @@ from janis_core.tests.testworkflows import (
     NamingTestWF,
     PlumbingTypeMismatchTestWF,
     EntityTraceTestWF,
+    FilePairsTestWF
 )
 
 from janis_core import (
@@ -1594,8 +1595,8 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         ]
         self.assertEqual(actual, expected)
     
-    def test_secondary_to_secondary_array(self):
-        step_id = 'secondary_to_secondary_array'
+    def test_to_secondary_array(self):
+        step_id = 'secondary_array_to_secondary_array'
         step = self.wf.step_nodes[step_id]
         scope = nfgen.Scope()
         scope.update(step)
@@ -2091,7 +2092,7 @@ class TestConfig(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
-    def test_file_workflow_inputs(self):
+    def test_file(self):
         wf = BasicIOTestWF()
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
@@ -2107,52 +2108,7 @@ class TestConfig(unittest.TestCase):
             matches = re.findall(pattern, config)
             self.assertGreater(len(matches), 0)
     
-    def test_array_workflow_inputs(self):
-        wf = ArrayIOExtrasTestWF()
-        refresh_workflow_inputs(wf)
-        config = translator.stringify_translated_inputs({})
-        # I apologise for disgusting formatting below. 
-        # This can probably be handled better.
-        expected_values = {
-            "in_file_array": r"\[\]    \/\/ list files here",
-            "in_str_array": r"\[\]    \/\/ list strings here",
-            "in_int_array": r"\[\]",
-            "in_float_array": r"\[\]",
-            "stp4_inp": r"\['hello', 'there!'\]    \/\/ list strings here"
-        }
-        print(config)
-        for name, val in expected_values.items():
-            pattern = f'{name}.*?{val}'
-            matches = re.findall(pattern, config)
-            self.assertGreater(len(matches), 0)
-    
-    def test_file_secondaries_workflow_inputs(self):
-        wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
-        config = translator.stringify_translated_inputs({})
-        expected_values = {
-            'in_alignments': 'null',
-        }
-        print(config)
-        for name, val in expected_values.items():
-            pattern = f'{name}.*?{val}'
-            matches = re.findall(pattern, config)
-            self.assertGreater(len(matches), 0)
-    
-    def test_file_secondaries_array_workflow_inputs(self):
-        wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
-        config = translator.stringify_translated_inputs({})
-        expected_values = {
-        "in_alignments_arr": r"\[\]    \/\/ list files here",
-        }
-        print(config)
-        for name, val in expected_values.items():
-            pattern = f'{name}.*?{val}'
-            matches = re.findall(pattern, config)
-            self.assertGreater(len(matches), 0)
-    
-    def test_nonfile_workflow_inputs(self):
+    def test_nonfile(self):
         # string, int, bool
         wf = StepInputsTestWF()
         refresh_workflow_inputs(wf)
@@ -2178,6 +2134,103 @@ class TestConfig(unittest.TestCase):
             pattern = f'{name}.*?{val}'
             matches = re.findall(pattern, config)
             self.assertGreater(len(matches), 0)
+
+    def test_array(self):
+        wf = ArrayIOExtrasTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        # I apologise for disgusting formatting below. 
+        # This can probably be handled better.
+        expected_values = {
+"in_file_array": f"""[
+    // list files here
+]""",
+"in_str_array": f"""[
+    // list values here
+]""",
+"in_int_array": f"""[
+    // list values here
+]""",
+"in_float_array": f"""[
+    // list values here
+]""",
+"stp4_inp": f"""[
+    'hello',
+    'there!'
+]""",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_file_pair(self):
+        wf = FilePairsTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        print(config)
+        expected_values = {
+"in_reads": f"""[
+    // read 1
+    // read 2
+]""",
+        }
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_array_file_pair(self):
+        wf = FilePairsTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        print(config)
+        expected_values = {
+"in_reads": f"""[
+    // read 1
+    // read 2
+]""",
+        }
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+
+    def test_secondary(self):
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+"in_alignments": f"""[
+    // bam
+    // bai
+]""",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
+    def test_array_secondary(self):
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        expected_values = {
+"in_alignments_arr": fr"""[
+    [
+        // bam
+        // bai
+    ],
+]""",
+        }
+        print(config)
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
     
     def test_nonfile_array_workflow_inputs(self):
         # string, int, bool

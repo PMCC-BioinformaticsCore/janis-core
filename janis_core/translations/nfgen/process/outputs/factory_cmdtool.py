@@ -33,7 +33,7 @@ class OType(Enum):
     STDOUT              = auto()
     NON_FILE            = auto()
     FILE                = auto()
-    FILE_PAIR           = auto()
+    FILEPAIR            = auto()
     FILE_ARRAY          = auto()
     SECONDARIES         = auto()
     SECONDARIES_ARRAY   = auto()
@@ -42,15 +42,15 @@ class OType(Enum):
 def get_otype(out: ToolOutput) -> OType:
     if is_stdout_type(out):
         return OType.STDOUT
+
+    elif is_filepair_type(out):
+        return OType.FILEPAIR
     
     elif is_secondary_type(out) and is_array_type(out):
         return OType.SECONDARIES_ARRAY
     
     elif is_secondary_type(out):
         return OType.SECONDARIES
-    
-    elif is_file_type(out) and is_array_type(out) and has_n_collectors(out, n=2):
-        return OType.FILE_PAIR
     
     elif is_file_type(out) and is_array_type(out) and has_n_collectors(out, n=1):
         return OType.FILE_ARRAY
@@ -74,6 +74,12 @@ def is_stdout_type(out: ToolOutput) -> bool:
 def is_file_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
     if isinstance(basetype, File):
+        return True
+    return False
+
+def is_filepair_type(out: ToolOutput) -> bool:
+    basetype = nfgen_utils.get_base_type(out.output_type)
+    if basetype.name() in ['FastqPair', 'FastqGzPair']:
         return True
     return False
 
@@ -166,7 +172,7 @@ class CmdtoolProcessOutputFactory:
             OType.STDOUT: self.stdout_output,
             OType.NON_FILE: self.non_file_output,
             OType.FILE: self.file_output,
-            OType.FILE_PAIR: self.file_pair_output,
+            OType.FILEPAIR: self.file_pair_output,
             OType.FILE_ARRAY: self.file_array_output,
             OType.SECONDARIES: self._secondaries_output,
             OType.SECONDARIES_ARRAY: self._secondaries_array_output,

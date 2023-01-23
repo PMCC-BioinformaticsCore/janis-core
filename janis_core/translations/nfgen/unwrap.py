@@ -285,7 +285,7 @@ class Unwrapper:
         basetype = nfgen_utils.get_base_type(dtype)
         # secondary files (name mapped to ext of primary file) @secondariesarray 
         if isinstance(basetype, File) and basetype.has_secondary_files():
-            names = naming.process_input_secondaries(inp)
+            names = naming.process_input_secondaries(inp, self.sources)
             name = names[0]
         # everything else
         else:

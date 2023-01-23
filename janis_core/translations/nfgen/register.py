@@ -35,25 +35,25 @@ def register_params_channels(wf: Workflow, scope: Scope) -> None:
     
     # repeat for nested workflows (subworkflows)
     for step in wf.step_nodes.values():
-        if isinstance(step.tool, Workflow):
-            current_scope = deepcopy(scope)
-            current_scope.update(step)
+        current_scope = deepcopy(scope)
+        current_scope.update(step)
+        if isinstance(step.tool, PythonTool):
             register_params_python_tool(step, current_scope)
+        elif isinstance(step.tool, Workflow):
             register_params_channels(step.tool, scope=current_scope)
 
 
 def register_params_python_tool(step: StepNode, current_scope: Scope) -> None:
     """A param will be registered for the code_file of each PythonTool."""
-    if isinstance(step.tool, PythonTool):
-        default = _get_code_file_path(step.tool)
-        params.add(
-            janis_tag='code_file',
-            scope=current_scope,
-            default=default,
-            is_channel_input=False,
-            janis_dtype=File(),
-            janis_uuid=None,
-        )
+    default = _get_code_file_path(step.tool)
+    params.add(
+        janis_tag='code_file',
+        scope=current_scope,
+        default=default,
+        is_channel_input=False,
+        janis_dtype=File(),
+        janis_uuid=None,
+    )
 
 
 # helper classes 

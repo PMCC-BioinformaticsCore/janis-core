@@ -31,10 +31,10 @@ def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict
     tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
     tinputs = ordering.order_janis_process_inputs(tinputs)
     for i in tinputs:
-        process_inputs.append(create_input(i))
+        process_inputs.append(create_input(i, sources))
     return process_inputs
 
-def create_input(inp: ToolInput | TInput) -> ProcessInput:
+def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
     basetype: Optional[DataType] = nfgen_utils.get_base_type(dtype)
     assert(basetype)
@@ -46,7 +46,7 @@ def create_input(inp: ToolInput | TInput) -> ProcessInput:
     
     # secondaries
     if nfgen_utils.is_secondary_type(dtype):
-        return create_tuple_input_secondaries(inp)
+        return create_tuple_input_secondaries(inp, sources)
     
     # file array
     elif dtype.is_array() and isinstance(basetype, (File, Directory)):
@@ -70,9 +70,9 @@ def create_path_input_secondaries_array(inp: ToolInput | TInput) -> ProcessInput
     new_input = PathProcessInput(name=name)
     return new_input
 
-def create_tuple_input_secondaries(inp: ToolInput | TInput) -> TupleProcessInput:
+def create_tuple_input_secondaries(inp: ToolInput | TInput, sources: dict[str, Any]) -> TupleProcessInput:
     # tuple sub-element for each file
-    subnames = naming.process_input_secondaries(inp)
+    subnames = naming.process_input_secondaries(inp, sources)
     qualifiers = ['path'] * len(subnames)
     
     new_input = TupleProcessInput(
