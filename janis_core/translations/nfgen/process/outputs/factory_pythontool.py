@@ -19,8 +19,6 @@ from .model import (
 )
 
 
-
-
 class OType(Enum):
     NON_FILE        = auto()
     NON_FILE_ARRAY  = auto()
@@ -104,20 +102,12 @@ class PythonToolProcessOutputFactory:
         return new_output
 
     def nonfile_array_output(self) -> ValProcessOutput:
-        expr = f'\"${{file(\"${{task.workDir}}/{self.target_file}\").text.split(\',\')}}"'
+        filepath = f'\"${{task.workDir}}/{self.target_file}\"'
+        processing = ".text.replace('[', '').replace(']', '').split(',')"
+        expr = f'\"${{file({filepath}){processing}}}"'
         new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
             expression=expr
         )
         return new_output
-
-    # @unused
-    # def create_path_output_secondaries(self, ext: str) -> PathProcessOutput:
-    #     # array of secondaries
-    #     outputs: list[ProcessOutput] = []
-    #     assert(isinstance(self.basetype, File))
-    #     exts = naming.get_name_secondaries(self.basetype)
-    #     for ext in exts:
-    #         outputs.append(self.create_path_output_secondaries(ext))
-    #     return outputs

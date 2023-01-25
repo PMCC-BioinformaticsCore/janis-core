@@ -11,21 +11,24 @@ from janis_core import (
     InputSelector,
     WildcardSelector,
     FirstOperator,
+    IndexOperator
 )
 from janis_core.types import (
     Filename,
     File,
     String,
+    Array,
 )
 
-from janis_unix import Csv, Tsv
 
+from janis_unix import Csv, Tsv, TextFile
 
 # WORKFLOW
 class OutputCollectionTestWF(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
+        self.input('inFileArray', Array(File))
 
         self.step(
             "stp1", 
@@ -63,6 +66,12 @@ class OutputCollectionTestWF(Workflow):
             "stp8", 
             MarkDuplicatesMetricsTestTool(
                 outputPrefix='hello'
+            )
+        )
+        self.step(
+            "stp9", 
+            FilenameClashTestTool(
+                reads=self.inFileArray 
             )
         )
 
@@ -356,4 +365,46 @@ class MarkDuplicatesMetricsTestTool(CatToolBase):
     def outputs(self):
         return [
             ToolOutput("metrics", Tsv(), glob=InputSelector("metricsFilename")),
+        ]
+
+
+class FilenameClashTestTool(CatToolBase):
+    
+    def friendly_name(self):
+        return "TEST: FilenameClashTestTool"
+
+    def tool(self):
+        return "FilenameClashTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput("reads", Array(File)),
+            ToolInput(
+                "read1",
+                File(optional=True),
+                default=IndexOperator(InputSelector("reads"), 0),
+                position=1,
+            ),
+            ToolInput(
+                "read2",
+                File(optional=True),
+                default=IndexOperator(InputSelector("reads"), 1),
+                position=2,
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out_R1_datafile",
+                TextFile,
+                selector=InputSelector("read1", remove_file_extension=True)
+                + "_fastqc/fastqc_data.txt",
+            ),
+            ToolOutput(
+                "out_R2_datafile",
+                TextFile,
+                selector=InputSelector("read2", remove_file_extension=True)
+                + "_fastqc/fastqc_data.txt",
+            ),
         ]

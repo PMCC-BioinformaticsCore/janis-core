@@ -33,6 +33,9 @@ from .unwrap import UnwrapTestWF
 from .subworkflow import SubworkflowTestWF
 from .naming import NamingTestWF
 from .filepairs import FilePairsTestWF
+from .process_inputs import ProcessInputsTestWF
+from .ordering import OrderingTestWF
+
 
 from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
 from .trace import EntityTraceTestWF

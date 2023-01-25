@@ -5,6 +5,8 @@ from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from janis_core import DataType, File, Directory, Array
+from ... import nfgen_utils
 
 
 @dataclass
@@ -25,13 +27,22 @@ class ValProcessInput(ProcessInput):
 
 @dataclass
 class PathProcessInput(ProcessInput):
+    dtype: Optional[DataType]=None
     presents_as: Optional[str]=None
 
     @property
     def stage_as(self) -> str:
         if self.presents_as:
-            return f", stageAs: '{self.presents_as}'"
-        return ''
+            outstr = f", stageAs: '{self.presents_as}'"
+        elif isinstance(self.dtype, (File, Directory)):
+            exts = nfgen_utils.get_extensions(self.dtype)
+            if exts and exts[0] != 'primary':
+                outstr = f", stageAs: '{self.name}{exts[0]}'"
+            else:
+                outstr = f", stageAs: '{self.name}'"
+        else:
+            outstr = ''
+        return outstr
     
     def get_string(self) -> str:
         return f'path {self.name}{self.stage_as}'

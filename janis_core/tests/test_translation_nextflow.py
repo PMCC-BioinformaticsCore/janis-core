@@ -62,7 +62,9 @@ from janis_core.tests.testworkflows import (
     NamingTestWF,
     PlumbingTypeMismatchTestWF,
     EntityTraceTestWF,
-    FilePairsTestWF
+    FilePairsTestWF,
+    ProcessInputsTestWF,
+    OrderingTestWF
 )
 
 from janis_core import (
@@ -251,26 +253,12 @@ class TestParams(unittest.TestCase):
     def test_fed_step_inputs(self) -> None:
         wf = StepInputsWFInputTestWF()
         
-        # full
-        # settings.MINIMAL_PROCESS = False
-        # actual_params = refresh_workflow_inputs(wf)
-        # expected_params = {
-        #     'in_file': 'null',
-        #     'stp1_pos_default': 'null',
-        #     'stp1_pos_optional': 'null',
-        #     'stp1_flag_true': 'null',
-        #     'stp1_flag_false': 'null',
-        #     'stp1_opt_basic': 'null',
-        #     'stp1_opt_default': 'null',
-        #     'stp1_opt_optional': 'null'
-        # }
-        # self.assertEquals(actual_params, expected_params)
-        
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
+            'outdir': "'./outputs'",
             'in_file': 'null',
             'in_file_opt': 'null',
             'in_str': 'null',
@@ -282,26 +270,12 @@ class TestParams(unittest.TestCase):
     def test_static_step_inputs(self) -> None:
         wf = StepInputsStaticTestWF()
         
-        # full
-        # settings.MINIMAL_PROCESS = False
-        # actual_params = refresh_workflow_inputs(wf)
-        # expected_params = {
-        #     'in_file': 'null',
-        #     'stp2_pos_default': '100',
-        #     'stp2_pos_optional': "'static'",
-        #     'stp2_flag_true': 'false',
-        #     'stp2_flag_false': 'true',
-        #     'stp2_opt_basic': "'static'",
-        #     'stp2_opt_default': '100',
-        #     'stp2_opt_optional': "''"
-        # }
-        # self.assertEquals(actual_params, expected_params)
-        
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
+            'outdir': "'./outputs'",
             'in_file': 'null',
             'in_str': 'null',
             'in_int': 'null',
@@ -319,26 +293,12 @@ class TestParams(unittest.TestCase):
     def test_static_and_omitted_step_inputs(self) -> None:
         wf = StepInputsPartialStaticTestWF()
         
-        # # full
-        # settings.MINIMAL_PROCESS = False
-        # actual_params = refresh_workflow_inputs(wf)
-        # expected_params = {
-        #     'in_file': 'null',
-        #     'stp3_pos_default': 'null',
-        #     'stp3_pos_optional': 'null',
-        #     'stp3_flag_true': 'null',
-        #     'stp3_flag_false': 'null',
-        #     'stp3_opt_basic': "'static'",
-        #     'stp3_opt_default': '100',
-        #     'stp3_opt_optional': "''"
-        # }
-        # self.assertEquals(actual_params, expected_params)
-        
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
+            'outdir': "'./outputs'",
             'in_file': 'null',
             'in_str': 'null',
             'in_int': 'null',
@@ -352,26 +312,12 @@ class TestParams(unittest.TestCase):
     def test_omitted_step_inputs(self) -> None:
         wf = StepInputsMinimalTestWF()
         
-        # # full
-        # settings.MINIMAL_PROCESS = False
-        # actual_params = refresh_workflow_inputs(wf)
-        # expected_params = {
-        #     'in_file': 'null',
-        #     'stp4_pos_default': 'null',
-        #     'stp4_pos_optional': 'null',
-        #     'stp4_flag_true': 'null',
-        #     'stp4_flag_false': 'null',
-        #     'stp4_opt_basic': 'null',
-        #     'stp4_opt_default': 'null',
-        #     'stp4_opt_optional': 'null'
-        # }
-        # self.assertEquals(actual_params, expected_params)
-        
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
+            'outdir': "'./outputs'",
             'in_file': 'null',
             'in_str': 'null',
             'in_int': 'null',
@@ -384,6 +330,7 @@ class TestParams(unittest.TestCase):
         refresh_workflow_inputs(wf)
         actual_params = nfgen.params.serialize()
         expected_params = {
+            'outdir': "'./outputs'",
             'in_file_array': '[]',
             'in_str_array': '[]',
             'in_int_array': '[]',
@@ -489,10 +436,10 @@ class TestFileFormatting(unittest.TestCase):
             'container "quay.io/biocontainers/fastqc:0.11.8--2"',
             'publishDir "${params.outdir}/fastqc1"',
             'input:',
-            'path input_file',
-            'path adapters',
-            'path contaminants',
-            'path limits',
+            'path input_file, stageAs: \'input_file\'',
+            'path adapters, stageAs: \'adapters\'',
+            'path contaminants, stageAs: \'contaminants\'',
+            'path limits, stageAs: \'limits\'',
             'output:',
             'path "output.html", emit: outHtmlFile',
             'path "output.txt", emit: outTextFile',
@@ -556,6 +503,8 @@ class TestFileFormatting(unittest.TestCase):
         expected_lines = [
             "docker.enabled = true",
             "params {",
+            "// OUTPUT DIRECTORY",
+            "outdir  = './outputs'",
             "// INPUTS",
             "in_file  = null",
             "in_str   = null",
@@ -798,6 +747,47 @@ class TestProcessInputs(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+
+    def test_file_pairs(self) -> None:
+        wf = FilePairsTestWF()
+        refresh_workflow_inputs(wf)
+
+        # filepair
+        step = wf.step_nodes["stp1"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = {
+            'path reads'
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        # filepair array
+        step = wf.step_nodes["stp3"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = {
+            'path reads'
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+    def test_stage_as(self) -> None:
+        wf = ProcessInputsTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes["stp2"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = {
+            'path fastq_inp1, stageAs: \'fastq_inp1.fastq\'',
+            'path fastq_inp2, stageAs: \'fastq_inp2.fastq\'',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+
 
     def test_wf_inputs(self) -> None:
         # need a process input for each File wf input in step sources.
@@ -1158,6 +1148,16 @@ class TestProcessOutputs(unittest.TestCase):
         print(process.outputs[0].get_string())
         expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].first()}.metrics.txt", emit: metrics'}
         self.assertEqual(actual_outputs, expected_outputs)
+
+    def test_filename_clash(self) -> None:
+        step = self.wf.step_nodes['stp9']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        # expected_outputs = {'path "out_out", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+
     
     def test_pythontool(self) -> None:
         wf = OutputsPythonToolTestWF()
@@ -2092,6 +2092,19 @@ class TestConfig(unittest.TestCase):
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
     
+    def test_outdir(self):
+        wf = BasicIOTestWF()
+        refresh_workflow_inputs(wf)
+        config = translator.stringify_translated_inputs({})
+        print(config)
+        expected_values = {
+            'outdir': './outputs',
+        }
+        for name, val in expected_values.items():
+            pattern = f'{name}.*?{val}'
+            matches = re.findall(pattern, config)
+            self.assertGreater(len(matches), 0)
+    
     def test_file(self):
         wf = BasicIOTestWF()
         refresh_workflow_inputs(wf)
@@ -2218,18 +2231,17 @@ class TestConfig(unittest.TestCase):
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
-"in_alignments_arr": fr"""[
-    [
-        // bam
-        // bai
-    ],
-]""",
+"in_alignments_arr": f"""[
+        [
+            // bam
+            // bai
+        ],
+    ]""",
         }
         print(config)
         for name, val in expected_values.items():
-            pattern = f'{name}.*?{val}'
-            matches = re.findall(pattern, config)
-            self.assertGreater(len(matches), 0)
+            self.assertIn(name, config)
+            self.assertIn(val, config)
     
     
     def test_nonfile_array_workflow_inputs(self):
@@ -2602,6 +2614,239 @@ class TestStringFormatter(unittest.TestCase):
 
 
 
+class TestOrdering(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = OrderingTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_process_call(self) -> None:
+        # from workflow inputs
+        step_id = 'stp1'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+        ]
+        self.assertEqual(expected, actual)
+        
+        # from process outputs
+        step_id = 'stp3'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "STP1.out.outFastq",
+            "STP1.out.outFastqArray",
+            "STP1.out.outFile",
+            "STP1.out.outInt",
+            "STP1.out.outIntArray",
+            "STP1.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+
+        # from subworkflow outputs
+        step_id = 'stp5'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "STP2.out.outFastq",
+            "STP2.out.outFastqArray",
+            "STP2.out.outFile",
+            "STP2.out.outInt",
+            "STP2.out.outIntArray",
+            "STP2.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+
+    def test_subworkflow_call(self) -> None:
+        # from workflow inputs
+        step_id = 'stp2'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+            "params.in_int",
+            "params.in_int_array",
+            "params.in_str"
+        ]
+        self.assertEqual(expected, actual)
+        
+        # from process outputs
+        step_id = 'stp4'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "STP1.out.outFastq",
+            "STP1.out.outFastqArray",
+            "STP1.out.outFile",
+            "STP1.out.outInt",
+            "STP1.out.outIntArray",
+            "STP1.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+
+        # from subworkflow outputs
+        step_id = 'stp6'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "STP2.out.outFastq",
+            "STP2.out.outFastqArray",
+            "STP2.out.outFile",
+            "STP2.out.outInt",
+            "STP2.out.outIntArray",
+            "STP2.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+    
+    def test_process_inputs(self) -> None:
+        # from workflow inputs
+        step = self.wf.step_nodes["stp1"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = [
+            "path in_fastq, stageAs: 'in_fastq.fastq'",
+            "path in_fastq_array",
+            "path in_file, stageAs: 'in_file'"
+        ]
+
+        actual_inputs = [inp.get_string() for inp in process.inputs]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # from process outputs
+        step = self.wf.step_nodes["stp3"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = [
+            "path in_fastq, stageAs: 'in_fastq.fastq'",
+            "path in_fastq_array",
+            "path in_file, stageAs: 'in_file'",
+            "val in_int",
+            "val in_int_array",
+            "val in_str"
+        ]
+        actual_inputs = [inp.get_string() for inp in process.inputs]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # from subworkflow outputs
+        step = self.wf.step_nodes["stp5"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        expected_inputs = [
+            "path in_fastq, stageAs: 'in_fastq.fastq'",
+            "path in_fastq_array",
+            "path in_file, stageAs: 'in_file'",
+            "val in_int",
+            "val in_int_array",
+            "val in_str"
+        ]
+        actual_inputs = [inp.get_string() for inp in process.inputs]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+
+    def test_subworkflow_inputs(self) -> None:
+        # from workflow inputs
+        step_id = 'stp2'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        nf_workflow = translator.gen_workflow(
+            name=step_id, 
+            scope=scope,
+            sources=step.sources,
+            wf=step.tool
+        )
+        expected_inputs = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+            "ch_in_int",
+            "ch_in_int_array",
+            "ch_in_str"
+        ]
+        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # from process outputs
+        step_id = 'stp4'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        nf_workflow = translator.gen_workflow(
+            name=step_id, 
+            scope=scope,
+            sources=step.sources,
+            wf=step.tool
+        )
+        expected_inputs = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+            "ch_in_int",
+            "ch_in_int_array",
+            "ch_in_str"
+        ]
+        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # from subworkflow outputs
+        step_id = 'stp6'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        nf_workflow = translator.gen_workflow(
+            name=step_id, 
+            scope=scope,
+            sources=step.sources,
+            wf=step.tool
+        )
+        expected_inputs = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+            "ch_in_int",
+            "ch_in_int_array",
+            "ch_in_str"
+        ]
+        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        self.assertEqual(actual_inputs, expected_inputs)
+
+    @unittest.skip('not implemented')
+    def test_workflow_imports(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_channel_definitions(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('not implemented')
+    def test_config(self) -> None:
+        raise NotImplementedError
+    
+
+
+
 class TestSubWorkflows(unittest.TestCase):
     # sometimes logic here a bit more complex or weird 
     # due to subworkflows. apologies. 
@@ -2748,6 +2993,7 @@ class TestNaming(unittest.TestCase):
         params = nfgen.params.getall()
         param_names = {p.name for p in params}
         expected_names = {
+            'outdir',
             'process_input',
             'process_input_array',
             'param_input',

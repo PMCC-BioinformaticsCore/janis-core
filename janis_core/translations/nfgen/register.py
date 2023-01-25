@@ -268,8 +268,12 @@ def _get_file_wf_inputs(wf: Workflow) -> set[str]:
     # wf inputs with file type are fed via channels.
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
-        dtype = nfgen_utils.get_base_type(inp.datatype)
-        if isinstance(dtype, File):
+        basetype = nfgen_utils.get_base_type(inp.datatype)
+        # main file types
+        if isinstance(basetype, File):
+            out.add(name)
+        # file pairs
+        elif basetype.name() in ['FastqPair', 'FastqGzPair']:
             out.add(name)
     return out
 

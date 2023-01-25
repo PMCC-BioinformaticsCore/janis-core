@@ -3,7 +3,7 @@
 from typing import Any
 from enum import Enum, auto
 
-from janis_core.types import File, DataType, Stdout
+from janis_core.types import File, DataType, Stdout, Directory
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core import (
     ToolOutput, 
@@ -73,7 +73,7 @@ def is_stdout_type(out: ToolOutput) -> bool:
 
 def is_file_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
-    if isinstance(basetype, File):
+    if isinstance(basetype, (File, Directory)):
         return True
     return False
 
@@ -93,7 +93,7 @@ def is_array_type(out: ToolOutput) -> bool:
 
 def is_non_file_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
-    if not isinstance(basetype, File):
+    if not isinstance(basetype, (File, Directory)):
         return True
     return False
 
@@ -197,7 +197,13 @@ class CmdtoolProcessOutputFactory:
             return True
         return False
 
+    # @property
+    # def filename_clashes(self) -> set[str]:
+    #     for out in tool.outputs
+
     # helper methods
+
+
     def should_discard(self) -> bool:
         # TODO?
         return False

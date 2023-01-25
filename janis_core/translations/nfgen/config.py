@@ -10,32 +10,33 @@ from .params import Param, getall
 from .casefmt import to_case
 
 
-DEFAULT_LINES = ['docker.enabled = true']
+BOILERPLATE_LINES = ['docker.enabled = true']
 INDENT = settings.NF_INDENT
 COMMENTER = '// '
 TEMPLATE = """\
-{defaults}
+{boilerplate}
 
 params {{
 
-{body}
+{param_block}
 }}
 """
 
 def generate_config() -> str:
+    # boilerplate 
+    boilerplate_str = '\n'.join(BOILERPLATE_LINES)
+
+    # params    
+    param_block_str = ''
     params = getall()
     groups = ParamGrouper(params).group()
-    body_str = groups_to_string(groups)
-    defaults_str = defaults_to_string()
-    config = TEMPLATE.format(defaults=defaults_str, body=body_str)
+    for g in groups:
+        param_block_str += f'{g.to_string()}\n'
+
+    # final config text formatting
+    config = TEMPLATE.format(boilerplate=boilerplate_str, param_block=param_block_str)
     return config
 
-def groups_to_string(groups: list[ParamGroup]) -> str:
-    group_strs: list[str] = [g.to_string() for g in groups]
-    return '\n'.join(group_strs) 
-
-def defaults_to_string() -> str:
-    return '\n'.join(DEFAULT_LINES)
 
 
 class ParamGroup:
@@ -140,28 +141,6 @@ class ParamGroup:
 
     def format_param_single(self, param: Param) -> str:
         return f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
-
-
-
-
-
-    # def param_to_string_multiline(self, param: Param, comment: str) -> str:
-    #     lines: list[str] = []
-    #     if isinstance(param.default, list):
-    #         lines.append(f'{param.name:<{self.linewidth}} = [')
-    #         for val in param.default:
-    #             if isinstance(val, str):
-    #                 val = f"'{val}'"
-    #             lines.append(f'{INDENT}{val},')
-    #         lines.append(']')
-    #         lines = [f'{INDENT}{ln}' for ln in lines]
-    #         return '\n'.join(lines)
-    #     else:
-    #         lines.append(f'{param.name:<{self.linewidth}} = [')
-    #         lines.append(f'{INDENT}// {comment}')
-    #         lines.append(']')
-    #         lines = [f'{INDENT}{ln}' for ln in lines]
-    #         return '\n'.join(lines)
 
 
 

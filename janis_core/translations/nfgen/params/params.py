@@ -8,6 +8,7 @@ from typing import Any, Optional
 from janis_core.types import (
     DataType,
     String, 
+    Directory,
     Array, 
     File
 )
@@ -104,7 +105,6 @@ class Param:
     @property
     def groovy_value(self) -> str:
         # get the default value as groovy code string
-        # TODO I am dubious about this
         if isinstance(self.janis_type, Array) and self.default is None:
             val: list[str] = []
         else:
@@ -118,23 +118,6 @@ class Param:
     def get_string(self) -> str:
         raise NotImplementedError  
 
-
-### instantiation of param register & default params
-
-param_register = ParamRegister()
-
-default_params = [
-    Param(
-        name='outdir',
-        scope=Scope(),
-        default='"outputs"',
-        janis_type=String(),
-        is_channel_input=False,
-    )
-]
-
-for param in default_params:
-    param_register.params.append(param)
 
 
 ### MODULE ENTRY POINTS
@@ -183,7 +166,35 @@ def serialize() -> dict[str, Any]:
 def clear() -> None:
     global param_register 
     param_register = ParamRegister()
+    add_default_params()
 
 
 
+### instantiation of param register & default params
 
+default_params = [
+    {
+        'janis_tag': None,
+        'scope': Scope(),
+        'default': './outputs',
+        'is_channel_input': False,
+        'name_override': 'outdir',
+        'janis_dtype': Directory(),
+        'janis_uuid': None
+    }
+]
+
+def add_default_params():
+    for p in default_params:
+        add(
+            janis_tag=p['janis_tag'], 
+            scope=p['scope'],
+            default=p['default'],
+            is_channel_input=p['is_channel_input'],
+            name_override=p['name_override'],
+            janis_dtype=p['janis_dtype'],
+            janis_uuid=p['janis_uuid'],
+        )
+
+param_register = ParamRegister()
+add_default_params()

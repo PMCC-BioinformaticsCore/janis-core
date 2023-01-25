@@ -48,6 +48,14 @@ def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInp
     if nfgen_utils.is_secondary_type(dtype):
         return create_tuple_input_secondaries(inp, sources)
     
+    # filepair array
+    elif dtype.name() == 'Array' and is_filepair_type(dtype):
+        return create_path_input(inp)
+    
+    # filepair
+    elif is_filepair_type(dtype):
+        return create_path_input(inp)
+    
     # file array
     elif dtype.is_array() and isinstance(basetype, (File, Directory)):
         return create_path_input(inp)
@@ -63,6 +71,13 @@ def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInp
     # nonfile 
     else:
         return create_val_input(inp)
+
+
+def is_filepair_type(dtype: DataType) -> bool:
+    basetype = nfgen_utils.get_base_type(dtype)
+    if basetype.name() in ['FastqPair', 'FastqGzPair']:
+        return True
+    return False
 
 def create_path_input_secondaries_array(inp: ToolInput | TInput) -> ProcessInput:
     # TODO ignoring secondaries_presents_as for now!
@@ -84,10 +99,11 @@ def create_tuple_input_secondaries(inp: ToolInput | TInput, sources: dict[str, A
 
 def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
     name = naming.process_input_generic(inp)
-    new_input = PathProcessInput(name=name)
-    new_input.presents_as = None
+    dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
+    presents_as = None
     if isinstance(inp, ToolInput):
-        new_input.presents_as = inp.presents_as
+        presents_as = inp.presents_as
+    new_input = PathProcessInput(name=name, dtype=dtype, presents_as=presents_as)
     return new_input
 
 def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:

@@ -1,7 +1,7 @@
 
 
 from typing import Optional, Any
-from janis_core.types import Array, File
+from janis_core.types import Array, File, Stdout
 from janis_unix.data_types import ZipFile
 from janis_core import (
     Workflow,
@@ -39,8 +39,13 @@ class FilePairsTestWF(Workflow):
             ), 
             scatter='reads',
         )
+        self.step(
+            "stp3", 
+            FilePairArrayTestTool(
+                reads=self.inReadsArray
+            ), 
+        )
 
-            
 
 # TOOLS
 class FilePairTestTool(CommandTool):
@@ -82,6 +87,33 @@ class FilePairTestTool(CommandTool):
                 + "_fastqc.zip",
             ),
 
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class FilePairArrayTestTool(CommandTool):
+    def tool(self) -> str:
+        return "FilePairTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput("reads", Array(FastqGzPairedEnd())),
+        ]
+    
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                Stdout(),
+            )
         ]
 
     def container(self) -> str:
