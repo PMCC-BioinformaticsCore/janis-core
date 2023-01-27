@@ -4,13 +4,13 @@ from textwrap import indent
 
 from typing import Optional
 
-from ..directives import ProcessDirective
 from .. import settings
 from .. import naming
 from .. import ordering
 
 from .inputs.factory import ProcessInput
 from .outputs.model import ProcessOutput
+from .directives import ProcessDirective
 
 
 def filter_null(iterable):
@@ -34,7 +34,7 @@ class Process:
     def __init__(
         self,
         name: str,
-        script: str,
+        main_script: str,
         script_type: Optional[ProcessScriptType] = None,
         script_quote: Optional[str] = '"',
         inputs: Optional[list[ProcessInput]] = None,
@@ -44,7 +44,7 @@ class Process:
         pre_script: Optional[str] = None,
     ):
         self.name = naming.gen_varname_process(name)
-        self.script = script
+        self.script = main_script
         self.script_type = script_type
         self.script_quote = script_quote
 

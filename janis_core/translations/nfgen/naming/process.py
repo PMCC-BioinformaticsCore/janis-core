@@ -16,6 +16,7 @@ from .. import params
 from .. import settings
 
 
+
 ### PROCESS SPECIFIC
 
 # this should be kept in ProcessVariableManager or something
@@ -47,8 +48,7 @@ def _get_varname_process_input(inp: ToolInput | TInput, sources: dict[str, Any],
         elif nfgen_utils.is_secondary_type(dtype):
             name = process_input_secondaries(inp, sources)[0]  # first extension
         else:
-            name = process_input_generic(inp)  
-    
+            name = process_input_name(inp)  
     return name
 
 def process_input_secondaries_array(inp: ToolInput | TInput) -> str:
@@ -97,5 +97,5 @@ def get_src_type(src: Any) -> DataType:
     else:
         return dtype
 
-def process_input_generic(inp: ToolInput | TInput) -> str:
+def process_input_name(inp: ToolInput | TInput) -> str:
     return to_case(inp.id(), case=settings.NF_PROCESS_INPUT_CASE)

@@ -24,8 +24,8 @@ PS_OPT_BASIC          = ''
 PS_OPT_DEFAULT        = 'def {name} = {src} ? {src} : {default}'
 PS_OPT_OPTIONAL       = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
 PS_OPT_BASIC_ARR      = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR    = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR   = 'def {name} = {src} ? "{prefix}" + {arr_join} : ""'
+PS_OPT_DEFAULT_ARR    = 'def {name} = {src} && {src}[0] != \'\' ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR   = 'def {name} = {src} && {src}[0] != \'\' ? {arr_join} : ""'
 
 
 SC_FLAG_TRUE          = '${{{var}}}'
@@ -161,6 +161,10 @@ class ScriptFormatter:
         )
     
     @property
+    def internal_name(self) -> Optional[str]:
+        return naming.process_input_name(self.tinput)
+    
+    @property
     def dtype(self) -> DataType:
         return self.tinput.input_type
     
@@ -208,13 +212,18 @@ class ScriptFormatter:
     @property
     def arr_join(self) -> Optional[str]:
         ARR_JOIN_BASIC      = "{src}.join('{delim}')"
-        ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}.join('{delim}')"
+        ARR_JOIN_PREFIX     = "\"{prefix}\" + {src}.join('{delim}')"
+        ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}" + ".join('{delim}')"
         if isinstance(self.tinput.input_type, Array):
-            if self.tinput.prefix_applies_to_all_elements:
-                return ARR_JOIN_PREFIXEACH.format(src=self.src, prefix=self.prefix, delim=self.delim)
+            if self.tinput.prefix and self.tinput.prefix_applies_to_all_elements:
+                arr_join = ARR_JOIN_PREFIXEACH.format(src=self.src, prefix=self.prefix, delim=self.delim)
+            elif self.tinput.prefix:
+                arr_join = ARR_JOIN_PREFIX.format(prefix=self.prefix, src=self.src, delim=self.delim)
             else:
-                return ARR_JOIN_BASIC.format(src=self.src, delim=self.delim)
-        return None
+                arr_join = ARR_JOIN_BASIC.format(src=self.src, delim=self.delim)
+        else:
+            arr_join = None
+        return arr_join
     
     def eval_cmdline(self, val: Any) -> str:
         if isinstance(val, list):
@@ -287,20 +296,20 @@ class ScriptFormatter:
     ### FORMATTING METHODS BY IType
     def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_FLAG_TRUE.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             prefix=self.prefix
         )
-        script = SC_FLAG_TRUE.format(var=self.tinput.id())
+        script = SC_FLAG_TRUE.format(var=self.internal_name)
         return prescript, script
 
     def flag_false(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_FLAG_FALSE.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             prefix=self.prefix
         )
-        script = SC_FLAG_FALSE.format(var=self.tinput.id())
+        script = SC_FLAG_FALSE.format(var=self.internal_name)
         return prescript, script
 
     def pos_basic(self) -> Tuple[Optional[str], Optional[str]]:
@@ -314,48 +323,48 @@ class ScriptFormatter:
 
     def pos_default(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_POS_DEFAULT.format(
-            name=self.tinput.id(),
+            name=self.internal_name,
             src=self.src,
             default=self.default
         )
-        script = SC_POS_DEFAULT.format(var=self.tinput.id())
+        script = SC_POS_DEFAULT.format(var=self.internal_name)
         return prescript, script
 
     def pos_optional(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_POS_OPTIONAL.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src
         )
-        script = SC_POS_OPTIONAL.format(var=self.tinput.id())
+        script = SC_POS_OPTIONAL.format(var=self.internal_name)
         return prescript, script
 
     def pos_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_POS_BASIC_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             arr_join=self.arr_join
         )
-        script = SC_POS_BASIC_ARR.format(var=self.tinput.id())
+        script = SC_POS_BASIC_ARR.format(var=self.internal_name)
         return prescript, script
 
     def pos_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
         assert(self.src)
         assert(self.arr_join)
         prescript = PS_POS_DEFAULT_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             arr_join=self.arr_join, 
             default=self.default
         )
-        script = SC_POS_DEFAULT_ARR.format(var=self.tinput.id())
+        script = SC_POS_DEFAULT_ARR.format(var=self.internal_name)
         return prescript, script
 
     def pos_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_POS_OPTIONAL_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             arr_join=self.arr_join
         )
-        script = SC_POS_OPTIONAL_ARR.format(var=self.tinput.id())
+        script = SC_POS_OPTIONAL_ARR.format(var=self.internal_name)
         return prescript, script
 
     def opt_basic(self) -> Tuple[Optional[str], Optional[str]]:
@@ -365,46 +374,46 @@ class ScriptFormatter:
 
     def opt_default(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_DEFAULT.format(
-            name=self.tinput.id(),
+            name=self.internal_name,
             src=self.src,
             default=self.default
         )
-        script = SC_OPT_DEFAULT.format(prefix=self.prefix, var=self.tinput.id())
+        script = SC_OPT_DEFAULT.format(prefix=self.prefix, var=self.internal_name)
         return prescript, script
 
     def opt_optional(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_OPTIONAL.format(
-            name=self.tinput.id(),
+            name=self.internal_name,
             src=self.src,
             prefix=self.prefix
         )
-        script = SC_OPT_OPTIONAL.format(var=self.tinput.id())
+        script = SC_OPT_OPTIONAL.format(var=self.internal_name)
         return prescript, script
 
     def opt_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_BASIC_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             arr_join=self.arr_join
         )
-        script = SC_OPT_BASIC_ARR.format(prefix=self.prefix, var=self.tinput.id())
+        script = SC_OPT_BASIC_ARR.format(prefix=self.prefix, var=self.internal_name)
         return prescript, script
 
     def opt_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_DEFAULT_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             arr_join=self.arr_join, 
             default=self.default
         )
-        script = SC_OPT_DEFAULT_ARR.format(prefix=self.prefix, var=self.tinput.id())
+        script = SC_OPT_DEFAULT_ARR.format(prefix=self.prefix, var=self.internal_name)
         return prescript, script
 
     def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_OPTIONAL_ARR.format(
-            name=self.tinput.id(), 
+            name=self.internal_name, 
             src=self.src, 
             prefix=self.prefix,
             arr_join=self.arr_join
         )
-        script = SC_OPT_OPTIONAL_ARR.format(var=self.tinput.id())
+        script = SC_OPT_OPTIONAL_ARR.format(var=self.internal_name)
         return prescript, script

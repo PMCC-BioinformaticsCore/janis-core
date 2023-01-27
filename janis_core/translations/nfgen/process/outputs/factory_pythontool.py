@@ -93,7 +93,7 @@ class PythonToolProcessOutputFactory:
         return new_output
     
     def nonfile_output(self) -> ValProcessOutput:
-        expr = f'\"${{file(\"${{task.workDir}}/{self.target_file}\").text}}"'
+        expr = f'\"${{file(\"${{workDir}}/{self.target_file}\").text}}"'
         new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
@@ -102,9 +102,9 @@ class PythonToolProcessOutputFactory:
         return new_output
 
     def nonfile_array_output(self) -> ValProcessOutput:
-        filepath = f'\"${{task.workDir}}/{self.target_file}\"'
-        processing = ".text.replace('[', '').replace(']', '').split(',')"
-        expr = f'\"${{file({filepath}){processing}}}"'
+        filepath = f'\"${{workDir}}/{self.target_file}\"'
+        processing = ".text.replace('[', '').replace(']', '')"
+        expr = f'"${{file({filepath}){processing}}}.split(\',\')"'
         new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 

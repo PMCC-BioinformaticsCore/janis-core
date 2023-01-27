@@ -22,12 +22,12 @@ from janis_bioinformatics.data_types.fastq import Fastq
 class OrderingTestWF(Workflow):
 
     def constructor(self):
-        self.input('inFastq', Fastq())
-        self.input('inFastqArray', Array(Fastq()))
         self.input('inFile', File())
+        self.input('inIntArray', Array(Int()))
         self.input('inStr', String())
         self.input('inInt', Int())
-        self.input('inIntArray', Array(Int()))
+        self.input('inFastq', Fastq())
+        self.input('inFastqArray', Array(Fastq()))
 
         # from workflow inputs
         self.step(
@@ -120,12 +120,12 @@ class MultiTypeTestTool(CommandTool):
 
     def inputs(self) -> list[ToolInput]:
         return [
-            ToolInput("inFastq", Fastq(), position=1),
-            ToolInput("inFastqArray", Array(Fastq()), position=2),
-            ToolInput("inFile", File(), position=3),
             ToolInput("inStr", String(), position=4),
-            ToolInput("inInt", Int(), position=5),
+            ToolInput("inFastq", Fastq(), position=1),
             ToolInput("inIntArray", Array(Int()), position=6),
+            ToolInput("inFastqArray", Array(Fastq()), position=2),
+            ToolInput("inInt", Int(), position=5),
+            ToolInput("inFile", File(), position=3),
         ]
 
     def outputs(self):
@@ -150,12 +150,12 @@ class MultiTypeTestTool(CommandTool):
 class MultiTypeTestWF(Workflow):
 
     def constructor(self):
+        self.input('inStr', String)
+        self.input('inIntArray', Array(Int))
         self.input('inFastq', Fastq())
+        self.input('inInt', Int)
         self.input('inFastqArray', Array(Fastq()))
         self.input('inFile', File)
-        self.input('inStr', String)
-        self.input('inInt', Int)
-        self.input('inIntArray', Array(Int))
 
         self.output('outFastq', Fastq(), source=self.inFastq)
         self.output('outFastqArray', Array(Fastq()), source=self.inFastqArray)

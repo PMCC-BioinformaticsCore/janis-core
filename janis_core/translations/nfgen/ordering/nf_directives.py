@@ -4,7 +4,7 @@
 from typing import Type
 from abc import ABC, abstractmethod
 
-from ..directives import (
+from ..process.directives import (
     ProcessDirective,
     ContainerDirective,
     DebugDirective,

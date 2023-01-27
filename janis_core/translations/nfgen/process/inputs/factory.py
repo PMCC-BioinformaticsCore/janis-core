@@ -98,7 +98,7 @@ def create_tuple_input_secondaries(inp: ToolInput | TInput, sources: dict[str, A
     return new_input
 
 def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
-    name = naming.process_input_generic(inp)
+    name = naming.process_input_name(inp)
     dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
     presents_as = None
     if isinstance(inp, ToolInput):
@@ -107,6 +107,6 @@ def create_path_input(inp: ToolInput | TInput) -> PathProcessInput:
     return new_input
 
 def create_val_input(inp: ToolInput | TInput) -> ValProcessInput:
-    name = naming.process_input_generic(inp)
+    name = naming.process_input_name(inp)
     new_input = ValProcessInput(name=name)
     return new_input

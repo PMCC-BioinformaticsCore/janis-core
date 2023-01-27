@@ -7,7 +7,8 @@ from janis_core import (
     CommandTool,
     ToolInput,
     ToolOutput,
-    WildcardSelector
+    WildcardSelector,
+    InputSelector
 )
 
 from janis_core.types import (
@@ -78,7 +79,7 @@ class NamingTestTool(CommandTool):
 
     def outputs(self):
         return [
-            ToolOutput("outProcessInput", File(), selector=WildcardSelector('process_input.fastq')),
+            ToolOutput("outProcessInput", File(), selector=InputSelector('processInput') + '.fastq'),
             ToolOutput("outParamInput", File(), selector=WildcardSelector('param_input.txt')),
             ToolOutput(
                 "outSecondary", 

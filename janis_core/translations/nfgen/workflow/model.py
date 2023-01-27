@@ -1,8 +1,8 @@
 from textwrap import indent
 from typing import Optional
 
-from . import settings
-from . import naming
+from .. import settings
+from .. import naming
 
 
 def filter_null(iterable):

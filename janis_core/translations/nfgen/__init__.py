@@ -8,8 +8,8 @@
 """
 
 from .common import NFFile, Import, ImportItem, Function
-from .workflow import Workflow, WorkflowTake, WorkflowEmit
-from .directives import (
+from .workflow.model import Workflow, WorkflowTake, WorkflowEmit
+from .process.directives import (
     DiskDirective,
     CpusDirective,
     TimeDirective,
@@ -37,8 +37,10 @@ from . import settings
 from . import channels
 from . import params
 from . import ordering
+from . import workflow
 from . import process
 from . import naming
+
 from .plumbing import call
 
 from .scope import Scope
@@ -49,7 +51,6 @@ from .unwrap import unwrap_expression
 from .plumbing import format_process_call
 from .nfgen_utils import to_groovy
 from .register import register_params_channels
-
 
 
 

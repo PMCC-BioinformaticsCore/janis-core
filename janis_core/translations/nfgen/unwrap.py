@@ -123,7 +123,12 @@ class Unwrapper:
         scatter_method: Optional[ScatterMethod]=None,
     ) -> None:
         self.tool = tool
-        self.sources = sources
+
+        if sources:
+            self.sources: dict[str, Any] = sources
+        else:
+            self.sources: dict[str, Any] = {}
+        
         self.process_inputs = process_inputs
         self.param_inputs = param_inputs
         self.internal_inputs = internal_inputs
@@ -289,12 +294,11 @@ class Unwrapper:
             name = names[0]
         # everything else
         else:
-            name = inp.id()        
+            name = naming.process_input_name(inp)
         return name
 
     def get_src_param_input(self, inp: ToolInput) -> str: 
         # data fed via global param
-        assert(self.sources is not None)
         src = self.sources[inp.id()]
         sel = src.source_map[0].source
         param = params.get(sel.input_node.uuid)
@@ -406,7 +410,7 @@ class Unwrapper:
             
             # special case: janis secondary -> nextflow tuple
             if nfgen_utils.is_secondary_type(inp.input_type):
-                tuple_input = create_input(inp)  # the process input tuple
+                tuple_input = create_input(inp, self.sources)  # the process input tuple
                 return tuple_input.subnames[index] 
         
         # everything else

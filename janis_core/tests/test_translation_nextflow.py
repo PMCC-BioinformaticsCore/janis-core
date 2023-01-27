@@ -691,7 +691,7 @@ class TestProcessDirectives(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         process = translator.handle_container(step.tool, process)
         directives = nfgen.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
@@ -713,7 +713,7 @@ class TestProcessDirectives(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         process = translator.handle_container(step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
@@ -756,7 +756,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path reads'
         }
@@ -767,7 +767,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp3"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path reads'
         }
@@ -780,7 +780,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp2"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path fastq_inp1, stageAs: \'fastq_inp1.fastq\'',
             'path fastq_inp2, stageAs: \'fastq_inp2.fastq\'',
@@ -797,7 +797,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["unicycler"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path option1',
             'path option2',
@@ -813,7 +813,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["CatTestTool"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {'path inp'}
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -826,7 +826,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["unicycler"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.name for inp in process.inputs}
         non_expected_ids = {
             'kmers',
@@ -845,7 +845,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["unicycler"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_ids = {
             'option1',
             'option2',
@@ -864,7 +864,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path pos_basic',
@@ -878,7 +878,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {'tuple path(bam), path(bai)'}
         self.assertEqual(actual_inputs, expected_inputs)   
@@ -889,7 +889,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp4"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path indexed_bam_array_flat',
@@ -903,7 +903,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp4"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path bams',
@@ -957,7 +957,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path inp1',
@@ -968,7 +968,7 @@ class TestProcessInputs(unittest.TestCase):
         step = wf.step_nodes["stp2"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path inp1',
@@ -1007,7 +1007,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'stdout, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)  
@@ -1016,7 +1016,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "myfile.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1027,7 +1027,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes["stp2"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "*.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1038,7 +1038,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1047,7 +1047,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes["stp4"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path params.stp4_output_filename, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1058,7 +1058,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes['stp3']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1067,7 +1067,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp3']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName}.recalibrated.bam", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1076,7 +1076,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp2']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1084,7 +1084,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp7']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${\'generated.csv\' + \'.csv\'}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1095,7 +1095,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp6']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "[${inp.simpleName + \'-R1.fastq\'}, ${inp.simpleName + \'-R2.fastq\'}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1106,7 +1106,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes['stp1']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bam.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1117,7 +1117,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = wf.step_nodes['stp3']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1134,7 +1134,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp5']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1143,7 +1143,7 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp8']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].first()}.metrics.txt", emit: metrics'}
@@ -1215,7 +1215,7 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes['stp1']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_prescript = process.pre_script
         expected_lines = {
             'def pos_default = params.in_int ? params.in_int : 95',
@@ -1234,7 +1234,7 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -1256,22 +1256,24 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        actual_prescript = process.pre_script
-        print(actual_prescript)
-        expected_lines = [
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        actual_prescript = set(process.pre_script.split('\n'))
+        expected_prescript = set([
             "def pos_basic = pos_basic.join(' ')",
             "def pos_basic2 = pos_basic2 ? pos_basic2.join(' ') : \"\"",
             "def pos_default = params.in_int_array ? params.in_int_array.join(' ') : \"1 2 3\"",
             "def pos_optional = params.in_str_array ? params.in_str_array.join(' ') : \"\"",
-            "def opt_basic = params.in_str_array.join(' ')",
             "def opt_default = params.in_int_array ? params.in_int_array.collect{ \"--opt-default \" + it }.join(' ') : \"--opt-default 1 --opt-default 2 --opt-default 3\"",
-            "def opt_optional = params.in_str_array ? \"--opt-optional,\" + params.in_str_array.join(',') : \"\"",
-            
-        ]
-        print(actual_prescript)
-        for ln in expected_lines:
-            self.assertIn(ln, actual_prescript)
+            "def opt_basic = \"--opt-basic=\" + params.in_str_array.join(' ')",
+            "def opt_optional = params.in_str_array ? \"--opt-optional \" + params.in_str_array.join(' ') : \"\""
+        ])
+        for ln in expected_prescript:
+            print(ln)
+        print()
+        for ln in actual_prescript:
+            print(ln)
+        for ln in actual_prescript:
+            self.assertIn(ln, expected_prescript)
     
     def test_components_array_script(self) -> None:
         wf = ArrayStepInputsTestWF()
@@ -1279,7 +1281,7 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -1302,7 +1304,7 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         # pre-script
         actual_pre_script = process.pre_script
@@ -1334,7 +1336,7 @@ class TestProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         print(process.get_string())
         expected = """\
 process STP1 {
@@ -1411,7 +1413,7 @@ process STP1 {
         step = wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'echo',
@@ -1425,7 +1427,7 @@ process STP1 {
         step = wf.step_nodes["stp2"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'echo',
@@ -2722,7 +2724,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp1"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -2736,7 +2738,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp3"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -2752,7 +2754,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp5"]
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -2771,11 +2773,12 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nfgen.Scope()
         scope.update(step)
-        nf_workflow = translator.gen_workflow(
+        nf_workflow = nfgen.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
-            wf=step.tool
+            wf=step.tool,
+            item_register=translator.item_register
         )
         expected_inputs = [
             "ch_in_fastq",
@@ -2793,11 +2796,12 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nfgen.Scope()
         scope.update(step)
-        nf_workflow = translator.gen_workflow(
+        nf_workflow = nfgen.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
-            wf=step.tool
+            wf=step.tool,
+            item_register=translator.item_register
         )
         expected_inputs = [
             "ch_in_fastq",
@@ -2815,11 +2819,12 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nfgen.Scope()
         scope.update(step)
-        nf_workflow = translator.gen_workflow(
+        nf_workflow = nfgen.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
-            wf=step.tool
+            wf=step.tool,
+            item_register=translator.item_register
         )
         expected_inputs = [
             "ch_in_fastq",
@@ -2906,11 +2911,12 @@ class TestSubWorkflows(unittest.TestCase):
         args = nfgen.call.get_args(step, scope)
 
         # generate nf subworkflow object
-        nf_workflow = translator.gen_workflow(
+        nf_workflow = nfgen.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
-            wf=step.tool
+            wf=step.tool,
+            item_register=translator.item_register
         )
         
         # check the arg order matches the subworkflow input channel order
@@ -2959,7 +2965,6 @@ class TestSubWorkflows(unittest.TestCase):
     def test_nested(self) -> None:
         raise NotImplementedError
     
-
 
 class TestNaming(unittest.TestCase):
     
@@ -3020,9 +3025,14 @@ class TestNaming(unittest.TestCase):
     
     def test_process_outputs(self) -> None:
         # TODO does not include secondaries array outputs 
-        step = self.wf.step_nodes['stp1']
-        process_outputs = nfgen.process.outputs.create_nextflow_process_outputs(step.tool, step.sources)
-        actual_output_names = [x.name for x in process_outputs]
+        step_id = 'stp1'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        
+        # process output names correct?
+        actual_output_names = [x.name for x in process.outputs]
         expected_output_names = [
             'outProcessInput',
             'outParamInput',
@@ -3031,9 +3041,60 @@ class TestNaming(unittest.TestCase):
             'outParamInputArray',
         ]
         self.assertEqual(actual_output_names, expected_output_names)
-        secondary_output = [x for x in process_outputs if x.name == 'outSecondary'][0]
+        secondary_output = [x for x in process.outputs if x.name == 'outSecondary'][0]
         self.assertTrue(secondary_output)
         self.assertEqual(secondary_output.expressions, ['"*.bam"', '"*.bam.bai"'])
+
+    def test_process_references(self) -> None:
+        # singles & arrays
+        step_id = 'stp1'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        
+        # pre-script
+        assert(process.pre_script)
+        actual_prescript = set(process.pre_script.split('\n'))
+        expected_prescript = set([
+            'def process_input_array = "--processInputArray " + process_input_array.join(\' \')',
+            'def param_input_array = "--paramInputArray " + params.param_input_array.join(\' \')',
+            'def secondary_array = "--secondaryArray " + indexed_bam_array_flat.join(\' \')',
+        ])
+        print(process.pre_script)
+        for ln in expected_prescript:
+            print(ln)
+        self.assertEqual(actual_prescript, expected_prescript)
+
+        # script body
+        print(process.script)
+        actual_script = set(process.script.split('\n'))
+        expected_script = set([
+            'echo \\',
+            '--processInput ${process_input} \\',
+            '--paramInput ${params.param_input} \\',
+            '--secondary ${bam} \\',
+            '--processInputArray ${process_input_array} \\',
+            '--paramInputArray ${param_input_array} \\',
+            '--secondaryArray ${secondary_array} \\',
+        ])
+        self.assertEqual(actual_script, expected_script)
+
+        # outputs
+        print([x.get_string() for x in process.outputs])
+        actual_outputs = set([x.get_string() for x in process.outputs])
+        expected_outputs = set([
+            'path "${process_input + \'.fastq\'}", emit: outProcessInput',
+            'path "param_input.txt", emit: outParamInput',
+            'tuple path("*.bam"), path("*.bam.bai"), emit: outSecondary',
+            'path "process_input_arr*", emit: outProcessInputArray',
+            'path "param_input_arr*", emit: outParamInputArray'
+        ])
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # secondaries
+        
+        # filepairs
     
     def test_connections(self) -> None:
         # ensure name references are correct between steps

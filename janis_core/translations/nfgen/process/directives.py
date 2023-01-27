@@ -1,11 +1,17 @@
 
+
 from abc import ABC, abstractmethod
+from typing import Any
 from dataclasses import dataclass
 
-from .casefmt import to_case
-from .params import Param
-from .scope import Scope
-from . import settings
+from janis_core import CommandTool, PythonTool, Selector
+from janis_core.types import Int
+
+from ..casefmt import to_case
+from ..params import Param
+from ..scope import Scope
+from .. import settings
+from .. import params
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
@@ -82,6 +88,58 @@ class TimeDirective(ProcessDirective):
     
     def get_string(self) -> str:
         return f'time \"${{params.{self.param.name}}}\"'
+
+
+
+def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[str, Any], scope: Scope) -> list[ProcessDirective]:
+    
+    # TODO REFACTOR
+    nf_directives: dict[str, ProcessDirective] = {}
+    nf_directives['publishDir'] = PublishDirDirective(scope)
+    nf_directives['debug'] = DebugDirective(debug='true')
+
+    # Add directives from input resources
+    for res, val in resources.items():
+        if res.endswith("runtime_cpu"):
+            param = params.add(janis_tag='cpus', scope=scope, default=val, janis_dtype=Int())
+            nf_directives['cpus'] = CpusDirective(param)
+        
+        elif res.endswith("runtime_memory"):
+            param = params.add(janis_tag='memory', scope=scope, default=val, janis_dtype=Int())
+            nf_directives['memory'] = MemoryDirective(param)
+        
+        elif res.endswith("runtime_seconds"):
+            param = params.add(janis_tag='time', scope=scope, default=val, janis_dtype=Int())
+            nf_directives['time'] = TimeDirective(param)
+        
+        elif res.endswith("runtime_disk"):
+            param = params.add(janis_tag='disk', scope=scope, default=val, janis_dtype=Int())
+            nf_directives['disk'] = DiskDirective(param)
+    
+    # Add directives from tool resources
+    if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
+        param = params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}), janis_dtype=Int())
+        nf_directives['cpus'] = CpusDirective(param)
+    
+    if 'memory' not in nf_directives and tool.memory({}) is not None:
+        param = params.add(janis_tag='memory', scope=scope, default=tool.memory({}), janis_dtype=Int())
+        nf_directives['memory'] = MemoryDirective(param)
+    
+    if 'disk' not in nf_directives and tool.disk({}) is not None:
+        param = params.add(janis_tag='disk', scope=scope, default=tool.disk({}), janis_dtype=Int())
+        nf_directives['disk'] = DiskDirective(param)
+    
+    if 'time' not in nf_directives and tool.time({}) is not None:
+        param = params.add(janis_tag='time', scope=scope, default=tool.time({}), janis_dtype=Int())
+        nf_directives['time'] = TimeDirective(param)
+    
+    final_directives: list[ProcessDirective] = []
+    for direc in nf_directives.values():
+        if hasattr(direc, 'default') and isinstance(direc.default, Selector):
+            continue
+        else:
+            final_directives.append(direc)
+    return final_directives
 
 
 
@@ -187,3 +245,4 @@ class TimeDirective(ProcessDirective):
 # class ValidExitStatusDirective(ProcessDirective):
 #     def __init__(self, validExitStatus):
 #         super().__init__("validExitStatus", validExitStatus)
+
