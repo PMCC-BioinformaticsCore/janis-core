@@ -174,13 +174,12 @@ class CmdtoolProcessOutputFactory:
             OType.FILE: self.file_output,
             OType.FILEPAIR: self.file_pair_output,
             OType.FILE_ARRAY: self.file_array_output,
-            OType.SECONDARIES: self._secondaries_output,
-            OType.SECONDARIES_ARRAY: self._secondaries_array_output,
+            OType.SECONDARIES: self.secondaries_output,
+            OType.SECONDARIES_ARRAY: self.secondaries_array_output,
         }
         
         self.add_braces: bool = False
         self.add_quotes: bool = False
-
 
     # helper properties
     @property
@@ -197,17 +196,6 @@ class CmdtoolProcessOutputFactory:
             return True
         return False
 
-    # @property
-    # def filename_clashes(self) -> set[str]:
-    #     for out in tool.outputs
-
-    # helper methods
-
-
-    def should_discard(self) -> bool:
-        # TODO?
-        return False
-        
     def unwrap_collection_expression(self, expr: Any) -> str:
         # edge case - if referencing input (via InputSelector) and that
         # input is a Filename type, unwrap the Filename, not the InputSelector directly. 
@@ -306,9 +294,8 @@ class CmdtoolProcessOutputFactory:
     def file_array_output(self) -> PathProcessOutput:
         return self.file_output()
     
-    def _secondaries_output(self) -> TupleProcessOutput:
+    def secondaries_output(self) -> TupleProcessOutput:
         """
-        
         eg BamBai:
             selector=WildcardSelector("*.bam"),
             secondaries_present_as={".bai": ".bai"},
@@ -326,14 +313,14 @@ class CmdtoolProcessOutputFactory:
                 expr = f'"{primary_expr}"'
             # secondary file
             else:
-                wrap_curly_braces = False
-                if primary_expr.startswith('${') and primary_expr.endswith('}'):
-                    wrap_curly_braces = True
-                base_expr = primary_expr.strip('${}')
+                # wrap_curly_braces = False
+                # if primary_expr.startswith('${') and primary_expr.endswith('}'):
+                #     wrap_curly_braces = True
+                # base_expr = primary_expr.strip('${}')
                 secondary_ext = self.out.secondaries_present_as[ext]
-                secondary_expr: str = apply_secondary_file_format_to_filename(base_expr, secondary_ext)
-                if wrap_curly_braces:
-                    secondary_expr = f'${{{secondary_expr}}}'
+                secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
+                # if wrap_curly_braces:
+                #     secondary_expr = f'${{{secondary_expr}}}'
                 qual = 'path'
                 expr = f'"{secondary_expr}"'
             qualifiers.append(qual)
@@ -347,5 +334,5 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def _secondaries_array_output(self) -> SecondariesArrayProcessOutput:
+    def secondaries_array_output(self) -> SecondariesArrayProcessOutput:
         raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')

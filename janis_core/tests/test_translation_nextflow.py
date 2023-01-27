@@ -1325,10 +1325,34 @@ class TestProcessScript(unittest.TestCase):
         for ln in expected_script:
             self.assertIn(ln, actual_script)
     
-    @unittest.skip('not implemented')
     def test_secondaries_array(self) -> None:
-        # unnecessary as format follows non-array secondaries (test above)
-        raise NotImplementedError
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes["stp4"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        
+        # pre-script
+        actual_pre_script = process.pre_script
+        expected_pre_script = {
+            ''
+        }
+        for ln in expected_pre_script:
+            self.assertIn(ln, actual_pre_script)
+        
+        # script
+        actual_script = process.script
+        print(actual_script)
+        expected_script = {
+            'echo',
+            '${bam}',
+            '--inp ${bam}',
+            '--inp-index-0 ${bam}',
+            '--inp-index-1 ${bai}',
+        }
+        for ln in expected_script:
+            self.assertIn(ln, actual_script)
 
     def test_filename_generated_tool(self):
         wf = FilenameGeneratedTestWF()

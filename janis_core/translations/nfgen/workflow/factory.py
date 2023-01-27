@@ -7,6 +7,7 @@ from ..scope import Scope
 from ..plumbing.call import format_process_call
 from ..plumbing.call import get_args
 from ..process import Process
+from ..process import FunctionsBlock
 
 from .. import channels
 from .. import nfgen_utils
@@ -76,6 +77,9 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
                 continue
             elif isinstance(nf_item, Process) or isinstance(nf_item, NFWorkflow):
                 entity_name = nf_item.name
+            elif isinstance(nf_item, FunctionsBlock):
+                continue         
+            # future items
             else:
                 raise NotImplementedError
         

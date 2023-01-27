@@ -1,5 +1,5 @@
 
-from typing import Any
+from typing import Any, Optional
 
 from janis_core import CommandTool, PythonTool
 from janis_core.types import DataType, Array, Int, Float, Double, Boolean
@@ -8,12 +8,42 @@ NoneType = type(None)
 from ..scope import Scope
 from .. import settings
 from .. import naming
+from .. import nfgen_utils
 
 from . import model
 from . import script
 from . import directives
 from . import inputs
 from . import outputs
+
+
+get_primary_files_code = """\
+def get_primary_files(var) {
+    def primary_files = []
+    var.eachWithIndex {item, index -> 
+        if (index % 2 == 0) {
+            primary_files.add(item)
+        }
+    }
+    return primary_files
+}"""
+
+
+def gen_functions_for_process(tool: CommandTool) -> Optional[model.FunctionsBlock]:
+    funcs: list[str] = []
+    
+    add_get_primary_files: bool = False
+    for tinput in tool.inputs():
+        if nfgen_utils.is_array_secondary_type(tinput.input_type):
+            add_get_primary_files = True
+    
+    if add_get_primary_files:
+        funcs.append(get_primary_files_code)
+
+    if funcs:
+        return model.FunctionsBlock(funcs)
+    else:
+        return None
 
 
 def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope,

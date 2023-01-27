@@ -24,6 +24,14 @@ def filter_null(iterable):
     return [el for el in iterable if el is not None]
 
 
+class FunctionsBlock:
+    def __init__(self, functions: list[str]) -> None:
+        self.functions = functions
+
+    def get_string(self) -> str:
+        return '\n\n'.join(self.functions)
+
+
 class ProcessScriptType(Enum):
     script = "script"
     shell = "shell"

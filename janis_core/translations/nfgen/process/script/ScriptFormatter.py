@@ -100,8 +100,16 @@ class ScriptFormatter:
             formatting_func = self.func_map[self.itype]
             prescript, script = formatting_func()
         
+        if nfgen_utils.is_array_secondary_type(self.dtype):
+            assert(prescript)
+            prescript = self.prepend_function_call(prescript, 'get_primary_files')
+            print()
+
         return prescript, script
 
+    def prepend_function_call(self, prescript: str, func_name: str) -> str:
+        func_call = f'def {self.src} = {func_name}({self.src})'
+        return f'{func_call}\n{prescript}'
 
     # HELPER PROPERTIES / METHODS
     @property

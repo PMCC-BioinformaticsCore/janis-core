@@ -189,7 +189,12 @@ class NextflowTranslator(TranslatorBase):
 
         # command tool
         if isinstance(tool, CommandTool):
-            # item
+            # groovy functions used in process
+            functions_item = nfgen.process.gen_functions_for_process(tool)
+            if functions_item:
+                cls.item_register.add(scope, functions_item)
+
+            # process
             process_item = nfgen.process.gen_process_from_cmdtool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
             cls.item_register.add(scope, process_item)
@@ -204,7 +209,12 @@ class NextflowTranslator(TranslatorBase):
 
         # python tool
         elif isinstance(tool, PythonTool):
-            # item
+            # # groovy functions used in process
+            # functions_item = nfgen.process.gen_functions_for_process(tool)
+            # if functions_item:
+            #     cls.item_register.add(scope, functions_item)
+            
+            # process
             process_item = nfgen.process.gen_process_from_codetool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
             cls.item_register.add(scope, process_item)
