@@ -4,7 +4,7 @@
 from typing import Any, Optional
 from textwrap import indent
 
-from janis_core import CommandTool, PythonTool, Workflow, TInput
+from janis_core import CommandTool, PythonTool, Workflow
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType, Stdout
 
@@ -20,6 +20,9 @@ from . import trace
 
 from .datatype_mismatch import requires_data_operation
 from .datatype_mismatch import handle_data_operation
+
+from .edge_cases import satisfies_edge_case
+from .edge_cases import handle_edge_case
 
 from .scatter import is_scatter_relationship
 from .scatter import handle_scatter_relationship
@@ -65,7 +68,11 @@ def get_args(step: StepNode, scope: Scope):
             #     arg = f'{arg}{suffix}'
                         
             # handle datatype relationship
-            if requires_data_operation(srctype, desttype, src_scatter, dest_scatter):
+            if satisfies_edge_case(src, desttype, tool):
+                suffix = handle_edge_case(src, desttype, tool)
+                arg = f'{arg}{suffix}'
+
+            elif requires_data_operation(srctype, desttype, src_scatter, dest_scatter):
                 suffix = handle_data_operation(srctype, desttype, src_scatter, dest_scatter)
                 arg = f'{arg}{suffix}'
 

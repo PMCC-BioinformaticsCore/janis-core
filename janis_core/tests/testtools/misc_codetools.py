@@ -56,6 +56,39 @@ class MultiTypesInputPythonTool(PythonTool):
         return [TOutput("out", File)]
 
 
+# class ExpressionsPythonTool(PythonTool):
+#     @staticmethod
+#     def code_block(inp1: File, inp2: String, inp3: Int) -> dict:
+#         from shutil import copyfile
+
+#         copyfile(inp1, "./out.file")
+
+#         return {"out": "./out.file"}
+    
+#     def arguments(self):
+#         return [
+#             ToolArgument(
+#                 StringFormatter(
+#                     "-Xmx{memory}G {compression} {otherargs}",
+#                     memory=MemorySelector() * 3 / 4,
+#                     compression=If(
+#                         IsDefined(InputSelector("compression_level")),
+#                         "-Dsamjdk.compress_level=" + InputSelector("compression_level"),
+#                         "",
+#                     ),
+#                     otherargs=JoinOperator(
+#                         FirstOperator([InputSelector("javaOptions"), []]), " "
+#                     ),
+#                 ),
+#                 prefix="--java-options",
+#                 position=-1,
+#             )
+#         ]
+
+#     def outputs(self):
+#         return [TOutput("out", File)]
+
+
 class FileInputPythonTestTool(PythonTool):
     @staticmethod
     def code_block(inp: File) -> dict:

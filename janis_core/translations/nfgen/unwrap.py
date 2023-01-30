@@ -478,7 +478,7 @@ class Unwrapper:
     
     def unwrap_first_operator(self, op: FirstOperator) -> str:
         resolved_list = self.unwrap(op.args[0])
-        return f'{resolved_list}.first()'
+        return f'{resolved_list}.find{{ it != null }}'
     
     def unwrap_filter_null_operator(self, op: FilterNullOperator) -> str:
         iterable = self.unwrap(op.args[0])

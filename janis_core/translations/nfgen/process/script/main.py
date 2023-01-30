@@ -20,12 +20,14 @@ def gen_script_for_cmdtool(
     tool: CommandTool,
     stdout_filename: str,
     scope: Scope,
+    referenced_variables: set[str],
     sources: dict[str, Any],
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
         stdout_filename=stdout_filename,
         scope=scope,
+        referenced_variables=referenced_variables,
         sources=sources,
     ).generate()
 
@@ -37,10 +39,12 @@ class ProcessScriptGenerator:
         tool: CommandTool, 
         stdout_filename: str,
         scope: Scope,
+        referenced_variables: set[str],
         sources: Optional[dict[str, Any]]=None,
     ):
         self.tool = tool
         self.scope = scope
+        self.referenced_variables = referenced_variables
         self.process_name = scope.labels[-1]
         self.stdout_filename = stdout_filename
 

@@ -16,6 +16,8 @@ from . import directives
 from . import inputs
 from . import outputs
 
+from ..plumbing import trace
+
 
 get_primary_files_code = """\
 def get_primary_files(var) {
@@ -60,6 +62,8 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     :return:
     :rtype:
     """
+
+
     # name
     process_name = scope.labels[-1]
 
@@ -74,11 +78,13 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
 
     # script
+    referenced_variables = trace.trace_referenced_variables(tool)
     pre_script, main_script = script.gen_script_for_cmdtool(
         tool=tool,
         scope=scope,
         sources=sources,
-        stdout_filename=settings.TOOL_STDOUT_FILENAME
+        referenced_variables=referenced_variables,
+        stdout_filename=settings.TOOL_STDOUT_FILENAME,
     )
     
     # process
@@ -112,7 +118,8 @@ def gen_process_from_codetool(
     :type provided_inputs:
     :return:
     :rtype:
-    """        
+    """   
+
     # name
     process_name = scope.labels[-1] if scope.labels else tool.id()
 
@@ -143,6 +150,7 @@ def gen_process_from_codetool(
         script_type=model.ProcessScriptType.script,
         inputs=process_inputs,
         outputs=process_outputs,
+        main_exec='',
         directives=process_directives
     )
 
@@ -205,7 +213,7 @@ result = code_block({args_str})
 
 work_dir = os.getcwd()
 for key in result:
-    with open(os.path.join(work_dir, f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as f:
-        f.write(json.dumps(result[key]))
+    with open(os.path.join(work_dir, f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as fp:
+        fp.write(json.dumps(result[key]))
 """
     return script

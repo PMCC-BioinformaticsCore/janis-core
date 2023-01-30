@@ -64,7 +64,8 @@ from janis_core.tests.testworkflows import (
     EntityTraceTestWF,
     FilePairsTestWF,
     ProcessInputsTestWF,
-    OrderingTestWF
+    OrderingTestWF,
+    PlumbingEdgeCaseTestWF
 )
 
 from janis_core import (
@@ -673,7 +674,7 @@ class TestChannels(unittest.TestCase):
 
 
 
-class TestProcessDirectives(unittest.TestCase):
+class TestCmdtoolProcessDirectives(unittest.TestCase):
     """
     Tests identifying tool inputs which should be process inputs.
     Need a process input for each tool input in step sources
@@ -738,7 +739,7 @@ class TestProcessDirectives(unittest.TestCase):
 
 
 
-class TestProcessInputs(unittest.TestCase):
+class TestCmdtoolProcessInputs(unittest.TestCase):
     """
     Tests identifying tool inputs which should be process inputs.
     Need a process input for each tool input in step sources
@@ -910,45 +911,6 @@ class TestProcessInputs(unittest.TestCase):
             'path bais'
         }
         self.assertEqual(actual_inputs, expected_inputs)   
-    
-    def test_pythontool(self) -> None:
-        wf = InputsPythonToolTestWF()
-        refresh_workflow_inputs(wf)
-        
-        # File, String, Int input types
-        step = wf.step_nodes["stp0"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            'path code_file',
-            'path inp1',
-        }
-        self.assertEqual(actual_inputs, expected_inputs)
-        
-        # Array(String) input type
-        step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            'path code_file',
-        }
-        self.assertEqual(actual_inputs, expected_inputs)
-        
-        # File (secondaries) input type
-        step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            'path code_file',
-            'tuple path(bam), path(bai)',
-        }
-        self.assertEqual(actual_inputs, expected_inputs)
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
@@ -986,7 +948,7 @@ class TestProcessInputs(unittest.TestCase):
 
 
 
-class TestProcessOutputs(unittest.TestCase):
+class TestCmdtoolProcessOutputs(unittest.TestCase):
     """
     Need a process output for each tool output.
     """
@@ -1153,41 +1115,9 @@ class TestProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp9']
         scope = nfgen.Scope()
         scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         # expected_outputs = {'path "out_out", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-
-    
-    def test_pythontool(self) -> None:
-        wf = OutputsPythonToolTestWF()
-        refresh_workflow_inputs(wf)
-        
-        # file output
-        step = wf.step_nodes['stp0']
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "out_out", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-        
-        # String output
-        step = wf.step_nodes['stp1']
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-        
-        # Array(String) output
-        step = wf.step_nodes['stp2']
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'val "${file("${task.workDir}/out_out").text.split(\',\')}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     @unittest.skip('not implemented')
@@ -1200,7 +1130,7 @@ class TestProcessOutputs(unittest.TestCase):
 
 
 
-class TestProcessScript(unittest.TestCase):
+class TestCmdtoolProcessScript(unittest.TestCase):
     """
     Tests of the process prescript and script sections.
     """
@@ -1208,6 +1138,15 @@ class TestProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         settings.MINIMAL_PROCESS = True
         settings.MODE = 'workflow'
+
+    def test_variables_defined(self) -> None:
+        wf = EntityTraceTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes["stp8"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print()
 
     def test_components_prescript(self) -> None:
         wf = StepInputsTestWF()
@@ -1386,50 +1325,7 @@ process STP1 {
 }
 """
         self.assertEqual(expected, process.get_string())
-
-    def test_pythontool(self) -> None:
-        wf = InputsPythonToolTestWF()
-        refresh_workflow_inputs(wf)
-        
-        # File, String, Int input types
-        step = wf.step_nodes["stp0"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
-        expected_lines = {
-            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
-        }
-        print(process.get_string())
-        for ln in expected_lines:
-            self.assertIn(ln, actual_script)
-        
-        # Array(String) input type
-        step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
-        expected_lines = {
-            'result = code_block(inp="${params.in_str_arr}".split(" "))',
-        }
-        print(process.get_string())
-        for ln in expected_lines:
-            self.assertIn(ln, actual_script)
-        
-        # File (secondaries) input type
-        step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = translator.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
-        expected_lines = {
-            'result = code_block(inp="${bam}")',
-        }
-        print(process.get_string())
-        for ln in expected_lines:
-            self.assertIn(ln, actual_script)
-
+   
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
         refresh_workflow_inputs(wf)
@@ -1469,6 +1365,187 @@ process STP1 {
     @unittest.skip('not implemented')
     def test_translate_pythontool(self) -> None:
         raise NotImplementedError
+
+
+
+class TestPythontoolProcessInputs(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = InputsPythonToolTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_input_generation(self) -> None:
+        # File, String, Int input types
+        step = self.wf.step_nodes["stp0"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path code_file',
+            'path inp1',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        # Array(String) input type
+        step = self.wf.step_nodes["stp1"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path code_file',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        # File (secondaries) input type
+        step = self.wf.step_nodes["stp2"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        expected_inputs = {
+            'path code_file',
+            'tuple path(bam), path(bai)',
+        }
+        self.assertEqual(actual_inputs, expected_inputs)
+
+
+
+class TestPythontoolProcessOutputs(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = OutputsPythonToolTestWF()
+        refresh_workflow_inputs(self.wf)
+    
+    def test_output_generation(self) -> None:
+        # file output
+        step = self.wf.step_nodes['stp0']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'path "out_out", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # String output
+        step = self.wf.step_nodes['stp1']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
+        self.assertEqual(actual_outputs, expected_outputs)
+        
+        # Array(String) output
+        step = self.wf.step_nodes['stp2']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {
+            'val "${file("${task.workDir}/out_out").text.replace(\'[\', \'\').replace(\']\', \'\')}", emit: out'
+        }
+        self.assertEqual(actual_outputs, expected_outputs)
+
+
+
+class TestPythontoolProcess(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = InputsPythonToolTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_format(self) -> None:
+        step = self.wf.step_nodes["stp0"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_lines = process.get_string().split('\n')
+        actual_lines = [x.strip() for x in actual_lines]
+        actual_lines = [x for x in actual_lines if x != '\n' and x != '']
+        print(actual_lines)
+        expected_lines = [
+            'process STP0 {',
+            'debug true',
+            'publishDir "${params.outdir}/stp0"',
+            'input:',
+            'path code_file',
+            'path inp1, stageAs: \'inp1\'',
+            'output:',
+            'path "out_out", emit: out',
+            'exec:',
+            'script:',
+            '"""',
+            '#!/usr/bin/env python',
+            'from ${code_file.simpleName} import code_block',
+            'import os',
+            'import json',
+            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
+            'work_dir = os.getcwd()',
+            'for key in result:',
+            '    with open(os.path.join(work_dir, f"out_{key}"), "w") as fp:',
+            '        fp.write(json.dumps(result[key]))',
+            '"""',
+            '}',
+        ]
+        expected_lines = [x.strip() for x in expected_lines]
+        self.assertEqual(actual_lines, expected_lines)
+
+class TestPythontoolProcessScript(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = InputsPythonToolTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_input_references(self) -> None:
+        # File, String, Int input types
+        step = self.wf.step_nodes["stp0"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
+        # Array(String) input type
+        step = self.wf.step_nodes["stp1"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp="${params.in_str_arr}".split(" "))',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
+        # File (secondaries) input type
+        step = self.wf.step_nodes["stp2"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        actual_script = process.script
+        expected_lines = {
+            'result = code_block(inp="${bam}")',
+        }
+        print(process.get_string())
+        for ln in expected_lines:
+            self.assertIn(ln, actual_script)
+
 
 
 
@@ -2074,6 +2151,29 @@ class TestPlumbingCombinations(unittest.TestCase):
     def test_scatter_connection_array(self) -> None:
         raise NotImplementedError
 
+
+
+class TestPlumbingEdgeCases(unittest.TestCase):
+    """
+    This test group checks we can handle array / single datatype mismatches
+    in a workflow. This occurs in wgsgermline. 
+    """
+    def setUp(self) -> None:
+        settings.MINIMAL_PROCESS = True
+        settings.MODE = 'workflow'
+        self.wf = PlumbingEdgeCaseTestWF()
+        refresh_workflow_inputs(self.wf)
+
+    def test_pythontool_array_string_output(self) -> None:
+        step_id = 'stp2'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            "STP1.out.out.filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
+        ]
+        self.assertEqual(actual, expected)
 
 
 

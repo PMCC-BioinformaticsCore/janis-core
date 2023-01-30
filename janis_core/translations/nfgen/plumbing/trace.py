@@ -50,7 +50,7 @@ from janis_core.operators.selectors import (
     WildcardSelector, 
 )
 from janis_core.operators.stringformatter import StringFormatter
-from janis_core import CommandTool
+from janis_core import CommandTool, ToolInput, TInput
 
 from .. import nfgen_utils
 
@@ -81,6 +81,24 @@ def trace_source_scatter(entity: Any, tool: Optional[CommandTool]=None) -> bool:
     tracer.trace(entity)
     return tracer.source_scatter
 
+def trace_referenced_variables(tool: Optional[CommandTool]=None) -> set[str]:
+    tracer = ReferencedVariableTracer(tool)
+
+    for inp in tool.inputs():
+        # value, prefix, datatype
+        items_to_trace = [inp.value, inp.prefix, inp.input_type]
+        items_to_trace = [x for x in items_to_trace if x is not None]
+        for item in items_to_trace:
+            tracer.trace(item)
+    
+    for arg in tool.arguments():
+        tracer.trace(arg.value)
+    
+    for out in tool.outputs():
+        tracer.trace(out.selector)
+
+    return tracer.variables
+
 
 
 
@@ -109,6 +127,7 @@ class Tracer(ABC):
             FirstOperator,
             FilterNullOperator,
         }
+
         self.multi_arg_trace_types = {
             If,
             IndexOperator,
@@ -120,7 +139,10 @@ class Tracer(ABC):
         self.custom_trace_funcs = {
             # primitives
             list: self.trace_list,
-            
+
+            # datatypes
+            Filename: self.filename,
+
             # selectors
             AliasSelector: self.alias_selector,
             InputNodeSelector: self.input_node_selector,
@@ -136,7 +158,6 @@ class Tracer(ABC):
             StepTagInput: self.step_tag_input,
             Edge: self.edge,
             StringFormatter: self.string_formatter,
-            Filename: self.filename,
             # InputNode: self.input_node,
         }
 
@@ -154,6 +175,15 @@ class Tracer(ABC):
     def trace_list(self, entity: list[Any]) -> None:
         for item in entity:
             self.trace(item)
+    
+    # def tool_input(self, entity: ToolInput) -> None:
+    #     raise NotImplementedError
+    
+    # def tool_output(self, entity: ToolOutput) -> None:
+    #     raise NotImplementedError
+    
+    # def tool_argument(self, entity: ToolArgument) -> None:
+    #     raise NotImplementedError
 
     def alias_selector(self, entity: AliasSelector) -> None:
         self.trace(entity.inner_selector)
@@ -167,14 +197,18 @@ class Tracer(ABC):
         self.trace(entity.wildcard)
 
     def input_selector(self, entity: InputSelector) -> None:
+        # a tool input
         assert(self.tool)
         tinput = self.tool.inputs_map()[entity.input_to_select]
+        self.trace(tinput)
         
-        # the string used as InputSelector reference
-        self.trace(entity.input_to_select)
+    def tool_input(self, entity: ToolInput | TInput) -> None:
+        # the toolinput name
+        self.trace(entity.id())
+        dtype = entity.input_type if isinstance(entity, ToolInput) else entity.intype
         # the datatype if it is a Filename type
-        if isinstance(tinput.intype, Filename):
-            self.trace(tinput.intype)
+        if isinstance(dtype, Filename):
+            self.trace(dtype)
 
     def step_output_selector(self, entity: StepOutputSelector) -> None:
         # TODO check
@@ -246,6 +280,8 @@ class EntityCountTracer(Tracer):
             pass
 
 
+
+
 class SourceDatatypeTracer(Tracer):
 
     def __init__(self, tool: Optional[CommandTool]=None):
@@ -309,6 +345,7 @@ class SourceDatatypeTracer(Tracer):
 
 
 
+
 class SourceScatterTracer(Tracer):
     
     def __init__(self, tool: Optional[CommandTool]=None):
@@ -345,6 +382,32 @@ class SourceScatterTracer(Tracer):
         
 
 
+class ReferencedVariableTracer(Tracer):
 
-
+    def __init__(self, tool: Optional[CommandTool]=None):
+        super().__init__(tool)
+        self.variables: set[str] = set()
+    
+    def trace(self, entity: Any) -> None:
+        # reached a leaf node (variable reference to tool input)
+        if isinstance(entity, (ToolInput, TInput)):
+            self.variables.add(entity.id())
+        
+        # other nodes: continue tracing
+        else:
+            etype = type(entity)
+            if etype in self.custom_trace_funcs:
+                func = self.custom_trace_funcs[etype]
+                func(entity)
+            
+            elif etype in self.single_arg_trace_types:
+                self.operator_single_arg_trace(entity)
+            
+            elif etype in self.multi_arg_trace_types:
+                self.operator_multi_arg_trace(entity)
+            
+            else:
+                # for things we dont care about. 
+                # dead paths which don't lead anywhere. 
+                pass
 

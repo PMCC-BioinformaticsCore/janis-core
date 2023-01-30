@@ -47,6 +47,7 @@ class Process:
         script_quote: Optional[str] = '"',
         inputs: Optional[list[ProcessInput]] = None,
         outputs: Optional[list[ProcessOutput]] = None,
+        main_exec: Optional[str] = None,
         when: Optional[str] = None,  # TODO unimplemented?
         directives: Optional[list[ProcessDirective]] = None,
         pre_script: Optional[str] = None,
@@ -55,27 +56,18 @@ class Process:
         self.script = main_script
         self.script_type = script_type
         self.script_quote = script_quote
+        self.main_exec = main_exec
 
         self.inputs: list[ProcessInput] = inputs or []
         self.outputs: list[ProcessOutput] = outputs or []
         self.directives: list[ProcessDirective] = directives or []
         self.pre_script = pre_script
 
-    def prepare_script(self):
-        script_body = str(self.script).strip()
-        
-        if self.script_type:
-            script = ''
-            script += f'{self.script_type.value}:\n'
-            script += f'{self.pre_script}\n' if self.pre_script else ''
-            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
-            script += f'{script_body}\n'
-            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
-            script = indent(script, settings.NF_INDENT)
-        else:
-            script = indent(script_body, settings.NF_INDENT)
-        
-        return script
+    def prepare_directives(self):
+        if not self.directives:
+            return None
+        directives = ordering.order_nf_directives(self.directives)
+        return "\n".join(settings.NF_INDENT + d.get_string() for d in directives)
 
     def prepare_inputs(self):
         if not self.inputs:
@@ -92,12 +84,32 @@ class Process:
             "output:\n" + "\n".join(o.get_string() for o in self.outputs),
             settings.NF_INDENT,
         )
-
-    def prepare_directives(self):
-        if not self.directives:
-            return None
-        directives = ordering.order_nf_directives(self.directives)
-        return "\n".join(settings.NF_INDENT + d.get_string() for d in directives)
+    
+    def prepare_exec(self) -> Optional[str]:
+        if self.main_exec is not None:
+            outstr = ''
+            outstr += 'exec:'
+            if self.main_exec != '':
+                outstr += f'\n{self.main_exec}'
+            outstr = indent(outstr, settings.NF_INDENT)
+            return outstr
+        return None
+    
+    def prepare_script(self):
+        script_body = str(self.script).strip()
+        
+        if self.script_type:
+            script = ''
+            script += f'{self.script_type.value}:\n'
+            script += f'{self.pre_script}\n' if self.pre_script else ''
+            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
+            script += f'{script_body}\n'
+            script += f'{3 * self.script_quote}\n' if self.script_quote else ''
+            script = indent(script, settings.NF_INDENT)
+        else:
+            script = indent(script_body, settings.NF_INDENT)
+        
+        return script
 
     def get_string(self) -> str:
         components = filter_null(
@@ -105,6 +117,7 @@ class Process:
                 self.prepare_directives(),
                 self.prepare_inputs(),
                 self.prepare_outputs(),
+                self.prepare_exec(),
                 self.prepare_script(),
             ]
         )

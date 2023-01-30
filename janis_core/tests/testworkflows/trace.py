@@ -2,10 +2,11 @@
 
 from typing import Optional
 
-from janis_core.types import File, Array, Stdout, String
+from janis_core.types import File, Array, Stdout, String, Int, Filename
 from janis_core import (
     Workflow, 
     ToolInput, 
+    ToolArgument,
     ToolOutput, 
     CommandTool,
 )
@@ -13,7 +14,12 @@ from janis_core import (
 from janis_core import (
     If, 
     IsDefined,
-    FirstOperator
+    FirstOperator,
+    WildcardSelector,
+    InputSelector,
+    StringFormatter,
+    MemorySelector,
+    JoinOperator
 )
 
 
@@ -78,7 +84,14 @@ class EntityTraceTestWF(Workflow):
             "stp7",
             CatTestTool(inp=self.stp6.out),
         )
-
+        
+        self.step(
+            "stp8",
+            StringFormatterTestTool(
+                javaOptions=['--myname --ajeff'],
+                compression_level=8
+            ),
+        )
 
     def friendly_name(self):
         return "TEST: EntityTraceTestWF"
@@ -119,6 +132,88 @@ class CatTestTool(CommandTool):
 
     def outputs(self):
         return [ToolOutput("out", Stdout())]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class StringFormatterTestTool(CommandTool):
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+    
+    def tool(self) -> str:
+        return "CatTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput("javaOptions", Array(String, optional=True)),
+            ToolInput(
+                "compression_level",
+                Int(optional=True),
+                doc="Compression level for all compressed files created (e.g. BAM and VCF). Default value: 2.",
+            ),
+            ToolInput(
+                "javaOptionsRef",
+                Filename(
+                    prefix=InputSelector("javaOptions", remove_file_extension=True),
+                    suffix=".fastq",
+                    extension=".gz",
+                ),
+                prefix="--filenameRef",
+                position=2,
+            ),
+            # ToolInput("pg-tag", Boolean(optional=True), prefix="--add-output-sam-program-record",
+            #           doc="If true, adds a PG tag to created SAM/BAM/CRAM files.")
+        ]
+
+    def arguments(self):
+        return [
+            ToolArgument(
+                StringFormatter(
+                    "-Xmx{memory}G {compression} {otherargs}",
+                    memory=MemorySelector() * 3 / 4,
+                    compression=If(
+                        IsDefined(InputSelector("compression_level")),
+                        "-Dsamjdk.compress_level=" + InputSelector("compression_level"),
+                        "",
+                    ),
+                    otherargs=JoinOperator(
+                        FirstOperator([InputSelector("javaOptions"), []]), " "
+                    ),
+                ),
+                prefix="--java-options",
+                position=-1,
+            )
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "summaryMetrics",
+                File(),
+                glob=WildcardSelector(
+                    "*.genotype_concordance_summary_metrics", select_first=True
+                ),
+            ),
+            ToolOutput(
+                "detailMetrics",
+                File(),
+                glob=WildcardSelector(
+                    "*.genotype_concordance_detail_metrics", select_first=True
+                ),
+            ),
+            ToolOutput(
+                "contingencyMetrics",
+                File(),
+                glob=WildcardSelector(
+                    "*.genotype_concordance_contingency_metrics", select_first=True
+                ),
+            ),
+            # ToolOutput("vcf", VcfIdx(optional=True), glob=WildcardSelector("*.vcf"))
+        ]
 
     def container(self) -> str:
         return "ubuntu:latest"

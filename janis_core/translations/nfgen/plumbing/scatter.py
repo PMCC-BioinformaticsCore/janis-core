@@ -3,7 +3,6 @@
 
 from janis_core.types import DataType
 
-from .. import nfgen_utils
 from .. import settings
 
 from .common import array_type
