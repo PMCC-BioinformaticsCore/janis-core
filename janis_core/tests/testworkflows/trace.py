@@ -30,7 +30,9 @@ class EntityTraceTestWF(Workflow):
         self.input("inFile", File())
         self.input("inFileArray", Array(File()))
         self.input("inString", String())
+        self.input("inStringArrayOpt", Array(String(), optional=True))
         self.input("inStringOpt", String(optional=True))
+        self.input("inIntOpt", Int(optional=True))
         self.input("inStringOptBackup", String(optional=True))
         self.input("inStringArray", Array(String()))
 
@@ -87,9 +89,23 @@ class EntityTraceTestWF(Workflow):
         
         self.step(
             "stp8",
-            StringFormatterTestTool(
-                javaOptions=['--myname --ajeff'],
-                compression_level=8
+            InputUndefinedReferenceTestTool(
+                # javaOptions=self.inStringArrayOpt,
+                # compression_level=self.inIntOpt
+            ),
+        )
+        self.step(
+            "stp9",
+            ArgumentUndefinedReferenceTestTool(
+                # javaOptions=self.inStringArrayOpt,
+                # compression_level=self.inIntOpt
+            ),
+        )
+        self.step(
+            "stp10",
+            OutputUndefinedReferenceTestTool(
+                # javaOptions=self.inStringArrayOpt,
+                # compression_level=self.inIntOpt
             ),
         )
 
@@ -140,12 +156,13 @@ class CatTestTool(CommandTool):
         return "TEST"
 
 
-class StringFormatterTestTool(CommandTool):
+
+class InputUndefinedReferenceTestTool(CommandTool):
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"
     
     def tool(self) -> str:
-        return "CatTestTool"
+        return "InputUndefinedReferenceTestTool"
 
     def inputs(self):
         return [
@@ -165,8 +182,35 @@ class StringFormatterTestTool(CommandTool):
                 prefix="--filenameRef",
                 position=2,
             ),
-            # ToolInput("pg-tag", Boolean(optional=True), prefix="--add-output-sam-program-record",
-            #           doc="If true, adds a PG tag to created SAM/BAM/CRAM files.")
+        ]
+
+    def outputs(self):
+        return [ToolOutput('out', Stdout())]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+
+
+class ArgumentUndefinedReferenceTestTool(CommandTool):
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+    
+    def tool(self) -> str:
+        return "ArgumentUndefinedReferenceTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput("javaOptions", Array(String, optional=True)),
+            ToolInput(
+                "compression_level",
+                Int(optional=True),
+                doc="Compression level for all compressed files created (e.g. BAM and VCF). Default value: 2.",
+            ),
         ]
 
     def arguments(self):
@@ -190,29 +234,36 @@ class StringFormatterTestTool(CommandTool):
         ]
 
     def outputs(self):
+        return [ToolOutput('out', Stdout())]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+
+class OutputUndefinedReferenceTestTool(CommandTool):
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+    
+    def tool(self) -> str:
+        return "OutputUndefinedReferenceTestTool"
+
+    def inputs(self):
         return [
-            ToolOutput(
-                "summaryMetrics",
-                File(),
-                glob=WildcardSelector(
-                    "*.genotype_concordance_summary_metrics", select_first=True
-                ),
+            ToolInput("javaOptions", Array(String, optional=True)),
+            ToolInput(
+                "compression_level",
+                Int(optional=True),
+                doc="Compression level for all compressed files created (e.g. BAM and VCF). Default value: 2.",
             ),
-            ToolOutput(
-                "detailMetrics",
-                File(),
-                glob=WildcardSelector(
-                    "*.genotype_concordance_detail_metrics", select_first=True
-                ),
-            ),
-            ToolOutput(
-                "contingencyMetrics",
-                File(),
-                glob=WildcardSelector(
-                    "*.genotype_concordance_contingency_metrics", select_first=True
-                ),
-            ),
-            # ToolOutput("vcf", VcfIdx(optional=True), glob=WildcardSelector("*.vcf"))
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput("out", File(), glob=InputSelector("javaOptions")),
         ]
 
     def container(self) -> str:
@@ -220,5 +271,6 @@ class StringFormatterTestTool(CommandTool):
 
     def version(self) -> str:
         return "TEST"
+
 
 

@@ -48,9 +48,10 @@ from janis_core.operators.selectors import (
     DiskSelector,
     TimeSelector,
     WildcardSelector, 
+    ResourceSelector
 )
 from janis_core.operators.stringformatter import StringFormatter
-from janis_core import CommandTool, ToolInput, TInput
+from janis_core import CommandTool, ToolInput, TInput, ToolArgument, ToolOutput
 
 from .. import nfgen_utils
 
@@ -81,21 +82,24 @@ def trace_source_scatter(entity: Any, tool: Optional[CommandTool]=None) -> bool:
     tracer.trace(entity)
     return tracer.source_scatter
 
-def trace_referenced_variables(tool: Optional[CommandTool]=None) -> set[str]:
+def trace_referenced_variables(entity: Any, tool: Optional[CommandTool]) -> set[str]:
     tracer = ReferencedVariableTracer(tool)
-
-    for inp in tool.inputs():
+    
+    if isinstance(entity, ToolInput):
         # value, prefix, datatype
-        items_to_trace = [inp.value, inp.prefix, inp.input_type]
+        items_to_trace = [entity.value, entity.prefix, entity.input_type]
         items_to_trace = [x for x in items_to_trace if x is not None]
         for item in items_to_trace:
             tracer.trace(item)
     
-    for arg in tool.arguments():
-        tracer.trace(arg.value)
+    elif isinstance(entity, ToolArgument):
+        tracer.trace(entity.value)
     
-    for out in tool.outputs():
-        tracer.trace(out.selector)
+    elif isinstance(entity, ToolOutput):
+        tracer.trace(entity.selector)
+    
+    else:
+        raise NotImplementedError
 
     return tracer.variables
 
@@ -149,10 +153,10 @@ class Tracer(ABC):
             WildcardSelector: self.wildcard_selector,
             InputSelector: self.input_selector,
             StepOutputSelector: self.step_output_selector,
-            MemorySelector: self.memory_selector,
-            CpuSelector: self.cpu_selector,
-            DiskSelector: self.disk_selector,
-            TimeSelector: self.time_selector,
+            MemorySelector: self.resource_selector,
+            CpuSelector: self.resource_selector,
+            DiskSelector: self.resource_selector,
+            TimeSelector: self.resource_selector,
 
             # misc 
             StepTagInput: self.step_tag_input,
@@ -215,25 +219,37 @@ class Tracer(ABC):
         self.trace(entity.node)
         self.trace(entity.tag)
 
-    def memory_selector(self, entity: MemorySelector) -> None:
-        self.trace(entity.resource_to_select)
-        self.trace(entity.resource_type)
-        self.trace(entity.default)
+    def resource_selector(self, entity: ResourceSelector) -> None:
+        if hasattr(entity, 'resource_to_select'):
+            self.trace(entity.resource_to_select)
+        if hasattr(entity, 'resource_type'):
+            self.trace(entity.resource_type)
+        if hasattr(entity, 'default'):
+            self.trace(entity.default)
 
-    def cpu_selector(self, entity: CpuSelector) -> None:
-        self.trace(entity.resource_to_select)
-        self.trace(entity.resource_type)
-        self.trace(entity.default)
+    # def cpu_selector(self, entity: CpuSelector) -> None:
+    #     if hasattr(entity, 'resource_to_select'):
+    #         self.trace(entity.resource_to_select)
+    #     if hasattr(entity, 'resource_type'):
+    #         self.trace(entity.resource_type)
+    #     if hasattr(entity, 'default'):
+    #         self.trace(entity.default)
 
-    def disk_selector(self, entity: DiskSelector) -> None:
-        self.trace(entity.resource_to_select)
-        self.trace(entity.resource_type)
-        self.trace(entity.default)
+    # def disk_selector(self, entity: DiskSelector) -> None:
+    #     if hasattr(entity, 'resource_to_select'):
+    #         self.trace(entity.resource_to_select)
+    #     if hasattr(entity, 'resource_type'):
+    #         self.trace(entity.resource_type)
+    #     if hasattr(entity, 'default'):
+    #         self.trace(entity.default)
 
-    def time_selector(self, entity: TimeSelector) -> None:
-        self.trace(entity.resource_to_select)
-        self.trace(entity.resource_type)
-        self.trace(entity.default)
+    # def time_selector(self, entity: TimeSelector) -> None:
+    #     if hasattr(entity, 'resource_to_select'):
+    #         self.trace(entity.resource_to_select)
+    #     if hasattr(entity, 'resource_type'):
+    #         self.trace(entity.resource_type)
+    #     if hasattr(entity, 'default'):
+    #         self.trace(entity.default)
 
     def step_tag_input(self, entity: StepTagInput) -> None:
         for src in entity.source_map:

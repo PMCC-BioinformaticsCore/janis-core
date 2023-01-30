@@ -1142,11 +1142,51 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def test_variables_defined(self) -> None:
         wf = EntityTraceTestWF()
         refresh_workflow_inputs(wf)
+
+        # inputs referencing undefined inputs
         step = wf.step_nodes["stp8"]
         scope = nfgen.Scope()
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        print()
+        
+        actual_prescript = process.pre_script
+        assert(actual_prescript)
+        expected_lines = {
+            'def java_options = null',
+        }
+
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
+        
+        # arguments referencing undefined inputs
+        step = wf.step_nodes["stp9"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        
+        actual_prescript = process.pre_script
+        assert(actual_prescript)
+        expected_lines = {
+            'def compression_level = null',
+            'def java_options = null',
+        }
+
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
+        
+        # outputs referencing undefined inputs
+        step = wf.step_nodes["stp10"]
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        
+        actual_prescript = process.pre_script
+        assert(actual_prescript)
+        expected_lines = {
+            'def java_options = null',
+        }
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
 
     def test_components_prescript(self) -> None:
         wf = StepInputsTestWF()

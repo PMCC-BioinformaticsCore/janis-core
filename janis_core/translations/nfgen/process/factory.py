@@ -16,7 +16,6 @@ from . import directives
 from . import inputs
 from . import outputs
 
-from ..plumbing import trace
 
 
 get_primary_files_code = """\
@@ -62,8 +61,6 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     :return:
     :rtype:
     """
-
-
     # name
     process_name = scope.labels[-1]
 
@@ -78,12 +75,10 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
 
     # script
-    referenced_variables = trace.trace_referenced_variables(tool)
     pre_script, main_script = script.gen_script_for_cmdtool(
         tool=tool,
         scope=scope,
         sources=sources,
-        referenced_variables=referenced_variables,
         stdout_filename=settings.TOOL_STDOUT_FILENAME,
     )
     

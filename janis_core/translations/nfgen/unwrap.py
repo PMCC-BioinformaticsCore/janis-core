@@ -275,7 +275,8 @@ class Unwrapper:
             src = self.unwrap(inp.default)
 
         elif inp.id() in self.internal_inputs:
-            src = None
+            src = naming.process_input_name(inp)
+            print()
         
         else:
             # something went wrong - inp is not accounted for 
@@ -365,8 +366,11 @@ class Unwrapper:
 
     # logical operators
     def unwrap_is_defined_operator(self, op: IsDefined) -> str:
+        # this is a little weird. not a 1:1 mapping. 
+        # assume everything is defined and set to null at least. 
         arg = self.unwrap(op.args[0])
-        return f"binding.hasVariable({arg})"
+        # return f"{arg} != null"
+        return f"{arg}"
         
     def unwrap_if_operator(self, op: If) -> str:
         cond = self.unwrap(op.args[0])
@@ -580,10 +584,6 @@ class Unwrapper:
         """
         Translate Janis InputSelector data type into Nextflow expressions
         """
-        # TODO arrays
-        # TODO secondaries
-        # TODO runtime inputs
-    
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
         
