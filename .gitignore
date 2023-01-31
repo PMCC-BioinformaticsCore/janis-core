@@ -89,3 +89,4 @@ TODO.txt
 \.mypy_cache/
 *.egg-info
 *.dist-info
+test.py

@@ -113,6 +113,9 @@ class ProcessScriptGenerator:
         """
         # ensure all referenced variables are defined
     
+        # if self.tool.id() == 'SamToolsFlagstat':
+        #     print()
+        
         undef_variables = self.get_undefined_variable_references()
         if undef_variables:
             undef_tinputs = nfgen_utils.items_with_id(self.tool.inputs(), undef_variables)

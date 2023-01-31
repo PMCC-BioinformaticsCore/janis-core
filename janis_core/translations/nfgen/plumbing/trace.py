@@ -407,7 +407,13 @@ class ReferencedVariableTracer(Tracer):
     def trace(self, entity: Any) -> None:
         # reached a leaf node (variable reference to tool input)
         if isinstance(entity, (ToolInput, TInput)):
-            self.variables.add(entity.id())
+            # we need to check whether the TInput is a deadend.
+            # in the case of a Filename type, can always guarantee a value? I hope? 
+            dtype = entity.input_type if isinstance(entity, ToolInput) else entity.intype
+            if isinstance(dtype, Filename):
+                pass
+            else:
+                self.variables.add(entity.id())
         
         # other nodes: continue tracing
         else:

@@ -24,8 +24,8 @@ PS_OPT_BASIC          = ''
 PS_OPT_DEFAULT        = 'def {name} = {src} ? {src} : {default}'
 PS_OPT_OPTIONAL       = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
 PS_OPT_BASIC_ARR      = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR    = 'def {name} = {src} && {src}[0] != \'\' ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR   = 'def {name} = {src} && {src}[0] != \'\' ? {arr_join} : ""'
+PS_OPT_DEFAULT_ARR    = 'def {name} = {src} ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR   = 'def {name} = {src} ? {arr_join} : ""'
 
 
 SC_FLAG_TRUE          = '${{{var}}}'
@@ -39,8 +39,8 @@ SC_POS_OPTIONAL_ARR   = '${{{var}}}'
 SC_OPT_BASIC          = '{prefix}${{{var}}}'
 SC_OPT_DEFAULT        = '{prefix}${{{var}}}'
 SC_OPT_OPTIONAL       = '${{{var}}}'
-SC_OPT_BASIC_ARR      = '{prefix}${{{var}}}'
-SC_OPT_DEFAULT_ARR    = '{prefix}${{{var}}}'
+SC_OPT_BASIC_ARR      = '${{{var}}}'
+SC_OPT_DEFAULT_ARR    = '${{{var}}}'
 SC_OPT_OPTIONAL_ARR   = '${{{var}}}'
 
 
@@ -83,6 +83,8 @@ class ScriptFormatter:
             IType.OPT_DEFAULT_ARR:  self.opt_default_arr,
             IType.OPT_OPTIONAL_ARR: self.opt_optional_arr,
         }
+        # if self.tool.id() == 'Gatk4MergeSamFiles' and self.tinput.id() == 'bams':
+        #     print()
 
     
     # PUBLIC METHOD
