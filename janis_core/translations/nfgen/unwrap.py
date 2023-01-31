@@ -289,6 +289,7 @@ class Unwrapper:
         # data fed via process input
         dtype = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
         # secondary files (name mapped to ext of primary file) @secondariesarray 
         if isinstance(basetype, File) and basetype.has_secondary_files():
             names = naming.process_input_secondaries(inp, self.sources)
@@ -590,6 +591,7 @@ class Unwrapper:
         inp = self.get_input_by_id(sel.input_to_select)
         dtype: DataType = inp.input_type # type: ignore
         basetype = nfgen_utils.get_base_type(dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
 
         # @secondariesarray
         if nfgen_utils.is_array_secondary_type(dtype):

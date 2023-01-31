@@ -84,8 +84,17 @@ from janis_core import (
     Int, 
     Float, 
     File, 
-    Boolean, 
+    Boolean,
+    UnionType,
+    Array,
 )
+
+from janis_bioinformatics.data_types.fasta import Fasta, FastaWithIndexes, FastaDict
+from janis_bioinformatics.data_types.fastq import Fastq
+from janis_bioinformatics.data_types.bam import Bam
+from janis_bioinformatics.data_types.sam import Sam
+from janis_bioinformatics.data_types.cram import Cram
+
 from janis_core.translations.nfgen.nfgen_utils import to_groovy
 
 
@@ -800,9 +809,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
-            'path option1',
-            'path option2',
-            'path option_l',
+            "path option2, stageAs: 'option2'",
+            "path option1, stageAs: 'option1'",
+            "path option_l, stageAs: 'option_l'",
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -815,7 +824,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         scope = nfgen.Scope()
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        expected_inputs = {'path inp'}
+        expected_inputs = {"path inp, stageAs: 'inp'"}
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
     
@@ -922,7 +931,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path inp1',
+            "path inp1, stageAs: 'inp1'",
             'val inp2',
         }
         self.assertEqual(actual_inputs, expected_inputs)
@@ -933,7 +942,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path inp1',
+            "path inp1, stageAs: 'inp1'",
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
@@ -1108,7 +1117,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
-        expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].first()}.metrics.txt", emit: metrics'}
+        expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].find{ it != null }}.metrics.txt", emit: metrics'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_filename_clash(self) -> None:
@@ -1692,6 +1701,52 @@ class TestEntityTracing(unittest.TestCase):
         expected_scatter = True
         self.assertEqual(actual_scatter, expected_scatter)
 
+
+class TestPlumbingModule(unittest.TestCase):
+    """tests the public functions in nfgen.plumbing."""
+
+    def test_get_common_type(self):
+        # non-union types, has intersection
+        srctype = Bam()
+        desttype = Bam()
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertEqual(type(common_type), Bam)
+        
+        # non-union types, no intersection
+        srctype = Fasta()
+        desttype = Bam()
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertIsNone(common_type)
+        
+        # single union type, has intersection
+        srctype = UnionType(Bam, Sam, Cram)
+        desttype = Bam()
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertEqual(type(common_type), Bam)
+        
+        # single union type, no intersection
+        srctype = UnionType(Bam, Sam, Cram)
+        desttype = Fasta()
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertIsNone(common_type)
+        
+        # both union types, has intersection
+        srctype = UnionType(Bam, Sam, Cram)
+        desttype = UnionType(Sam, Cram)
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertEqual(type(common_type), Sam)
+        
+        # both union types, no intersection
+        srctype = UnionType(Bam, Sam, Cram)
+        desttype = UnionType(Fasta, Fastq)
+        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        self.assertIsNone(common_type)
+    
+    def test_is_datatype_mismatch(self):
+        raise NotImplementedError
+
+    def test_generate_datatype_mismatch_plumbing(self):
+        raise NotImplementedError
 
 
 class TestPlumbingTypeMismatch(unittest.TestCase):

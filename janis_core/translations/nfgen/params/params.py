@@ -55,6 +55,7 @@ class FileTypePriority(OrderingMethod):
         bottom: list[Param] = []
         for p in params:
             basetype = nfgen_utils.get_base_type(p.janis_type)
+            basetype = nfgen_utils.ensure_single_type(basetype)
             if isinstance(basetype, File):
                 top.append(p)
             else:

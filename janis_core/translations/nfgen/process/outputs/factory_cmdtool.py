@@ -73,12 +73,14 @@ def is_stdout_type(out: ToolOutput) -> bool:
 
 def is_file_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if isinstance(basetype, (File, Directory)):
         return True
     return False
 
 def is_filepair_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if basetype.name() in ['FastqPair', 'FastqGzPair']:
         return True
     return False
@@ -93,6 +95,7 @@ def is_array_type(out: ToolOutput) -> bool:
 
 def is_non_file_type(out: ToolOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.output_type)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if not isinstance(basetype, (File, Directory)):
         return True
     return False
@@ -184,7 +187,9 @@ class CmdtoolProcessOutputFactory:
     # helper properties
     @property
     def basetype(self) -> DataType:
-        return nfgen_utils.get_base_type(self.out.output_type)
+        basetype = nfgen_utils.get_base_type(self.out.output_type)
+        basetype = nfgen_utils.ensure_single_type(basetype)
+        return basetype
     
     @property
     def dtype(self) -> DataType:

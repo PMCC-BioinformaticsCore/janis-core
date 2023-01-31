@@ -128,6 +128,7 @@ class ParamGroup:
     
     def format_param_array(self, param: Param) -> str:
         basetype = nfgen_utils.get_base_type(param.janis_type)
+        basetype = nfgen_utils.ensure_single_type(basetype)
         if isinstance(basetype, File):
             comment = 'list files here'
         else:

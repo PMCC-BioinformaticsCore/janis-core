@@ -26,6 +26,8 @@ from .model import (
 
 
 def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[ProcessInput]:
+    if tool.id() == 'Gatk4MarkDuplicates':
+        print()
     process_inputs: list[ProcessInput] = []
     tinput_ids = get_process_inputs(sources)
     tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
@@ -36,7 +38,8 @@ def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict
 
 def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
-    basetype: Optional[DataType] = nfgen_utils.get_base_type(dtype)
+    basetype = nfgen_utils.get_base_type(dtype)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     assert(basetype)
     
     # @secondariesarray
@@ -75,6 +78,7 @@ def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInp
 
 def is_filepair_type(dtype: DataType) -> bool:
     basetype = nfgen_utils.get_base_type(dtype)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if basetype.name() in ['FastqPair', 'FastqGzPair']:
         return True
     return False

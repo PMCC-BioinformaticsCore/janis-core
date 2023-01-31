@@ -10,18 +10,16 @@ from janis_core.types import (
     Boolean,
     Int,
     Float,
-    Array
 )
 from janis_core import (
     DataType,
     ToolInput,
     TInput,
     Workflow,
-    CommandTool,
-    PythonTool,
+    UnionType
 )
 
-from janis_core.workflow.workflow import InputNode, StepNode
+from janis_core.workflow.workflow import InputNode
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
 
@@ -141,6 +139,11 @@ def get_base_type(dtype: DataType) -> DataType:
     while dtype.name() == 'Array' and dtype.subtype():
         dtype = dtype.subtype()
     return dtype
+
+def ensure_single_type(dtype: DataType) -> DataType:
+    if isinstance(dtype, UnionType):
+        return dtype.subtypes[0]
+    return dtype    
 
 def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> DataType:
     match task_input:

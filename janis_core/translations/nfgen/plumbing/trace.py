@@ -356,6 +356,7 @@ class SourceDatatypeTracer(Tracer):
         assert(dtype)
         if array_to_single and dtype.is_array():
             dtype = nfgen_utils.get_base_type(dtype)
+            dtype = nfgen_utils.ensure_single_type(dtype)
         
         self.datatypes.append(dtype)
 

@@ -119,7 +119,9 @@ class ChannelRegistrationHelper:
 
     @property
     def basetype(self) -> DataType:
-        return nfgen_utils.get_base_type(self.inp.datatype)
+        basetype = nfgen_utils.get_base_type(self.inp.datatype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
+        return basetype
 
     @property
     def is_subworkflow(self) -> bool:
@@ -269,6 +271,7 @@ def _get_file_wf_inputs(wf: Workflow) -> set[str]:
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
         basetype = nfgen_utils.get_base_type(inp.datatype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
         # main file types
         if isinstance(basetype, File):
             out.add(name)

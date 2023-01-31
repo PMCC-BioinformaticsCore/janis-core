@@ -180,7 +180,9 @@ class ScriptFormatter:
     
     @property
     def basetype(self) -> DataType:
-        return nfgen_utils.get_base_type(self.dtype)
+        basetype = nfgen_utils.get_base_type(self.dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
+        return basetype
 
     @property
     def prefix(self) -> Optional[str]:

@@ -24,6 +24,7 @@ def is_pythontool_array_string_output(src: Any) -> bool:
         output = tool.outputs_map()[source.tag]
         dtype = output.outtype
         basetype = nfgen_utils.get_base_type(dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
 
         # source tool is pythontool
         if isinstance(tool, PythonTool):

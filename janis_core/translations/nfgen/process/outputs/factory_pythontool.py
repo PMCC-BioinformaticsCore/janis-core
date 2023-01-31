@@ -38,6 +38,7 @@ def get_otype(out: TOutput) -> OType:
 
 def is_file_type(out: TOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.outtype)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if isinstance(basetype, File):
         return True
     return False
@@ -49,6 +50,7 @@ def is_array_type(out: TOutput) -> bool:
 
 def is_non_file_type(out: TOutput) -> bool:
     basetype = nfgen_utils.get_base_type(out.outtype)
+    basetype = nfgen_utils.ensure_single_type(basetype)
     if not isinstance(basetype, File):
         return True
     return False

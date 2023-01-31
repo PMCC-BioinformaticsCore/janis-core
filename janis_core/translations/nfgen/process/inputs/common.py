@@ -6,6 +6,8 @@ from typing import Any
 from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core import (
     File,
+    Filename,
+    Directory,
     CommandTool,
     PythonTool,
     TInput,
@@ -149,7 +151,13 @@ def get_all_input_ids(tinputs: list[TInput]) -> set[str]:
 
 def get_file_input_ids(tinputs: list[TInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are File types"""
-    return {x.id() for x in tinputs if isinstance(nfgen_utils.get_base_type(x.intype), File)}
+    out: set[str] = set()
+    for inp in tinputs:
+        basetype = nfgen_utils.get_base_type(inp.intype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
+        if isinstance(basetype, (File, Directory, Filename)):
+            out.add(inp.id())
+    return out
 
 def get_optional_input_ids(tinputs: list[TInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are optional"""

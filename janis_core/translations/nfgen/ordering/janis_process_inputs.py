@@ -25,6 +25,7 @@ class PathPriorityStrategy(OrderingStrategy):
     def is_path(self, inp: ToolInput | TInput) -> bool:
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         basetype = nfgen_utils.get_base_type(dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
         if isinstance(basetype, File):
             return True
         return False
