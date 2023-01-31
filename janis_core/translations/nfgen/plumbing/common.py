@@ -1,6 +1,6 @@
 
 
-from janis_core.types import DataType, Array
+from janis_core.types import DataType
 
 from .. import nfgen_utils
 
@@ -39,5 +39,3 @@ def get_collate_size(dtype: DataType) -> int:
         size = len(exts)
     return size
 
-
-# from janis_bioinformatics.data_types import FastqGzPair

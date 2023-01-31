@@ -5,7 +5,7 @@ from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from janis_core import DataType, File, Directory, Array
+from janis_core import DataType, File, Directory
 from ... import nfgen_utils
 
 

@@ -4,16 +4,19 @@ from janis_core import DataType, CommandTool, PythonTool, StepOutputSelector, St
 
 from .. import nfgen_utils
 
+
+
 def satisfies_edge_case(
     src: Any, 
     desttype: DataType, 
     tool: CommandTool | PythonTool
     ) -> bool:
-        if pythontool_array_string_output(src):
+        if is_pythontool_array_string_output(src):
             return True
+        # add more plumbing edge cases here as they arise
         return False
 
-def pythontool_array_string_output(src: Any) -> bool:
+def is_pythontool_array_string_output(src: Any) -> bool:
     source = src.source_map[0].source
     # source is from step output
     if isinstance(source, StepOutputSelector):
@@ -29,9 +32,8 @@ def pythontool_array_string_output(src: Any) -> bool:
                 return True
     return False
 
-
 def handle_edge_case(src: Any, desttype: DataType, tool: CommandTool | PythonTool) -> str:
-    if pythontool_array_string_output(src):
+    if is_pythontool_array_string_output(src):
         operation = ".filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
     else:
         raise RuntimeError('DEV: there should be an edge case handled here, but apparently not')

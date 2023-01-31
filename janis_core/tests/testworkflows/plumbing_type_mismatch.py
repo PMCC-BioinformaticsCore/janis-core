@@ -4,7 +4,9 @@ from typing import Optional
 
 from janis_core import Workflow, ToolInput, ToolOutput, CommandTool
 from janis_core.types import File, Array, Stdout
-from janis_bioinformatics.data_types.bam import BamBai
+from janis_bioinformatics.data_types.bam import BamBai, Bam
+from janis_bioinformatics.data_types.fasta import FastaWithIndexes, FastaDict
+
 
 
 class PlumbingTypeMismatchTestWF(Workflow):
@@ -12,25 +14,51 @@ class PlumbingTypeMismatchTestWF(Workflow):
     def constructor(self):
         self.input('inFile', File)
         self.input('inFileArray', Array(File))
-        self.input('inSecondary', BamBai)
-        self.input('inSecondaryArray', Array(BamBai))
+        self.input('inBamBai', BamBai)
+        self.input('inBamBaiArray', Array(BamBai))
+        self.input('inFastaWithIndexes', FastaWithIndexes)
 
-        self.step(
-            "array_to_single",
-            SingleInputTestTool(inp=self.inFileArray)
-        )
+        # single/array mismatches
         self.step(
             "single_to_array", 
             ArrayInputTestTool(inp=self.inFile)
         )
         self.step(
+            "array_to_single",
+            SingleInputTestTool(inp=self.inFileArray)
+        )
+
+        # secondary/secondary mismatches
+        self.step(
+            "bambai_to_bam",
+            BamInputTestTool(inp=self.inBamBai)
+        )
+        self.step(
+            "bambai_to_bam_array",
+            BamArrayInputTestTool(inp=self.inBamBai)
+        )
+
+        # secondary/secondary array mismatches
+        self.step(
+            "fastawithindexes_to_fastadict",
+            FastaDictInputTestTool(inp=self.inFastaWithIndexes)
+        )
+        self.step(
+            "fastawithindexes_to_fastadict_array",
+            FastaDictArrayInputTestTool(inp=self.inFastaWithIndexes)
+        )
+
+        # secondary array mismatches
+        self.step(
             "secondary_array_to_secondary", 
-            SecondaryInputTestTool(inp=self.inSecondaryArray)
+            SecondaryInputTestTool(inp=self.inBamBaiArray)
         )
         self.step(
             "secondary_array_to_secondary_array", 
-            SecondaryArrayInputTestTool(inp=self.inSecondaryArray)
+            SecondaryArrayInputTestTool(inp=self.inBamBaiArray)
         )
+
+
 
     def friendly_name(self):
         return "TEST: PlumbingTypeMismatchTestWF"
@@ -54,13 +82,49 @@ class BaseTestTool(CommandTool):
         return "TEST"
 
 
+class FastaDictInputTestTool(BaseTestTool):
+    
+    def tool(self) -> str:
+        return "FastaDictInputTestTool"
+    
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", FastaDict(), position=0)]
+
+
+class FastaDictArrayInputTestTool(BaseTestTool):
+    
+    def tool(self) -> str:
+        return "FastaDictArrayInputTestTool"
+    
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Array(FastaDict()), position=0)]
+
+
+class BamInputTestTool(BaseTestTool):
+    
+    def tool(self) -> str:
+        return "BamInputTestTool"
+    
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Bam(), position=0)]
+
+
+class BamArrayInputTestTool(BaseTestTool):
+    
+    def tool(self) -> str:
+        return "BamInputTestTool"
+    
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", Array(Bam()), position=0)]
+
+
 class SingleInputTestTool(BaseTestTool):
     
     def tool(self) -> str:
         return "SingleInputTestTool"
     
     def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", File, position=0)]
+        return [ToolInput("inp", File(), position=0)]
 
 
 class ArrayInputTestTool(BaseTestTool):
@@ -69,7 +133,7 @@ class ArrayInputTestTool(BaseTestTool):
         return "ArrayInputTestTool"
     
     def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", Array(File), position=0)]
+        return [ToolInput("inp", Array(File()), position=0)]
 
 
 class SecondaryInputTestTool(BaseTestTool):
@@ -78,7 +142,7 @@ class SecondaryInputTestTool(BaseTestTool):
         return "SecondaryInputTestTool"
     
     def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", BamBai, position=0)]
+        return [ToolInput("inp", BamBai(), position=0)]
 
 
 class SecondaryArrayInputTestTool(BaseTestTool):
@@ -87,6 +151,6 @@ class SecondaryArrayInputTestTool(BaseTestTool):
         return "SecondaryArrayInputTestTool"
     
     def inputs(self) -> list[ToolInput]:
-        return [ToolInput("inp", Array(BamBai), position=0)]
+        return [ToolInput("inp", Array(BamBai()), position=0)]
 
 

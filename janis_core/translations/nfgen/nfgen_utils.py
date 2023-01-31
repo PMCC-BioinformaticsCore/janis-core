@@ -226,9 +226,8 @@ def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
 
     exts = _sort_extensions(primary_ext, secondary_exts)
     if remove_symbols:
-        exts = [x.rsplit('.')[-1] for x in exts]
+        exts = [x.lstrip('.^') for x in exts]
     return exts
-
 
 def _sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
     out: list[str] = []

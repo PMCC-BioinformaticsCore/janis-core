@@ -1705,6 +1705,50 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         self.wf = PlumbingTypeMismatchTestWF()
         refresh_workflow_inputs(self.wf)
 
+    def test_secondary_single_mismatch(self):
+        step_id = 'bambai_to_bam'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_bam_bai.map{ tuple -> tuple[0] }'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_secondary_single_array_mismatch(self):
+        step_id = 'bambai_to_bam_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_bam_bai.map{ tuple -> tuple[0] }.toList()'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_secondary_secondary_mismatch(self):
+        step_id = 'fastawithindexes_to_fastadict'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }'
+        ]
+        self.assertEqual(actual, expected)
+    
+    def test_secondary_secondary_array_mismatch(self):
+        step_id = 'fastawithindexes_to_fastadict_array'
+        step = self.wf.step_nodes[step_id]
+        scope = nfgen.Scope()
+        scope.update(step)
+        actual = nfgen.call.get_args(step, scope)
+        expected = [
+            'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()'
+        ]
+        self.assertEqual(actual, expected)
+
     def test_array_to_single(self):
         step_id = 'array_to_single'
         step = self.wf.step_nodes[step_id]
@@ -1734,7 +1778,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'ch_in_secondary_array.flatten().collate( 2 ).first()'
+            'ch_in_bam_bai_array.flatten().collate( 2 ).first()'
         ]
         self.assertEqual(actual, expected)
     
@@ -1745,7 +1789,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'ch_in_secondary.flatten().toList()'
+            'ch_in_bam_bai_array.flatten().toList()'
         ]
         self.assertEqual(actual, expected)
 

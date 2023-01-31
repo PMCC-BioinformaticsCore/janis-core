@@ -16,7 +16,7 @@ from ... import nfgen_utils
 from ... import naming
 from ... import ordering
 
-from .janis import get_process_inputs
+from .common import get_process_inputs
 from .model import (
     ProcessInput, 
     PathProcessInput,

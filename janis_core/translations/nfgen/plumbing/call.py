@@ -18,14 +18,14 @@ from ..scope import Scope
 
 from . import trace
 
-from .datatype_mismatch import requires_data_operation
-from .datatype_mismatch import handle_data_operation
+from .datatype_mismatch import is_datatype_mismatch
+from .datatype_mismatch import generate_datatype_mismatch_plumbing
 
 from .edge_cases import satisfies_edge_case
 from .edge_cases import handle_edge_case
 
-from .scatter import is_scatter_relationship
-from .scatter import handle_scatter_relationship
+# from .scatter import is_scatter_relationship
+# from .scatter import handle_scatter_relationship
 
 NF_INDENT = settings.NF_INDENT
 
@@ -54,28 +54,25 @@ def get_args(step: StepNode, scope: Scope):
                 call_args += arg
 
             # plumbing info
-            src_scatter: bool = is_src_scatter(src)
-            dest_scatter: bool = is_dest_scatter(name, step)
             srctype: DataType = get_src_type(src)
             desttype: DataType = get_dest_type(tool, name)
             
-            # handle scatter relationship
-            if name == 'three_prime_adapter_read1':
-                print()
-                
+            # src_scatter: bool = is_src_scatter(src)
+            # dest_scatter: bool = is_dest_scatter(name, step)
             # if is_scatter_relationship(src_scatter, dest_scatter):
             #     suffix = handle_scatter_relationship(src_scatter, dest_scatter, src_type, dest_type)
             #     arg = f'{arg}{suffix}'
                         
-            # handle datatype relationship
+            # handle edge case (takes priority over datatype mismatches)
             if satisfies_edge_case(src, desttype, tool):
                 suffix = handle_edge_case(src, desttype, tool)
                 arg = f'{arg}{suffix}'
 
-            elif requires_data_operation(srctype, desttype, src_scatter, dest_scatter):
-                suffix = handle_data_operation(srctype, desttype, src_scatter, dest_scatter)
+            # handle datatype relationship
+            elif is_datatype_mismatch(srctype, desttype):
+                suffix = generate_datatype_mismatch_plumbing(srctype, desttype)
                 arg = f'{arg}{suffix}'
-
+            
             call_args.append(arg)
             
     # add extra arg in case of python tool - the code file.
@@ -86,39 +83,6 @@ def get_args(step: StepNode, scope: Scope):
 
     return call_args
 
-
-# def get_args_old(step: StepNode, scope: Scope):
-#     tool: CommandTool | PythonTool | Workflow   = step.tool     
-#     sources: dict[str, Any]                     = step.sources  
-#     scatter: Optional[ScatterDescription]       = step.scatter
-
-#     call_args: list[str] = []
-#     input_ids = get_input_ids(tool, sources)
-
-#     # getting the arg value for each required input 
-#     for name in input_ids:
-#         if name in sources:
-#             src = sources[name]
-#             scatter_target = True if scatter and name in scatter.fields else False
-#             scatter_method = scatter.method if scatter else None
-#             res = unwrap_expression(
-#                 val=src,
-#                 sources=sources,
-#                 scatter_target=scatter_target,
-#                 scatter_method=scatter_method
-#             )
-#             if isinstance(res, list):
-#                 call_args += res
-#             else:
-#                 call_args.append(res)
-            
-#     # add extra arg in case of python tool - the code file.
-#     # a param with the same name will have already been created. 
-#     if isinstance(tool, PythonTool):
-#         scope_joined = scope.to_string(ignore_base_item=True)
-#         call_args = [f'params.{scope_joined}.code_file'] + call_args
-
-#     return call_args
 
 
 # helpers:

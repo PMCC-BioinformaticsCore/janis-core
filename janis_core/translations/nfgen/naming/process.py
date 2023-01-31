@@ -73,20 +73,24 @@ def process_input_secondaries_array_primary_files(inp: ToolInput | TInput) -> st
 def process_input_secondaries(inp: ToolInput | TInput, sources: dict[str, Any]) -> list[str]:
     """returns name of each file for File types with secondaries"""
 
-    src = sources[inp.id()]
-    srctype: DataType = get_src_type(src)
+    # src = sources[inp.id()]
+    # srctype: DataType = get_src_type(src)
     desttype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype  # type: ignore
 
-    # datatype mismatch! get type info from srctype
-    if srctype.name() != desttype.name():
-        basetype: File = nfgen_utils.get_base_type(srctype)  # type: ignore 
+    # # datatype mismatch! get type info from srctype
+    # if srctype.name() != desttype.name():
+    #     basetype: File = nfgen_utils.get_base_type(srctype)  # type: ignore 
     
-    # datatype match. get type info from dest
-    else:
-        basetype: File = nfgen_utils.get_base_type(desttype)  # type: ignore 
+    # # datatype match. get type info from dest
+    # else:
+    #     basetype: File = nfgen_utils.get_base_type(desttype)  # type: ignore 
     
+    basetype: File = nfgen_utils.get_base_type(desttype) # type: ignore 
     exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
     return exts
+
+
+    
     
 def get_src_type(src: Any) -> DataType:
     # the srctype corresponds to either a workflow input, or step output.
