@@ -40,7 +40,7 @@ githuburl = vsn["GITHUB_URL"]
 
 
 setup(
-    name="janis-pipelines.core.grace",
+    name="janis-pipelines.core",
     version=__version__,
     description=DESCRIPTION,
     url=githuburl,
