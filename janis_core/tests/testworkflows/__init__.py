@@ -24,7 +24,6 @@ from .scatter import ComprehensiveScatterTestWF
 
 from .secondaries import SecondariesTestWF
 from .secondaries import SecondariesTestTool
-from .filenames import FilenameGeneratedTestWF
 from .filenames import FilenameTestWF
 
 from .combos import ScatterSecondariesTestWF
@@ -40,6 +39,7 @@ from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
 from .trace import EntityTraceTestWF
 
 from .assembly import w as AssemblyTestWF
+from .string_formatter import StringFormatterTestWF
 
 from .additional_features import (
     StepInputExpressionTestWF,
@@ -48,7 +48,6 @@ from .additional_features import (
     ArraysOfSecondaryFilesOutputsTestWF,
     ForEachTestWF,
     IndexOperatorTestWF,
-    StringFormatterTestWF,
 )
 
 from .codetools import (

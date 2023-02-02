@@ -114,20 +114,7 @@ class IndexOperatorTestWF(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
-
-
-class StringFormatterTestWF(Workflow):
-    def constructor(self):
-        self.input("inStr", String())
-        self.step("stp1", BasicTestTool(testtool=self.inStr))
-        self.output("std", source=self.stp1.std)
-    
-    def friendly_name(self):
-        return "TEST: StringFormatterTestWF"
-
-    def id(self) -> str:
-        return self.__class__.__name__
-
+        
 
 class ForEachTestWF(Workflow):
     def constructor(self):

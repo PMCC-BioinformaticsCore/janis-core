@@ -57,9 +57,9 @@ class ScriptFormatter:
 
         self.tinput = tinput
         self.tool = tool
-        self.process_inputs = process_inputs    # ToolInput which has corresponding process input
-        self.param_inputs = param_inputs        # ToolInput which has corresponding global param
-        self.internal_inputs = internal_inputs  # ToolInput which has no corresponding process input or param
+        self.process_inputs = process_inputs    # ToolInput which has corresponding nextflow process input
+        self.param_inputs = param_inputs        # ToolInput which has corresponding nextflow global param
+        self.internal_inputs = internal_inputs  # ToolInput which has no corresponding nextflow process input or param
         self.sources = sources
         self.itype = get_itype(tinput)
 
@@ -83,10 +83,8 @@ class ScriptFormatter:
             IType.OPT_DEFAULT_ARR:  self.opt_default_arr,
             IType.OPT_OPTIONAL_ARR: self.opt_optional_arr,
         }
-        # if self.tool.id() == 'Gatk4MergeSamFiles' and self.tinput.id() == 'bams':
-        #     print()
 
-    
+
     # PUBLIC METHOD
     def format(self) -> Tuple[Optional[str], Optional[str]]:
         prescript: Optional[str] = None
@@ -152,7 +150,7 @@ class ScriptFormatter:
                 This default value can be directly injected into the script. 
                 If there was no default, we can't autofill anything.  
         
-        Other cases for autofill exist including where values are driven using InputSelectors. 
+        Other cases for autofill exist including where values are driven using Filename. 
         """
         if self.is_internal_input:
             if self.tinput.default is not None:

@@ -54,8 +54,5 @@ from .misc_commandtools import (
     InputQualityTestTool,
 )
 
-from .filenames import FilenameTestTool
-from .filenames import FilenameInputSelectorTestTool
-
 from .unicycler import UnicyclerTestTool
 from .fastqc import FastqcTestTool

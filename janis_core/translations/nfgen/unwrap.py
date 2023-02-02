@@ -58,7 +58,7 @@ from janis_core.operators.selectors import (
     DiskSelector,
     TimeSelector,
     WildcardSelector, 
-    Selector
+    Selector,
 )
 from janis_core.operators.stringformatter import StringFormatter
 
@@ -68,7 +68,9 @@ from . import nfgen_utils
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
+from .plumbing import trace
 from .process.inputs.factory import create_input
+
 
 
 def unwrap_expression(
@@ -146,6 +148,10 @@ class Unwrapper:
             InputNodeSelector,
             StepOutputSelector,
             StringFormatter,
+            MemorySelector,
+            CpuSelector,
+            DiskSelector,
+            TimeSelector,
         ]
 
         self.func_switchboard = {
@@ -206,59 +212,108 @@ class Unwrapper:
             InputNode: self.unwrap_input_node,
         }
     
-    
-    ### SWITCHBOARD ###
-
     def unwrap(self, val: Any) -> Any:
-        added_to_stack = False
-        vtype = type(val)
+        """main public method"""
 
-        if isinstance(val, Selector) and vtype not in self.operator_stack_ignore:
-            added_to_stack = True
-            self.operator_stack.append(val.__class__.__name__)
+        # add to operator stack if entity is a Selector
+        self.update_operator_stack(val, life_cycle='start')
         
-        # most cases
-        if type(val) in self.func_switchboard:
-            func = self.func_switchboard[type(val)]
-            expr = func(val)
+        # unwrap this entity. always returns a string.
+        expr = self.unwrap_entity(val)
 
-        elif isinstance(val, TwoValueOperator):
-            expr = self.unwrap_two_value_operator(val)
+        if self.should_quote(val):
+            expr = f'"{expr}"'
+
+        # apply nextflow curly braces if needed
+        if self.should_apply_curly_braces(val):
+            expr = f'${{{expr}}}'
+
+        # pop from operator stack if entity is a Selector
+        self.update_operator_stack(val, life_cycle='end')
+        return expr
+
+    def unwrap_entity(self, entity: Any) -> Any:
+        """switchboard to delegate unwrap based on entity type."""
+
+        # most entities: custom unwrap function
+        etype = type(entity)
+        if etype in self.func_switchboard:
+            func = self.func_switchboard[etype]
+            expr = func(entity)
+
+        # TwoValueOperators: shared unwrap function
+        elif isinstance(entity, TwoValueOperator):
+            expr = self.unwrap_two_value_operator(entity)
 
         # anything else with a .to_nextflow() method
-        elif callable(getattr(val, "to_nextflow", None)):
-            expr = self.unwrap_operator(val)
+        elif callable(getattr(entity, "to_nextflow", None)):
+            expr = self.unwrap_operator(entity)
         
-        # errors 
-
-        elif isinstance(val, StepNode):
+        # errors ---
+        elif isinstance(entity, StepNode):
             raise Exception(
-                f"The Step node '{val.id()}' was found when unwrapping an expression, "
+                f"The Step node '{entity.id()}' was found when unwrapping an expression, "
                 f"you might not have selected an output."
             )
-
         else:
             raise Exception(
-                "Could not detect type %s to convert to input value" % type(val)
+                "Could not detect type %s to convert to input value" % type(entity)
             )
-
-        if vtype == str:
-            if self.quote_strings or len(self.operator_stack) > 0:
-                expr = f"'{expr}'"
-        
-        if isinstance(expr, str) and self.in_shell_script:
-            if len(self.operator_stack) == 1:
-                if self.operator_stack[0] == val.__class__.__name__:
-                    expr = f'${{{expr}}}'
-
-        if added_to_stack:
-            vtype_name = self.operator_stack.pop(-1)
-            assert(vtype_name) == val.__class__.__name__
 
         return expr
 
 
+    ### OPERATOR STACK 
+    
+    """
+    --- operator_stack ---
+
+    keeps track of how deep we are into Janis operators. 
+    This is needed to properly enclose curly braces. For example: 
+        
+    Janis:      InputSelector("read", remove_file_extension=True) + "_fastqc.zip"
+    ->
+    Nextflow:   "${read.simpleName}_fastqc.zip"
+    
+    The InputSelector function should appear in curly braces, while the "_fastqc.zip" should not.
+    We apply curly braces for the outermost context of janis operators. 
+    eg Operator(Operator(Operator)) would apply curly braces only for the outermost Operator, not for each.
+    """
+    
+    def update_operator_stack(self, val: Any, life_cycle: str='start') -> None:
+        if isinstance(val, Selector) and type(val) not in self.operator_stack_ignore:
+            # start of main unwrap() function
+            if life_cycle == 'start':
+                self.operator_stack.append(val.__class__.__name__)
+            
+            # end of main unwrap() function
+            elif life_cycle == 'end':
+                if self.operator_stack[-1] == val.__class__.__name__:
+                    self.operator_stack.pop(-1)
+            else:
+                raise NotImplementedError
+
+
     ### HELPERS ###
+    def should_apply_curly_braces(self, val: Any) -> bool:
+        if self.in_shell_script:
+            if len(self.operator_stack) == 1:
+                if self.operator_stack[0] == val.__class__.__name__:
+                    return True
+        return False
+
+    def should_quote(self, val: Any) -> bool:
+        # master override - set when calling unwrap_expression.
+        # some sort of external context means the expr should be quoted. 
+        if self.quote_strings:
+            return True
+        # string within curly braces
+        if isinstance(val, str) and len(self.operator_stack) > 0:
+            return True
+        # stringformatter within shell script
+        elif self.in_shell_script and isinstance(val, StringFormatter):
+            return True
+        return False
 
     def get_src_variable(self, inp: ToolInput) -> Optional[str]:
         assert(self.process_inputs is not None)
@@ -404,7 +459,7 @@ class Unwrapper:
 
     
     # operator operators
-    def unwrap_index_operator(self, op: IndexOperator) -> Any:
+    def unwrap_index_operator(self, op: IndexOperator) -> str:
         obj = op.args[0]
         index = op.args[1]
         
@@ -496,7 +551,7 @@ class Unwrapper:
         return f"{base}.replaceAll({pattern}, {replacement})"
 
     # other operators
-    def unwrap_operator(self, op: Operator) -> Any:
+    def unwrap_operator(self, op: Operator) -> str:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
             tool=self.tool,
@@ -539,41 +594,67 @@ class Unwrapper:
 
         return arg_val
 
-    def unwrap_filename(self, fn: Filename) -> str:
+    def unwrap_filename(self, fn: Filename, ref: Optional[str]=None) -> str:
         """
+        order:
+        prefix ref suffix extension
         ${outputFilename}.fastq.gz
-        ${outputFilename + '.fastq.gz'}
-        ${outputFilename + '.fastq.gz'}
-        ${[outputFilename, 'generated'].first()}
-        ${[outputFilename, 'generated'].first()}.metrics.txt
+        ${outputFilename}.fastq.gz
+        ${"generated.fastq.gz"}
+        etc
         """
-
-
-
-        # want to handle filename as complete unit.
-        # backup = deepcopy(self.add_quotes_to_strs)
-        # self.add_quotes_to_strs = False
-
         prefix = self.unwrap(fn.prefix) or ''
+        ref = ref or ''
         suffix = self.unwrap(fn.suffix) or ''
         extension = self.unwrap(fn.extension) or ''
 
+        # special prefix formatting - where ref is present
+        if ref != '' and prefix.strip('"') == 'generated':
+            prefix = ''
+
+        # special suffix formatting
+        quote_suffix = True if suffix.startswith('"') and suffix.endswith('"') else False
+        suffix = suffix.strip('"')
         if suffix != '':
             if str(suffix).startswith("."):
                 suffix = str(suffix)
             else:
                 suffix = f'-{suffix}'
+        if quote_suffix:
+            suffix = f'"{suffix}"'
 
-        # edge case: inside curly braces (each component wrapped in string)
+        # inside curly braces (each component wrapped in string)
         if len(self.operator_stack) > 0:
-            if all([x.startswith("'") or x == '' for x in [prefix, suffix, extension]]):
-                prefix = prefix.strip("'")
-                suffix = suffix.strip("'")
-                extension = extension.strip("'")
-                return f"'{prefix}{suffix}{extension}'"
+            items = [prefix, ref, suffix, extension]
+            grouped_words = self.group_quoted_strings_in_list(items)
+            expr = ' + '.join(grouped_words)
+            return expr
+
+        # not inside curly braces
+        if ref != '':
+            return f'{prefix}${{{ref}}}{suffix}{extension}'
+        else:
+            return f'{prefix}{suffix}{extension}'
+
+    def group_quoted_strings_in_list(self, the_list: list[str]) -> list[str]:
+        groups: list[str] = []
+        current_group: list[str] = []
         
-        # output format: general
-        return f'{prefix}{suffix}{extension}'
+        for word in the_list:
+            if word != '':
+                if word.startswith('"') and word.endswith('"'):
+                    current_group.append(word.strip('"'))
+                else:
+                    if len(current_group) > 0:
+                        groups.append(f"\"{''.join(current_group)}\"")
+                    groups.append(word)
+                    current_group = []
+        
+        # still words in current_group by time we reach end of list
+        if len(current_group) > 0:
+            groups.append(f"\"{''.join(current_group)}\"")
+        
+        return groups
 
 
     ### PROCESSES ###
@@ -603,7 +684,13 @@ class Unwrapper:
             expr = naming.process_input_secondaries_array_primary_files(inp)
 
         elif isinstance(basetype, Filename):
-            expr = self.unwrap(dtype)
+            if inp.id() in self.internal_inputs:
+                expr = self.unwrap(dtype)
+            else:
+                # super edge case
+                ref = self.get_src_variable(inp)
+                expr = self.unwrap_filename(basetype, ref=ref)
+                print()
         
         else:
             expr = self.get_src_variable(inp)
@@ -675,7 +762,6 @@ class Unwrapper:
         if nfgen_utils.is_array_secondary_type(conn_out.outtype):
             raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')
 
-        
         # everything else
         else:
             upstream_step_id = naming.gen_varname_process(upstream_step.id())

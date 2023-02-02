@@ -47,7 +47,6 @@ from janis_core.tests.testworkflows import (
     ForEachTestWF,
     IndexOperatorTestWF,
     StringFormatterTestWF,
-    FilenameGeneratedTestWF,
 
     # codetools
     InputsPythonToolTestWF,
@@ -957,6 +956,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
 
 
+
 class TestCmdtoolProcessOutputs(unittest.TestCase):
     """
     Need a process output for each tool output.
@@ -1034,32 +1034,40 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
-    def test_input_selector_filename_reference(self) -> None:
-        step = self.wf.step_nodes['stp3']
+    def test_filenames(self) -> None:
+        wf = FilenameTestWF()
+        refresh_workflow_inputs(wf)
+        
+        # inp1 is in step.sources
+        step = wf.step_nodes['stp4']
         scope = nfgen.Scope()
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp.simpleName}.recalibrated.bam", emit: out'}
+        expected_outputs = {
+            # 'path "${inp2}", emit: out2',
+            'path "${inp1.simpleName + ".csv"}", emit: out3',
+            # 'path "${"generated" + ".csv"}", emit: out3_1',
+            'path "${"generated" + ".csv"}", emit: out4',
+            'path "generated.csv", emit: out5',
+            'path "generated.merged.csv", emit: out6'
+        }
         self.assertEqual(actual_outputs, expected_outputs)
-    
-    def test_input_selector_filename_generated(self) -> None:
-        step = self.wf.step_nodes['stp2']
+        
+        # inp1, inp1_1, inp4, inp5, inp6 are in step.sources
+        step = wf.step_nodes['stp5']
         scope = nfgen.Scope()
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "generated.recalibrated.bam", emit: out'}
+        expected_outputs = {
+            'path "${inp1.simpleName + ".csv"}", emit: out3',
+            'path "${inp4 + ".csv"}", emit: out4',
+            'path "${inp5 + ".csv"}", emit: out5',
+            'path "${inp6 + ".merged.csv"}", emit: out6'
+        }
         self.assertEqual(actual_outputs, expected_outputs)
 
-        step = self.wf.step_nodes['stp7']
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${\'generated.csv\' + \'.csv\'}", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
-            
     def test_file_pair(self) -> None:
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
@@ -1107,7 +1115,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp.simpleName + \'.gz\'}", emit: out'}
+        expected_outputs = {'path "${inp.simpleName + ".gz"}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_edge_markduplicates_metrics(self) -> None:
@@ -1117,7 +1125,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
-        expected_outputs = {'path "${[params.stp8_output_prefix, \'generated\'].find{ it != null }}.metrics.txt", emit: metrics'}
+        expected_outputs = {'path "${[params.stp8_output_prefix, "generated"].find{ it != null }}.metrics.txt", emit: metrics'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_filename_clash(self) -> None:
@@ -1343,9 +1351,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             self.assertIn(ln, actual_script)
 
     def test_filename_generated_tool(self):
-        wf = FilenameGeneratedTestWF()
+        wf = FilenameTestWF()
         refresh_workflow_inputs(wf)
-        step = wf.step_nodes["stp1"]
+        step = wf.step_nodes["stp3"]
         scope = nfgen.Scope()
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
@@ -2652,10 +2660,10 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--filenameGen generated.gz", self.script)
     
     def test_filename_reference(self) -> None:
-        self.assertIn("--filenameRef ${inFile.simpleName}.fastq.gz", self.script)
+        self.assertIn("--filenameRef ${in_file.simpleName}.fastq.gz", self.script)
 
     def test_input_selector_process_input(self) -> None:
-        self.assertIn("--inputSelectorProcess ${inFile}", self.script)
+        self.assertIn("--inputSelectorProcess ${in_file}", self.script)
 
     def test_input_selector_param_input(self) -> None:
         self.assertIn("--inputSelectorParam ${params.in_str}", self.script)
@@ -2664,13 +2672,13 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--list [1, 2, 3, 4, 5]", self.script) # this is correct
        
     def test_two_value_operator(self) -> None:
-        self.assertIn("--TwoValueOperator ${inFile + '.gz'}", self.script)
+        self.assertIn("--TwoValueOperator ${in_file + \".gz\"}", self.script)
     
     def test_first_operator(self) -> None:
-        self.assertIn("--FirstOperator ${[params.in_str, []].first()}", self.script)
+        self.assertIn("--FirstOperator ${[params.in_str, []].find{ it != null }}", self.script)
     
     def test_index_operator(self) -> None:
-        self.assertIn("--IndexOperator ${inFileArr[0]}", self.script)
+        self.assertIn("--IndexOperator ${in_file_arr[0]}", self.script)
     
     def test_index_operator_secondaries(self) -> None:
         self.assertIn("--IndexOperatorSecondariesBam ${bam}", self.script)
@@ -2725,7 +2733,7 @@ class TestUnwrap(unittest.TestCase):
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
         actual = nfgen.unwrap_expression(src)
-        expected = '[params.mystring, GET_STRING.out.out].first()'
+        expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
     
     def test_index_operator_wf(self) -> None:
@@ -2739,6 +2747,23 @@ class TestUnwrap(unittest.TestCase):
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
+    def test_string_formatter(self) -> None:
+        wf = StringFormatterTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "stp1"
+        step = wf.step_nodes[step_id]
+        arg = step.tool.arguments()[0]
+        actual = nfgen.unwrap_expression(
+            val=arg.value,
+            tool=step.tool,
+            in_shell_script=True,
+            sources=step.sources,
+            process_inputs=nfgen.process.inputs.get_process_inputs(step.sources),
+            param_inputs=nfgen.process.inputs.get_param_inputs(step.sources),
+            internal_inputs=nfgen.process.inputs.get_internal_inputs(step.tool, step.sources),
+        )
+        expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
+        self.assertEqual(actual, expected)
 
 
 

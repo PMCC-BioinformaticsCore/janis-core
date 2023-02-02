@@ -116,48 +116,13 @@ def has_n_collectors(out: ToolOutput, n: int) -> bool:
 
 
 class FmtType(Enum):
-    REFERENCE    = auto()
-    WILDCARD     = auto()
-    FILENAME_REF = auto()
-    FILENAME_GEN = auto()
-    COMPLEX      = auto()
+    REFERENCE    = auto()  # reference to process input or param
+    WILDCARD     = auto()  # regex based collection
+    FILENAME     = auto()  # filename ToolInput
+    FILENAME_REF = auto()  # filename referencing another ToolInput: process input or param
+    FILENAME_GEN = auto()  # filename referencing another ToolInput: internal input
+    COMPLEX      = auto()  # complex use of selectors / operators
 
-def get_fmttype(out: ToolOutput, tool: CommandTool) -> FmtType:
-    # output uses WildcardSelector
-    if isinstance(out.selector, WildcardSelector):
-        return FmtType.WILDCARD
-
-    # output uses InputSelector
-    elif isinstance(out.selector, InputSelector):
-        tinput = tool.inputs_map()[out.selector.input_to_select]
-        
-        # ToolInput is Filename type
-        if isinstance(tinput.intype, Filename):
-            entity_counts = trace_entity_counts(tinput.intype, tool=tool)
-            entities = set(entity_counts.keys())
-            filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
-            filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
-        
-            # ToolInput does not refer to another ToolInput
-            # This must be first as less specific
-            if entities.issubset(filename_gen_whitelist):
-                return FmtType.FILENAME_GEN
-            
-            # ToolInput refers to another ToolInput
-            elif entities.issubset(filename_ref_whitelist):
-                return FmtType.FILENAME_REF
-            
-            # ToolInput uses complex logic
-            elif isinstance(tinput.intype, Filename):
-                return FmtType.COMPLEX
-        
-        # ToolInput is not Filename type (direct reference)
-        else:
-            return FmtType.REFERENCE
-    
-    # anything else
-    else:
-        return FmtType.COMPLEX
 
 
 ### CMDTOOL OUTPUTS ###
@@ -170,7 +135,7 @@ class CmdtoolProcessOutputFactory:
         self.param_inputs = inputs.get_param_inputs(self.sources)
         self.internal_inputs = inputs.get_internal_inputs(self.tool, self.sources)
         self.otype = get_otype(self.out)
-        self.ftype = get_fmttype(self.out, self.tool)
+        self.ftype = self.get_fmttype()
         self.strategy_map = {
             OType.STDOUT: self.stdout_output,
             OType.NON_FILE: self.non_file_output,
@@ -183,7 +148,14 @@ class CmdtoolProcessOutputFactory:
         
         self.add_braces: bool = False
         self.add_quotes: bool = False
-
+    
+    # public method
+    def create(self) -> ProcessOutput:
+        strategy = self.strategy_map[self.otype]
+        process_output = strategy()
+        return process_output
+    
+    # private below
     # helper properties
     @property
     def basetype(self) -> DataType:
@@ -201,35 +173,67 @@ class CmdtoolProcessOutputFactory:
             return True
         return False
 
+    # helper methods
+    def get_fmttype(self) -> FmtType:
+        """returns a FmtType based on the specific ToolOutput we have received"""
+        # output uses WildcardSelector
+        if isinstance(self.out.selector, WildcardSelector):
+            return FmtType.WILDCARD
+
+        # output uses InputSelector
+        elif isinstance(self.out.selector, InputSelector):
+            tinput = self.tool.inputs_map()[self.out.selector.input_to_select]
+            
+            # ToolInput is Filename type
+            if isinstance(tinput.intype, Filename):
+                entity_counts = trace_entity_counts(tinput.intype, tool=self.tool)
+                entities = set(entity_counts.keys())
+                filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
+                filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
+            
+                # ToolInput does not refer to another ToolInput
+                # This must be first as less specific
+                if entities.issubset(filename_gen_whitelist):
+                    if tinput.id() in self.process_inputs or tinput.id() in self.param_inputs:
+                        return FmtType.FILENAME
+                    else:
+                        return FmtType.FILENAME_GEN
+                
+                # ToolInput refers to another ToolInput
+                elif entities.issubset(filename_ref_whitelist):
+                    return FmtType.FILENAME_REF
+                
+                # ToolInput uses complex logic
+                else:
+                    return FmtType.COMPLEX
+            
+            # ToolInput is not Filename type (direct reference)
+            else:
+                return FmtType.REFERENCE
+        
+        # anything else
+        else:
+            return FmtType.COMPLEX
+
     def unwrap_collection_expression(self, expr: Any) -> str:
         # edge case - if referencing input (via InputSelector) and that
         # input is a Filename type, unwrap the Filename, not the InputSelector directly. 
         # results in cleaner format. 
-        if isinstance(expr, InputSelector):
-            inp = self.tool.inputs_map()[expr.input_to_select]
-            if isinstance(inp.intype, Filename):
-                expr = inp.intype
+        # if isinstance(expr, InputSelector):
+        #     inp = self.tool.inputs_map()[expr.input_to_select]
+        #     if isinstance(inp.intype, Filename):
+        #         expr = inp.intype
 
         if self.ftype == FmtType.REFERENCE:
             self.add_braces = False
             self.add_quotes = False
             expr = self.unwrap(expr)  
-        elif self.ftype == FmtType.WILDCARD:
-            self.add_braces = False
-            self.add_quotes = False
-            expr = self.unwrap(expr)  
-            expr = f'"{expr}"'
-        elif self.ftype == FmtType.FILENAME_GEN:
+        elif self.ftype in (FmtType.WILDCARD, FmtType.FILENAME_GEN):
             self.add_braces = False
             self.add_quotes = False
             expr = self.unwrap(expr)
             expr = f'"{expr}"'
-        elif self.ftype == FmtType.FILENAME_REF:
-            self.add_braces = True
-            self.add_quotes = False
-            expr = self.unwrap(expr)
-            expr = f'"{expr}"'
-        elif self.ftype == FmtType.COMPLEX:
+        elif self.ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
             self.add_braces = True
             self.add_quotes = False
             expr = self.unwrap(expr)
@@ -251,13 +255,7 @@ class CmdtoolProcessOutputFactory:
             quote_strings=self.add_quotes,
         )
     
-    # public method
-    def create(self) -> ProcessOutput:
-        strategy = self.strategy_map[self.otype]
-        process_output = strategy()
-        return process_output
-
-    # custom process output creation methods
+    # process output creation methods
     def stdout_output(self) -> StdoutProcessOutput:
         return StdoutProcessOutput(name=self.out.id(), is_optional=self.optional)
     
