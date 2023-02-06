@@ -87,6 +87,7 @@ def process_input_secondaries(inp: ToolInput | TInput, sources: dict[str, Any]) 
     
     basetype: File = nfgen_utils.get_base_type(desttype) # type: ignore 
     exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+    exts = [x.replace('.', '_') for x in exts]
     return exts
 
 

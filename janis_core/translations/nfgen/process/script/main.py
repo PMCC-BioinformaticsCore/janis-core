@@ -102,6 +102,7 @@ class ProcessScriptGenerator:
             param_inputs=self.param_inputs,
             internal_inputs=self.internal_inputs,
             in_shell_script=True,
+            quote_strings=arg.shell_quote
         )
         line = f'{prefix}{space}{expr}'
         self.script.append(line)

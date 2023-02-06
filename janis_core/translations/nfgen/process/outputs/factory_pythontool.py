@@ -85,9 +85,13 @@ class PythonToolProcessOutputFactory:
         process_output = strategy()
         return process_output
     
-    def file_output(self) -> PathProcessOutput:
-        expr = f'"{self.target_file}"'
-        new_output = PathProcessOutput(
+    def file_output(self) -> ValProcessOutput:
+        # expr = f'"${{file("${{task.workDir}}/" + file("${{task.workDir}}/{self.target_file}").text.replace(\'"\', \'\'))}}", emit: out'
+        work_dir = '${task.workDir}'
+        local_path = f'file("{work_dir}/{self.target_file}").text.replace(\'"\', \'\')'
+        expr = f'"${{file("{work_dir}/" + {local_path})}}"'
+        
+        new_output = ValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
             expression=expr

@@ -68,7 +68,6 @@ from . import nfgen_utils
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
-from .plumbing import trace
 from .process.inputs.factory import create_input
 
 
@@ -78,7 +77,7 @@ def unwrap_expression(
     
     tool: Optional[CommandTool]=None,
     in_shell_script: bool=False,
-    quote_strings: bool=False,
+    quote_strings: Optional[bool]=None,
     
     sources: Optional[dict[str, Any]]=None,
     process_inputs: Optional[set[str]]=None,
@@ -114,7 +113,7 @@ class Unwrapper:
         self,
         tool: Optional[CommandTool]=None,
         in_shell_script: bool=False, 
-        quote_strings: bool=False,
+        quote_strings: Optional[bool]=None,
 
         sources: Optional[dict[str, Any]]=None,
         process_inputs: Optional[set[str]]=None,
@@ -311,14 +310,15 @@ class Unwrapper:
             return False
         # master override - set when calling unwrap_expression.
         # some sort of external context means the expr should be quoted. 
-        if self.quote_strings:
+        if self.quote_strings == True:
             return True
         # string within curly braces
         if isinstance(val, str) and len(self.operator_stack) > 0:
             return True
         # stringformatter within shell script
         elif self.in_shell_script and isinstance(val, StringFormatter):
-            return True
+            if self.quote_strings != False:
+                return True
         return False
 
     def get_src_variable(self, inp: ToolInput) -> Optional[str]:
