@@ -34,9 +34,12 @@ class IType(Enum):
     OPT_DEFAULT         = auto()
     OPT_OPTIONAL        = auto()
 
-    OPT_BASIC_ARR       = auto()
-    OPT_DEFAULT_ARR     = auto()
-    OPT_OPTIONAL_ARR    = auto()
+    OPT_BASIC_ARR               = auto()
+    OPT_DEFAULT_ARR             = auto()
+    OPT_OPTIONAL_ARR            = auto()
+    OPT_BASIC_ARR_PREFIXEACH    = auto()
+    OPT_DEFAULT_ARR_PREFIXEACH  = auto()
+    OPT_OPTIONAL_ARR_PREFIXEACH = auto()
     
 
 
@@ -57,6 +60,12 @@ def get_itype(tinput: ToolInput) -> IType:
         return IType.POS_OPTIONAL_ARR
     
     # option arrays
+    elif is_array(tinput) and is_option(tinput) and is_basic(tinput) and tinput.prefix_applies_to_all_elements:
+        return IType.OPT_BASIC_ARR_PREFIXEACH
+    elif is_array(tinput) and is_option(tinput) and has_default(tinput) and tinput.prefix_applies_to_all_elements:
+        return IType.OPT_DEFAULT_ARR_PREFIXEACH
+    elif is_array(tinput) and is_option(tinput) and is_basic(tinput) and tinput.prefix_applies_to_all_elements:
+        return IType.OPT_OPTIONAL_ARR_PREFIXEACH
     elif is_array(tinput) and is_option(tinput) and is_basic(tinput):
         return IType.OPT_BASIC_ARR
     elif is_array(tinput) and is_option(tinput) and has_default(tinput):

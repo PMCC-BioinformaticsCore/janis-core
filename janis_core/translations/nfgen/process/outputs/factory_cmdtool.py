@@ -216,14 +216,6 @@ class CmdtoolProcessOutputFactory:
             return FmtType.COMPLEX
 
     def unwrap_collection_expression(self, expr: Any) -> str:
-        # edge case - if referencing input (via InputSelector) and that
-        # input is a Filename type, unwrap the Filename, not the InputSelector directly. 
-        # results in cleaner format. 
-        # if isinstance(expr, InputSelector):
-        #     inp = self.tool.inputs_map()[expr.input_to_select]
-        #     if isinstance(inp.intype, Filename):
-        #         expr = inp.intype
-
         if self.ftype == FmtType.REFERENCE:
             self.add_braces = False
             self.add_quotes = False
@@ -232,12 +224,14 @@ class CmdtoolProcessOutputFactory:
             self.add_braces = False
             self.add_quotes = False
             expr = self.unwrap(expr)
-            expr = f'"{expr}"'
+            if not expr.startswith('"') and not expr.endswith('"'):
+                expr = f'"{expr}"'
         elif self.ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
             self.add_braces = True
             self.add_quotes = False
             expr = self.unwrap(expr)
-            expr = f'"{expr}"'
+            if not expr.startswith('"') and not expr.endswith('"'):
+                expr = f'"{expr}"'
         else:
             # some future FmtType
             raise NotImplementedError
@@ -306,26 +300,28 @@ class CmdtoolProcessOutputFactory:
         qualifiers: list[str] = []
         expressions: list[str] = []
         
+        exts = nfgen_utils.get_extensions(self.dtype)
         primary_expr = self.unwrap_collection_expression(self.out.selector)
         primary_expr = primary_expr.strip('"')
-        exts = nfgen_utils.get_extensions(self.dtype)
+        primary_ext = exts[0]
+        primary_ext_start = primary_expr.rfind(primary_ext)
+        primary_ext_stop = primary_ext_start + len(primary_ext)
+        
         for ext in exts:
             # primary file
             if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
                 qual = 'path'
                 expr = f'"{primary_expr}"'
+
             # secondary file
+            # probably has bugs.
             else:
-                # wrap_curly_braces = False
-                # if primary_expr.startswith('${') and primary_expr.endswith('}'):
-                #     wrap_curly_braces = True
-                # base_expr = primary_expr.strip('${}')
-                secondary_ext = self.out.secondaries_present_as[ext]
-                secondary_expr: str = apply_secondary_file_format_to_filename(primary_expr, secondary_ext)
-                # if wrap_curly_braces:
-                #     secondary_expr = f'${{{secondary_expr}}}'
+                secondary_ext_pattern = self.out.secondaries_present_as[ext]
+                secondary_ext: str = apply_secondary_file_format_to_filename(primary_ext, secondary_ext_pattern)
+                secondary_expr = primary_expr[:primary_ext_start] + secondary_ext + primary_expr[primary_ext_stop:]
                 qual = 'path'
                 expr = f'"{secondary_expr}"'
+
             qualifiers.append(qual)
             expressions.append(expr)
 
@@ -336,6 +332,6 @@ class CmdtoolProcessOutputFactory:
             expressions=expressions
         )
         return new_output
-    
+
     def secondaries_array_output(self) -> SecondariesArrayProcessOutput:
         raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')

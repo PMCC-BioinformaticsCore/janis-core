@@ -4,7 +4,7 @@
 from typing import Optional, Any, Tuple
 
 from janis_core import ToolInput, CommandTool
-from janis_core.types import Boolean, Array, Filename, DataType
+from janis_core.types import Boolean, Filename, DataType
 
 from ... import naming
 from ... import nfgen_utils
@@ -12,36 +12,53 @@ from ...unwrap import unwrap_expression
 from .itype import IType, get_itype
 
 
-PS_FLAG_TRUE          = 'def {name} = {src} == false ? "" : "{prefix}"'
-PS_FLAG_FALSE         = 'def {name} = {src} ? "{prefix}" : ""'
-PS_POS_BASIC          = ''
-PS_POS_DEFAULT        = 'def {name} = {src} ? {src} : {default}'
-PS_POS_OPTIONAL       = 'def {name} = {src} ? {src} : ""'
-PS_POS_BASIC_ARR      = 'def {name} = {arr_join}'
-PS_POS_DEFAULT_ARR    = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_POS_OPTIONAL_ARR   = 'def {name} = {src} ? {arr_join} : ""'
-PS_OPT_BASIC          = ''
-PS_OPT_DEFAULT        = 'def {name} = {src} ? {src} : {default}'
-PS_OPT_OPTIONAL       = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
-PS_OPT_BASIC_ARR      = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR    = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR   = 'def {name} = {src} ? {arr_join} : ""'
+# pre-script (PS) formatting
+PS_FLAG_TRUE                    = 'def {name} = {src} == false ? "" : "{prefix}"'
+PS_FLAG_FALSE                   = 'def {name} = {src} ? "{prefix}" : ""'
 
+PS_POS_BASIC                    = ''
+PS_POS_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
+PS_POS_OPTIONAL                 = 'def {name} = {src} ? {src} : ""'
 
-SC_FLAG_TRUE          = '${{{var}}}'
-SC_FLAG_FALSE         = '${{{var}}}'
-SC_POS_BASIC          = '${{{var}}}'
-SC_POS_DEFAULT        = '${{{var}}}'
-SC_POS_OPTIONAL       = '${{{var}}}'
-SC_POS_BASIC_ARR      = '${{{var}}}'
-SC_POS_DEFAULT_ARR    = '${{{var}}}'
-SC_POS_OPTIONAL_ARR   = '${{{var}}}'
-SC_OPT_BASIC          = '{prefix}${{{var}}}'
-SC_OPT_DEFAULT        = '{prefix}${{{var}}}'
-SC_OPT_OPTIONAL       = '${{{var}}}'
-SC_OPT_BASIC_ARR      = '${{{var}}}'
-SC_OPT_DEFAULT_ARR    = '${{{var}}}'
-SC_OPT_OPTIONAL_ARR   = '${{{var}}}'
+PS_POS_BASIC_ARR                = 'def {name} = {arr_join}'
+PS_POS_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
+PS_POS_OPTIONAL_ARR             = 'def {name} = {src} ? {arr_join} : ""'
+
+PS_OPT_BASIC                    = ''
+PS_OPT_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
+PS_OPT_OPTIONAL                 = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
+
+PS_OPT_BASIC_ARR                = 'def {name} = {arr_join}'
+PS_OPT_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR             = 'def {name} = {src} ? "{prefix}" + {arr_join} : ""'
+
+PS_OPT_BASIC_ARR_PREFIXEACH     = 'def {name} = {arr_join}'
+PS_OPT_DEFAULT_ARR_PREFIXEACH   = 'def {name} = {src} ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR_PREFIXEACH  = 'def {name} = {src} ? {arr_join} : ""'
+
+# script (SC) formatting
+SC_FLAG_TRUE                    = '${{{var}}}'
+SC_FLAG_FALSE                   = '${{{var}}}'
+
+SC_POS_BASIC                    = '${{{var}}}'
+SC_POS_DEFAULT                  = '${{{var}}}'
+SC_POS_OPTIONAL                 = '${{{var}}}'
+
+SC_POS_BASIC_ARR                = '${{{var}}}'
+SC_POS_DEFAULT_ARR              = '${{{var}}}'
+SC_POS_OPTIONAL_ARR             = '${{{var}}}'
+
+SC_OPT_BASIC                    = '{prefix}${{{var}}}'
+SC_OPT_DEFAULT                  = '{prefix}${{{var}}}'
+SC_OPT_OPTIONAL                 = '${{{var}}}'
+
+SC_OPT_BASIC_ARR                = '{prefix}${{{var}}}'
+SC_OPT_DEFAULT_ARR              = '{prefix}${{{var}}}'
+SC_OPT_OPTIONAL_ARR             = '${{{var}}}'
+
+SC_OPT_BASIC_ARR_PREFIXEACH     = '${{{var}}}'
+SC_OPT_DEFAULT_ARR_PREFIXEACH   = '${{{var}}}'
+SC_OPT_OPTIONAL_ARR_PREFIXEACH  = '${{{var}}}'
 
 
 
@@ -79,9 +96,12 @@ class ScriptFormatter:
             IType.OPT_DEFAULT:  self.opt_default,
             IType.OPT_OPTIONAL: self.opt_optional,
 
-            IType.OPT_BASIC_ARR:    self.opt_basic_arr,
-            IType.OPT_DEFAULT_ARR:  self.opt_default_arr,
-            IType.OPT_OPTIONAL_ARR: self.opt_optional_arr,
+            IType.OPT_BASIC_ARR:                self.opt_basic_arr,
+            IType.OPT_DEFAULT_ARR:              self.opt_default_arr,
+            IType.OPT_OPTIONAL_ARR:             self.opt_optional_arr,
+            IType.OPT_BASIC_ARR_PREFIXEACH:     self.opt_basic_arr_prefixeach,
+            IType.OPT_DEFAULT_ARR_PREFIXEACH:   self.opt_default_arr_prefixeach,
+            IType.OPT_OPTIONAL_ARR_PREFIXEACH:  self.opt_optional_arr_prefixeach,
         }
 
 
@@ -202,7 +222,7 @@ class ScriptFormatter:
         default = self.tinput.default
         if default is None and isinstance(self.basetype, Filename):
             default = self.unwrap(self.basetype)
-        elif self.itype in [IType.POS_DEFAULT_ARR, IType.OPT_DEFAULT_ARR]:
+        elif self.itype in [IType.POS_DEFAULT_ARR, IType.OPT_DEFAULT_ARR, IType.OPT_DEFAULT_ARR_PREFIXEACH]:
             default = self.eval_cmdline(default)
         else:
             default = self.unwrap(default)
@@ -222,17 +242,17 @@ class ScriptFormatter:
     @property
     def arr_join(self) -> Optional[str]:
         ARR_JOIN_BASIC      = "{src}.join('{delim}')"
-        ARR_JOIN_PREFIX     = "\"{prefix}\" + {src}.join('{delim}')"
+        # ARR_JOIN_PREFIX     = "\"{prefix}\" + {src}.join('{delim}')"
         ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}" + ".join('{delim}')"
-        if isinstance(self.tinput.input_type, Array):
-            if self.tinput.prefix and self.tinput.prefix_applies_to_all_elements:
+
+        arr_join = None
+
+        if self.itype.name.endswith('ARR') or self.itype.name.endswith('ARR_PREFIXEACH'):
+            if self.itype in [IType.OPT_BASIC_ARR_PREFIXEACH, IType.OPT_DEFAULT_ARR_PREFIXEACH, IType.OPT_OPTIONAL_ARR_PREFIXEACH]:
                 arr_join = ARR_JOIN_PREFIXEACH.format(src=self.src, prefix=self.prefix, delim=self.delim)
-            elif self.tinput.prefix:
-                arr_join = ARR_JOIN_PREFIX.format(prefix=self.prefix, src=self.src, delim=self.delim)
             else:
                 arr_join = ARR_JOIN_BASIC.format(src=self.src, delim=self.delim)
-        else:
-            arr_join = None
+        
         return arr_join
     
     def eval_cmdline(self, val: Any) -> str:
@@ -417,7 +437,7 @@ class ScriptFormatter:
         )
         script = SC_OPT_DEFAULT_ARR.format(prefix=self.prefix, var=self.internal_name)
         return prescript, script
-
+    
     def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = PS_OPT_OPTIONAL_ARR.format(
             name=self.internal_name, 
@@ -426,4 +446,34 @@ class ScriptFormatter:
             arr_join=self.arr_join
         )
         script = SC_OPT_OPTIONAL_ARR.format(var=self.internal_name)
+        return prescript, script
+    
+    def opt_basic_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
+        # no prefix on front
+        prescript = PS_OPT_BASIC_ARR_PREFIXEACH.format(
+            name=self.internal_name, 
+            arr_join=self.arr_join
+        )
+        script = SC_OPT_BASIC_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.internal_name)
+        return prescript, script
+
+    def opt_default_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
+        # no prefix on front
+        prescript = PS_OPT_DEFAULT_ARR_PREFIXEACH.format(
+            name=self.internal_name, 
+            src=self.src, 
+            arr_join=self.arr_join, 
+            default=self.default
+        )
+        script = SC_OPT_DEFAULT_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.internal_name)
+        return prescript, script
+
+    def opt_optional_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
+        prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH.format(
+            name=self.internal_name, 
+            src=self.src, 
+            prefix=self.prefix,
+            arr_join=self.arr_join
+        )
+        script = SC_OPT_OPTIONAL_ARR_PREFIXEACH.format(var=self.internal_name)
         return prescript, script

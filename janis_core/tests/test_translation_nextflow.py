@@ -663,6 +663,7 @@ class TestChannels(unittest.TestCase):
         channels_ids = {c.name for c in nfgen.channels.getall()}
         expected_ids = {
             'ch_in_file',
+            'ch_in_file_opt',
             'ch_in_str',
         }
         self.assertEqual(channels_ids, expected_ids)
@@ -1045,9 +1046,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
-            # 'path "${inp2}", emit: out2',
             'path "${inp1.simpleName + ".csv"}", emit: out3',
-            # 'path "${"generated" + ".csv"}", emit: out3_1',
             'path "${"generated" + ".csv"}", emit: out4',
             'path "generated.csv", emit: out5',
             'path "generated.merged.csv", emit: out6'
@@ -1076,7 +1075,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         scope.update(step)
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "[${inp.simpleName + \'-R1.fastq\'}, ${inp.simpleName + \'-R2.fastq\'}]", emit: out'}
+        expected_outputs = {'path "[${inp.simpleName + "-R1.fastq"}, ${inp.simpleName + "-R2.fastq"}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_secondaries(self) -> None:
@@ -1125,16 +1124,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
-        expected_outputs = {'path "${[params.stp8_output_prefix, "generated"].find{ it != null }}.metrics.txt", emit: metrics'}
-        self.assertEqual(actual_outputs, expected_outputs)
-
-    def test_filename_clash(self) -> None:
-        step = self.wf.step_nodes['stp9']
-        scope = nfgen.Scope()
-        scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        # expected_outputs = {'path "out_out", emit: out'}
+        expected_outputs = {
+            'path "${[params.stp8_output_prefix, "generated"].find{ it != null } + ".metrics.txt"}", emit: metrics'
+        }
         self.assertEqual(actual_outputs, expected_outputs)
 
     @unittest.skip('not implemented')
@@ -1260,13 +1252,16 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             "def pos_default = params.in_int_array ? params.in_int_array.join(' ') : \"1 2 3\"",
             "def pos_optional = params.in_str_array ? params.in_str_array.join(' ') : \"\"",
             "def opt_default = params.in_int_array ? params.in_int_array.collect{ \"--opt-default \" + it }.join(' ') : \"--opt-default 1 --opt-default 2 --opt-default 3\"",
-            "def opt_basic = \"--opt-basic=\" + params.in_str_array.join(' ')",
+            "def opt_basic = params.in_str_array.join(' ')",
             "def opt_optional = params.in_str_array ? \"--opt-optional \" + params.in_str_array.join(' ') : \"\""
         ])
-        for ln in expected_prescript:
-            print(ln)
-        print()
+        actual_prescript = sorted(actual_prescript)
+        expected_prescript = sorted(expected_prescript)
+        print('\nactual_prescript')
         for ln in actual_prescript:
+            print(ln)
+        print('\nexpected_prescript')
+        for ln in expected_prescript:
             print(ln)
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
@@ -1286,10 +1281,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${pos_default}',
             '${pos_optional}',
             '--opt-basic=${opt_basic}',
-            '--opt-default ${opt_default}',
+            '${opt_default}',
             '${opt_optional}',
         ]
-        print(actual_script)
+        print(process.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
     
@@ -1332,21 +1327,22 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_pre_script = process.pre_script
         expected_pre_script = {
-            ''
+            "def indexed_bam_array_flat = get_primary_files(indexed_bam_array_flat)",
+            "def inp = indexed_bam_array_flat.join(' ')"
         }
         for ln in expected_pre_script:
             self.assertIn(ln, actual_pre_script)
         
         # script
         actual_script = process.script
-        print(actual_script)
         expected_script = {
             'echo',
-            '${bam}',
-            '--inp ${bam}',
-            '--inp-index-0 ${bam}',
-            '--inp-index-1 ${bai}',
+            '${inp}',
+            '--inp ${inp}',
+            '--inp-index-0 ${inp[0]}',
+            '--inp-index-1 ${inp[1]}',
         }
+        print(process.get_string())
         for ln in expected_script:
             self.assertIn(ln, actual_script)
 
@@ -1364,8 +1360,10 @@ process STP1 {
     publishDir "${params.outdir}/stp1"
 
     input:
-    path file_inp
-    path file_inp_optional
+    path file_inp, stageAs: 'file_inp.txt'
+    path file_inp_optional, stageAs: 'file_inp_optional.txt'
+    val inp
+
 
     output:
     val "*", emit: out
@@ -1375,8 +1373,8 @@ process STP1 {
     echo \\
     ${params.in_str} \\
     ${params.in_str_opt} \\
-    ${fileInp.simpleName}.transformed.fnp \\
-    ${fileInpOptional.simpleName}.optional.txt \\
+    ${file_inp.simpleName}.transformed.fnp \\
+    ${file_inp_optional.simpleName}.optional.txt \\
     \"\"\"
 
 }
@@ -1442,7 +1440,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
-            'path inp1',
+            "path inp1, stageAs: 'inp1'"
         }
         self.assertEqual(actual_inputs, expected_inputs)
         
@@ -2685,8 +2683,8 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--IndexOperatorSecondariesBai ${bai}", self.script)
     
     def test_index_operator_secondaries_array(self) -> None:
-        self.assertIn("--IndexOperatorArraySecondariesBams ${bams[0]}", self.script)
-        self.assertIn("--IndexOperatorArraySecondariesBais ${bams[1]}", self.script)
+        self.assertIn("--IndexOperatorArraySecondariesBams ${in_bam_bai_arr[0]}", self.script)
+        self.assertIn("--IndexOperatorArraySecondariesBais ${in_bam_bai_arr[1]}", self.script)
     
     # WORKFLOW RELATED
     def test_input_node_channel(self) -> None:
@@ -2799,7 +2797,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=True
         )
-        expected = 'an input ${testtool}'
+        expected = '"an input ${testtool}"'
         self.assertEqual(actual, expected)
     
     def test_string_formatter_inputselector_param_input(self):
@@ -2821,7 +2819,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=True
         )
-        expected = 'an input ${params.in_str}'
+        expected = '"an input ${params.in_str}"'
         self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
@@ -2844,7 +2842,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=True
         )
-        expected = '${user}:${static}'
+        expected = '"${user}:${static}"'
         self.assertEqual(actual, expected)
 
     def test_escaped_characters(self):
@@ -2877,7 +2875,7 @@ class TestStringFormatter(unittest.TestCase):
             in_shell_script=True
         )
         self.assertEqual('user\\tstatic', actual_scripting)
-        self.assertEqual('${user}\\\\t${static}', actual_shell)
+        self.assertEqual('"${user}\\\\t${static}"', actual_shell)
 
     def test_expression_arg(self):
         tool = BasicTestTool()
@@ -2899,7 +2897,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=True
         )
-        expected = "${testtool}:${arrayInp.join(';')}"
+        expected = '"${testtool}:${array_inp.join(\";\")}"'
         self.assertEqual(actual, expected)
 
 

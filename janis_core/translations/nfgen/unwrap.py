@@ -218,10 +218,10 @@ class Unwrapper:
         # add to operator stack if entity is a Selector
         self.update_operator_stack(val, life_cycle='start')
         
-        # unwrap this entity. always returns a string.
+        # unwrap this entity. always returns a primitive?
         expr = self.unwrap_entity(val)
 
-        if self.should_quote(val):
+        if self.should_quote(val, expr):
             expr = f'"{expr}"'
 
         # apply nextflow curly braces if needed
@@ -302,7 +302,13 @@ class Unwrapper:
                     return True
         return False
 
-    def should_quote(self, val: Any) -> bool:
+    def should_quote(self, val: Any, expr: Any) -> bool:
+        # only quote strings
+        if not isinstance(expr, str):
+            return False
+        # dont quote if already quoted
+        if expr.startswith('"') or expr.endswith('"'):
+            return False
         # master override - set when calling unwrap_expression.
         # some sort of external context means the expr should be quoted. 
         if self.quote_strings:
@@ -343,10 +349,10 @@ class Unwrapper:
     def get_src_process_input(self, inp: ToolInput) -> str:
         # data fed via process input
         dtype = inp.input_type # type: ignore
-        basetype = nfgen_utils.get_base_type(dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        # basetype = nfgen_utils.get_base_type(dtype)
+        # basetype = nfgen_utils.ensure_single_type(basetype)
         # secondary files (name mapped to ext of primary file) @secondariesarray 
-        if isinstance(basetype, File) and basetype.has_secondary_files():
+        if nfgen_utils.is_secondary_type(dtype):
             names = naming.process_input_secondaries(inp, self.sources)
             name = names[0]
         # everything else
@@ -603,6 +609,8 @@ class Unwrapper:
         ${"generated.fastq.gz"}
         etc
         """
+        if self.tool.id() == 'SamToolsFlagstat':
+            print()
         prefix = self.unwrap(fn.prefix) or ''
         ref = ref or ''
         suffix = self.unwrap(fn.suffix) or ''
@@ -674,16 +682,16 @@ class Unwrapper:
         basetype = nfgen_utils.get_base_type(dtype)
         basetype = nfgen_utils.ensure_single_type(basetype)
 
-        # @secondariesarray
-        if nfgen_utils.is_array_secondary_type(dtype):
-            """
-            example: Array(BamBai)
-            process input name: indexed_bam_array_flat
-            primary files name: bams
-            """
-            expr = naming.process_input_secondaries_array_primary_files(inp)
+        # # @secondariesarray
+        # if nfgen_utils.is_array_secondary_type(dtype):
+        #     """
+        #     example: Array(BamBai)
+        #     process input name: indexed_bam_array_flat
+        #     primary files name: bams
+        #     """
+        #     expr = naming.process_input_secondaries_array_primary_files(inp)
 
-        elif isinstance(basetype, Filename):
+        if isinstance(basetype, Filename):
             if inp.id() in self.internal_inputs:
                 expr = self.unwrap(dtype)
             else:

@@ -1,0 +1,4 @@
+
+criteria, max points, subdivisions
+Reference, 2, 2=full reference; 1=partial reference; 0=no reference
+Summary, 20, 20=concise and coherent summary of the thesis and clear description of the strategy; 15=Summary of the thesis and/or strategy is incomplete or represents an incomplete summary of the aim in the pub; 10=Summary of the thesis and/or strategy is inaccurate or unclear; 5=Fails to define the thesis or research strategy of the pub. Summary is unclear or incomplete
