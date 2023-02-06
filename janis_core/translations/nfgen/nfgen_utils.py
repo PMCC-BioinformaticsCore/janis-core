@@ -61,7 +61,8 @@ def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
 
 def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
     # must work with str version. 
-    dtype = get_base_type(dtype)
+    if dtype is not None:
+        dtype = get_base_type(dtype)
     val = str(val)
     
     # # secondary files

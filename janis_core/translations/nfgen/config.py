@@ -12,6 +12,7 @@ from .casefmt import to_case
 
 BOILERPLATE_LINES = ['docker.enabled = true']
 INDENT = settings.NF_INDENT
+MAX_LINE_WIDTH = 80
 COMMENTER = '// '
 TEMPLATE = """\
 {boilerplate}
@@ -58,25 +59,33 @@ class ParamGroup:
     
     def param_to_string(self, param: Param) -> str:
         dtype = param.janis_type
+        basetype = nfgen_utils.get_base_type(dtype)
+        basetype = nfgen_utils.ensure_single_type(basetype)
 
-        if nfgen_utils.is_array_secondary_type(dtype):
+        if nfgen_utils.is_array_secondary_type(basetype):
             return self.format_param_array_secondary(param)
         
-        elif nfgen_utils.is_secondary_type(dtype):
+        elif nfgen_utils.is_secondary_type(basetype):
             return self.format_param_secondary(param)
         
-        elif nfgen_utils.is_array_file_pair_type(dtype):
+        elif nfgen_utils.is_array_file_pair_type(basetype):
             return self.format_param_array_file_pair(param)
 
-        elif nfgen_utils.is_file_pair_type(dtype):
+        elif nfgen_utils.is_file_pair_type(basetype):
             return self.format_param_file_pair(param)
 
+        elif isinstance(basetype, File) and dtype.is_array():
+            return self.format_param_file_array(param)
+        
+        elif isinstance(basetype, File):
+            return self.format_param_file(param)
+        
         elif dtype.is_array():
-            return self.format_param_array(param)
+            return self.format_param_val_array(param)
         
         else:
-            return self.format_param_single(param)
-
+            return self.format_param_val(param)
+        
 
     def format_param_array_secondary(self, param: Param) -> str:
         dtype = param.janis_type
@@ -126,21 +135,34 @@ class ParamGroup:
 {INDENT}]"""
         return text
     
-    def format_param_array(self, param: Param) -> str:
-        basetype = nfgen_utils.get_base_type(param.janis_type)
-        basetype = nfgen_utils.ensure_single_type(basetype)
-        if isinstance(basetype, File):
-            comment = 'list files here'
-        else:
-            comment = 'list values here'
+    def format_param_file_array(self, param: Param) -> str:
+        comment = 'list files here'
         text = f"""\
 {INDENT}{param.name:<{self.linewidth}} = [
 {INDENT}{INDENT}// {comment}
 {INDENT}]"""
-        print(text)
         return text
+    
+    def format_param_file(self, param: Param) -> str:
+        return f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
+    
+    def format_param_val_array(self, param: Param) -> str:
+        if param.default is not None:
+            single_line = f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
+            
+            multi_line = ''
+            multi_line += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
+            for val in param.groovy_value.strip('[]').split(', '):
+                multi_line += f'{INDENT}{INDENT}{val},\n'
+            multi_line += f'{INDENT}]\n'
+            print(multi_line)
+            
+            return single_line if len(single_line) <= MAX_LINE_WIDTH else multi_line
 
-    def format_param_single(self, param: Param) -> str:
+        else:
+            return f'{INDENT}{param.name:<{self.linewidth}} = []  // list values here'
+
+    def format_param_val(self, param: Param) -> str:
         return f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
 
 

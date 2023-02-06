@@ -1355,15 +1355,14 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         print(process.get_string())
         expected = """\
-process STP1 {
+process STP3 {
     debug true
-    publishDir "${params.outdir}/stp1"
+    publishDir "${params.outdir}/stp3"
 
     input:
     path file_inp, stageAs: 'file_inp.txt'
     path file_inp_optional, stageAs: 'file_inp_optional.txt'
     val inp
-
 
     output:
     val "*", emit: out
@@ -1371,7 +1370,7 @@ process STP1 {
     script:
     \"\"\"
     echo \\
-    ${params.in_str} \\
+    ${inp} \\
     ${params.in_str_opt} \\
     ${file_inp.simpleName}.transformed.fnp \\
     ${file_inp_optional.simpleName}.optional.txt \\
@@ -1877,7 +1876,7 @@ class TestPlumbingScatter(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'PRESTEP1.out.out.toList().flatten()'
+            'PRESTEP1.out.out'
         ]
         self.assertEqual(actual, expected)
 
@@ -1914,7 +1913,6 @@ class TestPlumbingScatter(unittest.TestCase):
         ]
         self.assertEqual(actual, expected)
 
-
     def test_scatter_secondary_to_scatter_secondary(self):
         step_id = 'scatter_secondary_to_scatter_secondary'
         step = self.wf.step_nodes[step_id]
@@ -1922,7 +1920,7 @@ class TestPlumbingScatter(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            'PRESTEP3.out.out.toList().flatten().collate( 2 )'
+            'PRESTEP3.out.out'
         ]
         self.assertEqual(actual, expected)
 
@@ -2521,25 +2519,24 @@ class TestConfig(unittest.TestCase):
         refresh_workflow_inputs(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
-        expected_values = {
-            # 'in_bool_array': fr'\[\]',
-            # 'stp2_flag_true': fr'\[true\]',
-            # 'stp2_flag_false': fr'\[true\]',
-            "in_file_array": r"\[\]    \/\/ list files here",
-            "in_file_array_opt": r"\[\]    \/\/ list files here",
-            "in_str_array": r"\[\]    \/\/ list strings here",
-            "in_int_array": r"\[\]",
-            'stp2_pos_default': fr'\[4, 5, 6\]',
-            "stp2_pos_optional": r"\[\]    \/\/ list strings here",
-            'stp2_pos_optional': r"\['hi', 'there', 'friend'\]    \/\/ list strings here",
-            'stp2_opt_basic': r"\['hi', 'there', 'friend'\]    \/\/ list strings here",
-            'stp2_opt_default': fr'\[4, 5, 6\]',
-            'stp2_opt_optional': r"\['hi', 'there', 'friend'\]    \/\/ list strings here",
+        expected_lines = {
+            "outdir  = './outputs'",
+            "in_file_array      = [",
+            "    // list files here",
+            "]",
+            "in_file_array_opt  = [",
+            "    // list files here",
+            "]",
+            "in_str_array       = []  // list values here",
+            "in_int_array       = []  // list values here",
+            "stp2_pos_default   = [4, 5, 6]",
+            "stp2_pos_optional  = ['hi', 'there', 'friend']",
+            "stp2_opt_basic     = ['hi', 'there', 'friend']",
+            "stp2_opt_default   = [4, 5, 6]",
+            "stp2_opt_optional  = ['hi', 'there', 'friend']",
         }
-        for name, val in expected_values.items():
-            pattern = f'{name}.*?{val}'
-            matches = re.findall(pattern, config)
-            self.assertGreater(len(matches), 0)
+        for ln in expected_lines:
+            self.assertIn(ln, config)
 
     def test_workflow_config(self) -> None:
         wf = AssemblyTestWF()
@@ -2614,7 +2611,7 @@ class TestStepFeatures(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            "[params.mystring, GET_STRING.out.out].first()"
+            "[params.mystring, GET_STRING.out.out].find{ it != null }"
         ]
         self.assertEqual(actual, expected)
 
@@ -2627,7 +2624,7 @@ class TestStepFeatures(unittest.TestCase):
         scope.update(step)
         actual = nfgen.call.get_args(step, scope)
         expected = [
-            "binding.hasVariable(params.mystring) ? params.mystring : params.mystring_backup"
+            "params.mystring ? params.mystring : params.mystring_backup"
         ]
         self.assertEqual(actual, expected)
 
@@ -2745,25 +2742,6 @@ class TestUnwrap(unittest.TestCase):
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
-    def test_string_formatter(self) -> None:
-        wf = StringFormatterTestWF()
-        refresh_workflow_inputs(wf)
-        step_id = "stp1"
-        step = wf.step_nodes[step_id]
-        arg = step.tool.arguments()[0]
-        actual = nfgen.unwrap_expression(
-            val=arg.value,
-            tool=step.tool,
-            in_shell_script=True,
-            sources=step.sources,
-            process_inputs=nfgen.process.inputs.get_process_inputs(step.sources),
-            param_inputs=nfgen.process.inputs.get_param_inputs(step.sources),
-            internal_inputs=nfgen.process.inputs.get_internal_inputs(step.tool, step.sources),
-        )
-        expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
-        self.assertEqual(actual, expected)
-
-
 
 class TestStringFormatter(unittest.TestCase):
     
@@ -2807,9 +2785,9 @@ class TestStringFormatter(unittest.TestCase):
         scope = nfgen.Scope()
         scope.update(step)
         process_inputs: set[str] = set()
-        param_inputs: set[str] = set(['testtool'])
+        param_inputs: set[str] = set(['javaOptions', 'compressionLevel'])
         internal_inputs: set[str] = set()
-        sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
         actual = nfgen.unwrap_expression(
             val=sf, 
             tool=step.tool,
@@ -2819,7 +2797,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=True
         )
-        expected = '"an input ${params.in_str}"'
+        expected = '"an input ${params.stp1_compression_level}"'
         self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
@@ -2898,6 +2876,24 @@ class TestStringFormatter(unittest.TestCase):
             in_shell_script=True
         )
         expected = '"${testtool}:${array_inp.join(\";\")}"'
+        self.assertEqual(actual, expected)
+    
+    def test_string_formatter_advanced(self) -> None:
+        wf = StringFormatterTestWF()
+        refresh_workflow_inputs(wf)
+        step_id = "stp1"
+        step = wf.step_nodes[step_id]
+        arg = step.tool.arguments()[0]
+        actual = nfgen.unwrap_expression(
+            val=arg.value,
+            tool=step.tool,
+            in_shell_script=True,
+            sources=step.sources,
+            process_inputs=nfgen.process.inputs.get_process_inputs(step.sources),
+            param_inputs=nfgen.process.inputs.get_param_inputs(step.sources),
+            internal_inputs=nfgen.process.inputs.get_internal_inputs(step.tool, step.sources),
+        )
+        expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
 
 
@@ -3341,21 +3337,20 @@ class TestNaming(unittest.TestCase):
         
         # pre-script
         assert(process.pre_script)
-        actual_prescript = set(process.pre_script.split('\n'))
-        expected_prescript = set([
-            'def process_input_array = "--processInputArray " + process_input_array.join(\' \')',
-            'def param_input_array = "--paramInputArray " + params.param_input_array.join(\' \')',
-            'def secondary_array = "--secondaryArray " + indexed_bam_array_flat.join(\' \')',
-        ])
-        print(process.pre_script)
-        for ln in expected_prescript:
-            print(ln)
+        actual_prescript = process.pre_script.split('\n')
+        expected_prescript = [
+            "def indexed_bam_array_flat = get_primary_files(indexed_bam_array_flat)",
+            'def secondary_array = indexed_bam_array_flat.join(\' \')',
+            'def param_input_array = params.param_input_array.join(\' \')',
+            'def process_input_array = process_input_array.join(\' \')',
+        ]
+        print(process.get_string())
         self.assertEqual(actual_prescript, expected_prescript)
 
         # script body
         print(process.script)
-        actual_script = set(process.script.split('\n'))
-        expected_script = set([
+        actual_script = process.script.split('\n')
+        expected_script = [
             'echo \\',
             '--processInput ${process_input} \\',
             '--paramInput ${params.param_input} \\',
@@ -3363,14 +3358,14 @@ class TestNaming(unittest.TestCase):
             '--processInputArray ${process_input_array} \\',
             '--paramInputArray ${param_input_array} \\',
             '--secondaryArray ${secondary_array} \\',
-        ])
+        ]
         self.assertEqual(actual_script, expected_script)
 
         # outputs
         print([x.get_string() for x in process.outputs])
         actual_outputs = set([x.get_string() for x in process.outputs])
         expected_outputs = set([
-            'path "${process_input + \'.fastq\'}", emit: outProcessInput',
+            'path "${process_input + ".fastq"}", emit: outProcessInput',
             'path "param_input.txt", emit: outParamInput',
             'tuple path("*.bam"), path("*.bam.bai"), emit: outSecondary',
             'path "process_input_arr*", emit: outProcessInputArray',
