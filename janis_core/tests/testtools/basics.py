@@ -54,6 +54,13 @@ class StringTestTool(StdoutTestTool):
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", String, position=1)]
 
+class StringOptTestTool(StdoutTestTool):
+    def tool(self) -> str:
+        return "StringOptTestTool"
+
+    def inputs(self) -> list[ToolInput]:
+        return [ToolInput("inp", String(optional=True), position=1)]
+
 class IntTestTool(StdoutTestTool):
     def tool(self) -> str:
         return "IntStdoutTestTool"

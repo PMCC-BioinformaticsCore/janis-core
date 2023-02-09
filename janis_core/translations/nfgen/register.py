@@ -1,7 +1,6 @@
 
 
 import os
-from typing import Any
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool, StepNode
 from janis_core.types import File, Filename, Directory, DataType
@@ -245,13 +244,14 @@ def _get_channel_input_ids(wf: Workflow) -> set[str]:
     subworkflow_inputs = _get_subworkflow_inputs(wf)
     file_inputs = _get_file_wf_inputs(wf)
     filename_inputs = _get_filename_wf_inputs(wf)
+    null_value_to_subworkflow_inputs = _get_null_value_to_subworkflow_inputs(wf)
     scatter_inputs = _get_scatter_wf_inputs(wf)
 
     channel_inputs: list[InputNode] = []
     for name, inp in wf.input_nodes.items():
         if name in subworkflow_inputs:
             channel_inputs.append(inp)
-        elif name in file_inputs or name in filename_inputs or name in scatter_inputs:
+        elif name in file_inputs or name in filename_inputs or name in scatter_inputs or name in null_value_to_subworkflow_inputs:
             channel_inputs.append(inp)
     
     # final ordering
@@ -340,6 +340,22 @@ def _get_filename_wf_inputs(wf: Workflow) -> set[str]:
                     node = nfgen_utils.resolve_node(src)
                     if isinstance(node, InputNode):
                         out.add(node.id())
+    return out
+
+def _get_null_value_to_subworkflow_inputs(wf: Workflow) -> set[str]:
+    # bit of an edge case. 
+    # nextflow doesnt allow null values being passed to subworkflows. 
+    # any param which is fed to a subworkflow which has a default=None value
+    # must have a channel (ifEmpty(null)) created for this param.
+    # the channel is fed to subworkflow, not the param. 
+    out: set[str] = set()
+    for step in wf.step_nodes.values():
+        # subworkflows
+        if isinstance(step.tool, Workflow):
+            for inp in step.tool.input_nodes.values():
+                if inp.datatype.optional and inp.default is None:
+                    out.add(inp.id())
+                    print('DEV: optional param with null default passed to subworkflow!')
     return out
 
 def _get_scatter_wf_inputs(wf: Workflow) -> set[str]:

@@ -2,7 +2,6 @@
 
 from typing import Optional 
 
-from janis_bioinformatics.data_types.bam import BamBai
 from janis_core import (
     ToolOutput,
     ToolInput,
@@ -147,7 +146,7 @@ class ArrayComponentsTestTool(CommandTool):
             
             ToolInput("opt_basic", Array(String), position=6, prefix="--opt-basic=", separate_value_from_prefix=False),
             ToolInput("opt_default", Array(Int), position=7, default=[1, 2, 3], prefix="--opt-default", prefix_applies_to_all_elements=True),
-            ToolInput("opt_optional", Array(String, optional=True), position=8, prefix="--opt-optional", separator=" "),
+            ToolInput("opt_optional", Array(String, optional=True), position=8, prefix="--opt-optional", separator=","),
         ]
 
     def outputs(self):

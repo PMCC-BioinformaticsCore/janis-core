@@ -30,50 +30,15 @@ class OutputCollectionTestWF(Workflow):
         self.input('inFile', File)
         self.input('inFileArray', Array(File))
 
-        self.step(
-            "stp1", 
-            WildcardSelectorTestTool(inp=self.inFile)
-        )
-        self.step(
-            "stp2", 
-            FilenameGenTestTool(inp=self.inFile)
-        )
-        self.step(
-            "stp3", 
-            FilenameRefTestTool(inp=self.inFile)
-        )
-        self.step(
-            "stp4", 
-            InputSelectorTestTool(
-                inp=self.inFile,
-                outputFilename='myfile.txt'
-            )
-        )
-        
-        self.step(
-            "stp5", 
-            AddOperatorTestTool(inp=self.inFile)
-        )
-        self.step(
-            "stp6", 
-            FilepairTestTool(inp=self.inFile)
-        )
-        self.step(
-            "stp7", 
-            StringAddOperatorTestTool()
-        )
-        self.step(
-            "stp8", 
-            MarkDuplicatesMetricsTestTool(
-                outputPrefix='hello'
-            )
-        )
-        self.step(
-            "stp9", 
-            FilenameClashTestTool(
-                reads=self.inFileArray 
-            )
-        )
+        self.step("stp1", WildcardSelectorTestTool(inp=self.inFile))
+        self.step("stp2", FilenameGenTestTool(inp=self.inFile))
+        self.step("stp3", FilenameRefTestTool(inp=self.inFile))
+        self.step("stp4", InputSelectorTestTool(inp=self.inFile, outputFilename='myfile.txt'))
+        self.step("stp5", AddOperatorTestTool(inp=self.inFile))
+        self.step("stp6", FilepairTestTool(inp=self.inFile))
+        self.step("stp7", StringAddOperatorTestTool())
+        self.step("stp8", MarkDuplicatesMetricsTestTool(outputPrefix='hello'))
+        self.step("stp9", FilenameClashTestTool(reads=self.inFileArray ))
 
     def friendly_name(self):
         return "TEST: OutputCollectionTestWF"
@@ -312,7 +277,6 @@ class FilepairTestTool(CatToolBase):
         ]
 
 
-
 class StringAddOperatorTestTool(CatToolBase):
     
     def friendly_name(self):
@@ -408,3 +372,5 @@ class FilenameClashTestTool(CatToolBase):
                 + "_fastqc/fastqc_data.txt",
             ),
         ]
+
+

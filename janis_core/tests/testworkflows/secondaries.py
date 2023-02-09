@@ -1,7 +1,8 @@
 
 
 from typing import Optional
-from janis_bioinformatics.data_types.bam import BamBai
+from janis_bioinformatics.data_types import BamBai, FileTabix
+from janis_unix import Gunzipped
 from janis_core.types import Array, Stdout
 from janis_core import (
     Workflow,
@@ -13,6 +14,7 @@ from janis_core import (
     InputSelector,
     IndexOperator
 )
+
 
 
 # ------------- #
@@ -31,6 +33,7 @@ class SecondariesTestWF(Workflow):
     def constructor(self):
         self.input('inAlignments', BamBai())
         self.input('inAlignmentsArr', Array(BamBai()))
+        self.input('inGunzipped', Gunzipped())
 
         self.step(
             "stp1", 
@@ -54,6 +57,18 @@ class SecondariesTestWF(Workflow):
             "stp4", 
             SecondariesArrayTestTool(
                 inp=self.inAlignmentsArr
+            ), 
+        )
+        self.step(
+            "stp5", 
+            GATKSplitReadsTestTool(
+                bam=self.inAlignments
+            ), 
+        )
+        self.step(
+            "stp6", 
+            NoSecondariesPresentAsTestTool(
+                inp=self.inGunzipped
             ), 
         )
 
@@ -191,17 +206,6 @@ class SecondariesArrayTestTool(CommandTool):
                 'out',
                 Stdout()
             )
-            # ToolOutput(
-            #     "out", 
-            #     Array(BamBai),
-            #     selector=WildcardSelector("*.bam"),
-            #     secondaries_present_as={".bai": ".bai"},
-            # ),
-            # ToolOutput(
-            #     "out", 
-            #     Array(BamBai),
-            #     selector=[WildcardSelector("*.bam"), WildcardSelector("*.bai")],
-            # )
         ]
 
     def container(self) -> str:
@@ -212,3 +216,76 @@ class SecondariesArrayTestTool(CommandTool):
 
 
 
+class GATKSplitReadsTestTool(CommandTool):
+    
+    def friendly_name(self):
+        return "TEST: GATKSplitReadsTestTool"
+
+    def tool(self):
+        return "GATKSplitReadsTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+    
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+    def inputs(self):
+        return [
+            ToolInput(
+                "bam",
+                BamBai,
+                prefix="--input",
+                position=1,
+                secondaries_present_as={".bai": "^.bai"},
+                doc="(-I:String) BAM/SAM/CRAM file containing reads  This argument must be specified at least once.",
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                BamBai,
+                glob=InputSelector("bam").basename(),
+                doc="Bam",
+                secondaries_present_as={".bai": "^.bai"},
+            )
+        ]
+
+
+class NoSecondariesPresentAsTestTool(CommandTool):
+    
+    def friendly_name(self):
+        return "TEST: NoSecondariesPresentAsTestTool"
+
+    def tool(self):
+        return "NoSecondariesPresentAsTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+    
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+    def inputs(self):
+        return [
+            ToolInput(
+                "inp",
+                Gunzipped(),
+                position=8,
+            ),
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", FileTabix(), glob=InputSelector("inp")
+            )
+        ]

@@ -297,33 +297,77 @@ class CmdtoolProcessOutputFactory:
             selector=WildcardSelector("*.bam"),
             secondaries_present_as={".bai": ".bai"},
         """
+        if self.ftype == FmtType.REFERENCE:
+            return self.secondaries_output_reference()
+        else:
+            return self.secondaries_output_complex()
+
+
+    def secondaries_output_reference(self) -> TupleProcessOutput:
         qualifiers: list[str] = []
         expressions: list[str] = []
         
+        # primary file
+        primary_reference = self.unwrap_collection_expression(self.out.selector)
+        qualifiers.append('path')
+        expressions.append(primary_reference)
+
+        exts = nfgen_utils.get_extensions(self.dtype)               
+        for ext in exts[1:]:
+            # extensions which replace part of filename
+            if ext.startswith('^'):
+                secondary_ext = ext.lstrip('^')
+                qualifiers.append('path')
+                expressions.append(f'"*{secondary_ext}"')
+            else:
+                secondary_ext = ext
+                qualifiers.append('path')
+                expressions.append(f'"${{{primary_reference}}}{secondary_ext}"')
+
+        new_output = TupleProcessOutput(
+            name=self.out.id(), 
+            is_optional=self.optional,
+            qualifiers=qualifiers, 
+            expressions=expressions
+        )
+        return new_output
+    
+    def secondaries_output_complex(self) -> TupleProcessOutput:
+        qualifiers: list[str] = []
+        expressions: list[str] = []
+
         exts = nfgen_utils.get_extensions(self.dtype)
         primary_expr = self.unwrap_collection_expression(self.out.selector)
         primary_expr = primary_expr.strip('"')
         primary_ext = exts[0]
         primary_ext_start = primary_expr.rfind(primary_ext)
         primary_ext_stop = primary_ext_start + len(primary_ext)
-        
-        for ext in exts:
-            # primary file
-            if self.out.secondaries_present_as is None or ext not in self.out.secondaries_present_as:
-                qual = 'path'
-                expr = f'"{primary_expr}"'
 
-            # secondary file
+        # primary file
+        qualifiers.append('path')
+        expressions.append(f'"{primary_expr}"')
+
+        # secondary files
+        for ext in exts[1:]:
+            # no primary ext found in collection expression (edge case)
+            if primary_ext_start == -1:
+                # TODO add a user warning message - dodgy output collection in this step
+                secondary_ext = ext.lstrip('^')
+                qualifiers.append('path')
+                expressions.append(f'"*{secondary_ext}"')
+
+            # find the last occurance of the primary file format, replace this with secondary file format
+            # eg "${alignment}.bam" -> "${alignment}.bai"
             # probably has bugs.
             else:
-                secondary_ext_pattern = self.out.secondaries_present_as[ext]
+                if self.out.secondaries_present_as and ext in self.out.secondaries_present_as:
+                    secondary_ext_pattern = self.out.secondaries_present_as[ext]
+                else:
+                    secondary_ext_pattern = ext
                 secondary_ext: str = apply_secondary_file_format_to_filename(primary_ext, secondary_ext_pattern)
                 secondary_expr = primary_expr[:primary_ext_start] + secondary_ext + primary_expr[primary_ext_stop:]
-                qual = 'path'
-                expr = f'"{secondary_expr}"'
-
-            qualifiers.append(qual)
-            expressions.append(expr)
+                qualifiers.append('path')
+                expressions.append(f'"{secondary_expr}"')
 
         new_output = TupleProcessOutput(
             name=self.out.id(), 

@@ -11,6 +11,7 @@ from .types import (
 from .basics import (
     FileTestTool,
     StringTestTool,
+    StringOptTestTool,
     IntTestTool,
     WildcardSelectorTestTool,
     FileInputSelectorTestTool,

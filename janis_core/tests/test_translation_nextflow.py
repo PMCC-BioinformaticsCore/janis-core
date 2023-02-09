@@ -480,14 +480,19 @@ class TestFileFormatting(unittest.TestCase):
         expected_lines = [
             "nextflow.enable.dsl=2",
             "include { STRING_TOOL } from '../modules/string_tool'",
+            "include { STRING_OPT_TOOL } from '../modules/string_opt_tool'",
             "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'",
             "workflow APPLES_SUBWORKFLOW {",
             "take:",
             "ch_in_int",
             "ch_in_str",
+            "ch_in_str_opt",
             "main:",
             "STRING_TOOL(",
             "ch_in_str",
+            ")",
+            "STRING_OPT_TOOL(",
+            "ch_in_str_opt",
             ")",
             "ORANGES_SUBWORKFLOW(",
             "STRING_TOOL.out.out,",
@@ -515,9 +520,10 @@ class TestFileFormatting(unittest.TestCase):
             "// OUTPUT DIRECTORY",
             "outdir  = './outputs'",
             "// INPUTS",
-            "in_file  = null",
-            "in_str   = null",
-            "in_int   = null",
+            "in_file     = null",
+            "in_str_opt  = null",
+            "in_str      = null",
+            "in_int      = null",
             "}",
         ]
         actual_lines = config.split('\n')
@@ -667,6 +673,19 @@ class TestChannels(unittest.TestCase):
             'ch_in_str',
         }
         self.assertEqual(channels_ids, expected_ids)
+    
+    def test_subworkflow_passed_null_param(self) -> None:
+        wf = SubworkflowTestWF()
+        refresh_workflow_inputs(wf)
+        channel_declarations = nfgen.channels.channels.channel_register.get_string()
+        channel_declarations = channel_declarations.strip('[]').split('\n')
+        channel_declarations = [x for x in channel_declarations if x != '']
+        expected_declarations = [
+            'ch_in_str_opt = Channel.of( params.in_str_opt ).ifEmpty( null )',
+            'ch_in_file    = Channel.fromPath( params.in_file )',
+        ]
+        print(channel_declarations)
+        self.assertEqual(channel_declarations, expected_declarations)
 
     @unittest.skip('not implemented')
     def test_channel_methods(self) -> None:
@@ -1099,6 +1118,34 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
+
+    def test_secondaries_edge_basename(self) -> None:
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes['stp5']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        print(process.outputs[0].get_string())
+        expected_outputs = {
+            'tuple path("${bam.name}"), path("*.bai"), emit: out'
+        }
+        self.assertEqual(actual_outputs, expected_outputs)
+    
+    def test_secondaries_edge_no_secondaries_present_as(self) -> None:
+        wf = SecondariesTestWF()
+        refresh_workflow_inputs(wf)
+        step = wf.step_nodes['stp6']
+        scope = nfgen.Scope()
+        scope.update(step)
+        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        print(process.outputs[0].get_string())
+        expected_outputs = {
+            'tuple path(inp), path("${inp}.tbi"), emit: out'
+        }
+        self.assertEqual(actual_outputs, expected_outputs)
     
     @unittest.skip('not implemented')
     def test_secondaries_array(self) -> None:
@@ -1253,7 +1300,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             "def pos_optional = params.in_str_array ? params.in_str_array.join(' ') : \"\"",
             "def opt_default = params.in_int_array ? params.in_int_array.collect{ \"--opt-default \" + it }.join(' ') : \"--opt-default 1 --opt-default 2 --opt-default 3\"",
             "def opt_basic = params.in_str_array.join(' ')",
-            "def opt_optional = params.in_str_array ? \"--opt-optional \" + params.in_str_array.join(' ') : \"\""
+            "def opt_optional = params.in_str_array ? \"--opt-optional \" + params.in_str_array.join(',') : \"\""
         ])
         actual_prescript = sorted(actual_prescript)
         expected_prescript = sorted(expected_prescript)
@@ -1483,7 +1530,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
         scope.update(step)
         process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "out_out", emit: out'}
+        expected_outputs = {'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
         # String output
@@ -1533,7 +1580,7 @@ class TestPythontoolProcess(unittest.TestCase):
             'path code_file',
             'path inp1, stageAs: \'inp1\'',
             'output:',
-            'path "out_out", emit: out',
+            'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out',
             'exec:',
             'script:',
             '"""',
@@ -3149,14 +3196,7 @@ class TestSubWorkflows(unittest.TestCase):
         # currently params system doesnt reach to subworkflows. 
         # will implement in future (time permitting)
         raise NotImplementedError
-    
-    def test_channel_system(self) -> None:
-        step_id = 'apples_subworkflow'
-        subwf = self.wf.step_nodes[step_id].tool
-        for inp in subwf.input_nodes.values():
-            relevant_channel = nfgen.channels.get(inp.uuid)
-            assert(relevant_channel)   # 1 channel per each subworkflow input
-    
+       
     def test_files_created(self) -> None:
         refresh_workflow_inputs(self.wf)
         mainstr, substr_dict = translator.translate_workflow(self.wf)
@@ -3164,6 +3204,7 @@ class TestSubWorkflows(unittest.TestCase):
             'modules/file_tool',
             'modules/string_tool',
             'modules/int_tool',
+            'modules/string_opt_tool',
             'subworkflows/oranges_subworkflow',
             'subworkflows/apples_subworkflow',
         ])
@@ -3185,14 +3226,16 @@ class TestSubWorkflows(unittest.TestCase):
         # translate workflow, building all nf items and files
         translator.translate_workflow(self.wf)
 
-        # focusing in on specific subworkflow
+        # call args are correct & in order
         step_id = 'apples_subworkflow'
         step = self.wf.step_nodes[step_id]
         scope = nfgen.Scope()
         scope.update(step)
-        args = nfgen.call.get_args(step, scope)
+        actual_arg_order = nfgen.call.get_args(step, scope)
+        expected_arg_order = ['params.in_int', 'params.in_str', 'ch_in_str_opt']
+        self.assertEquals(actual_arg_order, expected_arg_order)
 
-        # generate nf subworkflow object
+        # subworkflow inputs are correct & in order
         nf_workflow = nfgen.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
@@ -3200,14 +3243,9 @@ class TestSubWorkflows(unittest.TestCase):
             wf=step.tool,
             item_register=translator.item_register
         )
-        
         # check the arg order matches the subworkflow input channel order
-        expected_arg_order = ['params.in_int', 'params.in_str']
-        expected_channel_order = ['ch_in_int', 'ch_in_str']
-        actual_arg_order = args
         actual_channel_order = [t.get_string() for t in nf_workflow.take]
-
-        self.assertEquals(actual_arg_order, expected_arg_order)
+        expected_channel_order = ['ch_in_int', 'ch_in_str', 'ch_in_str_opt']
         self.assertEquals(actual_channel_order, expected_channel_order)
 
     def test_imports(self) -> None:
@@ -3221,12 +3259,16 @@ class TestSubWorkflows(unittest.TestCase):
         scope.update(step)
         subwf_file = translator.file_register.get(scope)
 
-        self.assertEquals(len(subwf_file.imports), 2)
+        self.assertEquals(len(subwf_file.imports), 3)
 
         expected_imports = [
             {
                 'name': 'string_tool', 
                 'source': '../modules/string_tool'
+            },
+            {
+                'name': 'string_opt_tool', 
+                'source': '../modules/string_opt_tool'
             },
             {
                 'name': 'oranges_subworkflow', 

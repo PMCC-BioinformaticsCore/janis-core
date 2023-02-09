@@ -11,17 +11,55 @@ from janis_core.types import (
 from janis_core.tests.testtools import (
     FileTestTool,
     StringTestTool,
+    StringOptTestTool,
     IntTestTool,
 )
+
+
+class SubworkflowTestWF(Workflow):
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inStr', String)
+        self.input('inInt', Int)
+        self.input('inStrOpt', String(optional=True))
+
+        self.step(
+            "file_tool", 
+            FileTestTool(inp=self.inFile)
+        )
+        self.step(
+            "apples_subworkflow", 
+            ApplesWorkflow(
+                inStr=self.inStr,
+                inInt=self.inInt,
+                inStrOpt=self.inStrOpt,
+            )
+        )
+
+        self.output("outFile", File, source=self.file_tool.out)
+        self.output("outString", File, source=self.apples_subworkflow.outStringFile)
+        self.output("outInt", File, source=self.apples_subworkflow.outIntFile)
+
+    def friendly_name(self):
+        return "TEST: SubworkflowTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
 
 class ApplesWorkflow(Workflow):
     def constructor(self):
         self.input('inStr', String)
         self.input('inInt', Int)
+        self.input('inStrOpt', String(optional=True))
 
         self.step(
             "string_tool", 
             StringTestTool(inp=self.inStr)
+        )
+        self.step(
+            "string_opt_tool", 
+            StringOptTestTool(inp=self.inStrOpt)
         )
         self.step(
             "oranges_subworkflow", 
@@ -39,7 +77,7 @@ class ApplesWorkflow(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
-    
+
 
 class OrangesWorkflow(Workflow):
     def constructor(self):
@@ -64,30 +102,3 @@ class OrangesWorkflow(Workflow):
         return self.__class__.__name__
 
 
-class SubworkflowTestWF(Workflow):
-    def constructor(self):
-        self.input('inFile', File)
-        self.input('inStr', String)
-        self.input('inInt', Int)
-
-        self.step(
-            "file_tool", 
-            FileTestTool(inp=self.inFile)
-        )
-        self.step(
-            "apples_subworkflow", 
-            ApplesWorkflow(
-                inStr=self.inStr,
-                inInt=self.inInt,
-            )
-        )
-
-        self.output("outFile", File, source=self.file_tool.out)
-        self.output("outString", File, source=self.apples_subworkflow.outStringFile)
-        self.output("outInt", File, source=self.apples_subworkflow.outIntFile)
-
-    def friendly_name(self):
-        return "TEST: SubworkflowTestWF"
-
-    def id(self) -> str:
-        return self.__class__.__name__

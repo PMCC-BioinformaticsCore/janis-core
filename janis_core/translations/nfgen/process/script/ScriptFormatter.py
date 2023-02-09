@@ -211,7 +211,7 @@ class ScriptFormatter:
         elif self.tinput.separate_value_from_prefix == False:
             return self.tinput.prefix
         else:
-            return f'{self.tinput.prefix}{self.delim}'
+            return f'{self.tinput.prefix} '
         
     @property
     def delim(self) -> str:
