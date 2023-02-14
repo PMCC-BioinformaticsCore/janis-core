@@ -51,7 +51,7 @@ setup(
     packages=["janis_core"]
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     install_requires=[
-        "importlib-metadata",
+        "importlib-metadata==4.12.0",
         "illusional.wdlgen >= 0.3.0",
         "galaxy2janis >= 0.1.3.2",
         "ruamel.yaml >= 0.12.4, <= 0.16.5",

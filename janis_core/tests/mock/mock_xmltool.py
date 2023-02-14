@@ -1,8 +1,8 @@
 
 
-from galaxy2janis.gx.gxtool import XMLToolDefinition
-from galaxy2janis.gx.gxtool.param import ParamRegister
-from galaxy2janis.gx.gxtool.TestRegister import TestRegister
+from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
+from janis_core.ingestion.galaxy.gx.gxtool.param import ParamRegister
+from janis_core.ingestion.galaxy.gx.gxtool.TestRegister import TestRegister
 from .mock_metadata import MOCK_TOOL_METADATA
 
 

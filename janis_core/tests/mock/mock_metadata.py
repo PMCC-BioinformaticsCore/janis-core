@@ -1,7 +1,7 @@
 
 
-from galaxy2janis.gx.gxtool import ToolXMLMetadata
-from galaxy2janis.entities.workflow import WorkflowMetadata
+from janis_core.ingestion.galaxy.gx.gxtool import ToolXMLMetadata
+from janis_core.ingestion.galaxy.model.workflow import WorkflowMetadata
 
 
 MOCK_WORKFLOW_METADATA = WorkflowMetadata(

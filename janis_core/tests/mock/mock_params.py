@@ -1,14 +1,14 @@
 
 
-from galaxy2janis.gx.gxtool.param.OutputParam import DataOutputParam
-from galaxy2janis.gx.gxtool.param.InputParam import (
+from janis_core.ingestion.galaxy.gx.gxtool.param.OutputParam import DataOutputParam
+from janis_core.ingestion.galaxy.gx.gxtool.param.InputParam import (
     BoolParam,
     FloatParam,
     SelectOption,
     SelectParam,
     DataParam
 )
-from galaxy2janis.gx.gxtool.param.ParamRegister import ParamRegister
+from janis_core.ingestion.galaxy.gx.gxtool.param.ParamRegister import ParamRegister
 
 
 MOCK_DATAPARAM1 = DataParam('file_input')

@@ -1,11 +1,11 @@
 
 
-from galaxy2janis.gx.command.components import Positional
-from galaxy2janis.gx.command.components import Flag
-from galaxy2janis.gx.command.components import Option
-from galaxy2janis.gx.command.components import RedirectOutput
-from galaxy2janis.gx.command.components.outputs.InputOutput import InputOutput
-from galaxy2janis.gx.command.components.outputs.WildcardOutput import WildcardOutput
+from janis_core.ingestion.galaxy.gx.command.components import Positional
+from janis_core.ingestion.galaxy.gx.command.components import Flag
+from janis_core.ingestion.galaxy.gx.command.components import Option
+from janis_core.ingestion.galaxy.gx.command.components import RedirectOutput
+from janis_core.ingestion.galaxy.gx.command.components.outputs.InputOutput import InputOutput
+from janis_core.ingestion.galaxy.gx.command.components.outputs.WildcardOutput import WildcardOutput
 
 
 from .mock_params import MOCK_DATAPARAM1

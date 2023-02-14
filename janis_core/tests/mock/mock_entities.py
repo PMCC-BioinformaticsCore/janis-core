@@ -2,13 +2,13 @@
 
 import json
 
-from galaxy2janis.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
-from galaxy2janis.gx.gxworkflow.parsing.inputs import parse_input_step
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.inputs import parse_input_step
 
-from galaxy2janis.entities.workflow import WorkflowInputInputValue
-from galaxy2janis.entities.workflow import StaticInputValue
-from galaxy2janis.entities.workflow import WorkflowStep
-from galaxy2janis.entities.workflow import StepOutput
+from janis_core.ingestion.galaxy.model.workflow import WorkflowInputInputValue
+from janis_core.ingestion.galaxy.model.workflow import StaticInputValue
+from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.model.workflow import StepOutput
 
 from .mock_tool import MOCK_TOOL_ABRICATE
 

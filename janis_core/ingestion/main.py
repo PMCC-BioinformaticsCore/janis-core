@@ -7,12 +7,12 @@ from janis_core.messages import configure_logging
 from janis_core.messages import info_ingesting_tool
 from janis_core.messages import info_ingesting_workflow
 
-from galaxy2janis import ingest_tool
-from galaxy2janis import ingest_workflow
+from janis_core.ingestion.galaxy import ingest_tool
+from janis_core.ingestion.galaxy import ingest_workflow
+from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
+from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
 
 from .SupportedIngestion import SupportedIngestion
-from .janis_mapping import to_janis_tool
-from .janis_mapping import to_janis_workflow
 from .fromcwl import CWlParser
 from .fromwdl import WdlParser
 

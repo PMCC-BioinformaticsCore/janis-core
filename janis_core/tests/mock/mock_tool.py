@@ -1,7 +1,7 @@
 
 
 
-from galaxy2janis.entities.tool import Tool
+from janis_core.ingestion.galaxy.model.tool import Tool
 
 from .mock_params import MOCK_PARAM_REGISTER
 from .mock_metadata import MOCK_TOOL_METADATA
