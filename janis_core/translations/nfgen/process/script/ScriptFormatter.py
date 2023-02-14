@@ -123,7 +123,6 @@ class ScriptFormatter:
         if nfgen_utils.is_array_secondary_type(self.dtype):
             assert(prescript)
             prescript = self.prepend_function_call(prescript, 'get_primary_files')
-            print()
 
         return prescript, script
 

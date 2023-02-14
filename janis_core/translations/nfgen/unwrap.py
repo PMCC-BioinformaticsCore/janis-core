@@ -337,7 +337,6 @@ class Unwrapper:
 
         elif inp.id() in self.internal_inputs:
             src = naming.process_input_name(inp)
-            print()
         
         else:
             # something went wrong - inp is not accounted for 
@@ -609,8 +608,6 @@ class Unwrapper:
         ${"generated.fastq.gz"}
         etc
         """
-        if self.tool.id() == 'SamToolsFlagstat':
-            print()
         prefix = self.unwrap(fn.prefix) or ''
         ref = ref or ''
         suffix = self.unwrap(fn.suffix) or ''
@@ -698,7 +695,6 @@ class Unwrapper:
                 # super edge case
                 ref = self.get_src_variable(inp)
                 expr = self.unwrap_filename(basetype, ref=ref)
-                print()
         
         else:
             expr = self.get_src_variable(inp)

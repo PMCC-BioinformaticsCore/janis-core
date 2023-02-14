@@ -88,9 +88,9 @@ from janis_core import (
     Array,
 )
 
-from janis_bioinformatics.data_types.fasta import Fasta, FastaWithIndexes, FastaDict
-from janis_bioinformatics.data_types.fastq import Fastq
-from janis_bioinformatics.data_types.bam import Bam
+from janis_bioinformatics.data_types.fasta import Fasta, FastaDict, FastaWithIndexes
+from janis_bioinformatics.data_types.fastq import Fastq, FastqGzPair
+from janis_bioinformatics.data_types.bam import Bam, BamBai
 from janis_bioinformatics.data_types.sam import Sam
 from janis_bioinformatics.data_types.cram import Cram
 
@@ -1757,48 +1757,214 @@ class TestEntityTracing(unittest.TestCase):
 class TestPlumbingModule(unittest.TestCase):
     """tests the public functions in nfgen.plumbing."""
 
-    def test_get_common_type(self):
+    def test_get_array_depth(self):
+        self.assertEqual(nfgen.plumbing.get_array_depth(String()), 0)
+        self.assertEqual(nfgen.plumbing.get_array_depth(BamBai()), 0)
+        self.assertEqual(nfgen.plumbing.get_array_depth(FastqGzPair()), 0)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(String())), 1)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(BamBai())), 1)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(FastqGzPair())), 1)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(String()))), 2)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(BamBai()))), 2)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(FastqGzPair()))), 2)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(String())))), 3)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(BamBai())))), 3)
+        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(FastqGzPair())))), 3)
+    
+    def test_is_array_depth_mismatch(self):
+        # no mismatch
+        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(String(), String(), False))
+        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(Array(String()), Array(String()), False))
+        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(Array(String())), False))
+        # mismatch
+        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(String(), Array(String()), False))
+        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(Array(String()), String(), False))
+        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(String()), False))
+
+    # identifying common types ---
+    def test_get_common_type_1(self):
         # non-union types, has intersection
         srctype = Bam()
         desttype = Bam()
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Bam)
         
+    def test_get_common_type_2(self):
         # non-union types, no intersection
         srctype = Fasta()
         desttype = Bam()
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
         
+    def test_get_common_type_3(self):
         # single union type, has intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = Bam()
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Bam)
         
+    def test_get_common_type_4(self):
         # single union type, no intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = Fasta()
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
         
+    def test_get_common_type_5(self):
         # both union types, has intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = UnionType(Sam, Cram)
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Sam)
         
+    def test_get_common_type_6(self):
         # both union types, no intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = UnionType(Fasta, Fastq)
         common_type = nfgen.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
     
-    def test_is_datatype_mismatch(self):
-        raise NotImplementedError
+
+    # array datatype mismatches ---
+    # caused by datatypes involving arrays and/or scatter relationships
+    def test_is_datatype_mismatch_arrays(self):
+        """tests nfgen.plumibng.is_datatype_mismatch(srctype, desttype, srcscatter, destscatter)"""
+        # secondary array (always considered mismatch)
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), Array(BamBai()), False))
+
+        # array depth - single single 
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), Array(Bam()), False)) # mismatch
+        
+        # array depth - secondary secondary
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(BamBai(), BamBai(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), BamBai(), False)) # mismatch
+        
+        # array depth - secondary single 
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(BamBai(), Bam(), False)) # mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastaDict(), Bam(), False)) # mismatch
+        
+        # array depth - file pairs
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), Array(FastqGzPair()), False)) # mismatch
+        
+    # def test_is_datatype_mismatch_scatter(self):
+    #     # scatter - single single 
+    #     self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Array(Bam()), Bam(), True)) # no mismatch
+    #     self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), True)) # mismatch
+        
+    #     # scatter - secondary secondary 
+    #     self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), BamBai(), True)) # no mismatch
+    #     self.assertTrue(nfgen.plumbing.is_datatype_mismatch(BamBai(), BamBai(), True)) # mismatch
+
+    #     # scatter - secondary single 
+    #     self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), Bam(), True)) # mismatch
+    #     self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastaDict(), Array(Bam()), True)) # mismatch
+
+    #     # scatter - file pairs
+    #     self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Array(FastqGzPair()), FastqGzPair(), True)) # no mismatch
+    #     self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), True)) # mismatch
+        
+    def test_is_datatype_mismatch_basetype(self):
+        # single single
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), Fasta(), False)) # mismatch
+        
+        # secondary secondary
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastaDict(), FastaDict(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastaDict(), BamBai(), False)) # mismatch
+        
+        # secondary single
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), BamBai(), False)) # mismatch
+        
+        # file pairs
+        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
+        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), BamBai(), False)) # mismatch
 
     def test_generate_datatype_mismatch_plumbing(self):
-        raise NotImplementedError
+        # plumbing not required ---
+        srctype, desttype, destscatter = Bam(), Bam(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '')
+        
+        srctype, desttype, destscatter = FastaWithIndexes(), FastaWithIndexes(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '')
+        
+        srctype, desttype, destscatter = FastqGzPair(), FastqGzPair(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '')
+
+        srctype, desttype, destscatter = Array(Bam()), Array(Bam()), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '')
+        
+        # plumbing required ---
+        
+        # BASETYPES
+        # secondary, secondary
+        srctype, desttype, destscatter = FastaWithIndexes(), FastaDict(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.map{ tuple -> [tuple[0], tuple[4]] }')
+        
+        # secondary, single
+        srctype, desttype, destscatter = FastaWithIndexes(), Fasta(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.map{ tuple -> tuple[0] }')
+
+        # ARRAYS      
+        # single, single  
+        srctype, desttype, destscatter = Array(Bam()), Bam(), True
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten()')
+        
+        srctype, desttype, destscatter = Array(Fasta()), Fasta(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().first()')
+        
+        srctype, desttype, destscatter = Fasta(), Array(Fasta()), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.toList()')
+
+        # any, secondary (always ends with .flatten().toList())
+        srctype, desttype, destscatter = FastaWithIndexes(), Array(FastaWithIndexes()), True
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().toList()')
+        
+        srctype, desttype, destscatter = Array(FastaWithIndexes()), Array(FastaWithIndexes()), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().toList()')
+        
+        srctype, desttype, destscatter = Array(FastaWithIndexes()), Array(FastaWithIndexes()), True
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().toList()')
+
+        # secondary, secondary 
+        srctype, desttype, destscatter = Array(FastaWithIndexes()), FastaWithIndexes(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().collate( 8 ).first()')
+
+        srctype, desttype, destscatter = FastaWithIndexes(), Array(FastaDict()), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()')
+        
+        # secondary, single 
+        srctype, desttype, destscatter = Array(FastaWithIndexes()), Fasta(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.map{ tuple -> tuple[0] }.flatten().first()')
+
+        # file pairs
+        srctype, desttype, destscatter = Array(FastqGzPair()), FastqGzPair(), True
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().collate( 2 )')
+        
+        srctype, desttype, destscatter = Array(FastqGzPair()), FastqGzPair(), False
+        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        self.assertEqual(plumbing, '.flatten().collate( 2 ).first()')
+
+        
+        
 
 
 class TestPlumbingTypeMismatch(unittest.TestCase):

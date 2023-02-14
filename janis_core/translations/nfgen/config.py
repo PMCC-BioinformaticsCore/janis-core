@@ -62,13 +62,13 @@ class ParamGroup:
         basetype = nfgen_utils.get_base_type(dtype)
         basetype = nfgen_utils.ensure_single_type(basetype)
 
-        if nfgen_utils.is_array_secondary_type(basetype):
+        if nfgen_utils.is_array_secondary_type(dtype):
             return self.format_param_array_secondary(param)
         
         elif nfgen_utils.is_secondary_type(basetype):
             return self.format_param_secondary(param)
         
-        elif nfgen_utils.is_array_file_pair_type(basetype):
+        elif nfgen_utils.is_array_file_pair_type(dtype):
             return self.format_param_array_file_pair(param)
 
         elif nfgen_utils.is_file_pair_type(basetype):

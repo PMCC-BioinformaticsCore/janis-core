@@ -182,9 +182,10 @@ known_file_pair_types = set([
     'FastqGzPair',
 ])
 
-def is_file_pair_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
-    if basetype.name() in known_file_pair_types:
+def is_file_pair_type(dtype: DataType, recursive: bool=True) -> bool:
+    if recursive:
+        dtype = get_base_type(dtype)
+    if dtype.name() in known_file_pair_types:
         return True
     return False
 

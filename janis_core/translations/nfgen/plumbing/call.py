@@ -19,7 +19,7 @@ from ..scope import Scope
 from . import trace
 
 from .datatype_mismatch import is_datatype_mismatch
-from .datatype_mismatch import generate_datatype_mismatch_plumbing
+from .datatype_mismatch import gen_datatype_mismatch_plumbing
 
 from .edge_cases import satisfies_edge_case
 from .edge_cases import handle_edge_case
@@ -56,12 +56,7 @@ def get_args(step: StepNode, scope: Scope):
             # plumbing info
             srctype: DataType = get_src_type(src)
             desttype: DataType = get_dest_type(tool, name)
-            
-            # src_scatter: bool = is_src_scatter(src)
-            # dest_scatter: bool = is_dest_scatter(name, step)
-            # if is_scatter_relationship(src_scatter, dest_scatter):
-            #     suffix = handle_scatter_relationship(src_scatter, dest_scatter, src_type, dest_type)
-            #     arg = f'{arg}{suffix}'
+            dest_scatter: bool = is_dest_scatter(name, step)
                         
             # handle edge case (takes priority over datatype mismatches)
             if satisfies_edge_case(src, desttype, tool):
@@ -69,8 +64,8 @@ def get_args(step: StepNode, scope: Scope):
                 arg = f'{arg}{suffix}'
 
             # handle datatype relationship
-            elif is_datatype_mismatch(srctype, desttype):
-                suffix = generate_datatype_mismatch_plumbing(srctype, desttype)
+            elif is_datatype_mismatch(srctype, desttype,dest_scatter):
+                suffix = gen_datatype_mismatch_plumbing(srctype, desttype, dest_scatter)
                 arg = f'{arg}{suffix}'
             
             call_args.append(arg)

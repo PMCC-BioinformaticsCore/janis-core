@@ -12,58 +12,170 @@ from .common import get_collate_size
 
 
 # public
-def is_datatype_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    if secondary_secondary_mismatch(srctype, desttype):
+def is_datatype_mismatch(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
+    if secondary_array_type(desttype):
+        # Array(Secondary()) types are always considered datatype mismatch
+        # because they get flattened before being fed to a process. 
         return True
-    elif secondary_single_mismatch(srctype, desttype):
+    elif is_array_depth_mismatch(srctype, desttype, destscatter):
         return True
-    elif secondary_array_type(desttype):
-        return True
-    elif secondary_array_type(srctype) and secondary_type(desttype):
-        return True
-    elif array_type(srctype) and single_type(desttype):
-        return True
-    elif single_type(srctype) and array_type(desttype):
+    elif is_base_type_mismatch(srctype, desttype):
         return True
     return False
 
-def generate_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType) -> str:
+def is_base_type_mismatch(srctype: DataType, desttype: DataType) -> bool:
+    base_srctype = nfgen_utils.get_base_type(srctype)
+    base_desttype = nfgen_utils.get_base_type(desttype)
+    if base_srctype.name() != base_desttype.name():
+        return True
+    return False
+
+def is_array_depth_mismatch(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
+    """
+    identify whether the datatypes have array differences.
+    eg Array(String()) -> String() 
+    """
+    srctype_depth = get_array_depth(srctype)
+    desttype_depth = get_array_depth(desttype)
+
+    # if srctype array depth equals desttype, no mismatch
+    if abs(srctype_depth - desttype_depth) == 0:
+        return False
+    
+    # if srctype array depth is one or more different to desttype, mismatch
+    elif abs(srctype_depth - desttype_depth) >= 1:
+        return True
+
+    return False
+
+def get_array_depth(dtype: DataType) -> int:
+    depth = 0
+    while dtype.is_array() and dtype.subtype() and not nfgen_utils.is_file_pair_type(dtype, recursive=False):
+        depth += 1
+        dtype = dtype.subtype()
+    return depth
+
+
+
+# # DEPRECATED
+# def is_datatype_mismatch_deprecated(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
+#     if secondary_array_type(desttype):
+#         # Array(Secondary()) types are always considered datatype mismatch
+#         # because they get flattened before being fed to a process. 
+#         return True
+#     elif is_array_depth_mismatch(srctype, desttype, destscatter):
+#         return True
+#     elif is_base_type_mismatch(srctype, desttype):
+#         return True
+#     return False
+
+# def is_array_depth_mismatch_deprecated(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
+#     """
+#     identify whether the datatypes have array differences. could be due to:
+    
+#     - The datatypes genuinely have type mismatch involving arrays
+#       eg Array(String()) -> String() 
+    
+#     - The scatter relationship. 
+#       eg Array(String()) -> Array(String()) is still a mismatch if either the source / dest is scattered 
+#     """
+#     srctype_depth = get_array_depth(srctype)
+#     desttype_depth = get_array_depth(desttype)
+
+#     # if srctype array depth equals desttype,
+#     # if we are scattering, mismatch
+#     # else no mismatch
+#     if abs(srctype_depth - desttype_depth) == 0:
+#         if destscatter:
+#             return True
+#         return False
+    
+#     # if srctype array depth is one greater than desttype
+#     # if we are scattering on dest, no mismatch.
+#     # else mismatch
+#     elif abs(srctype_depth - desttype_depth) == 1:
+#         if srctype_depth - desttype_depth == 1 and destscatter:
+#             return False
+#         return True
+    
+#     # any array depth >= 2 is always mismatch, even in the case of dest scatter. 
+#     elif abs(srctype_depth - desttype_depth) >= 2:
+#         return True
+#     return False
+
+
+
+# public
+def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destscatter: bool) -> str:
     """
     handle a mismatch we have encountered.
     returns an expression we can tack onto channel (during process / subworkflow call) 
     to fix the mismatch. 
     """
     operations: str = ''
-    
-    if secondary_secondary_mismatch(srctype, desttype):
-        operations += generate_secondary_mismatch_pumbing(srctype, desttype)
-    
-    elif secondary_single_mismatch(srctype, desttype):
-        operations += '.map{ tuple -> tuple[0] }'
-    
-    if secondary_array_type(desttype):
-        operations += '.flatten().toList()'
-    
-    elif array_type(srctype) and single_type(desttype):
-        operations += '.flatten().first()'
-    
-    elif single_type(srctype) and array_type(desttype):
-        operations += '.toList()'
-    
-    elif secondary_type(srctype) and array_type(desttype):
-        operations += '.toList()'
-    
-    elif secondary_array_type(srctype) and secondary_type(desttype):
-        size = get_collate_size(srctype)
-        operations += f'.flatten().collate( {size} ).first()'
-    
+    if is_datatype_mismatch(srctype, desttype, destscatter):
+        operations += gen_base_datatype_plumbing(srctype, desttype)  # must be first
+        operations += gen_array_datatype_plumbing(srctype, desttype, destscatter)
     return operations
 
+def gen_base_datatype_plumbing(srctype: DataType, desttype: DataType) -> str:
+    """handle base datatype mismatch transformations"""
+    base_srctype = nfgen_utils.get_base_type(srctype)
+    base_desttype = nfgen_utils.get_base_type(desttype)
+    
+    if secondary_secondary_mismatch(base_srctype, base_desttype):
+        return generate_secondary_mismatch_pumbing(srctype, desttype)
+    
+    elif secondary_single_mismatch(base_srctype, base_desttype):
+        return '.map{ tuple -> tuple[0] }'
+    
+    return ''
 
-# private helpers 
+def gen_array_datatype_plumbing(srctype: DataType, desttype: DataType, destscatter: bool) -> str:
+    """handle array depth mismatch transformations"""
+    srctype_depth = get_array_depth(srctype)
+    desttype_depth = get_array_depth(desttype)
+
+    if secondary_array_type(desttype):
+        return '.flatten().toList()'
+
+    # if srctype array depth is 1 and desttype is 0, we use flatten()
+    if srctype_depth == 1 and desttype_depth == 0:
+        # ([bam, bai]) -> (bam)
+        if secondary_array_type(srctype) and single_type(desttype):
+            return f'.flatten().first()'
+        
+        # ([[bam, bai], [bam, bai]]) -> ([bam, bai], [bam, bai])
+        elif secondary_array_type(srctype) and secondary_type(desttype) and destscatter:
+            size = get_collate_size(desttype)
+            return f'.flatten().collate( {size} )'
+        
+        # ([[bam, bai], [bam, bai]]) -> ([bam, bai])
+        elif secondary_array_type(srctype) and secondary_type(desttype) and not destscatter:
+            size = get_collate_size(desttype)
+            return f'.flatten().collate( {size} ).first()'
+        
+        # ([bam, bam]) -> (bam, bam)
+        elif array_type(srctype) and single_type(desttype) and destscatter:
+            return '.flatten()'
+        
+        # ([bam]) -> (bam)
+        elif array_type(srctype) and single_type(desttype) and not destscatter:
+            return '.flatten().first()'
+    
+    # if srctype array depth is 0 and desttype is 1, we use toList() 
+    elif srctype_depth == 0 and desttype_depth == 1:
+        return '.toList()'
+
+    elif srctype_depth >= 2 or desttype_depth >= 2:
+        raise NotImplementedError('2 or more levels of array nesting')
+
+    return ''
+
+
+
+# private helpers below ----
 def secondary_secondary_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    srctype = nfgen_utils.get_base_type(srctype)
-    desttype = nfgen_utils.get_base_type(desttype)
     if secondary_type(srctype) and secondary_type(desttype):
         if srctype.name() != desttype.name():
             return True
@@ -71,8 +183,6 @@ def secondary_secondary_mismatch(srctype: DataType, desttype: DataType) -> bool:
 
 def secondary_single_mismatch(srctype: DataType, desttype: DataType) -> bool:
     # src is secondary, dest is not
-    srctype = nfgen_utils.get_base_type(srctype)
-    desttype = nfgen_utils.get_base_type(desttype)
     if secondary_type(srctype) and not secondary_type(desttype):
         return True
     # dest is secondary, src is not

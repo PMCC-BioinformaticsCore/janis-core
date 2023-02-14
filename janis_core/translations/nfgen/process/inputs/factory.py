@@ -26,8 +26,6 @@ from .model import (
 
 
 def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[ProcessInput]:
-    if tool.id() == 'Gatk4MarkDuplicates':
-        print()
     process_inputs: list[ProcessInput] = []
     tinput_ids = get_process_inputs(sources)
     tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
