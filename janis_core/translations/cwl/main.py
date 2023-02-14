@@ -28,7 +28,7 @@ import ruamel.yaml
 
 from janis_core.deps import cwlgen
 
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.code.codetool import CodeTool
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators import (

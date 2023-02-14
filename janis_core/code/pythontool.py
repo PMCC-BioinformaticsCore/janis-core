@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from textwrap import dedent, indent
 from typing import Dict, Any, Optional, Type, List
 
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.tool.documentation import InputDocumentation
 from janis_core.types.data_types import NativeTypes
 

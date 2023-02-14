@@ -1,7 +1,7 @@
 
 
 import unittest
-from janis_core.ingestion.fromwdl import WdlParser
+from janis_core.ingestion.wdl import WdlParser
 
 
 class TestFromWdl(unittest.TestCase):

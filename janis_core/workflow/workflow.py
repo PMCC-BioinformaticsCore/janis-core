@@ -27,8 +27,8 @@ from janis_core.tool.documentation import (
     DocumentationMeta,
 )
 from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
-from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.exportpath import ExportPathKeywords
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.types import (
     DataType,
     ParseableType,

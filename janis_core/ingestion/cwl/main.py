@@ -6,7 +6,7 @@ import os
 from ruamel.yaml.comments import CommentedSeq
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, List
 from janis_core.utils.validators import Validators
 import janis_core as j
 

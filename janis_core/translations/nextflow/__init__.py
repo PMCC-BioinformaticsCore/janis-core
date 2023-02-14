@@ -46,6 +46,7 @@ from .plumbing import is_datatype_mismatch
 from .plumbing import gen_datatype_mismatch_plumbing
 from .plumbing import call
 
+from .main import NextflowTranslator
 
 from .scope import Scope
 from .channels import ChannelOperation

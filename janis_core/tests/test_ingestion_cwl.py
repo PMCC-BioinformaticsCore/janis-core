@@ -8,7 +8,7 @@ from janis_core import (
     ReadContents,
 )
 
-from janis_core.ingestion.fromcwl import CWlParser
+from janis_core.ingestion.cwl import CWlParser
 
 
 class TestFromCwlExpressions(unittest.TestCase):

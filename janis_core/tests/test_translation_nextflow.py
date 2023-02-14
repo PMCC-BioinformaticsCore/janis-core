@@ -65,7 +65,7 @@ from janis_core.tests.testworkflows import (
     ProcessInputsTestWF,
     OrderingTestWF,
     PlumbingEdgeCaseTestWF
-)
+) 
 
 from janis_core import (
     Workflow,
@@ -75,9 +75,9 @@ from janis_core import (
 )
 
 from janis_core.translations import NextflowTranslator as translator
-from janis_core.translations import nfgen
-from janis_core.translations.nfgen import plumbing
-from janis_core.translations.nfgen import settings
+from janis_core.translations import nextflow
+from janis_core.translations.nextflow import plumbing
+from janis_core.translations.nextflow import settings
 from janis_core import (
     String, 
     Int, 
@@ -94,7 +94,7 @@ from janis_bioinformatics.data_types.bam import Bam, BamBai
 from janis_bioinformatics.data_types.sam import Sam
 from janis_bioinformatics.data_types.cram import Cram
 
-from janis_core.translations.nfgen.nfgen_utils import to_groovy
+from janis_core.translations.nextflow.nfgen_utils import to_groovy
 
 
 ### helper classes
@@ -120,10 +120,10 @@ class DataTypeNoSecondary(File):
 
 
 def refresh_workflow_inputs(wf: Workflow) -> None:
-    scope = nfgen.Scope()
-    nfgen.params.clear()
-    nfgen.channels.clear()
-    nfgen.register_params_channels(wf, scope)
+    scope = nextflow.Scope()
+    nextflow.params.clear()
+    nextflow.channels.clear()
+    nextflow.register_params_channels(wf, scope)
 
 
 
@@ -238,7 +238,7 @@ class TestParams(unittest.TestCase):
         """
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        params = nfgen.params.getall()
+        params = nextflow.params.getall()
         param_ids = {p.name for p in params}
         expected_ids = {
             'unicycler_start_gene_id', 
@@ -265,7 +265,7 @@ class TestParams(unittest.TestCase):
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
@@ -282,7 +282,7 @@ class TestParams(unittest.TestCase):
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
@@ -305,7 +305,7 @@ class TestParams(unittest.TestCase):
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
@@ -324,7 +324,7 @@ class TestParams(unittest.TestCase):
         # minimal
         settings.MINIMAL_PROCESS = True
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
@@ -337,7 +337,7 @@ class TestParams(unittest.TestCase):
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
             'in_file_array': '[]',
@@ -349,7 +349,7 @@ class TestParams(unittest.TestCase):
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'in_alignments': 'null',
         }
@@ -358,7 +358,7 @@ class TestParams(unittest.TestCase):
     def test_secondaries_array_inputs(self) -> None:
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
-        actual_params = nfgen.params.serialize()
+        actual_params = nextflow.params.serialize()
         expected_params = {
             'in_alignments_arr': '[]',
         }
@@ -542,7 +542,7 @@ class TestChannels(unittest.TestCase):
         # checks the inferred wf inputs (from total wf inputs) are correct
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        channel_ids = {c.name for c in nfgen.channels.getall()}
+        channel_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_forward_reads',
             'ch_in_reverse_reads',
@@ -572,7 +572,7 @@ class TestChannels(unittest.TestCase):
             'ch_fastqc2_contaminants',
             'ch_fastqc2_limits',
         }
-        all_channels = nfgen.channels.getall()
+        all_channels = nextflow.channels.getall()
         optional_channels = [ch for ch in all_channels if ch.name in expected_channel_names]
 
         # check each expected channel exists
@@ -596,14 +596,14 @@ class TestChannels(unittest.TestCase):
         ]
         for inp_id in nonfile_wf_input_ids:
             node = wf.input_nodes[inp_id]
-            self.assertFalse(nfgen.channels.exists(node.uuid))
+            self.assertFalse(nextflow.channels.exists(node.uuid))
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
         refresh_workflow_inputs(wf)
         
         # check expected channels are created
-        channels_ids = {c.name for c in nfgen.channels.getall()}
+        channels_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_file_array',
         }
@@ -611,7 +611,7 @@ class TestChannels(unittest.TestCase):
 
         # check channels can be looked up using janis_uuid
         inp = wf.input_nodes['inFileArray']
-        inp_ch = nfgen.channels.get(inp.uuid)
+        inp_ch = nextflow.channels.get(inp.uuid)
         self.assertIsNotNone(inp_ch)
 
         # check channel definition is correct
@@ -624,7 +624,7 @@ class TestChannels(unittest.TestCase):
         refresh_workflow_inputs(wf)
         
         # check expected channels are created
-        channels_ids = {c.name for c in nfgen.channels.getall()}
+        channels_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_alignments',
         }
@@ -633,7 +633,7 @@ class TestChannels(unittest.TestCase):
 
         # check channels can be looked up using janis_uuid
         inp = wf.input_nodes['inAlignments']
-        inp_ch = nfgen.channels.get(inp.uuid)
+        inp_ch = nextflow.channels.get(inp.uuid)
         self.assertIsNotNone(inp_ch)
 
         # check channel definition is correct
@@ -646,7 +646,7 @@ class TestChannels(unittest.TestCase):
         refresh_workflow_inputs(wf)
 
         # check expected channels are created
-        channels_ids = {c.name for c in nfgen.channels.getall()}
+        channels_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_alignments_arr',
         }
@@ -655,7 +655,7 @@ class TestChannels(unittest.TestCase):
 
         # check channels can be looked up using janis_uuid
         inp = wf.input_nodes['inAlignmentsArr']
-        inp_ch = nfgen.channels.get(inp.uuid)
+        inp_ch = nextflow.channels.get(inp.uuid)
         self.assertIsNotNone(inp_ch)
 
         # check channel definition is correct
@@ -666,7 +666,7 @@ class TestChannels(unittest.TestCase):
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
         refresh_workflow_inputs(wf)
-        channels_ids = {c.name for c in nfgen.channels.getall()}
+        channels_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_file',
             'ch_in_file_opt',
@@ -677,7 +677,7 @@ class TestChannels(unittest.TestCase):
     def test_subworkflow_passed_null_param(self) -> None:
         wf = SubworkflowTestWF()
         refresh_workflow_inputs(wf)
-        channel_declarations = nfgen.channels.channels.channel_register.get_string()
+        channel_declarations = nextflow.channels.channels.channel_register.get_string()
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = [x for x in channel_declarations if x != '']
         expected_declarations = [
@@ -718,11 +718,11 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         wf = DirectivesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         process = translator.handle_container(step.tool, process)
-        directives = nfgen.ordering.order_nf_directives(process.directives)
+        directives = nextflow.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
         expected_order = [
             'DebugDirective',
@@ -740,9 +740,9 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         wf = DirectivesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         process = translator.handle_container(step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
@@ -783,9 +783,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
         # filepair
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path reads'
         }
@@ -794,9 +794,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         
         # filepair array
         step = wf.step_nodes["stp3"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path reads'
         }
@@ -807,9 +807,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = ProcessInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             'path fastq_inp1, stageAs: \'fastq_inp1.fastq\'',
             'path fastq_inp2, stageAs: \'fastq_inp2.fastq\'',
@@ -824,9 +824,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["unicycler"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {
             "path option2, stageAs: 'option2'",
             "path option1, stageAs: 'option1'",
@@ -840,9 +840,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["CatTestTool"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = {"path inp, stageAs: 'inp'"}
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -853,9 +853,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["unicycler"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.name for inp in process.inputs}
         non_expected_ids = {
             'kmers',
@@ -872,9 +872,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["unicycler"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_ids = {
             'option1',
             'option2',
@@ -891,9 +891,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = ArrayStepInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path pos_basic',
@@ -905,9 +905,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {'tuple path(bam), path(bai)'}
         self.assertEqual(actual_inputs, expected_inputs)   
@@ -916,9 +916,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp4"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path indexed_bam_array_flat',
@@ -930,9 +930,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp4"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path bams',
@@ -945,9 +945,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         refresh_workflow_inputs(wf)
 
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             "path inp1, stageAs: 'inp1'",
@@ -956,9 +956,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         self.assertEqual(actual_inputs, expected_inputs)
 
         step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             "path inp1, stageAs: 'inp1'",
@@ -996,18 +996,18 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = BasicIOTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'stdout, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)  
 
     def test_wildcard(self) -> None:
         step = self.wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "myfile.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1016,9 +1016,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = WildcardSelectorOutputTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "*.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1027,18 +1027,18 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = InputSelectorTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_input_selector_param(self) -> None:
         step = self.wf.step_nodes["stp4"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path params.stp4_output_filename, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1047,9 +1047,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = InputSelectorTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp3']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1060,9 +1060,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
         # inp1 is in step.sources
         step = wf.step_nodes['stp4']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
@@ -1074,9 +1074,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
         # inp1, inp1_1, inp4, inp5, inp6 are in step.sources
         step = wf.step_nodes['stp5']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
@@ -1090,9 +1090,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
         step = self.wf.step_nodes['stp6']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "[${inp.simpleName + "-R1.fastq"}, ${inp.simpleName + "-R2.fastq"}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1101,9 +1101,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp1']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bam.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1112,9 +1112,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp3']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1123,9 +1123,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp5']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
@@ -1137,9 +1137,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp6']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
@@ -1157,18 +1157,18 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # two_value operator etc. uses ${} syntax around whole phrase.
         # strings inside are quoted. 
         step = self.wf.step_nodes['stp5']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName + ".gz"}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_edge_markduplicates_metrics(self) -> None:
         step = self.wf.step_nodes['stp8']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
@@ -1201,9 +1201,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
         # inputs referencing undefined inputs
         step = wf.step_nodes["stp8"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -1216,9 +1216,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         
         # arguments referencing undefined inputs
         step = wf.step_nodes["stp9"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -1232,9 +1232,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         
         # outputs referencing undefined inputs
         step = wf.step_nodes["stp10"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -1248,9 +1248,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = StepInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes['stp1']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_prescript = process.pre_script
         expected_lines = {
             'def pos_default = params.in_int ? params.in_int : 95',
@@ -1267,9 +1267,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = StepInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -1289,9 +1289,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = ArrayStepInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_prescript = set(process.pre_script.split('\n'))
         expected_prescript = set([
             "def pos_basic = pos_basic.join(' ')",
@@ -1317,9 +1317,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = ArrayStepInputsTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -1340,9 +1340,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         # pre-script
         actual_pre_script = process.pre_script
@@ -1367,9 +1367,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = SecondariesTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp4"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         
         # pre-script
         actual_pre_script = process.pre_script
@@ -1397,9 +1397,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = FilenameTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp3"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         print(process.get_string())
         expected = """\
 process STP3 {
@@ -1432,9 +1432,9 @@ process STP3 {
         refresh_workflow_inputs(wf)
 
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'echo',
@@ -1446,9 +1446,9 @@ process STP3 {
             self.assertIn(ln, actual_script)
 
         step = wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'echo',
@@ -1480,9 +1480,9 @@ class TestPythontoolProcessInputs(unittest.TestCase):
     def test_input_generation(self) -> None:
         # File, String, Int input types
         step = self.wf.step_nodes["stp0"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -1492,9 +1492,9 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         
         # Array(String) input type
         step = self.wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -1503,9 +1503,9 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         
         # File (secondaries) input type
         step = self.wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -1526,27 +1526,27 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
     def test_output_generation(self) -> None:
         # file output
         step = self.wf.step_nodes['stp0']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
         # String output
         step = self.wf.step_nodes['stp1']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
         # Array(String) output
         step = self.wf.step_nodes['stp2']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'val "${file("${task.workDir}/out_out").text.replace(\'[\', \'\').replace(\']\', \'\')}", emit: out'
@@ -1565,9 +1565,9 @@ class TestPythontoolProcess(unittest.TestCase):
 
     def test_format(self) -> None:
         step = self.wf.step_nodes["stp0"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_lines = process.get_string().split('\n')
         actual_lines = [x.strip() for x in actual_lines]
         actual_lines = [x for x in actual_lines if x != '\n' and x != '']
@@ -1610,9 +1610,9 @@ class TestPythontoolProcessScript(unittest.TestCase):
     def test_input_references(self) -> None:
         # File, String, Int input types
         step = self.wf.step_nodes["stp0"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
@@ -1623,9 +1623,9 @@ class TestPythontoolProcessScript(unittest.TestCase):
 
         # Array(String) input type
         step = self.wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp="${params.in_str_arr}".split(" "))',
@@ -1636,9 +1636,9 @@ class TestPythontoolProcessScript(unittest.TestCase):
 
         # File (secondaries) input type
         step = self.wf.step_nodes["stp2"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp="${bam}")',
@@ -1758,70 +1758,70 @@ class TestPlumbingModule(unittest.TestCase):
     """tests the public functions in nfgen.plumbing."""
 
     def test_get_array_depth(self):
-        self.assertEqual(nfgen.plumbing.get_array_depth(String()), 0)
-        self.assertEqual(nfgen.plumbing.get_array_depth(BamBai()), 0)
-        self.assertEqual(nfgen.plumbing.get_array_depth(FastqGzPair()), 0)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(String())), 1)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(BamBai())), 1)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(FastqGzPair())), 1)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(String()))), 2)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(BamBai()))), 2)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(FastqGzPair()))), 2)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(String())))), 3)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(BamBai())))), 3)
-        self.assertEqual(nfgen.plumbing.get_array_depth(Array(Array(Array(FastqGzPair())))), 3)
+        self.assertEqual(nextflow.plumbing.get_array_depth(String()), 0)
+        self.assertEqual(nextflow.plumbing.get_array_depth(BamBai()), 0)
+        self.assertEqual(nextflow.plumbing.get_array_depth(FastqGzPair()), 0)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(String())), 1)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(BamBai())), 1)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(FastqGzPair())), 1)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(String()))), 2)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(BamBai()))), 2)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(FastqGzPair()))), 2)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(Array(String())))), 3)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(Array(BamBai())))), 3)
+        self.assertEqual(nextflow.plumbing.get_array_depth(Array(Array(Array(FastqGzPair())))), 3)
     
     def test_is_array_depth_mismatch(self):
         # no mismatch
-        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(String(), String(), False))
-        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(Array(String()), Array(String()), False))
-        self.assertFalse(nfgen.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(Array(String())), False))
+        self.assertFalse(nextflow.plumbing.is_array_depth_mismatch(String(), String(), False))
+        self.assertFalse(nextflow.plumbing.is_array_depth_mismatch(Array(String()), Array(String()), False))
+        self.assertFalse(nextflow.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(Array(String())), False))
         # mismatch
-        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(String(), Array(String()), False))
-        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(Array(String()), String(), False))
-        self.assertTrue(nfgen.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(String()), False))
+        self.assertTrue(nextflow.plumbing.is_array_depth_mismatch(String(), Array(String()), False))
+        self.assertTrue(nextflow.plumbing.is_array_depth_mismatch(Array(String()), String(), False))
+        self.assertTrue(nextflow.plumbing.is_array_depth_mismatch(Array(Array(String())), Array(String()), False))
 
     # identifying common types ---
     def test_get_common_type_1(self):
         # non-union types, has intersection
         srctype = Bam()
         desttype = Bam()
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Bam)
         
     def test_get_common_type_2(self):
         # non-union types, no intersection
         srctype = Fasta()
         desttype = Bam()
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
         
     def test_get_common_type_3(self):
         # single union type, has intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = Bam()
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Bam)
         
     def test_get_common_type_4(self):
         # single union type, no intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = Fasta()
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
         
     def test_get_common_type_5(self):
         # both union types, has intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = UnionType(Sam, Cram)
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertEqual(type(common_type), Sam)
         
     def test_get_common_type_6(self):
         # both union types, no intersection
         srctype = UnionType(Bam, Sam, Cram)
         desttype = UnionType(Fasta, Fastq)
-        common_type = nfgen.plumbing.get_common_type(srctype, desttype)
+        common_type = nextflow.plumbing.get_common_type(srctype, desttype)
         self.assertIsNone(common_type)
     
 
@@ -1830,23 +1830,23 @@ class TestPlumbingModule(unittest.TestCase):
     def test_is_datatype_mismatch_arrays(self):
         """tests nfgen.plumibng.is_datatype_mismatch(srctype, desttype, srcscatter, destscatter)"""
         # secondary array (always considered mismatch)
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), Array(BamBai()), False))
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(Array(BamBai()), Array(BamBai()), False))
 
         # array depth - single single 
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), Array(Bam()), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(Bam(), Array(Bam()), False)) # mismatch
         
         # array depth - secondary secondary
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(BamBai(), BamBai(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Array(BamBai()), BamBai(), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(BamBai(), BamBai(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(Array(BamBai()), BamBai(), False)) # mismatch
         
         # array depth - secondary single 
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(BamBai(), Bam(), False)) # mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastaDict(), Bam(), False)) # mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(BamBai(), Bam(), False)) # mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(FastaDict(), Bam(), False)) # mismatch
         
         # array depth - file pairs
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), Array(FastqGzPair()), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(FastqGzPair(), Array(FastqGzPair()), False)) # mismatch
         
     # def test_is_datatype_mismatch_scatter(self):
     #     # scatter - single single 
@@ -1867,37 +1867,37 @@ class TestPlumbingModule(unittest.TestCase):
         
     def test_is_datatype_mismatch_basetype(self):
         # single single
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), Fasta(), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(Bam(), Fasta(), False)) # mismatch
         
         # secondary secondary
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastaDict(), FastaDict(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastaDict(), BamBai(), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(FastaDict(), FastaDict(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(FastaDict(), BamBai(), False)) # mismatch
         
         # secondary single
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(Bam(), BamBai(), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(Bam(), Bam(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(Bam(), BamBai(), False)) # mismatch
         
         # file pairs
-        self.assertFalse(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
-        self.assertTrue(nfgen.plumbing.is_datatype_mismatch(FastqGzPair(), BamBai(), False)) # mismatch
+        self.assertFalse(nextflow.plumbing.is_datatype_mismatch(FastqGzPair(), FastqGzPair(), False)) # no mismatch
+        self.assertTrue(nextflow.plumbing.is_datatype_mismatch(FastqGzPair(), BamBai(), False)) # mismatch
 
     def test_generate_datatype_mismatch_plumbing(self):
         # plumbing not required ---
         srctype, desttype, destscatter = Bam(), Bam(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '')
         
         srctype, desttype, destscatter = FastaWithIndexes(), FastaWithIndexes(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '')
         
         srctype, desttype, destscatter = FastqGzPair(), FastqGzPair(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '')
 
         srctype, desttype, destscatter = Array(Bam()), Array(Bam()), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '')
         
         # plumbing required ---
@@ -1905,62 +1905,62 @@ class TestPlumbingModule(unittest.TestCase):
         # BASETYPES
         # secondary, secondary
         srctype, desttype, destscatter = FastaWithIndexes(), FastaDict(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.map{ tuple -> [tuple[0], tuple[4]] }')
         
         # secondary, single
         srctype, desttype, destscatter = FastaWithIndexes(), Fasta(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.map{ tuple -> tuple[0] }')
 
         # ARRAYS      
         # single, single  
         srctype, desttype, destscatter = Array(Bam()), Bam(), True
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten()')
         
         srctype, desttype, destscatter = Array(Fasta()), Fasta(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().first()')
         
         srctype, desttype, destscatter = Fasta(), Array(Fasta()), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.toList()')
 
         # any, secondary (always ends with .flatten().toList())
         srctype, desttype, destscatter = FastaWithIndexes(), Array(FastaWithIndexes()), True
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().toList()')
         
         srctype, desttype, destscatter = Array(FastaWithIndexes()), Array(FastaWithIndexes()), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().toList()')
         
         srctype, desttype, destscatter = Array(FastaWithIndexes()), Array(FastaWithIndexes()), True
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().toList()')
 
         # secondary, secondary 
         srctype, desttype, destscatter = Array(FastaWithIndexes()), FastaWithIndexes(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().collate( 8 ).first()')
 
         srctype, desttype, destscatter = FastaWithIndexes(), Array(FastaDict()), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()')
         
         # secondary, single 
         srctype, desttype, destscatter = Array(FastaWithIndexes()), Fasta(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.map{ tuple -> tuple[0] }.flatten().first()')
 
         # file pairs
         srctype, desttype, destscatter = Array(FastqGzPair()), FastqGzPair(), True
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().collate( 2 )')
         
         srctype, desttype, destscatter = Array(FastqGzPair()), FastqGzPair(), False
-        plumbing = nfgen.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
+        plumbing = nextflow.plumbing.gen_datatype_mismatch_plumbing(srctype, desttype, destscatter)
         self.assertEqual(plumbing, '.flatten().collate( 2 ).first()')
 
         
@@ -1981,9 +1981,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_secondary_single_mismatch(self):
         step_id = 'bambai_to_bam'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_bam_bai.map{ tuple -> tuple[0] }'
         ]
@@ -1992,9 +1992,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_secondary_single_array_mismatch(self):
         step_id = 'bambai_to_bam_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_bam_bai.map{ tuple -> tuple[0] }.toList()'
         ]
@@ -2003,9 +2003,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_secondary_secondary_mismatch(self):
         step_id = 'fastawithindexes_to_fastadict'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }'
         ]
@@ -2014,9 +2014,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_secondary_secondary_array_mismatch(self):
         step_id = 'fastawithindexes_to_fastadict_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()'
         ]
@@ -2025,9 +2025,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_array_to_single(self):
         step_id = 'array_to_single'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_file_array.flatten().first()'
         ]
@@ -2036,9 +2036,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_single_to_array(self):
         step_id = 'single_to_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_file.toList()'
         ]
@@ -2047,9 +2047,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_secondary_array_to_secondary(self):
         step_id = 'secondary_array_to_secondary'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().collate( 2 ).first()'
         ]
@@ -2058,9 +2058,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def test_to_secondary_array(self):
         step_id = 'secondary_array_to_secondary_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().toList()'
         ]
@@ -2085,9 +2085,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_scatter_to_scatter(self):
         step_id = 'scatter_to_scatter'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'PRESTEP1.out.out'
         ]
@@ -2096,9 +2096,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_scatter_to_array(self):
         step_id = 'scatter_to_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'PRESTEP1.out.out.toList()'
         ]
@@ -2107,9 +2107,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_array_to_scatter1(self):
         step_id = 'prestep1'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_file_array.flatten()'
         ]
@@ -2118,9 +2118,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_array_to_scatter2(self):
         step_id = 'array_to_scatter'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'PRESTEP2.out.out.flatten()'
         ]
@@ -2129,9 +2129,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_scatter_secondary_to_scatter_secondary(self):
         step_id = 'scatter_secondary_to_scatter_secondary'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'PRESTEP3.out.out'
         ]
@@ -2140,9 +2140,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_scatter_secondary_to_secondary_array(self):
         step_id = 'scatter_secondary_to_secondary_array'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'PRESTEP3.out.out.flatten().toList()'
         ]
@@ -2151,9 +2151,9 @@ class TestPlumbingScatter(unittest.TestCase):
     def test_secondary_array_to_scatter_secondary(self):
         step_id = 'secondary_array_to_scatter_secondary'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().collate( 2 )'
         ]
@@ -2166,12 +2166,12 @@ class TestPlumbingScatter(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
 
         # cartesian cross channel manipulation in workflow
-        operation = nfgen.channels.gen_scatter_cross_operation(step.sources, step.scatter)
+        operation = nextflow.channels.gen_scatter_cross_operation(step.sources, step.scatter)
         actual_op = operation.get_string()
         expected_op = """\
 ch_in_file_array.flatten()
@@ -2211,9 +2211,9 @@ class TestPlumbingBasic(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_file_opt",
@@ -2226,7 +2226,7 @@ class TestPlumbingBasic(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
         not_expected = {
             'pos_default',
@@ -2238,7 +2238,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -2248,10 +2248,10 @@ class TestPlumbingBasic(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
         expected = ["STP1.out.out"]
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         self.assertEqual(expected, actual)
 
     def test_filename_types(self) -> None:
@@ -2259,9 +2259,9 @@ class TestPlumbingBasic(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_str",
@@ -2270,9 +2270,9 @@ class TestPlumbingBasic(unittest.TestCase):
         
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_file",
         ]
@@ -2302,9 +2302,9 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP1.out.out"
         ]
@@ -2315,9 +2315,9 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_file_array",
             "ch_in_file_array_opt",
@@ -2329,9 +2329,9 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         not_expected = {
             'pos_default',
             'pos_default',
@@ -2523,9 +2523,9 @@ class TestPlumbingEdgeCases(unittest.TestCase):
     def test_pythontool_array_string_output(self) -> None:
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP1.out.out.filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
         ]
@@ -2820,9 +2820,9 @@ class TestStepFeatures(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'print'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "[params.mystring, GET_STRING.out.out].find{ it != null }"
         ]
@@ -2833,9 +2833,9 @@ class TestStepFeatures(unittest.TestCase):
         refresh_workflow_inputs(wf)
         step_id = 'print'
         step = wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "params.mystring ? params.mystring : params.mystring_backup"
         ]
@@ -2851,9 +2851,9 @@ class TestUnwrap(unittest.TestCase):
         wf = UnwrapTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        self.prescript, self.script = nfgen.process.gen_script_for_cmdtool(
+        self.prescript, self.script = nextflow.process.gen_script_for_cmdtool(
             tool=step.tool,
             sources=step.sources,
             scope=scope,
@@ -2900,14 +2900,14 @@ class TestUnwrap(unittest.TestCase):
     def test_input_node_channel(self) -> None:
         # file input (channel)
         node = self.wf.input_nodes['inFile']
-        actual = nfgen.unwrap_expression(node)
+        actual = nextflow.unwrap_expression(node)
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
 
     def test_input_node_param(self) -> None:
         # nonfile input (param)
         node = self.wf.input_nodes['inStr']
-        actual = nfgen.unwrap_expression(node)
+        actual = nextflow.unwrap_expression(node)
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
 
@@ -2918,7 +2918,7 @@ class TestUnwrap(unittest.TestCase):
         inp_id = 'inp'
         sources = self.wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nfgen.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src)
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
@@ -2929,7 +2929,7 @@ class TestUnwrap(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nfgen.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src)
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
@@ -2940,7 +2940,7 @@ class TestUnwrap(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nfgen.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src)
         expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
     
@@ -2951,7 +2951,7 @@ class TestUnwrap(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nfgen.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src)
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
@@ -2965,13 +2965,13 @@ class TestStringFormatter(unittest.TestCase):
     def test_string_formatter(self):
         tool = BasicTestTool()
         sf = StringFormatter("no format")
-        res = nfgen.unwrap_expression(sf, tool)
+        res = nextflow.unwrap_expression(sf, tool)
         self.assertEqual("no format", res)
 
     def test_string_formatter_string(self):
         tool = BasicTestTool()
         sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
-        res = nfgen.unwrap_expression(sf, tool)
+        res = nextflow.unwrap_expression(sf, tool)
         self.assertEqual("there's a string arg", res)
     
     def test_string_formatter_inputselector_process_input(self):
@@ -2980,7 +2980,7 @@ class TestStringFormatter(unittest.TestCase):
         process_inputs = {'testtool'}
         param_inputs = {}
         internal_inputs = {}
-        actual = nfgen.unwrap_expression(
+        actual = nextflow.unwrap_expression(
             val=sf, 
             tool=tool,
             process_inputs=process_inputs,
@@ -2995,13 +2995,13 @@ class TestStringFormatter(unittest.TestCase):
         wf = StringFormatterTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
         process_inputs: set[str] = set()
         param_inputs: set[str] = set(['javaOptions', 'compressionLevel'])
         internal_inputs: set[str] = set()
         sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
-        actual = nfgen.unwrap_expression(
+        actual = nextflow.unwrap_expression(
             val=sf, 
             tool=step.tool,
             sources=step.sources,
@@ -3024,7 +3024,7 @@ class TestStringFormatter(unittest.TestCase):
         process_inputs = {'user', 'static'}
         param_inputs = {}
         internal_inputs = {}
-        actual = nfgen.unwrap_expression(
+        actual = nextflow.unwrap_expression(
             val=sf,
             tool=tool,
             sources=sources,
@@ -3047,7 +3047,7 @@ class TestStringFormatter(unittest.TestCase):
         process_inputs = {'user', 'static'}
         param_inputs = {}
         internal_inputs = {}
-        actual_scripting = nfgen.unwrap_expression(
+        actual_scripting = nextflow.unwrap_expression(
             val=sf,
             tool=tool,
             sources=sources,
@@ -3056,7 +3056,7 @@ class TestStringFormatter(unittest.TestCase):
             internal_inputs=internal_inputs,
             in_shell_script=False
         )
-        actual_shell = nfgen.unwrap_expression(
+        actual_shell = nextflow.unwrap_expression(
             val=sf,
             tool=tool,
             sources=sources,
@@ -3079,7 +3079,7 @@ class TestStringFormatter(unittest.TestCase):
         process_inputs = {'testtool', 'arrayInp'}
         param_inputs = {}
         internal_inputs = {}
-        actual = nfgen.unwrap_expression(
+        actual = nextflow.unwrap_expression(
             val=sf,
             tool=tool,
             sources=sources,
@@ -3097,14 +3097,14 @@ class TestStringFormatter(unittest.TestCase):
         step_id = "stp1"
         step = wf.step_nodes[step_id]
         arg = step.tool.arguments()[0]
-        actual = nfgen.unwrap_expression(
+        actual = nextflow.unwrap_expression(
             val=arg.value,
             tool=step.tool,
             in_shell_script=True,
             sources=step.sources,
-            process_inputs=nfgen.process.inputs.get_process_inputs(step.sources),
-            param_inputs=nfgen.process.inputs.get_param_inputs(step.sources),
-            internal_inputs=nfgen.process.inputs.get_internal_inputs(step.tool, step.sources),
+            process_inputs=nextflow.process.inputs.get_process_inputs(step.sources),
+            param_inputs=nextflow.process.inputs.get_param_inputs(step.sources),
+            internal_inputs=nextflow.process.inputs.get_internal_inputs(step.tool, step.sources),
         )
         expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
@@ -3123,9 +3123,9 @@ class TestOrdering(unittest.TestCase):
         # from workflow inputs
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3136,9 +3136,9 @@ class TestOrdering(unittest.TestCase):
         # from process outputs
         step_id = 'stp3'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3152,9 +3152,9 @@ class TestOrdering(unittest.TestCase):
         # from subworkflow outputs
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3169,9 +3169,9 @@ class TestOrdering(unittest.TestCase):
         # from workflow inputs
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3185,9 +3185,9 @@ class TestOrdering(unittest.TestCase):
         # from process outputs
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3201,9 +3201,9 @@ class TestOrdering(unittest.TestCase):
         # from subworkflow outputs
         step_id = 'stp6'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual = nfgen.call.get_args(step, scope)
+        actual = nextflow.call.get_args(step, scope)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3217,9 +3217,9 @@ class TestOrdering(unittest.TestCase):
     def test_process_inputs(self) -> None:
         # from workflow inputs
         step = self.wf.step_nodes["stp1"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -3231,9 +3231,9 @@ class TestOrdering(unittest.TestCase):
 
         # from process outputs
         step = self.wf.step_nodes["stp3"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -3247,9 +3247,9 @@ class TestOrdering(unittest.TestCase):
 
         # from subworkflow outputs
         step = self.wf.step_nodes["stp5"]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -3266,9 +3266,9 @@ class TestOrdering(unittest.TestCase):
         # from workflow inputs
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nfgen.workflow.gen_workflow(
+        nf_workflow = nextflow.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
@@ -3289,9 +3289,9 @@ class TestOrdering(unittest.TestCase):
         # from process outputs
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nfgen.workflow.gen_workflow(
+        nf_workflow = nextflow.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
@@ -3312,9 +3312,9 @@ class TestOrdering(unittest.TestCase):
         # from subworkflow outputs
         step_id = 'stp6'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nfgen.workflow.gen_workflow(
+        nf_workflow = nextflow.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
@@ -3395,14 +3395,14 @@ class TestSubWorkflows(unittest.TestCase):
         # call args are correct & in order
         step_id = 'apples_subworkflow'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual_arg_order = nfgen.call.get_args(step, scope)
+        actual_arg_order = nextflow.call.get_args(step, scope)
         expected_arg_order = ['params.in_int', 'params.in_str', 'ch_in_str_opt']
         self.assertEquals(actual_arg_order, expected_arg_order)
 
         # subworkflow inputs are correct & in order
-        nf_workflow = nfgen.workflow.gen_workflow(
+        nf_workflow = nextflow.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
             sources=step.sources,
@@ -3421,7 +3421,7 @@ class TestSubWorkflows(unittest.TestCase):
 
         # focusing in on specific subworkflow
         step = wf.step_nodes['apples_subworkflow']
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
         subwf_file = translator.file_register.get(scope)
 
@@ -3465,16 +3465,16 @@ class TestNaming(unittest.TestCase):
         refresh_workflow_inputs(self.wf)
 
     def test_workflow(self) -> None:
-        name = nfgen.naming.gen_varname_workflow(self.wf.id())
+        name = nextflow.naming.gen_varname_workflow(self.wf.id())
         self.assertEqual(name, 'NAMING_TEST_WF')
     
     def test_process(self) -> None:
         step = self.wf.step_nodes['stp1']
-        name = nfgen.naming.gen_varname_process(step.id())
+        name = nextflow.naming.gen_varname_process(step.id())
         self.assertEqual(name, 'STP1')
 
     def test_channels(self) -> None:
-        channels = nfgen.channels.getall()
+        channels = nextflow.channels.getall()
         channel_names = {ch.name for ch in channels}
         expected_names = {
             'ch_process_input',
@@ -3485,7 +3485,7 @@ class TestNaming(unittest.TestCase):
         self.assertEqual(channel_names, expected_names)
     
     def test_params(self) -> None:
-        params = nfgen.params.getall()
+        params = nextflow.params.getall()
         param_names = {p.name for p in params}
         expected_names = {
             'outdir',
@@ -3500,7 +3500,7 @@ class TestNaming(unittest.TestCase):
     
     def test_process_inputs(self) -> None:
         step = self.wf.step_nodes['stp1']
-        process_inputs = nfgen.process.inputs.create_nextflow_process_inputs(step.tool, step.sources)
+        process_inputs = nextflow.process.inputs.create_nextflow_process_inputs(step.tool, step.sources)
         actual_input_names = [x.name for x in process_inputs]
         expected_input_names = [
             'secondary',
@@ -3517,9 +3517,9 @@ class TestNaming(unittest.TestCase):
         # TODO does not include secondaries array outputs 
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        process = nextflow.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
         
         # process output names correct?
         actual_output_names = [x.name for x in process.outputs]
@@ -3539,9 +3539,9 @@ class TestNaming(unittest.TestCase):
         # singles & arrays
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        process = nfgen.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        process = nextflow.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
         
         # pre-script
         assert(process.pre_script)
@@ -3589,9 +3589,9 @@ class TestNaming(unittest.TestCase):
         # ensure name references are correct between steps
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
-        scope = nfgen.Scope()
+        scope = nextflow.Scope()
         scope.update(step)
-        actual_inputs = set(nfgen.call.get_args(step, scope))
+        actual_inputs = set(nextflow.call.get_args(step, scope))
         expected_inputs = set([
             'STP1.out.outProcessInput',
             'STP1.out.outProcessInputArray',

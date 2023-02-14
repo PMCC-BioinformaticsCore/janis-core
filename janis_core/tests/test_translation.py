@@ -2,10 +2,7 @@ import unittest
 from os import getcwd
 import os.path
 
-from janis_core import String
-from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translations.translationbase import TranslatorBase
-
+from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 class TestExportPath(unittest.TestCase):
     """

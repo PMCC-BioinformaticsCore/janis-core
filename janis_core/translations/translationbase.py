@@ -8,7 +8,7 @@ from path import Path
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
 from janis_core.tool.tool import ToolType
-from janis_core.translationdeps.exportpath import ExportPathKeywords
+from janis_core.translation_deps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
 from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger

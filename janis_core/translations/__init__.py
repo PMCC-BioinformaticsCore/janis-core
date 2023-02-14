@@ -1,14 +1,19 @@
+
+
+
+# TODO
+# see janis_core.ingestion.__init__.py for a proper way to do a public interface
+
 from typing import Dict, Union
 
 from janis_core.utils import lowercase_dictkeys
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.exportpath import ExportPathKeywords
 
-from janis_core.translationdeps.exportpath import ExportPathKeywords
 from .wdl import WdlTranslator
 from .cwl import CwlTranslator
 from .nextflow import NextflowTranslator
 from .translationbase import TranslatorBase
-
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
 
 
 def get_translator(translation: Union[str, SupportedTranslation]):

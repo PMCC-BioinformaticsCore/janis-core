@@ -1,3 +1,5 @@
+
+
 import re
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Union, Callable, Set, Tuple
@@ -14,7 +16,7 @@ from janis_core.types import ParseableType, get_instantiated_type, Stdout, Stder
 
 from janis_core.types.common_data_types import String, Filename
 from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.utils.logger import Logger
 from janis_core.operators import Selector, Operator
 from janis_core.utils.metadata import ToolMetadata

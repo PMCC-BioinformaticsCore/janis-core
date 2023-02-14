@@ -42,7 +42,7 @@ from janis_core.operators import (
 )
 from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput, TInput
 from janis_core.tool.tool import Tool, ToolType
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.translations.translationbase import (
     TranslatorBase,
     TranslatorMeta,
@@ -76,7 +76,7 @@ from janis_core.utils.secondary import (
 from janis_core.utils.validators import Validators
 from janis_core.workflow.workflow import StepNode
 
-from .wdl_ordering import get_tool_input_positions
+from .ordering import get_tool_input_positions
 
 ## PRIMARY TRANSLATION METHODS
 

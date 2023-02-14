@@ -1,29 +1,38 @@
 from copy import deepcopy
 import os
-import re
-import posixpath
 from collections import defaultdict
-from typing import Protocol
+from typing import Tuple, Dict, Optional, Any, Protocol
 
-from typing import Tuple, Dict, List, Optional, Any
-from janis_core.translations.nfgen import format_process_call
-
-from janis_core.utils.scatter import ScatterDescription, ScatterMethod
-
+from janis_core.utils.scatter import ScatterDescription
 from janis_core.tool.commandtool import (
     CommandTool,
-    ToolInput,
     Tool,
-    TInput,
 )
+
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
-from janis_core.translations.translationbase import TranslatorBase
 from janis_core.workflow.workflow import Workflow, WorkflowBase
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
-from janis_core.translations import nfgen
-from janis_core.translations.nfgen import settings
-from janis_core.translations.nfgen import Scope
+from janis_core.translations.translationbase import TranslatorBase
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
+
+from .common import NFFile, Import, ImportItem
+from .workflow.model import Workflow
+
+from .process.directives import ContainerDirective
+from .process import Process
+
+from . import settings
+from . import channels
+from . import params
+from . import workflow
+from . import process
+from . import naming
+from . import config
+
+from .scope import Scope
+from .unwrap import unwrap_expression
+from .register import register_params_channels
+
 
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
@@ -60,19 +69,19 @@ class NFFileRegister:
     Each entity (ie workflow, subworkflow, tool) only will have 1 file.
     """
     def __init__(self):
-        self.files: dict[str, nfgen.NFFile] = {}
+        self.files: dict[str, NFFile] = {}
 
-    def add(self, scope: Scope, nf_file: nfgen.NFFile) -> None:
+    def add(self, scope: Scope, nf_file: NFFile) -> None:
         label = scope.to_string()
         self.files[label] = nf_file
     
-    def get(self, scope: Scope) -> nfgen.NFFile:
+    def get(self, scope: Scope) -> NFFile:
         label = scope.to_string()
         return self.files[label]
 
-    def get_children(self, scope: Scope, direct_only: bool=True) -> list[nfgen.NFFile]:
+    def get_children(self, scope: Scope, direct_only: bool=True) -> list[NFFile]:
         # items with current scope
-        child_files: list[nfgen.NFFile] = []
+        child_files: list[NFFile] = []
         
         # items with child scope
         depth = len(scope.items)
@@ -144,12 +153,12 @@ class NextflowTranslator(TranslatorBase):
         settings.RENDER_COMMENTS = render_comments
 
         # blank scope - main wf has not parent
-        scope = nfgen.Scope()
+        scope = Scope()
 
         # register params and channels for workflow inputs
-        nfgen.params.clear()
-        nfgen.channels.clear()
-        nfgen.register_params_channels(jworkflow, scope)
+        params.clear()
+        channels.clear()
+        register_params_channels(jworkflow, scope)
 
         # main logic
         cls.update_files('', scope, jworkflow, sources={})
@@ -179,7 +188,7 @@ class NextflowTranslator(TranslatorBase):
         2. write any nextflow items that are processes or workflows to file.
         3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
         """
-        subtype: str = nfgen.naming.get_construct_name(tool, scope)
+        subtype: str = naming.get_construct_name(tool, scope)
 
         # groovy code for plumbing
         # TODO: reimplement
@@ -190,16 +199,16 @@ class NextflowTranslator(TranslatorBase):
         # command tool
         if isinstance(tool, CommandTool):
             # groovy functions used in process
-            functions_item = nfgen.process.gen_functions_for_process(tool)
+            functions_item = process.gen_functions_for_process(tool)
             if functions_item:
                 cls.item_register.add(scope, functions_item)
 
             # process
-            process_item = nfgen.process.gen_process_from_cmdtool(tool, sources, scope)
+            process_item = process.gen_process_from_cmdtool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
             cls.item_register.add(scope, process_item)
             # file
-            process_file = nfgen.NFFile(
+            process_file = NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=[], 
@@ -215,11 +224,11 @@ class NextflowTranslator(TranslatorBase):
             #     cls.item_register.add(scope, functions_item)
             
             # process
-            process_item = nfgen.process.gen_process_from_codetool(tool, sources, scope)
+            process_item = process.gen_process_from_codetool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
             cls.item_register.add(scope, process_item)
             # file
-            process_file = nfgen.NFFile(
+            process_file = NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=[], 
@@ -245,12 +254,12 @@ class NextflowTranslator(TranslatorBase):
 
             # item: channels item (if main workflow object)
             if scope.labels == [settings.NF_MAIN_NAME]:
-                channels_item = nfgen.channels.channels.channel_register # bad naming
+                channels_item = channels.channels.channel_register # bad naming
                 if len(channels_item.ordered_channels) > 0:
                     cls.item_register.add(scope, channels_item)
 
             # item: workflow body
-            workflow_item = nfgen.workflow.gen_workflow(
+            workflow_item = workflow.gen_workflow(
                 name=identifier,
                 scope=scope,
                 sources=sources,
@@ -260,7 +269,7 @@ class NextflowTranslator(TranslatorBase):
             cls.item_register.add(scope, workflow_item)
 
             # imports
-            imports: list[nfgen.Import] = []
+            imports: list[Import] = []
             for nf_file in cls.file_register.get_children(scope):
                 # get the relative import path. this is ugly last-min code. 
                 # (main wf)
@@ -275,12 +284,12 @@ class NextflowTranslator(TranslatorBase):
                 else:
                     raise NotImplementedError
                 
-                nf_item = nfgen.ImportItem(name=nf_file.name)
-                nf_import = nfgen.Import(items=[nf_item], source=source)
+                nf_item = ImportItem(name=nf_file.name)
+                nf_import = Import(items=[nf_item], source=source)
                 imports.append(nf_import)
 
             # file: workflow file            
-            workflow_file = nfgen.NFFile(
+            workflow_file = NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=imports, 
@@ -324,10 +333,10 @@ class NextflowTranslator(TranslatorBase):
         raise NotImplementedError
         settings.MODE = 'tool'
         file_items: list[IGetStringMethod] = []
-        scope: Scope = nfgen.Scope()
+        scope: Scope = Scope()
         values: dict[str, Any] = {}
 
-        main_p = nfgen.process.gen_process_from_cmdtool(tool, values, scope)
+        main_p = process.gen_process_from_cmdtool(tool, values, scope)
         main_p = cls.handle_container(tool, main_p)
         # output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
         # output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
@@ -339,7 +348,7 @@ class NextflowTranslator(TranslatorBase):
         #file_items.append(output_p)
         file_items.append(workflow)
 
-        nf_file = nfgen.NFFile(
+        nf_file = NFFile(
             subtype='',
             imports=[], 
             items=file_items
@@ -389,7 +398,7 @@ class NextflowTranslator(TranslatorBase):
                 # ),
                 cls.gen_process_workflow(tool, process=process),
             ]
-            nf_file = nfgen.NFFile(subtype='', imports=imports, items=items)
+            nf_file = NFFile(subtype='', imports=imports, items=items)
 
             return nf_file.get_string()
         else:
@@ -399,8 +408,8 @@ class NextflowTranslator(TranslatorBase):
     def handle_container(
         cls,
         tool: Tool,
-        process: nfgen.Process,
-    ) -> nfgen.Process:
+        process: Process,
+    ) -> Process:
         """
         Add container information to a Nexflow Process object
 
@@ -426,8 +435,8 @@ class NextflowTranslator(TranslatorBase):
             )
 
         if container is not None:
-            container_expr = nfgen.unwrap_expression(container, tool=tool)
-            directive = nfgen.ContainerDirective(container_expr)
+            container_expr = unwrap_expression(container, tool=tool)
+            directive = ContainerDirective(container_expr)
             process.directives.append(directive)
 
         elif not settings.ALLOW_EMPTY_CONTAINER:
@@ -499,7 +508,7 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        process_ids = nfgen.process.inputs.get_process_inputs(sources)
+        process_ids = process.inputs.get_process_inputs(sources)
         scatter_method = scatter.method if scatter else None
 
         for name in process_ids:
@@ -507,7 +516,7 @@ class NextflowTranslator(TranslatorBase):
                 src = sources[name]
                 scatter_target = True if scatter and name in scatter.fields else False
 
-                inputs[name] = nfgen.unwrap_expression(
+                inputs[name] = unwrap_expression(
                     val=src, 
                     tool=tool,
                     sources=sources,
@@ -528,7 +537,7 @@ class NextflowTranslator(TranslatorBase):
         step_indicator=None,
         **debugkwargs,
     ): 
-        return nfgen.unwrap_expression(
+        return unwrap_expression(
             val=value,
             # input_in_selectors=cls.INPUT_IN_SELECTORS,
             tool=tool,
@@ -576,9 +585,9 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        scope: Scope = nfgen.Scope()
+        scope: Scope = Scope()
         if additional_inputs:
-            nfgen.params.register_params_for_additional_inputs(additional_inputs, scope)
+            params.register_params_for_additional_inputs(additional_inputs, scope)
         if merge_resources:
             resources_input = cls.build_resources_input(
                 tool,
@@ -587,8 +596,8 @@ class NextflowTranslator(TranslatorBase):
                 max_mem=max_mem,
                 max_duration=max_duration,
             )
-            nfgen.params.register_params_for_resources(resources_input)
-        return nfgen.params.serialize()
+            params.register_params_for_resources(resources_input)
+        return params.serialize()
 
     @staticmethod
     def stringify_translated_workflow(wf):
@@ -607,18 +616,18 @@ class NextflowTranslator(TranslatorBase):
 
         build_inputs_file() and stringify_translated_inputs() must be 
         implemented by any subclass of TranslationBase, but these don't
-        properly capture what we want to do for nextflow. 
+        properly capture what we want to do for  
 
         The fed inputs are ignored because we do not want a dict. 
         Rather, we want the registered nfgen.params. We can use their 
-        properties to create a nicer nextflow.config file structure.
+        properties to create a nicer config file structure.
         
         :param inputs:
         :type inputs:
         :return:
         :rtype:
         """
-        return nfgen.config.generate_config()
+        return config.generate_config()
 
 
     @staticmethod
@@ -646,7 +655,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         #return workflow.versioned_id() + ".input.json"
-        return 'nextflow.config'
+        return 'config'
 
     @staticmethod
     def tool_filename(tool: str | Tool) -> str:
@@ -808,8 +817,8 @@ class NextflowTranslator(TranslatorBase):
     #     # gather input args for the output collection process call
     #     #output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
         
-    #     main.append(format_process_call(process.name, args_list))
-    #     #body.append(format_process_call(settings.FINAL_STEP_NAME, output_args_list))
+    #     main.append((process.name, args_list))
+    #     #body.append((settings.FINAL_STEP_NAME, output_args_list))
     #     raise NotImplementedError
     #     return nfgen.Workflow(name, main)
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Union, Set
 
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.operators import Selector
 from janis_core.tool.tool import Tool, TOutput, TInput, ToolType
 from janis_core.types import Filename, String

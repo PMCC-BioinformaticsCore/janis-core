@@ -13,8 +13,8 @@ from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
 
 from .SupportedIngestion import SupportedIngestion
-from .fromcwl import CWlParser
-from .fromwdl import WdlParser
+from .cwl import CWlParser
+from .wdl import WdlParser
 
 
 def ingest_galaxy(path: str) -> CommandTool | Workflow:
