@@ -53,7 +53,7 @@ setup(
     install_requires=[
         "importlib-metadata==4.12.0",
         "illusional.wdlgen >= 0.3.0",
-        "galaxy2janis >= 0.1.3.2",
+        # "galaxy2janis >= 0.1.3.2",
         "ruamel.yaml >= 0.12.4, <= 0.16.5",
         "tabulate",
         "path",

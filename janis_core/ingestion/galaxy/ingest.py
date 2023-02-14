@@ -41,7 +41,7 @@ from janis_core.ingestion.galaxy import datatypes
 
 def ingest_tool(path: str) -> Tool:
     """
-    ingests a galaxy tool xml file into a galaxy2janis Tool (internal representation).
+    ingests a galaxy tool xml file into a Tool (internal representation).
     'galaxy' is the galaxy tool representation, and
     'internal' is the internal tool representation we will build. 
     """
@@ -55,7 +55,7 @@ def ingest_tool(path: str) -> Tool:
 
 def ingest_workflow(path: str) -> Workflow:
     """
-    ingests a galaxy workflow file into a galaxy2janis Workflow (internal representation).
+    ingests a galaxy workflow file into a Workflow (internal representation).
     'galaxy' is the galaxy workflow representation, and
     'internal' is the internal workflow representation we will build. 
     order seems weird but trust me there is reason for this ordering.

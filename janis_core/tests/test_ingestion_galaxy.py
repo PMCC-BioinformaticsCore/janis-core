@@ -81,7 +81,7 @@ QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 class TestJanisGeneralMapping(unittest.TestCase):
     """
     tests ability to map or generate janis datatypes / selectors etc
-    from internal galaxy2janis tool objects.
+    from internal tool objects.
     """
     def setUp(self) -> None:
         datatypes.populate()
@@ -89,8 +89,8 @@ class TestJanisGeneralMapping(unittest.TestCase):
 
     def test_to_janis_datatype(self) -> None:
         """
-        checks that galaxy2janis 'JanisDatatype' objects can be mapped to
-        janis 'DataType' objects 
+        checks that JanisDatatype objects can be mapped to
+        janis DataType objects 
         """
         jtype1 = to_janis_datatype(self.tool.inputs[0])  
         jtype2 = to_janis_datatype(self.tool.inputs[1])
@@ -108,8 +108,8 @@ class TestJanisGeneralMapping(unittest.TestCase):
 
     def test_to_janis_selector(self) -> None:
         """
-        checks that galaxy2janis 'OutputComponent' objects can generate 
-        janis 'Selector' objects
+        checks that OutputComponent objects can generate 
+        janis Selector objects
         """
         jsel1 = to_janis_selector(self.tool.outputs[0])
         jsel2 = to_janis_selector(self.tool.outputs[1])
@@ -127,7 +127,7 @@ class TestJanisGeneralMapping(unittest.TestCase):
 class TestJanisToolMapping(unittest.TestCase):
     """
     tests ability to map or generate janis tool objects 
-    from internal galaxy2janis tool objects.
+    from internal tool objects.
     MOCK_TOOL is used to test mapping functions.
     """
     def setUp(self) -> None:
@@ -136,16 +136,16 @@ class TestJanisToolMapping(unittest.TestCase):
     
     def test_to_janis_tool(self) -> None:
         """
-        checks that galaxy2janis 'Tool' objects can be mapped to
-        janis 'CommandToolBuilder' objects 
+        checks that Tool objects can be mapped to
+        janis CommandToolBuilder objects 
         """
         jtool = to_janis_tool(self.tool)
         self.assertIsInstance(jtool, CommandToolBuilder)
 
     def test_to_janis_tool_input(self) -> None:
         """
-        checks that galaxy2janis 'InputComponent' objects can be mapped to
-        janis 'ToolInput' objects 
+        checks that InputComponent objects can be mapped to
+        janis ToolInput objects 
         """
         jinp1 = to_janis_tool_input(self.tool.inputs[0])  
         jinp2 = to_janis_tool_input(self.tool.inputs[1])
@@ -180,8 +180,8 @@ class TestJanisToolMapping(unittest.TestCase):
 
     def test_to_janis_tool_output(self) -> None:
         """
-        checks that galaxy2janis 'OutputComponent' objects can be mapped to
-        janis 'ToolOutput' objects 
+        checks that OutputComponent objects can be mapped to
+        janis ToolOutput objects 
         """
         jout1 = to_janis_tool_output(self.tool.outputs[0])
         jout2 = to_janis_tool_output(self.tool.outputs[1])
@@ -207,8 +207,8 @@ class TestJanisToolMapping(unittest.TestCase):
 
     def test_to_janis_metadata(self) -> None:
         """
-        checks that galaxy2janis 'ToolMetadata' objects can be mapped to
-        janis 'ToolXMLMetadata' objects 
+        checks that ToolMetadata objects can be mapped to
+        janis ToolXMLMetadata objects 
         """
         # MOCK_TOOL
         jmeta = to_janis_metadata(self.tool.metadata)
@@ -227,7 +227,7 @@ class TestJanisToolMapping(unittest.TestCase):
 class TestJanisWorkflowMapping(unittest.TestCase):
     """
     tests ability to map or generate janis workflow objects 
-    from internal galaxy2janis workflow objects
+    from internal workflow objects
     """
     def setUp(self) -> None:
         datatypes.populate()

@@ -130,7 +130,7 @@ class Mapper:
 
     def set_tool_input_values(self, gstep: WorkflowStep, jtool: CommandToolBuilder) -> None:
         """
-        cast galaxy2janis InputValues to the janis model.
+        cast InputValues to the janis model.
         janis stores these step input values on the tool itself (tool.connections).
         """
         unknown_count: int = 0
@@ -192,7 +192,7 @@ class Mapper:
         return File
 
     def get_input_value(self, gvalue: InputValue) -> Any | InputNodeSelector | StepOutputSelector:
-        """casts a galaxy2janis InputValue to janis model"""
+        """casts an InputValue to janis model"""
         if isinstance(gvalue, StaticInputValue):
             return gvalue.raw_value
         elif isinstance(gvalue, WorkflowInputInputValue):
@@ -205,7 +205,7 @@ class Mapper:
             out_tag = str_value.split('.')[-1]
             return StepOutputSelector(self.janis_model.step_nodes[node_tag], out_tag)
         else:
-            raise RuntimeError("gvalue must be a galaxy2janis 'InputValue'")
+            raise RuntimeError("gvalue must be an 'InputValue'")
 
 
 
