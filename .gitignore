@@ -37,7 +37,7 @@ Icon
 Thumbs.db
 .tmtags
 .idea
-tags
+# tags
 vendor.tags
 tmtagsHistory
 *.sublime-project
