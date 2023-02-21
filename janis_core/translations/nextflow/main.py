@@ -139,7 +139,7 @@ class NextflowTranslator(TranslatorBase):
         jworkflow: Workflow,
         with_container: bool = True,  
         with_resource_overrides: bool = False,
-        allow_empty_container: bool = False,
+        allow_empty_container: bool = True,
         container_override: Optional[dict[str, str]] = None,
         render_comments: bool = True
     ) -> Tuple[Any, dict[str, Any]]:

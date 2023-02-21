@@ -5,7 +5,7 @@ from enum import Enum
 class SupportedTranslation(Enum):
     CWL = "cwl"
     WDL = "wdl"
-    NEXTFLOW = "nf"
+    NEXTFLOW = "nextflow"
     JANIS = "janis"
 
     def __str__(self):

@@ -171,7 +171,7 @@ class CmdstrCommandAnnotator:
     def annotate(self) -> None:
         for cmdstr in self.cmdstrs:
             for epath in cmdstr.main.get_execution_paths():
-                logging.runtime_data(str(epath))
+                # logging.runtime_data(str(epath))
                 self.extract_components(epath)
 
     def extract_components(self, epath: ExecutionPath) -> None:

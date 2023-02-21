@@ -79,9 +79,11 @@ def _split_pre_main_post_statements(
 
 def _init_command_string(statement_dict: dict[str, list[DynamicCommandStatement]]) -> CommandString:
     if statement_dict['pre']:
-        logging.has_preprocessing()
+        pass
+        # logging.has_preprocessing()
     if statement_dict['post']:
-        logging.has_postprocessing()
+        pass
+        # logging.has_postprocessing()
     return CommandString(
         main=statement_dict['main'][0], 
         preprocessing=statement_dict['pre'], 

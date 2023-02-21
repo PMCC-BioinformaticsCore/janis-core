@@ -66,8 +66,8 @@ class CheetahInputIngestor:
         command = load_partial_cheetah_command(inputs_dict=self.g_step['tool_state'])
         cmdstr = gen_command_string(source='xml', the_string=command, xmltool=xmltool)
         stmtstr = cmdstr.main.cmdline
-        logging.runtime_data(command)
-        logging.runtime_data(stmtstr)
+        # logging.runtime_data(command)
+        # logging.runtime_data(stmtstr)
         return stmtstr
     
     def link_flag(self, flag: Flag, cmdstr: str) -> None:

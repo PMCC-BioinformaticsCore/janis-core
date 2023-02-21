@@ -6,7 +6,7 @@ from typing import Any
 from janis_core.ingestion.galaxy import expressions
 import json
 
-from janis_core.ingestion.galaxy.gx.command.components.inputs.Option import Option
+# from janis_core.ingestion.galaxy.gx.command.components.inputs.Option import Option
 
 from .JanisDatatype import JanisDatatype
 from .conversion import galaxy_to_janis
@@ -23,7 +23,7 @@ def types_from_param(entity: Any) -> list[str]:
     
     # edge case: Option with boolean gxparam value
     # eg ASSUME_SORTED=${assume_sorted}, where ${assume_sorted} is bool param
-    if isinstance(entity, Option) and types == ['boolean']:
+    if entity.__class__.__name__ == 'Option' and types == ['boolean']:
         return []
     else:
         return types

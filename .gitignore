@@ -26,6 +26,8 @@
 *.log.*
 *.sqlite
 *.nextflow
+janis_core/ingestion/galaxy/data/downloads
+janis_core/ingestion/galaxy/data/wrappers.json
 
 # OS generated files #
 ######################

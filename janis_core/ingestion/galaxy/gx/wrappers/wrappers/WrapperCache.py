@@ -4,7 +4,7 @@ import json
 import os
 from typing import Optional
 from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
-from janis_core.ingestion.galaxy.paths import USER_DATA_DIR, WRAPPER_CACHE
+from janis_core.ingestion.galaxy.settings.paths import WRAPPER_CACHE
 
 """
 WrapperCache flat file structure:
@@ -84,7 +84,7 @@ class WrapperCache:
 
     def _load(self) -> dict[str, list[dict[str, str]]]:
         """loads cache from flat file"""
-        path = f'{USER_DATA_DIR}/{WRAPPER_CACHE}'
+        path = WRAPPER_CACHE
         if not os.path.exists(path):
             with open(path, 'w') as fp:
                 fp.write('{}')
@@ -93,7 +93,7 @@ class WrapperCache:
     
     def _save(self, cache: dict[str, list[dict[str, str]]]) -> None:
         """saves our cache to file"""
-        path = f'{USER_DATA_DIR}/{WRAPPER_CACHE}'
+        path = WRAPPER_CACHE
         with open(path, 'w') as fp:
             json.dump(cache, fp)
 

@@ -1,6 +1,0 @@
-clan_information:
-  class: File
-  path: test-input/ribo.claninfo
-cmsearch_matches:
-  class: File
-  path: test-input/1.cmsearch.tblout

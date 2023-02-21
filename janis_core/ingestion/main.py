@@ -19,7 +19,7 @@ from .wdl import WdlParser
 
 def ingest_galaxy(path: str) -> CommandTool | Workflow:
     # this function is essentially the same as CWlParser / WdlParser
-    name, ext = os.path.splitext(path)
+    name, ext = os.path.splitext(path)  # is this a tool .xml, or a .ga workflow? 
     if ext == '.xml':
         info_ingesting_tool('galaxy', name)
         tool = ingest_tool(path)

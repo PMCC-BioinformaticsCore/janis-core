@@ -4,7 +4,7 @@
 import os
 import tarfile
 from typing import Optional
-from janis_core.ingestion.galaxy.paths import USER_DATA_DIR, DOWNLOADED_WRAPPERS_DIR
+from janis_core.ingestion.galaxy.settings.paths import DOWNLOADED_WRAPPERS_DIR
 
 
 class DownloadCache:
@@ -16,7 +16,7 @@ class DownloadCache:
 
     def get(self, query_repo: str, query_revision: str) -> Optional[str]:
         """returns the local file path for the tool xml if already downloaded or None"""
-        path = f'{USER_DATA_DIR}/{DOWNLOADED_WRAPPERS_DIR}'
+        path = DOWNLOADED_WRAPPERS_DIR
         for folder in self._load():
             repo, revision = folder.split('-', 1)
             if repo == query_repo and revision == query_revision:
@@ -27,11 +27,11 @@ class DownloadCache:
         self._save(tar)
 
     def _save(self, tar: tarfile.TarFile) -> None:
-        path = f'{USER_DATA_DIR}/{DOWNLOADED_WRAPPERS_DIR}'
+        path = DOWNLOADED_WRAPPERS_DIR
         tar.extractall(path=path)
 
     def _load(self) -> set[str]:
-        path = f'{USER_DATA_DIR}/{DOWNLOADED_WRAPPERS_DIR}'
+        path = DOWNLOADED_WRAPPERS_DIR
         if not os.path.exists(path):
             return set()
         else:

@@ -32,20 +32,23 @@ class ToolFactory:
         self.command.set_cmd_positions()
         inputs = self.command.list_inputs(include_base_cmd=False)
         if not inputs:
-            logging.no_inputs()
+            pass
+            # logging.no_inputs()
         for inp in inputs:
             tool.add_input(inp)
 
     def supply_outputs(self, tool: Tool) -> None:
         outputs = extract_outputs(self.xmltool, self.command)
         if not outputs:
-            logging.no_outputs()
+            pass
+            # logging.no_outputs()
         for out in outputs:
             tool.add_output(out)
 
     def get_base_command(self) -> list[str]:
         positionals = self.command.get_base_positionals()
         if not positionals:
-            logging.no_base_cmd()
+            pass
+            # logging.no_base_cmd()
         return [p.default_value for p in positionals]
     

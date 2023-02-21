@@ -80,7 +80,7 @@ class OutputExtractor:
         out: list[CommandComponent] = []
         for gxparam in self.xmltool.outputs.list():
             if self.should_create_uncertain_output(gxparam, existing_outputs):
-                logging.uncertain_output()
+                # logging.uncertain_output()
                 output = factory.uncertain_output(gxparam)
                 out.append(output)
         return out

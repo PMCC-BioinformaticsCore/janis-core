@@ -24,7 +24,7 @@ def replace_function_calls(cmdstr: str) -> str:
         matches = expressions.get_matches(line, FUNCTION_CALL_FMT1)
         matches += expressions.get_matches(line, FUNCTION_CALL_FMT2)
         for match in matches:
-            logging.has_cheetah_function()
+            # logging.has_cheetah_function()
             old_section = match[0]
             new_section = '__FUNCTION_CALL__'
             line = line.replace(old_section, new_section)
@@ -34,7 +34,7 @@ def replace_function_calls(cmdstr: str) -> str:
 def replace_backticks(cmdstr: str) -> str:
     matches = expressions.get_matches(cmdstr, BACKTICK_SECTION)
     for match in matches:
-        logging.has_backtick_statement()
+        # logging.has_backtick_statement()
         old_section = match[0]
         new_section = '__BACKTICK_SHELL_STATEMENT__'
         cmdstr = cmdstr.replace(old_section, new_section)
@@ -47,7 +47,7 @@ def flatten_multiline_strings(cmdstr: str) -> str:
     matches = expressions.get_matches(cmdstr, QUOTED_SECTION)
     for match in matches:
         if '\n' in match[0]:
-            logging.has_multiline_str()
+            # logging.has_multiline_str()
             old_section = match[0]
             new_section = match[0].replace('\n', ' ')
             cmdstr = cmdstr.replace(old_section, new_section)

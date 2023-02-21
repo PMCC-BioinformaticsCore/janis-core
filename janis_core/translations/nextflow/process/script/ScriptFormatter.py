@@ -269,8 +269,10 @@ class ScriptFormatter:
                 cmdline = f'{prefix}{value}'
                 return cmdline
         else:
-            raise NotImplementedError
-
+            prefix = self.prefix if self.prefix else ''
+            value = nfgen_utils.to_groovy(val, self.basetype)
+            cmdline = f'{prefix}{value}'
+            return cmdline
 
     ### AUTOFILL METHODS BY IType
     def autofill_script_expr(self) -> Optional[str]: 

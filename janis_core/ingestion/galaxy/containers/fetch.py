@@ -1,10 +1,10 @@
 
-from janis_core.ingestion.galaxy.logs import logging
+# from janis_core.ingestion.galaxy.logs import logging
 import tempfile
 from typing import Optional
 
 from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement, CondaRequirement, ContainerRequirement
-from janis_core.ingestion.galaxy.paths import USER_DATA_DIR, CONTAINER_CACHE
+from janis_core.ingestion.galaxy.settings.paths import CONTAINER_CACHE
 
 from .ContainerCache import ContainerCache
 from .Container import Container
@@ -31,7 +31,7 @@ def fetch_container(requirement: Requirement) -> Optional[str]:
     if not containers:
         containers = _fetch_online(requirement)
     if not containers:
-        logging.no_container()
+        # logging.no_container()
         return None
     else:
         container = select_best_container_match(containers, requirement)
@@ -46,7 +46,7 @@ def _load_cache() -> ContainerCache:
         temp = tempfile.TemporaryFile()
         cache_path = f'{tempfile.gettempdir()}/{temp.name}'
     else:
-        cache_path = f'{USER_DATA_DIR}/{CONTAINER_CACHE}'
+        cache_path = CONTAINER_CACHE
     return ContainerCache(cache_path)
 
 def _fetch_presets(requirement: Requirement) -> list[Container]:

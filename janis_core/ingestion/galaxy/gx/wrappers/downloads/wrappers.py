@@ -70,7 +70,7 @@ def _fetch_cache(repo: str, revision: str, tool_id: str) -> Optional[str]:
 def _fetch_toolshed(owner: str, repo: str, revision: str, tool_id: str) -> Optional[str]:
     # download and add to cache
     url = _get_url_via_revision(owner, repo, revision)
-    logging.msg_downloading_tool(url)
+    # logging.msg_downloading_tool(url)
     tar = _download_wrapper(url)
     CACHE.add(tar)
     # fetch from cache

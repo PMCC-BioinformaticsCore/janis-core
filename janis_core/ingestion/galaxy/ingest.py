@@ -34,6 +34,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
 
 from janis_core.ingestion.galaxy import datatypes
+from janis_core.ingestion.galaxy.startup import setup_data_folder
 
 # TODO future 
 # from janis_core.ingestion.galaxy.gx.xmltool.tests import write_tests
@@ -45,6 +46,7 @@ def ingest_tool(path: str) -> Tool:
     'galaxy' is the galaxy tool representation, and
     'internal' is the internal tool representation we will build. 
     """
+    setup_data_folder()
     datatypes.populate()
     settings.tool.tool_path = path
     galaxy = load_xmltool(path)
@@ -60,6 +62,7 @@ def ingest_workflow(path: str) -> Workflow:
     'internal' is the internal workflow representation we will build. 
     order seems weird but trust me there is reason for this ordering.
     """
+    setup_data_folder()
     datatypes.populate()
     galaxy = _load_galaxy_workflow(path)
     internal = Workflow()
@@ -90,8 +93,7 @@ def ingest_workflow_tools(janis: Workflow, galaxy: dict[str, Any]) -> None:
             j_step = mapping.step(g_step['id'], janis, galaxy)
             tool = _parse_step_tool(j_step.metadata)
             j_step.set_tool(tool)
-            g_step['tool_state'] = load_tool_state(g_step)
-
+            g_step['tool_state'] = load_tool_state(g_step)  # TODO should this happen first?
 
 def _load_galaxy_workflow(path: str) -> dict[str, Any]:
     with open(path, 'r') as fp:

@@ -1,8 +1,0 @@
-otu_table:
-  class: File
-  path: test-input/test-otu
-
-query:
-  class: File
-  path: test-input/test-mapseq
-label: 'test'

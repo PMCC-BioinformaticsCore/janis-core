@@ -41,7 +41,8 @@ class ParamFlattener:
                 for child in node.inputs.values():
                     self.explore_node(child, heirarchy)
             case Repeat():
-                logging.has_repeat()
+                pass
+                # logging.has_repeat()
             case _:
                 raise NotImplementedError()
     

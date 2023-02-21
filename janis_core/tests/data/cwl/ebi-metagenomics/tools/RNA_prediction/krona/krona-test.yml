@@ -1,4 +1,0 @@
-otu_counts:
-  class: File
-  path: test-input/test.tsv
-  format: iana:text/tab-separated-values

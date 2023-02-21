@@ -62,9 +62,11 @@ class ConstructStack:
     def add(self, construct: Construct) -> None:
         self.stack.append(construct)
         if construct.subtype == ConstructType.LOOP:
-            logging.has_cheetah_loop()
+            pass
+            # logging.has_cheetah_loop()
         elif construct.subtype == ConstructType.FUNCTION:
-            logging.has_cheetah_function()
+            pass
+            # logging.has_cheetah_function()
     
     def pop(self, subtype: ConstructType) -> None:
         if self.depth > 0:

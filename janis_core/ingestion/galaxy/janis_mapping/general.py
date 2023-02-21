@@ -1,5 +1,6 @@
 
 from typing import Optional
+from copy import deepcopy
 
 from janis_core import (
     InputSelector,
@@ -44,7 +45,7 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
         component = component.tool_output
     
     # the underlying datatype, regardless of stdout / array / optionality
-    dtype = datatype_map[component.datatype.classname]
+    dtype = deepcopy(datatype_map[component.datatype.classname])
     
     # modifying dtype in array case
     if component.array:
@@ -55,7 +56,8 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
         dtype = Stdout(dtype)
 
     # modifying dtype in optional case
-    dtype.optional = component.optional
+    if component.optional:
+        dtype.optional = True
     return dtype
 
 

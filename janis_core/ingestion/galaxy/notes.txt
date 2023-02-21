@@ -1,0 +1,8 @@
+
+
+
+templates / scripts
+tools/scripts/myfile.R
+
+TODO
+- ensure scripts are being copied across in janis-assistant

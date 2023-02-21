@@ -1,5 +1,0 @@
-input:
-  class: File
-  path: test-input/matched_seqs_with_coords
-pattern_SSU: SSU
-pattern_LSU: LSU

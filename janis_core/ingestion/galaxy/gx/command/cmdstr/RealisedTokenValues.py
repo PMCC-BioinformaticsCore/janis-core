@@ -62,7 +62,8 @@ class RealisedTokenFactory:
                 if self.should_tokenify_line(line):
                     rtvs += self.tokenify_line(line)
         except ValueError:
-            logging.no_close_quotation()
+            pass
+            # logging.no_close_quotation()
         return rtvs
 
     def should_tokenify_line(self, line: str) -> bool:

@@ -30,7 +30,7 @@ def make_request(request_url: str) -> Optional[Response]:
 
 def handle_response(response: Optional[Response]) -> Any:
     if response is None or response.status_code != 200:
-        logging.no_ga4gh_data()
+        # logging.no_ga4gh_data()
         return None
     else:
         return json.loads(response.text)

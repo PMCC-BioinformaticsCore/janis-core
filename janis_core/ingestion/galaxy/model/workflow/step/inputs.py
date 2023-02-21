@@ -55,16 +55,16 @@ def is_none(value: str) -> bool:
     return False
 
 def is_int(component: Optional[InputComponent | OutputComponent], value: str) -> bool:
-    if component and component.datatype.classname == 'Int':
-        return True
-    elif expressions.is_int(str(value)):
+    # if component and not component.array and component.datatype.classname == 'Int':
+    #     return True
+    if expressions.is_int(str(value)):
         return True
     return False
 
 def is_float(component: Optional[InputComponent | OutputComponent], value: str) -> bool:
-    if component and component.datatype.classname == 'Float':
-        return True
-    elif expressions.is_float(str(value)):
+    # if component and not component.array and component.datatype.classname == 'Float':
+    #     return True
+    if expressions.is_float(str(value)):
         return True
     return False
     

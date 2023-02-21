@@ -6,7 +6,7 @@ import yaml
 from typing import Any
 
 from janis_core.ingestion.galaxy import settings
-from janis_core.ingestion.galaxy.paths import USER_DATA_DIR, GALAXY_CONFIG
+from janis_core.ingestion.galaxy.settings.paths import GALAXY_CONFIG
 
 from sqlalchemy.orm.scoping import scoped_session
 
@@ -121,7 +121,7 @@ class MockApp(di.Container):
 
 
 def grace_get_config() -> dict[str, Any]:
-    config_path = f'{USER_DATA_DIR}/{GALAXY_CONFIG}'
+    config_path = GALAXY_CONFIG
     with open(config_path, "r") as fp:
         return yaml.safe_load(fp)
 
