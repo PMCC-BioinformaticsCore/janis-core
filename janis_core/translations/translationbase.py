@@ -199,7 +199,6 @@ class TranslatorBase(ABC):
 
         # WRITING TO CONSOLE
         if to_console:
-            print("=== WORKFLOW ===")
             print(str_tool)
             if tool_to_console:
                 print("\n=== TOOLS ===")

@@ -410,7 +410,7 @@ class TestAliases(unittest.TestCase):
 
 class TestFromGalaxy(unittest.TestCase):
     TOOL_PATH = os.path.abspath('./janis_core/tests/data/galaxy/abricate/abricate.xml')
-    WORKFLOW_PATH = os.path.abspath('./janis_core/tests/data/galaxy/assembly.ga')
+    WORKFLOW_PATH = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
 
     def test_ingest_tool(self) -> None:
         jtool = ingest_galaxy(self.TOOL_PATH)

@@ -335,6 +335,7 @@ class WorkflowBase(Tool):
 
     def verify_identifier(self, identifier: str, component: str):
 
+        
         if identifier in self.__dict__:
             raise Exception(
                 f"'{identifier}' is a protected keyword for a janis workflow"

@@ -1,0 +1,15 @@
+| fastqc v0.11.8 | quay.io/biocontainers/fastqc:0.11.8--1 |
+| fastp v0.20.0 | quay.io/biocontainers/fastp:0.20.0--hdbcaa40_0 |
+| bwa v0.7.17 | quay.io/biocontainers/bwa:0.7.17--h84994c4_5 |
+| picard v2.10.6 | quay.io/biocontainers/picard:2.10.6--py35_0 |
+| samtools v1.5 | quay.io/biocontainers/samtools:1.5--2 |
+| manta v1.6.0 | quay.io/biocontainers/manta:1.6.0--py27_0 |
+| gridss v2.9.3 | quay.io/biocontainers/gridss:2.9.3--0 |
+| r-exomedepth v1.1.12 | quay.io/biocontainers/r-exomedepth:1.1.12--r36h6786f55_0 |
+| codex2 v3.8 | migbro/codex2:3.8 (Docker Hub) |
+| bedops v2.4.39 | quay.io/biocontainers/bedops:2.4.39--h7d875b9_1 |
+| bedtools v2.26.0 | quay.io/biocontainers/bedtools:2.26.0gx--he513fc3_4 |
+| bioconductor-structuralvariantannotation v1.6.0 | quay.io/biocontainers/bioconductor-structuralvariantannotation:1.6.0--r40_0 |
+| svtools v0.5.1 | quay.io/biocontainers/svtools:0.5.1--py_0 |
+| tabix v0.2.6 | quay.io/biocontainers/tabix:0.2.6--ha92aebf_0 |
+| r-base | rocker/r-base:4.0.5 (Docker Hub) |
