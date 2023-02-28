@@ -120,7 +120,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @classmethod
     #@try_catch_translate(type="workflow")
-    def translate_workflow(
+    def translate_workflow_internal(
         cls,
         wfi,
         with_container=True,
@@ -275,7 +275,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             if t.versioned_id() not in wtools:
                 if t.type() == ToolType.Workflow:
-                    wf_wdl, wf_tools = cls.translate_workflow(
+                    wf_wdl, wf_tools = cls.translate_workflow_internal(
                         t,
                         with_container=with_container,
                         is_nested_tool=True,
@@ -1111,6 +1111,15 @@ EOT"""
             )
 
         return inp
+    
+    @staticmethod
+    def inp_can_be_skipped(inp, override_value=None):
+        return (
+            inp.default is None
+            and override_value is None
+            # and not inp.include_in_inputs_file_if_none
+            and (inp.intype.optional and inp.default is None)
+        )
 
     @classmethod
     def build_resources_input(

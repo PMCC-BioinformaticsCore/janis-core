@@ -44,7 +44,7 @@ class TestConditionals(unittest.TestCase):
 
         w.output("out", source=w.echoswitch)
 
-        _, wdl_tools = WdlTranslator.translate_workflow(w)
+        _, wdl_tools = WdlTranslator.translate_workflow_internal(w)
         expected = """\
 version development
 

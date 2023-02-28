@@ -5,6 +5,7 @@ from abc import abstractmethod, ABC
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
+from janis_core import settings
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators import (
@@ -334,8 +335,9 @@ class WorkflowBase(Tool):
         pass
 
     def verify_identifier(self, identifier: str, component: str):
+        if not settings.translate.STRICT_IDENTIFIERS:
+            return None
 
-        
         if identifier in self.__dict__:
             raise Exception(
                 f"'{identifier}' is a protected keyword for a janis workflow"
@@ -941,36 +943,35 @@ class WorkflowBase(Tool):
     def translate(
         self,
         translation: Union[str, SupportedTranslation],
-        to_console=True,
-        tool_to_console=False,
-        to_disk=False,
-        write_inputs_file=True,
-        with_docker=True,
-        with_hints=False,
-        with_resource_overrides=False,
-        validate=False,
-        should_zip=True,
-        export_path=ExportPathKeywords.default,
-        merge_resources=False,
+        to_console=None,
+        tool_to_console=None,
+        to_disk=None,
+        write_inputs_file=None,
+        with_docker=None,
+        with_hints=None,
+        with_resource_overrides=None,
+        validate=None,
+        should_zip=None,
+        export_path=None,
+        merge_resources=None,
         hints=None,
-        allow_null_if_not_optional=True,
-        additional_inputs: Dict = None,
+        allow_null_if_not_optional=None,
+        additional_inputs= None,
         max_cores=None,
         max_mem=None,
         max_duration=None,
-        allow_empty_container=False,
-        container_override: dict = None,
-        render_comments: bool = True
+        allow_empty_container=None,
+        container_override= None,
+        render_comments= None
     ):
-        from janis_core.translations import translate_workflow
+        from janis_core.translations import translate
 
-        return translate_workflow(
+        return translate(
             self,
             translation=translation,
             to_console=to_console,
             tool_to_console=tool_to_console,
-            to_disk=to_disk,
-            with_docker=with_docker,
+            with_container=with_docker,
             with_resource_overrides=with_resource_overrides,
             should_zip=should_zip,
             export_path=export_path,
@@ -978,7 +979,6 @@ class WorkflowBase(Tool):
             should_validate=validate,
             merge_resources=merge_resources,
             hints=hints,
-            allow_null_if_not_optional=allow_null_if_not_optional,
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,
@@ -1030,9 +1030,9 @@ class WorkflowBase(Tool):
         hints: Dict[str, Any] = None,
         to_console=True,
     ):
-        from janis_core.translations import build_resources_input
+        from janis_core.translations import build_resources_file
 
-        tr = build_resources_input(self, translation, hints)
+        tr = build_resources_file(self, translation, hints)
         if to_console:
             print(tr)
         return tr

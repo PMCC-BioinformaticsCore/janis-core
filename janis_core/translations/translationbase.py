@@ -1,22 +1,22 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Any, Optional
 import functools
 
 from path import Path
 
+from janis_core import CommandTool, CodeTool, WorkflowBase
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
 from janis_core.tool.tool import ToolType
 from janis_core.translation_deps.exportpath import ExportPathKeywords
 from janis_core.types.common_data_types import Int
-from janis_core.utils import lowercase_dictkeys
 from janis_core.utils.logger import Logger
 from janis_core.operators.selectors import Selector
-
+from janis_core import settings
 
 class TranslationError(Exception):
-    def __init__(self, message, inner: Exception):
+    def __init__(self, message: str, inner: Exception):
         super().__init__(message, inner)
         # self.inner = inner
 
@@ -62,33 +62,11 @@ class TranslatorMeta(type(ABC)):
         return cls.__name__
 
 
+
+
 class TranslatorBase(ABC):
     """
-    So you're thinking about adding a new tWranslation :)
-
-    This class will hopefully give you a pretty good indication
-    on what's required to add a new translation, however what I
-    can't fully talk about are all the concepts.
-
-    To add a new translation, you should understand at least these
-    tool and janis concepts:
-        - inputs
-        - outputs
-        - steps + tools
-        - secondary files
-        - command line binding of tools
-            - position, quoted
-        - selectors
-            - input selectors
-            - wildcard glob selectors
-            - cpu and memory selectors
-        - propagated resource overrides
-
-    I'd ask that you keep your function sizes small and direct,
-    and then write unit tests to cover each component of the translation
-    and then an integration test of the whole translation on the related workflows.
-
-    You can find these in /janis/tests/test_translation_*.py)
+    
     """
 
     __metaclass__ = TranslatorMeta
@@ -100,64 +78,15 @@ class TranslatorBase(ABC):
     def __init__(self, name: str):
         self.name: str = name
 
-    def translate(
-        self,
-        tool,
-        to_console=True,
-        tool_to_console=False,
-        with_resource_overrides=False,
-        to_disk=False,
-        write_inputs_file=True,
-        export_path=ExportPathKeywords.default,
-        should_validate=False,
-        should_zip=True,   
-        merge_resources=False,
-        hints=None,
-        allow_null_if_not_optional=True,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-        with_container=True,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ):
-        self.__class__.basedir = ExportPathKeywords.resolve(
-            export_path, workflow_spec=self.name, workflow_name=tool.versioned_id()
+    def translate_workflow(self, wf: WorkflowBase):
+        self.basedir = ExportPathKeywords.resolve(
+            settings.translate.EXPORT_PATH, workflow_spec=self.name, workflow_name=wf.versioned_id()
         )
-        should_zip = False # TODO attention this may need to be True to avoid breaking tests
         str_tool, tr_tools, tr_helpers = None, [], {}
 
         # GENERATE MAIN FILE
-        if tool.type() == ToolType.Workflow:
-            tr_tool, tr_tools = self.translate_workflow(
-                tool,
-                with_container=with_container,
-                with_resource_overrides=with_resource_overrides,
-                allow_empty_container=allow_empty_container,
-                container_override=lowercase_dictkeys(container_override),
-                render_comments=render_comments
-            )
-            str_tool = self.stringify_translated_workflow(tr_tool)
-        elif isinstance(tool, CodeTool):
-            tr_tool = self.translate_code_tool_internal(
-                tool,
-                allow_empty_container=allow_empty_container,
-                container_override=lowercase_dictkeys(container_override),
-                render_comments=render_comments
-            )
-            str_tool = self.stringify_translated_tool(tr_tool)
-        else:
-            tr_tool = self.translate_tool_internal(
-                tool,
-                with_container=with_container,
-                with_resource_overrides=with_resource_overrides,
-                allow_empty_container=allow_empty_container,
-                container_override=lowercase_dictkeys(container_override),
-                render_comments=render_comments
-            )
-            str_tool = self.stringify_translated_tool(tr_tool)
+        tr_tool, tr_tools = self.translate_workflow_internal(wf)
+        str_tool = self.stringify_translated_workflow(tr_tool)
 
         # GENERATE SUBFILES - COMMANDTOOLS, PYTHONTOOLS & SUBWORKFLOWS
         # [filepath, filecontents] for subfiles (tools, subworkflows etc)
@@ -171,51 +100,43 @@ class TranslatorBase(ABC):
 
         # GENERATE AUXILIARY FILES
         # {filepath: filecontents} for auxiliary files (PythonTool code.py files etc)
-        tr_helpers = self.translate_helper_files(tool)
+        tr_helpers = self.translate_helper_files(wf)
         str_helpers = [
             (os.path.join(self.DIR_TOOLS, filename), tr_helpers[filename])
-            for filename, file_content in tr_helpers.items()
+            for filename in tr_helpers.keys()
         ]
 
         # GENERATE INPUT CONFIG
         # {name: value} for inputs config file (nextflow.config, inputs.yaml etc)
-        tr_inp = self.build_inputs_file(
-            tool,
-            recursive=False,
-            merge_resources=merge_resources,
-            hints=hints,
-            additional_inputs=additional_inputs,
-            max_cores=max_cores,
-            max_mem=max_mem,
-            max_duration=max_duration,
-        )
+        tr_inp = self.build_inputs_file(wf)
+        
         # inputs config file contents
         str_inp = self.stringify_translated_inputs(tr_inp)
 
         # {name: value} for resource inputs config
-        tr_res = self.build_resources_input(tool, hints)
+        tr_res = self.build_resources_input(wf)
         # resource config file contents
         str_resources = self.stringify_translated_inputs(tr_res)
 
         # WRITING TO CONSOLE
-        if to_console:
+        if settings.translate.TO_CONSOLE:
             print(str_tool)
-            if tool_to_console:
+            if settings.translate.TOOL_TO_CONSOLE:
                 print("\n=== TOOLS ===")
                 [print(f":: {t[0]} ::\n" + t[1]) for t in str_tools]
             print("\n=== INPUTS ===")
             print(str_inp)
-            if not merge_resources and with_resource_overrides:
+            if not settings.translate.MERGE_RESOURCES and settings.translate.WITH_RESOURCE_OVERRIDES:
                 print("\n=== RESOURCES ===")
                 print(str_resources)
 
         # WRITING TO DISK        
-        if to_disk:
+        if settings.translate.TO_DISK:
             # setting filepaths
-            basedir = self.__class__.basedir
-            fn_workflow = self.workflow_filename(tool)
-            fn_inputs = self.inputs_filename(tool)
-            fn_resources = self.resources_filename(tool)
+            basedir = self.basedir
+            fn_workflow = self.workflow_filename(wf)
+            fn_inputs = self.inputs_filename(wf)
+            fn_resources = self.resources_filename(wf)
 
             # generating subfolders
             subfolders: list[str] = []
@@ -227,7 +148,7 @@ class TranslatorBase(ABC):
                     os.makedirs(path)
 
             # writing inputs config file
-            if write_inputs_file:
+            if settings.translate.WRITE_INPUTS_FILE:
                 if not os.path.isdir(basedir):
                     os.makedirs(basedir)
 
@@ -239,7 +160,7 @@ class TranslatorBase(ABC):
                 Logger.log("Skipping writing input (yaml) job file")
 
             # writing resources config file
-            if not merge_resources and with_resource_overrides:
+            if not settings.translate.MERGE_RESOURCES and settings.translate.WITH_RESOURCE_OVERRIDES:
                 print("\n=== RESOURCES ===")
                 with open(os.path.join(basedir, fn_resources), "w+") as wf:
                     Logger.log(f"Writing {fn_resources} to disk")
@@ -274,7 +195,7 @@ class TranslatorBase(ABC):
             # zipping tools file
             import subprocess
 
-            if should_zip:
+            if settings.translate.SHOULD_ZIP:
                 Logger.debug("Zipping tools")
                 with Path(basedir):
                     FNULL = open(os.devnull, "w")
@@ -286,7 +207,7 @@ class TranslatorBase(ABC):
                     else:
                         Logger.critical(str(zip_result.stderr.decode()))
 
-            if should_validate:
+            if settings.translate.SHOULD_VALIDATE:
                 with Path(basedir):
 
                     Logger.info(f"Validating outputted {self.name}")
@@ -308,38 +229,16 @@ class TranslatorBase(ABC):
 
         return str_tool, str_inp, str_tools
 
-    def translate_tool(
-        self,
-        tool,
-        to_console=True,
-        to_disk=False,
-        export_path=None,
-        with_container=True,
-        with_resource_overrides=False,
-        max_cores=None,
-        max_mem=None,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ):
+    def translate_tool(self, tool: CommandTool):
+        tr_tool = self.translate_tool_internal(tool)
+        tool_out = self.stringify_translated_tool(tr_tool)
 
-        tool_out = self.stringify_translated_tool(
-            self.translate_tool_internal(
-                tool,
-                with_container=with_container,
-                with_resource_overrides=with_resource_overrides,
-                allow_empty_container=allow_empty_container,
-                container_override=lowercase_dictkeys(container_override),
-                render_comments=render_comments
-            )
-        )
-
-        if to_console:
+        if settings.translate.TO_CONSOLE:
             print(tool_out)
 
-        if to_disk:
+        if settings.translate.TO_DISK:
             d = ExportPathKeywords.resolve(
-                export_path, workflow_spec=self.name, workflow_name=tool.id()
+                settings.translate.EXPORT_PATH, workflow_spec=self.name, workflow_name=tool.id()
             )
             if not os.path.exists(d):
                 os.makedirs(d)
@@ -351,35 +250,16 @@ class TranslatorBase(ABC):
 
         return tool_out
 
-    def translate_code_tool(
-        self,
-        codetool,
-        to_console=True,
-        to_disk=False,
-        export_path=None,
-        with_docker=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ):
+    def translate_code_tool(self, codetool: CodeTool):
+        tr_tool = self.translate_code_tool_internal(codetool)
+        tool_out = self.stringify_translated_tool(tr_tool)
 
-        tool_out = self.stringify_translated_tool(
-            self.translate_code_tool_internal(
-                codetool,
-                with_docker=with_docker,
-                allow_empty_container=allow_empty_container,
-                container_override=lowercase_dictkeys(container_override),
-                render_comments=render_comments
-            )
-        )
-
-        if to_console:
+        if settings.translate.TO_CONSOLE:
             print(tool_out)
 
-        if to_disk:
+        if settings.translate.TO_DISK:
             d = ExportPathKeywords.resolve(
-                export_path, workflow_spec=self.name, workflow_name=codetool.id()
+                settings.translate.EXPORT_PATH, workflow_spec=self.name, workflow_name=codetool.id()
             )
             if not os.path.exists(d):
                 os.makedirs(d)
@@ -392,98 +272,8 @@ class TranslatorBase(ABC):
         return tool_out
 
     @classmethod
-    def validate_inputs(cls, inputs, allow_null_if_optional):
-        return True
-        # invalid = [
-        #     i
-        #     for i in inputs
-        #     if not i.input.validate_value(
-        #         allow_null_if_not_optional=allow_null_if_optional
-        #     )
-        # ]
-        # if len(invalid) == 0:
-        #     return True
-        # raise TypeError(
-        #     "Couldn't validate inputs: "
-        #     + ", ".join(
-        #         f"{i.id()} (expected: {i.input.data_type.id()}, "
-        #         f"got: '{TranslatorBase.get_type(i.input.value)}')"
-        #         for i in invalid
-        #     )
-        # )
-
-    @staticmethod
-    def get_type(t):
-        if isinstance(t, list):
-            q = set(TranslatorBase.get_type(tt) for tt in t)
-            if len(q) == 0:
-                return "empty array"
-            val = q.pop() if len(q) == 1 else "Union[" + ", ".join(q) + "]"
-            return f"Array<{val}>"
-
-        return type(t).__name__
-
-    @classmethod
-    @abstractmethod
-    def translate_workflow(
-        cls,
-        workflow,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override: dict = None,
-        render_comments: bool = True
-    ) -> Tuple[any, Dict[str, any]]:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def translate_tool_internal(
-        cls,
-        tool,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override: dict = None,
-        render_comments: bool = True
-    ):
-        pass
-
-    @classmethod
-    @abstractmethod
-    def translate_code_tool_internal(
-        cls,
-        tool,
-        with_docker=True,
-        allow_empty_container=False,
-        container_override: dict = None,
-        render_comments: bool = True
-    ):
-        pass
-
-    @classmethod
-    def translate_helper_files(cls, tool) -> Dict[str, str]:
-        return {}
-
-    @classmethod
-    @abstractmethod
-    def unwrap_expression(cls, expression):
-        pass
-
-    @classmethod
-    def build_inputs_file(
-        cls,
-        tool,
-        recursive=False,
-        merge_resources=False,
-        hints=None,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-    ) -> Dict[str, any]:
-
-        ad = additional_inputs or {}
+    def build_inputs_file(cls, tool: CommandTool | CodeTool | WorkflowBase) -> dict[str, Any]:
+        ad = settings.translate.ADDITIONAL_INPUTS or {}
         values_provided_from_tool = {}
         if tool.type() == ToolType.Workflow:
             values_provided_from_tool = {
@@ -502,31 +292,26 @@ class TranslatorBase(ABC):
             or i.id() in values_provided_from_tool
         }
 
-        if merge_resources:
-            for k, v in cls.build_resources_input(
-                tool,
-                hints,
-                max_cores=max_cores,
-                max_mem=max_mem,
-                max_duration=max_duration,
-            ).items():
+        if settings.translate.MERGE_RESOURCES:
+            res_input = cls.build_resources_input(tool)
+            for k, v in res_input.items():
                 inp[k] = ad.get(k, v)
 
         return inp
 
     @classmethod
     def build_resources_input(
-        cls,
-        tool,
-        hints,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-        inputs=None,
-        prefix="",
-    ):
+        cls, 
+        tool: CommandTool | CodeTool | WorkflowBase, 
+        inputs: Optional[dict[str, Any]]=None,
+        prefix: str=""
+    ) -> dict[str, Any]:
 
         inputs = inputs or {}
+        hints = settings.translate.HINTS
+        max_cores = settings.translate.MAX_CORES
+        max_mem = settings.translate.MAX_MEM
+        max_duration = settings.translate.MAX_DURATION
 
         if not tool.type() == ToolType.Workflow:
             cpus = inputs.get(f"{prefix}runtime_cpu", tool.cpus(hints))
@@ -573,28 +358,14 @@ class TranslatorBase(ABC):
 
         new_inputs = {}
         for s in tool.step_nodes.values():
-            new_inputs.update(
-                cls.build_resources_input(
-                    s.tool,
-                    hints=hints,
-                    max_cores=max_cores,
-                    max_mem=max_mem,
-                    max_duration=max_duration,
-                    prefix=prefix + s.id() + "_",
-                    inputs=inputs,
-                )
+            step_inputs = cls.build_resources_input(
+                s.tool,
+                prefix=prefix + s.id() + "_",
+                inputs=inputs,
             )
+            new_inputs.update(step_inputs)
 
         return new_inputs
-
-    @staticmethod
-    def inp_can_be_skipped(inp, override_value=None):
-        return (
-            inp.default is None
-            and override_value is None
-            # and not inp.include_in_inputs_file_if_none
-            and (inp.intype.optional and inp.default is None)
-        )
 
     # Resource overrides
     @staticmethod
@@ -606,54 +377,123 @@ class TranslatorBase(ABC):
             ToolInput("runtime_disk", Int(optional=True)),  # GB of storage required
         ]
 
+    @staticmethod
+    def get_container_override_for_tool(tool: CommandTool | CodeTool, container_override: dict[str, Any]):
+        if not container_override:
+            return None
+        if tool.id().lower() in container_override:
+            return container_override.get(tool.id().lower())
+        elif tool.versioned_id().lower() in container_override:
+            return container_override.get(tool.versioned_id().lower())
+        elif "*" in container_override:
+            return container_override["*"]
+
+    # @classmethod
+    # def validate_inputs(cls, inputs, allow_null_if_optional):
+    #     return True
+        # invalid = [
+        #     i
+        #     for i in inputs
+        #     if not i.input.validate_value(
+        #         allow_null_if_not_optional=allow_null_if_optional
+        #     )
+        # ]
+        # if len(invalid) == 0:
+        #     return True
+        # raise TypeError(
+        #     "Couldn't validate inputs: "
+        #     + ", ".join(
+        #         f"{i.id()} (expected: {i.input.data_type.id()}, "
+        #         f"got: '{TranslatorBase.get_type(i.input.value)}')"
+        #         for i in invalid
+        #     )
+        # )
+
+    # @staticmethod
+    # def get_type(t):
+    #     if isinstance(t, list):
+    #         q = set(TranslatorBase.get_type(tt) for tt in t)
+    #         if len(q) == 0:
+    #             return "empty array"
+    #         val = q.pop() if len(q) == 1 else "Union[" + ", ".join(q) + "]"
+    #         return f"Array<{val}>"
+
+    #     return type(t).__name__
+
+    # CHILD CLASS SPECIFIC
+
+    @classmethod
+    @abstractmethod
+    def translate_workflow_internal(cls, wf: WorkflowBase) -> Tuple[Any, dict[str, Any]]:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def translate_tool_internal(cls, tool: CommandTool) -> Any:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def translate_code_tool_internal(cls, tool: CodeTool) -> Any:
+        pass
+
+    # overridden in NextflowTranslator
+    @classmethod
+    def translate_helper_files(cls, tool: CommandTool | CodeTool | WorkflowBase) -> Dict[str, str]:
+        return {}
+
+    @classmethod
+    @abstractmethod
+    def unwrap_expression(cls, expression: Any) -> Any:
+        pass
+    
     # STRINGIFY
 
     @staticmethod
     @abstractmethod
-    def stringify_translated_workflow(wf):
+    def stringify_translated_workflow(wf: WorkflowBase) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def stringify_translated_tool(tool):
+    def stringify_translated_tool(tool: CommandTool | CodeTool) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def stringify_translated_inputs(inputs):
+    def stringify_translated_inputs(inputs: dict[str, Any]) -> str:
         pass
 
     # OUTPUTS
 
-    @classmethod
-    def filename(cls, tool):
-
-        if tool.type() == ToolType.Workflow:
-            return cls.workflow_filename(tool)
-        return cls.tool_filename(tool)
+    # @classmethod
+    # def filename(cls, tool):
+    #     if tool.type() == ToolType.Workflow:
+    #         return cls.workflow_filename(tool)
+    #     return cls.tool_filename(tool)
 
     @staticmethod
     @abstractmethod
-    def workflow_filename(workflow):
+    def workflow_filename(workflow: WorkflowBase) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def inputs_filename(workflow):
+    def inputs_filename(workflow: WorkflowBase) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def tool_filename(tool):
+    def tool_filename(tool: CommandTool | CodeTool) -> str:
         pass
 
-    @staticmethod
-    def dependencies_filename(workflow):
-        return "tools.zip"
+    # @staticmethod
+    # def dependencies_filename(workflow: WorkflowBase) -> str:
+    #     return "tools.zip"
 
     @staticmethod
     @abstractmethod
-    def resources_filename(workflow):
+    def resources_filename(workflow: WorkflowBase) -> str:
         pass
 
     # VALIDATION
@@ -663,14 +503,4 @@ class TranslatorBase(ABC):
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         pass
 
-    @staticmethod
-    def get_container_override_for_tool(tool, container_override):
-        if not container_override:
-            return None
 
-        if tool.id().lower() in container_override:
-            return container_override.get(tool.id().lower())
-        elif tool.versioned_id().lower() in container_override:
-            return container_override.get(tool.versioned_id().lower())
-        elif "*" in container_override:
-            return container_override["*"]

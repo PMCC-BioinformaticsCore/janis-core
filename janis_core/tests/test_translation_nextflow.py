@@ -383,7 +383,7 @@ class TestFileFormatting(unittest.TestCase):
 
     def test_main_workflow(self) -> None:
         wf = AssemblyTestWF()
-        mainstr, substr_dict = translator.translate_workflow(wf)
+        mainstr, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             "nextflow.enable.dsl=2",
             "include { FASTQC1 } from './modules/fastqc1'",
@@ -437,7 +437,7 @@ class TestFileFormatting(unittest.TestCase):
     def test_process(self) -> None:
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        mainstr, substr_dict = translator.translate_workflow(wf)
+        mainstr, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             'nextflow.enable.dsl=2',
             'process FASTQC1 {',
@@ -476,7 +476,7 @@ class TestFileFormatting(unittest.TestCase):
     
     def test_subworkflow(self) -> None:
         wf = SubworkflowTestWF()
-        mainstr, substr_dict = translator.translate_workflow(wf)
+        mainstr, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             "nextflow.enable.dsl=2",
             "include { STRING_TOOL } from '../modules/string_tool'",
@@ -3365,7 +3365,7 @@ class TestSubWorkflows(unittest.TestCase):
        
     def test_files_created(self) -> None:
         refresh_workflow_inputs(self.wf)
-        mainstr, substr_dict = translator.translate_workflow(self.wf)
+        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
         expected_filepaths = set([
             'modules/file_tool',
             'modules/string_tool',
@@ -3379,7 +3379,7 @@ class TestSubWorkflows(unittest.TestCase):
 
     def test_structure(self) -> None:
         # take main emit
-        mainstr, substr_dict = translator.translate_workflow(self.wf)
+        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
         self.assertNotIn('take:', mainstr)
         self.assertNotIn('main:', mainstr)
         self.assertNotIn('emit:', mainstr)
@@ -3390,7 +3390,7 @@ class TestSubWorkflows(unittest.TestCase):
 
     def test_call(self) -> None:
         # translate workflow, building all nf items and files
-        translator.translate_workflow(self.wf)
+        translator.translate_workflow_internal(self.wf)
 
         # call args are correct & in order
         step_id = 'apples_subworkflow'
@@ -3417,7 +3417,7 @@ class TestSubWorkflows(unittest.TestCase):
     def test_imports(self) -> None:
         # translate workflow, building all nf items and files
         wf = SubworkflowTestWF()
-        translator.translate_workflow(wf)
+        translator.translate_workflow_internal(wf)
 
         # focusing in on specific subworkflow
         step = wf.step_nodes['apples_subworkflow']

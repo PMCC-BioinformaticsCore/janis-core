@@ -195,12 +195,12 @@ class Tool(ABC, object):
     def translate(
         self,
         translation: str,
-        to_console=True,
-        to_disk=False,
+        to_console=None,
+        to_disk=None,
         export_path=None,
-        with_docker=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
+        with_docker=None,
+        with_resource_overrides=None,
+        allow_empty_container=None,
         container_override=None,
     ):
         raise Exception("Subclass must provide implementation for 'translate()' method")

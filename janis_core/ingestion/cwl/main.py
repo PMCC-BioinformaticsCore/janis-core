@@ -201,44 +201,48 @@ class CWlParser:
 
     @classmethod
     def get_tag_from_identifier(cls, identifier: Any) -> str:
-        identifier = cls.get_source_from_identifier(identifier)
-        identifier = identifier.replace("-", "_")
-
-        # handle cwl_utils random id generation for unnamed tools / workflows
-        if identifier.startswith('_:'):
-            identifier = identifier[2:]         # get rid of start
-            identifier = f'temp_{identifier}'   # mark as temp & solve starting with number issues
-
-        # handle generating a tag from a filename
-        if "/" in identifier:
-            identifier = identifier.split("/")[-1]
-        if "." in identifier:
-            identifier = identifier.split(".")[0]
-
-        # handle janis clashes
-        if identifier == "input":
-            return "inp"
-        if identifier == "output":
-            return "outp"
-
         return identifier
+
+        # identifier = cls.get_source_from_identifier(identifier)
+        # identifier = identifier.replace("-", "_")
+
+        # # handle cwl_utils random id generation for unnamed tools / workflows
+        # if identifier.startswith('_:'):
+        #     identifier = identifier[2:]         # get rid of start
+        #     identifier = f'temp_{identifier}'   # mark as temp & solve starting with number issues
+
+        # # handle generating a tag from a filename
+        # if "/" in identifier:
+        #     identifier = identifier.split("/")[-1]
+        # if "." in identifier:
+        #     identifier = identifier.split(".")[0]
+
+        # # handle janis clashes
+        # if identifier == "input":
+        #     return "inp"
+        # if identifier == "output":
+        #     return "outp"
+
+        # return identifier
 
     @classmethod
     def get_source_from_identifier(cls, identifier: Any) -> str:
-        if not isinstance(identifier, str):
-            identifier = str(identifier)
-        if "#" in identifier:
-            identifier = str(identifier.split("#")[-1])
-
-        while "-" in identifier:
-            identifier = identifier.replace("-", "_")
-
-        if identifier == "input":
-            return "inp"
-        if identifier == "output":
-            return "outp"
-
         return identifier
+    
+        # if not isinstance(identifier, str):
+        #     identifier = str(identifier)
+        # if "#" in identifier:
+        #     identifier = str(identifier.split("#")[-1])
+
+        # while "-" in identifier:
+        #     identifier = identifier.replace("-", "_")
+
+        # if identifier == "input":
+        #     return "inp"
+        # if identifier == "output":
+        #     return "outp"
+
+        # return identifier
 
     def process_secondary_files(self, secondary_files: List):
         if not hasattr(self.cwlgen, "SecondaryFileSchema"):
@@ -385,8 +389,15 @@ class CWlParser:
     def ingest_command_tool_output(
         self, out
     ):  # out: self.cwlgen.CommandOutputParameter
-        outBinding = out.outputBinding
+        
+        # tag
+        tag = self.get_tag_from_identifier(out.id)
+        
+        # datatype
+        output_type = self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles)
 
+        # selector
+        outBinding = out.outputBinding
         selector = None
         if outBinding:
             if outBinding.glob:
@@ -395,16 +406,8 @@ class CWlParser:
                 )
             elif outBinding.outputEval:
                 selector = self.parse_basic_expression(outBinding.outputEval)
-        elif out.outputEval:
-            selector = self.parse_basic_expression(out.outputEval)
 
-        return j.ToolOutput(
-            tag=self.get_tag_from_identifier(out.id),
-            output_type=self.ingest_cwl_type(
-                out.type, secondary_files=out.secondaryFiles
-            ),
-            selector=selector,
-        )
+        return j.ToolOutput(tag, output_type, selector)
 
     def parse_workflow_source(
         self, wf: j.Workflow, step_input, potential_prefix: Optional[str] = None

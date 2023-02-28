@@ -1,5 +1,6 @@
 from janis_core.utils.logger import Logger
 from os import path as p, getcwd
+from typing import Optional
 
 
 class ExportPathKeywords:
@@ -10,7 +11,7 @@ class ExportPathKeywords:
     default_no_spec = "./{name}"  # f"~/Desktop/{workflow_name}/"
 
     @staticmethod
-    def resolve(path, workflow_spec, workflow_name):
+    def resolve(path: Optional[str], workflow_spec: Optional[str], workflow_name: Optional[str]) -> str:
 
         if not path:
             Logger.critical("Output path was invalid, changed to working directory")

@@ -1,4 +1,5 @@
 import re
+from janis_core import settings
 
 
 class Validators:
@@ -19,6 +20,9 @@ class Validators:
 
     @staticmethod
     def validate_identifier(identifier: str) -> bool:
+        if not settings.translate.STRICT_IDENTIFIERS:
+            return True
+            
         if identifier in Validators.extra_prohibited_keys:
             return False
         a = Validators.compiled_identifier.match(identifier)

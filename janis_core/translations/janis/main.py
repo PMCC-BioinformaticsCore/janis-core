@@ -101,7 +101,7 @@ class JanisTranslator(TranslatorBase):
             f"Unrecognised tool type {tool}: {tool.__class__.__name__}"
         )
 
-    def translate_workflow(
+    def translate_workflow_internal(
         self,
         workflow,
         with_container=True,

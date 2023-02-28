@@ -134,7 +134,7 @@ class NextflowTranslator(TranslatorBase):
         super().__init__(name="nextflow")
 
     @classmethod
-    def translate_workflow(
+    def translate_workflow_internal(
         cls,
         jworkflow: Workflow,
         with_container: bool = True,  

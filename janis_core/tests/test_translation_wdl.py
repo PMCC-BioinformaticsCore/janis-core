@@ -1172,7 +1172,7 @@ class TestWDLRunRefs(unittest.TestCase):
         w.step("stp1", BasicTestTool(testtool=w.inp))
         w.step("stp2", VersionTestTool(testtool=w.inp))
 
-        w, _ = WdlTranslator.translate_workflow(w, render_comments=False)
+        w, _ = WdlTranslator.translate_workflow_internal(w, render_comments=False)
         workflow_str = w.get_string()
         workflow_str = non_blank_lines_str(workflow_str)
 
@@ -1246,7 +1246,7 @@ workflow wf {
 
     def test_workflow_secondary_outputs(self):
         wf = ArraysOfSecondaryFilesOutputsTestWF()
-        wfwdl, _ = WdlTranslator.translate_workflow(wf)
+        wfwdl, _ = WdlTranslator.translate_workflow_internal(wf)
 
         outs = [o.get_string() for o in wfwdl.outputs]
         self.assertEqual("Array[File] out = stp.out", outs[0])
@@ -1411,7 +1411,6 @@ workflow StepInputExpressionTestWF {
         ),
 
         wf.output("out", source=wf.print)
-
         workflow_str, _, _ = wf.translate("wdl", to_console=False, allow_empty_container=True, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
@@ -1653,7 +1652,7 @@ class TestUnionType(unittest.TestCase):
 class ForEachTestWFSelectors(unittest.TestCase):
     def test_minimal(self):
         ForEachTestWF().translate("wdl", to_disk=True, export_path="~/Desktop/tmp", render_comments=False)
-        w, _ = WdlTranslator.translate_workflow(ForEachTestWF(), render_comments=False)
+        w, _ = WdlTranslator.translate_workflow_internal(ForEachTestWF(), render_comments=False)
         workflow_str = w.get_string()
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\

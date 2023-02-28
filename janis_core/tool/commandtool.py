@@ -449,28 +449,22 @@ class CommandTool(Tool, ABC):
     def translate(
         self,
         translation: Union[str, SupportedTranslation],
-        to_console=True,
-        to_disk=False,
+        to_console=None,
         export_path=None,
-        with_docker=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
+        with_docker=None,
+        with_resource_overrides=None,
+        allow_empty_container=None,
         container_override=None,
-        render_comments: bool = True
+        render_comments=None
     ):
-        import janis_core.translations
-
-        if isinstance(container_override, str):
-            container_override = {self.id().lower(): container_override}
-
-        return janis_core.translations.translate_tool(
+        from janis_core.translations import translate
+        return translate(
             self,
-            translation,
+            translation=translation,
             to_console=to_console,
-            to_disk=to_disk,
-            export_path=export_path,
-            with_docker=with_docker,
+            with_container=with_docker,
             with_resource_overrides=with_resource_overrides,
+            export_path=export_path,
             allow_empty_container=allow_empty_container,
             container_override=container_override,
             render_comments=render_comments

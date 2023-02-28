@@ -1,6 +1,6 @@
 
 from enum import Enum
-
+from typing import Any
 
 class SupportedTranslation(Enum):
     CWL = "cwl"
@@ -14,7 +14,7 @@ class SupportedTranslation(Enum):
     def __eq__(self, other):
         return str(self) == str(other)
 
-    def get_translator(self):
+    def get_translator(self) -> Any:
         if self == SupportedTranslation.CWL:
             from ..translations.cwl import CwlTranslator
 
@@ -32,6 +32,9 @@ class SupportedTranslation(Enum):
             from ..translations.janis import JanisTranslator
 
             return JanisTranslator()
+        
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def all():
