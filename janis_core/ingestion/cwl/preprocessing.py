@@ -12,7 +12,9 @@ def handle_inline_cltool_identifiers(cwl_workflow: Any) -> Any:
     """
     for step in cwl_workflow.steps:
         tool = step.run
-        if tool.id.startswith('_:'):
+        if isinstance(tool, str):
+            pass
+        elif tool.id.startswith('_:'):
             step_name = step.id.rsplit('#', 1)[1]
             workdir = step.id.rsplit('#', 1)[0].rsplit('/', 1)[0]
             new_id = f'{workdir}/{step_name}_tool.cwl'

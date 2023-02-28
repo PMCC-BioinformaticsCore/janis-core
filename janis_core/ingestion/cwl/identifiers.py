@@ -5,55 +5,59 @@ from typing import Optional
 from dataclasses import dataclass
 
 
-"""
-file reference
-'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl'
+def get_id_filename(identifier: str) -> str:
+    cwl_ref = get_cwl_reference(identifier)
+    assert(cwl_ref.filename)
+    return cwl_ref.filename
 
-workflow input reference
-'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl#annotation_file'
+def get_id_path(identifier: str) -> Optional[str]:
+    cwl_ref = get_cwl_reference(identifier)
+    return cwl_ref.internal_path
 
-step reference
-'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl#assign_genes'
+def get_id_entity(identifier: str) -> str:
+    cwl_ref = get_cwl_reference(identifier)
+    assert(cwl_ref.entity)
+    return cwl_ref.entity
 
-step output reference
-file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl#assign_genes/result_file'
+def remove_output_name_from_output_source(identifier: str) -> str:
+    assert('#' in identifier)
+    block1, block2 = identifier.split('#')
+    block2 = block2.split('/', 1)[1]
+    return f'{block1}#{block2}'
 
-internal clt definition
-'_:637c1ad6-a30f-4c92-80fe-b9f1448c02bd'
-
-clt input reference
-'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl#assign_genes/annotation_filename'
-
-clt output reference
-'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/super_enhancer_wf.cwl#assign_genes/result_file'
-"""
 
 
 @dataclass
 class CWLReference:
     filename: Optional[str] # myfile.cwl
-    prefix: Optional[str]   # a step
-    suffix: Optional[str]   # a step or workflow input or tool input
+    internal_path: Optional[str]   # a step
+    entity: Optional[str]   # a step or workflow input or tool input
 
 
 def get_cwl_reference(identifier: str) -> CWLReference:
     if identifier.startswith('_:'):
         filename = None
-        prefix = None
-        suffix = None
+        internal_path = None
+        entity = None
     
     elif '#' in identifier:
         block1, block2 = identifier.split('#')
         filename = block1.split('.')[0].split('/')[-1]
         if '/' in block2:
-            prefix, suffix = block2.split('/')
+            internal_path, entity = block2.split('/')
         else:
-            prefix = None
-            suffix = block2
-    else:
+            internal_path = None
+            entity = block2
+    elif '.cwl' in identifier:
         filename = identifier.split('.')[0].split('/')[-1]
-        prefix = None
-        suffix = None
-        
-    return CWLReference(filename, prefix, suffix)
+        internal_path = None
+        entity = None
+    else:
+        raise NotImplementedError
+
+    return CWLReference(filename, internal_path, entity)
+
+
+
+
 

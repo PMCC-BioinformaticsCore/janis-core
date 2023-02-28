@@ -2,12 +2,12 @@
 
 import re
 import os
+import copy
 
 from ruamel.yaml.comments import CommentedSeq
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from typing import Any, Optional, List
-from janis_core.utils.validators import Validators
 import janis_core as j
 
 
@@ -17,6 +17,26 @@ from cwl_utils.parser.cwl_v1_1 import CommandLineTool as CommandLineTool_1_1
 from cwl_utils.parser.cwl_v1_2 import CommandLineTool as CommandLineTool_1_2
 CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_2
 
+
+
+from janis_core import CommandTool, CodeTool, WorkflowBase, StepOutputSelector  # InputNodeSelector
+from janis_core.utils import first_value
+
+from janis_core.workflow.workflow import InputNode, StepNode
+from janis_core.workflow.workflow import verify_or_try_get_source
+from janis_core.types.data_types import is_python_primitive
+from janis_core.types import get_instantiated_type
+from janis_core.types import Filename
+from janis_core.tool.documentation import (
+    InputDocumentation,
+    InputQualityType,
+)
+
+from .identifiers import get_id_filename
+from .identifiers import get_id_path
+from .identifiers import get_id_entity
+from .identifiers import remove_output_name_from_output_source
+from .preprocessing import handle_inline_cltool_identifiers
 
 class CWlParser:
 
@@ -186,22 +206,23 @@ class CWlParser:
         else:
             raise Exception(f"Can't parse type {type(cwl_type).__name__}")
 
-    @classmethod
-    def get_tool_tag_from_identifier(cls, identifier):
-        i = cls.get_tag_from_identifier(identifier)
+    # @classmethod
+    # def (cls, identifier: str):
+    #     i = cls.get_tag_from_identifier(identifier)
 
-        while not Validators.validate_identifier(i):
-            i = str(
-                input(
-                    f"The tag for tool: '{i}' (fullID: {identifier}) was invalid, please choose another: "
-                )
-            )
+    #     identifier = get_cwl_reference(identifier)
 
-        return i
+    #         i = str(
+    #             input(
+    #                 f"The tag for tool: '{i}' (fullID: {identifier}) was invalid, please choose another: "
+    #             )
+    #         )
 
-    @classmethod
-    def get_tag_from_identifier(cls, identifier: Any) -> str:
-        return identifier
+    #     return i
+
+    # @classmethod
+    # def get_tag_from_identifier(cls, identifier: Any) -> str:
+    #     return identifier
 
         # identifier = cls.get_source_from_identifier(identifier)
         # identifier = identifier.replace("-", "_")
@@ -225,9 +246,9 @@ class CWlParser:
 
         # return identifier
 
-    @classmethod
-    def get_source_from_identifier(cls, identifier: Any) -> str:
-        return identifier
+    # @classmethod
+    # def get_source_from_identifier(cls, identifier: Any) -> str:
+    #     return identifier
     
         # if not isinstance(identifier, str):
         #     identifier = str(identifier)
@@ -280,7 +301,7 @@ class CWlParser:
             return float(num)
         raise ValueError("num is not a number. Got {}.".format(num))  # optional
 
-    def parse_basic_expression(self, expr):
+    def parse_basic_expression(self, expr: str):
         if expr is None:
             return None
         if not isinstance(expr, str):
@@ -359,9 +380,10 @@ class CWlParser:
             )
 
         inp_type = self.ingest_cwl_type(inp.type, secondary_files=inp.secondaryFiles)
+        identifier = get_id_entity(inp.id)
 
         return j.ToolInput(
-            tag=self.get_tag_from_identifier(inp.id),
+            tag=identifier,
             input_type=inp_type,
             position=inpBinding.position if inpBinding else None,
             prefix=inpBinding.prefix if inpBinding else None,
@@ -373,25 +395,26 @@ class CWlParser:
 
     def ingest_expression_tool_input(self, inp):
         inp_type = self.ingest_cwl_type(inp.type, secondary_files=inp.secondaryFiles)
-        return j.ToolInput(
-            tag=self.get_tag_from_identifier(inp.id), input_type=inp_type
-        )
+        
+        identifier = get_id_entity(inp.id)
+        return j.ToolInput(identifier, input_type=inp_type)
 
     def ingest_expression_tool_output(self, out):
         out_type = self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles)
 
+        identifier = get_id_entity(out.id)
+
         return j.ToolOutput(
-            self.get_tag_from_identifier(out.id),
+            identifier,
             output_type=out_type,
             skip_output_quality_check=True,
         )
 
-    def ingest_command_tool_output(
-        self, out
-    ):  # out: self.cwlgen.CommandOutputParameter
+    def ingest_command_tool_output(self, out) -> j.ToolOutput:  
+        # out: self.cwlgen.CommandOutputParameter
         
         # tag
-        tag = self.get_tag_from_identifier(out.id)
+        identifier = get_id_entity(out.id)
         
         # datatype
         output_type = self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles)
@@ -407,53 +430,98 @@ class CWlParser:
             elif outBinding.outputEval:
                 selector = self.parse_basic_expression(outBinding.outputEval)
 
-        return j.ToolOutput(tag, output_type, selector)
+        if selector is None:
+            print()
+        return j.ToolOutput(identifier, output_type, selector)
 
-    def parse_workflow_source(
-        self, wf: j.Workflow, step_input, potential_prefix: Optional[str] = None
-    ):
-        if step_input is None:
-            return None
-        if isinstance(step_input, list):
-            return [
-                self.parse_workflow_source(wf, si, potential_prefix=potential_prefix)
-                for si in step_input
-            ]
+    def parse_sources(self, wf: j.Workflow, sources: str | list[str]) -> list[InputNode | StepOutputSelector]:
+        """
+        each source is a workflow input, step output, or complex expression.
+        input nodes will all be parsed into janis wf at this stage.
+        we can check if the source is an input on the janis wf, then if not, must be a step output.
+        """
+        out: list[InputNode | StepOutputSelector] = []
+        
+        if sources == 'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/m-unlock/workflows/demultiplexing.cwl#demultiplex_output/ngtax/output':
+            print()
 
-        if not isinstance(step_input, str):
-            raise Exception(f"Can't parse step_input {step_input}")
+        if isinstance(sources, str):
+            sources = [sources]
 
-        parsed_step_input = self.get_source_from_identifier(step_input)
-        if parsed_step_input.startswith(wf.id() + "/"):
-            parsed_step_input = parsed_step_input[len(wf.id()) + 1 :]
-        if potential_prefix and parsed_step_input.startswith(potential_prefix + "/"):
-            parsed_step_input = parsed_step_input[len(potential_prefix) + 1 :]
+        for src in sources:
+            # get the wfinp / step output identifier
+            identifier = get_id_entity(src)
 
-        if parsed_step_input.startswith("$("):
-            raise Exception(
-                f"This script can't parse expressions in the step input {step_input}"
-            )
+            # is complex expression?
+            if identifier.startswith("$("):
+                raise Exception(
+                    f"This script can't parse expressions in the step input {step_input}"
+                )
+            
+            # is step output?
+            # if referencing step output, that step will have already been parsed into the janis wf
+            if get_id_path(src):
+                stp_id = get_id_path(src)
+                out_id = get_id_entity(src)
+                stp = wf.step_nodes[stp_id]
+                selector = stp.get_item(out_id)
+                out.append(selector)
+            
+            # is wf input?
+            elif identifier in wf.input_nodes:
+                resolved_src = wf[identifier]
+                out.append(resolved_src) 
+            
+            else:
+                raise NotImplementedError
+            
+        return out
 
-        [*ignore, source_str, tag_str] = (
-            parsed_step_input.split("/")
-            if "/" in parsed_step_input
-            else (parsed_step_input, None)
-        )
+    # def parse_sources(
+    #     self, wf: j.Workflow, step_input, potential_prefix: Optional[str] = None
+    # ):
+    #     if step_input is None:
+    #         return None
+    #     if isinstance(step_input, list):
+    #         return [
+    #             self.parse_sources(wf, si, potential_prefix=potential_prefix)
+    #             for si in step_input
+    #         ]
 
-        tag_str = self.get_tag_from_identifier(tag_str)
-        if source_str not in wf.nodes:
-            raise KeyError(f"Couldn't find input / step {source_str} in nodes")
-        source = wf[source_str]
-        from janis_core.workflow.workflow import StepNode
+    #     if not isinstance(step_input, str):
+    #         raise Exception(f"Can't parse step_input {step_input}")
 
-        if tag_str and isinstance(source, StepNode):
-            source = source.get_item(tag_str)
-        return source
+    #     parsed_step_input = self.get_source_from_identifier(step_input)
+    #     if parsed_step_input.startswith(wf.id() + "/"):
+    #         parsed_step_input = parsed_step_input[len(wf.id()) + 1 :]
+    #     if potential_prefix and parsed_step_input.startswith(potential_prefix + "/"):
+    #         parsed_step_input = parsed_step_input[len(potential_prefix) + 1 :]
+
+    #     if parsed_step_input.startswith("$("):
+    #         raise Exception(
+    #             f"This script can't parse expressions in the step input {step_input}"
+    #         )
+
+    #     [*ignore, source_str, tag_str] = (
+    #         parsed_step_input.split("/")
+    #         if "/" in parsed_step_input
+    #         else (parsed_step_input, None)
+    #     )
+
+    #     tag_str = self.get_tag_from_identifier(tag_str)
+    #     if source_str not in wf.nodes:
+    #         raise KeyError(f"Couldn't find input / step {source_str} in nodes")
+    #     source = wf[source_str]
+    #     from janis_core.workflow.workflow import StepNode
+
+    #     if tag_str and isinstance(source, StepNode):
+    #         source = source.get_item(tag_str)
+    #     return source
 
     def ingest_workflow_input(self, wf: j.Workflow, inp):
-
+        identifier = get_id_entity(inp.id)
         return wf.input(
-            identifier=self.get_tag_from_identifier(inp.id),
+            identifier=identifier,
             datatype=self.ingest_cwl_type(inp.type, secondary_files=inp.secondaryFiles),
             default=inp.default,
             doc=inp.doc,
@@ -463,49 +531,48 @@ class CWlParser:
         import cwl_utils.parser.cwl_v1_2 as cwlgen
 
         out: cwlgen.WorkflowOutputParameter = out
-        identifier = self.get_tag_from_identifier(out.id)
-        out_source = self.parse_workflow_source(
-            wf, out.outputSource, potential_prefix=identifier
-        )
+        out_identifier = get_id_entity(out.id)
+        source_identifier = remove_output_name_from_output_source(out.outputSource)
+        
+        sources = self.parse_sources(wf, source_identifier)
+        if len(sources) == 1:
+            source = sources[0]
+        else:
+            source = sources
         return wf.output(
-            identifier=identifier,
+            identifier=out_identifier,
             datatype=self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles),
-            source=out_source,
+            source=source,
         )
 
-    def ingest_workflow_step(self, wf: j.Workflow, stp):
+    def ingest_workflow_step(self, wf: j.Workflow, cwlstp):
         import cwl_utils.parser.cwl_v1_2 as cwlgen
 
-        stp: cwlgen.WorkflowStep = stp
-        step_identifier = self.get_tag_from_identifier(stp.id)
+        cwlstp: cwlgen.WorkflowStep = cwlstp
+        step_identifier = get_id_entity(cwlstp.id)
 
-        if isinstance(stp.run, (self.cwlgen.CommandLineTool, self.cwlgen.Workflow)):
-            tool = self.from_loaded_doc(stp.run, f'{step_identifier}_tool')
+        if isinstance(cwlstp.run, (self.cwlgen.CommandLineTool, self.cwlgen.Workflow)):
+            tool = self.from_loaded_doc(cwlstp.run)
         else:
-            tool = CWlParser.from_doc(stp.run, base_uri=self.base_uri)
+            tool = CWlParser.from_doc(cwlstp.run, base_uri=self.base_uri)
 
-        inputs = {}
-        for inp in stp.in_:
-            inp: cwlgen.WorkflowStepInput = inp
-            inp_identifier = self.get_tag_from_identifier(inp.id)
-
-            source = None
-            if inp.source is not None:
-                source = self.parse_workflow_source(
-                    wf, inp.source, potential_prefix=step_identifier
-                )
-            elif inp.valueFrom is not None:
-                source = self.parse_basic_expression(inp.valueFrom)
-            elif inp.default:
-                source = cast_cwl_type_to_python(inp.default)
-
-            if source is None:
-                print(f"Source is None from object: {inp.save()}")
-            inputs[inp_identifier] = source
-
+        # if _foreach is not None:
+        #     wf.has_scatter = True
+        
+        return wf.step(
+            identifier=step_identifier,
+            tool=tool,
+            doc=cwlstp.doc,
+            ignore_missing=True
+        ) 
+        
+    def ingest_workflow_step_scatter(self, wf: j.Workflow, cwlstp):
+        step_identifier = get_id_entity(cwlstp.id)
+        jstep = wf.step_nodes[step_identifier]
+        
         scatter = None
-        if stp.scatter:
-            scatter_fields_raw = stp.scatter
+        if cwlstp.scatter:
+            scatter_fields_raw = cwlstp.scatter
             if not isinstance(scatter_fields_raw, list):
                 scatter_fields_raw = [scatter_fields_raw]
 
@@ -514,20 +581,16 @@ class CWlParser:
                 [*other_fields, input_to_scatter] = field.split("/")
                 scatter_fields.append(input_to_scatter)
 
-            scatter_method = stp.scatterMethod
+            scatter_method = cwlstp.scatterMethod
             scatter = j.ScatterDescription(
                 fields=scatter_fields, method=self.ingest_scatter_method(scatter_method)
             )
+        
+        if scatter is not None:
+            jstep.scatter = scatter
+            wf.has_scatter = True
 
-        return wf.step(
-            identifier=step_identifier,
-            tool=tool(**inputs),
-            scatter=scatter,
-            when=None,
-            doc=stp.doc,
-        )
-
-    def ingest_scatter_method(self, scatter_method) -> j.ScatterMethod:
+    def ingest_scatter_method(self, scatter_method: Optional[str]) -> Optional[j.ScatterMethod]:
         if scatter_method is None or scatter_method == "":
             return None
         elif scatter_method == "dotproduct":
@@ -542,11 +605,92 @@ class CWlParser:
 
         raise Exception(f"Unrecognised scatter method '{scatter_method}'")
 
-    def ingest_command_line_tool(self, clt, name: Optional[str]=None):
+    def ingest_workflow_step_inputs(self, wf: j.Workflow, cwlstp) -> None:
+        step_identifier = get_id_entity(cwlstp.id)
+        jstep = wf.step_nodes[step_identifier]
 
+        connections = {}
+        for inp in cwlstp.in_:
+            inp_identifier = get_id_entity(inp.id)
+            source = self.get_input_source(wf, inp)
+            connections[inp_identifier] = source
+        
+        jstep.tool.connections = connections
+        self.add_step_edges(jstep, wf)
+    
+    def get_input_source(self, wf: j.Workflow, inp: Any) -> Any:
+        source = None
+        if inp.source is not None:
+            sources = self.parse_sources(wf, inp.source)
+            if len(sources) == 1:
+                source = sources[0]
+            else:
+                source = sources
+        elif inp.valueFrom is not None:
+            source = self.parse_basic_expression(inp.valueFrom)
+        elif inp.default:
+            source = cast_cwl_type_to_python(inp.default)
+
+        if source is None:
+            print(f"Source is None from object: {inp.save()}")
+        
+        return source
+
+    def add_step_edges(self, jstep: StepNode, wf: j.Workflow) -> None:
+        connections = jstep.tool.connections
+        tinputs = jstep.tool.inputs_map()
+        
+        added_edges = []
+        for (k, v) in connections.items():
+            
+            # static values provided when creating step.
+            # janis wants to create a workflow input for these.
+            isfilename = isinstance(v, Filename)
+            if is_python_primitive(v) or isfilename:
+                inp_identifier = f"{jstep.id()}_{k}"
+                referencedtype = copy.copy(tinputs[k].intype) if not isfilename else v
+                parsed_type = get_instantiated_type(v)
+
+                if parsed_type and not referencedtype.can_receive_from(parsed_type):
+                    raise TypeError(
+                        f"The type {parsed_type.id()} inferred from the value '{v}' is not "
+                        f"compatible with the '{jstep.id()}.{k}' type: {referencedtype.id()}"
+                    )
+
+                referencedtype.optional = True
+
+                indoc = tinputs[k].doc
+                indoc.quality = InputQualityType.configuration
+
+                v = wf.input(
+                    inp_identifier,
+                    referencedtype,
+                    default=v.generated_filename() if isfilename else v,
+                    doc=indoc,
+                )
+
+            if v is None:
+                inp_identifier = f"{jstep.id()}_{k}"
+                doc = copy.copy(InputDocumentation.try_parse_from(tinputs[k].doc))
+                doc.quality = InputQualityType.configuration
+                v = wf.input(inp_identifier, tinputs[k].intype, default=v, doc=doc)
+
+            verifiedsource = verify_or_try_get_source(v)
+            if isinstance(verifiedsource, list):
+                for vv in verifiedsource:
+                    added_edges.append(jstep._add_edge(k, vv))
+            else:
+                added_edges.append(jstep._add_edge(k, verifiedsource))
+
+        for e in added_edges:
+            si = e.finish.sources[e.ftag] if e.ftag else first_value(e.finish.sources)
+            wf.has_multiple_inputs = wf.has_multiple_inputs or si.multiple_inputs
+
+    def ingest_command_line_tool(self, clt, name: Optional[str]=None):
         docker_requirement = None  # : Optional[self.cwlgen.DockerRequirement]
         files_to_create = {}
         memory, cpus, time = None, None, None
+        
         for req in clt.requirements or []:
             if isinstance(req, self.cwlgen.DockerRequirement):
                 docker_requirement = req
@@ -575,9 +719,10 @@ class CWlParser:
             container = docker_requirement.dockerPull
 
         clt_id = name if name else clt.id
-        tool_id = self.get_tool_tag_from_identifier(clt_id)
+        identifier = get_id_filename(clt_id)
+
         jclt = j.CommandToolBuilder(
-            tool=tool_id,
+            tool=identifier,
             base_command=clt.baseCommand,
             inputs=[self.ingest_command_tool_input(inp) for inp in clt.inputs],
             outputs=[self.ingest_command_tool_output(out) for out in clt.outputs],
@@ -596,9 +741,11 @@ class CWlParser:
         return jclt
 
     def ingest_workflow(self, workflow):
+        workflow = handle_inline_cltool_identifiers(workflow)
+        identifier = get_id_filename(workflow.id)
 
         wf = j.WorkflowBuilder(
-            identifier=self.get_tag_from_identifier(workflow.id),
+            identifier=identifier,
             friendly_name=workflow.label,
             doc=workflow.doc,
         )
@@ -606,21 +753,43 @@ class CWlParser:
         for inp in workflow.inputs:
             self.ingest_workflow_input(wf, inp)
 
-        steps_to_process = workflow.steps
-        iters = len(steps_to_process) ** 2
-        while len(steps_to_process) > 0:
-            stp = steps_to_process.pop(0)
-            try:
-                self.ingest_workflow_step(wf, stp)
-            except KeyError as e:
-                steps_to_process.append(stp)
-                if iters < 0:
-                    print("")
-            iters -= 1
-            if iters < 0:
-                print("Oh god...")
-            if iters < -len(steps_to_process) ** 2:
-                raise Exception("Probably stuck in some weird loop, we're ")
+        # first step ingest pass
+        for step in workflow.steps:
+            self.ingest_workflow_step(wf, step)
+        
+        # second step ingest pass
+        for step in workflow.steps:
+            self.ingest_workflow_step_scatter(wf, step)
+        
+        # third step ingest pass
+        for step in workflow.steps:
+            self.ingest_workflow_step_inputs(wf, step)
+        
+
+        """
+        I believe the following code was written for situations
+        where a step has a connection to another step, yet that 
+        other step has not been parsed into the janis workflow. 
+        This means we can't set up the step inputs correctly. 
+        We can avoid this by splitting step parsing up. 
+        The first pass ingests each steps, without adding step inputs.
+        The second pass adds step scatter.
+        The third pass adds step inputs, as all other steps are now present in the janis wf. 
+        """
+        # iters = len(steps_to_process) ** 2
+        # while len(steps_to_process) > 0:
+        #     stp = steps_to_process.pop(0)
+        #     try:
+        #         self.ingest_workflow_step(wf, stp)
+        #     except KeyError as e:
+        #         steps_to_process.append(stp)
+        #         if iters < 0:
+        #             print("")
+        #     iters -= 1
+        #     if iters < 0:
+        #         print("Oh god...")
+        #     if iters < -len(steps_to_process) ** 2:
+        #         raise Exception("Probably stuck in some weird loop, we're ")
         # for stp in workflow.steps:
         #     self.ingest_workflow_step(wf, stp)
 
