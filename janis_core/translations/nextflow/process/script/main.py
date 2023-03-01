@@ -13,7 +13,7 @@ from ...scope import Scope
 from ...plumbing import trace
 
 from ... import ordering
-from ... import settings
+from janis_core import settings
 from ... import naming
 from ... import nfgen_utils as nfgen_utils
 from .. import inputs
@@ -186,8 +186,8 @@ class ProcessScriptGenerator:
 
     def finalise_script(self) -> str:
         script = self.script
-        if settings.JANIS_ASSISTANT:
-            script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
+        # if settings.JANIS_ASSISTANT:
+        #     script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)
 

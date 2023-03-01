@@ -6,7 +6,7 @@ from janis_core.types import DataType, Array, Int, Float, Double, Boolean
 NoneType = type(None)
 
 from ..scope import Scope
-from .. import settings
+from janis_core import settings
 from .. import naming
 from .. import nfgen_utils
 
@@ -79,7 +79,7 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
         tool=tool,
         scope=scope,
         sources=sources,
-        stdout_filename=settings.TOOL_STDOUT_FILENAME,
+        stdout_filename=settings.translate.nextflow.TOOL_STDOUT_FILENAME,
     )
     
     # process
@@ -126,7 +126,7 @@ def gen_process_from_codetool(
     process_inputs: list[inputs.ProcessInput] = []
     
     # inputs: python script
-    python_file_input = inputs.PathProcessInput(name=settings.PYTHON_CODE_FILE_SYMBOL)
+    python_file_input = inputs.PathProcessInput(name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL)
     process_inputs.append(python_file_input)
 
     # inputs: tool inputs
@@ -198,7 +198,7 @@ def prepare_script_for_python_code_tool(tool: PythonTool, sources: dict[str, Any
 
     args_str = ", ".join(a for a in args)
     script = f"""\
-{settings.PYTHON_SHEBANG}
+{settings.translate.nextflow.PYTHON_SHEBANG}
 
 from ${{code_file.simpleName}} import code_block
 import os
@@ -208,7 +208,7 @@ result = code_block({args_str})
 
 work_dir = os.getcwd()
 for key in result:
-    with open(os.path.join(work_dir, f"{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as fp:
+    with open(os.path.join(work_dir, f"{settings.translate.nextflow.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as fp:
         fp.write(json.dumps(result[key]))
 """
     return script

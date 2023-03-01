@@ -5,7 +5,7 @@ import functools
 
 from path import Path
 
-from janis_core import CommandTool, CodeTool, WorkflowBase
+from janis_core import CommandTool, CodeTool, WorkflowBase, Tool
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
 from janis_core.tool.tool import ToolType
@@ -108,7 +108,7 @@ class TranslatorBase(ABC):
 
         # GENERATE INPUT CONFIG
         # {name: value} for inputs config file (nextflow.config, inputs.yaml etc)
-        tr_inp = self.build_inputs_file(wf)
+        tr_inp = self.build_inputs_dict(wf)
         
         # inputs config file contents
         str_inp = self.stringify_translated_inputs(tr_inp)
@@ -272,7 +272,7 @@ class TranslatorBase(ABC):
         return tool_out
 
     @classmethod
-    def build_inputs_file(cls, tool: CommandTool | CodeTool | WorkflowBase) -> dict[str, Any]:
+    def build_inputs_dict(cls, tool: CommandTool | CodeTool | WorkflowBase) -> dict[str, Any]:
         ad = settings.translate.ADDITIONAL_INPUTS or {}
         values_provided_from_tool = {}
         if tool.type() == ToolType.Workflow:
@@ -302,7 +302,7 @@ class TranslatorBase(ABC):
     @classmethod
     def build_resources_input(
         cls, 
-        tool: CommandTool | CodeTool | WorkflowBase, 
+        tool: Tool, 
         inputs: Optional[dict[str, Any]]=None,
         prefix: str=""
     ) -> dict[str, Any]:
@@ -378,7 +378,8 @@ class TranslatorBase(ABC):
         ]
 
     @staticmethod
-    def get_container_override_for_tool(tool: CommandTool | CodeTool, container_override: dict[str, Any]):
+    def get_container_override_for_tool(tool: CommandTool | CodeTool):
+        container_override = settings.translate.CONTAINER_OVERRIDE
         if not container_override:
             return None
         if tool.id().lower() in container_override:

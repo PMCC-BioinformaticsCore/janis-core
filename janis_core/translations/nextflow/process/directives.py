@@ -10,7 +10,7 @@ from janis_core.types import Int
 from ..casefmt import to_case
 from ..params import Param
 from ..scope import Scope
-from .. import settings
+from janis_core import settings
 from .. import params
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
@@ -31,7 +31,7 @@ class PublishDirDirective(ProcessDirective):
     def get_string(self) -> str:
         scope = self.scope.labels[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
         subpath = '/'.join(scope)
-        subpath = to_case(subpath, settings.NF_OUTDIR_CASE)
+        subpath = to_case(subpath, settings.translate.nextflow.NF_OUTDIR_CASE)
         if subpath == '':
             return f"publishDir \"$params.outdir\""
         else:

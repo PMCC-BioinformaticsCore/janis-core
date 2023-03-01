@@ -1,3 +1,3 @@
 
 
-from . import translate
+from .translate import general

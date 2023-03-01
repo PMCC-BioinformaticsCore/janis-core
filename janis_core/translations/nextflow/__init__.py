@@ -33,7 +33,6 @@ from .process.inputs import (
     TupleProcessInput
 )
 
-from . import settings
 from . import channels
 from . import params
 from . import ordering

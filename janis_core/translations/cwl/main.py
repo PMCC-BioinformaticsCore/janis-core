@@ -330,7 +330,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         )
 
     @classmethod
-    def build_inputs_file(cls, tool: Tool) -> dict[str, Any]:
+    def build_inputs_dict(cls, tool: Tool) -> dict[str, Any]:
 
         ad = settings.translate.ADDITIONAL_INPUTS or {}
         values_provided_from_tool = {}
@@ -518,7 +518,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         if settings.translate.WITH_CONTAINER:
             container = (
-                CwlTranslator.get_container_override_for_tool(tool, settings.translate.CONTAINER_OVERRIDE)
+                CwlTranslator.get_container_override_for_tool(tool)
                 or tool.container()
             )
 
@@ -683,7 +683,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         if settings.translate.WITH_CONTAINER:
             container = (
-                CwlTranslator.get_container_override_for_tool(tool, settings.translate.CONTAINER_OVERRIDE)
+                CwlTranslator.get_container_override_for_tool(tool)
                 or tool.container()
             )
 

@@ -47,11 +47,11 @@ class TestIdentifiers(unittest.TestCase):
         self.assertEqual(ref.entity, 'result_file')
     
     def test_inline_step_id(self):
-        ident = 'add_island_names_tool'
+        ident = 'add_island_names_tool.cwl'
         ref = get_cwl_reference(ident)
-        self.assertEqual(ref.filename, None)
+        self.assertEqual(ref.filename, 'add_island_names_tool')
         self.assertEqual(ref.internal_path, None)
-        self.assertEqual(ref.entity, 'add_island_names_tool')
+        self.assertEqual(ref.entity, None)
     
 
             

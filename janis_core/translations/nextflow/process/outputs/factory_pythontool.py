@@ -9,7 +9,7 @@ from janis_core import (
     PythonTool,
 )
 
-from ... import settings
+from janis_core import settings
 from ... import nfgen_utils
 
 from .model import (
@@ -78,7 +78,7 @@ class PythonToolProcessOutputFactory:
     
     @property
     def target_file(self) -> str:
-        return f'{settings.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{self.out.id()}'
+        return f'{settings.translate.nextflow.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{self.out.id()}'
 
     def create(self) -> ProcessOutput:
         strategy = self.strategy_map[self.otype]

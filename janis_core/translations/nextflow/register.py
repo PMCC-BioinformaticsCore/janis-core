@@ -10,7 +10,7 @@ from . import params
 from . import channels
 from . import nfgen_utils
 
-from . import settings
+from janis_core import settings
 from .scope import Scope
 from copy import deepcopy
     
@@ -124,7 +124,7 @@ class ChannelRegistrationHelper:
 
     @property
     def is_subworkflow(self) -> bool:
-        if self.scope.labels != [settings.NF_MAIN_NAME]:
+        if self.scope.labels != [settings.translate.nextflow.NF_MAIN_NAME]:
             return True
         return False
     
@@ -224,14 +224,14 @@ class ChannelRegistrationHelper:
 # these identify which workflow inputs should have a param / channel created. 
 
 def _get_channel_inputs_to_register(wf: Workflow, scope: Scope) -> set[str]:
-    if scope.labels == [settings.NF_MAIN_NAME]:
+    if scope.labels == [settings.translate.nextflow.NF_MAIN_NAME]:
         items: set[str] = _get_channel_input_ids(wf)
     else:
         items: set[str] = set(wf.connections.keys())
     return items
 
 def _get_param_inputs_to_register(wf: Workflow, scope: Scope) -> set[str]:
-    if scope.labels == [settings.NF_MAIN_NAME]:
+    if scope.labels == [settings.translate.nextflow.NF_MAIN_NAME]:
         items: set[str] = {x.id() for x in wf.input_nodes.values()}
     else:
         items: set[str] = {x.id() for x in wf.input_nodes.values()} - _get_channel_inputs_to_register(wf, scope)
@@ -370,8 +370,8 @@ def _get_scatter_wf_inputs(wf: Workflow) -> set[str]:
     return out
 
 def _get_code_file_path(tool: PythonTool) -> str:
-    basedir = settings.BASE_OUTDIR
-    subfolder = settings.CODE_FILES_OUTDIR
+    basedir = settings.translate.nextflow.BASE_OUTDIR
+    subfolder = settings.translate.nextflow.CODE_FILES_OUTDIR
     filename = tool.id()
     filepath = os.path.join(basedir, subfolder, filename)
     filepath += '.py'

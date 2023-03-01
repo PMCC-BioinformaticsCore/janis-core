@@ -13,7 +13,7 @@ from ..casefmt import to_case
 from ..plumbing import trace
 from .. import nfgen_utils
 from .. import params
-from .. import settings
+from janis_core import settings
 
 
 
@@ -54,7 +54,7 @@ def _get_varname_process_input(inp: ToolInput | TInput, sources: dict[str, Any],
 def process_input_secondaries_array(inp: ToolInput | TInput) -> str:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype  # type: ignore
     basetype: DataType = nfgen_utils.get_base_type(dtype)  # type: ignore
-    basetype_name = to_case(basetype.name(), case=settings.NF_PROCESS_INPUT_CASE)
+    basetype_name = to_case(basetype.name(), case=settings.translate.nextflow.NF_PROCESS_INPUT_CASE)
     return f'{basetype_name}_array_flat'
 
 def process_input_secondaries_array_primary_files(inp: ToolInput | TInput) -> str:
@@ -103,4 +103,4 @@ def get_src_type(src: Any) -> DataType:
         return dtype
 
 def process_input_name(inp: ToolInput | TInput) -> str:
-    return to_case(inp.id(), case=settings.NF_PROCESS_INPUT_CASE)
+    return to_case(inp.id(), case=settings.translate.nextflow.NF_PROCESS_INPUT_CASE)

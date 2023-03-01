@@ -20,6 +20,7 @@ import json
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
+from janis_core import settings
 from janis_core.messages import get_messages
 from janis_core.code.codetool import CodeTool
 from janis_core.deps import wdlgen as wdl
@@ -73,7 +74,7 @@ from janis_core.utils.secondary import (
     split_secondary_file_carats,
     apply_secondary_file_format_to_filename,
 )
-from janis_core.utils.validators import Validators
+# from janis_core.utils.validators import Validators
 from janis_core.workflow.workflow import StepNode
 
 from .ordering import get_tool_input_positions
@@ -120,20 +121,9 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @classmethod
     #@try_catch_translate(type="workflow")
-    def translate_workflow_internal(
-        cls,
-        wfi,
-        with_container=True,
-        with_resource_overrides=False,
-        is_nested_tool=False,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ) -> Tuple[wdl.Workflow, Dict[str, any]]:
+    def translate_workflow_internal(cls, wfi: Any, is_nested_tool: bool=False) -> Tuple[wdl.Workflow, dict[str, Any]]:
         """
         Translate the workflow into wdlgen classes!
-
-
         :param with_resource_overrides:
         :param with_container:
         :param is_nested_tool:
@@ -142,7 +132,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         # Import needs to be here, otherwise we end up circularly importing everything
         # I need the workflow for type comparison
-        # you could have used TYPE_CHECKING, or fixed the larger architecture issue. 
+        # ^you could have used TYPE_CHECKING, or fixed the larger architecture issue. - GH
         from janis_core.workflow.workflow import Workflow
 
         wf: Workflow = wfi
@@ -202,7 +192,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
 
         resource_inputs = []
-        if with_resource_overrides:
+        if settings.translate.WITH_RESOURCE_OVERRIDES:
             resource_inputs = build_resource_override_maps_for_workflow(wf)
             w.inputs.extend(resource_inputs)
 
@@ -275,50 +265,28 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             if t.versioned_id() not in wtools:
                 if t.type() == ToolType.Workflow:
-                    wf_wdl, wf_tools = cls.translate_workflow_internal(
-                        t,
-                        with_container=with_container,
-                        is_nested_tool=True,
-                        with_resource_overrides=with_resource_overrides,
-                        allow_empty_container=allow_empty_container,
-                        container_override=container_override,
-                    )
+                    wf_wdl, wf_tools = cls.translate_workflow_internal(t, is_nested_tool=True)
                     wtools[t.versioned_id()] = wf_wdl
                     wtools.update(wf_tools)
 
                 elif isinstance(t, CommandTool):
-                    wtools[t.versioned_id()] = cls.translate_tool_internal(
-                        t,
-                        with_container=with_container,
-                        with_resource_overrides=with_resource_overrides,
-                        allow_empty_container=allow_empty_container,
-                        container_override=container_override,
-                    )
+                    wtools[t.versioned_id()] = cls.translate_tool_internal(t)
                 elif isinstance(t, CodeTool):
-                    wtools[t.versioned_id()] = cls.translate_code_tool_internal(
-                        t,
-                        with_docker=with_container,
-                        with_resource_overrides=with_resource_overrides,
-                        allow_empty_container=allow_empty_container,
-                        container_override=container_override,
-                    )
+                    wtools[t.versioned_id()] = cls.translate_code_tool_internal(t)
 
             resource_overrides = {}
 
-            if with_resource_overrides:
+            if settings.translate.WITH_RESOURCE_OVERRIDES:
                 toolroverrides = build_resource_override_maps_for_tool(t)
                 for r in toolroverrides:
                     resource_overrides[r.name] = s.id() + "_" + r.name
 
             call = translate_step_node(
                 step=s,
-                step_identifier=tool_aliases[t.versioned_id().lower()].upper()
-                + "."
-                + t.id(),
+                step_identifier=tool_aliases[t.versioned_id().lower()].upper() + "." + t.id(),
                 resource_overrides=resource_overrides,
                 invalid_identifiers=forbiddenidentifiers,
                 inputsdict=inputsdict,
-                render_comments=render_comments
             )
 
             w.calls.append(call)
@@ -327,22 +295,14 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
     @classmethod
     @try_catch_translate(type="command tool")
-    def translate_tool_internal(
-        cls,
-        tool: CommandTool,
-        with_container=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ):
+    def translate_tool_internal(cls, tool: CommandTool) -> Any:
 
-        if not Validators.validate_identifier(tool.id()):
-            raise Exception(
-                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
-                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
-                f"numbers or an underscore)"
-            )
+        # if not Validators.validate_identifier(tool.id()):
+        #     raise Exception(
+        #         f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+        #         f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+        #         f"numbers or an underscore)"
+        #     )
 
         inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
         toolouts = tool.outputs()
@@ -362,9 +322,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
         outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool=tool)
-        command_args = cls.translate_tool_args(
-            tool.arguments(), inmap, tool=tool, toolId=tool.id()
-        )
+        command_args = cls.translate_tool_args(tool.arguments(), inmap, tool=tool, toolId=tool.id())
         command_ins = cls.build_command_from_inputs(tool.inputs())
 
         commands = [wdl.Task.Command("set -e")]
@@ -393,14 +351,14 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             )
 
         r = wdl.Task.Runtime()
-        if with_container:
+        if settings.translate.WITH_CONTAINER:
             container = (
-                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                WdlTranslator.get_container_override_for_tool(tool)
                 or tool.container()
             )
             if container is not None:
                 r.add_docker(container)
-            elif not allow_empty_container:
+            elif not settings.translate.ALLOW_EMPTY_CONTAINER:
                 raise Exception(
                     f"The tool '{tool.id()}' did not have a container. Although not recommended, "
                     f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
@@ -412,28 +370,19 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             runtime_block=r,
             tool=tool,
             inmap=inmap,
-            with_resource_overrides=with_resource_overrides,
         )
 
         return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
 
     @classmethod
     @try_catch_translate(type="code tool")
-    def translate_code_tool_internal(
-        cls,
-        tool: CodeTool,
-        with_docker=True,
-        with_resource_overrides=True,
-        allow_empty_container=False,
-        container_override=None,
-        render_comments: bool = True
-    ):
-        if not Validators.validate_identifier(tool.id()):
-            raise Exception(
-                f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
-                f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
-                f"numbers or an underscore)"
-            )
+    def translate_code_tool_internal(cls, tool: CodeTool) -> Any:
+        # if not Validators.validate_identifier(tool.id()):
+        #     raise Exception(
+        #         f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
+        #         f"'{Validators.identifier_regex}' (must start with letters, and then only contain letters, "
+        #         f"numbers or an underscore)"
+        #     )
 
         ins = cls.get_resource_override_inputs() + [
             ToolInput(
@@ -483,15 +432,15 @@ EOT"""
         commands.append(wdl.Task.Command(bcs, command_ins, []))
 
         r = wdl.Task.Runtime()
-        if with_docker:
+        if settings.translate.WITH_CONTAINER:
             container = (
-                WdlTranslator.get_container_override_for_tool(tool, container_override)
+                WdlTranslator.get_container_override_for_tool(tool)
                 or tool.container()
             )
 
             if container is not None:
                 r.add_docker(container)
-            elif not allow_empty_container:
+            elif not settings.translate.ALLOW_EMPTY_CONTAINER:
                 raise Exception(
                     f"The tool '{tool.id()}' did not have a container. Although not recommended, "
                     f"Janis can export empty docker containers with the parameter 'allow_empty_container=True "
@@ -499,9 +448,7 @@ EOT"""
                 )
 
         inmap = {t.id(): t for t in ins}
-        cls.add_runtimefield_overrides_for_wdl(
-            r, tool=tool, inmap=inmap, with_resource_overrides=with_resource_overrides
-        )
+        cls.add_runtimefield_overrides_for_wdl(r, tool=tool, inmap=inmap)
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
@@ -1002,9 +949,7 @@ EOT"""
         return list(map(wdl.Task.Command, commands))
 
     @classmethod
-    def add_runtimefield_overrides_for_wdl(
-        cls, runtime_block, tool, inmap, with_resource_overrides
-    ):
+    def add_runtimefield_overrides_for_wdl(cls, runtime_block, tool, inmap):
         runtime_block.kwargs["cpu"] = cls.unwrap_expression(
             CpuSelector(), inmap, string_environment=False, tool=tool, id="runtimestats"
         )
@@ -1030,23 +975,13 @@ EOT"""
             id="runtimestats",
         )
 
-        if with_resource_overrides:
+        if settings.translate.WITH_RESOURCE_OVERRIDES:
             runtime_block.kwargs["zones"] = '"australia-southeast1-b"'
 
         runtime_block.kwargs["preemptible"] = 2
 
     @classmethod
-    def build_inputs_file(
-        cls,
-        tool,
-        recursive=False,
-        merge_resources=False,
-        hints=None,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-    ) -> Dict[str, any]:
+    def build_inputs_dict(cls, tool: Tool, recursive: bool=False) -> dict[str, Any]:
         """
         Recursive is currently unused, but eventually input overrides could be generated the whole way down
         a call chain, including subworkflows: https://github.com/openwdl/wdl/issues/217
@@ -1055,6 +990,7 @@ EOT"""
         :param tool:
         :return:
         """
+        additional_inputs = settings.translate.ADDITIONAL_INPUTS or {}
 
         inp = {}
         values_provided_from_tool = {}
@@ -1097,18 +1033,8 @@ EOT"""
                         else None
                     )
 
-        if merge_resources:
-            inp.update(
-                cls.build_resources_input(
-                    tool,
-                    hints,
-                    max_cores=max_cores,
-                    max_mem=max_mem,
-                    max_duration=max_duration,
-                    inputs=ad,
-                    is_root=True,
-                )
-            )
+        if settings.translate.MERGE_RESOURCES:
+            inp.update(cls.build_resources_input(tool, inputs=ad, is_root=True))
 
         return inp
     
@@ -1122,25 +1048,17 @@ EOT"""
         )
 
     @classmethod
-    def build_resources_input(
+    def build_resources_input( 
         cls,
-        tool,
-        hints,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-        inputs=None,
-        prefix=None,
-        is_root=False,
-    ):
+        tool: Tool, 
+        inputs: Optional[dict[str, Any]]=None,
+        prefix: str="",
+        is_root: bool=False,
+    ) -> dict[str, Any]:
 
         is_workflow = tool.type() == ToolType.Workflow
         d = super().build_resources_input(
             tool=tool,
-            hints=hints,
-            max_cores=max_cores,
-            max_mem=max_mem,
-            max_duration=max_duration,
             prefix=prefix or "",
             inputs=inputs,
         )
@@ -1444,7 +1362,6 @@ def translate_step_node(
     resource_overrides: Dict[str, str],
     invalid_identifiers: Set[str],
     inputsdict: Dict[str, Any],
-    render_comments: bool = True
 ) -> wdl.WorkflowCallBase:
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
@@ -1663,6 +1580,7 @@ def translate_step_node(
         inputs_details[key] = {'value': val}
 
     messages = get_messages(step.id())   # uuid is currently using janis-core identifiers
+    render_comments = settings.translate.RENDER_COMMENTS
     call = wdl.WorkflowCall(step_identifier, step.id(), inputs_details, messages, render_comments)
 
     if len(scatterable) > 0:

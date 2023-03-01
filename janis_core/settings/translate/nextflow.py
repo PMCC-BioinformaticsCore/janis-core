@@ -30,16 +30,10 @@ NF_MAIN_NAME = 'main'
 
 # process translation
 MINIMAL_PROCESS = True
-JANIS_ASSISTANT = False
-
-# comments
-RENDER_COMMENTS = True
+# JANIS_ASSISTANT = False
 
 # translation mode
 MODE = 'workflow'
-
-# resources
-WITH_RESOURCE_OVERRIDES = False
 
 # directories
 BASE_OUTDIR = ''
@@ -47,7 +41,3 @@ PROCESS_OUTDIR = 'modules'
 SUBWORKFLOW_OUTDIR = 'subworkflows'
 CODE_FILES_OUTDIR = 'templates'
 
-# containers
-WITH_CONTAINER = True
-ALLOW_EMPTY_CONTAINER = True
-CONTAINER_OVERRIDE = None

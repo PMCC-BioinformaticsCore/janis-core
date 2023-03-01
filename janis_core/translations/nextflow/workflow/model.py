@@ -1,9 +1,12 @@
 from textwrap import indent
 from typing import Optional
 
-from .. import settings
+from janis_core import settings
 from .. import naming
 
+
+
+INDENT = settings.translate.nextflow.NF_INDENT
 
 def filter_null(iterable):
     if iterable is None:
@@ -102,7 +105,7 @@ class Workflow:
         main = "\n".join(self.main)
         if self.is_subworkflow:
             main = "main:\n" + main
-        return indent(main, settings.NF_INDENT)
+        return indent(main, INDENT)
 
     @property
     def take_block(self) -> Optional[str]:
@@ -110,7 +113,7 @@ class Workflow:
             return None
         return indent(
             "take:\n" + "\n".join(i.get_string() for i in self.take) + '\n', 
-            settings.NF_INDENT
+            INDENT
         )
 
     @property
@@ -119,7 +122,7 @@ class Workflow:
             return None
         return indent(
             "emit:\n" + "\n".join(i.get_string() for i in self.emit),
-            settings.NF_INDENT
+            INDENT
         )
 
     def get_string(self) -> str:

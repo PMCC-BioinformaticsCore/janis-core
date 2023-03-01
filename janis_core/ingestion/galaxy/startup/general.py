@@ -44,7 +44,7 @@ def setup_data_folder() -> None:
 
 
 # def general_setup(args: dict[str, Any]) -> None:
-    # settings.general.COMMAND = args['command']
+    # settings.translate.COMMAND = args['command']
 
     # parent_outdir = format_parent_outdir(args)
     # tool_outdir = format_tool_subdir(args)

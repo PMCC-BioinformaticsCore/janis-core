@@ -3,7 +3,7 @@
 
 from janis_core.types import DataType
 
-from .. import settings
+from janis_core import settings
 
 from .common import array_type
 from .common import single_type
@@ -11,7 +11,7 @@ from .common import secondary_type
 from .common import secondary_array_type
 from .common import get_collate_size
 
-INDENT = settings.NF_INDENT
+INDENT = settings.translate.nextflow.NF_INDENT
 
 
 def is_scatter_relationship(srcscatter: bool, destscatter: bool) -> bool:

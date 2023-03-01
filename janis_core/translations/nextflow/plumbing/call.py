@@ -11,7 +11,7 @@ from janis_core.types import DataType, Stdout
 from .. import process
 from .. import nfgen_utils
 from .. import ordering
-from .. import settings
+from janis_core import settings
 
 from ..unwrap import unwrap_expression
 from ..scope import Scope
@@ -27,7 +27,7 @@ from .edge_cases import handle_edge_case
 # from .scatter import is_scatter_relationship
 # from .scatter import handle_scatter_relationship
 
-NF_INDENT = settings.NF_INDENT
+NF_INDENT = settings.translate.nextflow.NF_INDENT
 
 
 # move to unwrap.py

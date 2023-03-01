@@ -4,7 +4,7 @@ import os
 from typing import Optional, Any
 from textwrap import indent
 
-from . import settings
+from janis_core import settings
 from . import naming
 
 
@@ -75,6 +75,6 @@ class Function:
     def get_string(self) -> str:
         return f"""
 def {self.name}({", ".join(self.parameters)}) {{
-  {indent(self.definition, settings.NF_INDENT)}
+  {indent(self.definition, settings.translate.nextflow.NF_INDENT)}
 }}
 """

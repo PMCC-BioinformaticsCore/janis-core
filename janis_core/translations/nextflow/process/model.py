@@ -4,7 +4,7 @@ from textwrap import indent
 
 from typing import Optional
 
-from .. import settings
+from janis_core import settings
 from .. import naming
 from .. import ordering
 
@@ -12,6 +12,8 @@ from .inputs.factory import ProcessInput
 from .outputs.model import ProcessOutput
 from .directives import ProcessDirective
 
+
+INDENT = settings.translate.nextflow.NF_INDENT
 
 def filter_null(iterable):
     if iterable is None:
@@ -67,14 +69,14 @@ class Process:
         if not self.directives:
             return None
         directives = ordering.order_nf_directives(self.directives)
-        return "\n".join(settings.NF_INDENT + d.get_string() for d in directives)
+        return "\n".join(INDENT + d.get_string() for d in directives)
 
     def prepare_inputs(self):
         if not self.inputs:
             return None
         return indent(
             "input:\n" + "\n".join(i.get_string() for i in self.inputs), 
-            settings.NF_INDENT
+            INDENT
         )
 
     def prepare_outputs(self):
@@ -82,7 +84,7 @@ class Process:
             return None
         return indent(
             "output:\n" + "\n".join(o.get_string() for o in self.outputs),
-            settings.NF_INDENT,
+            INDENT,
         )
     
     def prepare_exec(self) -> Optional[str]:
@@ -91,7 +93,7 @@ class Process:
             outstr += 'exec:'
             if self.main_exec != '':
                 outstr += f'\n{self.main_exec}'
-            outstr = indent(outstr, settings.NF_INDENT)
+            outstr = indent(outstr, INDENT)
             return outstr
         return None
     
@@ -105,9 +107,9 @@ class Process:
             script += f'{3 * self.script_quote}\n' if self.script_quote else ''
             script += f'{script_body}\n'
             script += f'{3 * self.script_quote}\n' if self.script_quote else ''
-            script = indent(script, settings.NF_INDENT)
+            script = indent(script, INDENT)
         else:
-            script = indent(script_body, settings.NF_INDENT)
+            script = indent(script_body, INDENT)
         
         return script
 

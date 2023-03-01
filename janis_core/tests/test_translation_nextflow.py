@@ -77,7 +77,7 @@ from janis_core import (
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
 from janis_core.translations.nextflow import plumbing
-from janis_core.translations.nextflow import settings
+
 from janis_core import (
     String, 
     Int, 
@@ -95,6 +95,34 @@ from janis_bioinformatics.data_types.sam import Sam
 from janis_bioinformatics.data_types.cram import Cram
 
 from janis_core.translations.nextflow.nfgen_utils import to_groovy
+from janis_core import settings
+
+
+def reset_global_settings() -> None:
+    # nextflow specific
+    settings.translate.nextflow.MODE = 'workflow'
+    settings.translate.nextflow.MINIMAL_PROCESS = True
+
+    # general
+    settings.translate.STRICT_IDENTIFIERS = True 
+    settings.translate.ALLOW_EMPTY_CONTAINER = True 
+    settings.translate.MERGE_RESOURCES = False
+    settings.translate.RENDER_COMMENTS = True 
+    settings.translate.SHOULD_VALIDATE = False
+    settings.translate.SHOULD_ZIP = False
+    settings.translate.TO_DISK = False
+    settings.translate.TO_CONSOLE = True 
+    settings.translate.TOOL_TO_CONSOLE = False
+    settings.translate.WITH_CONTAINER = True 
+    settings.translate.WITH_RESOURCE_OVERRIDES = False
+    settings.translate.WRITE_INPUTS_FILE = True 
+    settings.translate.CONTAINER_OVERRIDE = None
+    settings.translate.ADDITIONAL_INPUTS = None
+    settings.translate.HINTS = None
+    settings.translate.MAX_CORES = None           
+    settings.translate.MAX_DURATION = None           
+    settings.translate.MAX_MEM = None      
+
 
 
 ### helper classes
@@ -128,6 +156,9 @@ def refresh_workflow_inputs(wf: Workflow) -> None:
 
 
 class TestToGroovyStr(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_global_settings()
 
     def test_string(self) -> None:
         inp = 'Hello'
@@ -205,14 +236,16 @@ class TestToGroovyStr(unittest.TestCase):
 
 
 class TestSettings(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_global_settings()
 
     def test_get_settings(self):
-        self.assertEquals(settings.LIB_FILENAME, 'lib.nf')
-        self.assertEquals(settings.CONFIG_FILENAME, 'nextflow.config')
+        self.assertEquals(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
+        self.assertEquals(settings.translate.nextflow.CONFIG_FILENAME, 'nextflow.config')
     
     def test_set_settings(self):
-        settings.MINIMAL_PROCESS = False
-        self.assertEquals(settings.MINIMAL_PROCESS, False)
+        settings.translate.nextflow.MINIMAL_PROCESS = False
+        self.assertEquals(settings.translate.nextflow.MINIMAL_PROCESS, False)
 
     @unittest.skip('not implemented')
     def test_minimal_process(self):
@@ -228,8 +261,7 @@ class TestSettings(unittest.TestCase):
 class TestParams(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
     
     def test_channel_params(self) -> None:
         """
@@ -377,9 +409,8 @@ class TestParams(unittest.TestCase):
 class TestFileFormatting(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.maxDiff = None
+        reset_global_settings()
 
     def test_main_workflow(self) -> None:
         wf = AssemblyTestWF()
@@ -534,9 +565,8 @@ class TestFileFormatting(unittest.TestCase):
 class TestChannels(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.maxDiff = None
+        reset_global_settings()
 
     def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
@@ -711,8 +741,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     def test_directives_order(self) -> None:
         wf = DirectivesTestWF()
@@ -774,8 +803,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     def test_file_pairs(self) -> None:
         wf = FilePairsTestWF()
@@ -983,10 +1011,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = OutputCollectionTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_get_fmttype(self) -> None:
         pass
@@ -1192,8 +1219,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     def test_variables_defined(self) -> None:
         wf = EntityTraceTestWF()
@@ -1472,10 +1498,9 @@ process STP3 {
 class TestPythontoolProcessInputs(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = InputsPythonToolTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_input_generation(self) -> None:
         # File, String, Int input types
@@ -1518,10 +1543,9 @@ class TestPythontoolProcessInputs(unittest.TestCase):
 class TestPythontoolProcessOutputs(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = OutputsPythonToolTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
     
     def test_output_generation(self) -> None:
         # file output
@@ -1558,10 +1582,9 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
 class TestPythontoolProcess(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = InputsPythonToolTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_format(self) -> None:
         step = self.wf.step_nodes["stp0"]
@@ -1602,10 +1625,9 @@ class TestPythontoolProcess(unittest.TestCase):
 class TestPythontoolProcessScript(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = InputsPythonToolTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_input_references(self) -> None:
         # File, String, Int input types
@@ -1656,11 +1678,10 @@ class TestEntityTracing(unittest.TestCase):
     in a workflow. This occurs in wgsgermline. 
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.maxDiff = None
         self.wf = EntityTraceTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_trace_entity_counts4(self) -> None:
         step_id = 'stp4'
@@ -1756,6 +1777,9 @@ class TestEntityTracing(unittest.TestCase):
 
 class TestPlumbingModule(unittest.TestCase):
     """tests the public functions in nfgen.plumbing."""
+
+    def setUp(self) -> None:
+        reset_global_settings()
 
     def test_get_array_depth(self):
         self.assertEqual(nextflow.plumbing.get_array_depth(String()), 0)
@@ -1973,10 +1997,9 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     in a workflow. This occurs in wgsgermline. 
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = PlumbingTypeMismatchTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_secondary_single_mismatch(self):
         step_id = 'bambai_to_bam'
@@ -2077,10 +2100,9 @@ class TestPlumbingScatter(unittest.TestCase):
         - scattering for each type
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = ComprehensiveScatterTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_scatter_to_scatter(self):
         step_id = 'scatter_to_scatter'
@@ -2202,8 +2224,7 @@ class TestPlumbingBasic(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     # workflow input step inputs
     def test_workflow_inputs(self):
@@ -2294,8 +2315,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     def test_array_connections(self) -> None:
         wf = ArrayStepConnectionsTestWF()
@@ -2454,8 +2474,7 @@ class TestPlumbingCombinations(unittest.TestCase):
     Includes combinations of scatter, arrays, secondary files. 
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     # scatter + secondaries
     @unittest.skip('not implemented')
@@ -2515,10 +2534,9 @@ class TestPlumbingEdgeCases(unittest.TestCase):
     in a workflow. This occurs in wgsgermline. 
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = PlumbingEdgeCaseTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_pythontool_array_string_output(self) -> None:
         step_id = 'stp2'
@@ -2538,8 +2556,7 @@ class TestWorkflowOutputs(unittest.TestCase):
     Tests workflow outputs being created correctly
     """
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
         
     @unittest.skip('not implemented')
     def test_files(self) -> None:
@@ -2571,8 +2588,7 @@ class TestWorkflowOutputs(unittest.TestCase):
 class TestConfig(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
     
     def test_outdir(self):
         wf = BasicIOTestWF()
@@ -2754,7 +2770,7 @@ class TestConfig(unittest.TestCase):
     def test_workflow_config(self) -> None:
         wf = AssemblyTestWF()
         refresh_workflow_inputs(wf)
-        params = translator.build_inputs_file(wf)
+        params = translator.build_inputs_dict(wf)
         config = translator.stringify_translated_inputs(params)
         # basic structure
         self.assertIn('docker.enabled = true', config)
@@ -2791,29 +2807,10 @@ class TestConfig(unittest.TestCase):
 
 
 
-class TestWorkflow(unittest.TestCase):
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-
-
-
-
-class TestSubworkflows(unittest.TestCase):
-    # TODO test more features / edge cases?
-
-    def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
-
-
-
-
 class TestStepFeatures(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
 
     def test_first_selector(self):
         wf = ConditionStepTestWF()
@@ -2846,8 +2843,7 @@ class TestStepFeatures(unittest.TestCase):
 class TestUnwrap(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
         wf = UnwrapTestWF()
         refresh_workflow_inputs(wf)
         step = wf.step_nodes["stp1"]
@@ -2862,6 +2858,7 @@ class TestUnwrap(unittest.TestCase):
         self.wf = StepConnectionsTestWF()
         refresh_workflow_inputs(self.wf)
         print(self.script)
+
 
     # PROCESS RELATED
     def test_filename_generated(self) -> None:
@@ -2959,8 +2956,7 @@ class TestUnwrap(unittest.TestCase):
 class TestStringFormatter(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
+        reset_global_settings()
     
     def test_string_formatter(self):
         tool = BasicTestTool()
@@ -3114,10 +3110,9 @@ class TestStringFormatter(unittest.TestCase):
 class TestOrdering(unittest.TestCase):
 
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = OrderingTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_process_call(self) -> None:
         # from workflow inputs
@@ -3352,10 +3347,9 @@ class TestSubWorkflows(unittest.TestCase):
     # due to subworkflows. apologies. 
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = SubworkflowTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     @unittest.skip('not implemented')
     def test_param_system(self) -> None:
@@ -3459,10 +3453,9 @@ class TestSubWorkflows(unittest.TestCase):
 class TestNaming(unittest.TestCase):
     
     def setUp(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'workflow'
         self.wf = NamingTestWF()
         refresh_workflow_inputs(self.wf)
+        reset_global_settings()
 
     def test_workflow(self) -> None:
         name = nextflow.naming.gen_varname_workflow(self.wf.id())

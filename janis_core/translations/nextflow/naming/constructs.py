@@ -11,7 +11,7 @@ from janis_core import (
 
 from ..casefmt import to_case
 from ..scope import Scope
-from .. import settings
+from janis_core import settings
 
 
 ### GENERAL
@@ -30,26 +30,26 @@ def get_construct_name(tool: CommandTool | PythonTool | Workflow, scope: Scope) 
     return construct_type
 
 def gen_varname_workflow(basename: str) -> str:
-    return to_case(basename, settings.NF_PROCESS_CASE)
+    return to_case(basename, settings.translate.nextflow.NF_PROCESS_CASE)
 
 def gen_varname_process(basename: str) -> str:
-    return to_case(basename, settings.NF_PROCESS_CASE)
+    return to_case(basename, settings.translate.nextflow.NF_PROCESS_CASE)
 
 def gen_varname_channel(janis_tag: str, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
     basename = name_override if name_override else janis_tag
     # basename = _handle_plurals(basename, dtype)
-    name = to_case(basename, settings.NF_CHANNEL_CASE)
+    name = to_case(basename, settings.translate.nextflow.NF_CHANNEL_CASE)
     name = f'ch_{name}'
     return name
 
 def gen_varname_param(janis_tag: str, scope: Scope, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
     basename = name_override if name_override else janis_tag
     # basename = _handle_plurals(basename, dtype)
-    name = to_case(basename, settings.NF_PARAM_CASE)
+    name = to_case(basename, settings.translate.nextflow.NF_PARAM_CASE)
     depth = len(scope.items)
     if depth > 1:
         scope_labels = scope.labels[1:]
-        scope_labels = [to_case(x, settings.NF_PARAM_CASE) for x in scope_labels]
+        scope_labels = [to_case(x, settings.translate.nextflow.NF_PARAM_CASE) for x in scope_labels]
         name = f"{'.'.join(scope_labels)}.{name}"
     return name
 

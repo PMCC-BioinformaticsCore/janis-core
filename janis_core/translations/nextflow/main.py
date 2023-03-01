@@ -21,7 +21,7 @@ from .workflow.model import Workflow
 from .process.directives import ContainerDirective
 from .process import Process
 
-from . import settings
+from janis_core import settings
 from . import channels
 from . import params
 from . import workflow
@@ -88,7 +88,7 @@ class NFFileRegister:
         for label, nf_file in self.files.items():
             label_split = dot_to_scope_notation(label)
             # ignore the main workflow file (it throws things off)
-            if label_split != [settings.NF_MAIN_NAME]:
+            if label_split != [settings.translate.nextflow.NF_MAIN_NAME]:
                 # does the scope match the start of the label?
                 if label_split[:depth] == scope.labels:
                     # if we only want direct children
@@ -122,9 +122,9 @@ class NFItemRegister:
 class NextflowTranslator(TranslatorBase):
     DIR_TOOLS: str = '' # DO NOT ALTER
     SUBDIRS_TO_CREATE: list[str] = [
-        settings.PROCESS_OUTDIR,
-        settings.SUBWORKFLOW_OUTDIR,
-        settings.CODE_FILES_OUTDIR,
+        settings.translate.nextflow.PROCESS_OUTDIR,
+        settings.translate.nextflow.SUBWORKFLOW_OUTDIR,
+        settings.translate.nextflow.CODE_FILES_OUTDIR,
     ]
 
     file_register: NFFileRegister = NFFileRegister()
@@ -134,23 +134,10 @@ class NextflowTranslator(TranslatorBase):
         super().__init__(name="nextflow")
 
     @classmethod
-    def translate_workflow_internal(
-        cls,
-        jworkflow: Workflow,
-        with_container: bool = True,  
-        with_resource_overrides: bool = False,
-        allow_empty_container: bool = True,
-        container_override: Optional[dict[str, str]] = None,
-        render_comments: bool = True
-    ) -> Tuple[Any, dict[str, Any]]:
+    def translate_workflow_internal(cls, wf: WorkflowBase) -> Tuple[Any, dict[str, Any]]:
 
         # set class variables to avoid passing junk params
-        settings.BASE_OUTDIR = cls.basedir
-        settings.WITH_CONTAINER = with_container
-        settings.ALLOW_EMPTY_CONTAINER = allow_empty_container
-        settings.CONTAINER_OVERRIDE = container_override
-        settings.WITH_RESOURCE_OVERRIDES = with_resource_overrides
-        settings.RENDER_COMMENTS = render_comments
+        settings.translate.nextflow.BASE_OUTDIR = cls.basedir
 
         # blank scope - main wf has not parent
         scope = Scope()
@@ -158,10 +145,10 @@ class NextflowTranslator(TranslatorBase):
         # register params and channels for workflow inputs
         params.clear()
         channels.clear()
-        register_params_channels(jworkflow, scope)
+        register_params_channels(wf, scope)
 
         # main logic
-        cls.update_files('', scope, jworkflow, sources={})
+        cls.update_files('', scope, wf, sources={})
 
         # get the main wf file and all sub files
         main_file = cls.file_register.get(scope)  # main nf workflow usually
@@ -253,7 +240,7 @@ class NextflowTranslator(TranslatorBase):
                 )
 
             # item: channels item (if main workflow object)
-            if scope.labels == [settings.NF_MAIN_NAME]:
+            if scope.labels == [settings.translate.nextflow.NF_MAIN_NAME]:
                 channels_item = channels.channels.channel_register # bad naming
                 if len(channels_item.ordered_channels) > 0:
                     cls.item_register.add(scope, channels_item)
@@ -276,10 +263,10 @@ class NextflowTranslator(TranslatorBase):
                 if len(scope.labels) == 1: 
                     source = f'./{nf_file.path}'
                 # (subwf)
-                elif settings.SUBWORKFLOW_OUTDIR in nf_file.path:
+                elif settings.translate.nextflow.SUBWORKFLOW_OUTDIR in nf_file.path:
                     folder = os.path.split(nf_file.path)[-1]
                     source = f'./{folder}'
-                elif settings.PROCESS_OUTDIR in nf_file.path:
+                elif settings.translate.nextflow.PROCESS_OUTDIR in nf_file.path:
                     source = f'../{nf_file.path}'
                 else:
                     raise NotImplementedError
@@ -426,11 +413,9 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        if settings.WITH_CONTAINER:
+        if settings.translate.WITH_CONTAINER:
             container = (
-                NextflowTranslator.get_container_override_for_tool(
-                    tool, settings.CONTAINER_OVERRIDE
-                )
+                NextflowTranslator.get_container_override_for_tool(tool)
                 or tool.container()
             )
 
@@ -439,7 +424,7 @@ class NextflowTranslator(TranslatorBase):
             directive = ContainerDirective(container_expr)
             process.directives.append(directive)
 
-        elif not settings.ALLOW_EMPTY_CONTAINER:
+        elif not settings.translate.ALLOW_EMPTY_CONTAINER:
             raise Exception(
                 f"The tool '{tool.id()}' did not have a container and no container override was specified. "
                 f"Although not recommended, Janis can export empty docker containers with the parameter "
@@ -469,7 +454,7 @@ class NextflowTranslator(TranslatorBase):
         if isinstance(tool, PythonTool):
             # helpers["__init__.py"] = ""
             #helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
-            subdir = settings.CODE_FILES_OUTDIR
+            subdir = settings.translate.nextflow.CODE_FILES_OUTDIR
             filename = f'{tool.id()}.py'
             filepath = os.path.join(subdir, filename)
             helpers[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
@@ -549,7 +534,7 @@ class NextflowTranslator(TranslatorBase):
         )       
 
     @classmethod
-    def build_inputs_file(
+    def build_inputs_dict(
         cls,
         tool: Workflow | CommandTool,
         recursive: bool=False,
@@ -614,7 +599,7 @@ class NextflowTranslator(TranslatorBase):
         
         NOTE - this method does not do what it says. 
 
-        build_inputs_file() and stringify_translated_inputs() must be 
+        build_inputs_dict() and stringify_translated_inputs() must be 
         implemented by any subclass of TranslationBase, but these don't
         properly capture what we want to do for  
 

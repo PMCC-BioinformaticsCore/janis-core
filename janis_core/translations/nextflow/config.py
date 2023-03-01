@@ -4,14 +4,14 @@ from __future__ import annotations
 from collections import defaultdict
 from janis_core.types import File
 
-from . import settings
+from janis_core import settings
 from . import nfgen_utils
 from .params import Param, getall
 from .casefmt import to_case
 
 
 BOILERPLATE_LINES = ['docker.enabled = true']
-INDENT = settings.NF_INDENT
+INDENT = settings.translate.nextflow.NF_INDENT
 MAX_LINE_WIDTH = 80
 COMMENTER = '// '
 TEMPLATE = """\
@@ -224,6 +224,6 @@ class ParamGrouper:
             if subtype == 'workflow':
                 subname = label
                 break
-        subname = to_case(subname, settings.NF_PROCESS_CASE)
+        subname = to_case(subname, settings.translate.nextflow.NF_PROCESS_CASE)
         return f'SUBWORKFLOW: {subname}'
         

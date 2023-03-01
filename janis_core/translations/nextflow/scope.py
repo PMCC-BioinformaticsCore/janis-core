@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from janis_core import CommandTool, PythonTool
 from janis_core.workflow.workflow import StepNode
 
-from . import settings
+from janis_core import settings
 
 """
 TODO explain this
@@ -33,7 +33,7 @@ class WorkflowScopeItem(ScopeItem):
 class Scope:
     def __init__(self):
         self.items: list[ScopeItem] = []
-        self.items.append(WorkflowScopeItem(settings.NF_MAIN_NAME))
+        self.items.append(WorkflowScopeItem(settings.translate.nextflow.NF_MAIN_NAME))
     
     def update(self, step: StepNode) -> None:
         new_item = self.create_item(step)

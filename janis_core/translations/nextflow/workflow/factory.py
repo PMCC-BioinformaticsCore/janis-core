@@ -12,7 +12,7 @@ from ..process import FunctionsBlock
 from .. import channels
 from .. import nfgen_utils
 from .. import ordering
-from .. import settings
+from janis_core import settings
 from .. import unwrap
 
 from .model import Workflow as NFWorkflow
@@ -33,7 +33,7 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
     :return:
     :rtype:
     """
-    is_subworkflow = True if scope.labels[-1] != settings.NF_MAIN_NAME else False
+    is_subworkflow = True if scope.labels[-1] != settings.translate.nextflow.NF_MAIN_NAME else False
 
     take: list[WorkflowTake] = []
     emit: list[WorkflowEmit] = []

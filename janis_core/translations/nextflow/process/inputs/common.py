@@ -13,7 +13,7 @@ from janis_core import (
     TInput,
 )
 
-from ... import settings
+from janis_core import settings
 from ... import channels
 from ... import params
 from ... import nfgen_utils as nfgen_utils
@@ -26,9 +26,9 @@ def get_process_inputs(sources: dict[str, Any]) -> set[str]:
     """
     get the tool inputs which will become nextflow process inputs
     """
-    if settings.MODE == 'workflow':
+    if settings.translate.nextflow.MODE == 'workflow':
         return get_process_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool':  # type: ignore
+    elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
         return get_process_inputs_toolmode(sources)
     else:
         raise RuntimeError
@@ -81,17 +81,17 @@ def get_param_inputs(sources: dict[str, Any]) -> set[str]:
     """
     get the tool inputs which will be fed values via params
     """
-    if settings.MODE == 'workflow':
+    if settings.translate.nextflow.MODE == 'workflow':
         return get_param_inputs_workflowmode(sources)
-    elif settings.MODE == 'tool':  # type: ignore
+    elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
         return get_param_inputs_toolmode(sources)
-    raise RuntimeError('DEV: settings.MODE must be either "workflow" or "tool"')
+    raise RuntimeError('DEV: settings.translate.nextflow.MODE must be either "workflow" or "tool"')
 
 def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     """
     get the inputs which are fed (via step inputs) using a non-File type workflow input
     """
-    if settings.MINIMAL_PROCESS:
+    if settings.translate.nextflow.MINIMAL_PROCESS:
         process_input_ids = get_process_inputs(sources)
         param_input_ids = get_param_process_inputs(sources)
         surviving_ids = param_input_ids - process_input_ids
@@ -114,7 +114,7 @@ def get_param_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
     optional_ids = get_optional_input_ids(all_inputs)
     default_ids = get_default_input_ids(all_inputs)
     
-    if settings.MINIMAL_PROCESS:
+    if settings.translate.nextflow.MINIMAL_PROCESS:
         surviving_ids = surviving_ids - file_ids
         surviving_ids = surviving_ids - optional_ids
         surviving_ids = surviving_ids - default_ids
