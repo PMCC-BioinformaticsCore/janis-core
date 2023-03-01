@@ -35,6 +35,8 @@ class CWLReference:
 
 
 def get_cwl_reference(identifier: str) -> CWLReference:
+    identifier = identifier.replace('-', '_')
+    
     if identifier.startswith('_:'):
         filename = None
         internal_path = None
@@ -44,7 +46,13 @@ def get_cwl_reference(identifier: str) -> CWLReference:
         block1, block2 = identifier.split('#')
         filename = block1.split('.')[0].split('/')[-1]
         if '/' in block2:
-            internal_path, entity = block2.split('/')
+            internal_path, entity = block2.split('/')[-2:]
+            # if block2.count('/') == 1:
+            #     internal_path, entity = block2.split('/')
+            # elif block2.count('/') == 2:
+            #     internal_path, entity = block2.split('/')[1:]
+            # else:
+            #     raise NotImplementedError
         else:
             internal_path = None
             entity = block2

@@ -61,6 +61,7 @@ class Edge:
         # stoolin: TOutput = self.start.outputs()[
         #     self.stag
         # ] if self.stag is not None else first_value(self.start.outputs())
+
         ftoolin: TInput = (
             self.finish.inputs()[self.ftag]
             if self.ftag is not None
@@ -129,11 +130,15 @@ class StepTagInput:
 
         # stype = (start.outputs()[stag] if stag is not None else first_value(start.outputs())).outtype
         stype = get_instantiated_type(operator.returntype())
-        ftype = (
-            self.finish.inputs()[self.ftag]
-            if self.ftag is not None
-            else first_value(self.finish.inputs())
-        ).intype
+
+        if self.ftag:
+            if self.ftag not in self.finish.inputs():
+                print()
+            tinput = self.finish.inputs()[self.ftag]
+        else:
+            tinput = first_value(self.finish.inputs())          
+        ftype = tinput.intype
+
 
         # start_is_scattered = isinstance(start, StepNode) and start.scatter is not None
         #
@@ -156,6 +161,7 @@ class StepTagInput:
             self.multiple_inputs = True
 
             if not ftype.is_array():
+
                 raise Exception(
                     f"Adding multiple inputs to '{self.finish.id()}' and '{ftype.id()}' is not an array"
                 )

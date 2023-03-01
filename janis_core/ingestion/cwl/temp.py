@@ -19,14 +19,14 @@ CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_
 
 
 
-from janis_core import CommandTool, CodeTool, WorkflowBase, StepOutputSelector  # InputNodeSelector
+from janis_core import StepOutputSelector  # InputNodeSelector
 from janis_core.utils import first_value
 
 from janis_core.workflow.workflow import InputNode, StepNode
 from janis_core.workflow.workflow import verify_or_try_get_source
 from janis_core.types.data_types import is_python_primitive
 from janis_core.types import get_instantiated_type
-from janis_core.types import Filename
+from janis_core.types import Filename, Stdout
 from janis_core.tool.documentation import (
     InputDocumentation,
     InputQualityType,
@@ -410,7 +410,7 @@ class CWlParser:
             skip_output_quality_check=True,
         )
 
-    def ingest_command_tool_output(self, out) -> j.ToolOutput:  
+    def ingest_command_tool_output(self, out, is_expression_tool: bool=False) -> j.ToolOutput:  
         # out: self.cwlgen.CommandOutputParameter
         
         # tag
@@ -420,18 +420,18 @@ class CWlParser:
         output_type = self.ingest_cwl_type(out.type, secondary_files=out.secondaryFiles)
 
         # selector
-        outBinding = out.outputBinding
         selector = None
-        if outBinding:
-            if outBinding.glob:
-                selector = j.WildcardSelector(
-                    self.parse_basic_expression(outBinding.glob)
-                )
-            elif outBinding.outputEval:
-                selector = self.parse_basic_expression(outBinding.outputEval)
+        if hasattr(out, 'janis_collection_override'):
+            selector = out.janis_collection_override
 
-        if selector is None:
-            print()
+        elif out.outputBinding:
+            if out.outputBinding.glob:
+                selector = j.WildcardSelector(
+                    self.parse_basic_expression(out.outputBinding.glob)
+                )
+            elif out.outputBinding.outputEval:
+                selector = self.parse_basic_expression(out.outputBinding.outputEval)
+
         return j.ToolOutput(identifier, output_type, selector)
 
     def parse_sources(self, wf: j.Workflow, sources: str | list[str]) -> list[InputNode | StepOutputSelector]:
@@ -442,9 +442,6 @@ class CWlParser:
         """
         out: list[InputNode | StepOutputSelector] = []
         
-        if sources == 'file:///home/grace/work/pp/translation/janis-assistant/janis_assistant/tests/data/cwl/m-unlock/workflows/demultiplexing.cwl#demultiplex_output/ngtax/output':
-            print()
-
         if isinstance(sources, str):
             sources = [sources]
 
@@ -460,7 +457,7 @@ class CWlParser:
             
             # is step output?
             # if referencing step output, that step will have already been parsed into the janis wf
-            if get_id_path(src):
+            if get_id_path(src) and get_id_path(src) in wf.step_nodes:
                 stp_id = get_id_path(src)
                 out_id = get_id_entity(src)
                 stp = wf.step_nodes[stp_id]
@@ -558,7 +555,7 @@ class CWlParser:
 
         # if _foreach is not None:
         #     wf.has_scatter = True
-        
+
         return wf.step(
             identifier=step_identifier,
             tool=tool,
@@ -639,6 +636,7 @@ class CWlParser:
     def add_step_edges(self, jstep: StepNode, wf: j.Workflow) -> None:
         connections = jstep.tool.connections
         tinputs = jstep.tool.inputs_map()
+        jstep.sources = {}
         
         added_edges = []
         for (k, v) in connections.items():
@@ -649,13 +647,13 @@ class CWlParser:
             if is_python_primitive(v) or isfilename:
                 inp_identifier = f"{jstep.id()}_{k}"
                 referencedtype = copy.copy(tinputs[k].intype) if not isfilename else v
-                parsed_type = get_instantiated_type(v)
+                # parsed_type = get_instantiated_type(v)
 
-                if parsed_type and not referencedtype.can_receive_from(parsed_type):
-                    raise TypeError(
-                        f"The type {parsed_type.id()} inferred from the value '{v}' is not "
-                        f"compatible with the '{jstep.id()}.{k}' type: {referencedtype.id()}"
-                    )
+                # if parsed_type and not referencedtype.can_receive_from(parsed_type):
+                #     raise TypeError(
+                #         f"The type {parsed_type.id()} inferred from the value '{v}' is not "
+                #         f"compatible with the '{jstep.id()}.{k}' type: {referencedtype.id()}"
+                #     )
 
                 referencedtype.optional = True
 
@@ -842,8 +840,9 @@ class CWlParser:
             f"Expression tools aren't well converted to Janis as they rely on unimplemented functionality: {clt.id}"
         )
         for out in clt.outputs:
-            out_id = out.id.split(".")[-1]
-            out.outputEval = f"JANIS (potentially unimplemented): j.ReadJsonOperator(j.Stdout)[out_id]"
+            out_id = get_id_entity(out.id)
+            # out_id = out.id.split(".")[-1]
+            out.janis_collection_override = j.ReadJsonOperator(j.Stdout)[out_id]
 
         return self.ingest_command_line_tool(clt)
 
