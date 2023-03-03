@@ -359,10 +359,10 @@ class WorkflowBase(Tool):
         self,
         identifier: str,
         datatype: ParseableType,
-        default: any = None,
-        value: any = None,
-        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
-    ):
+        default: Any = None,
+        value: Any = None,
+        doc: Optional[str | InputDocumentation | Dict[str, Any]] = None,
+    ) -> InputNodeSelector:
         """
         Create an input node on a workflow
         :return:
@@ -397,7 +397,7 @@ class WorkflowBase(Tool):
         output_name: Union[bool, str, Selector, ConnectionSource] = True,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
-    ):
+    ) -> OutputNode:
         """
         Create an output on a workflow
 
