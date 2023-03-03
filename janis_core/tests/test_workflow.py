@@ -190,7 +190,7 @@ class TestWorkflow(TestCase):
 
         e = w.stp.sources["input1"].source_map[0]
 
-        self.assertTrue(e.scatter)
+        self.assertTrue(e.should_scatter)
         self.assertFalse(e.compatible_types)
 
     def test_add_scatter_nested_arrays(self):
@@ -226,7 +226,7 @@ class TestWorkflow(TestCase):
         w.step("stp", ArrayStepTool(inp=w.inp))
 
         e = w.stp.sources["inp"].source_map[0]
-        self.assertFalse(e.scatter)
+        self.assertFalse(e.should_scatter)
 
     def test_invalid_scatter_field(self):
         w = WorkflowBuilder("scatterededge")
@@ -260,8 +260,8 @@ class TestWorkflow(TestCase):
         e1 = w.scatteredStp1.sources["input1"].source_map[0]
         e2 = w.mergeStp2.sources["inp"].source_map[0]
 
-        self.assertTrue(e1.scatter)
-        self.assertFalse(e2.scatter)
+        self.assertTrue(e1.should_scatter)
+        self.assertFalse(e2.should_scatter)
         self.assertTrue(e2.compatible_types)
 
     def test_add_rescatter_scattered(self):
@@ -274,8 +274,8 @@ class TestWorkflow(TestCase):
         e1 = stp1.sources["input1"].source_map[0]
         e2 = stp2.sources["input1"].source_map[0]
 
-        self.assertTrue(e1.scatter)
-        self.assertTrue(e2.scatter)
+        self.assertTrue(e1.should_scatter)
+        self.assertTrue(e2.should_scatter)
 
     def test_add_single_to_array_edge(self):
         w = WorkflowBuilder("test_add_single_to_array_edge")

@@ -1,6 +1,7 @@
 
 import ruamel.yaml
 from typing import Any, Optional
+from janis_core import settings
 
 DEFAULT_PARSER_VERSION = "v1.2"
 
@@ -17,7 +18,11 @@ def load_cwl_version(doc: str) -> str:
         tool_dict = ruamel.yaml.load(fp, Loader=ruamel.yaml.Loader) # type: ignore
     
     if "cwlVersion" not in tool_dict:
-        raise Exception(f"Couldn't find cwlVersion in tool {doc}")
+        if settings.ingest.cwl.REQUIRE_CWL_VERSION: 
+            raise Exception(f"Couldn't find cwlVersion in tool {doc}")
+        else:
+            # TODO add this as an error_message on the j.Tool
+            return DEFAULT_PARSER_VERSION
     
     # return version
     return tool_dict["cwlVersion"]

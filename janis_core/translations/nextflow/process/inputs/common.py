@@ -207,9 +207,9 @@ def get_scatter_process_inputs(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being scattered on"""
     out: set[str] = set()
     for inname, src in sources.items():
-        scatter = src.source_map[0].scatter
+        should_scatter = src.source_map[0].should_scatter
         node = nfgen_utils.resolve_node(src)
-        if scatter and isinstance(node, InputNode):
+        if should_scatter and isinstance(node, InputNode):
             out.add(inname)
     return out
 

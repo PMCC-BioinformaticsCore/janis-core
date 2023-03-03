@@ -9,6 +9,8 @@ from janis_core.types.data_types import NativeTypes
 from janis_core.utils.docparser_info import parse_docstring
 from janis_core.utils.metadata import ToolMetadata
 
+
+from janis_core.utils.errors import UnsupportedError
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.tool import TInput
 from janis_core.types import (
@@ -101,7 +103,7 @@ class PythonTool(CodeTool, ABC):
                 )
 
             if unsupported_types:
-                raise Exception(
+                raise UnsupportedError(
                     f"Unsupported types for inputs: "
                     + ", ".join(f"{k}: {v}" for k, v in unsupported_types.items())
                 )

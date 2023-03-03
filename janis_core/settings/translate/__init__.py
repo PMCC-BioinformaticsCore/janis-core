@@ -4,7 +4,6 @@ from . import nextflow
 
 from .general import (
     EXPORT_PATH,
-    STRICT_IDENTIFIERS,
     ALLOW_EMPTY_CONTAINER,
     MERGE_RESOURCES,
     RENDER_COMMENTS,

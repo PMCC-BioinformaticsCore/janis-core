@@ -1,14 +1,13 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional
 
 from janis_core.types import get_instantiated_type
 
 from janis_core.operators import Selector
 from janis_core.graph.node import Node, NodeType
-from janis_core.tool.tool import TInput, TOutput
-from janis_core.types.common_data_types import Array
+from janis_core.tool.tool import TInput
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
-
+from janis_core import settings
 
 def full_lbl(node: Node, tag: Optional[str]) -> str:
     if tag is None:
@@ -24,7 +23,7 @@ def full_dot(node: Node, tag: Optional[str]) -> str:
 
 class Edge:
     def __init__(
-        self, source: Selector, finish: Node, ftag: Optional[str], should_scatter
+        self, source: Selector, finish: Node, ftag: Optional[str], should_scatter: Optional[bool]=None
     ):
         Logger.log(
             f"Creating edge: ({source} → "
@@ -35,29 +34,23 @@ class Edge:
         self.finish: Node = finish
         self.ftag: Optional[str] = ftag
         self.compatible_types: Optional[bool] = None
-        self.scatter = should_scatter
-
+        self.should_scatter = should_scatter
+        self.error_messages: list[str] = []
         self.validate_tags()
         self.check_types()
 
-    # def source_slashed(self):
-    #     return str(self.source)
-    #
-    # def source_dotted(self):
-    #     return full_dot(self.start, self.stag)
-
     def validate_tags(self):
-        if (
-            self.finish.node_type == NodeType.STEP
-            and self.ftag not in self.finish.inputs()
-        ):
-            raise Exception(
-                f"Could not find the tag '{self.ftag}' in the outputs of '{self.finish.id()}': {list(self.finish.inputs().keys())}"
-            )
+        if self.finish.node_type == NodeType.STEP:
+            if self.ftag not in self.finish.inputs():
+                if settings.graph.ALLOW_UNKNOWN_SOURCE:
+                    msg = "Could not connect this input to its data source"
+                    self.error_messages.append(msg)
+                else:
+                    raise Exception(
+                        f"Could not find the tag '{self.ftag}' in the outputs of '{self.finish.id()}': {list(self.finish.inputs().keys())}"
+                    )
 
     def check_types(self):
-        from janis_core.workflow.workflow import InputNode, StepNode
-
         # stoolin: TOutput = self.start.outputs()[
         #     self.stag
         # ] if self.stag is not None else first_value(self.start.outputs())
@@ -71,13 +64,18 @@ class Edge:
         stype = get_instantiated_type(self.source.returntype())
         ftype = get_instantiated_type(ftoolin.intype)
 
-        if self.scatter:
+        if self.should_scatter:
             if not stype.is_array():
-                raise Exception(
-                    f"Scatter was required for '{self.source} → '{self.finish.id()}.{self.ftag}' but "
-                    f"the input type was {type(stype).__name__} and not an array"
-                )
-            stype = stype.subtype()
+                if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
+                    msg = "This task is supposed to run in parallel across this input, but the data source is not an array."
+                    self.error_messages.append(msg)
+                else:
+                    raise Exception(
+                        f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
+                        f"the input type was {type(stype).__name__} and not an array"
+                    )
+            else:
+                stype = stype.subtype()
 
         # Scatters are handled automatically by the StepTagInput Array unwrapping
         # Merges are handled automatically by the `start_is_scattered` Array wrap
@@ -88,34 +86,35 @@ class Edge:
                 self.compatible_types = True
 
         if not self.compatible_types:
-
-            s = str(self.source)
-            f = full_dot(self.finish, self.ftag)
-            message = (
-                f"Mismatch of types when joining '{s}' to '{f}': "
-                f"{stype.id()} -/→ {ftoolin.intype.id()}"
-            )
-            if stype.is_array() and ftype.can_receive_from(stype.subtype()):
-                message += " (did you forget to SCATTER?)"
-            Logger.critical(message)
+            if settings.graph.ALLOW_INCOMPATIBLE_TYPES:
+                msg = f"The data source for this input is a {stype.id()}, but the input is a {ftoolin.intype.id()}"
+                self.error_messages.append(msg)
+            else:
+                s = str(self.source)
+                f = full_dot(self.finish, self.ftag)
+                message = (
+                    f"Mismatch of types when joining '{s}' to '{f}': "
+                    f"{stype.id()} -/→ {ftoolin.intype.id()}"
+                )
+                if stype.is_array() and ftype.can_receive_from(stype.subtype()):
+                    message += " (did you forget to SCATTER?)"
+                Logger.critical(message)
 
 
 class StepTagInput:
     """
-    This class represents the connections that a single input on a step has. Hence, a step
-    will have one StepTagInput for each potential input of the tool.
+    This class represents the connections that a single input on a step has. 
+    A step will have one StepTagInput for each potential input of the tool.
     """
 
     def __init__(self, finish: Node, finish_tag: str):
-
         self.finish: Node = finish
         self.ftag: Optional[str] = finish_tag
-
         self.multiple_inputs = False
+        self.source_map: list[Edge] = []
+        self.error_messages: list[str] = []
 
-        self.source_map: List[Edge] = []
-
-    def add_source(self, operator: Selector, should_scatter) -> Edge:
+    def add_source(self, operator: Selector, should_scatter: Optional[bool]=None) -> Edge:
         """
         Add a connection
         :param start:
@@ -123,23 +122,15 @@ class StepTagInput:
         :param should_scatter:
         :return:
         """
-
-        from janis_core.workflow.workflow import StepNode
-
-        # start: Node, stag: Optional[str]
-
-        # stype = (start.outputs()[stag] if stag is not None else first_value(start.outputs())).outtype
         stype = get_instantiated_type(operator.returntype())
 
         if self.ftag:
-            if self.ftag not in self.finish.inputs():
-                print()
             tinput = self.finish.inputs()[self.ftag]
         else:
-            tinput = first_value(self.finish.inputs())          
+            tinput = first_value(self.finish.inputs())        
         ftype = tinput.intype
 
-
+        # from janis_core.workflow.workflow import StepNode
         # start_is_scattered = isinstance(start, StepNode) and start.scatter is not None
         #
         # if start_is_scattered:
@@ -151,20 +142,28 @@ class StepTagInput:
 
         if should_scatter:
             if not stype.is_array():
-                raise Exception(
-                    f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
-                    f"the input type was {type(stype).__name__} and not an array"
-                )
-            stype = get_instantiated_type(stype.subtype())
+                if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
+                    msg = "This task is supposed to run in parallel across this input, but the data source is not an array."
+                    self.error_messages.append(msg)
+                else:
+                    raise Exception(
+                        f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
+                        f"the input type was {type(stype).__name__} and not an array"
+                    )
+            else:
+                stype = get_instantiated_type(stype.subtype())
 
         if len(self.source_map) == 1:  # and start.id() not in self.source_map:
             self.multiple_inputs = True
-
             if not ftype.is_array():
-
-                raise Exception(
-                    f"Adding multiple inputs to '{self.finish.id()}' and '{ftype.id()}' is not an array"
-                )
+                if settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES:
+                    msg = "This input has multiple data sources, but should only have one (it is not an array)."
+                    self.error_messages.append(msg)
+                else:
+                    raise Exception(
+                        f"Adding multiple inputs to '{self.finish.id()}' "
+                        f"and '{ftype.id()}' is not an array"
+                    )
 
         if not stype.is_array() and ftype.is_array():
             # https://www.commonwl.org/user_guide/misc/#connect-a-solo-value-to-an-input-that-expects-an-array-of-that-type

@@ -20,7 +20,8 @@ def get_id_entity(identifier: str) -> str:
     return cwl_ref.entity
 
 def remove_output_name_from_output_source(identifier: str) -> str:
-    assert('#' in identifier)
+    if '#' not in identifier:
+        raise RuntimeError
     block1, block2 = identifier.split('#')
     block2 = block2.split('/', 1)[1]
     return f'{block1}#{block2}'

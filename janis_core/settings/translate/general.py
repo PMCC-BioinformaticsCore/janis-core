@@ -7,7 +7,6 @@ from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 EXPORT_PATH:                str = ExportPathKeywords.default # base output directory
 
-STRICT_IDENTIFIERS:         bool = True  # whether to enforce rules about tool / workflow / tool input etc identifiers
 ALLOW_EMPTY_CONTAINER:      bool = True  # makes docker containers optional
 MERGE_RESOURCES:            bool = False # merge resource requirements into inputs config
 RENDER_COMMENTS:            bool = True  # whether to render info comments in the translation

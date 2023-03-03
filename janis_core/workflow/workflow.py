@@ -1,7 +1,7 @@
 import copy
 import os
 from uuid import uuid4
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
@@ -81,12 +81,14 @@ def verify_or_try_get_source(
             )
         tag = list(outs.keys())[0]
 
-    if tag not in outs:
-        tags = ", ".join([f"out.{o}" for o in outs.keys()])
-        raise Exception(
-            f"Couldn't find tag '{tag}' in outputs of '{node.id()}', "
-            f"expected one of {tags}"
-        )
+    if not settings.graph.ALLOW_UNKNOWN_SOURCE:
+        raise Exception('CHECK THIS SHIT 2')
+        if tag not in outs:
+            tags = ", ".join([f"out.{o}" for o in outs.keys()])
+            raise Exception(
+                f"Couldn't find tag '{tag}' in outputs of '{node.id()}', "
+                f"expected one of {tags}"
+            )
 
     return StepOutputSelector(node, tag)
 
@@ -335,7 +337,7 @@ class WorkflowBase(Tool):
         pass
 
     def verify_identifier(self, identifier: str, component: str):
-        if not settings.translate.STRICT_IDENTIFIERS:
+        if not settings.identifiers.STRICT_IDENTIFIERS:
             return None
 
         if identifier in self.__dict__:
@@ -748,12 +750,14 @@ class WorkflowBase(Tool):
             ins = set(tool.inputs_map().keys())
             fields = set(scatter.fields)
             if any(f not in ins for f in fields):
-                # if there is a field not in the input map, we have a problem
-                extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
-                raise Exception(
-                    f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
-                    f"as they are not inputs to the tool '{tool.id()}'"
-                )
+                raise Exception('CHECK THIS SHIT 1')
+                if not settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
+                    # if there is a field not in the input map, we have a problem
+                    extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
+                    raise Exception(
+                        f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
+                        f"as they are not inputs to the tool '{tool.id()}'"
+                    )
 
         tool.workflow = self
         inputs = tool.inputs_map()

@@ -363,9 +363,9 @@ def _get_scatter_wf_inputs(wf: Workflow) -> set[str]:
     out: set[str] = set()
     for step in wf.step_nodes.values():
         for src in step.sources.values():
-            scatter = src.source_map[0].scatter
+            should_scatter = src.source_map[0].should_scatter
             node = nfgen_utils.resolve_node(src)
-            if scatter and isinstance(node, InputNode):
+            if should_scatter and isinstance(node, InputNode):
                 out.add(node.id())
     return out
 

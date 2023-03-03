@@ -12,11 +12,8 @@ from cwl_utils.parser.cwl_v1_1 import CommandLineTool as CommandLineTool_1_1
 from cwl_utils.parser.cwl_v1_2 import CommandLineTool as CommandLineTool_1_2
 CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_2
 
-
-
-from janis_core import StepOutputSelector  # InputNodeSelector
+from janis_core import StepOutputSelector 
 from janis_core.utils import first_value
-
 
 from janis_core.workflow.workflow import InputNode, StepNode, OutputNode
 from janis_core.workflow.workflow import verify_or_try_get_source
@@ -26,6 +23,8 @@ from janis_core.tool.documentation import (
     InputDocumentation,
     InputQualityType,
 )
+
+from janis_core.utils.errors import UnsupportedError
 
 from .identifiers import get_id_filename
 from .identifiers import get_id_path
@@ -73,6 +72,8 @@ def _revert_directory(directory: str) -> None:
 
 class CWlParser:
 
+    """main class to parse a cwl_utils Workflow | CommandLineTool | ExpressionTool"""
+
     def __init__(self, doc: str, base_uri: Optional[str]=None) -> None:
         self.doc = doc
         self.base_uri = base_uri
@@ -87,7 +88,7 @@ class CWlParser:
         if isinstance(cwl_entity, self.cwl_utils.ExpressionTool):
             return self.ingest_expression_tool(cwl_entity)
         else:
-            raise Exception(
+            raise UnsupportedError(
                 f"Janis doesn't support ingesting from {type(cwl_entity).__name__}"
             )
         
@@ -132,9 +133,12 @@ class CWlParser:
 
     def ingest_workflow_output(self, wf: j.Workflow, out: Any) -> OutputNode:
         out_identifier = get_id_entity(out.id)
-        source_identifier = remove_output_name_from_output_source(out.outputSource)
+        if isinstance(out.outputSource, list):
+            cwl_source = [remove_output_name_from_output_source(x) for x in out.outputSource]
+        else:
+            cwl_source = remove_output_name_from_output_source(out.outputSource)
         
-        sources = self.parse_sources(wf, source_identifier)
+        sources = self.parse_sources(wf, cwl_source)
         if len(sources) == 1:
             source = sources[0]
         else:
@@ -200,20 +204,33 @@ class CWlParser:
         elif scatter_method == "flat_crossproduct":
             return j.ScatterMethod.cross
 
-        raise Exception(f"Unrecognised scatter method '{scatter_method}'")
+        raise UnsupportedError(f"Unsupported scatter method '{scatter_method}'")
 
     def ingest_workflow_step_inputs(self, wf: j.Workflow, cwlstp: Any) -> None:
         step_identifier = get_id_entity(cwlstp.id)
         jstep = wf.step_nodes[step_identifier]
 
+        valid_step_inputs = self.get_valid_step_inputs(cwlstp, jstep)
+
         connections = {}
-        for inp in cwlstp.in_:
+        for inp in valid_step_inputs:
             inp_identifier = get_id_entity(inp.id)
             source = self.get_input_source(wf, inp)
             connections[inp_identifier] = source
         
         jstep.tool.connections = connections
         self.add_step_edges(jstep, wf)
+
+    def get_valid_step_inputs(self, cwlstp: Any, jstep: StepNode) -> list[Any]:
+        return [x for x in cwlstp.in_ if self.is_valid_step_input(x, jstep)]
+    
+    def is_valid_step_input(self, inp: Any, jstep: StepNode) -> bool:
+        # ERROR HANDLING
+        inp_identifier = get_id_entity(inp.id)
+        if inp_identifier in jstep.tool.inputs_map():
+            print(f'WARNING: [STEP: {jstep.id()}] [TOOL: {jstep.tool.id()}] - Tool has no input named "{inp_identifier}". Ignoring.')
+            return True
+        return False
     
     def get_input_source(self, wf: j.Workflow, inp: Any) -> Any:
         source = None
@@ -247,13 +264,6 @@ class CWlParser:
             if is_python_primitive(v) or isfilename:
                 inp_identifier = f"{jstep.id()}_{k}"
                 referencedtype = copy.copy(tinputs[k].intype) if not isfilename else v
-                # parsed_type = get_instantiated_type(v)
-
-                # if parsed_type and not referencedtype.can_receive_from(parsed_type):
-                #     raise TypeError(
-                #         f"The type {parsed_type.id()} inferred from the value '{v}' is not "
-                #         f"compatible with the '{jstep.id()}.{k}' type: {referencedtype.id()}"
-                #     )
 
                 referencedtype.optional = True
 
@@ -317,7 +327,6 @@ class CWlParser:
         if docker_requirement:
             container = docker_requirement.dockerPull
 
-        # clt_id = name if name else clt.id
         identifier = get_id_filename(clt.id)
 
         jclt = j.CommandToolBuilder(
@@ -409,20 +418,6 @@ class CWlParser:
 
         return self.ingest_command_line_tool(clt)
 
-    def ingest_expression_tool_input(self, inp: Any) -> j.ToolInput:
-        inp_type = ingest_cwl_type(inp.type, self.cwl_utils, secondary_files=inp.secondaryFiles)
-        identifier = get_id_entity(inp.id)
-        return j.ToolInput(identifier, input_type=inp_type)
-
-    def ingest_expression_tool_output(self, out: Any) -> j.ToolOutput:
-        out_type = ingest_cwl_type(out.type, self.cwl_utils, secondary_files=out.secondaryFiles)
-        identifier = get_id_entity(out.id)
-        return j.ToolOutput(
-            identifier,
-            output_type=out_type,
-            _skip_output_quality_check=True,
-        )
-
     def parse_sources(self, wf: j.Workflow, sources: str | list[str]) -> list[InputNode | StepOutputSelector]:
         """
         each source is a workflow input, step output, or complex expression.
@@ -440,7 +435,7 @@ class CWlParser:
 
             # is complex expression?
             if identifier.startswith("$("):
-                raise Exception(
+                raise UnsupportedError(
                     f"This script can't parse expressions in the step input {step_input}"
                 )
             

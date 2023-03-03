@@ -18,6 +18,7 @@ from janis_core.types import (
     Stderr,
 )
 
+from janis_core.utils.errors import UnsupportedError
 
 file_datatype_cache: dict[int, Any] = {}
 
@@ -117,7 +118,7 @@ class CWLTypeParser:
             elif cwl_type == "long":
                 inner = Int
             else:
-                raise Exception(f"Can't detect type {cwl_type}")
+                raise UnsupportedError(f"Can't detect type {cwl_type}")
             return inner(optional=optional)
 
         elif isinstance(cwl_type, list):
@@ -154,7 +155,7 @@ class CWLTypeParser:
             return String()
 
         else:
-            raise Exception(f"Can't parse type {type(cwl_type).__name__}")
+            raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
 
     def get_data_type_from_secondaries(self, optional: bool) -> DataType:
         global file_datatype_cache

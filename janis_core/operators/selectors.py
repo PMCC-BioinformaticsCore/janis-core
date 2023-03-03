@@ -9,7 +9,7 @@ from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
-
+from janis_core.utils.errors import UnsupportedError
 
 class Selector(ABC):
     @staticmethod
@@ -182,7 +182,7 @@ class Selector(ABC):
 
     def __len__(self):
 
-        raise Exception(
+        raise UnsupportedError(
             f"Calling the len function on a Janis selector, ie:'len({str(self)})' is not supported, please use '{str(self)}.length)'"
         )
 

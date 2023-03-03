@@ -104,7 +104,7 @@ def reset_global_settings() -> None:
     settings.translate.nextflow.MINIMAL_PROCESS = True
 
     # general
-    settings.translate.STRICT_IDENTIFIERS = True 
+    settings.identifiers.STRICT_IDENTIFIERS = True 
     settings.translate.ALLOW_EMPTY_CONTAINER = True 
     settings.translate.MERGE_RESOURCES = False
     settings.translate.RENDER_COMMENTS = True 

@@ -20,7 +20,7 @@ class Validators:
 
     @staticmethod
     def validate_identifier(identifier: str) -> bool:
-        if not settings.translate.STRICT_IDENTIFIERS:
+        if not settings.identifiers.STRICT_IDENTIFIERS:
             return True
             
         if identifier in Validators.extra_prohibited_keys:

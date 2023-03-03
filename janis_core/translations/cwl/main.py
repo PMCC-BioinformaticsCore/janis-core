@@ -1584,7 +1584,7 @@ def translate_step_node(
             src = ar_source[0]
 
             ot = src.source.returntype()
-            if intype.is_array() and not ot.is_array() and not src.scatter:
+            if intype.is_array() and not ot.is_array() and not src.should_scatter:
                 array_input_from_single_source = True
 
         should_select_first_element = not (

@@ -1459,7 +1459,7 @@ def translate_step_node(
             source = ar_source[0]
 
             ot = source.source.returntype()
-            if inp.intype.is_array() and not ot.is_array() and not source.scatter:
+            if inp.intype.is_array() and not ot.is_array() and not source.should_scatter:
                 array_input_from_single_source = True
         else:
             Logger.critical(
