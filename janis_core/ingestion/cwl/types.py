@@ -1,7 +1,7 @@
 
 
-from typing import Any, Optional
-from dataclasses import dataclass
+from typing import Any, Optional, Tuple
+from dataclasses import dataclass, field
 
 from janis_core import JanisShed
 from janis_core.types import (
@@ -19,17 +19,13 @@ from janis_core.types import (
 )
 
 from janis_core.utils.errors import UnsupportedError
+from janis_core import settings
+
+from .expressions import parse_basic_expression
+
+
 
 file_datatype_cache: dict[int, Any] = {}
-
-
-def ingest_cwl_type(
-    cwl_type: Any, 
-    cwl_utils: Any,
-    secondary_files: Optional[list[str]]=None
-    ) -> DataType:
-    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, secondary_files)
-    return dtype_parser.parse()
 
 
 def cast_cwl_type_to_python(cwlvalue: Any) -> Any:
@@ -54,11 +50,24 @@ def _calcluate_hash_of_set(the_set: Any):
     return hash("|".join(sorted(set(the_set))))
 
 
+
+def ingest_cwl_type(
+    cwl_type: Any, 
+    cwl_utils: Any,
+    secondary_files: Optional[list[str]]=None,
+    secondary_files_expr: Optional[str]=None
+    ) -> Tuple[DataType, list[str]]:
+    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, secondary_files, secondary_files_expr)
+    return dtype_parser.parse()
+
+
 @dataclass
 class CWLTypeParser:
     cwl_type: Any
     cwl_utils: Any
     _secondary_files: Optional[list[str]]
+    secondary_files_expr: Optional[str]
+    error_msgs: list[str] = field(default_factory=list)
 
     @property
     def secondary_files(self) -> Optional[list[str]]:
@@ -73,7 +82,7 @@ class CWLTypeParser:
                 out.append(sfile)
         return out
 
-    def parse(self) -> DataType:
+    def parse(self) -> Tuple[DataType, list[str]]:
         inp_type = self.from_cwl_inner_type(self.cwl_type)
         
         if self.secondary_files:
@@ -85,8 +94,17 @@ class CWLTypeParser:
             inp_type = self.get_data_type_from_secondaries(inp_type.optional)
             for is_optional in array_optional_layers[::-1]:
                 inp_type = Array(inp_type, optional=is_optional)
+        
+        elif self.secondary_files_expr:
+            res, success = parse_basic_expression(self.secondary_files_expr)
+            if success:
+                raise NotImplementedError
+            else:
+                msg = f'could not parse secondaries format from javascript expression: {res}'
+                self.error_msgs.append(msg)
+                inp_type = GenericFileWithSecondaries(secondaries=[])
 
-        return inp_type
+        return (inp_type, self.error_msgs)
     
     def from_cwl_inner_type(self, cwl_type: Any) -> DataType:
         if isinstance(cwl_type, str):
@@ -107,6 +125,8 @@ class CWLTypeParser:
                 inner = Int
             elif cwl_type == "float":
                 inner = Float
+            elif cwl_type == "double":
+                inner = Float
             elif cwl_type == "boolean":
                 inner = Boolean
             elif cwl_type == "stdout":
@@ -118,7 +138,12 @@ class CWLTypeParser:
             elif cwl_type == "long":
                 inner = Int
             else:
-                raise UnsupportedError(f"Can't detect type {cwl_type}")
+                if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
+                    msg = f"Unsupported datatype: {cwl_type}. Treated as a file."
+                    self.error_msgs.append(msg)
+                    inner = File
+                else:
+                    raise UnsupportedError(f"Can't detect type {cwl_type}")
             return inner(optional=optional)
 
         elif isinstance(cwl_type, list):
@@ -128,7 +153,9 @@ class CWLTypeParser:
                 if c == "null":
                     optional = True
                 else:
-                    types.append(ingest_cwl_type(c, self.cwl_utils, []))
+                    dtype, error_messages = ingest_cwl_type(c, self.cwl_utils, [])
+                    self.error_msgs += error_messages
+                    types.append(dtype)
 
             if len(types) == 1:
                 if optional is not None:
@@ -155,13 +182,17 @@ class CWLTypeParser:
             return String()
 
         else:
-            raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
+            if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
+                msg = f"Unsupported datatype: {type(cwl_type).__name__}. Treated as a file."
+                self.error_msgs.append(msg)
+                return File(optional=False)
+            else:
+                raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
 
     def get_data_type_from_secondaries(self, optional: bool) -> DataType:
         global file_datatype_cache
-        
-        if not file_datatype_cache:
 
+        if not file_datatype_cache:
             FastaGzType = None
             try:
                 from janis_bioinformatics.data_types import FastaGz

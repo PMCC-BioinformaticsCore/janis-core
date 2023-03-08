@@ -83,6 +83,7 @@ def verify_or_try_get_source(
 
     if not settings.graph.ALLOW_UNKNOWN_SOURCE:
         raise Exception('CHECK THIS SHIT 2')
+        log_warning(self.uuid, msg)
         if tag not in outs:
             tags = ", ".join([f"out.{o}" for o in outs.keys()])
             raise Exception(
@@ -104,11 +105,11 @@ class InputNode(Node):
         doc: InputDocumentation = None,
     ):
         super().__init__(wf, NodeType.INPUT, identifier)
+        self.uuid: str = str(uuid4())
         self.datatype = datatype
         self.default = default
         self.doc: Optional[InputDocumentation] = doc
         self.value = value
-        self.uuid = str(uuid4())
 
     def as_operator(self):
         return InputNodeSelector(self)
@@ -133,6 +134,7 @@ class StepNode(Node):
         _foreach=None,
     ):
         super().__init__(wf, NodeType.STEP, identifier)
+        self.uuid: str = str(uuid4())
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
@@ -262,6 +264,7 @@ class OutputNode(Node):
         skip_typecheck=False,
     ):
         super().__init__(wf, NodeType.OUTPUT, identifier)
+        self.uuid: str = str(uuid4())
         self.datatype = datatype
 
         sources = source if isinstance(source, list) else [source]
@@ -310,6 +313,7 @@ class OutputNode(Node):
 class WorkflowBase(Tool):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
+        self.uuid: str = str(uuid4())
 
         self.connections = connections
 
@@ -752,6 +756,7 @@ class WorkflowBase(Tool):
             if any(f not in ins for f in fields):
                 raise Exception('CHECK THIS SHIT 1')
                 if not settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
+                    log_warning(self.uuid, msg)
                     # if there is a field not in the input map, we have a problem
                     extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
                     raise Exception(

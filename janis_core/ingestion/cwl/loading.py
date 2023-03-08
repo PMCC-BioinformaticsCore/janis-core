@@ -2,6 +2,7 @@
 import ruamel.yaml
 from typing import Any, Optional
 from janis_core import settings
+from janis_core.messages import log_warning
 
 DEFAULT_PARSER_VERSION = "v1.2"
 
@@ -21,7 +22,8 @@ def load_cwl_version(doc: str) -> str:
         if settings.ingest.cwl.REQUIRE_CWL_VERSION: 
             raise Exception(f"Couldn't find cwlVersion in tool {doc}")
         else:
-            # TODO add this as an error_message on the j.Tool
+            msg = f'no cwl version was specified in {doc}. fell back to cwl v1.2 for ingestion.'
+            log_warning(uuid=None, msg=msg)
             return DEFAULT_PARSER_VERSION
     
     # return version

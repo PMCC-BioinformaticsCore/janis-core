@@ -13,6 +13,6 @@ class StepOutput:
     tool_output: OutputComponent
 
     def __post_init__(self):
-        self.uuid = str(uuid4())
+        self.uuid: str = str(uuid4())
 
 

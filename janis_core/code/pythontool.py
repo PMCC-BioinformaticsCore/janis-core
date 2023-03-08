@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from textwrap import dedent, indent
 from typing import Dict, Any, Optional, Type, List
+from uuid import uuid4
 
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.tool.documentation import InputDocumentation
@@ -8,8 +9,6 @@ from janis_core.types.data_types import NativeTypes
 
 from janis_core.utils.docparser_info import parse_docstring
 from janis_core.utils.metadata import ToolMetadata
-
-
 from janis_core.utils.errors import UnsupportedError
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.tool import TInput
@@ -44,6 +43,7 @@ class PythonTool(CodeTool, ABC):
     def __init__(self, **connections):
         self._cached_input_signature = None
         super().__init__(metadata_class=ToolMetadata, **connections)
+        self.uuid = str(uuid4())
 
     # Other internal methods
 

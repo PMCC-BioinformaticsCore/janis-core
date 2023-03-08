@@ -3,6 +3,7 @@
 import re
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any, Union, Callable, Set, Tuple
+from uuid import uuid4
 
 from janis_core.tool.documentation import (
     InputDocumentation,
@@ -55,7 +56,7 @@ class ToolArgument:
         :param doc: Documentation string for the argument, this is used to generate the tool documentation and provide
         :param shell_quote: Stops shell quotes from being applied in all circumstances, useful when joining multiple commands together.
         """
-
+        self.uuid: str = str(uuid4())
         self.prefix: Optional[str] = prefix
         self.value = value
         self.position: Optional[int] = position
@@ -94,15 +95,16 @@ class ToolInput(ToolArgument):
         input_type: ParseableType,
         position: Optional[int] = None,
         prefix: Optional[str] = None,
-        separate_value_from_prefix: bool = None,
-        prefix_applies_to_all_elements: bool = None,
-        presents_as: str = None,
-        secondaries_present_as: Dict[str, str] = None,
-        separator: str = None,
-        shell_quote: bool = None,
-        localise_file: bool = None,
+        separate_value_from_prefix: Optional[bool] = None,
+        prefix_applies_to_all_elements: Optional[bool] = None,
+        presents_as: Optional[str] = None,
+        secondaries_present_as: Optional[dict[str, str]] = None,
+        separator: Optional[str] = None,
+        shell_quote: Optional[bool] = None,
+        localise_file: Optional[bool] = None,
         default: Any = None,
         doc: Optional[Union[str, InputDocumentation]] = None,
+        value: Optional[str]=None
     ):
         """
         A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.
@@ -123,13 +125,14 @@ class ToolInput(ToolArgument):
         hints to the user.
         """
         super().__init__(
-            value=None,
+            value=value,
             prefix=prefix,
             position=position,
             separate_value_from_prefix=separate_value_from_prefix,
             doc=None,
             shell_quote=shell_quote,
         )
+        self.uuid = str(uuid4())
 
         self.doc: InputDocumentation = (
             doc if isinstance(doc, DocumentationMeta) else InputDocumentation(doc=doc)
@@ -202,6 +205,7 @@ class ToolOutput:
         :param doc: Documentation on what the output is, used to generate docs.
         :param _skip_output_quality_check: DO NOT USE THIS PARAMETER, it's a scapegoat for parsing CWL ExpressionTools when an cwl.output.json is generated
         """
+        self.uuid = str(uuid4())
 
         if not Validators.validate_identifier(tag):
             raise Exception(
@@ -284,6 +288,7 @@ class CommandTool(Tool, ABC):
 
     def __init__(self, **connections):
         super().__init__(metadata_class=ToolMetadata, **connections)
+        self.uuid = str(uuid4())
 
     # Tool base
     @abstractmethod

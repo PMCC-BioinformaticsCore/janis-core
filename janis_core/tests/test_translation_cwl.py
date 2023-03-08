@@ -148,9 +148,7 @@ id: tid
         self.assertEqual("wid.cwl", self.translator.workflow_filename(w))
 
     def test_tools_filename(self):
-        self.assertEqual(
-            "BasicTestTool.cwl", self.translator.tool_filename(BasicTestTool())
-        )
+        self.assertEqual("janis_core/tests/data/cwl/tools/BasicTestTool.cwl", self.translator.tool_filename(BasicTestTool()))
 
     def test_inputs_filename(self):
         w = WorkflowBuilder("wid")

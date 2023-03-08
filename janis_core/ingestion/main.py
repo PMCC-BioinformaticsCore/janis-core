@@ -63,11 +63,15 @@ def ingest(
 
     DEV_MODE = True
     if DEV_MODE:
+        settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False
+        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
         settings.graph.ALLOW_UNKNOWN_SOURCE = True
         settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = True
     else:
-        settings.ingest.cwl.REQUIRE_CWL_VERSION = True
+        settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
+        settings.ingest.cwl.REQUIRE_CWL_VERSION = False
+        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
         settings.graph.ALLOW_UNKNOWN_SOURCE = False
         settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
         

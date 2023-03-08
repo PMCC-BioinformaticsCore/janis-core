@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from janis_core.messages import log_message
+from janis_core.messages import log_warning
 
 import functools
 import os
@@ -421,7 +421,7 @@ class WdlParser:
             return j.Array(self.parse_wdl_type(t.item_type, uuid), optional=optional)
         elif isinstance(t, WDL.Type.StructInstance):
             if uuid:
-                log_message(uuid, 'WDL Struct type unsupported. Has been cast to File type.')
+                log_warning(uuid, 'WDL Struct type unsupported. Has been cast to File type.')
             return j.File(optional=optional)
 
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")

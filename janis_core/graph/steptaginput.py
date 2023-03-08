@@ -8,6 +8,9 @@ from janis_core.tool.tool import TInput
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core import settings
+from janis_core.messages import log_warning
+from uuid import uuid4
+
 
 def full_lbl(node: Node, tag: Optional[str]) -> str:
     if tag is None:
@@ -29,13 +32,12 @@ class Edge:
             f"Creating edge: ({source} → "
             f"({NodeType.to_str(finish.node_type)}) '{finish.id()}.{ftag}'"
         )
-
+        self.uuid: str = str(uuid4())
         self.source = source
         self.finish: Node = finish
         self.ftag: Optional[str] = ftag
         self.compatible_types: Optional[bool] = None
         self.should_scatter = should_scatter
-        self.error_messages: list[str] = []
         self.validate_tags()
         self.check_types()
 
@@ -44,7 +46,7 @@ class Edge:
             if self.ftag not in self.finish.inputs():
                 if settings.graph.ALLOW_UNKNOWN_SOURCE:
                     msg = "Could not connect this input to its data source"
-                    self.error_messages.append(msg)
+                    log_warning(self.uuid, msg)
                 else:
                     raise Exception(
                         f"Could not find the tag '{self.ftag}' in the outputs of '{self.finish.id()}': {list(self.finish.inputs().keys())}"
@@ -67,8 +69,8 @@ class Edge:
         if self.should_scatter:
             if not stype.is_array():
                 if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
-                    msg = "This task is supposed to run in parallel across this input, but the data source is not an array."
-                    self.error_messages.append(msg)
+                    msg = f"This task is supposed to run in parallel across this input ({ftoolin.id()}), but the data source is not an array."
+                    log_warning(self.uuid, msg)
                 else:
                     raise Exception(
                         f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
@@ -88,7 +90,7 @@ class Edge:
         if not self.compatible_types:
             if settings.graph.ALLOW_INCOMPATIBLE_TYPES:
                 msg = f"The data source for this input is a {stype.id()}, but the input is a {ftoolin.intype.id()}"
-                self.error_messages.append(msg)
+                log_warning(self.uuid, msg)
             else:
                 s = str(self.source)
                 f = full_dot(self.finish, self.ftag)
@@ -108,11 +110,11 @@ class StepTagInput:
     """
 
     def __init__(self, finish: Node, finish_tag: str):
+        self.uuid: str = str(uuid4())
         self.finish: Node = finish
         self.ftag: Optional[str] = finish_tag
         self.multiple_inputs = False
         self.source_map: list[Edge] = []
-        self.error_messages: list[str] = []
 
     def add_source(self, operator: Selector, should_scatter: Optional[bool]=None) -> Edge:
         """
@@ -143,8 +145,8 @@ class StepTagInput:
         if should_scatter:
             if not stype.is_array():
                 if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
-                    msg = "This task is supposed to run in parallel across this input, but the data source is not an array."
-                    self.error_messages.append(msg)
+                    msg = f"This task is supposed to run in parallel across this input ({tinput.id()}), but the data source is not an array."
+                    log_warning(self.uuid, msg)
                 else:
                     raise Exception(
                         f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
@@ -158,7 +160,7 @@ class StepTagInput:
             if not ftype.is_array():
                 if settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES:
                     msg = "This input has multiple data sources, but should only have one (it is not an array)."
-                    self.error_messages.append(msg)
+                    log_warning(self.uuid, msg)
                 else:
                     raise Exception(
                         f"Adding multiple inputs to '{self.finish.id()}' "
