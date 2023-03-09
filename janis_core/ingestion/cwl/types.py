@@ -1,7 +1,6 @@
 
 
 from typing import Any, Optional, Tuple
-from dataclasses import dataclass, field
 
 from janis_core import JanisShed
 from janis_core.types import (
@@ -22,7 +21,6 @@ from janis_core.utils.errors import UnsupportedError
 from janis_core import settings
 
 from .expressions import parse_basic_expression
-
 
 
 file_datatype_cache: dict[int, Any] = {}
@@ -55,37 +53,53 @@ def ingest_cwl_type(
     cwl_type: Any, 
     cwl_utils: Any,
     secondary_files: Optional[list[str]]=None,
-    secondary_files_expr: Optional[str]=None
     ) -> Tuple[DataType, list[str]]:
-    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, secondary_files, secondary_files_expr)
+    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, secondary_files)
     return dtype_parser.parse()
 
 
-@dataclass
 class CWLTypeParser:
-    cwl_type: Any
-    cwl_utils: Any
-    _secondary_files: Optional[list[str]]
-    secondary_files_expr: Optional[str]
-    error_msgs: list[str] = field(default_factory=list)
+    def __init__(
+        self,
+        cwl_type: Any,
+        cwl_utils: Any,
+        secondary_files: Optional[list[str]],
+    ):
+        self.cwl_type = cwl_type
+        self.cwl_utils = cwl_utils
+        self.error_msgs: list[str] = []
+        self.patterns = self.preprocess_secondary_file_patterns(secondary_files)
+    
+    def preprocess_secondary_file_patterns(self, secondary_files: Optional[list[str]]) -> Optional[list[str]]:
+        patterns: Optional[list[str]] = None
+        # preprocessing to get patterns for secondary files
+        if secondary_files:
+            patterns = []
+            for sfile in secondary_files:
+                if hasattr(sfile, 'pattern'):
+                    patterns.append(sfile.pattern)
+                else:
+                    patterns.append(sfile)
+        return patterns
 
     @property
     def secondary_files(self) -> Optional[list[str]]:
-        if not self._secondary_files:
-            return None
-        
-        out: list[str] = []
-        for sfile in self._secondary_files:
-            if hasattr(sfile, 'pattern'):
-                out.append(sfile.pattern)
-            else:
-                out.append(sfile)
-        return out
-
+        if self.patterns:
+            if len(self.patterns) > 0 and not self.patterns[0].startswith('$('):
+                return self.patterns
+        return None
+    
+    @property
+    def secondary_files_expr(self) -> Optional[str]:
+        if self.patterns:
+            if len(self.patterns) == 1 and self.patterns[0].startswith('$('):
+                return self.patterns[0]
+        return None
+    
     def parse(self) -> Tuple[DataType, list[str]]:
         inp_type = self.from_cwl_inner_type(self.cwl_type)
         
-        if self.secondary_files:
+        if self.secondary_files is not None:
             array_optional_layers: list[bool] = []
             while isinstance(inp_type, Array):
                 array_optional_layers.append(inp_type.optional)
@@ -95,7 +109,7 @@ class CWLTypeParser:
             for is_optional in array_optional_layers[::-1]:
                 inp_type = Array(inp_type, optional=is_optional)
         
-        elif self.secondary_files_expr:
+        elif self.secondary_files_expr is not None:
             res, success = parse_basic_expression(self.secondary_files_expr)
             if success:
                 raise NotImplementedError

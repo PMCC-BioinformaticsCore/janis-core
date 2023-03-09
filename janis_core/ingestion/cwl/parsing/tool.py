@@ -109,10 +109,7 @@ class CLTInputParser(EntityParser):
                 #     f"Won't translate the expression for input {entity.id}: {inpBinding.valueFrom}"
                 # )
 
-        if entity.secondaryFiles and entity.secondaryFiles.startswith('$('):
-            dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files_expr=entity.secondaryFiles)
-        else:
-            dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
         self.error_msgs += error_msgs
         
         tinput = ToolInput(
@@ -139,10 +136,7 @@ class CLTOutputParser(EntityParser):
         identifier = get_id_entity(entity.id)
         
         # datatype
-        if entity.secondaryFiles and entity.secondaryFiles.startswith('$('):
-            dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files_expr=entity.secondaryFiles)
-        else:
-            dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
         self.error_msgs += error_msgs
 
         # selector

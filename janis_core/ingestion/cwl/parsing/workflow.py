@@ -23,6 +23,7 @@ class WorkflowInputParser(EntityParser):
 
     def parse(self, entity: Any, wf: Workflow) -> InputNodeSelector:  # type: ignore
         identifier = get_id_entity(entity.id)
+        # datatype
         dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
         self.error_msgs += error_msgs
         

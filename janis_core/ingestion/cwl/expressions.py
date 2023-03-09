@@ -37,7 +37,7 @@ def parse_basic_expression(expr: Any) -> Tuple[Any, bool]:
 
 class ExpressionParser:
     def __init__(self) -> None:
-        self.success: bool = False
+        self.success: bool = True
 
     def parse(self, expr: Any) -> Tuple[Any, bool]:
         """parses """

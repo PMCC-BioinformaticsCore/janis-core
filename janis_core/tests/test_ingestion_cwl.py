@@ -34,6 +34,8 @@ from janis_core.ingestion.cwl.parsing.workflow import WorkflowStepInputsParser
 from janis_core.ingestion.cwl.parsing.workflow import WorkflowStepScatterParser
 from janis_core.ingestion.cwl.parsing.common import RequirementsParser
 
+from janis_core.ingestion.cwl import parse as parse_cwl
+
 from janis_core.types import GenericFileWithSecondaries
 
 from janis_core.messages import get_messages
@@ -52,7 +54,6 @@ class TestDatatypeErrorHandling(unittest.TestCase):
     def test_enum_type_alt(self):
         filepath = 'file:///home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl'
         tool = ingest(filepath, 'cwl')
-
 
 
 def _load_cwl_tool(filepath: str) -> Tuple[Any, Any]:
@@ -126,7 +127,12 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         self.assertEqual(jtool.env_vars['test1'], '<js>9 + 10</js>')
 
     def test_clt_stdin(self):
-        raise NotImplementedError
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/streams.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+
+        parser = CLTToolParser(cwl_utils)
+        jtool = parser.parse(clt)
+        print()
     
     def test_clt_stdout(self):
         raise NotImplementedError
@@ -163,7 +169,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         expected_value = '<js>${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}</js>'
         self.assertEqual(arg.value, expected_value)
     
-    @unittest.skip("unnecessary")
+    @unittest.skip("TODO")
     def test_clt_input_format(self):
         # don't need to worry about File format in cwl - type is ingested as File
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/inputs_arguments.cwl'
@@ -190,7 +196,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         expected_value = '<js>[inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0]</js>'
         self.assertEqual(tinput.value, expected_value)
     
-    @unittest.skip("unnecessary")
+    @unittest.skip("TODO")
     def test_clt_output_format(self):
         # don't need to worry about File format in cwl - type is ingested as File
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/outputs.cwl'
@@ -229,26 +235,37 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         self.assertIsInstance(tout.selector, ReadContents)
         self.assertEqual(tout.selector.args[0], '<js>self[0]</js>')
     
-    @unittest.skip("unnecessary")
+    @unittest.skip("TODO")
     def test_wf_input_format(self) -> None:
         # don't need to worry about File format in cwl - type is ingested as File
         raise NotImplementedError
 
     def test_wf_input_secondaryfiles(self):
-        raise NotImplementedError
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/expressions.cwl'
+        wf = parse_cwl(filepath)
+        winp = wf.input_nodes['bambai_pair2']
+        self.assertIsInstance(winp.datatype, GenericFileWithSecondaries)
+        self.assertEqual(len(winp.datatype.secondaries), 0)
+        error_msgs = get_messages(winp.uuid)
+        expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
+        self.assertIn(expected_msg, error_msgs)
     
-    @unittest.skip("unnecessary")
+    def test_step_input_valuefrom(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/expressions.cwl'
+        wf = parse_cwl(filepath)
+        print()
+
+    @unittest.skip("TODO")
     def test_wf_output_format(self) -> None:
+        # TODO implement this - log info message about the format which was discarded
         # don't need to worry about File format in cwl - type is ingested as File
         raise NotImplementedError
 
     def test_wf_output_secondaryfiles(self):
-        raise NotImplementedError
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/expressions.cwl'
+        wf = parse_cwl(filepath)
+        print()
   
-    def test_step_input_valuefrom(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/super_enhancer_wf.cwl'
-        wf = ingest(filepath, 'cwl')
-        raise NotImplementedError
 
 
 
