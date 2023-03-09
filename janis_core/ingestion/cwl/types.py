@@ -36,8 +36,14 @@ def cast_cwl_type_to_python(cwlvalue: Any) -> Any:
     """
     from ruamel.yaml.comments import CommentedSeq
     from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+    from ruamel.yaml.scalarstring import SingleQuotedScalarString
+    from ruamel.yaml.scalarstring import FoldedScalarString
 
     if isinstance(cwlvalue, DoubleQuotedScalarString):
+        return str(cwlvalue)
+    elif isinstance(cwlvalue, SingleQuotedScalarString):
+        return str(cwlvalue)
+    elif isinstance(cwlvalue, FoldedScalarString):
         return str(cwlvalue)
     elif isinstance(cwlvalue, CommentedSeq):
         return [cast_cwl_type_to_python(x) for x in cwlvalue]

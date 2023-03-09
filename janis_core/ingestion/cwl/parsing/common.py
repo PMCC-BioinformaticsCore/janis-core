@@ -37,7 +37,7 @@ class RequirementsParser(EntityParser):
         for req in entity.requirements or []:
 
             if isinstance(req, self.cwl_utils.DockerRequirement):
-                out['container'] = req.dockerPull
+                out['container'] = str(req.dockerPull)
 
             elif isinstance(req, self.cwl_utils.EnvVarRequirement):
                 for envdef in req.envDef:

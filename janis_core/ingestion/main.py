@@ -50,9 +50,6 @@ ingestor_map = {
 def ingest(
     path: str, 
     format: str, 
-    # strict_identifiers: Optional[bool]=False,
-    # allow_incorrect_number_of_sources: Optional[bool]=True,
-    # allow_non_array_scatter_input: Optional[bool]=True
 ) -> Tool:
     
     # settings
@@ -64,12 +61,14 @@ def ingest(
 
     DEV_MODE = True
     if DEV_MODE:
+        settings.ingest.SAFE_MODE = False
         settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
-        settings.graph.ALLOW_UNKNOWN_SOURCE = True
         settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = True
+        settings.graph.ALLOW_UNKNOWN_SOURCE = True
     else:
+        settings.ingest.SAFE_MODE = True
         settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True

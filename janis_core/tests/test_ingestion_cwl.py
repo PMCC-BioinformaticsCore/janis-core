@@ -19,29 +19,30 @@ from janis_core.ingestion.cwl.preprocessing import handle_inline_cltool_identifi
 from janis_core.ingestion.cwl.identifiers import get_cwl_reference
 from janis_core.ingestion.cwl.expressions import parse_basic_expression
 
-from janis_core.ingestion.cwl.types import ingest_cwl_type
-from janis_core.ingestion import ingest
-from janis_core.types import File
-from janis_core import settings
-
 from janis_core.ingestion.cwl.parsing.tool import CLTArgumentParser
 from janis_core.ingestion.cwl.parsing.tool import CLTInputParser
 from janis_core.ingestion.cwl.parsing.tool import CLTOutputParser
 from janis_core.ingestion.cwl.parsing.tool import CLTToolParser
-from janis_core.ingestion.cwl.parsing.workflow import WorkflowInputParser
-from janis_core.ingestion.cwl.parsing.workflow import WorkflowOutputParser
-from janis_core.ingestion.cwl.parsing.workflow import WorkflowStepInputsParser
-from janis_core.ingestion.cwl.parsing.workflow import WorkflowStepScatterParser
 from janis_core.ingestion.cwl.parsing.common import RequirementsParser
-
+from janis_core.ingestion.cwl.types import ingest_cwl_type
 from janis_core.ingestion.cwl import parse as parse_cwl
 
+from janis_core.types import File
 from janis_core.types import GenericFileWithSecondaries
-
 from janis_core.messages import get_messages
+from janis_core import settings
+
 
 
 class TestDatatypeErrorHandling(unittest.TestCase):
+    
+    def test_unparseable_generic(self):
+        from cwl_utils.parser import cwl_v1_0 as cwlutils
+        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
+        datatype = 'kitten'
+        dtype, error_messages = ingest_cwl_type(datatype, cwlutils, secondary_files=None)
+        self.assertIsInstance(dtype, File)
+        self.assertIn('Unsupported datatype: kitten. Treated as a file.', error_messages)
     
     def test_enum_type(self):
         from cwl_utils.parser import cwl_v1_0 as cwlutils
@@ -51,9 +52,14 @@ class TestDatatypeErrorHandling(unittest.TestCase):
         self.assertIsInstance(dtype, File)
         self.assertGreater(len(error_messages), 0)
 
-    def test_enum_type_alt(self):
-        filepath = 'file:///home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl'
-        tool = ingest(filepath, 'cwl')
+    def test_unparseable_secondary_type(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/inputs_arguments.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        cinp = clt.inputs[1]
+        dtype, error_messages = ingest_cwl_type(cinp.type, cwl_utils, secondary_files=cinp.secondaryFiles)
+        self.assertIsInstance(dtype, GenericFileWithSecondaries)
+        self.assertGreater(len(error_messages), 0)
+
 
 
 def _load_cwl_tool(filepath: str) -> Tuple[Any, Any]:
@@ -61,7 +67,6 @@ def _load_cwl_tool(filepath: str) -> Tuple[Any, Any]:
     cwl_utils = load_cwlgen_from_version(cwl_version)
     clt = load_cwl_document(filepath)
     return clt, cwl_utils
-
 
 class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
@@ -87,8 +92,8 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
         parser = CLTToolParser(cwl_utils)
         jtool = parser.parse(clt)
-        self.assertIn('unnamed_1', jtool.files_to_create)
-        self.assertEqual(jtool.files_to_create['unnamed_1'], '<js>${    return [{"class": "Directory",            "basename": "subdir",            "listing": [ inputs.example ]            }]}</js>')
+        self.assertIn('unnamed_1', jtool.files_to_create())
+        self.assertEqual(jtool.files_to_create()['unnamed_1'], '<js>${    return [{"class": "Directory",            "basename": "subdir",            "listing": [ inputs.example ]            }]}</js>')
         
         error_msgs = get_messages(jtool.uuid)
         expected_msg = "untranslated javascript expression in file / directory localisation value"
@@ -100,7 +105,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
         parser = CLTToolParser(cwl_utils)
         jtool = parser.parse(clt)
-        self.assertIn('<js>1 + 2</js>', jtool.files_to_create)
+        self.assertIn('<js>1 + 2</js>', jtool.files_to_create())
 
         error_msgs = get_messages(jtool.uuid)
         expected_msg = "untranslated javascript expression in file / directory localisation name"
@@ -112,7 +117,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
         parser = CLTToolParser(cwl_utils)
         jtool = parser.parse(clt)
-        self.assertEqual(jtool.files_to_create['<js>1 + 2</js>'], 'workdir')
+        self.assertEqual(jtool.files_to_create()['<js>1 + 2</js>'], 'workdir')
 
         error_msgs = get_messages(jtool.uuid)
         expected_msg = "untranslated javascript expression in file / directory localisation value"
@@ -124,7 +129,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
         parser = CLTToolParser(cwl_utils)
         jtool = parser.parse(clt)
-        self.assertEqual(jtool.env_vars['test1'], '<js>9 + 10</js>')
+        self.assertEqual(jtool.env_vars()['test1'], '<js>9 + 10</js>')
 
     def test_clt_stdout(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/streams.cwl'
@@ -390,47 +395,47 @@ class TestFromCwlExpressions(unittest.TestCase):
 
     def test_number(self):
         expr = "${return 16 }"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertEqual(16, result)
 
     def test_number_with_semicolon(self):
         expr = "${return 16;}"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertEqual(16, result)
 
     def test_number_with_spaces(self):
         expr = "${ return 80000 }"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertEqual(80000, result)
 
     def test_string(self):
         expr = '${ return "over 80000" }'
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertEqual("over 80000", result)
 
     def test_input_selector(self):
         expr = "$(inputs.my_input)"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertIsInstance(result, InputSelector)
         self.assertEqual("my_input", result.input_to_select)
 
     def test_input_selector_with_basename(self):
         expr = "$(inputs.my_input.basename)"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertIsInstance(result, BasenameOperator)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
 
     def test_input_selector_with_filesize(self):
         expr = "$(inputs.my_input.size)"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertIsInstance(result, FileSizeOperator)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
 
     def test_input_selector_with_contents(self):
         expr = "$(inputs.my_input.contents)"
-        result = parse_basic_expression(expr)
+        result, success = parse_basic_expression(expr)
         self.assertIsInstance(result, ReadContents)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)

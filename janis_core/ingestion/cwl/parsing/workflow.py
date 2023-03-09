@@ -4,7 +4,7 @@
 from typing import Any, Optional
 
 from janis_core.workflow.workflow import Workflow, OutputNode, InputNodeSelector, StepNode
-from janis_core import ScatterDescription, ScatterMethod, StringFormatter
+from janis_core import ScatterDescription, ScatterMethod
 
 from .common import EntityParser
 from ..types import ingest_cwl_type
@@ -146,6 +146,8 @@ class WorkflowStepInputsParser(EntityParser):
         value = None
 
         if inp.valueFrom is not None:
+            inp.valueFrom = cast_cwl_type_to_python(inp.valueFrom)
+            
             if 'self.' in inp.valueFrom:
                 inp.valueFrom = inp.valueFrom.replace('self.', f'{source}.')
 

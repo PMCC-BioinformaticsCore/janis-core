@@ -6,6 +6,7 @@ from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, Co
 from janis_core import settings
 
 from ..types import ingest_cwl_type
+from ..types import cast_cwl_type_to_python
 from ..identifiers import get_id_entity
 from ..identifiers import get_id_filename
 from ..expressions import parse_basic_expression
@@ -41,12 +42,12 @@ class CLTToolParser(EntityParser):
         req_parser = RequirementsParser(self.cwl_utils)
         requirements = req_parser.parse(entity, jtool.uuid)
         
-        jtool.files_to_create = requirements['files_to_create'] or None
-        jtool.env_vars = requirements['env_vars'] or None
-        jtool.container = requirements['container']
-        jtool.memory = requirements['memory']
-        jtool.cpus = requirements['cpus']
-        jtool.time = requirements['time']
+        jtool._files_to_create = requirements['files_to_create'] or None
+        jtool._env_vars = requirements['env_vars'] or None
+        jtool._container = requirements['container']
+        jtool._memory = requirements['memory']
+        jtool._cpus = requirements['cpus']
+        jtool._time = requirements['time']
 
         self.log_messages(jtool.uuid)
         return jtool
@@ -118,15 +119,16 @@ class CLTArgumentParser(EntityParser):
         
         # normal case
         else:
-            res, success = parse_basic_expression(entity.valueFrom)
+            valueFrom = cast_cwl_type_to_python(entity.valueFrom)
+            res, success = parse_basic_expression(valueFrom)
             if not success:
                 self.error_msgs.append('untranslated javascript expression')
             arg = ToolArgument(
                 value=res,
-                position=entity.position,
-                prefix=entity.prefix,
-                separate_value_from_prefix=entity.separate,
-                shell_quote=entity.shellQuote,
+                position=cast_cwl_type_to_python(entity.position),
+                prefix=cast_cwl_type_to_python(entity.prefix),
+                separate_value_from_prefix=cast_cwl_type_to_python(entity.separate),
+                shell_quote=cast_cwl_type_to_python(entity.shellQuote),
             )
         
         self.log_messages(arg.uuid)
@@ -143,7 +145,7 @@ class CLTInputParser(EntityParser):
         inpBinding = entity.inputBinding
         if inpBinding and inpBinding.valueFrom:
             if settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS:
-                expr = inpBinding.valueFrom
+                expr = cast_cwl_type_to_python(inpBinding.valueFrom)
                 value, success = parse_basic_expression(expr)
                 if not success:
                     msg = f'untranslated javascript expression in inputBinding.valueFrom'
@@ -154,18 +156,27 @@ class CLTInputParser(EntityParser):
                 #     f"Won't translate the expression for input {entity.id}: {inpBinding.valueFrom}"
                 # )
 
-        dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
+        etype = cast_cwl_type_to_python(entity.type)
+        secondary_files = cast_cwl_type_to_python(entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(etype, self.cwl_utils, secondary_files=secondary_files)
         self.error_msgs += error_msgs
+
+        position = cast_cwl_type_to_python(inpBinding.position) if inpBinding else None
+        prefix = cast_cwl_type_to_python(inpBinding.prefix) if inpBinding else None
+        separate_value_from_prefix = cast_cwl_type_to_python(inpBinding.separate) if inpBinding else None
+        separator = cast_cwl_type_to_python(inpBinding.itemSeparator) if inpBinding else None
+        shell_quote = cast_cwl_type_to_python(inpBinding.shellQuote) if inpBinding else None
+        default = cast_cwl_type_to_python(entity.default)
         
         tinput = ToolInput(
             tag=identifier,
             input_type=dtype,
-            position=inpBinding.position if inpBinding else None,
-            prefix=inpBinding.prefix if inpBinding else None,
-            separate_value_from_prefix=inpBinding.separate if inpBinding else None,
-            separator=inpBinding.itemSeparator if inpBinding else None,
-            shell_quote=inpBinding.shellQuote if inpBinding else None,
-            default=entity.default,
+            position=position,
+            prefix=prefix,
+            separate_value_from_prefix=separate_value_from_prefix,
+            separator=separator,
+            shell_quote=shell_quote,
+            default=default,
             value=value
         )
 
