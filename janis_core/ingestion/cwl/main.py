@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import copy
 import os
 
 from typing import Any, Optional
@@ -14,9 +13,7 @@ from cwl_utils.parser.cwl_v1_2 import CommandLineTool as CommandLineTool_1_2
 CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_2
 
 
-
 from janis_core.workflow.workflow import StepNode, OutputNode
-
 from janis_core.utils.errors import UnsupportedError
 from janis_core.messages import log_warning
 

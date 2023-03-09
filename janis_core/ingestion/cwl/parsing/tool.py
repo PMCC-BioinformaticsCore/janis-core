@@ -1,4 +1,5 @@
 
+import copy
 from typing import Any, Optional
 
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool
@@ -10,8 +11,6 @@ from ..identifiers import get_id_filename
 from ..expressions import parse_basic_expression
 from .common import EntityParser
 from .common import RequirementsParser
-
-
 
 class CLTToolParser(EntityParser):
 
@@ -34,6 +33,10 @@ class CLTToolParser(EntityParser):
             container="ubuntu:latest"
         )
 
+        extra_args = self.ingest_io_streams(entity, jtool)
+        # addressing cwl stdin: stdout: stderr: file naming
+        jtool._arguments += extra_args
+
         # requirements
         req_parser = RequirementsParser(self.cwl_utils)
         requirements = req_parser.parse(entity, jtool.uuid)
@@ -45,6 +48,7 @@ class CLTToolParser(EntityParser):
         jtool.cpus = requirements['cpus']
         jtool.time = requirements['time']
 
+        self.log_messages(jtool.uuid)
         return jtool
     
     def ingest_command_tool_argument(self, arg: Any) -> ToolArgument:
@@ -58,6 +62,47 @@ class CLTToolParser(EntityParser):
     def ingest_command_tool_output(self, out: Any, is_expression_tool: bool=False) -> ToolOutput:  
         parser = CLTOutputParser(self.cwl_utils)
         return parser.parse(out)
+    
+    def ingest_io_streams(self, entity: Any, jtool: CommandTool) -> list[ToolArgument]:
+        # n = last position
+        # stderr = n + 1
+        # stdout = n + 2
+        # stdin = n + 3
+        out: list[ToolArgument] = []
+        n = self.get_last_input_position(jtool)
+        
+        if entity.stderr:
+            res, success = parse_basic_expression(entity.stderr)
+            if not success:
+                self.error_msgs.append('untranslated javascript expression in stderr filename')
+            arg = ToolArgument(prefix='2>', value=res, position=n + 1)
+            out.append(arg)
+        
+        if entity.stdout:
+            res, success = parse_basic_expression(entity.stdout)
+            if not success:
+                self.error_msgs.append('untranslated javascript expression in stdout filename')
+            arg = ToolArgument(prefix='1>', value=res, position=n + 2)
+            out.append(arg)
+        
+        if entity.stdin:
+            res, success = parse_basic_expression(entity.stdin)
+            if not success:
+                self.error_msgs.append('untranslated javascript expression in stdin filename')
+            arg = ToolArgument(prefix='<', value=res, position=n + 3)
+            out.append(arg)
+
+        return out
+
+    def get_last_input_position(self, jtool: CommandTool) -> int:
+        max_pos = 0
+        inputs: list[ToolInput | ToolArgument] = copy.deepcopy(jtool.inputs())
+        if jtool.arguments():
+            inputs += copy.deepcopy(jtool.arguments())
+        for inp in inputs:
+            if inp.position and inp.position > max_pos:
+                max_pos = inp.position
+        return max_pos
 
 
 

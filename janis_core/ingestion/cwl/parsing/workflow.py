@@ -4,7 +4,7 @@
 from typing import Any, Optional
 
 from janis_core.workflow.workflow import Workflow, OutputNode, InputNodeSelector, StepNode
-from janis_core import ScatterDescription, ScatterMethod
+from janis_core import ScatterDescription, ScatterMethod, StringFormatter
 
 from .common import EntityParser
 from ..types import ingest_cwl_type
@@ -95,29 +95,68 @@ class WorkflowStepInputsParser(EntityParser):
             return False
     
     def get_input_source(self, wf: Workflow, inp: Any) -> Any:
-        inp_identifier = get_id_entity(inp.id)
-        source = None
+        source = self.resolve_source(wf, inp)
+        value_from = self.resolve_value_from(inp, source)
         
+        if source is not None and value_from is not None:
+            value = value_from
+            # src_name = str(source)
+            
+            # if isinstance(value_from, str):
+            #     if 'self' not in value_from:
+            #         raise NotImplementedError
+            #     value = value_from.replace('self', src_name)
+            
+            # elif isinstance(value_from, StringFormatter):
+            #     for key, val in value_from.kwargs.items():
+            #         if 'self' not in val:
+            #             raise NotImplementedError
+            #         value_from.kwargs[key] = val.replace('self', src_name)
+            #     value = value_from
+
+            # else:
+            #     raise NotImplementedError
+        
+        elif source is not None:
+            value = source
+
+        elif value_from is not None:
+            value = value_from
+
+        elif inp.default is not None:
+            value = cast_cwl_type_to_python(inp.default)
+
+        else:
+            value = None
+            print(f"Source is None from object: {inp.save()}")
+        
+        return value
+
+    def resolve_source(self, wf: Workflow, inp: Any) -> Any:
+        source = None
         if inp.source is not None:
             sources = get_janis_wf_sources(wf, inp.source)
             if len(sources) == 1:
                 source = sources[0]
             else:
                 source = sources
-        
-        elif inp.valueFrom is not None:
-            source, success = parse_basic_expression(inp.valueFrom)
-            if not success:
-                msg = f'{inp_identifier} input value contains untranslated javascript expression'
-                self.error_msgs.append(msg)
-        
-        elif inp.default:
-            source = cast_cwl_type_to_python(inp.default)
-
-        if source is None:
-            print(f"Source is None from object: {inp.save()}")
-        
         return source
+
+    def resolve_value_from(self, inp: Any, source: Any) -> Any:
+        value = None
+
+        if inp.valueFrom is not None:
+            if 'self.' in inp.valueFrom:
+                inp.valueFrom = inp.valueFrom.replace('self.', f'{source}.')
+
+            value, success = parse_basic_expression(inp.valueFrom)
+            if not success:
+                inp_identifier = get_id_entity(inp.id)
+                msg = f"'{inp_identifier}' input value contains untranslated javascript expression"
+                self.error_msgs.append(msg)
+
+        return value
+        
 
 
 class WorkflowStepScatterParser(EntityParser):

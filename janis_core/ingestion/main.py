@@ -56,7 +56,8 @@ def ingest(
 ) -> Tool:
     
     # settings
-    settings.identifiers.STRICT_IDENTIFIERS = False
+    settings.validation.STRICT_IDENTIFIERS = False
+    settings.validation.VALIDATE_STRINGFORMATTERS = False
     settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES = True
     settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT = True
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True

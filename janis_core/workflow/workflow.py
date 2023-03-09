@@ -341,7 +341,7 @@ class WorkflowBase(Tool):
         pass
 
     def verify_identifier(self, identifier: str, component: str):
-        if not settings.identifiers.STRICT_IDENTIFIERS:
+        if not settings.validation.STRICT_IDENTIFIERS:
             return None
 
         if identifier in self.__dict__:

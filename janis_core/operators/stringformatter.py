@@ -12,7 +12,7 @@ from janis_core.utils.errors import (
     ConflictingArgumentsException,
 )
 from janis_core.utils.logger import Logger
-
+from janis_core import settings
 
 class StringFormatter(Operator):
     """
@@ -63,18 +63,19 @@ class StringFormatter(Operator):
 
         skwargs = set(kwargs.keys())
 
-        if not keywords == skwargs:
-            # what's the differences
-            if not keywords.issubset(skwargs):
-                raise IncorrectArgsException(
-                    "The _format required additional arguments to be provided by "
-                    "**kwargs, requires the keys:" + ", ".join(keywords - skwargs)
-                )
-            else:
-                raise TooManyArgsException(
-                    "The **kwargs contained unrecognised keys: "
-                    + ", ".join(skwargs - keywords)
-                )
+        if settings.validation.VALIDATE_STRINGFORMATTERS:
+            if not keywords == skwargs:
+                # what's the differences
+                if not keywords.issubset(skwargs):
+                    raise IncorrectArgsException(
+                        "The _format required additional arguments to be provided by "
+                        "**kwargs, requires the keys:" + ", ".join(keywords - skwargs)
+                    )
+                else:
+                    raise TooManyArgsException(
+                        "The **kwargs contained unrecognised keys: "
+                        + ", ".join(skwargs - keywords)
+                    )
 
         self.kwargs = kwargs
 

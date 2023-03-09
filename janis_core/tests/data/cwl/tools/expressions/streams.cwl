@@ -14,6 +14,9 @@ baseCommand: cat
 stdin: $(inputs.inFile)
 stdout: $(inputs.sampleName.nameroot + ".out")
 stderr: $(inputs.sampleName.nameroot + ".err")
+# stdin: stdin.txt
+# stdout: stdout.txt
+# stderr: stderr.txt
 
 inputs:
   inFile: 

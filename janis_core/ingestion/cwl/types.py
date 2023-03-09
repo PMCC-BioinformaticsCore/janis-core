@@ -71,8 +71,11 @@ class CWLTypeParser:
         self.patterns = self.preprocess_secondary_file_patterns(secondary_files)
     
     def preprocess_secondary_file_patterns(self, secondary_files: Optional[list[str]]) -> Optional[list[str]]:
-        patterns: Optional[list[str]] = None
         # preprocessing to get patterns for secondary files
+        if isinstance(secondary_files, str):
+            secondary_files = [secondary_files]
+
+        patterns: Optional[list[str]] = None
         if secondary_files:
             patterns = []
             for sfile in secondary_files:
