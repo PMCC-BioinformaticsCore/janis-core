@@ -165,13 +165,8 @@ class CWlParser:
         add_step_edges_to_graph(jstep, wf)
 
     def ingest_command_line_tool(self, clt: Any):
-        if settings.ingest.SAFE_MODE:
-            # some more basic way of getting the stuff we want? 
-            pass
-        else:
-            parser = CLTToolParser(self.cwl_utils)
-            return parser.parse(clt)
-
+        parser = CLTToolParser(self.cwl_utils)
+        return parser.parse(clt)
             
     def ingest_expression_tool(self, expr_tool: Any) -> j.CommandTool:
         # j.Logger.warn(

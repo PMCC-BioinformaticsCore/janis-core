@@ -10,6 +10,7 @@ class EntityParser(ABC):
     def __init__(self, cwl_utils: Any) -> None:
         self.cwl_utils = cwl_utils
         self.error_msgs: list[str] = []
+        self.success: bool = False
 
     @abstractmethod
     def parse(self, entity: Any) -> Any:

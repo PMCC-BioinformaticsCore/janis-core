@@ -61,7 +61,7 @@ def ingest(
 
     DEV_MODE = True
     if DEV_MODE:
-        settings.ingest.SAFE_MODE = False
+        settings.ingest.SAFE_MODE = True
         settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
