@@ -8,7 +8,6 @@ from janis_core import ScatterDescription, ScatterMethod
 
 from .common import EntityParser
 from ..types import ingest_cwl_type
-from ..types import cast_cwl_type_to_python
 from ..identifiers import get_id_entity
 from ..identifiers import remove_output_name_from_output_source
 from ..graph import get_janis_wf_sources
@@ -20,10 +19,11 @@ from ..expressions import parse_basic_expression
 
 
 class WorkflowInputParser(EntityParser):
+    """TODO documentation here """
 
     def parse(self, entity: Any, wf: Workflow) -> InputNodeSelector:  # type: ignore
+
         identifier = get_id_entity(entity.id)
-        # datatype
         dtype, error_msgs = ingest_cwl_type(entity.type, self.cwl_utils, secondary_files=entity.secondaryFiles)
         self.error_msgs += error_msgs
         
@@ -42,6 +42,7 @@ class WorkflowOutputParser(EntityParser):
 
     def parse(self, entity: Any, wf: Workflow) -> OutputNode:  # type: ignore
         out_identifier = get_id_entity(entity.id)
+        
         if isinstance(entity.outputSource, list):
             cwl_source = [remove_output_name_from_output_source(x) for x in entity.outputSource]
         else:
@@ -124,7 +125,7 @@ class WorkflowStepInputsParser(EntityParser):
             value = value_from
 
         elif inp.default is not None:
-            value = cast_cwl_type_to_python(inp.default)
+            value = inp.default
 
         else:
             value = None
@@ -146,8 +147,6 @@ class WorkflowStepInputsParser(EntityParser):
         value = None
 
         if inp.valueFrom is not None:
-            inp.valueFrom = cast_cwl_type_to_python(inp.valueFrom)
-            
             if 'self.' in inp.valueFrom:
                 inp.valueFrom = inp.valueFrom.replace('self.', f'{source}.')
 

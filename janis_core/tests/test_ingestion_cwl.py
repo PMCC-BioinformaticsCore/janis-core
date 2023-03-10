@@ -15,6 +15,7 @@ from janis_core.ingestion.cwl.loading import load_cwl_document
 from janis_core.ingestion.cwl.loading import load_cwl_version
 from janis_core.ingestion.cwl.loading import load_cwlgen_from_version
 from janis_core.ingestion.cwl.preprocessing import handle_inline_cltool_identifiers
+from janis_core.ingestion.cwl.preprocessing import convert_cwl_types_to_python
 
 from janis_core.ingestion.cwl.identifiers import get_cwl_reference
 from janis_core.ingestion.cwl.expressions import parse_basic_expression
@@ -367,13 +368,30 @@ class TestIdentifiers(unittest.TestCase):
             
 class TestPreprocessing(unittest.TestCase):
 
-    def test_inline_cltool_ids(self):
+    def test_convert_cwl_types_to_python_clt(self):
+        from cwl_utils.parser import cwl_v1_0 as cwl_utils
+        doc = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl'
+        clt = load_cwl_document(doc)
+        clt = convert_cwl_types_to_python(clt, cwl_utils)
+        # no idea how to test :/
+    
+    def test_convert_cwl_types_to_python_workflow(self):
+        from cwl_utils.parser import cwl_v1_0 as cwl_utils
         doc = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/super_enhancer_wf.cwl'
         workflow = load_cwl_document(doc)
+        workflow = convert_cwl_types_to_python(workflow, cwl_utils)
+        # no idea how to test :/
+    
+    def test_inline_cltool_ids(self):
+        from cwl_utils.parser import cwl_v1_0 as cwl_utils
+        doc = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/workflows/super_enhancer_wf.cwl'
+        workflow = load_cwl_document(doc)
+        workflow = convert_cwl_types_to_python(workflow, cwl_utils)
         workflow = handle_inline_cltool_identifiers(workflow)
         for step in workflow.steps:
             tool_id = step.run.id
             self.assertTrue(tool_id.endswith('_tool.cwl'))
+    
 
 
 

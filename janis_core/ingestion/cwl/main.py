@@ -20,6 +20,7 @@ from janis_core.messages import log_warning
 from .identifiers import get_id_filename
 from .identifiers import get_id_entity
 from .preprocessing import handle_inline_cltool_identifiers
+from .preprocessing import convert_cwl_types_to_python
 from .loading import load_cwl_version
 from .loading import load_cwlgen_from_version
 from .loading import load_cwl_document
@@ -87,6 +88,7 @@ class CWlParser:
             )
         
     def ingest_workflow(self, workflow: Any):
+        workflow = convert_cwl_types_to_python(workflow, self.cwl_utils)
         workflow = handle_inline_cltool_identifiers(workflow)
         identifier = get_id_filename(workflow.id)
 

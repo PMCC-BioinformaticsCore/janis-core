@@ -35,17 +35,36 @@ def cast_cwl_type_to_python(cwlvalue: Any) -> Any:
     each item being a <class 'ruamel.yaml.scalarstring.DoubleQuotedScalarString'>
     """
     from ruamel.yaml.comments import CommentedSeq
+    from ruamel.yaml.comments import CommentedMap
     from ruamel.yaml.scalarstring import DoubleQuotedScalarString
     from ruamel.yaml.scalarstring import SingleQuotedScalarString
-    from ruamel.yaml.scalarstring import FoldedScalarString
+    from ruamel.yaml.scalarstring import ScalarString
+    from ruamel.yaml.scalarint import ScalarInt
+    from ruamel.yaml.scalarbool import ScalarBoolean
+    from ruamel.yaml.scalarfloat import ScalarFloat
 
     if isinstance(cwlvalue, DoubleQuotedScalarString):
         return str(cwlvalue)
     elif isinstance(cwlvalue, SingleQuotedScalarString):
         return str(cwlvalue)
-    elif isinstance(cwlvalue, FoldedScalarString):
+    elif isinstance(cwlvalue, ScalarString):
         return str(cwlvalue)
+    elif isinstance(cwlvalue, ScalarInt):
+        return int(cwlvalue)
+    elif isinstance(cwlvalue, ScalarFloat):
+        return float(cwlvalue)
+    elif isinstance(cwlvalue, ScalarBoolean):
+        return bool(cwlvalue)
+    elif isinstance(cwlvalue, CommentedMap):
+        out: dict[str, Any] = {}
+        for key, val in cwlvalue.items():
+            key = cast_cwl_type_to_python(key)
+            val = cast_cwl_type_to_python(val)
+            out[key] = val
+        return out
     elif isinstance(cwlvalue, CommentedSeq):
+        return [cast_cwl_type_to_python(x) for x in cwlvalue]
+    elif isinstance(cwlvalue, list):
         return [cast_cwl_type_to_python(x) for x in cwlvalue]
     
     return cwlvalue
