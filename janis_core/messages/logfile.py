@@ -20,6 +20,7 @@ class LogFile:
 
     def add(self, level: str, uuid: str, message: str) -> None:
         # add to file
+        message = fr'{message}'
         with open(self.filepath, 'a') as fp:
             fp.write(f'{level}\t{uuid}\t{message}\n')
         # add to in-memory

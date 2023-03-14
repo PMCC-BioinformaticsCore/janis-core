@@ -23,15 +23,144 @@ from janis_core.ingestion.cwl.expressions import parse_basic_expression
 from janis_core.ingestion.cwl.parsing.tool import CLTArgumentParser
 from janis_core.ingestion.cwl.parsing.tool import CLTInputParser
 from janis_core.ingestion.cwl.parsing.tool import CLTOutputParser
-from janis_core.ingestion.cwl.parsing.tool import CLTToolParser
-from janis_core.ingestion.cwl.parsing.common import RequirementsParser
+from janis_core.ingestion.cwl.parsing.tool import CLTParser
+from janis_core.ingestion.cwl.parsing.tool import CLTRequirementsParser
 from janis_core.ingestion.cwl.types import ingest_cwl_type
 from janis_core.ingestion.cwl import parse as parse_cwl
+from janis_core.ingestion.cwl import CWlParser
 
 from janis_core.types import File
 from janis_core.types import GenericFileWithSecondaries
 from janis_core.messages import get_messages
 from janis_core import settings
+
+
+
+
+def _load_cwl_tool(filepath: str) -> Tuple[Any, Any]:
+    cwl_version = load_cwl_version(filepath)
+    cwl_utils = load_cwlgen_from_version(cwl_version)
+    clt = load_cwl_document(filepath)
+    return clt, cwl_utils
+
+
+
+class TestRequirementsParsing(unittest.TestCase):
+
+    def test_directories_to_create1(self):
+        pass
+
+    def test_directories_to_create2(self):
+        pass
+        
+    def test_directories_to_create3(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/prepare_fasta_db.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt, uuid='test_directories_to_create3')
+        reqs = parser.parse()
+        msgs = get_messages('test_directories_to_create3')
+        print()
+ 
+    def test_files_to_create1(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/bundle_secondaryfiles.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt)
+        reqs = parser.do_parse()
+        self.assertDictEqual(reqs['files_to_create'], {})
+
+    def test_files_to_create2(self):
+        # expression tool
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/return_directory.cwl'
+        etool, cwl_utils = _load_cwl_tool(filepath)
+        
+        parser = CWlParser(filepath)
+        cltool = parser.parse_etool_to_cltool(etool)
+        
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=cltool, is_expression_tool=True)
+        reqs = parser.do_parse()
+        self.assertIn('return_directory.js', reqs['files_to_create'])
+        self.assertIsInstance(reqs['files_to_create']['return_directory.js'], str)
+ 
+    def test_files_to_create3(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/check_threshold.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt)
+        reqs = parser.do_parse()
+        self.assertIn('check_threshold.py', reqs['files_to_create'])
+        self.assertIsInstance(reqs['files_to_create']['check_threshold.py'], str)
+        self.assertIn('#!/usr/bin/env python3', reqs['files_to_create']['check_threshold.py'])
+ 
+    def test_files_to_create4(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/amplicon_architect.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt, uuid='test_files_to_create4')
+        reqs = parser.parse()
+        msgs = get_messages('test_files_to_create4')
+        self.assertIn('likely untranslated cwl / js in script: setup_vars.sh', msgs)
+    
+    def test_files_to_create5(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/control-freec-11-6-sbg.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt, uuid='test_files_to_create5')
+        reqs = parser.parse()
+        self.assertIn('config.txt', reqs['files_to_create'])
+        msgs = get_messages('test_files_to_create5')
+        self.assertIn('config.txt: js code to dynamically create runtime file. please address', msgs)
+        print()
+    
+    def test_env_vars1(self):
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/amplicon_architect.cwl'
+        clt, cwl_utils = _load_cwl_tool(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt)
+        reqs = parser.do_parse()
+        self.assertIn('AA_SRC', reqs['env_vars'])
+        self.assertEqual(reqs['env_vars']['AA_SRC'], '/home/programs/AmpliconArchitect-master/src')
+
+
+
+
+class TestFallbacksErrorHandling(unittest.TestCase):
+    @unittest.skip('not implemented')
+    def test_workflow_input_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_workflow_step_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_workflow_step_scatter_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_workflow_step_input_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_workflow_output_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')    
+    def test_clt_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
+    def test_clt_argument_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')    
+    def test_clt_input_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')    
+    def test_clt_output_parser(self) -> None:
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')    
+    def test_requirements_parser(self) -> None:
+        raise NotImplementedError
+
+
 
 
 
@@ -63,11 +192,6 @@ class TestDatatypeErrorHandling(unittest.TestCase):
 
 
 
-def _load_cwl_tool(filepath: str) -> Tuple[Any, Any]:
-    cwl_version = load_cwl_version(filepath)
-    cwl_utils = load_cwlgen_from_version(cwl_version)
-    clt = load_cwl_document(filepath)
-    return clt, cwl_utils
 
 class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
@@ -75,8 +199,8 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/resources.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
         
-        parser = RequirementsParser(cwl_utils)
-        requirements = parser.parse(clt, janis_uuid='temp')
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=clt, uuid='placeholder')
+        requirements = parser.parse()
 
         expected_time = '<js>[inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0]</js>'
         self.assertEqual(requirements['time'], expected_time)
@@ -91,7 +215,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/requirements.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
 
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         self.assertIn('unnamed_1', jtool.files_to_create())
         self.assertEqual(jtool.files_to_create()['unnamed_1'], '<js>${    return [{"class": "Directory",            "basename": "subdir",            "listing": [ inputs.example ]            }]}</js>')
@@ -104,7 +228,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/requirements.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
 
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         self.assertIn('<js>1 + 2</js>', jtool.files_to_create())
 
@@ -116,7 +240,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/requirements.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
 
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         self.assertEqual(jtool.files_to_create()['<js>1 + 2</js>'], 'workdir')
 
@@ -128,18 +252,18 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/requirements.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
 
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         self.assertEqual(jtool.env_vars()['test1'], '<js>9 + 10</js>')
 
     def test_clt_stdout(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/streams.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         
         arg = jtool.arguments()[1]
-        self.assertEqual(arg.prefix, '1>')
+        self.assertEqual(arg.prefix, '>')
         self.assertEqual(arg.value, '<js>inputs.sampleName.nameroot + ".out"</js>')
 
         error_msgs = get_messages(jtool.uuid)
@@ -149,7 +273,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
     def test_clt_stderr(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/streams.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         
         arg = jtool.arguments()[0]
@@ -163,7 +287,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
     def test_clt_stdin(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/streams.cwl'
         clt, cwl_utils = _load_cwl_tool(filepath)
-        parser = CLTToolParser(cwl_utils)
+        parser = CLTParser(cwl_utils)
         jtool = parser.parse(clt)
         
         arg = jtool.arguments()[2]

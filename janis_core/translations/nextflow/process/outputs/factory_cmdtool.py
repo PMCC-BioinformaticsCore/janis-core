@@ -224,12 +224,16 @@ class CmdtoolProcessOutputFactory:
             self.add_braces = False
             self.add_quotes = False
             expr = self.unwrap(expr)
+            if expr is None:
+                print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         elif self.ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
             self.add_braces = True
             self.add_quotes = False
             expr = self.unwrap(expr)
+            if expr is None:
+                print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         else:

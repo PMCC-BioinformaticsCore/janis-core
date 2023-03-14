@@ -6,7 +6,7 @@ docstring here! sphinx
 """
 
 
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional
 
 import re
 import janis_core as j
@@ -22,7 +22,13 @@ single_token_matcher = re.compile(r"^\$\((.+)\)$")
 # up to 3 levels of recursion
 inline_expression_matcher = re.compile(r"(?<=\$\()(?:[^)(]|\((?:[^)(]|\((?:[^)(]|\([^)(]*\))*\))*\))*(?=\))")  
 
-# cwl input references to InputSelector: valueFrom: $(inputs.myName) -> InputSelector("myName")
+# cwl input references to StepOutputSelector: valueFrom: $(steps.combine.result) -> StepOutputSelector()
+step_output_selector_matcher = re.compile(r"^steps\.([A-z0-9_]+)\.([A-z0-9_]+)$")
+
+# cwl input references to InputSelector / InputNodeSelector 
+# depends on 'context' field of ExpressionParser
+# valueFrom: $(inputs.myName) -> InputSelector("myName")
+# valueFrom: $(inputs.myWfInp) -> InputNodeSelector("myWfInp")
 input_selector_matcher = re.compile(r"^inputs\.([A-z0-9_]+)$")  
 
 # literal strings
@@ -36,13 +42,15 @@ float_matcher = re.compile(r"^\s*(\d*\.\d+)|(\d+\.\d*)\s*$")
 
 
 
-def parse_basic_expression(expr: Any) -> Tuple[Any, bool]: 
-    parser = ExpressionParser()
+def parse_basic_expression(expr: Any, context: str='clt', wf: Optional[j.Workflow]=None) -> Tuple[Any, bool]: 
+    parser = ExpressionParser(context, wf)
     return parser.parse(expr)
 
 
 class ExpressionParser:
-    def __init__(self) -> None:
+    def __init__(self, context: str, wf: Optional[j.Workflow]=None) -> None:
+        self.context = context
+        self.wf = wf
         self.success: bool = True
 
     def parse(self, expr: Any) -> Tuple[Any, bool]:
@@ -90,12 +98,21 @@ class ExpressionParser:
         return (res, self.success)
 
     def convert_javascript_token(self, token: str) -> Any:
+        step_output_selector_match = step_output_selector_matcher.match(token)
         input_selector_match = input_selector_matcher.match(token)
         
         if input_selector_match:
+            tag = input_selector_match.groups()[0]
+            return self.convert_input_selector_token(token, tag)
+        elif step_output_selector_match:
+            tag = step_output_selector_match.groups()[0]
+            return self.convert_input_node_selector_token(token, tag)
+        elif input_selector_match:
             return j.InputSelector(input_selector_match.groups()[0])
         elif token.endswith(".size"):
             return j.FileSizeOperator(self.convert_javascript_token(token[:-5]))
+        elif token.endswith(".nameroot"):
+            return j.NamerootOperator(self.convert_javascript_token(token[:-9]))
         elif token.endswith(".basename"):
             return j.BasenameOperator(self.convert_javascript_token(token[:-9]))
         elif token.endswith(".path"):
@@ -118,3 +135,22 @@ class ExpressionParser:
             # if token.startswith('$(') and token.endswith(')'):
             #     token = token[2:-1]
             return f"<js>{token}</js>"
+        
+    def convert_input_selector_token(self, token: str, tag: str) -> j.InputNodeSelector | j.InputSelector | str:
+        if self.context == 'clt':
+            return j.InputSelector(tag)
+        elif self.context == 'workflow':
+            return self.convert_input_node_selector_token(token, tag)
+        else:
+            raise NotImplementedError
+
+    def convert_input_node_selector_token(self, token: str, tag: str) -> j.InputNodeSelector | str:
+        assert(self.wf)
+        # fallback
+        if tag not in self.wf.input_nodes:
+            self.success = False
+            return f"<js>{token}</js>"
+        # success
+        else:
+            inp = self.wf.input_nodes[tag]
+            return j.InputNodeSelector(inp)

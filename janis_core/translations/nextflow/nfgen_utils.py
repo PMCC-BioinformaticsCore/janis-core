@@ -10,6 +10,7 @@ from janis_core.types import (
     Boolean,
     Int,
     Float,
+    Directory
 )
 from janis_core import (
     DataType,
@@ -218,6 +219,8 @@ def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
     secondary_exts: list[str] = []
 
     # primary extension
+    if isinstance(dtype, Directory):
+        return []
     if len(dtype.get_extensions()) > 0:
         primary_ext = dtype.get_extensions()[0]
     else:

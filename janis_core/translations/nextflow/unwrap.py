@@ -71,6 +71,19 @@ from . import naming
 from .process.inputs.factory import create_input
 
 
+"""
+NOTE: 
+only unwrapping simple references for step inputs. 
+
+reason: 
+InputNodeSelector(input_fasta).name
+--/-> 
+ch_input_fasta.name
+
+nextflow wants to provide process inputs as channels.
+cant do channel.name etc, doesn't make sense. 
+this stuff is supposed to be done inside the process. 
+"""
 
 def unwrap_expression(
     val: Any,
@@ -322,6 +335,8 @@ class Unwrapper:
         return False
 
     def get_src_variable(self, inp: ToolInput) -> Optional[str]:
+        if not self.process_inputs:
+            print()
         assert(self.process_inputs is not None)
         assert(self.param_inputs is not None)
         assert(self.internal_inputs is not None)
@@ -505,7 +520,10 @@ class Unwrapper:
         return f"{arg}.text"
         
     def unwrap_read_json_operator(self, op: ReadJsonOperator) -> str:
-        raise NotImplementedError
+        arg = self.unwrap(op.args[0])
+        if isinstance(arg, str) and arg.startswith('"') and arg.endswith('"'):
+            arg = arg.strip('"')
+        return f'jsonSlurper.parseText(file("${{task.workDir}}/{arg}").text)'
     
     def unwrap_join_operator(self, op: JoinOperator) -> str:
         iterable = self.unwrap(op.args[0])
@@ -581,7 +599,7 @@ class Unwrapper:
         """
         Translate Janis StringFormatter data type to Nextflow
         """
-        assert(self.tool)
+        assert(self.tool)  # n
         if len(selector.kwargs) == 0:
             return str(selector)
 

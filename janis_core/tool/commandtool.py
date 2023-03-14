@@ -833,7 +833,7 @@ class CommandToolBuilder(CommandTool):
             Dict[str, SELECTOR_OR_VALUE],
             List[Tuple[SELECTOR_OR_VALUE, SELECTOR_OR_VALUE]],
         ] = None,
-        doc: str = None,
+        doc: Optional[str] = None,
     ):
         """
         Builder for a CommandTool.

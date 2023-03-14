@@ -32,7 +32,7 @@ NF_INDENT = settings.translate.nextflow.NF_INDENT
 
 # move to unwrap.py
 
-def get_args(step: StepNode, scope: Scope):
+def get_process_call_args(step: StepNode, scope: Scope):
     tool: CommandTool | PythonTool | Workflow   = step.tool     
     sources: dict[str, Any]                     = step.sources
     

@@ -14,6 +14,7 @@ from janis_core.code.pythontool import PythonTool
 from janis_core.workflow.workflow import Workflow, WorkflowBase
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
+from janis_core import Selector, InputSelector, File, Directory
 
 from .common import NFFile, Import, ImportItem
 from .workflow.model import Workflow
@@ -185,8 +186,11 @@ class NextflowTranslator(TranslatorBase):
 
         # command tool
         if isinstance(tool, CommandTool):
-            # groovy functions used in process
+            # groocy library imports & groovy functions used in process
+            imports_item = process.gen_imports_for_process(tool)
             functions_item = process.gen_functions_for_process(tool)
+            if imports_item:
+                cls.item_register.add(scope, imports_item)
             if functions_item:
                 cls.item_register.add(scope, functions_item)
 
@@ -194,6 +198,7 @@ class NextflowTranslator(TranslatorBase):
             process_item = process.gen_process_from_cmdtool(tool, sources, scope)
             process_item = cls.handle_container(tool, process_item)
             cls.item_register.add(scope, process_item)
+            
             # file
             process_file = NFFile(
                 name=identifier,  # TODO here name clash checking
@@ -434,7 +439,7 @@ class NextflowTranslator(TranslatorBase):
         return process
 
     @classmethod
-    def translate_helper_files(cls, tool) -> Dict[str, str]:
+    def translate_helper_files(cls, tool: Tool) -> dict[str, str]:
         """
         Generate a dictionary of helper files to run Nextflow.
         Key of the dictionary is the filename, the value is the file content
@@ -444,27 +449,78 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        helpers = {}
-        helpers = cls.gen_python_code_files(tool, helpers)
+        code_files = cls.gen_python_code_files(tool)
+        template_files = cls.gen_template_files(tool)
+        helpers = template_files | code_files
         return helpers
-
+    
     @classmethod
-    def gen_python_code_files(cls, tool: PythonTool, helpers: dict):
+    def gen_python_code_files(cls, tool: Tool) -> dict[str, str]:
         # Python files for Python code tools
+        files: dict[str, str] = {}
+
         if isinstance(tool, PythonTool):
             # helpers["__init__.py"] = ""
             #helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
             subdir = settings.translate.nextflow.CODE_FILES_OUTDIR
             filename = f'{tool.id()}.py'
             filepath = os.path.join(subdir, filename)
-            helpers[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
-            return helpers
+            files[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
 
         elif isinstance(tool, WorkflowBase):
-            for step_id in tool.step_nodes:
-                step_tool = tool.step_nodes[step_id].tool
-                helpers = cls.gen_python_code_files(step_tool, helpers)
-        return helpers
+            for step in tool.step_nodes.values():
+                step_code_files = cls.gen_python_code_files(step.tool)
+                files = files | step_code_files # merge dicts
+        
+        return files
+
+    @classmethod
+    def gen_template_files(cls, tool: Tool) -> dict[str, str]:
+        # files from tool.files_to_create
+        files: dict[str, str] = {}
+
+        if isinstance(tool, CommandTool):
+            if tool.files_to_create():
+                for name, contents in tool.files_to_create().items():
+                    if not isinstance(name, str):
+                        # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
+                        print()
+                    
+                    if isinstance(contents, str):
+                        assert(not name.startswith('unnamed_'))
+                        if '<js>' in contents:
+                            # ignore, print error message for user
+                            pass
+                        else:
+                            # create file
+                            files[name] = contents
+                    
+                    elif isinstance(contents, InputSelector):
+                        tinput_name = contents.input_to_select
+                        tinput = tool.inputs_map()[tinput_name]
+                        if isinstance(tinput.intype, File | Directory):
+                            print('ignored staging File into process')
+                        else:
+                            print('ignored staging String into process')
+                        # # js evaluates to a file: add referenced file to output directory
+                        # if name.startswith('unnamed_'):
+                        #     # dont override filename
+                        #     pass
+                        # else:
+                        #     # override filename
+                        #     pass
+                        # print()
+                    
+                    else:
+                        raise NotImplementedError
+        
+        elif isinstance(tool, WorkflowBase):
+            for step in tool.step_nodes.values():
+                step_template_files = cls.gen_template_files(step.tool)
+                files = files | step_template_files # merge dicts
+
+        return files
+
 
     @classmethod
     def gen_step_inval_dict(

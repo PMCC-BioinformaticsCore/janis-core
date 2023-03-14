@@ -5,7 +5,6 @@ from janis_core import (
     CommandTool,
     ToolArgument,
     ToolInput,
-    ToolOutput
 )
 
 from ...unwrap import unwrap_expression
@@ -13,7 +12,6 @@ from ...scope import Scope
 from ...plumbing import trace
 
 from ... import ordering
-from janis_core import settings
 from ... import naming
 from ... import nfgen_utils as nfgen_utils
 from .. import inputs

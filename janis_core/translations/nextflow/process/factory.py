@@ -15,6 +15,7 @@ from . import script
 from . import directives
 from . import inputs
 from . import outputs
+from ..plumbing import trace_entity_counts
 
 
 
@@ -30,21 +31,42 @@ def get_primary_files(var) {
 }"""
 
 
+def gen_imports_for_process(tool: CommandTool) -> Optional[model.ImportsBlock]:
+    imports: list[str] = []
+    declarations: list[str] = []
+
+    if should_add_json_slurper(tool):
+        imports.append('groovy.json.JsonSlurper')
+        declarations.append('jsonSlurper = new JsonSlurper()')
+    
+    if imports:
+        return model.ImportsBlock(imports, declarations)
+    else:
+        return None
+
+def should_add_json_slurper(tool: CommandTool) -> bool:
+    for toutput in tool.outputs():
+        entity_counts = trace_entity_counts(toutput.selector, tool)
+        if 'ReadJsonOperator' in entity_counts:
+            return True
+    return False
+
 def gen_functions_for_process(tool: CommandTool) -> Optional[model.FunctionsBlock]:
     funcs: list[str] = []
-    
-    add_get_primary_files: bool = False
-    for tinput in tool.inputs():
-        if nfgen_utils.is_array_secondary_type(tinput.input_type):
-            add_get_primary_files = True
-    
-    if add_get_primary_files:
-        funcs.append(get_primary_files_code)
 
+    if should_add_get_primary_files(tool):
+        funcs.append(get_primary_files_code)
+    
     if funcs:
         return model.FunctionsBlock(funcs)
     else:
         return None
+    
+def should_add_get_primary_files(tool: CommandTool) -> bool:
+    for tinput in tool.inputs():
+        if nfgen_utils.is_array_secondary_type(tinput.input_type):
+            return True
+    return False
 
 
 def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope,

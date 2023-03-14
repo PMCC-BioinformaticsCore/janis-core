@@ -73,6 +73,7 @@ class TranslatorBase(ABC):
     basedir: str = ''
 
     DIR_TOOLS: str = "tools"
+    DIR_FILES: str = "files"
     SUBDIRS_TO_CREATE: list[str] = []  # this is if you want to write tools / workflows to subfolders
 
     def __init__(self, name: str):
@@ -85,8 +86,8 @@ class TranslatorBase(ABC):
         str_tool, tr_tools, tr_helpers = None, [], {}
 
         # GENERATE MAIN FILE
-        tr_tool, tr_tools = self.translate_workflow_internal(wf)
-        str_tool = self.stringify_translated_workflow(tr_tool)
+        tr_workflow, tr_tools = self.translate_workflow_internal(wf)
+        str_tool = self.stringify_translated_workflow(tr_workflow)
 
         # GENERATE SUBFILES - COMMANDTOOLS, PYTHONTOOLS & SUBWORKFLOWS
         # [filepath, filecontents] for subfiles (tools, subworkflows etc)
@@ -102,7 +103,7 @@ class TranslatorBase(ABC):
         # {filepath: filecontents} for auxiliary files (PythonTool code.py files etc)
         tr_helpers = self.translate_helper_files(wf)
         str_helpers = [
-            (os.path.join(self.DIR_TOOLS, filename), tr_helpers[filename])
+            (os.path.join(self.DIR_FILES, filename), tr_helpers[filename])
             for filename in tr_helpers.keys()
         ]
 

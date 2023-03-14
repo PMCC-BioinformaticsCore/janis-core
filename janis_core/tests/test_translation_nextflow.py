@@ -2006,7 +2006,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_bam_bai.map{ tuple -> tuple[0] }'
         ]
@@ -2017,7 +2017,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_bam_bai.map{ tuple -> tuple[0] }.toList()'
         ]
@@ -2028,7 +2028,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }'
         ]
@@ -2039,7 +2039,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()'
         ]
@@ -2050,7 +2050,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_file_array.flatten().first()'
         ]
@@ -2061,7 +2061,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_file.toList()'
         ]
@@ -2072,7 +2072,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().collate( 2 ).first()'
         ]
@@ -2083,7 +2083,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().toList()'
         ]
@@ -2109,7 +2109,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'PRESTEP1.out.out'
         ]
@@ -2120,7 +2120,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'PRESTEP1.out.out.toList()'
         ]
@@ -2131,7 +2131,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_file_array.flatten()'
         ]
@@ -2142,7 +2142,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'PRESTEP2.out.out.flatten()'
         ]
@@ -2153,7 +2153,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'PRESTEP3.out.out'
         ]
@@ -2164,7 +2164,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'PRESTEP3.out.out.flatten().toList()'
         ]
@@ -2175,7 +2175,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             'ch_in_bam_bai_array.flatten().collate( 2 )'
         ]
@@ -2190,7 +2190,7 @@ class TestPlumbingScatter(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
 
         # cartesian cross channel manipulation in workflow
         operation = nextflow.channels.gen_scatter_cross_operation(step.sources, step.scatter)
@@ -2234,7 +2234,7 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_file_opt",
@@ -2259,7 +2259,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -2272,7 +2272,7 @@ class TestPlumbingBasic(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         expected = ["STP1.out.out"]
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         self.assertEqual(expected, actual)
 
     def test_filename_types(self) -> None:
@@ -2282,7 +2282,7 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_file",
             "ch_in_str",
@@ -2293,7 +2293,7 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_file",
         ]
@@ -2324,7 +2324,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP1.out.out"
         ]
@@ -2337,7 +2337,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_file_array",
             "ch_in_file_array_opt",
@@ -2351,7 +2351,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         not_expected = {
             'pos_default',
             'pos_default',
@@ -2543,7 +2543,7 @@ class TestPlumbingEdgeCases(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP1.out.out.filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
         ]
@@ -2819,7 +2819,7 @@ class TestStepFeatures(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "[params.mystring, GET_STRING.out.out].find{ it != null }"
         ]
@@ -2832,7 +2832,7 @@ class TestStepFeatures(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "params.mystring ? params.mystring : params.mystring_backup"
         ]
@@ -3120,7 +3120,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3133,7 +3133,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3149,7 +3149,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3166,7 +3166,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3182,7 +3182,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3198,7 +3198,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_args(step, scope)
+        actual = nextflow.call.get_process_call_args(step, scope)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3391,7 +3391,7 @@ class TestSubWorkflows(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual_arg_order = nextflow.call.get_args(step, scope)
+        actual_arg_order = nextflow.call.get_process_call_args(step, scope)
         expected_arg_order = ['params.in_int', 'params.in_str', 'ch_in_str_opt']
         self.assertEquals(actual_arg_order, expected_arg_order)
 
@@ -3584,7 +3584,7 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual_inputs = set(nextflow.call.get_args(step, scope))
+        actual_inputs = set(nextflow.call.get_process_call_args(step, scope))
         expected_inputs = set([
             'STP1.out.outProcessInput',
             'STP1.out.outProcessInputArray',

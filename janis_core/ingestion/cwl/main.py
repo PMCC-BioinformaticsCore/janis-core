@@ -28,13 +28,11 @@ from .loading import convert_etool_to_cltool
 
 from .graph import add_step_edges_to_graph
 
-from .parsing.tool import CLTToolParser
+from .parsing.tool import CLTParser
 from .parsing.workflow import WorkflowInputParser
 from .parsing.workflow import WorkflowOutputParser
 from .parsing.workflow import WorkflowStepInputsParser
 from .parsing.workflow import WorkflowStepScatterParser
-
-from janis_core import settings
 
 
 
@@ -88,7 +86,10 @@ class CWlParser:
             )
         
     def ingest_workflow(self, workflow: Any):
+        # convert yaml datatypes to python datatypes
         workflow = convert_cwl_types_to_python(workflow, self.cwl_utils)
+        
+        # convert random ids (occurs for inline clt definition) to meaningful ids
         workflow = handle_inline_cltool_identifiers(workflow)
         identifier = get_id_filename(workflow.id)
 
@@ -119,12 +120,12 @@ class CWlParser:
         return wf
     
     def ingest_workflow_input(self, wf: j.Workflow, inp: Any) -> j.InputNodeSelector:
-        parser = WorkflowInputParser(self.cwl_utils)
-        return parser.parse(inp, wf)
+        parser = WorkflowInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=wf)
+        return parser.parse()
 
     def ingest_workflow_output(self, wf: j.Workflow, out: Any) -> OutputNode:
-        parser = WorkflowOutputParser(self.cwl_utils)
-        return parser.parse(out, wf)
+        parser = WorkflowOutputParser(cwl_utils=self.cwl_utils, entity=out, wf=wf)
+        return parser.parse()
 
     def ingest_workflow_step(self, wf: j.Workflow, cwlstp: Any) -> StepNode:
 
@@ -148,38 +149,51 @@ class CWlParser:
         step_identifier = get_id_entity(cwlstp.id)
         jstep = wf.step_nodes[step_identifier]
 
-        parser = WorkflowStepScatterParser(self.cwl_utils)
-        scatter = parser.parse(cwlstp, jstep)
+        parser = WorkflowStepScatterParser(cwl_utils=self.cwl_utils, entity=jstep, wf=wf, uuid=jstep.uuid)
+        scatter = parser.parse()
 
         if scatter is not None:
             jstep.scatter = scatter
             wf.has_scatter = True
 
     def ingest_workflow_step_inputs(self, wf: j.Workflow, cwlstp: Any) -> None:
-        parser = WorkflowStepInputsParser(self.cwl_utils)
-        inputs_dict = parser.parse(cwlstp, wf)
+        parser = WorkflowStepInputsParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf)
+        inputs_dict = parser.parse()
 
         step_identifier = get_id_entity(cwlstp.id)
         jstep = wf.step_nodes[step_identifier]
         jstep.tool.connections = inputs_dict
         add_step_edges_to_graph(jstep, wf)
 
-    def ingest_command_line_tool(self, clt: Any):
-        parser = CLTToolParser(self.cwl_utils)
-        return parser.parse(clt)
+    def ingest_command_line_tool(self, clt: Any, is_expression_tool: bool=False):
+        parser = CLTParser(cwl_utils=self.cwl_utils, entity=clt, is_expression_tool=is_expression_tool)
+        return parser.parse()
             
-    def ingest_expression_tool(self, expr_tool: Any) -> j.CommandTool:
+    def ingest_expression_tool(self, etool: Any) -> j.CommandTool:
         # j.Logger.warn(
         #     f"Expression tools aren't well converted to Janis as they rely on unimplemented functionality: {clt.id}"
         # )
-
-        clt = convert_etool_to_cltool(expr_tool, self.version)
-        for out in clt.outputs:
-            out_id = get_id_entity(out.id)
-            out.janis_collection_override = j.ReadJsonOperator(j.Stdout)[out_id]
-
-        tool = self.ingest_command_line_tool(clt)
+        # cast to CommandLineTool then parse as CommandLineTool
+        clt = self.parse_etool_to_cltool(etool)
+        tool = self.ingest_command_line_tool(clt, is_expression_tool=True)
         msg = 'Translation of CWL ExpressionTools is currently an experimental feature of janis translate'
         log_warning(tool.uuid, msg)
         return tool
+    
+    def parse_etool_to_cltool(self, etool: Any) -> Any:
+        clt = convert_etool_to_cltool(etool, self.version)
+        for out in clt.outputs:
+            out_id = get_id_entity(out.id)
+            out.janis_collection_override = j.ReadJsonOperator('cwl.output.json')[f"'{out_id}'"]
+        
+        # change 'expression.js' in base_command to something more meaningful 
+        # base_command: ['nodejs', 'expression.js'] -> ['nodejs', '{toolname}.js']
+        # update the InitialWorkDirRequirement for expression.js to be {toolname}.js
+        toolname = get_id_filename(clt.id)
+        clt.baseCommand = ['nodejs', f'{toolname}.js']
+        for req in clt.requirements:
+            if isinstance(req, self.cwl_utils.InitialWorkDirRequirement):
+                req.listing[0].entryname = f'{toolname}.js'
+        
+        return clt
 

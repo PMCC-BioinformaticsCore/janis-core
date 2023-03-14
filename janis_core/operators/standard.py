@@ -184,6 +184,48 @@ class BasenameOperator(Operator):
         return basename(self.evaluate_arg(self.args[0], inputs))
 
 
+# TODO test. currently untested. 
+class NamerootOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "File -> String"
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(args[0])
+        return f"os.path.splitext(os.path.basename({arg}))[0]"
+
+    def to_wdl(self, unwrap_operator, *args):
+        ext = args[0].split('.')[-1]
+        arg = unwrap_operator(args[0])
+        return f"basename({arg}, .{ext})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(
+            args[0], add_path_suffix_to_input_selector_if_required=False
+        )
+        return arg + ".nameroot"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        return f"{unwrap_operator(args[0])}.baseName"
+
+    def argtypes(self):
+        return [UnionType(File, Directory)]
+
+    def returntype(self):
+        return String()
+
+    def __str__(self):
+        return str(self.args[0]) + ".nameroot"
+
+    def __repr__(self):
+        return str(self)
+
+    def evaluate(self, inputs):
+        from os.path import basename
+        from os.path import splitext
+        return splitext(basename(self.evaluate_arg(self.args[0], inputs)))[0]
+
+
 class TransposeOperator(Operator):
     @staticmethod
     def friendly_signature():

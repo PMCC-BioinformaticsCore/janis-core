@@ -33,6 +33,18 @@ class FunctionsBlock:
     def get_string(self) -> str:
         return '\n\n'.join(self.functions)
 
+class ImportsBlock:
+    def __init__(self, imports: list[str], declarations: list[str]) -> None:
+        self.imports = imports
+        self.declarations = declarations
+
+    def get_string(self) -> str:
+        imports = [f'import {imp}' for imp in self.imports]
+        declarations = [f'def {dec}' for dec in self.declarations]
+        imports = '\n'.join(imports)
+        declarations = '\n'.join(declarations)
+        return f'{imports}\n{declarations}'
+
 
 class ProcessScriptType(Enum):
     script = "script"

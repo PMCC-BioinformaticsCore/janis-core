@@ -5,8 +5,9 @@ from copy import deepcopy
 
 from ..scope import Scope
 from ..plumbing.call import format_process_call
-from ..plumbing.call import get_args
+from ..plumbing.call import get_process_call_args
 from ..process import Process
+from ..process import ImportsBlock
 from ..process import FunctionsBlock
 
 from .. import channels
@@ -77,13 +78,15 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
                 continue
             elif isinstance(nf_item, Process) or isinstance(nf_item, NFWorkflow):
                 entity_name = nf_item.name
+            elif isinstance(nf_item, ImportsBlock):
+                continue
             elif isinstance(nf_item, FunctionsBlock):
-                continue         
+                continue
             # future items
             else:
                 raise NotImplementedError
         
-            args = get_args(step, current_scope)
+            args = get_process_call_args(step, current_scope)
             main.append(format_process_call(entity_name, args))
 
     return NFWorkflow(name, main, take, emit, is_subworkflow)
