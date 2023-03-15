@@ -1,13 +1,14 @@
 
 import copy
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, InputSelector
-from janis_core.types import File, Stdout, Stderr
+from janis_core.types import File, Stdout, Stderr, Directory
 from janis_core import settings
 from janis_core.messages import log_warning
+from janis_core import translation_utils as utils
 
 from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
@@ -75,7 +76,7 @@ class CLTRequirementsParser(CLTEntityParser):
             'memory': None,
             'cpus': None,
             'time': None,
-            'directories_to_create': {},
+            'directories_to_create': [],
             'files_to_create': {},
             'env_vars': {}
         }
@@ -84,8 +85,7 @@ class CLTRequirementsParser(CLTEntityParser):
         out['memory'] = self.get_memory(requirements)
         out['cpus'] = self.get_cpus(requirements)
         out['time'] = self.get_time(requirements)
-        out['directories_to_create'] = self.get_directories_to_create(requirements)
-        out['files_to_create'] = self.get_files_to_create(requirements)
+        out['files_to_create'], out['directories_to_create'] = self.get_files_directories_to_create(requirements)
         out['env_vars'] = self.get_env_vars(requirements)
         
         return out
@@ -131,90 +131,30 @@ class CLTRequirementsParser(CLTEntityParser):
                 return time
         return None
     
-    def get_files_to_create(self, requirements: list[Any]) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        
+    def get_files_directories_to_create(self, requirements: list[Any]) -> Tuple[dict[str, Any], list[str | InputSelector]]:
+        files_to_create: dict[str, Any] = {}
+        directories_to_create: list[str | InputSelector] = []
+
         for req in requirements:
             if isinstance(req, self.cwl_utils.InitialWorkDirRequirement):
-                "array<File | Directory | Dirent | string | Expression> | string | Expression"
-                if isinstance(req.listing, str) and req.listing.startswith('$('):
-                    # Expression
-                    raise NotImplementedError
-                
-                elif isinstance(req.listing, str):
-                    # string
-                    raise NotImplementedError
-                
+                # ensure array
+                if isinstance (req.listing, str):
+                    listing = [req.listing]
                 else:
-                    # array<File | Directory | Dirent | string | Expression>
-                    for item in req.listing:
-                        # Expression
-                        if isinstance(item, str):
-                            if item.startswith('$('):
-                                # most likely just specifying the file / directory needs to be staged. do nothing for now.
-                                # future: detect whether its a file or directory. create directory if directory. 
-                                pass  
-                            
-                            elif item.startswith('${'):
-                                # most likely a js expr which returns a file or directory to stage. 
-                                # future: detect whether its a file or directory. create directory if directory. 
-                                pass  
-                            
-                            else:
-                                # no idea yet. 
-                                raise NotImplementedError
-                        
-                        # Dirent
-                        elif isinstance(item, self.cwl_utils.Dirent):
-                            dirent = item
-                            if dirent.entry.startswith('$('):
-                                if "class: 'Directory'" in dirent.entry:
-                                    # directory to create (dir = dirent.entryname) 
-                                    pass
-                                elif "class: 'File'" in dirent.entry:
-                                    # file to create
-                                    raise NotImplementedError
-                                else:
-                                    # most likely just specifying the file / directory needs to be staged. do nothing for now.
-                                    # future: detect whether its a file or directory. create directory if directory. 
-                                    res, success = parse_basic_expression(dirent.entry)
-                                    if isinstance(res, InputSelector):
-                                        print()
-                                    pass 
-
-                            elif dirent.entry.startswith('${'):
-                                # js code to generate required file
-                                msg = f'{dirent.entryname}: js code to dynamically create runtime file. please address'
-                                self.error_msgs.append(msg)
-                                out[dirent.entryname] = dirent.entry
-
-                            else:
-                                assert(isinstance(dirent.entryname, str))
-                                if self.is_expression_tool:
-                                    # the .js code script to run
-                                    out[dirent.entryname] = dirent.entry
-                                else:
-                                    # either a static script, or a script to template at runtime
-                                    # script to template at runtime
-                                    if '$(inputs.' in dirent.entry:
-                                        msg = f'likely untranslated cwl / js in script: {dirent.entryname}'
-                                        self.error_msgs.append(msg)
-                                        out[dirent.entryname] = dirent.entry
-                                    # static script
-                                    else:
-                                        out[dirent.entryname] = dirent.entry
-
-                        elif isinstance(item, dict):
-                            raise NotImplementedError
-
-                        else:
-                            raise RuntimeError
+                    listing = req.listing
+                
+                for item in listing:
+                    parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item)
+                    parser.parse()
+                    if parser.file_to_create is not None:
+                        name, value = parser.file_to_create
+                        files_to_create[name] = value
+                    if parser.directory_to_create is not None:
+                        value = parser.directory_to_create
+                        directories_to_create.append(value)
         
-        return out
+        return files_to_create, directories_to_create
     
-    def get_directories_to_create(self, requirements: list[Any]) -> dict[str, Any]:
-        return {}
-
     def get_env_vars(self, requirements: list[Any]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         
@@ -236,6 +176,189 @@ class CLTRequirementsParser(CLTEntityParser):
         return out
 
 
+@dataclass
+class InitialWorkDirRequirementParser:
+    cwl_utils: Any
+    clt: Any
+    req: Any
+    
+    is_expression_tool: bool = False
+    error_msgs: list[str] = field(default_factory=list)
+    
+    # want to calculate these fields
+    file_to_create: Optional[Tuple[str, str | InputSelector]] = None
+    directory_to_create: Optional[str | InputSelector] = None
+
+    "File | Directory | Dirent | string | Expression"
+
+    @property
+    def name(self) -> Optional[str]:
+        name: Optional[str] = None
+        if isinstance(self.req, self.cwl_utils.Dirent):
+            name = self.req.entryname
+        return name
+    
+    @property
+    def value(self) -> str:
+        if isinstance(self.req, str):
+            text: str = self.req
+        elif isinstance(self.req, self.cwl_utils.Dirent):
+            text: str = self.req.entry
+        else:
+            raise NotImplementedError
+        return text
+
+    @property
+    def is_probably_file(self) -> bool:
+        if self.value.startswith('$(') or self.value.startswith('${'):
+            if "class: 'File'" in self.value:
+                return True
+            else:
+                res, success = parse_basic_expression(self.value)
+                if success:
+                    # successfully parsed requirement value into janis
+                    if isinstance(res, InputSelector):
+                        for inp in self.clt.inputs:
+                            name = get_id_entity(inp.id)
+                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondary_files=inp.secondaryFiles)
+                            self.error_msgs += error_msgs
+                            basetype = utils.get_base_type(dtype)
+                            if name == res.input_to_select and isinstance(basetype, File):
+                                return True
+        return False
+    
+    @property
+    def is_probably_directory(self) -> bool:
+        if self.value.startswith('$(') or self.value.startswith('${'):
+            if "class: 'Directory'" in self.value:
+                return True
+            else:
+                res, success = parse_basic_expression(self.value)
+                if success:
+                    # successfully parsed requirement value into janis
+                    if isinstance(res, InputSelector):
+                        for inp in self.clt.inputs:
+                            name = get_id_entity(inp.id)
+                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondary_files=inp.secondaryFiles)
+                            self.error_msgs += error_msgs
+                            basetype = utils.get_base_type(dtype)
+                            if name == res.input_to_select and isinstance(basetype, Directory):
+                                return True
+        return False
+    
+    @property
+    def is_resolvable(self) -> bool:
+        res, success = parse_basic_expression(self.value)
+        if success:
+            return True
+        return False   
+
+    def parse(self) -> None:
+        if self.is_probably_file and self.is_probably_directory:
+            raise RuntimeError
+
+        # Expression
+        if isinstance(self.req, str):
+            self.file_to_create = self.get_files_to_create_from_str()
+            self.directory_to_create = self.get_directories_to_create_from_str()
+        
+        # Dirent
+        elif isinstance(self.req, self.cwl_utils.Dirent):
+            self.file_to_create = self.get_files_to_create_from_dirent()
+            self.directory_to_create = self.get_directories_to_create_from_dirent()
+
+        elif isinstance(self.req, dict):
+            raise NotImplementedError
+
+        else:
+            raise NotImplementedError
+        
+    def get_files_to_create_from_str(self) -> Optional[Tuple[str, str | InputSelector]]:
+        # value is expression
+        if self.value.startswith('$('):
+            if self.is_resolvable and self.is_probably_file:
+                # most likely just specifying the file needs to be staged. do nothing for now.
+                pass
+            elif self.is_probably_file:
+                # TODO error message
+                pass
+
+        elif self.value.startswith('${'):
+            raise NotImplementedError
+        
+        # value is string
+        else:
+            raise NotImplementedError
+
+    def get_files_to_create_from_dirent(self) -> Optional[Tuple[str, str | InputSelector]]:
+        # most likely just specifying the file / directory needs to be staged. do nothing for now.
+        if self.value.startswith('$('):
+            if self.is_probably_file:
+                raise NotImplementedError
+            else:
+                pass
+
+        # js code to generate required file
+        elif self.value.startswith('${'):
+            msg = f'{self.name}: js code to dynamically create runtime file. please address'
+            self.error_msgs.append(msg)
+            if not self.name:
+                raise NotImplementedError
+            return (self.name, self.value)
+
+        else:
+            assert(isinstance(self.name, str))
+            # the .js code script to run
+            if self.is_expression_tool:
+                if not self.name:
+                    raise NotImplementedError
+                return (self.name, self.value)
+            else:
+                # either a static script, or a script to template at runtime
+                # script to template at runtime
+                if '$(inputs.' in self.value:
+                    msg = f'likely untranslated cwl / js in script: {self.name}'
+                    self.error_msgs.append(msg)
+                    if not self.name:
+                        raise NotImplementedError
+                    return (self.name, self.value)
+                # static script
+                else:
+                    if not self.name:
+                        raise NotImplementedError
+                    return (self.name, self.value)
+       
+    def get_directories_to_create_from_str(self) -> Optional[str | InputSelector]:
+        if self.value.startswith('$(') or self.value.startswith('${'):
+            # most likely just specifying the file / directory needs to be staged. do nothing for now.
+            # future: try to detect whether its a file or directory. create directory if directory. 
+            if self.is_resolvable and self.is_probably_directory:
+                res, _ = parse_basic_expression(self.value)
+                return res
+
+            elif self.is_probably_directory:
+                raise NotImplementedError
+        else:
+            # no idea yet. 
+            raise NotImplementedError 
+
+    def get_directories_to_create_from_dirent(self) -> Optional[str | InputSelector]:
+        if self.name and self.value:
+            if self.is_probably_directory:
+                return self.value
+        elif self.value:
+            if self.is_probably_directory:
+                raise NotImplementedError
+        else:
+            raise RuntimeError 
+    
+    
+
+    
+    
+
+
+@dataclass
 class CLTParser(CLTEntityParser):
     
     failure_message: str = 'error parsing task. returned minimal task definition as fallback'

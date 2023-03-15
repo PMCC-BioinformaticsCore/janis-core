@@ -1,18 +1,17 @@
 
 
 import os
+from copy import deepcopy
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool, StepNode
 from janis_core.types import File, Filename, Directory, DataType
 from janis_core import PythonTool
+from janis_core import translation_utils as utils
+from janis_core import settings
 
 from . import params
 from . import channels
-from . import nfgen_utils
-
-from janis_core import settings
 from .scope import Scope
-from copy import deepcopy
     
 
 def register_params_channels(wf: Workflow, scope: Scope) -> None:
@@ -67,11 +66,11 @@ class ParamRegistrationHelper:
         """registers param for each wf input which requires a param."""
         
         # secondaries array
-        if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+        if utils.is_array_secondary_type(self.inp.datatype):
             self.register_param_secondaries_array()
         
         # secondaries
-        elif nfgen_utils.is_secondary_type(self.inp.datatype):
+        elif utils.is_secondary_type(self.inp.datatype):
             self.register_param_secondaries()
 
         # anything else
@@ -118,8 +117,8 @@ class ChannelRegistrationHelper:
 
     @property
     def basetype(self) -> DataType:
-        basetype = nfgen_utils.get_base_type(self.inp.datatype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(self.inp.datatype)
+        basetype = utils.ensure_single_type(basetype)
         return basetype
 
     @property
@@ -143,7 +142,7 @@ class ChannelRegistrationHelper:
         else:
             param_name = params.getall(self.inp.uuid)[0].name
             # @secondaryarrays
-            if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+            if utils.is_array_secondary_type(self.inp.datatype):
                 src = f'params.{param_name}.flatten()'
             else:
                 src = f'params.{param_name}'
@@ -162,10 +161,10 @@ class ChannelRegistrationHelper:
         )
 
     def get_operations(self) -> str:
-        if nfgen_utils.is_array_secondary_type(self.inp.datatype):
+        if utils.is_array_secondary_type(self.inp.datatype):
             ops = self.get_operations_secondary_array()
         
-        elif nfgen_utils.is_secondary_type(self.inp.datatype):
+        elif utils.is_secondary_type(self.inp.datatype):
             ops = self.get_operations_secondary()
         
         elif isinstance(self.basetype, File) or isinstance(self.basetype, Filename) or isinstance(self.basetype, Directory):
@@ -182,7 +181,7 @@ class ChannelRegistrationHelper:
         return ops
 
     def get_operations_secondary_array(self) -> str:
-        exts = nfgen_utils.get_extensions(self.basetype)
+        exts = utils.get_extensions(self.basetype)
         size = len(exts)
         
         ops: str = ''
@@ -270,8 +269,8 @@ def _get_file_wf_inputs(wf: Workflow) -> set[str]:
     # wf inputs with file type are fed via channels.
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
-        basetype = nfgen_utils.get_base_type(inp.datatype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(inp.datatype)
+        basetype = utils.ensure_single_type(basetype)
         # main file types
         if isinstance(basetype, File):
             out.add(name)
@@ -337,7 +336,7 @@ def _get_filename_wf_inputs(wf: Workflow) -> set[str]:
             for inp in filename_inputs:
                 if inp.id() in step.sources:
                     src = step.sources[inp.id()]
-                    node = nfgen_utils.resolve_node(src)
+                    node = utils.resolve_node(src)
                     if isinstance(node, InputNode):
                         out.add(node.id())
     return out
@@ -364,7 +363,7 @@ def _get_scatter_wf_inputs(wf: Workflow) -> set[str]:
     for step in wf.step_nodes.values():
         for src in step.sources.values():
             should_scatter = src.source_map[0].should_scatter
-            node = nfgen_utils.resolve_node(src)
+            node = utils.resolve_node(src)
             if should_scatter and isinstance(node, InputNode):
                 out.add(node.id())
     return out

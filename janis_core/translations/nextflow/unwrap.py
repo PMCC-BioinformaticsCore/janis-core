@@ -64,7 +64,7 @@ from janis_core.operators.stringformatter import StringFormatter
 
 from . import channels
 from . import params
-from . import nfgen_utils
+from janis_core import translation_utils as utils
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
@@ -363,10 +363,10 @@ class Unwrapper:
     def get_src_process_input(self, inp: ToolInput) -> str:
         # data fed via process input
         dtype = inp.input_type # type: ignore
-        # basetype = nfgen_utils.get_base_type(dtype)
-        # basetype = nfgen_utils.ensure_single_type(basetype)
+        # basetype = utils.get_base_type(dtype)
+        # basetype = utils.ensure_single_type(basetype)
         # secondary files (name mapped to ext of primary file) @secondariesarray 
-        if nfgen_utils.is_secondary_type(dtype):
+        if utils.is_secondary_type(dtype):
             names = naming.process_input_secondaries(inp, self.sources)
             name = names[0]
         # everything else
@@ -489,7 +489,7 @@ class Unwrapper:
             inp = self.get_input_by_id(sel.input_to_select)
             
             # special case: janis secondary -> nextflow tuple
-            if nfgen_utils.is_secondary_type(inp.input_type):
+            if utils.is_secondary_type(inp.input_type):
                 tuple_input = create_input(inp, self.sources)  # the process input tuple
                 return tuple_input.subnames[index] 
         
@@ -694,11 +694,11 @@ class Unwrapper:
         
         inp = self.get_input_by_id(sel.input_to_select)
         dtype: DataType = inp.input_type # type: ignore
-        basetype = nfgen_utils.get_base_type(dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(dtype)
+        basetype = utils.ensure_single_type(basetype)
 
         # # @secondariesarray
-        # if nfgen_utils.is_array_secondary_type(dtype):
+        # if utils.is_array_secondary_type(dtype):
         #     """
         #     example: Array(BamBai)
         #     process input name: indexed_bam_array_flat
@@ -781,7 +781,7 @@ class Unwrapper:
 
         # arrays of secondaries
         # @secondariesarray
-        if nfgen_utils.is_array_secondary_type(conn_out.outtype):
+        if utils.is_array_secondary_type(conn_out.outtype):
             raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')
 
         # everything else

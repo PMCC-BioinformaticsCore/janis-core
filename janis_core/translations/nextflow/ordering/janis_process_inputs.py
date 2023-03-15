@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from janis_core import ToolInput, TInput
 from janis_core.types import File, Array
 
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 
 class OrderingStrategy(ABC):
@@ -24,8 +24,8 @@ class PathPriorityStrategy(OrderingStrategy):
     
     def is_path(self, inp: ToolInput | TInput) -> bool:
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-        basetype = nfgen_utils.get_base_type(dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(dtype)
+        basetype = utils.ensure_single_type(basetype)
         if isinstance(basetype, File):
             return True
         return False
@@ -38,7 +38,7 @@ class TuplePriorityStrategy(OrderingStrategy):
     def is_tuple(self, inp: ToolInput | TInput) -> bool:
         # File type with secondaries represented as tuple process input
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
-        basetype = nfgen_utils.get_base_type(dtype)
+        basetype = utils.get_base_type(dtype)
         if isinstance(basetype, File) and basetype.has_secondary_files():
             return True
         return False

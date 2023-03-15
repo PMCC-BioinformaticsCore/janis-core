@@ -2,7 +2,7 @@
 from typing import Any
 from janis_core import DataType, CommandTool, PythonTool, StepOutputSelector, String
 
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 
 
@@ -23,8 +23,8 @@ def is_pythontool_array_string_output(src: Any) -> bool:
         tool = source.node.tool
         output = tool.outputs_map()[source.tag]
         dtype = output.outtype
-        basetype = nfgen_utils.get_base_type(dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(dtype)
+        basetype = utils.ensure_single_type(basetype)
 
         # source tool is pythontool
         if isinstance(tool, PythonTool):

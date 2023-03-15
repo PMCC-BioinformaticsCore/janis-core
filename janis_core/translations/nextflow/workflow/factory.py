@@ -1,7 +1,8 @@
 from typing import Any
-from janis_core import Workflow
-
 from copy import deepcopy
+
+from janis_core import Workflow
+from janis_core import settings
 
 from ..scope import Scope
 from ..plumbing.call import format_process_call
@@ -13,7 +14,6 @@ from ..process import FunctionsBlock
 from .. import channels
 from .. import nfgen_utils
 from .. import ordering
-from janis_core import settings
 from .. import unwrap
 
 from .model import Workflow as NFWorkflow

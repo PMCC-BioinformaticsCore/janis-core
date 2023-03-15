@@ -11,7 +11,7 @@ from janis_core import (
 
 from ..casefmt import to_case
 from ..plumbing import trace
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 from .. import params
 from janis_core import settings
 
@@ -43,9 +43,9 @@ def _get_varname_process_input(inp: ToolInput | TInput, sources: dict[str, Any],
     
     if inp.id() in process_inputs:
         dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype  # type: ignore
-        if nfgen_utils.is_array_secondary_type(dtype):
+        if utils.is_array_secondary_type(dtype):
             name = process_input_secondaries_array(inp)
-        elif nfgen_utils.is_secondary_type(dtype):
+        elif utils.is_secondary_type(dtype):
             name = process_input_secondaries(inp, sources)[0]  # first extension
         else:
             name = process_input_name(inp)  
@@ -53,7 +53,7 @@ def _get_varname_process_input(inp: ToolInput | TInput, sources: dict[str, Any],
 
 def process_input_secondaries_array(inp: ToolInput | TInput) -> str:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype  # type: ignore
-    basetype: DataType = nfgen_utils.get_base_type(dtype)  # type: ignore
+    basetype: DataType = utils.get_base_type(dtype)  # type: ignore
     basetype_name = to_case(basetype.name(), case=settings.translate.nextflow.NF_PROCESS_INPUT_CASE)
     return f'{basetype_name}_array_flat'
 
@@ -64,8 +64,8 @@ def process_input_secondaries_array_primary_files(inp: ToolInput | TInput) -> st
     primary files name: bams
     """
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype  # type: ignore
-    basetype: File = nfgen_utils.get_base_type(dtype)  # type: ignore 
-    exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+    basetype: File = utils.get_base_type(dtype)  # type: ignore 
+    exts = utils.get_extensions(basetype, remove_symbols=True)
     primary_ext = exts[0]
     primary_name = f'{primary_ext}s' # primary extension -> make plural
     return primary_name
@@ -79,14 +79,14 @@ def process_input_secondaries(inp: ToolInput | TInput, sources: dict[str, Any]) 
 
     # # datatype mismatch! get type info from srctype
     # if srctype.name() != desttype.name():
-    #     basetype: File = nfgen_utils.get_base_type(srctype)  # type: ignore 
+    #     basetype: File = utils.get_base_type(srctype)  # type: ignore 
     
     # # datatype match. get type info from dest
     # else:
-    #     basetype: File = nfgen_utils.get_base_type(desttype)  # type: ignore 
+    #     basetype: File = utils.get_base_type(desttype)  # type: ignore 
     
-    basetype: File = nfgen_utils.get_base_type(desttype) # type: ignore 
-    exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+    basetype: File = utils.get_base_type(desttype) # type: ignore 
+    exts = utils.get_extensions(basetype, remove_symbols=True)
     exts = [x.replace('.', '_') for x in exts]
     return exts
 

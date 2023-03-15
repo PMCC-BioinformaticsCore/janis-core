@@ -2,7 +2,7 @@
 
 from janis_core.types import DataType
 
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 from .common import array_type
 from .common import single_type
@@ -24,8 +24,8 @@ def is_datatype_mismatch(srctype: DataType, desttype: DataType, destscatter: boo
     return False
 
 def is_base_type_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    base_srctype = nfgen_utils.get_base_type(srctype)
-    base_desttype = nfgen_utils.get_base_type(desttype)
+    base_srctype = utils.get_base_type(srctype)
+    base_desttype = utils.get_base_type(desttype)
     if base_srctype.name() != base_desttype.name():
         return True
     return False
@@ -50,7 +50,7 @@ def is_array_depth_mismatch(srctype: DataType, desttype: DataType, destscatter: 
 
 def get_array_depth(dtype: DataType) -> int:
     depth = 0
-    while dtype.is_array() and dtype.subtype() and not nfgen_utils.is_file_pair_type(dtype, recursive=False):
+    while dtype.is_array() and dtype.subtype() and not utils.is_file_pair_type(dtype, recursive=False):
         depth += 1
         dtype = dtype.subtype()
     return depth
@@ -120,8 +120,8 @@ def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destsc
 
 def gen_base_datatype_plumbing(srctype: DataType, desttype: DataType) -> str:
     """handle base datatype mismatch transformations"""
-    base_srctype = nfgen_utils.get_base_type(srctype)
-    base_desttype = nfgen_utils.get_base_type(desttype)
+    base_srctype = utils.get_base_type(srctype)
+    base_desttype = utils.get_base_type(desttype)
     
     if secondary_secondary_mismatch(base_srctype, base_desttype):
         return generate_secondary_mismatch_pumbing(srctype, desttype)
@@ -199,12 +199,12 @@ def generate_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType) -
     4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing
     """
     # 1. get the secondary type for srctype & desttype
-    srctype = nfgen_utils.get_base_type(srctype)
-    desttype = nfgen_utils.get_base_type(desttype)
+    srctype = utils.get_base_type(srctype)
+    desttype = utils.get_base_type(desttype)
 
     # 2. get the secondary file order for srctype & desttype
-    srctype_exts = nfgen_utils.get_extensions(srctype, remove_symbols=True)
-    desttype_exts = nfgen_utils.get_extensions(desttype, remove_symbols=True)
+    srctype_exts = utils.get_extensions(srctype, remove_symbols=True)
+    desttype_exts = utils.get_extensions(desttype, remove_symbols=True)
 
     # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
     indices: list[int] = []

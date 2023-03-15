@@ -16,7 +16,7 @@ from janis_core import (
 
 from ...plumbing import trace_entity_counts
 from ...unwrap import unwrap_expression
-from ... import nfgen_utils
+from janis_core import translation_utils as utils
 from .. import inputs
 
 from .model import (
@@ -72,21 +72,21 @@ def is_stdout_type(out: ToolOutput) -> bool:
     return False
 
 def is_file_type(out: ToolOutput) -> bool:
-    basetype = nfgen_utils.get_base_type(out.output_type)
-    basetype = nfgen_utils.ensure_single_type(basetype)
+    basetype = utils.get_base_type(out.output_type)
+    basetype = utils.ensure_single_type(basetype)
     if isinstance(basetype, (File, Directory)):
         return True
     return False
 
 def is_filepair_type(out: ToolOutput) -> bool:
-    basetype = nfgen_utils.get_base_type(out.output_type)
-    basetype = nfgen_utils.ensure_single_type(basetype)
+    basetype = utils.get_base_type(out.output_type)
+    basetype = utils.ensure_single_type(basetype)
     if basetype.name() in ['FastqPair', 'FastqGzPair']:
         return True
     return False
 
 def is_secondary_type(out: ToolOutput) -> bool:
-    return nfgen_utils.is_secondary_type(out.output_type)
+    return utils.is_secondary_type(out.output_type)
 
 def is_array_type(out: ToolOutput) -> bool:
     if out.output_type.is_array():
@@ -94,8 +94,8 @@ def is_array_type(out: ToolOutput) -> bool:
     return False
 
 def is_non_file_type(out: ToolOutput) -> bool:
-    basetype = nfgen_utils.get_base_type(out.output_type)
-    basetype = nfgen_utils.ensure_single_type(basetype)
+    basetype = utils.get_base_type(out.output_type)
+    basetype = utils.ensure_single_type(basetype)
     if not isinstance(basetype, (File, Directory)):
         return True
     return False
@@ -159,8 +159,8 @@ class CmdtoolProcessOutputFactory:
     # helper properties
     @property
     def basetype(self) -> DataType:
-        basetype = nfgen_utils.get_base_type(self.out.output_type)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(self.out.output_type)
+        basetype = utils.ensure_single_type(basetype)
         return basetype
     
     @property
@@ -316,7 +316,7 @@ class CmdtoolProcessOutputFactory:
         qualifiers.append('path')
         expressions.append(primary_reference)
 
-        exts = nfgen_utils.get_extensions(self.dtype)               
+        exts = utils.get_extensions(self.dtype)               
         for ext in exts[1:]:
             # extensions which replace part of filename
             if ext.startswith('^'):
@@ -340,7 +340,7 @@ class CmdtoolProcessOutputFactory:
         qualifiers: list[str] = []
         expressions: list[str] = []
 
-        exts = nfgen_utils.get_extensions(self.dtype)
+        exts = utils.get_extensions(self.dtype)
         primary_expr = self.unwrap_collection_expression(self.out.selector)
         primary_expr = primary_expr.strip('"')
         primary_ext = exts[0]

@@ -5,7 +5,6 @@ from janis_core import CommandTool, ToolArgument, ToolInput
 from janis_core.types import Boolean, File
 from .. import nfgen_utils
 
-
 class CmdtoolInsArgsStrategy(ABC):
     @abstractmethod
     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:

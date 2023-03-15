@@ -7,22 +7,23 @@ from textwrap import indent
 from janis_core import CommandTool, PythonTool, Workflow
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType, Stdout
+from janis_core import settings
 
 from .. import process
 from .. import nfgen_utils
 from .. import ordering
-from janis_core import settings
 
 from ..unwrap import unwrap_expression
 from ..scope import Scope
 
 from . import trace
-
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import gen_datatype_mismatch_plumbing
 
 from .edge_cases import satisfies_edge_case
 from .edge_cases import handle_edge_case
+
+
 
 # from .scatter import is_scatter_relationship
 # from .scatter import handle_scatter_relationship

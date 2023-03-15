@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from janis_core import DataType, File, Directory
-from ... import nfgen_utils
+from janis_core import translation_utils as utils
 
 
 @dataclass
@@ -35,7 +35,7 @@ class PathProcessInput(ProcessInput):
         if self.presents_as:
             outstr = f", stageAs: '{self.presents_as}'"
         elif isinstance(self.dtype, (File, Directory)):
-            exts = nfgen_utils.get_extensions(self.dtype)
+            exts = utils.get_extensions(self.dtype)
             if exts and exts[0] != 'primary':
                 outstr = f", stageAs: '{self.name}{exts[0]}'"
             else:

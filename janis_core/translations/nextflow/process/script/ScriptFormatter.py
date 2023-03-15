@@ -5,6 +5,7 @@ from typing import Optional, Any, Tuple
 
 from janis_core import ToolInput, CommandTool
 from janis_core.types import Boolean, Filename, DataType
+from janis_core import translation_utils as utils
 
 from ... import naming
 from ... import nfgen_utils
@@ -120,7 +121,7 @@ class ScriptFormatter:
             formatting_func = self.func_map[self.itype]
             prescript, script = formatting_func()
         
-        if nfgen_utils.is_array_secondary_type(self.dtype):
+        if utils.is_array_secondary_type(self.dtype):
             assert(prescript)
             prescript = self.prepend_function_call(prescript, 'get_primary_files')
 
@@ -197,8 +198,8 @@ class ScriptFormatter:
     
     @property
     def basetype(self) -> DataType:
-        basetype = nfgen_utils.get_base_type(self.dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(self.dtype)
+        basetype = utils.ensure_single_type(basetype)
         return basetype
 
     @property

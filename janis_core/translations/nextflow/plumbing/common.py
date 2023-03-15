@@ -4,7 +4,7 @@ from typing import Optional, Type
 
 from janis_core.types import DataType, UnionType
 
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 
 # helper functions to identify types involved in plumbing situations
@@ -22,36 +22,36 @@ def array_type(dtype: DataType) -> bool:
     return False
 
 def secondary_type(dtype: DataType) -> bool:
-    if nfgen_utils.is_secondary_type(dtype) or nfgen_utils.is_file_pair_type(dtype):
+    if utils.is_secondary_type(dtype) or utils.is_file_pair_type(dtype):
         return True
     return False
 
 def secondary_array_type(dtype: DataType) -> bool:
-    if nfgen_utils.is_array_secondary_type(dtype) or nfgen_utils.is_array_file_pair_type(dtype):
+    if utils.is_array_secondary_type(dtype) or utils.is_array_file_pair_type(dtype):
         return True
     return False
 
 def get_collate_size(dtype: DataType) -> int:
-    basetype = nfgen_utils.get_base_type(dtype)
+    basetype = utils.get_base_type(dtype)
     assert(basetype)
     if basetype.name() in ['FastqPair', 'FastqGzPair']:
         size = 2
     else:
-        exts = nfgen_utils.get_extensions(basetype)
+        exts = utils.get_extensions(basetype)
         size = len(exts)
     return size
 
 
 # UnionType stuff
 def union_type(dtype: DataType) -> bool:
-    basetype = nfgen_utils.get_base_type(dtype)
+    basetype = utils.get_base_type(dtype)
     if isinstance(basetype, UnionType):
         return True
     return False
 
 def get_common_type(srctype: DataType, desttype: DataType) -> Optional[DataType]:
-    srctype_base = nfgen_utils.get_base_type(srctype)
-    desttype_base = nfgen_utils.get_base_type(desttype)
+    srctype_base = utils.get_base_type(srctype)
+    desttype_base = utils.get_base_type(desttype)
 
     # both are non-union types, & types match
     if not union_type(srctype_base) and not union_type(desttype_base):

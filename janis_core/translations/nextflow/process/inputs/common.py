@@ -16,7 +16,7 @@ from janis_core import (
 from janis_core import settings
 from ... import channels
 from ... import params
-from ... import nfgen_utils as nfgen_utils
+from janis_core import translation_utils as utils
 
 
 
@@ -153,8 +153,8 @@ def get_file_input_ids(tinputs: list[TInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are File types"""
     out: set[str] = set()
     for inp in tinputs:
-        basetype = nfgen_utils.get_base_type(inp.intype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(inp.intype)
+        basetype = utils.ensure_single_type(basetype)
         if isinstance(basetype, (File, Directory, Filename)):
             out.add(inp.id())
     return out
@@ -163,7 +163,7 @@ def get_optional_input_ids(tinputs: list[TInput]) -> set[str]:
     """get tool inputs (ids) for tool inputs which are optional"""
     out: set[str] = set()
     for tinp in tinputs:
-        basetype = nfgen_utils.get_base_type(tinp.intype)
+        basetype = utils.get_base_type(tinp.intype)
         if basetype and basetype.optional:
             out.add(tinp.id())
     return out
@@ -178,7 +178,7 @@ def get_channel_process_inputs(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a channel"""
     out: set[str] = set()
     for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
+        node = utils.resolve_node(src)
         if isinstance(node, InputNode):
             if channels.exists(node.uuid):
                 out.add(tag)
@@ -188,7 +188,7 @@ def get_param_process_inputs(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a channel"""
     out: set[str] = set()
     for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
+        node = utils.resolve_node(src)
         if isinstance(node, InputNode):
             if params.exists(node.uuid):
                 out.add(tag)
@@ -198,7 +198,7 @@ def get_connection_process_inputs(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being fed a value from a step connection"""
     out: set[str] = set()
     for tag, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
+        node = utils.resolve_node(src)
         if isinstance(node, StepNode):
             out.add(tag)
     return out
@@ -208,7 +208,7 @@ def get_scatter_process_inputs(sources: dict[str, Any]) -> set[str]:
     out: set[str] = set()
     for inname, src in sources.items():
         should_scatter = src.source_map[0].should_scatter
-        node = nfgen_utils.resolve_node(src)
+        node = utils.resolve_node(src)
         if should_scatter and isinstance(node, InputNode):
             out.add(inname)
     return out
@@ -217,7 +217,7 @@ def get_complex_expression_inputs(sources: dict[str, Any]) -> set[str]:
     """get tool inputs (ids) which are being scattered on"""
     out: set[str] = set()
     for inname, src in sources.items():
-        node = nfgen_utils.resolve_node(src)
+        node = utils.resolve_node(src)
         if not isinstance(node, InputNode) and not isinstance(node, StepNode):
             out.add(inname)
     return out

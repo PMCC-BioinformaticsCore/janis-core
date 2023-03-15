@@ -53,7 +53,7 @@ from janis_core.operators.selectors import (
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core import CommandTool, ToolInput, TInput, ToolArgument, ToolOutput
 
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 
 
@@ -355,8 +355,8 @@ class SourceDatatypeTracer(Tracer):
         # (via IndexOperator), the datatype will actually be File()
         assert(dtype)
         if array_to_single and dtype.is_array():
-            dtype = nfgen_utils.get_base_type(dtype)
-            dtype = nfgen_utils.ensure_single_type(dtype)
+            dtype = utils.get_base_type(dtype)
+            dtype = utils.ensure_single_type(dtype)
         
         self.datatypes.append(dtype)
 

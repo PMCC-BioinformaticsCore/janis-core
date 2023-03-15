@@ -8,7 +8,7 @@ NoneType = type(None)
 from ..scope import Scope
 from janis_core import settings
 from .. import naming
-from .. import nfgen_utils
+from janis_core import translation_utils as utils
 
 from . import model
 from . import script
@@ -64,7 +64,7 @@ def gen_functions_for_process(tool: CommandTool) -> Optional[model.FunctionsBloc
     
 def should_add_get_primary_files(tool: CommandTool) -> bool:
     for tinput in tool.inputs():
-        if nfgen_utils.is_array_secondary_type(tinput.input_type):
+        if utils.is_array_secondary_type(tinput.input_type):
             return True
     return False
 

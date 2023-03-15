@@ -13,7 +13,7 @@ from ...plumbing import trace
 
 from ... import ordering
 from ... import naming
-from ... import nfgen_utils as nfgen_utils
+from ... import nfgen_utils
 from .. import inputs
 
 from .ScriptFormatter import ScriptFormatter

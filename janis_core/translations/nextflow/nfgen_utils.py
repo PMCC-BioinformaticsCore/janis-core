@@ -10,19 +10,17 @@ from janis_core.types import (
     Boolean,
     Int,
     Float,
-    Directory
 )
 from janis_core import (
     DataType,
     ToolInput,
     TInput,
     Workflow,
-    UnionType
 )
 
 from janis_core.workflow.workflow import InputNode
-from janis_core.graph.steptaginput import StepTagInput
-from janis_core.operators.selectors import InputNodeSelector, StepOutputSelector
+from janis_core.operators.selectors import InputNodeSelector
+from janis_core import translation_utils as utils
 
 
 """
@@ -47,23 +45,13 @@ shoud should be included.
 
 ### GENERAL
 
-def resolve_node(node: Any) -> Any:
-    if isinstance(node, StepTagInput):
-        return resolve_node(node.source_map[0].source)
-    elif isinstance(node, InputNodeSelector):
-        return node.input_node
-    elif isinstance(node, StepOutputSelector):
-        return node.node
-    else:
-        return node
-
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
 
 def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
     # must work with str version. 
     if dtype is not None:
-        dtype = get_base_type(dtype)
+        dtype = utils.get_base_type(dtype)
     val = str(val)
     
     # # secondary files
@@ -137,16 +125,6 @@ def _cast_keywords(val: str) -> str:
 
 ### TYPES 
 
-def get_base_type(dtype: DataType) -> DataType:
-    while dtype.name() == 'Array' and dtype.subtype():
-        dtype = dtype.subtype()
-    return dtype
-
-def ensure_single_type(dtype: DataType) -> DataType:
-    if isinstance(dtype, UnionType):
-        return dtype.subtypes[0]
-    return dtype    
-
 def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> DataType:
     match task_input:
         case ToolInput():
@@ -157,13 +135,18 @@ def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> Data
             dtype = task_input.intype
         case _:
             raise NotImplementedError
-    return get_base_type(dtype)
+    return utils.get_base_type(dtype)
 
-def is_path(task_input: ToolInput | InputNode) -> bool:
-    datatype = get_base_type_task_input(task_input)
-    if isinstance(datatype, File):
-        return True
-    return False
+
+
+
+### DEPRECATED
+
+# def is_path(task_input: ToolInput | InputNode) -> bool:
+#     datatype = get_base_type_task_input(task_input)
+#     if isinstance(datatype, File):
+#         return True
+#     return False
 
 # def is_file_pair(task_input: ToolInput | InputNode) -> bool:
 #     datatype = get_base_type_task_input(task_input)
@@ -175,110 +158,36 @@ def is_path(task_input: ToolInput | InputNode) -> bool:
 #                 raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
 #     return False
 
+# def roughly_equivalent(val1: Any, val2: Any) -> bool:
+#     equivalents = {
+#         '': ' ',
+#     }
+#     map_fwd = equivalents
+#     map_rev = {v: k for k, v in equivalents.items()}
+#     if val1 is None and val2 is None:
+#         return True
+#     elif str(val1) == str(val2):
+#         return True
+#     elif val1 in map_fwd and map_fwd[val1] == val2:
+#         return True
+#     elif val1 in map_rev and map_rev[val1] == val2:
+#         return True
+#     return False
 
-# FILE PAIRS
+# def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
+#     connected: dict[str, list[str]] = defaultdict(list)
+#     for step in wf.step_nodes.values():
+#         for tinp_id, src in step.sources.items():
+#             sel = src.source_map[0].source
+#             if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
+#                 connected[step.id()].append(tinp_id)
+#     return connected
 
-known_file_pair_types = set([
-    'FastqPair',
-    'FastqGzPair',
-])
-
-def is_file_pair_type(dtype: DataType, recursive: bool=True) -> bool:
-    if recursive:
-        dtype = get_base_type(dtype)
-    if dtype.name() in known_file_pair_types:
-        return True
-    return False
-
-def is_array_file_pair_type(dtype: DataType) -> bool:
-    if dtype.name() == 'Array':
-        if is_file_pair_type(dtype):
-            return True
-    return False
-
-
-
-### SECONDARIES 
-
-def is_secondary_type(dtype: DataType) -> bool:
-    if not is_array_secondary_type(dtype):
-        basetype = get_base_type(dtype)
-        if isinstance(basetype, File) and basetype.has_secondary_files():
-            return True
-    return False
-
-def is_array_secondary_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
-    if dtype.is_array() and isinstance(basetype, File) and basetype.has_secondary_files():
-        return True
-    return False
-
-def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
-    """returns extension of each file for File types with secondaries"""
-    primary_ext: str = ''
-    secondary_exts: list[str] = []
-
-    # primary extension
-    if isinstance(dtype, Directory):
-        return []
-    if len(dtype.get_extensions()) > 0:
-        primary_ext = dtype.get_extensions()[0]
-    else:
-        primary_ext = 'primary'
-    
-    # secondary extensions
-    if dtype.secondary_files() is not None:
-        secondary_exts = dtype.secondary_files()
-    else:
-        secondary_exts = []
-
-    exts = _sort_extensions(primary_ext, secondary_exts)
-    if remove_symbols:
-        exts = [x.lstrip('.^') for x in exts]
-    return exts
-
-def _sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
-    out: list[str] = []
-    out.append(primary_ext)
-    secondary_exts = sorted(secondary_exts, key=lambda x: x.rsplit('.')[-1])
-    out += secondary_exts
-    return out
-
-
-
-
-### DEPRECATED
-
-def roughly_equivalent(val1: Any, val2: Any) -> bool:
-    equivalents = {
-        '': ' ',
-    }
-    map_fwd = equivalents
-    map_rev = {v: k for k, v in equivalents.items()}
-    if val1 is None and val2 is None:
-        return True
-    elif str(val1) == str(val2):
-        return True
-    elif val1 in map_fwd and map_fwd[val1] == val2:
-        return True
-    elif val1 in map_rev and map_rev[val1] == val2:
-        return True
-    return False
-
-def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
-    connected: dict[str, list[str]] = defaultdict(list)
-    for step in wf.step_nodes.values():
-        for tinp_id, src in step.sources.items():
-            sel = src.source_map[0].source
-            if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
-                connected[step.id()].append(tinp_id)
-    return connected
-
-def is_simple_path(text: str) -> bool:
-    PATH = r'[\w./]+'
-    text = text.strip('\'"')
-    matches = re.finditer(PATH, text)
-    for m in matches:
-        if m.span()[1] - m.span()[0] == len(text):
-            return True
-    return False
+# def is_simple_path(text: str) -> bool:
+#     PATH = r'[\w./]+'
+#     text = text.strip('\'"')
+#     matches = re.finditer(PATH, text)
+#     for m in matches:
+#         if m.span()[1] - m.span()[0] == len(text):
+#             return True
+#     return False

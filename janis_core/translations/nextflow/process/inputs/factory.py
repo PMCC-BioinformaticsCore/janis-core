@@ -12,6 +12,7 @@ from janis_core import (
     DataType
 )
 
+from janis_core import translation_utils as utils
 from ... import nfgen_utils
 from ... import naming
 from ... import ordering
@@ -36,17 +37,17 @@ def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict
 
 def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInput:
     dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
-    basetype = nfgen_utils.get_base_type(dtype)
-    basetype = nfgen_utils.ensure_single_type(basetype)
+    basetype = utils.get_base_type(dtype)
+    basetype = utils.ensure_single_type(basetype)
     assert(basetype)
     
     # @secondariesarray
     # secondaries array
-    if nfgen_utils.is_array_secondary_type(dtype):
+    if utils.is_array_secondary_type(dtype):
         return create_path_input_secondaries_array(inp)
     
     # secondaries
-    if nfgen_utils.is_secondary_type(dtype):
+    if utils.is_secondary_type(dtype):
         return create_tuple_input_secondaries(inp, sources)
     
     # filepair array
@@ -75,8 +76,8 @@ def create_input(inp: ToolInput | TInput, sources: dict[str, Any]) -> ProcessInp
 
 
 def is_filepair_type(dtype: DataType) -> bool:
-    basetype = nfgen_utils.get_base_type(dtype)
-    basetype = nfgen_utils.ensure_single_type(basetype)
+    basetype = utils.get_base_type(dtype)
+    basetype = utils.ensure_single_type(basetype)
     if basetype.name() in ['FastqPair', 'FastqGzPair']:
         return True
     return False

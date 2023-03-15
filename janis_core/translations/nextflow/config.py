@@ -5,7 +5,7 @@ from collections import defaultdict
 from janis_core.types import File
 
 from janis_core import settings
-from . import nfgen_utils
+from janis_core import translation_utils as utils
 from .params import Param, getall
 from .casefmt import to_case
 
@@ -59,19 +59,19 @@ class ParamGroup:
     
     def param_to_string(self, param: Param) -> str:
         dtype = param.janis_type
-        basetype = nfgen_utils.get_base_type(dtype)
-        basetype = nfgen_utils.ensure_single_type(basetype)
+        basetype = utils.get_base_type(dtype)
+        basetype = utils.ensure_single_type(basetype)
 
-        if nfgen_utils.is_array_secondary_type(dtype):
+        if utils.is_array_secondary_type(dtype):
             return self.format_param_array_secondary(param)
         
-        elif nfgen_utils.is_secondary_type(basetype):
+        elif utils.is_secondary_type(basetype):
             return self.format_param_secondary(param)
         
-        elif nfgen_utils.is_array_file_pair_type(dtype):
+        elif utils.is_array_file_pair_type(dtype):
             return self.format_param_array_file_pair(param)
 
-        elif nfgen_utils.is_file_pair_type(basetype):
+        elif utils.is_file_pair_type(basetype):
             return self.format_param_file_pair(param)
 
         elif isinstance(basetype, File) and dtype.is_array():
@@ -89,8 +89,8 @@ class ParamGroup:
 
     def format_param_array_secondary(self, param: Param) -> str:
         dtype = param.janis_type
-        basetype = nfgen_utils.get_base_type(dtype)
-        exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+        basetype = utils.get_base_type(dtype)
+        exts = utils.get_extensions(basetype, remove_symbols=True)
 
         text: str = ''
         text += f'{INDENT}// array of {basetype.name()}\n'
@@ -105,8 +105,8 @@ class ParamGroup:
 
     def format_param_secondary(self, param: Param) -> str:
         dtype = param.janis_type
-        basetype = nfgen_utils.get_base_type(dtype)
-        exts = nfgen_utils.get_extensions(basetype, remove_symbols=True)
+        basetype = utils.get_base_type(dtype)
+        exts = utils.get_extensions(basetype, remove_symbols=True)
 
         text: str = ''
         text += f'{INDENT}// {basetype.name()}\n'
