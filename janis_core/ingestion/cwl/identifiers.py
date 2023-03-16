@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 def get_id_filename(identifier: str) -> str:
     cwl_ref = get_cwl_reference(identifier)
+    if not cwl_ref.filename:
+        print()
     assert(cwl_ref.filename)
     return cwl_ref.filename
 

@@ -19,10 +19,8 @@ from janis_core.messages import log_warning
 
 from .identifiers import get_id_filename
 from .identifiers import get_id_entity
-from .preprocessing import handle_inline_cltool_identifiers
-from .preprocessing import convert_cwl_types_to_python
 from .loading import load_cwl_version
-from .loading import load_cwlgen_from_version
+from .loading import load_cwl_utils_from_version
 from .loading import load_cwl_document
 from .loading import convert_etool_to_cltool
 
@@ -71,7 +69,7 @@ class CWlParser:
         self.doc = doc
         self.base_uri = base_uri
         self.version = load_cwl_version(doc)
-        self.cwl_utils = load_cwlgen_from_version(self.version)
+        self.cwl_utils = load_cwl_utils_from_version(self.version)
 
     def ingest(self, cwl_entity: Any) -> j.Tool:
         if isinstance(cwl_entity, self.cwl_utils.Workflow):
@@ -86,11 +84,6 @@ class CWlParser:
             )
         
     def ingest_workflow(self, workflow: Any):
-        # convert yaml datatypes to python datatypes
-        workflow = convert_cwl_types_to_python(workflow, self.cwl_utils)
-        
-        # convert random ids (occurs for inline clt definition) to meaningful ids
-        workflow = handle_inline_cltool_identifiers(workflow)
         identifier = get_id_filename(workflow.id)
 
         wf = j.WorkflowBuilder(

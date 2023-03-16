@@ -15,6 +15,9 @@ import janis_core as j
 # functions: "${func}"
 function_token_matcher = re.compile(r"^\$\{[\s\S]*return[\s\S]*\}$")  # TODO imperfect. see test_initial_workdir_requirement_listing test
 
+# simple functions: ${ return "over 80000" },  ${return 16;}
+simple_function_token_matcher = re.compile(r"^\s*\$\{\s*return ([^\s'\";{}]+|['\"][^;{}]*?['\"])[\s;]*?\}$")
+
 # single javascript expression: "$(expr)"
 single_token_matcher = re.compile(r"^\$\((.+)\)$")  
 
@@ -63,6 +66,7 @@ class ExpressionParser:
             return (expr, True)
         
         single_token_match = single_token_matcher.match(expr)
+        simple_function_match = simple_function_token_matcher.match(expr)
         function_match = function_token_matcher.match(expr)
         all_token_matches = set(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
         
@@ -70,10 +74,17 @@ class ExpressionParser:
         if single_token_match:
             res = self.convert_javascript_token(single_token_match.groups()[0])
 
-        # if only single inline anonymous ${func}
+        # if simple function ${return 16;}
+        elif simple_function_match:
+            res = self.convert_javascript_token(simple_function_match.group(1))
+            if isinstance(res, str):
+                res = res.replace('\n', '')
+
+        # if function ${func}
         elif function_match:
             res = self.convert_javascript_token(function_match.group(0))
-            res = res.replace('\n', '')
+            if isinstance(res, str):
+                res = res.replace('\n', '')
 
         # if multiple expressions $(expr1) + $(expr2) etc
         elif all_token_matches:

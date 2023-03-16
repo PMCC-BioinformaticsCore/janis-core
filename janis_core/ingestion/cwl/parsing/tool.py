@@ -1,4 +1,5 @@
 
+import re 
 import copy
 from typing import Any, Optional, Tuple
 from dataclasses import dataclass, field
@@ -14,8 +15,6 @@ from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
 from ..identifiers import get_id_filename
 from ..expressions import parse_basic_expression
-from ..preprocessing import convert_cwl_types_to_python
-
 
 
 @dataclass
@@ -66,7 +65,15 @@ class CLTEntityParser(ABC):
 class CLTRequirementsParser(CLTEntityParser):
 
     def fallback(self) -> dict[str, Any]:
-        return {}
+        return {
+            'container': None,
+            'memory': None,
+            'cpus': None,
+            'time': None,
+            'directories_to_create': [],
+            'files_to_create': {},
+            'env_vars': {}
+        }
 
     def do_parse(self) -> dict[str, Any]:  # type: ignore I FKN KNOW
         requirements = self.entity.requirements or []
@@ -97,7 +104,7 @@ class CLTRequirementsParser(CLTEntityParser):
         else:
             for req in requirements:
                 if isinstance(req, self.cwl_utils.DockerRequirement):
-                    return str(req.dockerPull)
+                    return req.dockerPull
         return fallback
     
     def get_memory(self, requirements: list[Any]) -> Optional[int]:
@@ -146,6 +153,7 @@ class CLTRequirementsParser(CLTEntityParser):
                 for item in listing:
                     parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item)
                     parser.parse()
+                    self.error_msgs += parser.error_msgs
                     if parser.file_to_create is not None:
                         name, value = parser.file_to_create
                         files_to_create[name] = value
@@ -189,7 +197,14 @@ class InitialWorkDirRequirementParser:
     file_to_create: Optional[Tuple[str, str | InputSelector]] = None
     directory_to_create: Optional[str | InputSelector] = None
 
+    FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
+    DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
+
     "File | Directory | Dirent | string | Expression"
+    # TODO improve this. can be smarter about error messages. 
+    # eg file value can be resolved (InputSelector or str), but file name is expression. 
+    # want to say:
+    # f'file required for runtime ({InputSelector.input_to_select}) is renamed before runtime using cwl / js: <js>{self.name}</js>. please address'
 
     @property
     def name(self) -> Optional[str]:
@@ -211,7 +226,7 @@ class InitialWorkDirRequirementParser:
     @property
     def is_probably_file(self) -> bool:
         if self.value.startswith('$(') or self.value.startswith('${'):
-            if "class: 'File'" in self.value:
+            if re.search(self.FILE_CLASS_MATCHER, self.value):
                 return True
             else:
                 res, success = parse_basic_expression(self.value)
@@ -230,7 +245,7 @@ class InitialWorkDirRequirementParser:
     @property
     def is_probably_directory(self) -> bool:
         if self.value.startswith('$(') or self.value.startswith('${'):
-            if "class: 'Directory'" in self.value:
+            if re.search(self.DIRECTORY_CLASS_MATCHER, self.value):
                 return True
             else:
                 res, success = parse_basic_expression(self.value)
@@ -247,15 +262,38 @@ class InitialWorkDirRequirementParser:
         return False
     
     @property
-    def is_resolvable(self) -> bool:
-        res, success = parse_basic_expression(self.value)
+    def value_is_resolvable(self) -> bool:
+        _, success = parse_basic_expression(self.value)
         if success:
             return True
         return False   
+    
+    @property
+    def name_is_resolvable(self) -> bool:
+        if self.name:
+            _, success = parse_basic_expression(self.name)
+            if success:
+                return True
+        return False
+    
+    @property 
+    def name_has_expression(self) -> bool:
+        if self.name:
+            if self.name.startswith('$(') or self.name.startswith('${'):
+                return True
+        return False
 
     def parse(self) -> None:
         if self.is_probably_file and self.is_probably_directory:
             raise RuntimeError
+        
+        # error handling for names generated using expression
+        if self.name_has_expression and self.is_probably_file:
+            msg = f'file required for runtime generates name using cwl / js: <js>{self.name}</js>. please address'
+            self.error_msgs.append(msg)
+        elif self.name_has_expression and self.is_probably_directory:
+            msg = f'directory required for runtime generates name using cwl / js: <js>{self.name}</js>. please address'
+            self.error_msgs.append(msg)
 
         # Expression
         if isinstance(self.req, str):
@@ -275,16 +313,13 @@ class InitialWorkDirRequirementParser:
         
     def get_files_to_create_from_str(self) -> Optional[Tuple[str, str | InputSelector]]:
         # value is expression
-        if self.value.startswith('$('):
-            if self.is_resolvable and self.is_probably_file:
+        if self.value.startswith('$(') or self.value.startswith('${'):
+            if self.value_is_resolvable and self.is_probably_file:
                 # most likely just specifying the file needs to be staged. do nothing for now.
                 pass
             elif self.is_probably_file:
                 # TODO error message
                 pass
-
-        elif self.value.startswith('${'):
-            raise NotImplementedError
         
         # value is string
         else:
@@ -293,10 +328,7 @@ class InitialWorkDirRequirementParser:
     def get_files_to_create_from_dirent(self) -> Optional[Tuple[str, str | InputSelector]]:
         # most likely just specifying the file / directory needs to be staged. do nothing for now.
         if self.value.startswith('$('):
-            if self.is_probably_file:
-                raise NotImplementedError
-            else:
-                pass
+            pass
 
         # js code to generate required file
         elif self.value.startswith('${'):
@@ -332,12 +364,13 @@ class InitialWorkDirRequirementParser:
         if self.value.startswith('$(') or self.value.startswith('${'):
             # most likely just specifying the file / directory needs to be staged. do nothing for now.
             # future: try to detect whether its a file or directory. create directory if directory. 
-            if self.is_resolvable and self.is_probably_directory:
+            if self.value_is_resolvable and self.is_probably_directory:
                 res, _ = parse_basic_expression(self.value)
                 return res
 
             elif self.is_probably_directory:
-                raise NotImplementedError
+                msg = f'directory required for runtime generated using cwl / js: <js>{self.value}</js>. please address'
+                self.error_msgs.append(msg)
         else:
             # no idea yet. 
             raise NotImplementedError 
@@ -392,20 +425,19 @@ class CLTParser(CLTEntityParser):
             uuid=self.uuid, 
             is_expression_tool=self.is_expression_tool
         )
-        requirements = req_parser.parse()
+        reqs = req_parser.parse()
         
-        jtool._directories_to_create = requirements['directories_to_create'] or None
-        jtool._files_to_create = requirements['files_to_create'] or None
-        jtool._env_vars = requirements['env_vars'] or None
-        jtool._container = requirements['container']
-        jtool._memory = requirements['memory']
-        jtool._cpus = requirements['cpus']
-        jtool._time = requirements['time']
+        jtool._directories_to_create = reqs['directories_to_create'] or None
+        jtool._files_to_create = reqs['files_to_create'] or None
+        jtool._env_vars = reqs['env_vars'] or None
+        jtool._container = reqs['container']
+        jtool._memory = reqs['memory']
+        jtool._cpus = reqs['cpus']
+        jtool._time = reqs['time']
         return jtool
 
     def do_parse(self) -> CommandTool:
         # convert yaml datatypes to python datatypes
-        entity = convert_cwl_types_to_python(self.entity, self.cwl_utils)
 
         identifier = get_id_filename(self.entity.id)
         inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
@@ -414,20 +446,20 @@ class CLTParser(CLTEntityParser):
 
         jtool = CommandToolBuilder(
             tool=identifier,
-            base_command=entity.baseCommand,
+            base_command=self.entity.baseCommand,
             inputs=inputs,
             outputs=outputs,
             arguments=arguments,
             version="v0.1.0",
-            doc=entity.doc,
-            friendly_name=entity.label,
+            doc=self.entity.doc,
+            friendly_name=self.entity.label,
             container="ubuntu:latest"
         )
         # this must be set for error messages to be associated with this entity
         self.uuid = jtool.uuid
 
         # arguments & selector patterns for io stream names
-        extra_args = self.ingest_io_streams(entity, jtool)
+        extra_args = self.ingest_io_streams(self.entity, jtool)
         
         # addressing cwl stdin: stdout: stderr: file naming
         jtool._arguments += extra_args

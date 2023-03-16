@@ -3,6 +3,9 @@ import ruamel.yaml
 from typing import Any, Optional
 from janis_core import settings
 from janis_core.messages import log_warning
+from .preprocessing import convert_cwl_types_to_python
+from .preprocessing import handle_inline_cltool_identifiers
+
 
 DEFAULT_PARSER_VERSION = "v1.2"
 
@@ -36,8 +39,15 @@ def load_cwl_document(doc: str, version: Optional[str]=None) -> Any:
     if not version:
         version = load_cwl_version(doc)
 
-    cwlgen = load_cwlgen_from_version(version)
-    loaded_doc = cwlgen.load_document(doc)  # type: ignore
+    cwl_utils = load_cwl_utils_from_version(version)
+    loaded_doc = cwl_utils.load_document(doc)  # type: ignore
+
+    # convert yaml datatypes to python datatypes
+    loaded_doc = convert_cwl_types_to_python(loaded_doc, cwl_utils)
+    
+    # convert random ids (occurs for inline clt definition) to meaningful ids
+    if isinstance(loaded_doc, cwl_utils.Workflow):
+        loaded_doc = handle_inline_cltool_identifiers(loaded_doc, cwl_utils)
 
     return loaded_doc
 
@@ -50,7 +60,7 @@ def convert_etool_to_cltool(etool: Any, version: str) -> Any:
     cltool = etool_to_cltool(etool)
     return cltool
 
-def load_cwlgen_from_version(version: str) -> Any:
+def load_cwl_utils_from_version(version: str) -> Any:
     if version == "v1.0":
         import cwl_utils.parser.cwl_v1_0 as cwlutils
     elif version == "v1.1":
@@ -61,7 +71,7 @@ def load_cwlgen_from_version(version: str) -> Any:
         print(
             f"Didn't recognise CWL version {version}, loading default: {DEFAULT_PARSER_VERSION}"
         )
-        cwlutils = load_cwlgen_from_version(DEFAULT_PARSER_VERSION)
+        cwlutils = load_cwl_utils_from_version(DEFAULT_PARSER_VERSION)
     return cwlutils
 
 def load_etool_to_cltool_from_version(version: str) -> Any:

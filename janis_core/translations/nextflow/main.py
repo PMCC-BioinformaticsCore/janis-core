@@ -122,6 +122,7 @@ class NFItemRegister:
 
 class NextflowTranslator(TranslatorBase):
     DIR_TOOLS: str = '' # DO NOT ALTER
+    DIR_FILES: str = 'templates' # DO NOT ALTER
     SUBDIRS_TO_CREATE: list[str] = [
         settings.translate.nextflow.PROCESS_OUTDIR,
         settings.translate.nextflow.SUBWORKFLOW_OUTDIR,

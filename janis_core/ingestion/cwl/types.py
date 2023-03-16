@@ -190,27 +190,31 @@ class CWLTypeParser:
 
         elif isinstance(cwl_type, list):
             optional = None
-            types = []
+            dtypes: list[DataType] = []
             for c in cwl_type:
                 if c == "null":
                     optional = True
                 else:
                     dtype, error_messages = ingest_cwl_type(c, self.cwl_utils, [])
                     self.error_msgs += error_messages
-                    types.append(dtype)
-
-            if len(types) == 1:
+                    dtypes.append(dtype)
+            
+            # mark dtypes as optional if required
+            for dtype in dtypes:
                 if optional is not None:
-                    types[0].optional = optional
-                return types[0]
+                    dtype.optional = optional
+            
+            if len(dtypes) == 1:
+                return dtypes[0]
+            
+            elif len(dtypes) > 1:
+                dtype_names = [x.name() for x in dtypes]
+                msg = f'entity supports multiple datatypes: {dtype_names}. selected {dtype_names[0]} as fallback. this may affect pipeline execution'
+                self.error_msgs.append(msg)
+                return dtypes[0]
+            
             else:
-                from janis_core.types.common_data_types import UnionType
-
-                if optional is not None:
-                    for inner in types:
-                        inner.optional = optional
-
-                return UnionType(*types)
+                raise RuntimeError
 
         elif isinstance(cwl_type, self.cwl_utils.CommandInputArraySchema):
             return Array(self.from_cwl_inner_type(cwl_type.items))

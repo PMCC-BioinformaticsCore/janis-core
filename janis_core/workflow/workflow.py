@@ -5,6 +5,7 @@ from abc import abstractmethod
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 
+from janis_core.messages import log_warning
 from janis_core import settings
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -81,15 +82,12 @@ def verify_or_try_get_source(
             )
         tag = list(outs.keys())[0]
 
-    if not settings.graph.ALLOW_UNKNOWN_SOURCE:
-        raise Exception('CHECK THIS SHIT 2')
-        log_warning(self.uuid, msg)
-        if tag not in outs:
-            tags = ", ".join([f"out.{o}" for o in outs.keys()])
-            raise Exception(
-                f"Couldn't find tag '{tag}' in outputs of '{node.id()}', "
-                f"expected one of {tags}"
-            )
+    if tag not in outs:
+        tags = ", ".join([f"out.{o}" for o in outs.keys()])
+        raise Exception(
+            f"Couldn't find tag '{tag}' in outputs of '{node.id()}', "
+            f"expected one of {tags}"
+        )
 
     return StepOutputSelector(node, tag)
 
@@ -754,9 +752,10 @@ class WorkflowBase(Tool):
             ins = set(tool.inputs_map().keys())
             fields = set(scatter.fields)
             if any(f not in ins for f in fields):
-                raise Exception('CHECK THIS SHIT 1')
-                if not settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
+                if settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
+                    msg = f"This task is supposed to run in parallel across {fields}, but some of these are not task inputs."
                     log_warning(self.uuid, msg)
+                else:
                     # if there is a field not in the input map, we have a problem
                     extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
                     raise Exception(
