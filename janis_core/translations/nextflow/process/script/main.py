@@ -44,7 +44,7 @@ class ProcessScriptGenerator:
     ):
         self.tool = tool
         self.scope = scope
-        self.process_name = scope.labels[-1]
+        self.process_name = scope.current_entity
         self.stdout_filename = stdout_filename
 
         self.sources = sources if sources is not None else {}

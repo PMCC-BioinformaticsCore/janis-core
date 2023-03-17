@@ -69,8 +69,7 @@ def should_add_get_primary_files(tool: CommandTool) -> bool:
     return False
 
 
-def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope,
-) -> model.Process:
+def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope) -> model.Process:
     """
     Generate a Nextflow Process object for a Janis Command line tool
 
@@ -84,7 +83,7 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     :rtype:
     """
     # name
-    process_name = scope.labels[-1]
+    process_name = scope.current_entity
 
     # directives
     resources = {}
@@ -138,7 +137,7 @@ def gen_process_from_codetool(
     """   
 
     # name
-    process_name = scope.labels[-1] if scope.labels else tool.id()
+    process_name = scope.current_entity if scope.labels else tool.id()
 
     # directives
     resources = {}

@@ -34,7 +34,7 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
     :return:
     :rtype:
     """
-    is_subworkflow = True if scope.labels[-1] != settings.translate.nextflow.NF_MAIN_NAME else False
+    is_subworkflow = True if scope.current_entity != settings.translate.nextflow.NF_MAIN_NAME else False
 
     take: list[WorkflowTake] = []
     emit: list[WorkflowEmit] = []

@@ -44,6 +44,12 @@ class Scope:
             return ToolScopeItem(step.id())
         else:
             return WorkflowScopeItem(step.id())
+        
+    @property 
+    def current_entity(self) -> str:
+        if not self.labels:
+            raise RuntimeError
+        return self.labels[-1]            
 
     @property
     def labels(self) -> list[str]:

@@ -187,7 +187,7 @@ class NextflowTranslator(TranslatorBase):
 
         # command tool
         if isinstance(tool, CommandTool):
-            # groocy library imports & groovy functions used in process
+            # groovy library imports & groovy functions used in process
             imports_item = process.gen_imports_for_process(tool)
             functions_item = process.gen_functions_for_process(tool)
             if imports_item:
@@ -235,11 +235,11 @@ class NextflowTranslator(TranslatorBase):
             # handle sub elements (tool / workflow calls)
             wf = tool
             for substep in wf.step_nodes.values():
-                current_scope = deepcopy(scope)
-                current_scope.update(substep)
+                scope_copy = deepcopy(scope)
+                scope_copy.update(substep)
                 cls.update_files(
-                    identifier=current_scope.labels[-1],
-                    scope=current_scope,
+                    identifier=scope_copy.current_entity,
+                    scope=scope_copy,
                     tool=substep.tool,
                     sources=substep.sources,
                     scatter=substep.scatter
@@ -296,82 +296,52 @@ class NextflowTranslator(TranslatorBase):
             )
 
     @classmethod
-    def translate_tool_internal(
-        cls,
-        tool: CommandTool,
-        with_container: bool = True,
-        with_resource_overrides: bool = False,
-        allow_empty_container: bool = False,
-        container_override: Optional[dict[str, str]] = None,
-        render_comments: bool = True
-    ) -> str:
+    def translate_tool_internal(cls, tool: CommandTool) -> str:
         """
-        Generate Nextflow translation for Janis command line tool
-        main_p - the main tool process 
-        output_p - the process to collect outputs
+        Generate Nextflow process for Janis CommandTool
 
         :param tool:
         :type tool:
-        :param with_container:
-        :type with_container:
-        :param with_resource_overrides:
-        :type with_resource_overrides:
-        :param allow_empty_container:
-        :type allow_empty_container:
-        :param container_override:
-        :type container_override:
         :return:
         :rtype:
         """
-        raise NotImplementedError
-        settings.MODE = 'tool'
-        file_items: list[IGetStringMethod] = []
+        settings.translate.nextflow.MODE = 'tool'
+        sources: dict[str, Any] = {}
         scope: Scope = Scope()
-        values: dict[str, Any] = {}
+        
+        # groovy library imports & groovy functions used in process
+        imports_item = process.gen_imports_for_process(tool)
+        functions_item = process.gen_functions_for_process(tool)
+        if imports_item:
+            cls.item_register.add(scope, imports_item)
+        if functions_item:
+            cls.item_register.add(scope, functions_item)
 
-        main_p = process.gen_process_from_cmdtool(tool, values, scope)
-        main_p = cls.handle_container(tool, main_p)
-        # output_p_inp, output_p_out = cls.prepare_output_process_params_for_tool(tool, main_p)
-        # output_p = cls.gen_output_process(inputs=output_p_inp, tool_outputs=output_p_out)
-        workflow = cls.gen_process_workflow(tool, process=main_p)
-
-        file_items.append(param_block)
-        #file_items.append(channel_block)
-        file_items.append(main_p)
-        #file_items.append(output_p)
-        file_items.append(workflow)
-
-        nf_file = NFFile(
-            subtype='',
+        # process
+        process_item = process.gen_process_from_cmdtool(tool, sources, scope)
+        process_item = cls.handle_container(tool, process_item)
+        
+        # file
+        process_file = NFFile(
+            name=identifier,  # TODO here name clash checking
+            subtype=subtype,
             imports=[], 
-            items=file_items
+            items=cls.item_register.get(scope),
         )
-        return nf_file.get_string()
+        return process_file.get_string()
 
     @classmethod
-    def translate_code_tool_internal(
-        cls,
-        tool: CodeTool,
-        with_container: bool = True,  
-        allow_empty_container: bool = False,
-        container_override: Optional[dict[str, str]] = None,
-        render_comments: bool = True
-    ) -> str:
+    def translate_code_tool_internal(cls, tool: CodeTool) -> str:
         """
-        Generate Nextflow translation for Janis code tool
+        Generate Nextflow process for Janis CodeTool
 
         :param tool:
         :type tool:
-        :param with_container:
-        :type with_container:
-        :param allow_empty_container:
-        :type allow_empty_container:
-        :param container_override:
-        :type container_override:
         :return:
         :rtype:
         """
         raise NotImplementedError
+        settings.translate.nextflow.MODE = 'tool'
         if isinstance(tool, PythonTool):
             process = cls.gen_process_from_codetool(tool=tool, sources={}, scope=[])
             process = cls.handle_container(tool, process)

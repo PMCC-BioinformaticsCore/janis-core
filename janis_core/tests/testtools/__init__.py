@@ -57,3 +57,5 @@ from .misc_commandtools import (
 
 from .unicycler import UnicyclerTestTool
 from .fastqc import FastqcTestTool
+from .bwamem import BwaMemTestTool
+from .gridss import GridssTestTool

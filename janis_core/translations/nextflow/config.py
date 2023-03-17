@@ -219,7 +219,7 @@ class ParamGrouper:
         return name
 
     def get_group_heading_subwf(self, param: Param) -> str:
-        subname = param.scope.labels[-1] # safety net. kinda weird.
+        subname = param.scope.current_entity # safety net. kinda weird.
         for label, subtype in zip(reversed(param.scope.labels), reversed(param.scope.subtypes)):
             if subtype == 'workflow':
                 subname = label

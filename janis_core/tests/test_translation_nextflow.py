@@ -4,6 +4,9 @@ import regex as re
 from janis_core.tests.testtools import (
     InputQualityTestTool,
     BasicTestTool,
+    FastqcTestTool,
+    BwaMemTestTool,
+    GridssTestTool,
 )
 
 from janis_core.tests.testworkflows import (
@@ -74,6 +77,7 @@ from janis_core import (
     JoinOperator,
 )
 
+from janis_core.translations import translate
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
 from janis_core.translations.nextflow import plumbing
@@ -154,6 +158,9 @@ def refresh_workflow_inputs(wf: Workflow) -> None:
     nextflow.register_params_channels(wf, scope)
 
 
+
+
+### test classes
 
 class TestToGroovyStr(unittest.TestCase):
 
@@ -730,6 +737,31 @@ class TestChannels(unittest.TestCase):
         raise NotImplementedError
 
 
+class TestCmdtoolProcess(unittest.TestCase):
+    """
+    Tests janis CommandTool can be parsed to nextflow process (end-to-end).
+    """
+
+    def setUp(self) -> None:
+        reset_global_settings() 
+    
+    def test_fastqc(self) -> None:
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/fastqc.py'
+        tool = FastqcTestTool()
+        process = translate(tool, 'nextflow')
+        print()
+    
+    def test_bwamem(self) -> None:
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/bwamem.py'
+        tool = BwaMemTestTool()
+        process = translate(tool, 'nextflow')
+        print()
+    
+    def test_gridss(self) -> None:
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/gridss.py'
+        tool = GridssTestTool()
+        process = translate(tool, 'nextflow')
+        print()
 
 
 class TestCmdtoolProcessDirectives(unittest.TestCase):
