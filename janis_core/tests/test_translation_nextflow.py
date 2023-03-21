@@ -746,21 +746,21 @@ class TestCmdtoolProcess(unittest.TestCase):
         reset_global_settings() 
     
     def test_fastqc(self) -> None:
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/fastqc.py'
         tool = FastqcTestTool()
         process = translate(tool, 'nextflow')
+        print(process)
         print()
     
     def test_bwamem(self) -> None:
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/bwamem.py'
         tool = BwaMemTestTool()
         process = translate(tool, 'nextflow')
+        print(process)
         print()
     
     def test_gridss(self) -> None:
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/testtools/gridss.py'
         tool = GridssTestTool()
         process = translate(tool, 'nextflow')
+        print(process)
         print()
 
 
@@ -3130,8 +3130,8 @@ class TestStringFormatter(unittest.TestCase):
             tool=step.tool,
             in_shell_script=True,
             sources=step.sources,
-            process_inputs=nextflow.process.inputs.get_process_inputs(step.sources),
-            param_inputs=nextflow.process.inputs.get_param_inputs(step.sources),
+            process_inputs=nextflow.process.inputs.get_process_inputs(step.tool, step.sources),
+            param_inputs=nextflow.process.inputs.get_param_inputs(step.tool, step.sources),
             internal_inputs=nextflow.process.inputs.get_internal_inputs(step.tool, step.sources),
         )
         expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'

@@ -14,26 +14,26 @@ from janis_core import (
 )
 
 from janis_core import settings
+from janis_core import translation_utils as utils
 from ... import channels
 from ... import params
-from janis_core import translation_utils as utils
 
 
 
 ### process inputs
 
-def get_process_inputs(sources: dict[str, Any]) -> set[str]:
+def get_process_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     get the tool inputs which will become nextflow process inputs
     """
     if settings.translate.nextflow.MODE == 'workflow':
-        return get_process_inputs_workflowmode(sources)
+        return get_process_inputs_workflowmode(tool, sources)
     elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
-        return get_process_inputs_toolmode(sources)
+        return get_process_inputs_toolmode(tool, sources)
     else:
         raise RuntimeError
 
-def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
+def get_process_inputs_workflowmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     inputs which are fed (via step inputs) using a file type workflow input
     inputs which are fed (via step inputs) using a connection
@@ -46,82 +46,37 @@ def get_process_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
     surviving_ids = channel_wfinp_ids | step_conn_ids | scatter_wfinp_ids | complex_expr_ids
     return surviving_ids
 
-def get_process_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
-    """
-    inputs which are file types
-    non-file types usually fed values from params instead.
-    
-    if MINIMAL_PROCESS:
-        - remove inputs which are optional
-        - remove inputs with defaults
-    """
-    raise NotImplementedError
-    # all_inputs: list[TInput] = list(tool.inputs_map().values())
-    
-    # surviving_ids = get_all_input_ids(all_inputs)
-    # file_ids = get_file_input_ids(all_inputs)
-    # optional_ids = get_optional_input_ids(all_inputs)
-    # default_ids = get_default_input_ids(all_inputs)
-    
-    # if settings.MINIMAL_PROCESS:
-    #     surviving_ids = surviving_ids & file_ids
-    #     surviving_ids = surviving_ids - optional_ids
-    #     surviving_ids = surviving_ids - default_ids
-    # else:
-    #     surviving_ids = surviving_ids & file_ids
-
-    # return surviving_ids
-
-
+def get_process_inputs_toolmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
+    """all CommandTool inputs. in toolmode, we have no greater scope than the tool itself."""
+    return set([x.id() for x in tool.inputs()])
 
 
 ### param inputs
 
-def get_param_inputs(sources: dict[str, Any]) -> set[str]:
+def get_param_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     get the tool inputs which will be fed values via params
     """
     if settings.translate.nextflow.MODE == 'workflow':
-        return get_param_inputs_workflowmode(sources)
+        return get_param_inputs_workflowmode(tool, sources)
     elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
-        return get_param_inputs_toolmode(sources)
+        return get_param_inputs_toolmode(tool, sources)
     raise RuntimeError('DEV: settings.translate.nextflow.MODE must be either "workflow" or "tool"')
 
-def get_param_inputs_workflowmode(sources: dict[str, Any]) -> set[str]:
+def get_param_inputs_workflowmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
     """
     get the inputs which are fed (via step inputs) using a non-File type workflow input
     """
     if settings.translate.nextflow.MINIMAL_PROCESS:
-        process_input_ids = get_process_inputs(sources)
+        process_input_ids = get_process_inputs(tool, sources)
         param_input_ids = get_param_process_inputs(sources)
         surviving_ids = param_input_ids - process_input_ids
         return surviving_ids    
     raise NotImplementedError
 
-def get_param_inputs_toolmode(sources: dict[str, Any]) -> set[str]:
-    """
-    nonfile types 
-    
-    if MINIMAL_PROCESS:
-        - remove inputs which are optional
-        - remove inputs with defaults
-    """
-    raise NotImplementedError
-    all_inputs: list[TInput] = list(tool.inputs_map().values())
-    
-    surviving_ids = get_all_input_ids(all_inputs)
-    file_ids = get_file_input_ids(all_inputs)
-    optional_ids = get_optional_input_ids(all_inputs)
-    default_ids = get_default_input_ids(all_inputs)
-    
-    if settings.translate.nextflow.MINIMAL_PROCESS:
-        surviving_ids = surviving_ids - file_ids
-        surviving_ids = surviving_ids - optional_ids
-        surviving_ids = surviving_ids - default_ids
-    else:
-        surviving_ids = surviving_ids - file_ids
-
-    return surviving_ids
+def get_param_inputs_toolmode(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> set[str]:
+    """no param inputs for toolmode. """
+    return set()
 
 
 ### internal inputs
@@ -134,8 +89,8 @@ def get_internal_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any])
     all_inputs: list[TInput] = list(tool.inputs_map().values())
 
     surviving_ids = get_all_input_ids(all_inputs)
-    process_inputs = get_process_inputs(sources)
-    param_inputs = get_param_inputs(sources)
+    process_inputs = get_process_inputs(tool, sources)
+    param_inputs = get_param_inputs(tool, sources)
     
     surviving_ids = surviving_ids - process_inputs
     surviving_ids = surviving_ids - param_inputs

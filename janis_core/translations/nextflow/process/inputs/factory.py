@@ -28,7 +28,7 @@ from .model import (
 
 def create_nextflow_process_inputs(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[ProcessInput]:
     process_inputs: list[ProcessInput] = []
-    tinput_ids = get_process_inputs(sources)
+    tinput_ids = get_process_inputs(tool, sources)
     tinputs = nfgen_utils.items_with_id(tool.inputs(), tinput_ids)
     tinputs = ordering.order_janis_process_inputs(tinputs)
     for i in tinputs:

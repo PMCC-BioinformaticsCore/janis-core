@@ -44,7 +44,6 @@ class BwaMemTestTool(CommandTool):
             ToolInput("reads", Array(FastqGz()), position=10, doc=None),
             ToolInput("mates", FastqGzPair(optional=True), position=11, doc=None),
             ToolInput("outputFilename", Filename(extension=".sam")),
-            *BwaMemBase.additional_inputs,
         ]
 
     def outputs(self):

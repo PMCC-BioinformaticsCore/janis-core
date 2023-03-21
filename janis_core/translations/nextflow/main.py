@@ -305,7 +305,6 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        raise NotImplementedError
         settings.translate.nextflow.MODE = 'tool'
         sources: dict[str, Any] = {}
         scope: Scope = Scope()
@@ -321,11 +320,12 @@ class NextflowTranslator(TranslatorBase):
         # process
         process_item = process.gen_process_from_cmdtool(tool, sources, scope)
         process_item = cls.handle_container(tool, process_item)
+        cls.item_register.add(scope, process_item)
         
         # file
         process_file = NFFile(
-            name=identifier,  # TODO here name clash checking
-            subtype=subtype,
+            name=tool.id(),  # TODO here name clash checking
+            subtype='tool',
             imports=[], 
             items=cls.item_register.get(scope),
         )
@@ -342,7 +342,6 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        raise NotImplementedError
         settings.translate.nextflow.MODE = 'tool'
         if isinstance(tool, PythonTool):
             process = cls.gen_process_from_codetool(tool=tool, sources={}, scope=[])
@@ -522,7 +521,7 @@ class NextflowTranslator(TranslatorBase):
         """
 
         inputs = {}
-        process_ids = process.inputs.get_process_inputs(sources)
+        process_ids = process.inputs.get_process_inputs(tool, sources)
         scatter_method = scatter.method if scatter else None
 
         for name in process_ids:

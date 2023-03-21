@@ -187,8 +187,8 @@ def prepare_script_for_python_code_tool(tool: PythonTool, sources: dict[str, Any
     """
     # TODO: handle args of type list of string (need to quote them)
     args: list[str] = []
-    process_inputs = inputs.get_process_inputs(sources)
-    param_inputs = inputs.get_param_inputs(sources)
+    process_inputs = inputs.get_process_inputs(tool, sources)
+    param_inputs = inputs.get_param_inputs(tool, sources)
     
     for inp in tool.inputs():
         tag: str = inp.tag

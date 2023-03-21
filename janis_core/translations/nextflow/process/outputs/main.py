@@ -6,14 +6,8 @@ from janis_core import (
     TOutput, 
     CommandTool, 
     PythonTool,
-    File
 )
 
-from ...unwrap import unwrap_expression
-
-from ..inputs import get_process_inputs
-from ..inputs import get_param_inputs
-from ..inputs import get_internal_inputs
 
 from .model import ProcessOutput
 from .factory_cmdtool import CmdtoolProcessOutputFactory

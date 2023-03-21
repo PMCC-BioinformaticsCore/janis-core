@@ -131,8 +131,8 @@ class CmdtoolProcessOutputFactory:
         self.out = out
         self.tool = tool
         self.sources = sources
-        self.process_inputs = inputs.get_process_inputs(self.sources)
-        self.param_inputs = inputs.get_param_inputs(self.sources)
+        self.process_inputs = inputs.get_process_inputs(self.tool, self.sources)
+        self.param_inputs = inputs.get_param_inputs(self.tool, self.sources)
         self.internal_inputs = inputs.get_internal_inputs(self.tool, self.sources)
         self.otype = get_otype(self.out)
         self.ftype = self.get_fmttype()

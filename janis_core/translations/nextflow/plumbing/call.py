@@ -101,7 +101,7 @@ def get_input_ids_workflow(tool: Workflow, sources: dict[str, Any]) -> list[str]
 
 def get_input_ids_tool(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[str]:
     # CommandTool / PythonTool - order via process inputs 
-    process_ids = process.inputs.get_process_inputs(sources)
+    process_ids = process.inputs.get_process_inputs(tool, sources)
     process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
     process_inputs = ordering.order_janis_process_inputs(process_inputs)
     return [x.id() for x in process_inputs]
