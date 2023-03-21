@@ -1,6 +1,7 @@
 
 from typing import Any, Optional, Type
 NoneType = type(None)
+import re
 
 from janis_core import (
     CommandTool, 
@@ -61,15 +62,15 @@ from janis_core.operators.selectors import (
     Selector,
 )
 from janis_core.operators.stringformatter import StringFormatter
+from janis_core import translation_utils as utils
 
 from . import channels
 from . import params
-from janis_core import translation_utils as utils
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
 from .process.inputs.factory import create_input
-
+from .expressions import stringformatter_matcher
 
 """
 NOTE: 
@@ -88,6 +89,7 @@ this stuff is supposed to be done inside the process.
 def unwrap_expression(
     val: Any,
     
+    context: str='process',
     tool: Optional[CommandTool]=None,
     in_shell_script: bool=False,
     quote_strings: Optional[bool]=None,
@@ -102,6 +104,7 @@ def unwrap_expression(
     ) -> Any:
 
     unwrapper = Unwrapper(
+        context=context,
         tool=tool,
         in_shell_script=in_shell_script,
         quote_strings=quote_strings,
@@ -124,18 +127,21 @@ class Unwrapper:
     """
     def __init__(
         self,
-        tool: Optional[CommandTool]=None,
-        in_shell_script: bool=False, 
-        quote_strings: Optional[bool]=None,
 
-        sources: Optional[dict[str, Any]]=None,
-        process_inputs: Optional[set[str]]=None,
-        param_inputs: Optional[set[str]]=None,
-        internal_inputs: Optional[set[str]]=None,
+        context: str,
+        tool: Optional[CommandTool],
+        in_shell_script: bool, 
+        quote_strings: Optional[bool],
 
-        scatter_target: bool=False,
-        scatter_method: Optional[ScatterMethod]=None,
+        sources: Optional[dict[str, Any]],
+        process_inputs: Optional[set[str]],
+        param_inputs: Optional[set[str]],
+        internal_inputs: Optional[set[str]],
+
+        scatter_target: bool,
+        scatter_method: Optional[ScatterMethod],
     ) -> None:
+        self.context = context
         self.tool = tool
 
         if sources:
@@ -599,7 +605,59 @@ class Unwrapper:
         """
         Translate Janis StringFormatter data type to Nextflow
         """
-        assert(self.tool)  # n
+        if self.context == 'process':
+            return self.unwrap_string_formatter_process(selector)
+        elif self.context == 'workflow':
+            return self.unwrap_string_formatter_workflow(selector)
+        else:
+            raise RuntimeError
+        
+    def unwrap_string_formatter_workflow(self, selector: StringFormatter) -> str:
+        if len(selector.kwargs) == 0:
+            return str(selector)
+
+        kwarg_replacements: dict[str, Any] = {}
+        for k, v in selector.kwargs.items():
+            kwarg_replacements[k] = self.unwrap(v)
+
+        # workaround for channels 
+        # need .first() at the moment to grab the value from a channel which only has a single value, 
+        # but should guarantee in future this is correct for the channel
+        for key, val in kwarg_replacements.items():
+            if val.startswith('ch_'):
+                kwarg_replacements[key] = f'{val}.first()'
+
+        # reformat the selector format to be correct groovy syntax for use in workflow scope
+        text_format = self.reformat_stringformatter_format_for_workflow_scope(selector._format)
+
+        # substitute in unwrapped var values
+        for k in selector.kwargs:
+            text_format = text_format.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
+        
+        return text_format
+
+    
+    def reformat_stringformatter_format_for_workflow_scope(self, old_format: str) -> str:
+        # reformat the selector format to be correct groovy syntax for use in workflow scope
+        # eg: '{tumor}--{normal}' -> '{tumor} + "--" + {normal}'
+        new_format: str = ''
+        matches = re.findall(stringformatter_matcher, old_format)
+
+        # replace each segment of the old_format, adding '+' and double quotes if needed
+        for filler_text, var_text in matches:
+            if filler_text != '':
+                new_format += f' + "{filler_text}"'
+            elif var_text != '':
+                new_format += f' + {var_text}'
+            else:
+                raise RuntimeError
+        
+        # remove any beginning whitespace and '+'
+        new_format = new_format.lstrip(' +')
+        return new_format
+
+    def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
+        # assert(self.tool)  # n
         if len(selector.kwargs) == 0:
             return str(selector)
 

@@ -122,7 +122,7 @@ class NFItemRegister:
 
 class NextflowTranslator(TranslatorBase):
     DIR_TOOLS: str = '' # DO NOT ALTER
-    DIR_FILES: str = 'templates' # DO NOT ALTER
+    DIR_FILES: str = '' # DO NOT ALTER
     SUBDIRS_TO_CREATE: list[str] = [
         settings.translate.nextflow.PROCESS_OUTDIR,
         settings.translate.nextflow.SUBWORKFLOW_OUTDIR,
@@ -305,6 +305,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        raise NotImplementedError
         settings.translate.nextflow.MODE = 'tool'
         sources: dict[str, Any] = {}
         scope: Scope = Scope()
@@ -328,6 +329,7 @@ class NextflowTranslator(TranslatorBase):
             imports=[], 
             items=cls.item_register.get(scope),
         )
+        settings.translate.nextflow.MODE = 'workflow'
         return process_file.get_string()
 
     @classmethod

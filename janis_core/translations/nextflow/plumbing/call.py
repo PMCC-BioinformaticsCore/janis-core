@@ -48,6 +48,7 @@ def get_process_call_args(step: StepNode, scope: Scope):
             # get basic arg
             arg = unwrap_expression(
                 val=src,
+                context='workflow',
                 sources=sources,
             )
             if isinstance(arg, list):

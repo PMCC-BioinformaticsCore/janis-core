@@ -112,7 +112,7 @@ class ScriptFormatter:
         script: Optional[str] = None
         
         if self.should_ignore:
-            pass
+            return (None, None)
 
         elif self.should_autofill:
             script = self.autofill_script_expr()

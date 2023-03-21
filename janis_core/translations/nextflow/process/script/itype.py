@@ -45,6 +45,8 @@ class IType(Enum):
 
 # public function
 def get_itype(tinput: ToolInput) -> IType:
+    if tinput.prefix == '--forcedGT=':
+        print()
     # flags
     if is_flag_true(tinput):
         return IType.FLAG_TRUE
@@ -64,7 +66,7 @@ def get_itype(tinput: ToolInput) -> IType:
         return IType.OPT_BASIC_ARR_PREFIXEACH
     elif is_array(tinput) and is_option(tinput) and has_default(tinput) and tinput.prefix_applies_to_all_elements:
         return IType.OPT_DEFAULT_ARR_PREFIXEACH
-    elif is_array(tinput) and is_option(tinput) and is_basic(tinput) and tinput.prefix_applies_to_all_elements:
+    elif is_array(tinput) and is_option(tinput) and is_optional(tinput) and tinput.prefix_applies_to_all_elements:
         return IType.OPT_OPTIONAL_ARR_PREFIXEACH
     elif is_array(tinput) and is_option(tinput) and is_basic(tinput):
         return IType.OPT_BASIC_ARR
