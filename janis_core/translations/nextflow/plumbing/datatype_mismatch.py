@@ -203,8 +203,8 @@ def generate_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType) -
     desttype = utils.get_base_type(desttype)
 
     # 2. get the secondary file order for srctype & desttype
-    srctype_exts = utils.get_extensions(srctype, remove_symbols=True)
-    desttype_exts = utils.get_extensions(desttype, remove_symbols=True)
+    srctype_exts = utils.get_extensions(srctype, remove_prefix_symbols=True)
+    desttype_exts = utils.get_extensions(desttype, remove_prefix_symbols=True)
 
     # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
     indices: list[int] = []

@@ -14,10 +14,13 @@ from janis_core import (
 from janis_core.types import (
     String,
     File,
-    Array
+    Array,
+    Stdout
 )
 
 from janis_bioinformatics.data_types.bam import BamBai
+from janis_bioinformatics.data_types.vcf import VcfTabix
+from janis_bioinformatics.data_types.fasta import FastaWithIndexes
 
 
 class NamingTestWF(Workflow):
@@ -28,7 +31,11 @@ class NamingTestWF(Workflow):
         self.input('secondary', BamBai())
         self.input('processInputArray', Array(File()))
         self.input('paramInputArray', Array(String()))
-        self.input('secondaryArray', Array(BamBai()))
+        self.input('normal_sample', Array(BamBai()))
+        self.input('tumor_sample', Array(BamBai()))
+        self.input('reference', FastaWithIndexes())
+        self.input('panelOfNormals', VcfTabix())
+        self.input('germlineResource', VcfTabix())
 
         self.step(
             "stp1", 
@@ -38,7 +45,7 @@ class NamingTestWF(Workflow):
                 secondary=self.secondary,
                 processInputArray=self.processInputArray,
                 paramInputArray=self.paramInputArray,
-                secondaryArray=self.secondaryArray,
+                secondaryArray=self.normal_sample,
             )
         )
         self.step(
@@ -49,7 +56,18 @@ class NamingTestWF(Workflow):
                 secondary=self.stp1.outSecondary,
                 processInputArray=self.stp1.outProcessInputArray,
                 paramInputArray=self.stp1.outParamInputArray,
-                secondaryArray=self.secondaryArray,
+                secondaryArray=self.normal_sample,
+            )
+        )
+        
+        self.step(
+            "stp3", 
+            HardNamingTestTool(
+                reference=self.reference,
+                panelOfNormals=self.panelOfNormals,
+                germlineResource=self.germlineResource,
+                normal_samples=self.normal_sample,
+                tumor_samples=self.tumor_sample,
             )
         )
 
@@ -58,6 +76,35 @@ class NamingTestWF(Workflow):
 
     def id(self) -> str:
         return self.__class__.__name__
+
+
+
+class HardNamingTestTool(CommandTool):
+    def tool(self) -> str:
+        return "HardNamingTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return "echo"
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput('reference', FastaWithIndexes(), prefix='--reference', position=1),
+            ToolInput('panelOfNormals', VcfTabix(), prefix='--normals', position=2),
+            ToolInput('germlineResource', VcfTabix(), prefix='--germline', position=3),
+            ToolInput('normal_samples', Array(BamBai()), prefix='--normal_samples', position=4),
+            ToolInput('tumor_samples', Array(BamBai()), prefix='--tumor_samples', position=5),
+        ]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout())]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
 
 
 class NamingTestTool(CommandTool):

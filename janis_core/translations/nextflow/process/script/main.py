@@ -48,9 +48,9 @@ class ProcessScriptGenerator:
         self.stdout_filename = stdout_filename
 
         self.sources = sources if sources is not None else {}
-        self.process_inputs = inputs.get_process_inputs(self.tool, self.sources)
-        self.param_inputs = inputs.get_param_inputs(self.tool, self.sources)
-        self.internal_inputs = inputs.get_internal_inputs(self.tool, self.sources)
+        self.process_inputs = inputs.process_inputs(self.tool, self.sources)
+        self.param_inputs = inputs.param_inputs(self.tool, self.sources)
+        self.internal_inputs = inputs.internal_inputs(self.tool, self.sources)
 
         self.prescript: list[str] = []
         self.script: list[str] = []

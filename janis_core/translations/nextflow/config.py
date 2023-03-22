@@ -90,7 +90,7 @@ class ParamGroup:
     def format_param_array_secondary(self, param: Param) -> str:
         dtype = param.janis_type
         basetype = utils.get_base_type(dtype)
-        exts = utils.get_extensions(basetype, remove_symbols=True)
+        exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
 
         text: str = ''
         text += f'{INDENT}// array of {basetype.name()}\n'
@@ -106,7 +106,7 @@ class ParamGroup:
     def format_param_secondary(self, param: Param) -> str:
         dtype = param.janis_type
         basetype = utils.get_base_type(dtype)
-        exts = utils.get_extensions(basetype, remove_symbols=True)
+        exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
 
         text: str = ''
         text += f'{INDENT}// {basetype.name()}\n'

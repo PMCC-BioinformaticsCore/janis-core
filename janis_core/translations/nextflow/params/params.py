@@ -134,7 +134,7 @@ def add(janis_tag: str,
     ) -> Param:
     global param_register
     # channel name
-    name = naming.gen_varname_param(janis_tag, scope, name_override, janis_dtype)
+    name = naming.constructs.gen_varname_param(janis_tag, scope, name_override, janis_dtype)
     # create param
     param = Param(name, scope, default, is_channel_input, janis_dtype, janis_uuid)
     # register param

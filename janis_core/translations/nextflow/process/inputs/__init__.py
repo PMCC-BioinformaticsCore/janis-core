@@ -1,11 +1,11 @@
 
 
-from .factory import create_input
 from .factory import create_nextflow_process_inputs
 
-from .common import get_process_inputs
-from .common import get_param_inputs
-from .common import get_internal_inputs
+from .data_sources import update
+from .data_sources import process_inputs
+from .data_sources import param_inputs
+from .data_sources import internal_inputs
 
 from .model import ProcessInput
 from .model import PathProcessInput

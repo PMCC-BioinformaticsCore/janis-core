@@ -80,7 +80,6 @@ from janis_core import (
 from janis_core.translations import translate
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
-from janis_core.translations.nextflow import plumbing
 
 from janis_core import (
     String, 
@@ -151,16 +150,26 @@ class DataTypeNoSecondary(File):
 ### helper functions
 
 
-def refresh_workflow_inputs(wf: Workflow) -> None:
-    scope = nextflow.Scope()
+def do_preprocessing(wf: Workflow) -> None:
     nextflow.params.clear()
     nextflow.channels.clear()
-    nextflow.register_params_channels(wf, scope)
-
-
+    nextflow.preprocessing.register_params(wf)
+    nextflow.preprocessing.register_channels(wf)
+    nextflow.preprocessing.register_data_sources(wf)
+    nextflow.preprocessing.register_process_internal_names(wf)
 
 
 ### test classes
+
+class TestProcessDataSources(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_global_settings()
+
+    def test_1(self) -> None:
+        raise NotImplementedError
+
+
 
 class TestToGroovyStr(unittest.TestCase):
 
@@ -276,8 +285,8 @@ class TestParams(unittest.TestCase):
         Channels are created from a subset of workflow inputs.
         """
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
-        params = nextflow.params.getall()
+        do_preprocessing(wf)
+        params = params.getall()
         param_ids = {p.name for p in params}
         expected_ids = {
             'unicycler_start_gene_id', 
@@ -303,7 +312,7 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
@@ -320,7 +329,7 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
@@ -343,7 +352,7 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
@@ -362,7 +371,7 @@ class TestParams(unittest.TestCase):
         
         # minimal
         settings.MINIMAL_PROCESS = True
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
@@ -375,7 +384,7 @@ class TestParams(unittest.TestCase):
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'outdir': "'./outputs'",
@@ -387,7 +396,7 @@ class TestParams(unittest.TestCase):
 
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'in_alignments': 'null',
@@ -396,7 +405,7 @@ class TestParams(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
             'in_alignments_arr': '[]',
@@ -474,7 +483,7 @@ class TestFileFormatting(unittest.TestCase):
 
     def test_process(self) -> None:
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         mainstr, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             'nextflow.enable.dsl=2',
@@ -550,7 +559,7 @@ class TestFileFormatting(unittest.TestCase):
     def test_config(self) -> None:
         # TODO expand this to subworkflow with subworkflow, process specific params
         wf = SubworkflowTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         expected_lines = [
             "docker.enabled = true",
@@ -578,7 +587,7 @@ class TestChannels(unittest.TestCase):
     def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         channel_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_forward_reads',
@@ -600,7 +609,7 @@ class TestChannels(unittest.TestCase):
         '.ifEmpty(null)' should appear in the channel string definition.
         """
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         expected_channel_names = {
             'ch_fastqc1_adapters',
             'ch_fastqc1_contaminants',
@@ -621,10 +630,10 @@ class TestChannels(unittest.TestCase):
 
     def test_nonfile_no_channel(self) -> None:
         """
-        Non-File-type wf input should not have channels.
+        Non-File-type wf input should not have nextflow.channels.
         """
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         nonfile_wf_input_ids = [
             'unicycler_kmers',
             'unicycler_scores',
@@ -637,7 +646,7 @@ class TestChannels(unittest.TestCase):
 
     def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         
         # check expected channels are created
         channels_ids = {c.name for c in nextflow.channels.getall()}
@@ -658,7 +667,7 @@ class TestChannels(unittest.TestCase):
         
     def test_secondaries_inputs(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         
         # check expected channels are created
         channels_ids = {c.name for c in nextflow.channels.getall()}
@@ -680,7 +689,7 @@ class TestChannels(unittest.TestCase):
     
     def test_secondaries_array_inputs(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
 
         # check expected channels are created
         channels_ids = {c.name for c in nextflow.channels.getall()}
@@ -702,7 +711,7 @@ class TestChannels(unittest.TestCase):
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         channels_ids = {c.name for c in nextflow.channels.getall()}
         expected_ids = {
             'ch_in_file',
@@ -713,8 +722,8 @@ class TestChannels(unittest.TestCase):
     
     def test_subworkflow_passed_null_param(self) -> None:
         wf = SubworkflowTestWF()
-        refresh_workflow_inputs(wf)
-        channel_declarations = nextflow.channels.channels.channel_register.get_string()
+        do_preprocessing(wf)
+        channel_declarations = nextflow.channels.nextflow.channels.channel_register.get_string()
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = [x for x in channel_declarations if x != '']
         expected_declarations = [
@@ -777,7 +786,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
 
     def test_directives_order(self) -> None:
         wf = DirectivesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -799,7 +808,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
 
     def test_directives(self) -> None:
         wf = DirectivesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -839,7 +848,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_file_pairs(self) -> None:
         wf = FilePairsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
 
         # filepair
         step = wf.step_nodes["stp1"]
@@ -865,7 +874,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         
     def test_stage_as(self) -> None:
         wf = ProcessInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -882,7 +891,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         # need a process input for each File wf input in step sources.
         # non-files are fed data via params.
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["unicycler"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -898,7 +907,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     def test_connections(self) -> None:
         # need a process input for each connection in step sources.
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["CatTestTool"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -911,7 +920,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         # DO NOT need a process input for each static value in step sources.
         # non-files are fed data via params. 
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["unicycler"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -930,7 +939,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         # DO NOT need a process input for each non-exposed tool input. 
         # tool input will be autofilled or ignored in script.
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["unicycler"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -949,7 +958,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         # definition should be the same as singles. 
         # nextflow doesn't differentiate. 
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -963,7 +972,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_secondaries(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -974,7 +983,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_secondaries_array(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp4"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -988,7 +997,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     @unittest.skip('alternative format for secondaries')
     def test_secondaries_array_alt_fmt(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp4"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1002,7 +1011,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
 
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
@@ -1044,7 +1053,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def setUp(self) -> None:
         self.wf = OutputCollectionTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_get_fmttype(self) -> None:
@@ -1053,7 +1062,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_stdout(self):
         wf = BasicIOTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1073,7 +1082,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_wildcard_array(self) -> None:
         wf = WildcardSelectorOutputTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1084,7 +1093,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_input_selector(self) -> None:
         wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1104,7 +1113,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
     def test_input_selector_array(self) -> None:
         wf = InputSelectorTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp3']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1115,7 +1124,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_filenames(self) -> None:
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         
         # inp1 is in step.sources
         step = wf.step_nodes['stp4']
@@ -1158,7 +1167,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_secondaries(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1169,7 +1178,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_secondaries_replaced(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp3']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1180,7 +1189,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_secondaries_edge_basename(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp5']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1194,7 +1203,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_secondaries_edge_no_secondaries_present_as(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp6']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1270,7 +1279,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
     def test_variables_defined(self) -> None:
         wf = EntityTraceTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
 
         # inputs referencing undefined inputs
         step = wf.step_nodes["stp8"]
@@ -1319,7 +1328,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
     def test_components_prescript(self) -> None:
         wf = StepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
@@ -1338,7 +1347,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     
     def test_components_script(self) -> None:
         wf = StepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1360,7 +1369,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
     def test_components_array_prescript(self) -> None:
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1388,7 +1397,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     
     def test_components_array_script(self) -> None:
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1411,7 +1420,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def test_secondaries(self) -> None:
         # name accession should be different?
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1438,7 +1447,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     
     def test_secondaries_array(self) -> None:
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp4"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1468,7 +1477,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
     def test_filename_generated_tool(self):
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp3"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -1502,7 +1511,7 @@ process STP3 {
    
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
 
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
@@ -1546,7 +1555,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
     
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_input_generation(self) -> None:
@@ -1591,7 +1600,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
 
     def setUp(self) -> None:
         self.wf = OutputsPythonToolTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
     
     def test_output_generation(self) -> None:
@@ -1630,7 +1639,7 @@ class TestPythontoolProcess(unittest.TestCase):
 
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_format(self) -> None:
@@ -1673,7 +1682,7 @@ class TestPythontoolProcessScript(unittest.TestCase):
     
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_input_references(self) -> None:
@@ -1727,14 +1736,14 @@ class TestEntityTracing(unittest.TestCase):
     def setUp(self) -> None:
         self.maxDiff = None
         self.wf = EntityTraceTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_trace_entity_counts4(self) -> None:
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = plumbing.trace_entity_counts(src)
+        actual_counts = nextflow.plumbing.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -1753,7 +1762,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = plumbing.trace_entity_counts(src)
+        actual_counts = nextflow.plumbing.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -1769,7 +1778,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -1777,7 +1786,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -1785,7 +1794,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp3'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -1793,7 +1802,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -1801,7 +1810,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
 
@@ -1809,7 +1818,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp6'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = plumbing.trace_source_scatter(src)
+        actual_scatter = nextflow.plumbing.trace_source_scatter(src)
         expected_scatter = False
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -1817,7 +1826,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp7'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = plumbing.trace_source_scatter(src)
+        actual_scatter = nextflow.plumbing.trace_source_scatter(src)
         expected_scatter = True
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -2045,7 +2054,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     """
     def setUp(self) -> None:
         self.wf = PlumbingTypeMismatchTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_secondary_single_mismatch(self):
@@ -2148,7 +2157,7 @@ class TestPlumbingScatter(unittest.TestCase):
     """
     def setUp(self) -> None:
         self.wf = ComprehensiveScatterTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_scatter_to_scatter(self):
@@ -2232,7 +2241,7 @@ class TestPlumbingScatter(unittest.TestCase):
     @unittest.skip('reimplement')
     def test_scatter_cross(self) -> None:
         wf = ScatterCrossTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2276,7 +2285,7 @@ class TestPlumbingBasic(unittest.TestCase):
     # workflow input step inputs
     def test_workflow_inputs(self):
         wf = StepInputsWFInputTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2291,7 +2300,7 @@ class TestPlumbingBasic(unittest.TestCase):
     # static step inputs
     def test_static_inputs(self):
         wf = StepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2313,7 +2322,7 @@ class TestPlumbingBasic(unittest.TestCase):
     # connections
     def test_connections_files(self) -> None:
         wf = StepConnectionsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2324,7 +2333,7 @@ class TestPlumbingBasic(unittest.TestCase):
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2366,7 +2375,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 
     def test_array_connections(self) -> None:
         wf = ArrayStepConnectionsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2379,7 +2388,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
     
     def test_workflow_inputs_array(self) -> None:
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2393,7 +2402,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 
     def test_static_step_inputs_array(self):
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2451,7 +2460,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 #         # channels created correctly?
 #         inp = wf.input_nodes['inAlignments']
 #         ch_expected = 'ch_in_alignments = Channel.fromPath( [params.in_alignments_bam, params.in_alignments_bai] ).toList()'
-#         ch_actual = nfgen.channels.getall(inp.uuid)[0]
+#         ch_actual = nfgen.nextflow.channels.getall(inp.uuid)[0]
 #         ch_actual = ch_actual.definition
 #         self.assertEquals(ch_actual, ch_expected)
         
@@ -2481,7 +2490,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 #         inp = wf.input_nodes['inAlignmentsArr']
 #         ch1_expected = 'ch_in_alignments_arr_bais = Channel.fromPath( params.in_alignments_arr_bais ).toList()'
 #         ch2_expected = 'ch_in_alignments_arr_bams = Channel.fromPath( params.in_alignments_arr_bams ).toList()'
-#         ch1_actual, ch2_actual = nfgen.channels.getall(inp.uuid)
+#         ch1_actual, ch2_actual = nfgen.nextflow.channels.getall(inp.uuid)
 #         ch1_actual, ch2_actual = ch1_actual.definition, ch2_actual.definition
 #         self.assertEquals(ch1_actual, ch1_expected)
 #         self.assertEquals(ch2_actual, ch2_expected)
@@ -2582,7 +2591,7 @@ class TestPlumbingEdgeCases(unittest.TestCase):
     """
     def setUp(self) -> None:
         self.wf = PlumbingEdgeCaseTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_pythontool_array_string_output(self) -> None:
@@ -2639,7 +2648,7 @@ class TestConfig(unittest.TestCase):
     
     def test_outdir(self):
         wf = BasicIOTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
         expected_values = {
@@ -2652,7 +2661,7 @@ class TestConfig(unittest.TestCase):
     
     def test_file(self):
         wf = BasicIOTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
         expected_values = {
@@ -2669,7 +2678,7 @@ class TestConfig(unittest.TestCase):
     def test_nonfile(self):
         # string, int, bool
         wf = StepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
             'in_file': 'null',
@@ -2695,7 +2704,7 @@ class TestConfig(unittest.TestCase):
 
     def test_array(self):
         wf = ArrayIOExtrasTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         # I apologise for disgusting formatting below. 
         # This can probably be handled better.
@@ -2725,7 +2734,7 @@ class TestConfig(unittest.TestCase):
     
     def test_file_pair(self):
         wf = FilePairsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
         expected_values = {
@@ -2741,7 +2750,7 @@ class TestConfig(unittest.TestCase):
     
     def test_array_file_pair(self):
         wf = FilePairsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
         expected_values = {
@@ -2757,7 +2766,7 @@ class TestConfig(unittest.TestCase):
 
     def test_secondary(self):
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
 "in_alignments": f"""[
@@ -2773,7 +2782,7 @@ class TestConfig(unittest.TestCase):
     
     def test_array_secondary(self):
         wf = SecondariesTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         expected_values = {
 "in_alignments_arr": f"""[
@@ -2792,7 +2801,7 @@ class TestConfig(unittest.TestCase):
     def test_nonfile_array_workflow_inputs(self):
         # string, int, bool
         wf = ArrayStepInputsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         config = translator.stringify_translated_inputs({})
         print(config)
         expected_lines = {
@@ -2816,7 +2825,7 @@ class TestConfig(unittest.TestCase):
 
     def test_workflow_config(self) -> None:
         wf = AssemblyTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         params = translator.build_inputs_dict(wf)
         config = translator.stringify_translated_inputs(params)
         # basic structure
@@ -2861,7 +2870,7 @@ class TestStepFeatures(unittest.TestCase):
 
     def test_first_selector(self):
         wf = ConditionStepTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'print'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2874,7 +2883,7 @@ class TestStepFeatures(unittest.TestCase):
 
     def test_with_expression(self):
         wf = StepInputExpressionTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = 'print'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
@@ -2892,7 +2901,7 @@ class TestUnwrap(unittest.TestCase):
     def setUp(self) -> None:
         reset_global_settings()
         wf = UnwrapTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -2903,7 +2912,7 @@ class TestUnwrap(unittest.TestCase):
             stdout_filename='out'
         )
         self.wf = StepConnectionsTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         print(self.script)
 
 
@@ -2957,7 +2966,7 @@ class TestUnwrap(unittest.TestCase):
 
     def test_step_connection(self) -> None:
         wf = StepConnectionsTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = "stp2"
         inp_id = 'inp'
         sources = self.wf.step_nodes[step_id].sources
@@ -2968,7 +2977,7 @@ class TestUnwrap(unittest.TestCase):
     
     def test_alias_selector_wf(self) -> None:
         wf = AliasSelectorTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = "stp2"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
@@ -2979,7 +2988,7 @@ class TestUnwrap(unittest.TestCase):
     
     def test_first_operator_wf(self) -> None:
         wf = ConditionStepTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = "print"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
@@ -2990,7 +2999,7 @@ class TestUnwrap(unittest.TestCase):
     
     def test_index_operator_wf(self) -> None:
         wf = IndexOperatorTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = "stp1"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
@@ -3036,7 +3045,7 @@ class TestStringFormatter(unittest.TestCase):
     
     def test_string_formatter_inputselector_param_input(self):
         wf = StringFormatterTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
@@ -3136,7 +3145,7 @@ class TestStringFormatter(unittest.TestCase):
     
     def test_string_formatter_advanced(self) -> None:
         wf = StringFormatterTestWF()
-        refresh_workflow_inputs(wf)
+        do_preprocessing(wf)
         step_id = "stp1"
         step = wf.step_nodes[step_id]
         arg = step.tool.arguments()[0]
@@ -3145,9 +3154,9 @@ class TestStringFormatter(unittest.TestCase):
             tool=step.tool,
             in_shell_script=True,
             sources=step.sources,
-            process_inputs=nextflow.process.inputs.get_process_inputs(step.tool, step.sources),
-            param_inputs=nextflow.process.inputs.get_param_inputs(step.tool, step.sources),
-            internal_inputs=nextflow.process.inputs.get_internal_inputs(step.tool, step.sources),
+            process_inputs=nextflow.process.inputs.process_inputs(step.tool, step.sources),
+            param_inputs=nextflow.process.inputs.param_inputs(step.tool, step.sources),
+            internal_inputs=nextflow.process.inputs.internal_inputs(step.tool, step.sources),
         )
         expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
@@ -3158,7 +3167,7 @@ class TestOrdering(unittest.TestCase):
 
     def setUp(self) -> None:
         self.wf = OrderingTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     def test_process_call(self) -> None:
@@ -3395,7 +3404,7 @@ class TestSubWorkflows(unittest.TestCase):
     
     def setUp(self) -> None:
         self.wf = SubworkflowTestWF()
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         reset_global_settings()
 
     @unittest.skip('not implemented')
@@ -3405,7 +3414,7 @@ class TestSubWorkflows(unittest.TestCase):
         raise NotImplementedError
        
     def test_files_created(self) -> None:
-        refresh_workflow_inputs(self.wf)
+        do_preprocessing(self.wf)
         mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
         expected_filepaths = set([
             'modules/file_tool',
@@ -3501,16 +3510,16 @@ class TestNaming(unittest.TestCase):
     
     def setUp(self) -> None:
         self.wf = NamingTestWF()
-        refresh_workflow_inputs(self.wf)
         reset_global_settings()
+        do_preprocessing(self.wf)
 
     def test_workflow(self) -> None:
-        name = nextflow.naming.gen_varname_workflow(self.wf.id())
+        name = nextflow.naming.constructs.gen_varname_workflow(self.wf.id())
         self.assertEqual(name, 'NAMING_TEST_WF')
     
     def test_process(self) -> None:
         step = self.wf.step_nodes['stp1']
-        name = nextflow.naming.gen_varname_process(step.id())
+        name = nextflow.naming.constructs.gen_varname_process(step.id())
         self.assertEqual(name, 'STP1')
 
     def test_channels(self) -> None:
@@ -3520,7 +3529,11 @@ class TestNaming(unittest.TestCase):
             'ch_process_input',
             'ch_process_input_array',
             'ch_secondary',
-            'ch_secondary_array',
+            'ch_panel_of_normals',
+            'ch_reference',
+            'ch_tumor_sample',
+            'ch_germline_resource',
+            'ch_normal_sample',
         }
         self.assertEqual(channel_names, expected_names)
     
@@ -3534,25 +3547,74 @@ class TestNaming(unittest.TestCase):
             'param_input',
             'param_input_array',
             'secondary',
-            'secondary_array',
+            'normal_sample',
+            'panel_of_normals',
+            'reference',
+            'germline_resource',
+            'tumor_sample',
         }
         self.assertEqual(param_names, expected_names)
     
     def test_process_inputs(self) -> None:
         step = self.wf.step_nodes['stp1']
-        process_inputs = nextflow.process.inputs.create_nextflow_process_inputs(step.tool, step.sources)
+        scope = nextflow.Scope()
+        scope.update(step)
+        process_inputs = nextflow.process.inputs.create_nextflow_process_inputs(scope, step.tool)
         actual_input_names = [x.name for x in process_inputs]
         expected_input_names = [
             'secondary',
-            'indexed_bam_array_flat',
+            'indexed_bam_flat',
             'process_input',
             'process_input_array',
         ]
         self.assertEqual(actual_input_names, expected_input_names)
         secondary_input = [x for x in process_inputs if x.name == 'secondary'][0]
-        self.assertTrue(secondary_input)
         self.assertEqual(secondary_input.subnames, ['bam', 'bai'])
-    
+
+    def test_process_inputs_hard(self) -> None:
+        step = self.wf.step_nodes['stp3']
+        scope = nextflow.Scope()
+        scope.update(step)
+        process_inputs = nextflow.process.inputs.create_nextflow_process_inputs(scope, step.tool)
+        
+        # checking the names of process inputs are correct
+        actual_input_names = set([x.name for x in process_inputs])
+        expected_input_names = set([
+            'normal_samples_flat',
+            'tumor_samples_flat',
+            'reference',
+            'germlineResource',
+            'panelOfNormals',
+        ])
+        
+        # checking the subnames of process inputs are correct (for secondary files)
+        self.assertEqual(actual_input_names, expected_input_names)
+
+        # reference (FastaWithIndexes)
+        process_input = [x for x in process_inputs if x.name == 'reference'][0]
+        expected_subnames = ['fasta', 'amb', 'ann', 'bwt', 'dict', 'fai', 'pac', 'sa']
+        self.assertEqual(process_input.subnames, expected_subnames)
+        
+        # panelOfNormals (VcfTabix) #1
+        process_input = [x for x in process_inputs if x.name == 'panelOfNormals'][0]
+        expected_subnames = ['panel_of_normals_vcf_gz', 'panel_of_normals_tbi']
+        self.assertEqual(process_input.subnames, expected_subnames)
+        
+        # germlineResource (VcfTabix) #2
+        process_input = [x for x in process_inputs if x.name == 'germlineResource'][0]
+        expected_subnames = ['germline_resource_vcf_gz', 'germline_resource_tbi']
+        self.assertEqual(process_input.subnames, expected_subnames)
+        
+        # normal_samples (Array(BamBai())) #1
+        process_input = [x for x in process_inputs if x.name == 'normal_samples_flat'][0]
+        expected_name = 'normal_samples_flat'
+        self.assertEqual(process_input.name, expected_name)
+        
+        # tumor_samples (Array(BamBai())) #2
+        process_input = [x for x in process_inputs if x.name == 'tumor_samples_flat'][0]
+        expected_name = 'tumor_samples_flat'
+        self.assertEqual(process_input.name, expected_name)
+
     def test_process_outputs(self) -> None:
         # TODO does not include secondaries array outputs 
         step_id = 'stp1'

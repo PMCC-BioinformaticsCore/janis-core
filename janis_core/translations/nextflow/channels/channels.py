@@ -129,7 +129,7 @@ def add(
     ) -> None:
     global channel_register
     # channel name
-    name = naming.gen_varname_channel(janis_tag, name_override, janis_dtype)
+    name = naming.constructs.gen_varname_channel(janis_tag, name_override, janis_dtype)
     # create channel
     new_ch = Channel(name, source, method, operations, janis_uuid, define)
     # add channel

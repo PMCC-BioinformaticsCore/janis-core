@@ -90,7 +90,7 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     process_directives = directives.gen_directives_for_process(tool, resources, scope)
 
     # inputs
-    process_inputs = inputs.create_nextflow_process_inputs(tool, sources)
+    process_inputs = inputs.create_nextflow_process_inputs(scope, tool)
 
     # outputs
     process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
@@ -151,7 +151,7 @@ def gen_process_from_codetool(
     process_inputs.append(python_file_input)
 
     # inputs: tool inputs
-    process_inputs += inputs.create_nextflow_process_inputs(tool, sources)
+    process_inputs += inputs.create_nextflow_process_inputs(scope, tool)
 
     # outputs
     process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
@@ -187,8 +187,8 @@ def prepare_script_for_python_code_tool(tool: PythonTool, sources: dict[str, Any
     """
     # TODO: handle args of type list of string (need to quote them)
     args: list[str] = []
-    process_inputs = inputs.get_process_inputs(tool, sources)
-    param_inputs = inputs.get_param_inputs(tool, sources)
+    process_inputs = inputs.process_inputs(tool, sources)
+    param_inputs = inputs.param_inputs(tool, sources)
     
     for inp in tool.inputs():
         tag: str = inp.tag

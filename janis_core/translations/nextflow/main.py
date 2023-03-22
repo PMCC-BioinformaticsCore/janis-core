@@ -29,10 +29,10 @@ from . import workflow
 from . import process
 from . import naming
 from . import config
+from . import preprocessing
 
 from .scope import Scope, ToolScopeItem
 from .unwrap import unwrap_expression
-from .register import register_params_channels
 
 
 # class methods dont make sense. dislike this approach. 
@@ -147,7 +147,10 @@ class NextflowTranslator(TranslatorBase):
         # register params and channels for workflow inputs
         params.clear()
         channels.clear()
-        register_params_channels(wf, scope)
+        preprocessing.register_params(wf)
+        preprocessing.register_channels(wf)
+        preprocessing.register_data_sources(wf)
+        preprocessing.register_process_internal_names(wf)
 
         # main logic
         cls.update_files('', scope, wf, sources={})
@@ -177,7 +180,7 @@ class NextflowTranslator(TranslatorBase):
         2. write any nextflow items that are processes or workflows to file.
         3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
         """
-        subtype: str = naming.get_construct_name(tool, scope)
+        subtype: str = naming.constructs.get_construct_name(tool, scope)
 
         # groovy code for plumbing
         # TODO: reimplement
@@ -187,6 +190,8 @@ class NextflowTranslator(TranslatorBase):
 
         # command tool
         if isinstance(tool, CommandTool):
+            process.inputs.register_process(scope, tool, sources)
+
             # groovy library imports & groovy functions used in process
             imports_item = process.gen_imports_for_process(tool)
             functions_item = process.gen_functions_for_process(tool)
@@ -211,6 +216,8 @@ class NextflowTranslator(TranslatorBase):
 
         # python tool
         elif isinstance(tool, PythonTool):
+            process.inputs.register_process(scope, tool, sources)
+
             # # groovy functions used in process
             # functions_item = nfgen.process.gen_functions_for_process(tool)
             # if functions_item:
@@ -310,6 +317,12 @@ class NextflowTranslator(TranslatorBase):
         scope: Scope = Scope()
         # hack workaround
         scope.items = [ToolScopeItem(tool.id())]
+
+        # register input types for process
+        process.inputs.register_process(scope, tool, sources)
+        
+        # register input names for process
+        naming.process_internal.register_process(scope, tool)
         
         # groovy library imports & groovy functions used in process
         imports_item = process.gen_imports_for_process(tool)
@@ -494,51 +507,6 @@ class NextflowTranslator(TranslatorBase):
                 files = files | step_template_files # merge dicts
 
         return files
-
-
-    @classmethod
-    def gen_step_inval_dict(
-        cls,
-        tool: CommandTool,
-        sources: dict[str, Any],
-        scatter: Optional[ScatterDescription],
-        inputs_replacement: str = "ch_",
-        tool_id_prefix: str = "$",
-    ) -> dict[str, Any]:
-        """
-        Generate a dictionary to represent the input values provided to a tool.
-        key is the input name.
-        value is the input expression.
-        
-        Uses StepNode.sources. Only gets step input values which are channels. 
-
-        :param tool:
-        :type tool:
-        :param inputs_replacement:
-        :type inputs_replacement:
-        :param tool_id_prefix:
-        :type tool_id_prefix:
-        :return:
-        :rtype:
-        """
-
-        inputs = {}
-        process_ids = process.inputs.get_process_inputs(tool, sources)
-        scatter_method = scatter.method if scatter else None
-
-        for name in process_ids:
-            if name in sources:
-                src = sources[name]
-                scatter_target = True if scatter and name in scatter.fields else False
-
-                inputs[name] = unwrap_expression(
-                    val=src, 
-                    tool=tool,
-                    sources=sources,
-                    scatter_target=scatter_target,
-                    scatter_method=scatter_method,
-                )
-        return inputs
 
     @classmethod
     def unwrap_expression(

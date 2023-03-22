@@ -64,7 +64,7 @@ def is_array_secondary_type(dtype: DataType) -> bool:
         return True
     return False
 
-def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
+def get_extensions(dtype: File, remove_prefix_symbols: bool=False) -> list[str]:
     """returns extension of each file for File types with secondaries"""
     primary_ext: str = ''
     secondary_exts: list[str] = []
@@ -84,7 +84,7 @@ def get_extensions(dtype: File, remove_symbols: bool=False) -> list[str]:
         secondary_exts = []
 
     exts = _sort_extensions(primary_ext, secondary_exts)
-    if remove_symbols:
+    if remove_prefix_symbols:
         exts = [x.lstrip('.^') for x in exts]
     return exts
 

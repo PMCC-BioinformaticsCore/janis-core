@@ -69,7 +69,6 @@ from . import params
 from . import naming
 
 # from .plumbing import cartesian_cross_subname
-from .process.inputs.factory import create_input
 from .expressions import stringformatter_matcher
 
 """
@@ -496,8 +495,9 @@ class Unwrapper:
             
             # special case: janis secondary -> nextflow tuple
             if utils.is_secondary_type(inp.input_type):
-                tuple_input = create_input(inp, self.sources)  # the process input tuple
-                return tuple_input.subnames[index] 
+                names = naming.process_input_name(inp)
+                assert(isinstance(names, list))
+                return names[index] # type: ignore
         
         # everything else
         expr = self.unwrap(obj)
@@ -844,7 +844,7 @@ class Unwrapper:
 
         # everything else
         else:
-            upstream_step_id = naming.gen_varname_process(upstream_step.id())
+            upstream_step_id = naming.constructs.gen_varname_process(upstream_step.id())
             channel_name: str = f'{upstream_step_id}.out.{upstream_out}'
             return self.get_channel_expression(
                 channel_name=channel_name,

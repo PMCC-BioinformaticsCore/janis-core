@@ -14,7 +14,7 @@ class ImportItem:
         self.alias = alias
 
     def get_string(self) -> str:
-        name = naming.gen_varname_process(self.name)
+        name = naming.constructs.gen_varname_process(self.name)
         if self.alias:
             return f"{name} as {self.alias}"
         return name
