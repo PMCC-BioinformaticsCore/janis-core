@@ -95,7 +95,8 @@ def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[s
     
     # TODO REFACTOR
     nf_directives: dict[str, ProcessDirective] = {}
-    nf_directives['publishDir'] = PublishDirDirective(scope)
+    if settings.translate.nextflow.MODE == 'workflow':
+        nf_directives['publishDir'] = PublishDirDirective(scope)
     nf_directives['debug'] = DebugDirective(debug='true')
 
     # Add directives from input resources
@@ -117,21 +118,22 @@ def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[s
             nf_directives['disk'] = DiskDirective(param)
     
     # Add directives from tool resources
-    if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
-        param = params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}), janis_dtype=Int())
-        nf_directives['cpus'] = CpusDirective(param)
-    
-    if 'memory' not in nf_directives and tool.memory({}) is not None:
-        param = params.add(janis_tag='memory', scope=scope, default=tool.memory({}), janis_dtype=Int())
-        nf_directives['memory'] = MemoryDirective(param)
-    
-    if 'disk' not in nf_directives and tool.disk({}) is not None:
-        param = params.add(janis_tag='disk', scope=scope, default=tool.disk({}), janis_dtype=Int())
-        nf_directives['disk'] = DiskDirective(param)
-    
-    if 'time' not in nf_directives and tool.time({}) is not None:
-        param = params.add(janis_tag='time', scope=scope, default=tool.time({}), janis_dtype=Int())
-        nf_directives['time'] = TimeDirective(param)
+    if settings.translate.nextflow.MODE == 'workflow':
+        if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
+            param = params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}), janis_dtype=Int())
+            nf_directives['cpus'] = CpusDirective(param)
+        
+        if 'memory' not in nf_directives and tool.memory({}) is not None:
+            param = params.add(janis_tag='memory', scope=scope, default=tool.memory({}), janis_dtype=Int())
+            nf_directives['memory'] = MemoryDirective(param)
+        
+        if 'disk' not in nf_directives and tool.disk({}) is not None:
+            param = params.add(janis_tag='disk', scope=scope, default=tool.disk({}), janis_dtype=Int())
+            nf_directives['disk'] = DiskDirective(param)
+        
+        if 'time' not in nf_directives and tool.time({}) is not None:
+            param = params.add(janis_tag='time', scope=scope, default=tool.time({}), janis_dtype=Int())
+            nf_directives['time'] = TimeDirective(param)
     
     final_directives: list[ProcessDirective] = []
     for direc in nf_directives.values():

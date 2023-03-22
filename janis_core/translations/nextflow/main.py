@@ -30,7 +30,7 @@ from . import process
 from . import naming
 from . import config
 
-from .scope import Scope
+from .scope import Scope, ToolScopeItem
 from .unwrap import unwrap_expression
 from .register import register_params_channels
 
@@ -308,6 +308,8 @@ class NextflowTranslator(TranslatorBase):
         settings.translate.nextflow.MODE = 'tool'
         sources: dict[str, Any] = {}
         scope: Scope = Scope()
+        # hack workaround
+        scope.items = [ToolScopeItem(tool.id())]
         
         # groovy library imports & groovy functions used in process
         imports_item = process.gen_imports_for_process(tool)

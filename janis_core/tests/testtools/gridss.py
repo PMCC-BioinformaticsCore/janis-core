@@ -19,7 +19,6 @@ from janis_core import (
 from janis_bioinformatics.data_types import Bam, BamBai, FastaWithDict, Bed, Vcf
 
 
-
 class GridssTestTool(CommandTool):
     def tool(self) -> str:
         return "gridss"

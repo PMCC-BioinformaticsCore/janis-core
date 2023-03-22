@@ -151,7 +151,7 @@ class CLTRequirementsParser(CLTEntityParser):
                     listing = req.listing
                 
                 for item in listing:
-                    parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item)
+                    parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item, is_expression_tool=self.is_expression_tool)
                     parser.parse()
                     self.error_msgs += parser.error_msgs
                     if parser.file_to_create is not None:
@@ -344,7 +344,8 @@ class InitialWorkDirRequirementParser:
             if self.is_expression_tool:
                 if not self.name:
                     raise NotImplementedError
-                return (self.name, self.value)
+                modified_js = self.modify_js(self.value)
+                return (self.name, modified_js)
             else:
                 # either a static script, or a script to template at runtime
                 # script to template at runtime
@@ -359,6 +360,13 @@ class InitialWorkDirRequirementParser:
                     if not self.name:
                         raise NotImplementedError
                     return (self.name, self.value)
+    
+    def modify_js(self, script: str) -> str:
+        text_to_remove = '"use strict";\nvar inputs=$(inputs);\nvar runtime=$(runtime);\n'
+        text_to_substitute = '\nvar inputs = JSON.parse( process.argv[2] );\n\n'
+        assert(text_to_remove in script)
+        script = script.replace(text_to_remove, text_to_substitute)
+        return script
        
     def get_directories_to_create_from_str(self) -> Optional[str | InputSelector]:
         if self.value.startswith('$(') or self.value.startswith('${'):
@@ -458,12 +466,16 @@ class CLTParser(CLTEntityParser):
         # this must be set for error messages to be associated with this entity
         self.uuid = jtool.uuid
 
-        # arguments & selector patterns for io stream names
-        extra_args = self.ingest_io_streams(self.entity, jtool)
-        
-        # addressing cwl stdin: stdout: stderr: file naming
-        jtool._arguments += extra_args
+        if self.is_expression_tool:
+            # ToolInput for script file, staging under correct name
+            # ToolArgument to correctly supply inputs as argv to script
+            # TODO HERE
+            pass
 
+        # arguments & selector patterns for io stream names
+        # addresses cwl stdin: stdout: stderr: file naming
+        jtool._arguments += self.ingest_io_streams(self.entity, jtool)
+        
         # requirements
         req_parser = CLTRequirementsParser(
             cwl_utils=self.cwl_utils, 

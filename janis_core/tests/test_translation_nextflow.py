@@ -1253,6 +1253,21 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         reset_global_settings()
 
+    def test_multiple_statements(self) -> None:
+        pass
+    
+    def test_directories_to_create(self) -> None:
+        pass
+    
+    def test_files_to_create_cmdtool(self) -> None:
+        pass
+    
+    def test_files_to_create_codetool(self) -> None:
+        pass
+    
+    def test_files_to_create_cmdtool_exprtool(self) -> None:
+        pass
+
     def test_variables_defined(self) -> None:
         wf = EntityTraceTestWF()
         refresh_workflow_inputs(wf)

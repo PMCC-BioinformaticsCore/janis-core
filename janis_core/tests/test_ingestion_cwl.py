@@ -43,6 +43,7 @@ def _load_cwl_doc(filepath: str) -> Tuple[Any, Any]:
     return loaded_doc, cwl_utils
 
 
+
 class TestRequirementsParsing(unittest.TestCase):
 
     def test_directories_to_create1(self):
@@ -78,6 +79,26 @@ class TestRequirementsParsing(unittest.TestCase):
         reqs = parser.do_parse()
         self.assertIn('return_directory.js', reqs['files_to_create'])
         self.assertIsInstance(reqs['files_to_create']['return_directory.js'], str)
+    
+    def test_files_to_create8(self):
+        # expression tool
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressiontools/check_value.cwl'
+        etool, cwl_utils = _load_cwl_doc(filepath)
+        
+        parser = CWlParser(filepath)
+        cltool = parser.parse_etool_to_cltool(etool)
+        
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, entity=cltool, is_expression_tool=True)
+        reqs = parser.do_parse()
+
+        # check js script file created, and is a string
+        self.assertIn('check_value.js', reqs['files_to_create'])
+        self.assertIsInstance(reqs['files_to_create']['check_value.js'], str)
+
+        # check js script file modified correctly
+        script = reqs['files_to_create']['check_value.js']
+        self.assertNotIn('"use strict";\nvar inputs=$(inputs);\nvar runtime=$(runtime);', script)
+        self.assertIn('var inputs = JSON.parse( process.argv[2] );\n', script)
  
     def test_files_to_create3(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/requirements/check_threshold.cwl'

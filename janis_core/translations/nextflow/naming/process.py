@@ -90,8 +90,6 @@ def process_input_secondaries(inp: ToolInput | TInput, sources: dict[str, Any]) 
     exts = [x.replace('.', '_') for x in exts]
     return exts
 
-
-    
     
 def get_src_type(src: Any) -> DataType:
     # the srctype corresponds to either a workflow input, or step output.

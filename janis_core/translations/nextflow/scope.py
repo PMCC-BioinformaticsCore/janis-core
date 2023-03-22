@@ -31,20 +31,19 @@ class WorkflowScopeItem(ScopeItem):
 
 
 class Scope:
-    def __init__(self):
+    def __init__(self, ):
         self.items: list[ScopeItem] = []
         self.items.append(WorkflowScopeItem(settings.translate.nextflow.NF_MAIN_NAME))
     
+    # main way to add
     def update(self, step: StepNode) -> None:
-        new_item = self.create_item(step)
+        if isinstance(step.tool, (CommandTool, PythonTool)):
+            new_item = ToolScopeItem(step.id())
+        else:
+            new_item = WorkflowScopeItem(step.id())
         self.items.append(new_item)
 
-    def create_item(self, step: StepNode) -> ScopeItem:
-        if isinstance(step.tool, (CommandTool, PythonTool)):
-            return ToolScopeItem(step.id())
-        else:
-            return WorkflowScopeItem(step.id())
-        
+
     @property 
     def current_entity(self) -> str:
         if not self.labels:

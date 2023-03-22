@@ -164,7 +164,7 @@ class ProcessScriptGenerator:
                 internal_inputs=self.internal_inputs,
                 in_shell_script=True
             ) 
-            line = f"mkdir -p '{unwrapped_dir}'"
+            line = f"mkdir -p '{unwrapped_dir}';"
             self.script.append(line)
 
     def handle_cmdtool_base_command(self) -> None:
@@ -183,9 +183,10 @@ class ProcessScriptGenerator:
         return None
 
     def finalise_script(self) -> str:
-        script = self.script
         # if settings.JANIS_ASSISTANT:
         #     script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
+        
+        script = self.script
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)
 
