@@ -17,7 +17,8 @@ from janis_core import (
 from ...plumbing import trace_entity_counts
 from ...unwrap import unwrap_expression
 from janis_core import translation_utils as utils
-from .. import inputs
+from .. import data_sources
+from ...scope import Scope
 
 from .model import (
     ProcessOutput,
@@ -127,13 +128,11 @@ class FmtType(Enum):
 
 ### CMDTOOL OUTPUTS ###
 class CmdtoolProcessOutputFactory:
-    def __init__(self, out: ToolOutput, tool: CommandTool, sources: dict[str, Any]) -> None:
+    def __init__(self, scope: Scope, out: ToolOutput, tool: CommandTool, sources: dict[str, Any]) -> None:
+        self.scope = scope
         self.out = out
         self.tool = tool
         self.sources = sources
-        self.process_inputs = inputs.process_inputs(self.tool, self.sources)
-        self.param_inputs = inputs.param_inputs(self.tool, self.sources)
-        self.internal_inputs = inputs.internal_inputs(self.tool, self.sources)
         self.otype = get_otype(self.out)
         self.ftype = self.get_fmttype()
         self.strategy_map = {
@@ -194,7 +193,9 @@ class CmdtoolProcessOutputFactory:
                 # ToolInput does not refer to another ToolInput
                 # This must be first as less specific
                 if entities.issubset(filename_gen_whitelist):
-                    if tinput.id() in self.process_inputs or tinput.id() in self.param_inputs:
+                    if tinput.id() in data_sources.process_inputs(self.scope):
+                        return FmtType.FILENAME
+                    elif tinput.id() in data_sources.param_inputs(self.scope):
                         return FmtType.FILENAME
                     else:
                         return FmtType.FILENAME_GEN
@@ -244,11 +245,9 @@ class CmdtoolProcessOutputFactory:
     def unwrap(self, expr: Any):
         return unwrap_expression(
             val=expr,
+            scope=self.scope,
             tool=self.tool,
             sources=self.sources,
-            process_inputs=self.process_inputs,
-            param_inputs=self.param_inputs,
-            internal_inputs=self.internal_inputs,
             in_shell_script=self.add_braces,
             quote_strings=self.add_quotes,
         )

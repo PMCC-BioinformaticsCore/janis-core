@@ -5,8 +5,7 @@ from janis_core import Workflow
 from janis_core import settings
 
 from ..scope import Scope
-from ..plumbing.call import format_process_call
-from ..plumbing.call import get_process_call_args
+from ..plumbing import gen_task_call
 from ..process import Process
 from ..process import ImportsBlock
 from ..process import FunctionsBlock
@@ -63,7 +62,7 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
         emit: list[WorkflowEmit] = []
         for out in wf.output_nodes.values():
             outname = out.id()
-            expression = unwrap.unwrap_expression(val=out.source, in_shell_script=True)
+            expression = unwrap.unwrap_expression(val=out.source, scope=scope, in_shell_script=True)
             emit.append(WorkflowEmit(outname, expression))
     
     # MAIN (workflow step calls, channel operations)
@@ -86,7 +85,7 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
             else:
                 raise NotImplementedError
         
-            args = get_process_call_args(step, current_scope)
-            main.append(format_process_call(entity_name, args))
+            task_call = gen_task_call(step, current_scope, entity_name)
+            main.append(task_call)
 
     return NFWorkflow(name, main, take, emit, is_subworkflow)

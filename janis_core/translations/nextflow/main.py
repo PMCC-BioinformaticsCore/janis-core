@@ -31,7 +31,7 @@ from . import naming
 from . import config
 from . import preprocessing
 
-from .scope import Scope, ToolScopeItem
+from .scope import Scope
 from .unwrap import unwrap_expression
 
 
@@ -149,8 +149,8 @@ class NextflowTranslator(TranslatorBase):
         channels.clear()
         preprocessing.register_params(wf)
         preprocessing.register_channels(wf)
-        preprocessing.register_data_sources(wf)
-        preprocessing.register_process_internal_names(wf)
+        preprocessing.register_ds_categories(wf)
+        preprocessing.register_ds_variables(wf)
 
         # main logic
         cls.update_files('', scope, wf, sources={})
@@ -190,7 +190,6 @@ class NextflowTranslator(TranslatorBase):
 
         # command tool
         if isinstance(tool, CommandTool):
-            process.inputs.register_process(scope, tool, sources)
 
             # groovy library imports & groovy functions used in process
             imports_item = process.gen_imports_for_process(tool)
@@ -202,7 +201,7 @@ class NextflowTranslator(TranslatorBase):
 
             # process
             process_item = process.gen_process_from_cmdtool(tool, sources, scope)
-            process_item = cls.handle_container(tool, process_item)
+            process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
             
             # file
@@ -216,7 +215,6 @@ class NextflowTranslator(TranslatorBase):
 
         # python tool
         elif isinstance(tool, PythonTool):
-            process.inputs.register_process(scope, tool, sources)
 
             # # groovy functions used in process
             # functions_item = nfgen.process.gen_functions_for_process(tool)
@@ -225,7 +223,7 @@ class NextflowTranslator(TranslatorBase):
             
             # process
             process_item = process.gen_process_from_codetool(tool, sources, scope)
-            process_item = cls.handle_container(tool, process_item)
+            process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
             # file
             process_file = NFFile(
@@ -313,17 +311,15 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         settings.translate.nextflow.MODE = 'tool'
+        preprocessing.register_ds_categories(tool)
+        preprocessing.register_ds_variables(tool)
+        
         sources: dict[str, Any] = {}
         scope: Scope = Scope()
+        
         # hack workaround
-        scope.items = [ToolScopeItem(tool.id())]
+        # scope.items = [ToolScopeItem(tool.id())]
 
-        # register input types for process
-        process.inputs.register_process(scope, tool, sources)
-        
-        # register input names for process
-        naming.process_internal.register_process(scope, tool)
-        
         # groovy library imports & groovy functions used in process
         imports_item = process.gen_imports_for_process(tool)
         functions_item = process.gen_functions_for_process(tool)
@@ -334,7 +330,7 @@ class NextflowTranslator(TranslatorBase):
 
         # process
         process_item = process.gen_process_from_cmdtool(tool, sources, scope)
-        process_item = cls.handle_container(tool, process_item)
+        process_item = cls.handle_container(scope, tool, process_item)
         cls.item_register.add(scope, process_item)
         
         # file
@@ -358,9 +354,13 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         settings.translate.nextflow.MODE = 'tool'
+        
         if isinstance(tool, PythonTool):
+            preprocessing.register_ds_categories(tool)
+            preprocessing.register_ds_variables(tool)
+            
             process = cls.gen_process_from_codetool(tool=tool, sources={}, scope=[])
-            process = cls.handle_container(tool, process)
+            process = cls.handle_container(scope, tool, process)
 
             #imports = [cls.init_helper_functions_import()]
             imports = []
@@ -386,6 +386,7 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def handle_container(
         cls,
+        scope: Scope,
         tool: Tool,
         process: Process,
     ) -> Process:
@@ -405,6 +406,8 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        container = None
+
         if settings.translate.WITH_CONTAINER:
             container = (
                 NextflowTranslator.get_container_override_for_tool(tool)
@@ -412,7 +415,7 @@ class NextflowTranslator(TranslatorBase):
             )
 
         if container is not None:
-            container_expr = unwrap_expression(container, tool=tool)
+            container_expr = unwrap_expression(val=container, scope=scope, tool=tool)
             directive = ContainerDirective(container_expr)
             process.directives.append(directive)
 
@@ -509,27 +512,8 @@ class NextflowTranslator(TranslatorBase):
         return files
 
     @classmethod
-    def unwrap_expression(
-        cls,
-        value,
-        tool=None,
-        # inputs_dict=None,
-        skip_inputs_lookup=False,
-        in_shell_script=False,
-        var_indicator=None,
-        step_indicator=None,
-        **debugkwargs,
-    ): 
-        return unwrap_expression(
-            val=value,
-            # input_in_selectors=cls.INPUT_IN_SELECTORS,
-            tool=tool,
-            # inputs_dict=inputs_dict,
-            in_shell_script=in_shell_script,
-            # var_indicator=var_indicator,
-            # step_indicator=step_indicator,
-            # debugkwargs=debugkwargs
-        )       
+    def unwrap_expression(cls, expression: Any) -> Any:
+        pass
 
     @classmethod
     def build_inputs_dict(

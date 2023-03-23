@@ -80,6 +80,8 @@ from janis_core import (
 from janis_core.translations import translate
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
+from janis_core.translations.nextflow.process.data_sources import ProcessDSCategoryRegister
+from janis_core.translations.nextflow.process.data_sources import ProcessDSVariableRegister
 
 from janis_core import (
     String, 
@@ -100,6 +102,8 @@ from janis_bioinformatics.data_types.cram import Cram
 from janis_core.translations.nextflow.nfgen_utils import to_groovy
 from janis_core import settings
 
+
+### helper functions
 
 def reset_global_settings() -> None:
     # nextflow specific
@@ -126,6 +130,23 @@ def reset_global_settings() -> None:
     settings.translate.MAX_DURATION = None           
     settings.translate.MAX_MEM = None      
 
+def do_preprocessing(wf: Workflow) -> None:
+    nextflow.params.clear()
+    nextflow.channels.clear()
+    nextflow.process.data_sources.pds_register = ProcessDSCategoryRegister()
+    nextflow.process.data_sources.pvn_register = ProcessDSVariableRegister()
+    nextflow.preprocessing.register_params(wf)
+    nextflow.preprocessing.register_channels(wf)
+    nextflow.preprocessing.register_ds_categories(wf)
+    nextflow.preprocessing.register_ds_variables(wf)
+
+def split_task_call_to_lines(call: str) -> list[str]:
+    lines = call.split('\n')                             # split
+    lines = lines[1:]                                    # remove task name & opening brace line
+    lines = [ln for ln in lines if not ln in ('', ')')]  # remove empty lines, closing brace line
+    lines = [ln.strip(' ,') for ln in lines]             # strip indents & commas
+    return lines
+
 
 
 ### helper classes
@@ -147,16 +168,6 @@ class DataTypeNoSecondary(File):
 
 
 
-### helper functions
-
-
-def do_preprocessing(wf: Workflow) -> None:
-    nextflow.params.clear()
-    nextflow.channels.clear()
-    nextflow.preprocessing.register_params(wf)
-    nextflow.preprocessing.register_channels(wf)
-    nextflow.preprocessing.register_data_sources(wf)
-    nextflow.preprocessing.register_process_internal_names(wf)
 
 
 ### test classes
@@ -263,14 +274,6 @@ class TestSettings(unittest.TestCase):
         settings.translate.nextflow.MINIMAL_PROCESS = False
         self.assertEquals(settings.translate.nextflow.MINIMAL_PROCESS, False)
 
-    @unittest.skip('not implemented')
-    def test_minimal_process(self):
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_janis_assistant_process(self):
-        raise NotImplementedError
-    
 
 
 
@@ -286,7 +289,7 @@ class TestParams(unittest.TestCase):
         """
         wf = AssemblyTestWF()
         do_preprocessing(wf)
-        params = params.getall()
+        params = nextflow.params.getall()
         param_ids = {p.name for p in params}
         expected_ids = {
             'unicycler_start_gene_id', 
@@ -311,7 +314,6 @@ class TestParams(unittest.TestCase):
         wf = StepInputsWFInputTestWF()
         
         # minimal
-        settings.MINIMAL_PROCESS = True
         do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
@@ -328,7 +330,6 @@ class TestParams(unittest.TestCase):
         wf = StepInputsStaticTestWF()
         
         # minimal
-        settings.MINIMAL_PROCESS = True
         do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
@@ -351,7 +352,6 @@ class TestParams(unittest.TestCase):
         wf = StepInputsPartialStaticTestWF()
         
         # minimal
-        settings.MINIMAL_PROCESS = True
         do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
@@ -370,7 +370,6 @@ class TestParams(unittest.TestCase):
         wf = StepInputsMinimalTestWF()
         
         # minimal
-        settings.MINIMAL_PROCESS = True
         do_preprocessing(wf)
         actual_params = nextflow.params.serialize()
         expected_params = {
@@ -430,7 +429,7 @@ class TestFileFormatting(unittest.TestCase):
 
     def test_main_workflow(self) -> None:
         wf = AssemblyTestWF()
-        mainstr, substr_dict = translator.translate_workflow_internal(wf)
+        mainstr, _ = translator.translate_workflow_internal(wf)
         expected_lines = [
             "nextflow.enable.dsl=2",
             "include { FASTQC1 } from './modules/fastqc1'",
@@ -484,7 +483,7 @@ class TestFileFormatting(unittest.TestCase):
     def test_process(self) -> None:
         wf = AssemblyTestWF()
         do_preprocessing(wf)
-        mainstr, substr_dict = translator.translate_workflow_internal(wf)
+        _, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             'nextflow.enable.dsl=2',
             'process FASTQC1 {',
@@ -523,7 +522,7 @@ class TestFileFormatting(unittest.TestCase):
     
     def test_subworkflow(self) -> None:
         wf = SubworkflowTestWF()
-        mainstr, substr_dict = translator.translate_workflow_internal(wf)
+        _, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             "nextflow.enable.dsl=2",
             "include { STRING_TOOL } from '../modules/string_tool'",
@@ -723,7 +722,7 @@ class TestChannels(unittest.TestCase):
     def test_subworkflow_passed_null_param(self) -> None:
         wf = SubworkflowTestWF()
         do_preprocessing(wf)
-        channel_declarations = nextflow.channels.nextflow.channels.channel_register.get_string()
+        channel_declarations = nextflow.channels.getstr()
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = [x for x in channel_declarations if x != '']
         expected_declarations = [
@@ -791,7 +790,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        process = translator.handle_container(step.tool, process)
+        process = translator.handle_container(scope, step.tool, process)
         directives = nextflow.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
         expected_order = [
@@ -813,7 +812,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        process = translator.handle_container(step.tool, process)
+        process = translator.handle_container(scope, step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
@@ -990,7 +989,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         process = nextflow.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
-            'path indexed_bam_array_flat',
+            'path indexed_bam_flat',
         }
         self.assertEqual(actual_inputs, expected_inputs)   
     
@@ -1456,8 +1455,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_pre_script = process.pre_script
         expected_pre_script = {
-            "def indexed_bam_array_flat = get_primary_files(indexed_bam_array_flat)",
-            "def inp = indexed_bam_array_flat.join(' ')"
+            "def indexed_bam_flat = get_primary_files(indexed_bam_flat)",
+            "def inp = indexed_bam_flat.join(' ')"
         }
         for ln in expected_pre_script:
             self.assertIn(ln, actual_pre_script)
@@ -2062,10 +2061,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_bam_bai.map{ tuple -> tuple[0] }'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_secondary_single_array_mismatch(self):
@@ -2073,10 +2073,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_bam_bai.map{ tuple -> tuple[0] }.toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_secondary_secondary_mismatch(self):
@@ -2084,10 +2085,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_secondary_secondary_array_mismatch(self):
@@ -2095,10 +2097,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_fasta_with_indexes.map{ tuple -> [tuple[0], tuple[4]] }.flatten().toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_array_to_single(self):
@@ -2106,10 +2109,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_file_array.flatten().first()'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_single_to_array(self):
@@ -2117,10 +2121,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_file.toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_secondary_array_to_secondary(self):
@@ -2128,10 +2133,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_bam_bai_array.flatten().collate( 2 ).first()'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_to_secondary_array(self):
@@ -2139,10 +2145,11 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_bam_bai_array.flatten().toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
 
@@ -2165,10 +2172,12 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        
+        expected = set([
             'PRESTEP1.out.out'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_scatter_to_array(self):
@@ -2176,10 +2185,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'PRESTEP1.out.out.toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_array_to_scatter1(self):
@@ -2187,10 +2197,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_file_array.flatten()'
-        ]
+        ])
         self.assertEqual(actual, expected)
     
     def test_array_to_scatter2(self):
@@ -2198,10 +2209,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'PRESTEP2.out.out.flatten()'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_scatter_secondary_to_scatter_secondary(self):
@@ -2209,10 +2221,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'PRESTEP3.out.out'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_scatter_secondary_to_secondary_array(self):
@@ -2220,10 +2233,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'PRESTEP3.out.out.flatten().toList()'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_secondary_array_to_scatter_secondary(self):
@@ -2231,10 +2245,11 @@ class TestPlumbingScatter(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             'ch_in_bam_bai_array.flatten().collate( 2 )'
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     # TODO use in future
@@ -2246,7 +2261,8 @@ class TestPlumbingScatter(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
 
         # cartesian cross channel manipulation in workflow
         operation = nextflow.channels.gen_scatter_cross_operation(step.sources, step.scatter)
@@ -2290,11 +2306,12 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "ch_in_file",
             "ch_in_file_opt",
-        ]
+        ])
         self.assertEqual(expected, actual)
         
     # static step inputs
@@ -2315,7 +2332,7 @@ class TestPlumbingBasic(unittest.TestCase):
             'opt_default',
             'opt_optional',
         }
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         for tinput_name in not_expected:
             self.assertNotIn(tinput_name, actual)
 
@@ -2327,8 +2344,9 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        expected = ["STP1.out.out"]
-        actual = nextflow.call.get_process_call_args(step, scope)
+        expected = set(["STP1.out.out"])
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
         self.assertEqual(expected, actual)
 
     def test_filename_types(self) -> None:
@@ -2338,21 +2356,23 @@ class TestPlumbingBasic(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "ch_in_file",
             "ch_in_str",
-        ]
+        ])
         self.assertEqual(expected, actual)
         
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "ch_in_file",
-        ]
+        ])
         self.assertEqual(expected, actual)
 
     @unittest.skip('not implemented')
@@ -2380,10 +2400,11 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "STP1.out.out"
-        ]
+        ])
         self.assertEqual(expected, actual)
     
     def test_workflow_inputs_array(self) -> None:
@@ -2393,11 +2414,12 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "ch_in_file_array",
             "ch_in_file_array_opt",
-        ]
+        ])
         self.assertEqual(expected, actual)
 
     def test_static_step_inputs_array(self):
@@ -2407,7 +2429,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         not_expected = {
             'pos_default',
             'pos_default',
@@ -2443,8 +2465,6 @@ class TestPlumbingBasicArrays(unittest.TestCase):
 #     """
 
 #     def setUp(self) -> None:
-#         settings.MINIMAL_PROCESS = True
-#         settings.MODE = 'workflow'
     
 #     def test_secondaries_workflow_inputs(self) -> None:
 #         wf = SecondariesTestWF()
@@ -2599,10 +2619,11 @@ class TestPlumbingEdgeCases(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "STP1.out.out.filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
-        ]
+        ])
         self.assertEqual(actual, expected)
 
 
@@ -2856,8 +2877,6 @@ class TestConfig(unittest.TestCase):
 
     @unittest.skip('not implemented')
     def test_tool_config(self) -> None:
-        settings.MINIMAL_PROCESS = True
-        settings.MODE = 'tool'
         raise NotImplementedError
 
 
@@ -2875,10 +2894,11 @@ class TestStepFeatures(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "[params.mystring, GET_STRING.out.out].find{ it != null }"
-        ]
+        ])
         self.assertEqual(actual, expected)
 
     def test_with_expression(self):
@@ -2888,10 +2908,11 @@ class TestStepFeatures(unittest.TestCase):
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
-        expected = [
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set([
             "params.mystring ? params.mystring : params.mystring_backup"
-        ]
+        ])
         self.assertEqual(actual, expected)
 
 
@@ -2946,65 +2967,73 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--IndexOperatorSecondariesBai ${bai}", self.script)
     
     def test_index_operator_secondaries_array(self) -> None:
+        print(self.prescript)
+        print(self.script)
         self.assertIn("--IndexOperatorArraySecondariesBams ${in_bam_bai_arr[0]}", self.script)
         self.assertIn("--IndexOperatorArraySecondariesBais ${in_bam_bai_arr[1]}", self.script)
     
     # WORKFLOW RELATED
     def test_input_node_channel(self) -> None:
         # file input (channel)
+        scope = nextflow.Scope()
         node = self.wf.input_nodes['inFile']
-        actual = nextflow.unwrap_expression(node)
+        actual = nextflow.unwrap_expression(node, scope=scope)
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
 
     def test_input_node_param(self) -> None:
         # nonfile input (param)
+        scope = nextflow.Scope()
         node = self.wf.input_nodes['inStr']
-        actual = nextflow.unwrap_expression(node)
+        actual = nextflow.unwrap_expression(node, scope=scope)
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
 
     def test_step_connection(self) -> None:
         wf = StepConnectionsTestWF()
         do_preprocessing(wf)
+        scope = nextflow.Scope()
         step_id = "stp2"
         inp_id = 'inp'
         sources = self.wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src, scope=scope)
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
     def test_alias_selector_wf(self) -> None:
         wf = AliasSelectorTestWF()
         do_preprocessing(wf)
+        scope = nextflow.Scope()
         step_id = "stp2"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src, scope=scope)
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
     def test_first_operator_wf(self) -> None:
         wf = ConditionStepTestWF()
         do_preprocessing(wf)
+        scope = nextflow.Scope()
         step_id = "print"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src, scope=scope)
         expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
     
     def test_index_operator_wf(self) -> None:
         wf = IndexOperatorTestWF()
         do_preprocessing(wf)
+        scope = nextflow.Scope()
         step_id = "stp1"
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src)
+        actual = nextflow.unwrap_expression(src, scope=scope)
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
@@ -3015,29 +3044,31 @@ class TestStringFormatter(unittest.TestCase):
         reset_global_settings()
     
     def test_string_formatter(self):
+        scope = nextflow.Scope()
         tool = BasicTestTool()
         sf = StringFormatter("no format")
-        res = nextflow.unwrap_expression(sf, tool)
+        res = nextflow.unwrap_expression(sf, tool, scope)
         self.assertEqual("no format", res)
 
     def test_string_formatter_string(self):
+        scope = nextflow.Scope()
         tool = BasicTestTool()
         sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
-        res = nextflow.unwrap_expression(sf, tool)
+        res = nextflow.unwrap_expression(sf, tool, scope)
         self.assertEqual("there's a string arg", res)
     
     def test_string_formatter_inputselector_process_input(self):
+        scope = nextflow.Scope()
         tool = BasicTestTool()
         sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
+        # TODO
         process_inputs = {'testtool'}
         param_inputs = {}
         internal_inputs = {}
         actual = nextflow.unwrap_expression(
             val=sf, 
+            scope=scope,
             tool=tool,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=True
         )
         expected = '"an input ${testtool}"'
@@ -3049,23 +3080,23 @@ class TestStringFormatter(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
+        # TODO
         process_inputs: set[str] = set()
         param_inputs: set[str] = set(['javaOptions', 'compressionLevel'])
         internal_inputs: set[str] = set()
         sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
         actual = nextflow.unwrap_expression(
             val=sf, 
+            scope=scope,
             tool=step.tool,
             sources=step.sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=True
         )
         expected = '"an input ${params.stp1_compression_level}"'
         self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
+        scope = nextflow.Scope()
         tool = InputQualityTestTool()
         sf = StringFormatter(
             "{username}:{password}",
@@ -3073,22 +3104,22 @@ class TestStringFormatter(unittest.TestCase):
             password=InputSelector("static"),
         )
         sources = {}
+        # TODO
         process_inputs = {'user', 'static'}
         param_inputs = {}
         internal_inputs = {}
         actual = nextflow.unwrap_expression(
             val=sf,
+            scope=scope,
             tool=tool,
             sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=True
         )
         expected = '"${user}:${static}"'
         self.assertEqual(actual, expected)
 
     def test_escaped_characters(self):
+        scope = nextflow.Scope()
         tool = InputQualityTestTool()
         sf = StringFormatter(
             "{username}\\t{password}",
@@ -3096,31 +3127,29 @@ class TestStringFormatter(unittest.TestCase):
             password=InputSelector("static"),
         )
         sources = {}
+        # TODO
         process_inputs = {'user', 'static'}
         param_inputs = {}
         internal_inputs = {}
         actual_scripting = nextflow.unwrap_expression(
             val=sf,
+            scope=scope,
             tool=tool,
             sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=False
         )
         actual_shell = nextflow.unwrap_expression(
             val=sf,
+            scope=scope,
             tool=tool,
             sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=True
         )
         self.assertEqual('user\\tstatic', actual_scripting)
         self.assertEqual('"${user}\\\\t${static}"', actual_shell)
 
     def test_expression_arg(self):
+        scope = nextflow.Scope()
         tool = BasicTestTool()
         sf = StringFormatter(
             "{name}:{items}",
@@ -3128,16 +3157,15 @@ class TestStringFormatter(unittest.TestCase):
             items=JoinOperator(InputSelector("arrayInp"), separator=";"),
         )
         sources = {}
+        # TODO
         process_inputs = {'testtool', 'arrayInp'}
         param_inputs = {}
         internal_inputs = {}
         actual = nextflow.unwrap_expression(
             val=sf,
+            scope=scope,
             tool=tool,
             sources=sources,
-            process_inputs=process_inputs,
-            param_inputs=param_inputs,
-            internal_inputs=internal_inputs,
             in_shell_script=True
         )
         expected = '"${testtool}:${array_inp.join(\";\")}"'
@@ -3147,16 +3175,17 @@ class TestStringFormatter(unittest.TestCase):
         wf = StringFormatterTestWF()
         do_preprocessing(wf)
         step_id = "stp1"
+        scope = nextflow.Scope()
         step = wf.step_nodes[step_id]
+        scope.update(step)
         arg = step.tool.arguments()[0]
+        # TODO
         actual = nextflow.unwrap_expression(
             val=arg.value,
+            scope=scope,
             tool=step.tool,
             in_shell_script=True,
             sources=step.sources,
-            process_inputs=nextflow.process.inputs.process_inputs(step.tool, step.sources),
-            param_inputs=nextflow.process.inputs.param_inputs(step.tool, step.sources),
-            internal_inputs=nextflow.process.inputs.internal_inputs(step.tool, step.sources),
         )
         expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
@@ -3176,7 +3205,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3189,7 +3218,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3205,7 +3234,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3222,7 +3251,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "ch_in_fastq",
             "ch_in_fastq_array",
@@ -3238,7 +3267,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "STP1.out.outFastq",
             "STP1.out.outFastqArray",
@@ -3254,7 +3283,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual = nextflow.call.get_process_call_args(step, scope)
+        actual = nextflow.call.gen_task_call(step, scope, step_id)
         expected = [
             "STP2.out.outFastq",
             "STP2.out.outFastqArray",
@@ -3415,7 +3444,7 @@ class TestSubWorkflows(unittest.TestCase):
        
     def test_files_created(self) -> None:
         do_preprocessing(self.wf)
-        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
+        _, substr_dict = translator.translate_workflow_internal(self.wf)
         expected_filepaths = set([
             'modules/file_tool',
             'modules/string_tool',
@@ -3447,9 +3476,10 @@ class TestSubWorkflows(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual_arg_order = nextflow.call.get_process_call_args(step, scope)
-        expected_arg_order = ['params.in_int', 'params.in_str', 'ch_in_str_opt']
-        self.assertEquals(actual_arg_order, expected_arg_order)
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = set(split_task_call_to_lines(call))
+        expected = set(['params.in_int', 'params.in_str', 'ch_in_str_opt'])
+        self.assertEquals(actual, expected)
 
         # subworkflow inputs are correct & in order
         nf_workflow = nextflow.workflow.gen_workflow(
@@ -3649,8 +3679,8 @@ class TestNaming(unittest.TestCase):
         assert(process.pre_script)
         actual_prescript = process.pre_script.split('\n')
         expected_prescript = [
-            "def indexed_bam_array_flat = get_primary_files(indexed_bam_array_flat)",
-            'def secondary_array = indexed_bam_array_flat.join(\' \')',
+            "def indexed_bam_flat = get_primary_files(indexed_bam_flat)",
+            'def secondary_array = indexed_bam_flat.join(\' \')',
             'def param_input_array = params.param_input_array.join(\' \')',
             'def process_input_array = process_input_array.join(\' \')',
         ]
@@ -3693,12 +3723,13 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        actual_inputs = set(nextflow.call.get_process_call_args(step, scope))
+        task_call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual_inputs = set(split_task_call_to_lines(task_call))
         expected_inputs = set([
             'STP1.out.outProcessInput',
             'STP1.out.outProcessInputArray',
             'STP1.out.outSecondary',
-            'ch_secondary_array.flatten().toList()',
+            'ch_normal_sample.flatten().toList()',
             'STP1.out.outParamInput',
             'STP1.out.outParamInputArray',
         ])

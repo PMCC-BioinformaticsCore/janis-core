@@ -67,9 +67,11 @@ from janis_core import translation_utils as utils
 from . import channels
 from . import params
 from . import naming
+from .process import data_sources
 
 # from .plumbing import cartesian_cross_subname
 from .expressions import stringformatter_matcher
+from .scope import Scope
 
 """
 NOTE: 
@@ -87,34 +89,29 @@ this stuff is supposed to be done inside the process.
 
 def unwrap_expression(
     val: Any,
-    
+    scope: Scope,
     context: str='process',
     tool: Optional[CommandTool]=None,
-    in_shell_script: bool=False,
-    quote_strings: Optional[bool]=None,
     
     sources: Optional[dict[str, Any]]=None,
-    process_inputs: Optional[set[str]]=None,
-    param_inputs: Optional[set[str]]=None,
-    internal_inputs: Optional[set[str]]=None,
-
     scatter_target: bool=False,
     scatter_method: Optional[ScatterMethod]=None,
+
+    in_shell_script: bool=False,
+    quote_strings: Optional[bool]=None,
     ) -> Any:
 
     unwrapper = Unwrapper(
+        scope=scope,
         context=context,
         tool=tool,
+        
+        sources=sources,
+        scatter_target=scatter_target,
+        scatter_method=scatter_method,
+
         in_shell_script=in_shell_script,
         quote_strings=quote_strings,
-
-        sources=sources,
-        process_inputs=process_inputs,
-        param_inputs=param_inputs,
-        internal_inputs=internal_inputs,
-
-        scatter_target=scatter_target,
-        scatter_method=scatter_method
     )
     return unwrapper.unwrap(val)
 
@@ -126,37 +123,29 @@ class Unwrapper:
     """
     def __init__(
         self,
-
+        scope: Scope,
         context: str,
         tool: Optional[CommandTool],
-        in_shell_script: bool, 
-        quote_strings: Optional[bool],
-
+        
         sources: Optional[dict[str, Any]],
-        process_inputs: Optional[set[str]],
-        param_inputs: Optional[set[str]],
-        internal_inputs: Optional[set[str]],
-
         scatter_target: bool,
         scatter_method: Optional[ScatterMethod],
+        
+        in_shell_script: bool, 
+        quote_strings: Optional[bool],
     ) -> None:
+        self.scope = scope
         self.context = context
         self.tool = tool
+        self.scatter_target = scatter_target
+        self.scatter_method = scatter_method
+        self.quote_strings = quote_strings
+        self.in_shell_script = in_shell_script
 
         if sources:
             self.sources: dict[str, Any] = sources
         else:
             self.sources: dict[str, Any] = {}
-        
-        self.process_inputs = process_inputs
-        self.param_inputs = param_inputs
-        self.internal_inputs = internal_inputs
-
-        self.scatter_target = scatter_target
-        self.scatter_method = scatter_method
-
-        self.quote_strings = quote_strings
-        self.in_shell_script = in_shell_script
         
         self.operator_stack: list[str] = []
         self.operator_stack_ignore: list[Type[Any]] = [
@@ -339,53 +328,12 @@ class Unwrapper:
                 return True
         return False
 
-    def get_src_variable(self, inp: ToolInput) -> Optional[str]:
-        if not self.process_inputs:
-            print()
-        assert(self.process_inputs is not None)
-        assert(self.param_inputs is not None)
-        assert(self.internal_inputs is not None)
-        
-        if inp.id() in self.process_inputs:
-            src = self.get_src_process_input(inp)
-        
-        elif inp.id() in self.param_inputs:
-            src = self.get_src_param_input(inp)
-        
-        elif inp.id() in self.internal_inputs and inp.default is not None:
+    def get_src_variable(self, inp: ToolInput) -> Optional[str | list[str]]:
+        if inp.id() in data_sources.internal_inputs(self.scope) and inp.default is not None:
             src = self.unwrap(inp.default)
-
-        elif inp.id() in self.internal_inputs:
-            src = naming.process_input_name(inp)
-        
         else:
-            # something went wrong - inp is not accounted for 
-            # across process inputs, param inputs, or internal inputs
-            raise RuntimeError
-
+            src = data_sources.get_variable(self.scope, inp)
         return src
-
-    def get_src_process_input(self, inp: ToolInput) -> str:
-        # data fed via process input
-        dtype = inp.input_type # type: ignore
-        # basetype = utils.get_base_type(dtype)
-        # basetype = utils.ensure_single_type(basetype)
-        # secondary files (name mapped to ext of primary file) @secondariesarray 
-        if utils.is_secondary_type(dtype):
-            names = naming.process_input_secondaries(inp, self.sources)
-            name = names[0]
-        # everything else
-        else:
-            name = naming.process_input_name(inp)
-        return name
-
-    def get_src_param_input(self, inp: ToolInput) -> str: 
-        # data fed via global param
-        src = self.sources[inp.id()]
-        sel = src.source_map[0].source
-        param = params.get(sel.input_node.uuid)
-        param = f'params.{param.name}'
-        return param
 
     def get_input_by_id(self, inname: str) -> ToolInput:
         assert(self.tool is not None)
@@ -495,7 +443,7 @@ class Unwrapper:
             
             # special case: janis secondary -> nextflow tuple
             if utils.is_secondary_type(inp.input_type):
-                names = naming.process_input_name(inp)
+                names = data_sources.get_variable(self.scope, inp)
                 assert(isinstance(names, list))
                 return names[index] # type: ignore
         
@@ -583,14 +531,11 @@ class Unwrapper:
     def unwrap_operator(self, op: Operator) -> str:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
+            scope=self.scope,
             tool=self.tool,
             in_shell_script=self.in_shell_script,
 
             sources=self.sources,
-            process_inputs=self.process_inputs,
-            param_inputs=self.param_inputs,
-            internal_inputs=self.internal_inputs,
-
             scatter_target=self.scatter_target,
             scatter_method=self.scatter_method
         )
@@ -765,17 +710,26 @@ class Unwrapper:
         #     expr = naming.process_input_secondaries_array_primary_files(inp)
 
         if isinstance(basetype, Filename):
-            if inp.id() in self.internal_inputs:
+            if inp.id() in data_sources.process_inputs(self.scope):
                 expr = self.unwrap(dtype)
             else:
-                # super edge case
+                # super edge case - filename type referencing another input to generate name
                 ref = self.get_src_variable(inp)
+                if isinstance(ref, list):
+                    ref = ref[0]
+                if ref is None:
+                    print()
                 expr = self.unwrap_filename(basetype, ref=ref)
         
         else:
-            expr = self.get_src_variable(inp)
+            ref = self.get_src_variable(inp)
+            if isinstance(ref, list):
+                ref = ref[0]
+            assert(ref)
             if isinstance(basetype, File) and sel.remove_file_extension:
-                expr = f'{expr}.simpleName'
+                expr = f'{ref}.simpleName'
+            else:
+                expr = ref
 
         return expr
         

@@ -1,6 +1,6 @@
 
 from . import constructs
-from . import process_internal
+from . import process
 
 # from .constructs import get_construct_name
 # from .constructs import gen_varname_workflow

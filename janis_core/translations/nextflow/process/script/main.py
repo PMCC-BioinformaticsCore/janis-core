@@ -10,11 +10,10 @@ from janis_core import (
 from ...unwrap import unwrap_expression
 from ...scope import Scope
 from ...plumbing import trace
+from .. import data_sources
 
 from ... import ordering
-from ... import naming
 from ... import nfgen_utils
-from .. import inputs
 
 from .ScriptFormatter import ScriptFormatter
 
@@ -46,11 +45,7 @@ class ProcessScriptGenerator:
         self.scope = scope
         self.process_name = scope.current_entity
         self.stdout_filename = stdout_filename
-
         self.sources = sources if sources is not None else {}
-        self.process_inputs = inputs.process_inputs(self.tool, self.sources)
-        self.param_inputs = inputs.param_inputs(self.tool, self.sources)
-        self.internal_inputs = inputs.internal_inputs(self.tool, self.sources)
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -69,11 +64,9 @@ class ProcessScriptGenerator:
         for inp in ordering.order_cmdtool_inputs_arguments(self.tool):
             if isinstance(inp, ToolInput):
                 prescript, script = ScriptFormatter(
+                    scope=self.scope, 
                     tinput=inp, 
                     tool=self.tool, 
-                    process_inputs=self.process_inputs, 
-                    param_inputs=self.param_inputs, 
-                    internal_inputs=self.internal_inputs, 
                     sources=self.sources
                 ).format()
                 if prescript:
@@ -94,11 +87,9 @@ class ProcessScriptGenerator:
         # unwrap toolargument value
         expr = unwrap_expression(
             val=arg.value,
+            scope=self.scope,
             tool=self.tool,
             sources=self.sources,
-            process_inputs=self.process_inputs,
-            param_inputs=self.param_inputs,
-            internal_inputs=self.internal_inputs,
             in_shell_script=True,
             quote_strings=arg.shell_quote
         )
@@ -119,7 +110,7 @@ class ProcessScriptGenerator:
         if undef_variables:
             undef_tinputs = nfgen_utils.items_with_id(self.tool.inputs(), undef_variables)
             for tinput in undef_tinputs:
-                local_name = naming.process_input_name(tinput)
+                local_name = data_sources.get_variable(self.scope, tinput)
                 line = f'def {local_name} = null'
                 self.prescript.append(line)
                 
@@ -146,7 +137,6 @@ class ProcessScriptGenerator:
             
             # check if any are internal inputs with no default value
             for ref in referenced_ids:
-                if ref in self.internal_inputs:  
                     tinput = [x for x in self.tool.inputs() if x.id() == ref][0]
                     if tinput.default is None:
                         undef_variables.add(tinput.id())
@@ -157,11 +147,9 @@ class ProcessScriptGenerator:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 val=dirpath, 
+                scope=self.scope,
                 tool=self.tool, 
                 sources=self.sources,
-                process_inputs=self.process_inputs,
-                param_inputs=self.param_inputs,
-                internal_inputs=self.internal_inputs,
                 in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}';"

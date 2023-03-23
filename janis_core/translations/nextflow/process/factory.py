@@ -7,7 +7,7 @@ NoneType = type(None)
 
 from ..scope import Scope
 from janis_core import settings
-from .. import naming
+from . import data_sources
 from janis_core import translation_utils as utils
 
 from . import model
@@ -93,7 +93,7 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     process_inputs = inputs.create_nextflow_process_inputs(scope, tool)
 
     # outputs
-    process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
+    process_outputs = outputs.create_nextflow_process_outputs(scope, tool, sources)
 
     # script
     pre_script, main_script = script.gen_script_for_cmdtool(
@@ -154,10 +154,10 @@ def gen_process_from_codetool(
     process_inputs += inputs.create_nextflow_process_inputs(scope, tool)
 
     # outputs
-    process_outputs = outputs.create_nextflow_process_outputs(tool, sources)
+    process_outputs = outputs.create_nextflow_process_outputs(scope, tool, sources)
 
     # script
-    main_script = prepare_script_for_python_code_tool(tool, sources=sources)
+    main_script = prepare_script_for_python_code_tool(scope, tool, sources=sources)
 
     # process
     process = model.Process(
@@ -174,7 +174,7 @@ def gen_process_from_codetool(
 
 
 
-def prepare_script_for_python_code_tool(tool: PythonTool, sources: dict[str, Any]) -> str:
+def prepare_script_for_python_code_tool(scope: Scope, tool: PythonTool, sources: dict[str, Any]) -> str:
     """
     Generate the content of the script section in a Nextflow process for Janis python code tool
 
@@ -187,17 +187,17 @@ def prepare_script_for_python_code_tool(tool: PythonTool, sources: dict[str, Any
     """
     # TODO: handle args of type list of string (need to quote them)
     args: list[str] = []
-    process_inputs = inputs.process_inputs(tool, sources)
-    param_inputs = inputs.param_inputs(tool, sources)
     
     for inp in tool.inputs():
         tag: str = inp.tag
         value: Any = None
         dtype: DataType = inp.intype
 
-        if inp.id() in process_inputs or inp.id() in param_inputs:
-            src = naming.get_varname_toolinput(inp, process_inputs, param_inputs, sources)
-            value = f'${{{src}}}'
+        if inp.id() in data_sources.process_inputs(scope) or inp.id() in data_sources.param_inputs(scope):
+            varname = data_sources.get_variable(scope, inp)
+            if isinstance(varname, list):
+                varname = varname[0]
+            value = f'${{{varname}}}'
             if isinstance(dtype, Array):
                 value = f'"{value}".split(" ")'
 

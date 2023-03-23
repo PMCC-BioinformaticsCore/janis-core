@@ -9,42 +9,55 @@ from janis_core import settings
 
 
 from ..scope import Scope
-from ..process.inputs import data_sources
+from ..process import data_sources
 from .. import params
 from .. import channels
 
 
-def register_data_sources(wf: Workflow) -> None:
+def register_ds_categories(entity: Workflow | CommandTool | PythonTool) -> None:
     """
-    register param(s) for each workflow input. 
-    channel(s) may also be registered if necessary.
-    """
-    scope = Scope()
-    do_register_data_sources(wf, scope)
+    MAIN ENTRY POINT for this preprocessing task.
 
-def do_register_data_sources(wf: Workflow, scope: Scope):
+    for each CommandTool / PythonTool in entity, decides which ToolInputs are:
+        - process inputs
+        - param inputs
+        - internal inputs
+    """
+    
+    scope = Scope()
+
+    if isinstance(entity, Workflow):
+        register_ds_categories_workflow(entity, scope)
+    elif isinstance(entity, (CommandTool | PythonTool)):  # type: ignore
+        sources: dict[str, Any] = {}
+        register_ds_categories_tool(entity, sources, scope)
+    else:
+        raise RuntimeError
+
+def register_ds_categories_workflow(wf: Workflow, scope: Scope) -> None:
     for step in wf.step_nodes.values():
         current_scope = deepcopy(scope)
         current_scope.update(step)
         
         if isinstance(step.tool, CommandTool) or isinstance(step.tool, PythonTool):
-            generator = ProcessDataSourceGenerator(step.tool, step.sources)
-            generator.generate()
-            data_sources.update(
-                current_scope, 
-                generator.process_inputs, 
-                generator.param_inputs, 
-                generator.internal_inputs
-            )
+            register_ds_categories_tool(step.tool, step.sources, current_scope)
         elif isinstance(step.tool, Workflow):
-            do_register_data_sources(step.tool, current_scope)
+            register_ds_categories_workflow(step.tool, current_scope)
         else:
             raise NotImplementedError
 
-        
+def register_ds_categories_tool(tool: CommandTool | PythonTool, sources: dict[str, Any], scope: Scope) -> None:
+    generator = ProcessDSCategoryGenerator(tool, sources)
+    generator.generate()
+    data_sources.update_categories(
+        scope, 
+        generator.process_inputs, 
+        generator.param_inputs, 
+        generator.internal_inputs
+    )
 
 
-class ProcessDataSourceGenerator:
+class ProcessDSCategoryGenerator:
     """
     for a CommandTool / PythonTool, decides which of the ToolInputs / TInputs which will be:
         - process inputs
@@ -152,7 +165,6 @@ class ProcessDataSourceGenerator:
         """all CommandTool inputs. in toolmode, we have no greater scope than the tool itself."""
         return self.all_input_ids
     
-
     ### param inputs
     def get_param_inputs(self) -> set[str]:
         """gets the tool inputs which will be fed values via params"""

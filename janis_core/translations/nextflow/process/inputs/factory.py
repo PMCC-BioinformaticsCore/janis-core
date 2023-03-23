@@ -11,7 +11,6 @@ from janis_core import (
 from janis_core import translation_utils as utils
 
 from ... import nfgen_utils
-from ... import naming
 from ... import ordering
 from ...scope import Scope
 
@@ -22,7 +21,7 @@ from .model import (
     TupleProcessInput
 )
 
-from . import data_sources
+from .. import data_sources
 
 
 def create_nextflow_process_inputs(scope: Scope, tool: CommandTool | PythonTool) -> list[ProcessInput]:
@@ -93,14 +92,14 @@ class ProcessInputGenerator:
 
     def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> ProcessInput:
         # TODO ignoring secondaries_presents_as for now!
-        name = naming.process_internal.get(self.scope, inp)
+        name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
         new_input = PathProcessInput(name=name)
         return new_input
 
     def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> TupleProcessInput:
         # tuple sub-element for each file
-        subnames = naming.process_internal.get(self.scope, inp)
+        subnames = data_sources.get_variable(self.scope, inp)
         assert(isinstance(subnames, list))
         qualifiers = ['path'] * len(subnames)
         
@@ -112,7 +111,7 @@ class ProcessInputGenerator:
         return new_input
 
     def create_path_input(self, inp: ToolInput | TInput) -> PathProcessInput:
-        name = naming.process_internal.get(self.scope, inp)
+        name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         presents_as = None
@@ -122,7 +121,7 @@ class ProcessInputGenerator:
         return new_input
 
     def create_val_input(self, inp: ToolInput | TInput) -> ValProcessInput:
-        name = naming.process_internal.get(self.scope, inp)
+        name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
         new_input = ValProcessInput(name=name)
         return new_input

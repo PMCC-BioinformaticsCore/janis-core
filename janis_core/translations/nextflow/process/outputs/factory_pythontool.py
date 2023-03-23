@@ -12,6 +12,8 @@ from janis_core import (
 from janis_core import settings
 from janis_core import translation_utils as utils
 
+from ...scope import Scope
+
 from .model import (
     ProcessOutput,
     PathProcessOutput,
@@ -59,7 +61,8 @@ def is_non_file_type(out: TOutput) -> bool:
 
 ### PYTHONTOOL OUTPUTS ###
 class PythonToolProcessOutputFactory:
-    def __init__(self, out: TOutput, tool: PythonTool, sources: dict[str, Any]) -> None:
+    def __init__(self, scope: Scope, out: TOutput, tool: PythonTool, sources: dict[str, Any]) -> None:
+        self.scope = scope
         self.out = out
         self.tool = tool
         self.sources = sources

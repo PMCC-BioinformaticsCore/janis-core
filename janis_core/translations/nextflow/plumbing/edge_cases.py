@@ -6,15 +6,11 @@ from janis_core import translation_utils as utils
 
 
 
-def satisfies_edge_case(
-    src: Any, 
-    desttype: DataType, 
-    tool: CommandTool | PythonTool
-    ) -> bool:
-        if is_pythontool_array_string_output(src):
-            return True
-        # add more plumbing edge cases here as they arise
-        return False
+def satisfies_edge_case(src: Any) -> bool:
+    if is_pythontool_array_string_output(src):
+        return True
+    # add more plumbing edge cases here as they arise
+    return False
 
 def is_pythontool_array_string_output(src: Any) -> bool:
     source = src.source_map[0].source
@@ -33,7 +29,7 @@ def is_pythontool_array_string_output(src: Any) -> bool:
                 return True
     return False
 
-def handle_edge_case(src: Any, desttype: DataType, tool: CommandTool | PythonTool) -> str:
+def handle_edge_case(src: Any) -> str:
     if is_pythontool_array_string_output(src):
         operation = ".filter{ it != '' }.map{ it -> it.split(', ') }.ifEmpty( null )"
     else:

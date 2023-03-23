@@ -4,12 +4,12 @@
 from typing import Any, Optional
 from textwrap import indent
 
-from janis_core import CommandTool, PythonTool, Workflow
+from janis_core import CommandTool, PythonTool, Workflow, ScatterDescription
 from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType, Stdout
 from janis_core import settings
 
-from .. import process
+from ..process import data_sources
 from .. import nfgen_utils
 from .. import ordering
 
@@ -30,137 +30,173 @@ from .edge_cases import handle_edge_case
 
 NF_INDENT = settings.translate.nextflow.NF_INDENT
 
+ 
+def gen_task_call(step: StepNode, scope: Scope, entity_name: str) -> str:
+    generator = TaskCallGenerator(step, scope, entity_name)
+    return generator.generate()
 
-# move to unwrap.py
 
-def get_process_call_args(step: StepNode, scope: Scope):
-    tool: CommandTool | PythonTool | Workflow   = step.tool     
-    sources: dict[str, Any]                     = step.sources
+class TaskCallGenerator:
+    def __init__(self, step: StepNode, scope: Scope, entity_name: str) -> None:
+        self.step = step
+        self.scope = scope
+        self.entity_name = entity_name
+        
+        self.tool: CommandTool | PythonTool | Workflow  = self.step.tool     
+        self.sources: dict[str, Any]                    = self.step.sources
+        
+        # want to calculate these
+        self.args: list[str]                            = []
+        self.call: str = ''
+
+    def generate(self) -> str:
+        self.args = self.get_call_arguments()
+        self.call = self.format_process_call()
+        return self.call
     
-    call_args: list[str] = []
+    def get_call_arguments(self) -> list[str]:
+        call_args: list[str] = []
 
-    # getting the arg value for each required input 
-    valid_input_ids = get_input_ids(tool, sources)
-    for name in valid_input_ids:
-        if name in sources:
-            src = sources[name]
+        valid_input_ids = self.get_input_ids()
+        for tinput_id in valid_input_ids:
+            if tinput_id in self.sources:
+                generator = TaskCallArgumentGenerator(
+                    tinput_id=tinput_id,
+                    scope=self.scope,
+                    step=self.step
+                )
+                arg = generator.generate()
+                call_args.append(arg)
+        
+        # add extra arg in case of python tool - the code file.
+        # a param with the same name will have already been created. 
+        if isinstance(self.tool, PythonTool):
+            scope_joined = self.scope.to_string(ignore_base_item=True)
+            call_args = [f'params.{scope_joined}.code_file'] + call_args
+        
+        return call_args
 
-            # get basic arg
-            arg = unwrap_expression(
-                val=src,
-                context='workflow',
-                sources=sources,
-            )
-            if isinstance(arg, list):
-                raise NotImplementedError
-                call_args += arg
+    # helpers:
+    # identifying which tool inputs we need to provide an arg for 
+    def get_input_ids(self) -> list[str]:
+        # input ids which we need args for (in correct order)
+        if isinstance(self.tool, Workflow):
+            return self.get_input_ids_workflow()
+        else:
+            return self.get_input_ids_tool()
 
-            # plumbing info
-            srctype: DataType = get_src_type(src)
-            desttype: DataType = get_dest_type(tool, name)
-            dest_scatter: bool = is_dest_scatter(name, step)
-                        
-            # handle edge case (takes priority over datatype mismatches)
-            if satisfies_edge_case(src, desttype, tool):
-                suffix = handle_edge_case(src, desttype, tool)
-                arg = f'{arg}{suffix}'
+    def get_input_ids_workflow(self) -> list[str]:
+        # sub Workflow - order via workflow inputs
+        # (ignore workflow inputs which don't appear in the original janis step call)
+        subwf: Workflow = self.tool  # type: ignore
+        subwf_ids = set(self.sources.keys())
+        subwf_inputs = nfgen_utils.items_with_id(list(subwf.input_nodes.values()), subwf_ids)
+        subwf_inputs = ordering.order_workflow_inputs(subwf_inputs)
+        return [x.id() for x in subwf_inputs]
 
-            # handle datatype relationship
-            elif is_datatype_mismatch(srctype, desttype,dest_scatter):
-                suffix = gen_datatype_mismatch_plumbing(srctype, desttype, dest_scatter)
-                arg = f'{arg}{suffix}'
-            
-            call_args.append(arg)
-            
-    # add extra arg in case of python tool - the code file.
-    # a param with the same name will have already been created. 
-    if isinstance(tool, PythonTool):
-        scope_joined = scope.to_string(ignore_base_item=True)
-        call_args = [f'params.{scope_joined}.code_file'] + call_args
+    def get_input_ids_tool(self) -> list[str]:
+        # CommandTool / PythonTool - order via process inputs 
+        tool: CommandTool | PythonTool = self.tool  # type: ignore
+        process_ids = data_sources.process_inputs(self.scope)
+        process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
+        process_inputs = ordering.order_janis_process_inputs(process_inputs)
+        return [x.id() for x in process_inputs]
+    
+    # formatting process call text
+    def format_process_call(self, ind: int=0) -> str:
+        if len(self.args) == 0:
+            call_str = self.call_fmt0()
+        else:
+            call_str = self.call_fmt2()
+        # elif len(inputs) == 1:
+        #     call_str = call_fmt1(name, inputs[0])
+        # elif len(inputs) > 1:
+            # call_str = call_fmt2(name, inputs)
+        return indent(call_str, ind * NF_INDENT)
 
-    return call_args
+    def call_fmt0(self) -> str:
+        return f'{self.entity_name}()\n'
 
+    def call_fmt2(self) -> str:
+        call_str = f'{self.entity_name}(\n'
+        for i, inp in enumerate(self.args):
+            comma = ',' if i < len(self.args) - 1 else ''
+            call_str += f'{NF_INDENT}{inp}{comma}\n'
+        call_str += ')\n'
+        return call_str
 
-
-# helpers:
-# identifying which tool inputs we need to provide an arg for 
-def get_input_ids(tool: Workflow | CommandTool | PythonTool, sources: dict[str, Any]) -> list[str]:
-    # input ids which we need args for (in correct order)
-    if isinstance(tool, Workflow):
-        return get_input_ids_workflow(tool, sources)
-    else:
-        return get_input_ids_tool(tool, sources)
-
-def get_input_ids_workflow(tool: Workflow, sources: dict[str, Any]) -> list[str]:
-    # sub Workflow - order via workflow inputs
-    # (ignore workflow inputs which don't appear in the original janis step call)
-    subwf_ids = set(sources.keys())
-    subwf_inputs = nfgen_utils.items_with_id(list(tool.input_nodes.values()), subwf_ids)
-    subwf_inputs = ordering.order_workflow_inputs(subwf_inputs)
-    return [x.id() for x in subwf_inputs]
-
-def get_input_ids_tool(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[str]:
-    # CommandTool / PythonTool - order via process inputs 
-    process_ids = process.inputs.process_inputs(tool, sources)
-    process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
-    process_inputs = ordering.order_janis_process_inputs(process_inputs)
-    return [x.id() for x in process_inputs]
-
-
-# helpers:
-# identifying types for the data source (upstream wf input or step output)
-# and the data destination (tool input)
-def get_src_type(src: Any) -> Optional[DataType]:
-    # the srctype corresponds to either a workflow input, or step output.
-    # scattering doesn't matter. 
-    dtype = trace.trace_source_datatype(src)
-    if isinstance(dtype, Stdout):
-        return dtype.subtype
-    else:
-        return dtype
-
-def get_dest_type(tool: Workflow | CommandTool | PythonTool, name: str) -> DataType:
-    # the desttype corresponds to a tool input. 
-    # scattering doesn't matter. 
-    tinputs = tool.inputs_map()
-    tinp = tinputs[name]
-    return tinp.intype
-
-def is_src_scatter(src: Any) -> bool:
-    return trace.trace_source_scatter(src)
-
-def is_dest_scatter(name: str, step: StepNode) -> bool:
-    if step.scatter and name in step.scatter.fields:
-        return True
-    return False
+    # def _call_fmt1(self) -> str:
+    #     return f'{self.entity_name}( {self.args[0]} )\n'
 
 
+class TaskCallArgumentGenerator:
+    def __init__(self, tinput_id: str, scope: Scope, step: StepNode) -> None:
+        self.tinput_id = tinput_id
+        self.scope = scope
 
-# formatting process call text
-def format_process_call(name: str, inputs: list[str], ind: int=0) -> str:
-    if len(inputs) == 0:
-        call_str = _call_fmt0(name)
-    else:
-        call_str = _call_fmt2(name, inputs)
-    # elif len(inputs) == 1:
-    #     call_str = call_fmt1(name, inputs[0])
-    # elif len(inputs) > 1:
-        # call_str = call_fmt2(name, inputs)
+        self.tool: CommandTool | PythonTool | Workflow  = step.tool     
+        self.sources: dict[str, Any]                    = step.sources
+        self.scatter: Optional[ScatterDescription]      = step.scatter
+        self.src = self.sources[self.tinput_id]
 
-    return indent(call_str, ind * NF_INDENT)
+    @property
+    def srctype(self) -> DataType:
+        # identifying types for the data source (upstream wf input or step output)
+        # and the data destination (tool input)
+        # the srctype corresponds to either a workflow input, or step output.
+        # scattering doesn't matter. 
+        dtype = trace.trace_source_datatype(self.src)
+        assert(dtype)
+        if isinstance(dtype, Stdout):
+            return dtype.subtype
+        else:
+            return dtype
+        
+    @property
+    def desttype(self) -> DataType:
+        # the desttype corresponds to a tool input. 
+        # scattering doesn't matter. 
+        tinputs = self.tool.tool_inputs()
+        tinp = [x for x in tinputs if x.id() == self.tinput_id][0]
+        return tinp.intype  # type: ignore
+    
+    # @property
+    # def src_scatter(self) -> bool:
+    #     return trace.trace_source_scatter(self.src)
 
-def _call_fmt0(name: str) -> str:
-    return f'{name}()\n'
+    @property
+    def dest_scatter(self) -> bool:
+        if self.scatter and self.tinput_id in self.scatter.fields:
+            return True
+        return False
 
-def _call_fmt1(name: str, input: str) -> str:
-    return f'{name}( {input} )\n'
+    def generate(self) -> str:
+        # getting the arg value for each required input 
+        # get basic arg
+        arg = unwrap_expression(
+            val=self.src,
+            scope=self.scope, 
+            context='workflow',
+            sources=self.sources,
+        )
+        if isinstance(arg, list):
+            raise NotImplementedError
+            call_args += arg
 
-def _call_fmt2(name: str, inputs: list[str]) -> str:
-    call_str = f'{name}(\n'
-    for i, inp in enumerate(inputs):
-        comma = ',' if i < len(inputs) - 1 else ''
-        call_str += f'{NF_INDENT}{inp}{comma}\n'
-    call_str += ')\n'
-    return call_str
+        # handle edge case (takes priority over datatype mismatches)
+        if satisfies_edge_case(self.src):
+            suffix = handle_edge_case(self.src)
+            arg = f'{arg}{suffix}'
+
+        # handle datatype relationship
+        elif is_datatype_mismatch(self.srctype, self.desttype, self.dest_scatter):
+            suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter)
+            arg = f'{arg}{suffix}'
+        
+        return arg
+
+    
+
+
 
 
