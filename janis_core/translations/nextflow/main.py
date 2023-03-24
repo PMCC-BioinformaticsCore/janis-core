@@ -415,7 +415,10 @@ class NextflowTranslator(TranslatorBase):
             )
 
         if container is not None:
-            container_expr = unwrap_expression(val=container, scope=scope, tool=tool)
+            container_expr = unwrap_expression(
+                val=container, 
+                scope=scope, 
+            )
             directive = ContainerDirective(container_expr)
             process.directives.append(directive)
 

@@ -14,6 +14,7 @@ from ...scope import Scope
 from .. import data_sources
 
 from .itype import IType, get_itype
+from ..VariableManager import VariableManager
 
 
 # pre-script (PS) formatting
@@ -69,15 +70,17 @@ SC_OPT_OPTIONAL_ARR_PREFIXEACH  = '${{{var}}}'
 class ScriptFormatter:
     def __init__(self, 
         scope: Scope, 
-        tinput: ToolInput, 
         tool: CommandTool,
+        variable_manager: VariableManager,
         sources: dict[str, Any]
     ) -> None:
         self.scope = scope
-        self.tinput = tinput
         self.tool = tool
+        self.variable_manager = variable_manager
         self.sources = sources
-        self.itype = get_itype(tinput)
+        
+        self.tinput: ToolInput  # undefined at init
+        self.itype: IType       # undefined at init
 
         self.func_map = {
             IType.FLAG_TRUE:    self.flag_true,
@@ -105,29 +108,42 @@ class ScriptFormatter:
 
 
     # PUBLIC METHOD
-    def format(self) -> Tuple[Optional[str], Optional[str]]:
-        prescript: Optional[str] = None
-        script: Optional[str] = None
+    def format(self, tinput: ToolInput) -> Tuple[list[str], list[str]]:
+        self.tinput = tinput
+        self.itype = get_itype(tinput)
+
+        prescript: list[str] = []
+        script: list[str] = []
         
+        # preprocessing step for array secondaries
+        if utils.is_array_secondary_type(self.dtype):
+            func_call = self.gen_function_call('get_primary_files')
+            prescript.append(func_call)
+        
+        # handling this ToolInput
         if self.should_ignore:
-            return (None, None)
+            return ([], [])
 
         elif self.should_autofill:
-            script = self.autofill_script_expr()
+            expr = self.autofill_script_expr()
+            if expr is not None:
+                script.append(expr)
         
         else:
             formatting_func = self.func_map[self.itype]
-            prescript, script = formatting_func()
-        
-        if utils.is_array_secondary_type(self.dtype):
-            assert(prescript)
-            prescript = self.prepend_function_call(prescript, 'get_primary_files')
+            prescript_ln, script_ln = formatting_func()
+            if prescript_ln is not None:
+                prescript.append(prescript_ln)
+            if script_ln is not None:
+                script.append(script_ln)
 
         return prescript, script
 
-    def prepend_function_call(self, prescript: str, func_name: str) -> str:
-        func_call = f'def {self.src} = {func_name}({self.src})'
-        return f'{func_call}\n{prescript}'
+    def gen_function_call(self, func_name: str) -> str:
+        new_varname = self.generic_varname
+        func_call = f'def {new_varname} = {func_name}({self.current_varname})'
+        self.update_varname(new_varname)
+        return f'{func_call}'
 
     # HELPER PROPERTIES / METHODS
     @property
@@ -178,15 +194,15 @@ class ScriptFormatter:
         return False
 
     @property
-    def src(self) -> Optional[str]:
-        varname = data_sources.get_variable(self.scope, self.tinput)
-        if isinstance(varname, list):
-            varname = varname[0]
-        return varname
+    def current_varname(self) -> Optional[str]:
+        return self.variable_manager.current(self.tinput.id())
     
     @property
-    def defined_name(self) -> Optional[str]:
+    def generic_varname(self) -> Optional[str]:
         return naming.process.generic(self.tinput)
+    
+    def update_varname(self, new_varname: Optional[str]) -> None:
+        self.variable_manager.update(self.tinput.id(), new_varname)
     
     @property
     def dtype(self) -> DataType:
@@ -228,6 +244,8 @@ class ScriptFormatter:
         return unwrap_expression(
             val=val,
             scope=self.scope,
+            context='process_script',
+            variable_manager=self.variable_manager,
             tool=self.tool,
             sources=self.sources,
             in_shell_script=True,
@@ -243,9 +261,9 @@ class ScriptFormatter:
 
         if self.itype.name.endswith('ARR') or self.itype.name.endswith('ARR_PREFIXEACH'):
             if self.itype in [IType.OPT_BASIC_ARR_PREFIXEACH, IType.OPT_DEFAULT_ARR_PREFIXEACH, IType.OPT_OPTIONAL_ARR_PREFIXEACH]:
-                arr_join = ARR_JOIN_PREFIXEACH.format(src=self.src, prefix=self.prefix, delim=self.delim)
+                arr_join = ARR_JOIN_PREFIXEACH.format(src=self.current_varname, prefix=self.prefix, delim=self.delim)
             else:
-                arr_join = ARR_JOIN_BASIC.format(src=self.src, delim=self.delim)
+                arr_join = ARR_JOIN_BASIC.format(src=self.current_varname, delim=self.delim)
         
         return arr_join
     
@@ -321,21 +339,25 @@ class ScriptFormatter:
 
     ### FORMATTING METHODS BY IType
     def flag_true(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_FLAG_TRUE.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             prefix=self.prefix
         )
-        script = SC_FLAG_TRUE.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_FLAG_TRUE.format(var=self.generic_varname)
         return prescript, script
 
     def flag_false(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_FLAG_FALSE.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             prefix=self.prefix
         )
-        script = SC_FLAG_FALSE.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_FLAG_FALSE.format(var=self.current_varname)
         return prescript, script
 
     def pos_basic(self) -> Tuple[Optional[str], Optional[str]]:
@@ -344,132 +366,156 @@ class ScriptFormatter:
         Will have either a process input or param input, or will be fed a value via InputSelector.
         """
         prescript = None
-        script = SC_POS_BASIC.format(var=self.src)
+        script = SC_POS_BASIC.format(var=self.current_varname)
         return prescript, script
 
     def pos_default(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_POS_DEFAULT.format(
-            name=self.defined_name,
-            src=self.src,
+            name=new_varname,
+            src=self.current_varname,
             default=self.default
         )
-        script = SC_POS_DEFAULT.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_POS_DEFAULT.format(var=self.current_varname)
         return prescript, script
 
     def pos_optional(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_POS_OPTIONAL.format(
-            name=self.defined_name, 
-            src=self.src
+            name=new_varname, 
+            src=self.current_varname
         )
-        script = SC_POS_OPTIONAL.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_POS_OPTIONAL.format(var=self.current_varname)
         return prescript, script
 
     def pos_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_POS_BASIC_ARR.format(
-            name=self.defined_name, 
+            name=new_varname, 
             arr_join=self.arr_join
         )
-        script = SC_POS_BASIC_ARR.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_POS_BASIC_ARR.format(var=self.current_varname)
         return prescript, script
 
     def pos_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
-        assert(self.src)
-        assert(self.arr_join)
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_POS_DEFAULT_ARR.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             arr_join=self.arr_join, 
             default=self.default
         )
-        script = SC_POS_DEFAULT_ARR.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_POS_DEFAULT_ARR.format(var=self.current_varname)
         return prescript, script
 
     def pos_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_POS_OPTIONAL_ARR.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             arr_join=self.arr_join
         )
-        script = SC_POS_OPTIONAL_ARR.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_POS_OPTIONAL_ARR.format(var=self.current_varname)
         return prescript, script
 
     def opt_basic(self) -> Tuple[Optional[str], Optional[str]]:
         prescript = None
-        script = SC_OPT_BASIC.format(prefix=self.prefix, var=self.src)
+        script = SC_OPT_BASIC.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
 
     def opt_default(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_OPT_DEFAULT.format(
-            name=self.defined_name,
-            src=self.src,
+            name=new_varname,
+            src=self.current_varname,
             default=self.default
         )
-        script = SC_OPT_DEFAULT.format(prefix=self.prefix, var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_DEFAULT.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
 
     def opt_optional(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = self.generic_varname
         prescript = PS_OPT_OPTIONAL.format(
-            name=self.defined_name,
-            src=self.src,
+            name=new_varname,
+            src=self.current_varname,
             prefix=self.prefix
         )
-        script = SC_OPT_OPTIONAL.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_OPTIONAL.format(var=self.current_varname)
         return prescript, script
 
     def opt_basic_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_OPT_BASIC_ARR.format(
-            name=self.defined_name, 
+            name=new_varname, 
             arr_join=self.arr_join
         )
-        script = SC_OPT_BASIC_ARR.format(prefix=self.prefix, var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_BASIC_ARR.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
 
     def opt_default_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_OPT_DEFAULT_ARR.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             arr_join=self.arr_join, 
             default=self.default
         )
-        script = SC_OPT_DEFAULT_ARR.format(prefix=self.prefix, var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_DEFAULT_ARR.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
     
     def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_joined'
         prescript = PS_OPT_OPTIONAL_ARR.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             prefix=self.prefix,
             arr_join=self.arr_join
         )
-        script = SC_OPT_OPTIONAL_ARR.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_OPTIONAL_ARR.format(var=self.current_varname)
         return prescript, script
     
     def opt_basic_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
         # no prefix on front
+        new_varname = f'{self.generic_varname}_items'
         prescript = PS_OPT_BASIC_ARR_PREFIXEACH.format(
-            name=self.defined_name, 
+            name=new_varname, 
             arr_join=self.arr_join
         )
-        script = SC_OPT_BASIC_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_BASIC_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
 
     def opt_default_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
         # no prefix on front
+        new_varname = f'{self.generic_varname}_items'
         prescript = PS_OPT_DEFAULT_ARR_PREFIXEACH.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             arr_join=self.arr_join, 
             default=self.default
         )
-        script = SC_OPT_DEFAULT_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_DEFAULT_ARR_PREFIXEACH.format(prefix=self.prefix, var=self.current_varname)
         return prescript, script
 
     def opt_optional_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
+        new_varname = f'{self.generic_varname}_items'
         prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH.format(
-            name=self.defined_name, 
-            src=self.src, 
+            name=new_varname, 
+            src=self.current_varname, 
             prefix=self.prefix,
             arr_join=self.arr_join
         )
-        script = SC_OPT_OPTIONAL_ARR_PREFIXEACH.format(var=self.defined_name)
+        self.update_varname(new_varname)
+        script = SC_OPT_OPTIONAL_ARR_PREFIXEACH.format(var=self.current_varname)
         return prescript, script

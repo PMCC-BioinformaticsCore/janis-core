@@ -17,13 +17,14 @@ from . import inputs
 from . import outputs
 from ..plumbing import trace_entity_counts
 
+from .VariableManager import VariableManager
 
 
 get_primary_files_code = """\
-def get_primary_files(var) {
+def get_primary_files(var, element_count) {
     def primary_files = []
     var.eachWithIndex {item, index -> 
-        if (index % 2 == 0) {
+        if (index % element_count == 0) {
             primary_files.add(item)
         }
     }
@@ -82,8 +83,13 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     :return:
     :rtype:
     """
+
     # name
     process_name = scope.current_entity
+
+    # managing current variable names for tinputs
+    variable_manager = VariableManager(scope)
+    variable_manager.update_for_tool(tool)
 
     # directives
     resources = {}
@@ -92,17 +98,23 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     # inputs
     process_inputs = inputs.create_nextflow_process_inputs(scope, tool)
 
-    # outputs
-    process_outputs = outputs.create_nextflow_process_outputs(scope, tool, sources)
-
     # script
     pre_script, main_script = script.gen_script_for_cmdtool(
-        tool=tool,
         scope=scope,
+        tool=tool,
+        variable_manager=variable_manager,
         sources=sources,
         stdout_filename=settings.translate.nextflow.TOOL_STDOUT_FILENAME,
     )
     
+    # outputs
+    process_outputs = outputs.create_nextflow_process_outputs(
+        scope=scope, 
+        tool=tool, 
+        variable_manager=variable_manager,
+        sources=sources
+    )
+
     # process
     process = model.Process(
         name=process_name,
@@ -139,6 +151,10 @@ def gen_process_from_codetool(
     # name
     process_name = scope.current_entity if scope.labels else tool.id()
 
+    # managing current variable names for tinputs
+    variable_manager = VariableManager(scope)
+    variable_manager.update_for_tool(tool)
+
     # directives
     resources = {}
     process_directives = directives.gen_directives_for_process(tool, resources, scope)
@@ -153,11 +169,16 @@ def gen_process_from_codetool(
     # inputs: tool inputs
     process_inputs += inputs.create_nextflow_process_inputs(scope, tool)
 
-    # outputs
-    process_outputs = outputs.create_nextflow_process_outputs(scope, tool, sources)
-
     # script
     main_script = prepare_script_for_python_code_tool(scope, tool, sources=sources)
+    
+    # outputs
+    process_outputs = outputs.create_nextflow_process_outputs(
+        scope=scope, 
+        tool=tool, 
+        variable_manager=variable_manager, 
+        sources=sources
+    )
 
     # process
     process = model.Process(
@@ -171,7 +192,6 @@ def gen_process_from_codetool(
     )
 
     return process
-
 
 
 def prepare_script_for_python_code_tool(scope: Scope, tool: PythonTool, sources: dict[str, Any]) -> str:

@@ -1,7 +1,15 @@
 
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .process.VariableManager import VariableManager
+
 from typing import Any, Optional, Type
 NoneType = type(None)
 import re
+
+
 
 from janis_core import (
     CommandTool, 
@@ -90,7 +98,8 @@ this stuff is supposed to be done inside the process.
 def unwrap_expression(
     val: Any,
     scope: Scope,
-    context: str='process',
+    context: str='general',
+    variable_manager: Optional[VariableManager]=None,
     tool: Optional[CommandTool]=None,
     
     sources: Optional[dict[str, Any]]=None,
@@ -104,6 +113,7 @@ def unwrap_expression(
     unwrapper = Unwrapper(
         scope=scope,
         context=context,
+        variable_manager=variable_manager,
         tool=tool,
         
         sources=sources,
@@ -125,8 +135,9 @@ class Unwrapper:
         self,
         scope: Scope,
         context: str,
+        variable_manager: Optional[VariableManager],
         tool: Optional[CommandTool],
-        
+         
         sources: Optional[dict[str, Any]],
         scatter_target: bool,
         scatter_method: Optional[ScatterMethod],
@@ -136,6 +147,7 @@ class Unwrapper:
     ) -> None:
         self.scope = scope
         self.context = context
+        self.variable_manager = variable_manager
         self.tool = tool
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
@@ -335,9 +347,9 @@ class Unwrapper:
             src = data_sources.get_variable(self.scope, inp)
         return src
 
-    def get_input_by_id(self, inname: str) -> ToolInput:
+    def get_input_by_id(self, input_id: str) -> ToolInput:
         assert(self.tool is not None)
-        inputs = [x for x in self.tool.inputs() if x.id() == inname]
+        inputs = [x for x in self.tool.inputs() if x.id() == input_id]
         return inputs[0]
     
     def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
@@ -430,24 +442,21 @@ class Unwrapper:
         # self.add_quotes_to_strs = False
         return f'{arg1} {op.nextflow_symbol()} {arg2}'
 
-    
+
     # operator operators
     def unwrap_index_operator(self, op: IndexOperator) -> str:
         obj = op.args[0]
         index = op.args[1]
-        
-        # secondaries
+
+        # edge case: IndexOperator(InputSelector(SecondaryType), index))
         if isinstance(obj, InputSelector):
             sel = obj
             inp = self.get_input_by_id(sel.input_to_select)
-            
-            # special case: janis secondary -> nextflow tuple
             if utils.is_secondary_type(inp.input_type):
-                names = data_sources.get_variable(self.scope, inp)
-                assert(isinstance(names, list))
-                return names[index] # type: ignore
-        
-        # everything else
+                expr = self.unwrap_input_selector(sel, index=index)
+                return expr
+
+        # normal case
         expr = self.unwrap(obj)
         return f"{expr}[{index}]"
     
@@ -532,6 +541,8 @@ class Unwrapper:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
             scope=self.scope,
+            context=self.context,
+            variable_manager=self.variable_manager,
             tool=self.tool,
             in_shell_script=self.in_shell_script,
 
@@ -550,12 +561,33 @@ class Unwrapper:
         """
         Translate Janis StringFormatter data type to Nextflow
         """
-        if self.context == 'process':
+        if self.context == 'process_script' or self.context == 'process_output':
+            assert(self.tool)
+            assert(self.variable_manager)
             return self.unwrap_string_formatter_process(selector)
         elif self.context == 'workflow':
             return self.unwrap_string_formatter_workflow(selector)
         else:
             raise RuntimeError
+        
+    def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
+        # assert(self.tool)  # n
+        if len(selector.kwargs) == 0:
+            return str(selector)
+
+        kwarg_replacements: dict[str, Any] = {}
+
+        for k, v in selector.kwargs.items():
+            kwarg_replacements[k] = self.unwrap(v)
+
+        arg_val = selector._format
+        for k in selector.kwargs:
+            arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
+
+        if self.in_shell_script:
+            arg_val = arg_val.replace("\\", "\\\\")
+
+        return arg_val
         
     def unwrap_string_formatter_workflow(self, selector: StringFormatter) -> str:
         if len(selector.kwargs) == 0:
@@ -581,7 +613,6 @@ class Unwrapper:
         
         return text_format
 
-    
     def reformat_stringformatter_format_for_workflow_scope(self, old_format: str) -> str:
         # reformat the selector format to be correct groovy syntax for use in workflow scope
         # eg: '{tumor}--{normal}' -> '{tumor} + "--" + {normal}'
@@ -601,26 +632,7 @@ class Unwrapper:
         new_format = new_format.lstrip(' +')
         return new_format
 
-    def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
-        # assert(self.tool)  # n
-        if len(selector.kwargs) == 0:
-            return str(selector)
-
-        kwarg_replacements: dict[str, Any] = {}
-
-        for k, v in selector.kwargs.items():
-            kwarg_replacements[k] = self.unwrap(v)
-
-        arg_val = selector._format
-        for k in selector.kwargs:
-            arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
-
-        if self.in_shell_script:
-            arg_val = arg_val.replace("\\", "\\\\")
-
-        return arg_val
-
-    def unwrap_filename(self, fn: Filename, ref: Optional[str]=None) -> str:
+    def unwrap_filename(self, fn: Filename, varname: Optional[str]=None) -> str:
         """
         order:
         prefix ref suffix extension
@@ -630,12 +642,12 @@ class Unwrapper:
         etc
         """
         prefix = self.unwrap(fn.prefix) or ''
-        ref = ref or ''
+        varname = varname or ''
         suffix = self.unwrap(fn.suffix) or ''
         extension = self.unwrap(fn.extension) or ''
 
         # special prefix formatting - where ref is present
-        if ref != '' and prefix.strip('"') == 'generated':
+        if varname != '' and prefix.strip('"') == 'generated':
             prefix = ''
 
         # special suffix formatting
@@ -651,14 +663,14 @@ class Unwrapper:
 
         # inside curly braces (each component wrapped in string)
         if len(self.operator_stack) > 0:
-            items = [prefix, ref, suffix, extension]
+            items = [prefix, varname, suffix, extension]
             grouped_words = self.group_quoted_strings_in_list(items)
             expr = ' + '.join(grouped_words)
             return expr
 
         # not inside curly braces
-        if ref != '':
-            return f'{prefix}${{{ref}}}{suffix}{extension}'
+        if varname != '':
+            return f'{prefix}${{{varname}}}{suffix}{extension}'
         else:
             return f'{prefix}{suffix}{extension}'
 
@@ -687,51 +699,58 @@ class Unwrapper:
 
     def unwrap_wildcard_selector(self, sel: WildcardSelector) -> str:
         return f'{sel.wildcard}'
-
-    def unwrap_input_selector(self, sel: InputSelector) -> Optional[str]:
+    
+    def unwrap_input_selector(self, sel: InputSelector, index: Optional[int]=None) -> Optional[str]:
         """
-        Translate Janis InputSelector data type into Nextflow expressions
+        Translate Janis InputSelector data type into Nextflow expression
+        I hate this function, and I am sorry. 
         """
+        assert(self.variable_manager)
+        
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
-        
+
+        # get the ToolInput 
         inp = self.get_input_by_id(sel.input_to_select)
+
+        # get the ToolInput datatype
         dtype: DataType = inp.input_type # type: ignore
         basetype = utils.get_base_type(dtype)
         basetype = utils.ensure_single_type(basetype)
-
-        # # @secondariesarray
-        # if utils.is_array_secondary_type(dtype):
-        #     """
-        #     example: Array(BamBai)
-        #     process input name: indexed_bam_array_flat
-        #     primary files name: bams
-        #     """
-        #     expr = naming.process_input_secondaries_array_primary_files(inp)
-
-        if isinstance(basetype, Filename):
-            if inp.id() in data_sources.process_inputs(self.scope):
-                expr = self.unwrap(dtype)
-            else:
-                # super edge case - filename type referencing another input to generate name
-                ref = self.get_src_variable(inp)
-                if isinstance(ref, list):
-                    ref = ref[0]
-                if ref is None:
-                    print()
-                expr = self.unwrap_filename(basetype, ref=ref)
         
+        # get the varname for the referenced ToolInput
+        # there may be no varname for a ToolInput in the current scope. 
+        # example: ToolInput is Optional with no value supplied
+        # example: filename type referencing another input to generate name
+        if self.context == 'process_script':
+            varname = self.variable_manager.current(inp.id(), index=index)
+        elif self.context == 'process_output':
+            varname = self.variable_manager.original(inp.id(), index=index)
         else:
-            ref = self.get_src_variable(inp)
-            if isinstance(ref, list):
-                ref = ref[0]
-            assert(ref)
-            if isinstance(basetype, File) and sel.remove_file_extension:
-                expr = f'{ref}.simpleName'
+            raise RuntimeError
+        
+        # Special case: Filename
+        if isinstance(basetype, Filename):
+            # super edge case - filename type referencing another input to generate name
+            if varname:
+                expr = self.unwrap_filename(basetype, varname=varname)
             else:
-                expr = ref
+                expr = self.unwrap(basetype)
 
+        # Special case: ToolInput has default
+        elif varname:
+            # Special case: File type & remove extension
+            if isinstance(basetype, File) and sel.remove_file_extension:
+                expr = f'{varname}.simpleName'
+            else:
+                expr = varname
+        else:
+            if inp.default is not None:
+                expr = self.unwrap(inp.default)
+        
         return expr
+        
+        
         
     def unwrap_memory_selector(self, sel: MemorySelector) -> Any:
         assert(self.tool)

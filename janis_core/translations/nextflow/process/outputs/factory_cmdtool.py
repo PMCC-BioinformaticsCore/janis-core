@@ -19,6 +19,7 @@ from ...unwrap import unwrap_expression
 from janis_core import translation_utils as utils
 from .. import data_sources
 from ...scope import Scope
+from ..VariableManager import VariableManager
 
 from .model import (
     ProcessOutput,
@@ -128,10 +129,18 @@ class FmtType(Enum):
 
 ### CMDTOOL OUTPUTS ###
 class CmdtoolProcessOutputFactory:
-    def __init__(self, scope: Scope, out: ToolOutput, tool: CommandTool, sources: dict[str, Any]) -> None:
+    def __init__(
+        self, 
+        scope: Scope, 
+        out: ToolOutput, 
+        tool: CommandTool, 
+        variable_manager: VariableManager,
+        sources: dict[str, Any]
+    ) -> None:
         self.scope = scope
         self.out = out
         self.tool = tool
+        self.variable_manager = variable_manager
         self.sources = sources
         self.otype = get_otype(self.out)
         self.ftype = self.get_fmttype()
@@ -246,6 +255,8 @@ class CmdtoolProcessOutputFactory:
         return unwrap_expression(
             val=expr,
             scope=self.scope,
+            context='process_output',
+            variable_manager=self.variable_manager,
             tool=self.tool,
             sources=self.sources,
             in_shell_script=self.add_braces,

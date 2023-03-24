@@ -62,7 +62,12 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
         emit: list[WorkflowEmit] = []
         for out in wf.output_nodes.values():
             outname = out.id()
-            expression = unwrap.unwrap_expression(val=out.source, scope=scope, in_shell_script=True)
+            expression = unwrap.unwrap_expression(
+                val=out.source, 
+                context='workflow',
+                scope=scope, 
+                in_shell_script=True
+            )
             emit.append(WorkflowEmit(outname, expression))
     
     # MAIN (workflow step calls, channel operations)

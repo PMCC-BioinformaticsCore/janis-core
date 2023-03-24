@@ -175,8 +175,8 @@ class TaskCallArgumentGenerator:
         # get basic arg
         arg = unwrap_expression(
             val=self.src,
-            scope=self.scope, 
             context='workflow',
+            scope=self.scope, 
             sources=self.sources,
         )
         if isinstance(arg, list):

@@ -12,20 +12,24 @@ from ...scope import Scope
 from ...plumbing import trace
 from .. import data_sources
 
+from ... import naming
 from ... import ordering
 from ... import nfgen_utils
 
+from ..VariableManager import VariableManager
 from .ScriptFormatter import ScriptFormatter
 
 
 def gen_script_for_cmdtool(
-    tool: CommandTool,
-    stdout_filename: str,
     scope: Scope,
+    tool: CommandTool,
+    variable_manager: VariableManager,
     sources: dict[str, Any],
+    stdout_filename: str,
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
+        variable_manager=variable_manager,
         stdout_filename=stdout_filename,
         scope=scope,
         sources=sources,
@@ -36,12 +40,14 @@ def gen_script_for_cmdtool(
 class ProcessScriptGenerator:
     def __init__(
         self,
-        tool: CommandTool, 
-        stdout_filename: str,
         scope: Scope,
+        tool: CommandTool, 
+        variable_manager: VariableManager,
+        stdout_filename: str,
         sources: Optional[dict[str, Any]]=None,
     ):
         self.tool = tool
+        self.variable_manager = variable_manager
         self.scope = scope
         self.process_name = scope.current_entity
         self.stdout_filename = stdout_filename
@@ -61,18 +67,17 @@ class ProcessScriptGenerator:
         return prescript, script
     
     def handle_cmdtool_inputs(self) -> None:
+        tool_input_formatter = ScriptFormatter(
+            scope=self.scope, 
+            tool=self.tool, 
+            variable_manager=self.variable_manager,
+            sources=self.sources
+        )
         for inp in ordering.order_cmdtool_inputs_arguments(self.tool):
             if isinstance(inp, ToolInput):
-                prescript, script = ScriptFormatter(
-                    scope=self.scope, 
-                    tinput=inp, 
-                    tool=self.tool, 
-                    sources=self.sources
-                ).format()
-                if prescript:
-                    self.prescript.append(prescript)
-                if script:
-                    self.script.append(script)
+                prescript, script = tool_input_formatter.format(inp)
+                self.prescript += prescript
+                self.script += script
             else:
                 self.handle_tool_argument(inp)
 
@@ -88,6 +93,8 @@ class ProcessScriptGenerator:
         expr = unwrap_expression(
             val=arg.value,
             scope=self.scope,
+            context='process_script',
+            variable_manager=self.variable_manager,
             tool=self.tool,
             sources=self.sources,
             in_shell_script=True,
@@ -96,23 +103,15 @@ class ProcessScriptGenerator:
         line = f'{prefix}{space}{expr}'
         self.script.append(line)
 
-
     def handle_undefined_variable_references(self) -> None:
         """
         create definitions for referenced tool inputs in pre-script section
+        ensures all referenced variables in script are defined
         """
-        # ensure all referenced variables are defined
-    
-        # if self.tool.id() == 'SamToolsFlagstat':
-        #     print()
-        
         undef_variables = self.get_undefined_variable_references()
-        if undef_variables:
-            undef_tinputs = nfgen_utils.items_with_id(self.tool.inputs(), undef_variables)
-            for tinput in undef_tinputs:
-                local_name = data_sources.get_variable(self.scope, tinput)
-                line = f'def {local_name} = null'
-                self.prescript.append(line)
+        for varname in undef_variables:
+            line = f'def {varname} = null'
+            self.prescript.append(line)
                 
     def get_undefined_variable_references(self) -> set[str]:
         """
@@ -137,9 +136,13 @@ class ProcessScriptGenerator:
             
             # check if any are internal inputs with no default value
             for ref in referenced_ids:
+                varname = self.variable_manager.original(ref)
+                if varname is None:
                     tinput = [x for x in self.tool.inputs() if x.id() == ref][0]
                     if tinput.default is None:
-                        undef_variables.add(tinput.id())
+                        varname = naming.process.generic(tinput)
+                        undef_variables.add(varname)
+                        self.variable_manager.update(tinput.id(), varname)
         
         return undef_variables
 
@@ -148,8 +151,6 @@ class ProcessScriptGenerator:
             unwrapped_dir = unwrap_expression(
                 val=dirpath, 
                 scope=self.scope,
-                tool=self.tool, 
-                sources=self.sources,
                 in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}';"
@@ -165,9 +166,7 @@ class ProcessScriptGenerator:
 
     def finalise_prescript(self) -> Optional[str]:
         if self.prescript:
-            lines = list(set(self.prescript))  # make unique lines for safety?
-            lines = sorted(lines)
-            return '\n'.join(lines)
+            return '\n'.join(self.prescript)
         return None
 
     def finalise_script(self) -> str:

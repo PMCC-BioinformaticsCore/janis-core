@@ -14,9 +14,14 @@ from .model import ProcessOutput
 from .factory_cmdtool import CmdtoolProcessOutputFactory
 from .factory_pythontool import PythonToolProcessOutputFactory
 
+from ..VariableManager import VariableManager
 
-
-def create_nextflow_process_outputs(scope: Scope, tool: CommandTool | PythonTool, sources: dict[str, Any]) -> list[ProcessOutput]:
+def create_nextflow_process_outputs(
+        scope: Scope, 
+        tool: CommandTool | PythonTool,
+        variable_manager: VariableManager, 
+        sources: dict[str, Any]
+    ) -> list[ProcessOutput]:
     process_outputs: list[ProcessOutput] = []
     # name_clashes: set[str] = set()
     # if isinstance(tool, CommandTool):
@@ -24,9 +29,21 @@ def create_nextflow_process_outputs(scope: Scope, tool: CommandTool | PythonTool
     
     for out in tool.outputs():
         if isinstance(out, ToolOutput) and isinstance(tool, CommandTool):
-            factory = CmdtoolProcessOutputFactory(scope, out, tool, sources)
+            factory = CmdtoolProcessOutputFactory(
+                scope=scope, 
+                out=out, 
+                tool=tool, 
+                variable_manager=variable_manager, 
+                sources=sources
+            )
         if isinstance(out, TOutput) and isinstance(tool, PythonTool):
-            factory = PythonToolProcessOutputFactory(scope, out, tool, sources)
+            factory = PythonToolProcessOutputFactory(
+                scope=scope, 
+                out=out, 
+                tool=tool, 
+                variable_manager=variable_manager, 
+                sources=sources
+            )
     
         new_output = factory.create()
         process_outputs.append(new_output)
