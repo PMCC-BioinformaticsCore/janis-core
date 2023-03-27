@@ -98,6 +98,7 @@ class StepInputsWFInputTestWF(Workflow):
         self.input('inFile', File)
         self.input('inFileOpt', File(optional=True))
         self.input('inStr', String)
+        self.input('inStrOpt', String)
         self.input('inInt', Int)
         self.input('inBool', Boolean)
 
@@ -113,7 +114,7 @@ class StepInputsWFInputTestWF(Workflow):
                 flag_false=self.inBool,
                 opt_basic=self.inStr,
                 opt_default=self.inInt,
-                opt_optional=self.inStr,
+                opt_optional=self.inStrOpt,
             )
         )
         self.output("outFile1", File, source=self.stp1.out)

@@ -47,6 +47,14 @@ class ProcessDSCategoryRegister:
         label = scope.to_string()
         return self.data_structure[label][subtype]
 
+    def to_string(self) -> str:
+        out: str = ''
+        for scope_label, categories in self.data_structure.items():
+            out += f'\n{scope_label}\n'
+            for catname, tinput_ids in categories.items():
+                out += f'{catname}: {" ".join(tinput_ids)}\n'
+        return out
+    
 
 
 @dataclass
@@ -83,6 +91,15 @@ class ProcessDSVariableRegister:
     def get(self, scope: Scope, tinput_id: str) -> Optional[str | list[str]]:
         label = scope.to_string()
         return self.data_structure[label][tinput_id]
+    
+    def to_string(self) -> str:
+        out: str = ''
+        for scope_label, name_map in self.data_structure.items():
+            out += f'\n{scope_label}\n'
+            for tinput_id, varname in name_map.items():
+                out += f'{tinput_id}: {varname}\n'
+        return out
+
     
 
 pds_register = ProcessDSCategoryRegister()

@@ -30,6 +30,9 @@ from .combos import ScatterSecondariesTestWF
 from .outputs import OutputCollectionTestWF
 from .unwrap import UnwrapTestWF
 from .subworkflow import SubworkflowTestWF
+from .subworkflow2 import Subworkflow2TestWF
+from .subworkflow2 import Subworkflow3TestWF
+from .data_sources import DataSourceTestWF
 from .naming import NamingTestWF
 from .filepairs import FilePairsTestWF
 from .process_inputs import ProcessInputsTestWF

@@ -107,13 +107,13 @@ class NFItemRegister:
     Some entities (Tools / Workflows) may have multiple items. 
     """
     def __init__(self):
-        self.items: dict[str, list[IGetStringMethod]] = defaultdict(list)
+        self.items: dict[str, list[str]] = defaultdict(list)
 
-    def add(self, scope: Scope, nf_item: IGetStringMethod) -> None:
+    def add(self, scope: Scope, nf_item: str) -> None:
         label = scope.to_string()
         self.items[label].append(nf_item)
 
-    def get(self, scope: Scope) -> list[IGetStringMethod]:
+    def get(self, scope: Scope) -> list[str]:
         # items with current scope
         label = scope.to_string()
         nf_items = deepcopy(self.items[label]) # ???
@@ -147,8 +147,7 @@ class NextflowTranslator(TranslatorBase):
         # register params and channels for workflow inputs
         params.clear()
         channels.clear()
-        preprocessing.register_params(wf)
-        preprocessing.register_channels(wf)
+        preprocessing.register_params_channels(wf)
         preprocessing.register_ds_categories(wf)
         preprocessing.register_ds_variables(wf)
 
@@ -195,14 +194,14 @@ class NextflowTranslator(TranslatorBase):
             imports_item = process.gen_imports_for_process(tool)
             functions_item = process.gen_functions_for_process(tool)
             if imports_item:
-                cls.item_register.add(scope, imports_item)
+                cls.item_register.add(scope, imports_item.get_string())
             if functions_item:
-                cls.item_register.add(scope, functions_item)
+                cls.item_register.add(scope, functions_item.get_string())
 
             # process
             process_item = process.gen_process_from_cmdtool(tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
-            cls.item_register.add(scope, process_item)
+            cls.item_register.add(scope, process_item.get_string())
             
             # file
             process_file = NFFile(
@@ -224,8 +223,9 @@ class NextflowTranslator(TranslatorBase):
             # process
             process_item = process.gen_process_from_codetool(tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
-            cls.item_register.add(scope, process_item)
-            # file
+            cls.item_register.add(scope, process_item.get_string())
+
+            # file            
             process_file = NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
@@ -251,10 +251,10 @@ class NextflowTranslator(TranslatorBase):
                 )
 
             # item: channels item (if main workflow object)
-            if scope.labels == [settings.translate.nextflow.NF_MAIN_NAME]:
-                channels_item = channels.channels.channel_register # bad naming
-                if len(channels_item.ordered_channels) > 0:
-                    cls.item_register.add(scope, channels_item)
+            if # TODO
+            channels_item = channels.channels.channel_register.get_string(scope) # bad naming
+            if channels_item != '':
+                cls.item_register.add(scope, channels_item)
 
             # item: workflow body
             workflow_item = workflow.gen_workflow(
@@ -264,7 +264,7 @@ class NextflowTranslator(TranslatorBase):
                 wf=wf,
                 item_register=cls.item_register
             )
-            cls.item_register.add(scope, workflow_item)
+            cls.item_register.add(scope, workflow_item.get_string())
 
             # imports
             imports: list[Import] = []
@@ -286,12 +286,12 @@ class NextflowTranslator(TranslatorBase):
                 nf_import = Import(items=[nf_item], source=source)
                 imports.append(nf_import)
 
-            # file: workflow file            
+            # file: workflow file   
             workflow_file = NFFile(
                 name=identifier,  # TODO here name clash checking
                 subtype=subtype,
                 imports=imports, 
-                items=cls.item_register.get(scope),
+                items=cls.item_register.get(scope)
             )
             cls.file_register.add(scope, workflow_file)
 
@@ -324,14 +324,14 @@ class NextflowTranslator(TranslatorBase):
         imports_item = process.gen_imports_for_process(tool)
         functions_item = process.gen_functions_for_process(tool)
         if imports_item:
-            cls.item_register.add(scope, imports_item)
+            cls.item_register.add(scope, imports_item.get_string())
         if functions_item:
-            cls.item_register.add(scope, functions_item)
+            cls.item_register.add(scope, functions_item.get_string())
 
         # process
         process_item = process.gen_process_from_cmdtool(tool, sources, scope)
         process_item = cls.handle_container(scope, tool, process_item)
-        cls.item_register.add(scope, process_item)
+        cls.item_register.add(scope, process_item.get_string())
         
         # file
         process_file = NFFile(

@@ -70,10 +70,10 @@ class WfInputPriority(OrderingMethod):
 
 orderers: list[OrderingMethod] = [
     #NotNullPriority(),
-    #FileTypePriority(),
     #MandatoryPriority(),
-    #Alphabetical(),
-    WfInputPriority(),
+    Alphabetical(),
+    FileTypePriority(),
+    # WfInputPriority(),
 ]
 
 
@@ -83,6 +83,7 @@ orderers: list[OrderingMethod] = [
 class ParamRegister:
     def __init__(self):
         self.params: list[Param] = []
+        self.links: dict[str, Param] = {}
 
     @property
     def ordered_params(self) -> list[Param]:
@@ -100,9 +101,7 @@ class Param:
     name: str
     scope: Scope
     default: Any=None
-    is_channel_input: bool=False
     janis_type: Optional[DataType]=None
-    janis_uuid: Optional[str]=None
 
     @property
     def groovy_value(self) -> str:
@@ -124,38 +123,39 @@ class Param:
 
 ### MODULE ENTRY POINTS
 
-def add(janis_tag: str, 
-        scope: Scope,
-        default: Any=None,
-        is_channel_input: bool=False,
-        name_override: Optional[str]=None,
-        janis_dtype: Optional[DataType]=None, 
-        janis_uuid: Optional[str]=None
-    ) -> Param:
+def add(
+    janis_tag: str, 
+    scope: Scope,
+    default: Any=None,
+    name_override: Optional[str]=None,
+    janis_dtype: Optional[DataType]=None, 
+) -> Param:
     global param_register
-    # channel name
+    # param name
     name = naming.constructs.gen_varname_param(janis_tag, scope, name_override, janis_dtype)
     # create param
-    param = Param(name, scope, default, is_channel_input, janis_dtype, janis_uuid)
+    param = Param(name, scope, default, janis_dtype)
     # register param
     param_register.params.append(param)
     return param
+
+def create_link(janis_uuid: str, param: Param) -> None:
+    global param_register
+    param_register.links[janis_uuid] = param
     
 def exists(janis_uuid: str) -> bool:
     global param_register
-    for param in param_register.ordered_params:
-        if param.janis_uuid == janis_uuid:
-            return True
+    if janis_uuid in param_register.links:
+        return True
     return False
 
 def get(janis_uuid: str) -> Param:
-    return getall(janis_uuid)[0]
+    global param_register
+    return param_register.links[janis_uuid]
 
-def getall(janis_uuid: Optional[str]=None) -> list[Param]:
+def getall() -> list[Param]:
     global param_register
     params = param_register.ordered_params
-    if janis_uuid:
-        params = [x for x in params if x.janis_uuid == janis_uuid]
     return params
 
 def serialize() -> dict[str, Any]:
@@ -179,10 +179,8 @@ default_params = [
         'janis_tag': None,
         'scope': Scope(),
         'default': './outputs',
-        'is_channel_input': False,
         'name_override': 'outdir',
         'janis_dtype': Directory(),
-        'janis_uuid': None
     }
 ]
 
@@ -192,10 +190,8 @@ def add_default_params():
             janis_tag=p['janis_tag'], 
             scope=p['scope'],
             default=p['default'],
-            is_channel_input=p['is_channel_input'],
             name_override=p['name_override'],
             janis_dtype=p['janis_dtype'],
-            janis_uuid=p['janis_uuid'],
         )
 
 param_register = ParamRegister()

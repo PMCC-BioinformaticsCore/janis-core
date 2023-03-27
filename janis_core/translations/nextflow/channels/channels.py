@@ -4,10 +4,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
+from collections import defaultdict
+from copy import deepcopy
 
 from janis_core.types import DataType
 from uuid import uuid4
 
+
+from ..scope import Scope
 from .. import naming
 
 
@@ -99,25 +103,59 @@ class Channel:
 
 class ChannelRegister:
     def __init__(self):
-        self.channels: list[Channel] = []
+        self.data_structure: dict[str, list[Channel]] = defaultdict(list)
 
     @property
-    def ordered_channels(self) -> list[Channel]:
-        return order(self.channels)
+    def all_channels(self) -> list[Channel]:
+        channels: list[Channel] = []
+        for scoped_channels in self.data_structure.values():
+            channels += scoped_channels
+        return order(channels)
+    
+    def scoped_channels(self, scope: Scope, for_parent: bool=False) -> list[Channel]:
+        if for_parent:
+            scope_copy = deepcopy(scope)
+            scope_copy.items = scope_copy.items[:-1]
+            label = scope_copy.to_string()
+        else:
+            label = scope.to_string()
+        channels = self.data_structure[label]
+        return order(channels)
+    
+    def update(self, scope: Scope, channel: Channel) -> None:
+        scope_label = scope.to_string()
+        self.data_structure[scope_label].append(channel)
 
-    def get_string(self) -> str:
+    def get_string(self, scope: Scope) -> str:
+        is_sub_wf = True if len(scope.labels) > 1 else False
+        label = scope.to_string()
+        scoped_channels = self.data_structure[label]
+        if is_sub_wf:
+            return self._render_subwf(scoped_channels)
+        else:
+            return self._render_main(scoped_channels)
+
+    def _render_main(self, channels: list[Channel]) -> str:
         outstr = ''
-        channels = self.ordered_channels
+        channels = order(channels)
         channels = [ch for ch in channels if ch.define]
         width_col_1 = max([ch.width for ch in channels])
         for ch in channels:
             outstr += f'{ch.name:<{width_col_1}} = {ch.get_string()}\n'
         return outstr
 
+    def _render_subwf(self, channels: list[Channel]) -> str:
+        outstr = ''
+        channels = order(channels)
+        for ch in channels:
+            outstr += f'{ch.name}\n'
+        return outstr
+
 
 channel_register = ChannelRegister()
 
 def add(
+    scope: Scope,
     janis_tag: str,
     method: str,
     source: str,
@@ -133,29 +171,33 @@ def add(
     # create channel
     new_ch = Channel(name, source, method, operations, janis_uuid, define)
     # add channel
-    channel_register.channels.append(new_ch)
+    channel_register.update(scope, new_ch)
 
-def exists(janis_uuid: str) -> bool:
+def exists(scope: Scope, janis_uuid: str, for_parent: bool=False) -> bool:
     global channel_register
-    channels = getall(janis_uuid)
-    if channels:
-        return True
+    scoped_channels = channel_register.scoped_channels(scope, for_parent=for_parent)
+    for ch in scoped_channels:
+        if ch.janis_uuid == janis_uuid:
+            return True
     return False
 
-def get(janis_uuid: str) -> Channel:
-    global channel_register 
-    return getall(janis_uuid)[0]
-
-def getall(janis_uuid: Optional[str]=None) -> list[Channel]:
+def get(scope: Scope, janis_uuid: str) -> Channel:
     global channel_register
-    channels = channel_register.ordered_channels
-    if janis_uuid:
-        channels = [x for x in channels if x.janis_uuid == janis_uuid]
-    return channels
+    scoped_channels = channel_register.scoped_channels(scope)
+    for ch in scoped_channels:
+        if ch.janis_uuid == janis_uuid:
+            return ch
+    # exception - channel not found. 
+    label = scope.to_string()
+    raise LookupError(f'no channel for janis_uuid within scope {label}. use .exists() to check')
 
-def getstr() -> str:
+def getall(scope: Scope) -> list[Channel]:
+    global channel_register
+    return channel_register.scoped_channels(scope)
+
+def getstr(scope: Scope) -> str:
     global channel_register 
-    return channel_register.get_string()
+    return channel_register.get_string(scope)
 
 def clear() -> None:
     global channel_register 

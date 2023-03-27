@@ -6,7 +6,7 @@ from textwrap import indent
 
 from janis_core import settings
 from . import naming
-
+from .scope import Scope
 
 class ImportItem:
     def __init__(self, name: str, alias: Optional[str] = None):
@@ -36,7 +36,7 @@ class Import:
 
 
 class NFFile:
-    def __init__(self, subtype: str, imports: list[Import], items: list[Any], name: Optional[str]=None):
+    def __init__(self, subtype: str, imports: list[Import], items: list[str], name: Optional[str]=None):
         self.subtype = subtype
         self.imports = imports
         self.items = items
@@ -62,7 +62,7 @@ class NFFile:
         if self.imports:
             components.append("\n".join(i.get_string() for i in self.imports))
         if self.items:
-            components.extend(i.get_string() for i in self.items)
+            components.extend(i for i in self.items)
 
         return "\n\n".join(components)
     

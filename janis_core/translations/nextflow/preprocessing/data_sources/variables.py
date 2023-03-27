@@ -2,32 +2,25 @@
 
 
 from typing import Optional, Any
+from copy import deepcopy
 
 from janis_core import (
     DataType,
     TInput,
+    Workflow,
+    CommandTool, 
+    PythonTool, 
 )
 
 from janis_core import translation_utils as utils
 from janis_core import settings
 
-from .. import params
-from ..scope import Scope
-from ..casefmt import to_case
+from ... import params
+from ... import naming
 
-
-from copy import deepcopy
-from typing import Any
-
-import janis_core.translation_utils as utils
-from janis_core.workflow.workflow import Workflow
-from janis_core import CommandTool, PythonTool, TInput
-from janis_core import settings
-
-from ..scope import Scope
-from .. import naming
-from .. import params
-from ..process import data_sources
+from ...scope import Scope
+from ...casefmt import to_case
+from ...process import data_sources
 
 
 

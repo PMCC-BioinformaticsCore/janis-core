@@ -47,15 +47,9 @@ def gen_workflow(name: str, scope: Scope, sources: dict[str, Any], wf: Workflow,
         tinputs = nfgen_utils.items_with_id(all_inputs, tinput_ids)
         tinputs = ordering.order_workflow_inputs(tinputs)
         
-        # confirm channels exist & collect
-        chs: list[channels.Channel] = []
-        for inp in tinputs:
-            assert(channels.exists(inp.uuid))
-            ch = channels.get(inp.uuid)
-            chs.append(ch)
-
         # create nf WorkflowTake objects
-        for ch in chs:
+        relevant_channels = channels.getall(scope)
+        for ch in relevant_channels:
             take.append(WorkflowTake(ch.name))
         
         # EMIT

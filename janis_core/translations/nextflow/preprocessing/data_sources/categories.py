@@ -1,24 +1,25 @@
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, Optional
 
 import janis_core.translation_utils as utils
 from janis_core.workflow.workflow import Workflow, InputNode, StepNode
 from janis_core import CommandTool, PythonTool, TInput
 from janis_core import settings
 
+from ..params_channels.helpers_common import get_true_workflow_inputs
 
-from ..scope import Scope
-from ..process import data_sources
-from .. import params
-from .. import channels
+from ...scope import Scope
+from ...process import data_sources
+from ... import params
+from ... import channels
 
 
 def register_ds_categories(entity: Workflow | CommandTool | PythonTool) -> None:
     """
     MAIN ENTRY POINT for this preprocessing task.
 
-    for each CommandTool / PythonTool in entity, decides which ToolInputs are:
+    for each Workflow / CommandTool / PythonTool in entity, decides which ToolInputs are:
         - process inputs
         - param inputs
         - internal inputs
@@ -30,7 +31,7 @@ def register_ds_categories(entity: Workflow | CommandTool | PythonTool) -> None:
         register_ds_categories_workflow(entity, scope)
     elif isinstance(entity, (CommandTool | PythonTool)):  # type: ignore
         sources: dict[str, Any] = {}
-        register_ds_categories_tool(entity, sources, scope)
+        do_register_ds_categories(entity, sources, scope)
     else:
         raise RuntimeError
 
@@ -38,16 +39,12 @@ def register_ds_categories_workflow(wf: Workflow, scope: Scope) -> None:
     for step in wf.step_nodes.values():
         current_scope = deepcopy(scope)
         current_scope.update(step)
-        
-        if isinstance(step.tool, CommandTool) or isinstance(step.tool, PythonTool):
-            register_ds_categories_tool(step.tool, step.sources, current_scope)
-        elif isinstance(step.tool, Workflow):
+        do_register_ds_categories(step.tool, step.sources, current_scope)
+        if isinstance(step.tool, Workflow):
             register_ds_categories_workflow(step.tool, current_scope)
-        else:
-            raise NotImplementedError
 
-def register_ds_categories_tool(tool: CommandTool | PythonTool, sources: dict[str, Any], scope: Scope) -> None:
-    generator = ProcessDSCategoryGenerator(tool, sources)
+def do_register_ds_categories(tool: Workflow | CommandTool | PythonTool, sources: dict[str, Any], scope: Scope) -> None:
+    generator = ProcessDSCategoryGenerator(scope, tool, sources)
     generator.generate()
     data_sources.update_categories(
         scope, 
@@ -64,7 +61,8 @@ class ProcessDSCategoryGenerator:
         - param inputs
         - internal inputs
     """
-    def __init__(self, tool: CommandTool | PythonTool, sources: dict[str, Any]) -> None:
+    def __init__(self, scope: Scope, tool: Workflow | CommandTool | PythonTool, sources: dict[str, Any]) -> None:
+        self.scope = scope
         self.tool = tool
         self.sources = sources
         self.process_inputs: set[str] = set()
@@ -73,17 +71,30 @@ class ProcessDSCategoryGenerator:
 
     @property
     def tinputs(self) -> list[TInput]:
-        if isinstance(self.tool, CommandTool):
+        if isinstance(self.tool, (CommandTool, Workflow)):
             return self.tool.tool_inputs()
         elif isinstance(self.tool, PythonTool):  # type: ignore
             return self.tool.inputs()
-        else:
+        else:  # workflow
             raise NotImplementedError
     
     @property
     def all_input_ids(self) -> set[str]:
+        if isinstance(self.tool, (CommandTool, PythonTool)):
+            assert(self.all_input_ids_tool is not None)
+            return self.all_input_ids_tool
+        else:
+            assert(self.all_input_ids_workflow is not None)
+            return self.all_input_ids_workflow
+    
+    @property
+    def all_input_ids_tool(self) -> Optional[set[str]]:
         return {x.id() for x in self.tinputs} 
     
+    @property
+    def all_input_ids_workflow(self) -> Optional[set[str]]:
+        return get_true_workflow_inputs(self.tool)
+
     @property
     def channel_input_ids(self) -> set[str]:
         """get tool inputs (ids) which are linked to a channel"""
@@ -91,7 +102,7 @@ class ProcessDSCategoryGenerator:
         for tag, src in self.sources.items():
             node = utils.resolve_node(src)
             if isinstance(node, InputNode):
-                if channels.exists(node.uuid):
+                if channels.exists(self.scope, node.uuid, for_parent=True):
                     out.add(tag)
         return out
 
@@ -139,9 +150,12 @@ class ProcessDSCategoryGenerator:
     
     ### main method
     def generate(self) -> None:
+        if self.scope.to_string() == 'main.stp4.stp1':
+            print()
         self.process_inputs = self.get_process_inputs()
         self.param_inputs = self.get_param_inputs()
         self.internal_inputs = self.get_internal_inputs()
+        print()
 
     ### process inputs
     def get_process_inputs(self) -> set[str]:

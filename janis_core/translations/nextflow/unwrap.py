@@ -790,7 +790,7 @@ class Unwrapper:
         return self.unwrap(sel.input_node)
             
     def unwrap_input_node(self, node: InputNode) -> Any:
-        if channels.exists(janis_uuid=node.uuid):
+        if channels.exists(self.scope, janis_uuid=node.uuid):
             return self.unwrap_channel(node)
         
         elif params.exists(janis_uuid=node.uuid):

@@ -15,7 +15,6 @@ from janis_core.operators.selectors import StepOutputSelector
 
 from .. import naming 
 from janis_core import settings
-from .channels import getall
 
 INDENT = settings.translate.nextflow.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
