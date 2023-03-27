@@ -79,10 +79,8 @@ docs/_build/
 janis_pipelines.egg-info/
 dist/
 build/
-
-
-
-
+tests_output/
+htmlcov/
 
 \.mypy_cache/
 *.egg-info

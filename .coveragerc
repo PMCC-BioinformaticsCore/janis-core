@@ -1,0 +1,54 @@
+[run]
+branch=True
+cover_pylib=False
+concurrency=thread
+data_file=.coverage
+disable_warnings=
+    trace-changed
+    module-not-python
+    module-not-imported
+    no-data-collected
+    module-not-measured
+    # include-ignored
+omit =
+    venv/*
+    janis_core/tests/*
+    setup.py
+parallel = True
+plugins=
+include=
+    janis_core/*
+timid = False
+
+
+[report]
+
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    def parse_args
+    def main
+fail_under=0
+ignore_errors = False
+omit =
+    venv/*
+    janis_core/tests/*
+    setup.py
+precision=2
+show_missing=False
+skip_covered=False
+sort=Name
+
+[html]
+
+directory=htmlcov
+extra_css=
+title=
+
+
+[xml]
+
+output=coverage.xml
+package_depth=99
