@@ -10,7 +10,7 @@ from ... import params
 
 
 def get_linkable_params(wf: Workflow, sources: dict[str, Any]) -> dict[str, params.Param]:
-    all_inputs = get_true_workflow_inputs(wf)
+    all_inputs = get_all_workflow_inputs(wf)
     input_nodes = [wf.input_nodes[x] for x in all_inputs]
 
     out: dict[str, params.Param] = {}
@@ -41,6 +41,14 @@ def get_linkable_params(wf: Workflow, sources: dict[str, Any]) -> dict[str, para
 #     final_inputs = file_inputs | filename_inputs | scatter_inputs
 #     return final_inputs
 
+def get_all_workflow_inputs(wf: Workflow) -> set[str]:
+    true_inputs = get_true_workflow_inputs(wf)
+    file_inputs = get_file_wf_inputs(wf)
+    filename_inputs = get_filename_wf_inputs(wf)
+    scatter_inputs = get_scatter_wf_inputs(wf)
+    final_inputs = true_inputs | file_inputs | filename_inputs | scatter_inputs
+    return final_inputs
+    
 def get_true_workflow_inputs(wf: Workflow) -> set[str]:
     """
     workflow inputs are the set of InputNodes which have are referred to in 

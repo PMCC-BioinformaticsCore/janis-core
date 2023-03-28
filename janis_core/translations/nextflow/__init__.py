@@ -7,31 +7,9 @@
 
 """
 
-from .common import NFFile, Import, ImportItem, Function
-from .workflow.model import Workflow, WorkflowTake, WorkflowEmit
-from .process.directives import (
-    DiskDirective,
-    CpusDirective,
-    TimeDirective,
-    DebugDirective,
-    CacheDirective,
-    MemoryDirective,
-    ProcessDirective,
-    PublishDirDirective,
-    ContainerDirective
-)
-
-from .process import (
-    Process,
-    ProcessScriptType,
-)
-from .process.outputs import ProcessOutput
-from .process.inputs import (
-    ProcessInput,
-    ValProcessInput,
-    PathProcessInput,
-    TupleProcessInput
-)
+from .model import process
+from .model import files
+from .model import workflow
 
 from . import channels
 from . import params
@@ -39,6 +17,8 @@ from . import ordering
 from . import workflow
 from . import process
 from . import naming
+from . import data_sources
+from . import parsing
 from . import preprocessing
 
 from .plumbing import gen_task_call
@@ -51,7 +31,7 @@ from .main import NextflowTranslator
 from .scope import Scope
 from .channels import ChannelOperation
 from .channels import Channel
-from .config import generate_config
+from .parsing.config import generate_config
 from .unwrap import unwrap_expression
 from .nfgen_utils import to_groovy
 

@@ -9,7 +9,7 @@ from ... import channels
 from ... import params
 from ...scope import Scope
 
-from .helpers_common import get_true_workflow_inputs
+from .helpers_common import get_all_workflow_inputs
 
 
 
@@ -23,7 +23,7 @@ def get_param_inputs_to_register_sub(wf: Workflow, sources: dict[str, Any], scop
     
     eg we have a global param, which is accessed within a subworkflow.
     """
-    all_inputs = get_true_workflow_inputs(wf)
+    all_inputs = get_all_workflow_inputs(wf)
     channel_inputs = get_channel_inputs_to_register_sub(wf, sources, scope)
     global_param_inputs = get_global_param_inputs(wf)
     
@@ -33,7 +33,7 @@ def get_param_inputs_to_register_sub(wf: Workflow, sources: dict[str, Any], scop
     return surviving_inputs
 
 def get_global_param_inputs(wf: Workflow) -> set[str]:
-    all_inputs = get_true_workflow_inputs(wf)
+    all_inputs = get_all_workflow_inputs(wf)
     input_nodes = [wf.input_nodes[x] for x in all_inputs]
 
     out: set[str] = set()

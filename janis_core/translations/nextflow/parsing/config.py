@@ -6,8 +6,9 @@ from janis_core.types import File
 
 from janis_core import settings
 from janis_core import translation_utils as utils
-from .params import Param, getall
-from .casefmt import to_case
+
+from ..params import Param, getall
+from ..casefmt import to_case
 
 
 BOILERPLATE_LINES = ['docker.enabled = true']

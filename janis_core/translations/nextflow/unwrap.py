@@ -1,15 +1,17 @@
 
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .process.VariableManager import VariableManager
+# from typing import TYPE_CHECKING
+# if TYPE_CHECKING:
+#     from .parsing.process.VariableManager import VariableManager
 
+from .parsing.process.VariableManager import VariableManager
+from .parsing.process.VariableManager import VariableType
+
+from copy import deepcopy
 from typing import Any, Optional, Type
 NoneType = type(None)
 import re
-
-
 
 from janis_core import (
     CommandTool, 
@@ -75,7 +77,7 @@ from janis_core import translation_utils as utils
 from . import channels
 from . import params
 from . import naming
-from .process import data_sources
+from . import data_sources
 
 # from .plumbing import cartesian_cross_subname
 from .expressions import stringformatter_matcher
@@ -717,40 +719,60 @@ class Unwrapper:
         dtype: DataType = inp.input_type # type: ignore
         basetype = utils.get_base_type(dtype)
         basetype = utils.ensure_single_type(basetype)
-        
-        # get the varname for the referenced ToolInput
-        # there may be no varname for a ToolInput in the current scope. 
-        # example: ToolInput is Optional with no value supplied
-        # example: filename type referencing another input to generate name
+
+        # get the current variable for this tinput
         if self.context == 'process_script':
-            varname = self.variable_manager.current(inp.id(), index=index)
+            real_var = self.variable_manager.get(inp.id()).current
+            var = deepcopy(real_var)
         elif self.context == 'process_output':
-            varname = self.variable_manager.original(inp.id(), index=index)
+            real_var = self.variable_manager.get(inp.id()).original
+            var = deepcopy(real_var)
         else:
             raise RuntimeError
-        
+        assert(var)
+
+        if isinstance(var.value, list):
+            if index is not None:
+                var.value = var.value[index]
+            else:
+                var.value = var.value[0]
+            print()
+
         # Special case: Filename
         if isinstance(basetype, Filename):
             # super edge case - filename type referencing another input to generate name
-            if varname:
-                expr = self.unwrap_filename(basetype, varname=varname)
+            if var.value:
+                assert(isinstance(var.value, str))
+                expr = self.unwrap_filename(basetype, varname=var.value)
+                print()
             else:
                 expr = self.unwrap(basetype)
 
-        # Special case: ToolInput has default
-        elif varname:
-            # Special case: File type & remove extension
-            if isinstance(basetype, File) and sel.remove_file_extension:
-                expr = f'{varname}.simpleName'
-            else:
-                expr = varname
+        # Special case: File type & remove extension
+        elif isinstance(basetype, File) and sel.remove_file_extension:
+            expr = f'{var.value}.simpleName'
+            print()
+
+        # normal case: simple variable reference
+        elif var.vtype in [VariableType.ProcessInput, VariableType.ParamInput, VariableType.Local]:
+            expr = var.value
+
+        # static value for TInput in this process
+        elif var.vtype == VariableType.Static:
+            expr = self.unwrap(var.value)
+
+        # TInput not given value in this process, but has default
+        elif var.vtype == VariableType.Ignored and inp.default is not None:
+            expr = self.unwrap(inp.default)
+            print()
+        
+        # TInput not given value in this process, and has no default
         else:
-            if inp.default is not None:
-                expr = self.unwrap(inp.default)
+            print('\nVARIABLES')
+            print(self.variable_manager.to_string())
+            expr = None
         
         return expr
-        
-        
         
     def unwrap_memory_selector(self, sel: MemorySelector) -> Any:
         assert(self.tool)
@@ -778,11 +800,10 @@ class Unwrapper:
         ch_name.flatten()           = array -> singles (scatter.dot)
         cartesian_cross.ch_subname  = scatter.cross  
         """
-        relevant_channels = channels.getall(janis_uuid=node.uuid)
-        assert(relevant_channels)
-        assert(len(relevant_channels) == 1)
+        ch = channels.get(self.scope, node.uuid)
+        assert(ch)
         return self.get_channel_expression(
-            channel_name=relevant_channels[0].name,
+            channel_name=ch.name,
             upstream_dtype=node.datatype,
         )
 

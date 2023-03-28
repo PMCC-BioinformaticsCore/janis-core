@@ -7,10 +7,10 @@ from janis_core.workflow.workflow import Workflow, InputNode, StepNode
 from janis_core import CommandTool, PythonTool, TInput
 from janis_core import settings
 
-from ..params_channels.helpers_common import get_true_workflow_inputs
+from ..params_channels.helpers_common import get_all_workflow_inputs
 
 from ...scope import Scope
-from ...process import data_sources
+from ... import data_sources
 from ... import params
 from ... import channels
 
@@ -93,7 +93,7 @@ class ProcessDSCategoryGenerator:
     
     @property
     def all_input_ids_workflow(self) -> Optional[set[str]]:
-        return get_true_workflow_inputs(self.tool)
+        return get_all_workflow_inputs(self.tool)
 
     @property
     def channel_input_ids(self) -> set[str]:

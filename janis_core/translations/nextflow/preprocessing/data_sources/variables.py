@@ -16,11 +16,11 @@ from janis_core import translation_utils as utils
 from janis_core import settings
 
 from ... import params
-from ... import naming
+from ... import naming 
 
 from ...scope import Scope
 from ...casefmt import to_case
-from ...process import data_sources
+from ... import data_sources
 
 
 

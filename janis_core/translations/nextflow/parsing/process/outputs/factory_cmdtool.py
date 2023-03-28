@@ -13,21 +13,22 @@ from janis_core import (
     Selector,
     Filename
 )
-
-from ...plumbing import trace_entity_counts
-from ...unwrap import unwrap_expression
 from janis_core import translation_utils as utils
-from .. import data_sources
-from ...scope import Scope
+
+from ....plumbing import trace_entity_counts
+from ....unwrap import unwrap_expression
+from .... import data_sources
+from ....scope import Scope
+
 from ..VariableManager import VariableManager
 
-from .model import (
-    ProcessOutput,
-    PathProcessOutput,
-    ValProcessOutput,
-    TupleProcessOutput,
-    StdoutProcessOutput,
-    SecondariesArrayProcessOutput
+from ....model.process.outputs import (
+    NFProcessOutput,
+    NFPathProcessOutput,
+    NFValProcessOutput,
+    NFTupleProcessOutput,
+    NFStdoutProcessOutput,
+    NFSecondariesArrayProcessOutput
 )
 
 
@@ -158,7 +159,7 @@ class CmdtoolProcessOutputFactory:
         self.add_quotes: bool = False
     
     # public method
-    def create(self) -> ProcessOutput:
+    def create(self) -> NFProcessOutput:
         strategy = self.strategy_map[self.otype]
         process_output = strategy()
         return process_output
@@ -264,28 +265,28 @@ class CmdtoolProcessOutputFactory:
         )
     
     # process output creation methods
-    def stdout_output(self) -> StdoutProcessOutput:
-        return StdoutProcessOutput(name=self.out.id(), is_optional=self.optional)
+    def stdout_output(self) -> NFStdoutProcessOutput:
+        return NFStdoutProcessOutput(name=self.out.id(), is_optional=self.optional)
     
-    def non_file_output(self) -> ValProcessOutput:
+    def non_file_output(self) -> NFValProcessOutput:
         expr = self.unwrap_collection_expression(self.out.selector)
-        new_output = ValProcessOutput(
+        new_output = NFValProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
             expression=expr
         )
         return new_output
     
-    def file_output(self) -> PathProcessOutput:
+    def file_output(self) -> NFPathProcessOutput:
         expr = self.unwrap_collection_expression(self.out.selector)
-        new_output = PathProcessOutput(
+        new_output = NFPathProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional, 
             expression=expr
         )
         return new_output
     
-    def file_pair_output(self) -> TupleProcessOutput:
+    def file_pair_output(self) -> NFTupleProcessOutput:
         assert(len(self.out.selector) == 2)
         qualifiers: list[str] = ['path', 'path']
         expressions: list[str] = []
@@ -294,7 +295,7 @@ class CmdtoolProcessOutputFactory:
             expr = self.unwrap_collection_expression(item)
             expressions.append(expr)
         
-        new_output = TupleProcessOutput(
+        new_output = NFTupleProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional,
             qualifiers=qualifiers, 
@@ -302,10 +303,10 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def file_array_output(self) -> PathProcessOutput:
+    def file_array_output(self) -> NFPathProcessOutput:
         return self.file_output()
     
-    def secondaries_output(self) -> TupleProcessOutput:
+    def secondaries_output(self) -> NFTupleProcessOutput:
         """
         eg BamBai:
             selector=WildcardSelector("*.bam"),
@@ -317,7 +318,7 @@ class CmdtoolProcessOutputFactory:
             return self.secondaries_output_complex()
 
 
-    def secondaries_output_reference(self) -> TupleProcessOutput:
+    def secondaries_output_reference(self) -> NFTupleProcessOutput:
         qualifiers: list[str] = []
         expressions: list[str] = []
         
@@ -338,7 +339,7 @@ class CmdtoolProcessOutputFactory:
                 qualifiers.append('path')
                 expressions.append(f'"${{{primary_reference}}}{secondary_ext}"')
 
-        new_output = TupleProcessOutput(
+        new_output = NFTupleProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional,
             qualifiers=qualifiers, 
@@ -346,7 +347,7 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def secondaries_output_complex(self) -> TupleProcessOutput:
+    def secondaries_output_complex(self) -> NFTupleProcessOutput:
         qualifiers: list[str] = []
         expressions: list[str] = []
 
@@ -383,7 +384,7 @@ class CmdtoolProcessOutputFactory:
                 qualifiers.append('path')
                 expressions.append(f'"{secondary_expr}"')
 
-        new_output = TupleProcessOutput(
+        new_output = NFTupleProcessOutput(
             name=self.out.id(), 
             is_optional=self.optional,
             qualifiers=qualifiers, 
@@ -391,5 +392,5 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
 
-    def secondaries_array_output(self) -> SecondariesArrayProcessOutput:
+    def secondaries_array_output(self) -> NFSecondariesArrayProcessOutput:
         raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')

@@ -5,17 +5,23 @@ from janis_core import CommandTool, PythonTool
 from janis_core.types import DataType, Array, Int, Float, Double, Boolean
 NoneType = type(None)
 
-from ..scope import Scope
+from ... import data_sources
+from ...scope import Scope
 from janis_core import settings
-from . import data_sources
 from janis_core import translation_utils as utils
 
-from . import model
+from ...model.process import NFProcess
+from ...model.process import NFProcessScriptType
+from ...model.process import NFProcessInput
+from ...model.process import NFPathProcessInput
+from ...model.files import NFImportsBlock
+from ...model.files import NFFunctionsBlock
+
 from . import script
 from . import directives
 from . import inputs
 from . import outputs
-from ..plumbing import trace_entity_counts
+from ...plumbing import trace_entity_counts
 
 from .VariableManager import VariableManager
 
@@ -32,7 +38,7 @@ def get_primary_files(var, element_count) {
 }"""
 
 
-def gen_imports_for_process(tool: CommandTool) -> Optional[model.ImportsBlock]:
+def gen_imports_for_process(tool: CommandTool) -> Optional[NFImportsBlock]:
     imports: list[str] = []
     declarations: list[str] = []
 
@@ -41,7 +47,7 @@ def gen_imports_for_process(tool: CommandTool) -> Optional[model.ImportsBlock]:
         declarations.append('jsonSlurper = new JsonSlurper()')
     
     if imports:
-        return model.ImportsBlock(imports, declarations)
+        return NFImportsBlock(imports, declarations)
     else:
         return None
 
@@ -52,14 +58,14 @@ def should_add_json_slurper(tool: CommandTool) -> bool:
             return True
     return False
 
-def gen_functions_for_process(tool: CommandTool) -> Optional[model.FunctionsBlock]:
+def gen_functions_for_process(tool: CommandTool) -> Optional[NFFunctionsBlock]:
     funcs: list[str] = []
 
     if should_add_get_primary_files(tool):
         funcs.append(get_primary_files_code)
     
     if funcs:
-        return model.FunctionsBlock(funcs)
+        return NFFunctionsBlock(funcs)
     else:
         return None
     
@@ -70,7 +76,7 @@ def should_add_get_primary_files(tool: CommandTool) -> bool:
     return False
 
 
-def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope) -> model.Process:
+def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope) -> NFProcess:
     """
     Generate a Nextflow Process object for a Janis Command line tool
 
@@ -116,11 +122,11 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     )
 
     # process
-    process = model.Process(
+    process = NFProcess(
         name=process_name,
         pre_script=pre_script,
-        main_script=main_script,
-        script_type=model.ProcessScriptType.script,
+        script=main_script,
+        script_type=NFProcessScriptType.script,
         inputs=process_inputs,
         outputs=process_outputs,
         directives=process_directives
@@ -134,7 +140,7 @@ def gen_process_from_codetool(
     tool: PythonTool,
     sources: dict[str, Any],   # values fed to tool inputs (step translation)
     scope: Scope,
-) -> model.Process:
+) -> NFProcess:
     """
     Generate a Nextflow Process object for Janis python code tool
 
@@ -160,10 +166,10 @@ def gen_process_from_codetool(
     process_directives = directives.gen_directives_for_process(tool, resources, scope)
     
     # inputs
-    process_inputs: list[inputs.ProcessInput] = []
+    process_inputs: list[NFProcessInput] = []
     
     # inputs: python script
-    python_file_input = inputs.PathProcessInput(name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL)
+    python_file_input = NFPathProcessInput(name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL)
     process_inputs.append(python_file_input)
 
     # inputs: tool inputs
@@ -181,10 +187,10 @@ def gen_process_from_codetool(
     )
 
     # process
-    process = model.Process(
+    process = NFProcess(
         name=process_name,
-        main_script=main_script,
-        script_type=model.ProcessScriptType.script,
+        script=main_script,
+        script_type=NFProcessScriptType.script,
         inputs=process_inputs,
         outputs=process_outputs,
         main_exec='',

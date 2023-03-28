@@ -10,7 +10,7 @@ from janis_core import translation_utils as utils
 
 
 @dataclass
-class ProcessInput(ABC):
+class NFProcessInput(ABC):
     name: str
     
     @abstractmethod
@@ -19,14 +19,14 @@ class ProcessInput(ABC):
 
 
 @dataclass
-class ValProcessInput(ProcessInput):
+class NFValProcessInput(NFProcessInput):
 
     def get_string(self) -> str:
         return f'val {self.name}'
 
 
 @dataclass
-class PathProcessInput(ProcessInput):
+class NFPathProcessInput(NFProcessInput):
     dtype: Optional[DataType]=None
     presents_as: Optional[str]=None
 
@@ -49,7 +49,7 @@ class PathProcessInput(ProcessInput):
 
 
 @dataclass
-class TupleProcessInput(ProcessInput):
+class NFTupleProcessInput(NFProcessInput):
     qualifiers: list[str]
     subnames: list[str]
 

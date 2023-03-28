@@ -14,17 +14,17 @@ from ... import nfgen_utils
 from ... import ordering
 from ...scope import Scope
 
-from .model import (
-    ProcessInput, 
-    PathProcessInput,
-    ValProcessInput,
-    TupleProcessInput
+from ...model.process.inputs import (
+    NFProcessInput, 
+    NFPathProcessInput,
+    NFValProcessInput,
+    NFTupleProcessInput
 )
 
-from .. import data_sources
+from ... import data_sources
 
 
-def create_nextflow_process_inputs(scope: Scope, tool: CommandTool | PythonTool) -> list[ProcessInput]:
+def create_nextflow_process_inputs(scope: Scope, tool: CommandTool | PythonTool) -> list[NFProcessInput]:
     generator = ProcessInputGenerator(scope, tool)
     return generator.generate()
 
@@ -34,8 +34,8 @@ class ProcessInputGenerator:
         self.scope = scope
         self.tool = tool
 
-    def generate(self) -> list[ProcessInput]:
-        process_inputs: list[ProcessInput] = []
+    def generate(self) -> list[NFProcessInput]:
+        process_inputs: list[NFProcessInput] = []
 
         tinput_ids = data_sources.process_inputs(self.scope)
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
@@ -44,7 +44,7 @@ class ProcessInputGenerator:
             process_inputs.append(self.create_input(inp))
         return process_inputs
 
-    def create_input(self, inp: ToolInput | TInput) -> ProcessInput:
+    def create_input(self, inp: ToolInput | TInput) -> NFProcessInput:
         dtype: DataType = inp.input_type if isinstance(inp, ToolInput) else inp.intype # type: ignore
         basetype = utils.get_base_type(dtype)
         basetype = utils.ensure_single_type(basetype)
@@ -90,38 +90,38 @@ class ProcessInputGenerator:
             return True
         return False
 
-    def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> ProcessInput:
+    def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFProcessInput:
         # TODO ignoring secondaries_presents_as for now!
         name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
-        new_input = PathProcessInput(name=name)
+        new_input = NFPathProcessInput(name=name)
         return new_input
 
-    def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> TupleProcessInput:
+    def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> NFTupleProcessInput:
         # tuple sub-element for each file
         subnames = data_sources.get_variable(self.scope, inp)
         assert(isinstance(subnames, list))
         qualifiers = ['path'] * len(subnames)
         
-        new_input = TupleProcessInput(
+        new_input = NFTupleProcessInput(
             name=inp.id(), 
             qualifiers=qualifiers, 
             subnames=subnames
         )
         return new_input
 
-    def create_path_input(self, inp: ToolInput | TInput) -> PathProcessInput:
+    def create_path_input(self, inp: ToolInput | TInput) -> NFPathProcessInput:
         name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         presents_as = None
         if isinstance(inp, ToolInput):
             presents_as = inp.presents_as
-        new_input = PathProcessInput(name=name, dtype=dtype, presents_as=presents_as)
+        new_input = NFPathProcessInput(name=name, dtype=dtype, presents_as=presents_as)
         return new_input
 
-    def create_val_input(self, inp: ToolInput | TInput) -> ValProcessInput:
+    def create_val_input(self, inp: ToolInput | TInput) -> NFValProcessInput:
         name = data_sources.get_variable(self.scope, inp)
         assert(isinstance(name, str))
-        new_input = ValProcessInput(name=name)
+        new_input = NFValProcessInput(name=name)
         return new_input

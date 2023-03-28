@@ -7,16 +7,15 @@ from janis_core import (
     ToolInput,
 )
 
-from ...unwrap import unwrap_expression
-from ...scope import Scope
-from ...plumbing import trace
-from .. import data_sources
+from .... import naming
+from .... import ordering
 
-from ... import naming
-from ... import ordering
-from ... import nfgen_utils
+from ....unwrap import unwrap_expression
+from ....scope import Scope
+from ....plumbing import trace
 
 from ..VariableManager import VariableManager
+from ..VariableManager import VariableType
 from .ScriptFormatter import ScriptFormatter
 
 
@@ -58,9 +57,9 @@ class ProcessScriptGenerator:
 
     def generate(self) -> Tuple[Optional[str], str]:
         """Generate the script content of a Nextflow process for Janis command line tool"""
+        self.handle_undefined_variable_references()
         self.handle_cmdtool_directories()
         self.handle_cmdtool_base_command()
-        self.handle_undefined_variable_references()
         self.handle_cmdtool_inputs()
         prescript = self.finalise_prescript()
         script = self.finalise_script()
@@ -136,13 +135,17 @@ class ProcessScriptGenerator:
             
             # check if any are internal inputs with no default value
             for ref in referenced_ids:
-                varname = self.variable_manager.original(ref)
-                if varname is None:
+                var = self.variable_manager.get(ref).original
+                if var.vtype == VariableType.Ignored:
                     tinput = [x for x in self.tool.inputs() if x.id() == ref][0]
                     if tinput.default is None:
                         varname = naming.process.generic(tinput)
                         undef_variables.add(varname)
-                        self.variable_manager.update(tinput.id(), varname)
+                        self.variable_manager.update(
+                            tinput_id=tinput.id(), 
+                            category='local',
+                            value=varname
+                        )
         
         return undef_variables
 

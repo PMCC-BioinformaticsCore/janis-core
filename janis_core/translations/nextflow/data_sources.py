@@ -7,7 +7,7 @@ from janis_core import (
     ToolInput,
     TInput,
 )
-from ..scope import Scope
+from .scope import Scope
 
 
 @dataclass

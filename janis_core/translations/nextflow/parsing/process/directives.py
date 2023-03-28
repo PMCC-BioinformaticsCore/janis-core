@@ -1,141 +1,74 @@
 
 
-from abc import ABC, abstractmethod
 from typing import Any
-from dataclasses import dataclass
 
 from janis_core import CommandTool, PythonTool, Selector
 from janis_core.types import Int
-
-from ..casefmt import to_case
-from ..params import Param
-from ..scope import Scope
 from janis_core import settings
-from .. import params
+
+from ... import params
+from ...scope import Scope
+
+from ...model.process.directives import (
+    NFProcessDirective,
+    NFPublishDirDirective,
+    NFDebugDirective,
+    NFCpusDirective,
+    NFMemoryDirective,
+    NFTimeDirective,
+    NFDiskDirective
+)
+
 
 # TODO: Create enums for relevant directives: https://www.nextflow.io/docs/latest/process.html#directives
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
 
 
-@dataclass
-class ProcessDirective(ABC):
-
-    @abstractmethod
-    def get_string(self) -> str:
-        ...
-
-@dataclass
-class PublishDirDirective(ProcessDirective):
-    scope: Scope
-
-    def get_string(self) -> str:
-        scope = self.scope.labels[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
-        subpath = '/'.join(scope)
-        subpath = to_case(subpath, settings.translate.nextflow.NF_OUTDIR_CASE)
-        if subpath == '':
-            return f"publishDir \"$params.outdir\""
-        else:
-            return f"publishDir \"${{params.outdir}}/{subpath}\""
-
-        #return f"publishDir \"$params.outdir/$task.process\""
-        #return f"publishDir \"$launchDir/{self.process_name}\""
-    
-@dataclass
-class CacheDirective(ProcessDirective):
-    enabled: bool
-
-    def get_string(self) -> str:
-        return f"cache {str(self.enabled).lower()}"
-
-@dataclass
-class ContainerDirective(ProcessDirective):
-    container: str
-
-    def get_string(self) -> str:
-        return f'container "{self.container}"'
-
-@dataclass
-class DebugDirective(ProcessDirective):
-    debug: str
-
-    def get_string(self) -> str:
-        return f'debug {self.debug}'
-
-@dataclass
-class CpusDirective(ProcessDirective):
-    param: Param
-
-    def get_string(self) -> str:
-        return f'cpus \"${{params.{self.param.name}}}\"'
-
-@dataclass
-class DiskDirective(ProcessDirective):
-    param: Param
-    
-    def get_string(self) -> str:
-        return f'disk \"${{params.{self.param.name}}}\"'
-
-@dataclass
-class MemoryDirective(ProcessDirective):
-    param: Param
-    
-    def get_string(self) -> str:
-        return f'memory \"${{params.{self.param.name}}}\"'
-
-@dataclass
-class TimeDirective(ProcessDirective):
-    param: Param
-    
-    def get_string(self) -> str:
-        return f'time \"${{params.{self.param.name}}}\"'
-
-
-
-def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[str, Any], scope: Scope) -> list[ProcessDirective]:
+def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[str, Any], scope: Scope) -> list[NFProcessDirective]:
     
     # TODO REFACTOR
-    nf_directives: dict[str, ProcessDirective] = {}
+    nf_directives: dict[str, NFProcessDirective] = {}
     if settings.translate.nextflow.MODE == 'workflow':
-        nf_directives['publishDir'] = PublishDirDirective(scope)
-    nf_directives['debug'] = DebugDirective(debug='true')
+        nf_directives['publishDir'] = NFPublishDirDirective(scope)
+    nf_directives['debug'] = NFDebugDirective(debug='true')
 
     # Add directives from input resources
     for res, val in resources.items():
         if res.endswith("runtime_cpu"):
             param = params.add(janis_tag='cpus', scope=scope, default=val, janis_dtype=Int())
-            nf_directives['cpus'] = CpusDirective(param)
+            nf_directives['cpus'] = NFCpusDirective(param)
         
         elif res.endswith("runtime_memory"):
             param = params.add(janis_tag='memory', scope=scope, default=val, janis_dtype=Int())
-            nf_directives['memory'] = MemoryDirective(param)
+            nf_directives['memory'] = NFMemoryDirective(param)
         
         elif res.endswith("runtime_seconds"):
             param = params.add(janis_tag='time', scope=scope, default=val, janis_dtype=Int())
-            nf_directives['time'] = TimeDirective(param)
+            nf_directives['time'] = NFTimeDirective(param)
         
         elif res.endswith("runtime_disk"):
             param = params.add(janis_tag='disk', scope=scope, default=val, janis_dtype=Int())
-            nf_directives['disk'] = DiskDirective(param)
+            nf_directives['disk'] = NFDiskDirective(param)
     
     # Add directives from tool resources
     if settings.translate.nextflow.MODE == 'workflow':
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
             param = params.add(janis_tag='cpus', scope=scope, default=tool.cpus({}), janis_dtype=Int())
-            nf_directives['cpus'] = CpusDirective(param)
+            nf_directives['cpus'] = NFCpusDirective(param)
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
             param = params.add(janis_tag='memory', scope=scope, default=tool.memory({}), janis_dtype=Int())
-            nf_directives['memory'] = MemoryDirective(param)
+            nf_directives['memory'] = NFMemoryDirective(param)
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
             param = params.add(janis_tag='disk', scope=scope, default=tool.disk({}), janis_dtype=Int())
-            nf_directives['disk'] = DiskDirective(param)
+            nf_directives['disk'] = NFDiskDirective(param)
         
         if 'time' not in nf_directives and tool.time({}) is not None:
             param = params.add(janis_tag='time', scope=scope, default=tool.time({}), janis_dtype=Int())
-            nf_directives['time'] = TimeDirective(param)
+            nf_directives['time'] = NFTimeDirective(param)
     
-    final_directives: list[ProcessDirective] = []
+    final_directives: list[NFProcessDirective] = []
     for direc in nf_directives.values():
         if hasattr(direc, 'default') and isinstance(direc.default, Selector):
             continue

@@ -158,6 +158,12 @@ def getall() -> list[Param]:
     params = param_register.ordered_params
     return params
 
+def getstr() -> str:
+    global param_register
+    params = param_register.ordered_params
+    param_names = [p.name for p in params]
+    return '\n'.join(param_names)
+
 def serialize() -> dict[str, Any]:
     global param_register
     the_dict: dict[str, Any] = {}

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ProcessOutput(ABC):
+class NFProcessOutput(ABC):
     name: str
     is_optional: bool
 
@@ -24,14 +24,14 @@ class ProcessOutput(ABC):
 
 
 @dataclass
-class StdoutProcessOutput(ProcessOutput):
+class NFStdoutProcessOutput(NFProcessOutput):
 
     def get_string(self) -> str:
         return f'stdout{self.optional}{self.emit(self.name)}'
 
 
 @dataclass
-class ValProcessOutput(ProcessOutput):
+class NFValProcessOutput(NFProcessOutput):
     expression: str
 
     def get_string(self) -> str:
@@ -39,7 +39,7 @@ class ValProcessOutput(ProcessOutput):
 
 
 @dataclass
-class PathProcessOutput(ProcessOutput):
+class NFPathProcessOutput(NFProcessOutput):
     expression: str
 
     def get_string(self) -> str:
@@ -47,7 +47,7 @@ class PathProcessOutput(ProcessOutput):
 
 
 @dataclass
-class TupleProcessOutput(ProcessOutput):
+class NFTupleProcessOutput(NFProcessOutput):
     qualifiers: list[str]
     expressions: list[str]
 
@@ -64,7 +64,7 @@ class TupleProcessOutput(ProcessOutput):
 
 
 @dataclass
-class SecondariesArrayProcessOutput(ProcessOutput):
+class NFSecondariesArrayProcessOutput(NFProcessOutput):
     qualifiers: list[str]
     expressions: list[str]
     names: list[str]
