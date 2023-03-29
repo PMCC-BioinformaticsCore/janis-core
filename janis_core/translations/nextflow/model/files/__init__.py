@@ -8,4 +8,5 @@ from .files import (
     NFImport,
     NFImportItem,
     NFImportsBlock,
+    NFChannelsBlock
 )

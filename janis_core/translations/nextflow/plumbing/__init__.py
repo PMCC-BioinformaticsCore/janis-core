@@ -1,9 +1,5 @@
 
 
-from .trace import trace_entity_counts
-from .trace import trace_source_datatype
-from .trace import trace_source_scatter
-
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import is_base_type_mismatch
 from .datatype_mismatch import is_array_depth_mismatch

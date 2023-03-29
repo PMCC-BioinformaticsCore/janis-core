@@ -11,6 +11,7 @@ from .model import process
 from .model import files
 from .model import workflow
 
+from . import trace
 from . import channels
 from . import params
 from . import ordering

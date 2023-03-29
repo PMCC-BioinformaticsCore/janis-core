@@ -30,7 +30,8 @@ class ChannelRegistrationHelper:
     
     @property
     def method(self) -> str:
-        if isinstance(self.basetype, (File, Filename, Directory)) and not self.inp.datatype.optional:
+        # if isinstance(self.basetype, (File, Filename, Directory)) and not self.inp.datatype.optional:
+        if isinstance(self.basetype, (File, Filename, Directory)):
             return 'fromPath'
         return 'of'
 
@@ -90,34 +91,34 @@ class ChannelRegistrationHelper:
         
         ops: str = ''
         ops += f'.collate( {size} )'
-        if self.inp.datatype.optional:
-            ops += '.ifEmpty( null )'
+        # if self.inp.datatype.optional:
+        #     ops += '.ifEmpty( null )'
         return ops
 
     def get_operations_secondary(self) -> str:
         ops: str = ''
         ops += '.toList()'
-        if self.inp.datatype.optional:
-            ops += '.ifEmpty( null )'
+        # if self.inp.datatype.optional:
+        #     ops += '.ifEmpty( null )'
         return ops
 
     def get_operations_file_array(self) -> str:
         ops: str = ''
         ops += '.toList()'
-        if self.inp.datatype.optional:
-            ops += '.ifEmpty( null )'
+        # if self.inp.datatype.optional:
+        #     ops += '.ifEmpty( null )'
         return ops
 
     def get_operations_nonfile_array(self) -> str:
         ops: str = ''
         ops += '.toList()'
-        if self.inp.datatype.optional:
-            ops += '.ifEmpty( null )'
+        # if self.inp.datatype.optional:
+        #     ops += '.ifEmpty( null )'
         return ops
 
     def get_operations_generic(self) -> str:
         ops: str = ''
-        if self.inp.datatype.optional:
-            ops += '.ifEmpty( null )'
+        # if self.inp.datatype.optional:
+        #     ops += '.ifEmpty( null )'
         return ops
     

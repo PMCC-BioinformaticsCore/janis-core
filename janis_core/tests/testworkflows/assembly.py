@@ -5,7 +5,7 @@ from janis_core import WorkflowBuilder
 from janis_core import ScatterDescription
 from janis_core import ScatterMethods
 from janis_core import Array
-from janis_core import File
+from janis_core import File, Int
 
 from janis_core.tests.testtools import FastqcTestTool
 from janis_core.tests.testtools import UnicyclerTestTool
@@ -43,6 +43,7 @@ w.input("fastqc1_limits", File(optional=True))
 w.input("fastqc2_adapters", File(optional=True))
 w.input("fastqc2_contaminants", File(optional=True))
 w.input("fastqc2_limits", File(optional=True))
+w.input("min_len", Int(optional=True))
 
 # -------------
 # STEP1: FastQC
@@ -88,6 +89,8 @@ w.step(
     )
 
 )
+
+
 
 # ---------------------------------------
 # STEP3: Create assemblies with Unicycler

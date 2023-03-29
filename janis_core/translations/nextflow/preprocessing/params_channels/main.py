@@ -40,7 +40,6 @@ def do_register_params_channels(wf: Workflow, sources: dict[str, Any], scope: Sc
 
     param_inputs = get_param_inputs_to_register(wf, sources, scope)
     channel_inputs = get_channel_inputs_to_register(wf, sources, scope)
-    print()
 
     for inp in wf.input_nodes.values():
         # params go first

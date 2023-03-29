@@ -3,6 +3,7 @@
 
 from typing import Any, Optional
 from textwrap import indent
+from copy import deepcopy
 
 from janis_core import CommandTool, PythonTool, Workflow, ScatterDescription
 from janis_core.workflow.workflow import StepNode
@@ -16,7 +17,7 @@ from .. import ordering
 from ..unwrap import unwrap_expression
 from ..scope import Scope
 
-from . import trace
+from .. import trace
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import gen_datatype_mismatch_plumbing
 
@@ -51,6 +52,26 @@ class TaskCallGenerator:
         self.args: list[str]                            = []
         self.call: str = ''
 
+    @property
+    def workflow_scope(self) -> Scope:
+        return self.scope
+    
+    @property
+    def task_scope(self) -> Scope:
+        task_scope = deepcopy(self.scope)
+        task_scope.update(self.step)
+        return task_scope
+
+    @property
+    def ordered_process_input_ids(self) -> list[str]:
+        task_ids = data_sources.process_inputs(self.task_scope)
+        task_inputs = nfgen_utils.items_with_id(self.tool.tool_inputs(), task_ids)
+        if isinstance(self.tool, Workflow):
+            task_inputs = ordering.order_workflow_inputs(task_inputs)
+        else:
+            task_inputs = ordering.order_janis_process_inputs(task_inputs)
+        return [x.id() for x in task_inputs]
+
     def generate(self) -> str:
         self.args = self.get_call_arguments()
         self.call = self.format_process_call()
@@ -59,51 +80,26 @@ class TaskCallGenerator:
     def get_call_arguments(self) -> list[str]:
         call_args: list[str] = []
 
-        valid_input_ids = self.get_input_ids()
-        for tinput_id in valid_input_ids:
-            if tinput_id in self.sources:
-                generator = TaskCallArgumentGenerator(
-                    tinput_id=tinput_id,
-                    scope=self.scope,
-                    step=self.step
-                )
-                arg = generator.generate()
-                call_args.append(arg)
+        for tinput_id in self.ordered_process_input_ids:
+            arg = self.get_call_arg(tinput_id)
+            call_args.append(arg)
         
         # add extra arg in case of python tool - the code file.
         # a param with the same name will have already been created. 
         if isinstance(self.tool, PythonTool):
-            scope_joined = self.scope.to_string(ignore_base_item=True)
+            scope_joined = self.task_scope.to_string(ignore_base_item=True)
             call_args = [f'params.{scope_joined}.code_file'] + call_args
         
         return call_args
-
-    # helpers:
-    # identifying which tool inputs we need to provide an arg for 
-    def get_input_ids(self) -> list[str]:
-        # input ids which we need args for (in correct order)
-        if isinstance(self.tool, Workflow):
-            return self.get_input_ids_workflow()
-        else:
-            return self.get_input_ids_tool()
-
-    def get_input_ids_workflow(self) -> list[str]:
-        # sub Workflow - order via workflow inputs
-        # (ignore workflow inputs which don't appear in the original janis step call)
-        subwf: Workflow = self.tool  # type: ignore
-        subwf_ids = set(self.sources.keys())
-        subwf_inputs = nfgen_utils.items_with_id(list(subwf.input_nodes.values()), subwf_ids)
-        subwf_inputs = ordering.order_workflow_inputs(subwf_inputs)
-        return [x.id() for x in subwf_inputs]
-
-    def get_input_ids_tool(self) -> list[str]:
-        # CommandTool / PythonTool - order via process inputs 
-        tool: CommandTool | PythonTool = self.tool  # type: ignore
-        process_ids = data_sources.process_inputs(self.scope)
-        process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
-        process_inputs = ordering.order_janis_process_inputs(process_inputs)
-        return [x.id() for x in process_inputs]
     
+    def get_call_arg(self, tinput_id: str) -> str:
+        generator = TaskCallArgumentGenerator(
+            tinput_id=tinput_id,
+            scope=self.workflow_scope,
+            step=self.step
+        )
+        return generator.generate()
+
     # formatting process call text
     def format_process_call(self, ind: int=0) -> str:
         if len(self.args) == 0:
@@ -130,6 +126,32 @@ class TaskCallGenerator:
     # def _call_fmt1(self) -> str:
     #     return f'{self.entity_name}( {self.args[0]} )\n'
 
+    # # helpers:
+    # # identifying which tool inputs we need to provide an arg for 
+    # def get_input_ids(self) -> list[str]:
+    #     # input ids which we need args for (in correct order)
+    #     if isinstance(self.tool, Workflow):
+    #         return self.get_input_ids_workflow()
+    #     else:
+    #         return self.get_input_ids_tool()
+
+    # def get_input_ids_workflow(self) -> list[str]:
+    #     # sub Workflow - order via workflow inputs
+    #     # (ignore workflow inputs which don't appear in the original janis step call)
+    #     subwf: Workflow = self.tool  # type: ignore
+    #     subwf_ids = set(self.sources.keys())
+    #     subwf_inputs = nfgen_utils.items_with_id(list(subwf.input_nodes.values()), subwf_ids)
+    #     subwf_inputs = ordering.order_workflow_inputs(subwf_inputs)
+    #     return [x.id() for x in subwf_inputs]
+
+    # def get_input_ids_tool(self) -> list[str]:
+    #     # CommandTool / PythonTool - order via process inputs 
+    #     tool: CommandTool | PythonTool = self.tool  # type: ignore
+    #     process_ids = data_sources.process_inputs(self.scope)
+    #     process_inputs = nfgen_utils.items_with_id(tool.inputs(), process_ids)
+    #     process_inputs = ordering.order_janis_process_inputs(process_inputs)
+    #     return [x.id() for x in process_inputs]
+
 
 class TaskCallArgumentGenerator:
     def __init__(self, tinput_id: str, scope: Scope, step: StepNode) -> None:
@@ -137,16 +159,12 @@ class TaskCallArgumentGenerator:
         self.scope = scope
 
         self.tool: CommandTool | PythonTool | Workflow  = step.tool     
-        self.sources: dict[str, Any]                    = step.sources
         self.scatter: Optional[ScatterDescription]      = step.scatter
-        self.src = self.sources[self.tinput_id]
+        self.src: Any                                   = step.sources[self.tinput_id]
 
     @property
     def srctype(self) -> DataType:
-        # identifying types for the data source (upstream wf input or step output)
-        # and the data destination (tool input)
-        # the srctype corresponds to either a workflow input, or step output.
-        # scattering doesn't matter. 
+        """the datatype of the data source"""
         dtype = trace.trace_source_datatype(self.src)
         assert(dtype)
         if isinstance(dtype, Stdout):
@@ -156,8 +174,7 @@ class TaskCallArgumentGenerator:
         
     @property
     def desttype(self) -> DataType:
-        # the desttype corresponds to a tool input. 
-        # scattering doesn't matter. 
+        """the datatype of the relevant ToolInput"""
         tinputs = self.tool.tool_inputs()
         tinp = [x for x in tinputs if x.id() == self.tinput_id][0]
         return tinp.intype  # type: ignore
@@ -173,19 +190,17 @@ class TaskCallArgumentGenerator:
         return False
 
     def generate(self) -> str:
-        # getting the arg value for each required input 
-        # get basic arg
+        """calculate the arg which will feed this task input"""
         arg = unwrap_expression(
             val=self.src,
             context='workflow',
             scope=self.scope, 
-            sources=self.sources,
         )
         if isinstance(arg, list):
             raise NotImplementedError
             call_args += arg
 
-        # handle edge case (takes priority over datatype mismatches)
+        # handle misc edge case (takes priority over datatype mismatches)
         if satisfies_edge_case(self.src):
             suffix = handle_edge_case(self.src)
             arg = f'{arg}{suffix}'

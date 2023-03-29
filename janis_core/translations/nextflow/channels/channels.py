@@ -181,9 +181,9 @@ def exists(scope: Scope, janis_uuid: str, for_parent: bool=False) -> bool:
             return True
     return False
 
-def get(scope: Scope, janis_uuid: str) -> Channel:
+def get(scope: Scope, janis_uuid: str, for_parent: bool=False) -> Channel:
     global channel_register
-    scoped_channels = channel_register.scoped_channels(scope)
+    scoped_channels = channel_register.scoped_channels(scope, for_parent=for_parent)
     for ch in scoped_channels:
         if ch.janis_uuid == janis_uuid:
             return ch

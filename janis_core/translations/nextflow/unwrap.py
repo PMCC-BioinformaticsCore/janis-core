@@ -104,7 +104,6 @@ def unwrap_expression(
     variable_manager: Optional[VariableManager]=None,
     tool: Optional[CommandTool]=None,
     
-    sources: Optional[dict[str, Any]]=None,
     scatter_target: bool=False,
     scatter_method: Optional[ScatterMethod]=None,
 
@@ -117,8 +116,7 @@ def unwrap_expression(
         context=context,
         variable_manager=variable_manager,
         tool=tool,
-        
-        sources=sources,
+
         scatter_target=scatter_target,
         scatter_method=scatter_method,
 
@@ -140,7 +138,6 @@ class Unwrapper:
         variable_manager: Optional[VariableManager],
         tool: Optional[CommandTool],
          
-        sources: Optional[dict[str, Any]],
         scatter_target: bool,
         scatter_method: Optional[ScatterMethod],
         
@@ -156,11 +153,6 @@ class Unwrapper:
         self.quote_strings = quote_strings
         self.in_shell_script = in_shell_script
 
-        if sources:
-            self.sources: dict[str, Any] = sources
-        else:
-            self.sources: dict[str, Any] = {}
-        
         self.operator_stack: list[str] = []
         self.operator_stack_ignore: list[Type[Any]] = [
             WildcardSelector,
@@ -548,7 +540,6 @@ class Unwrapper:
             tool=self.tool,
             in_shell_script=self.in_shell_script,
 
-            sources=self.sources,
             scatter_target=self.scatter_target,
             scatter_method=self.scatter_method
         )
@@ -751,7 +742,6 @@ class Unwrapper:
         # Special case: File type & remove extension
         elif isinstance(basetype, File) and sel.remove_file_extension:
             expr = f'{var.value}.simpleName'
-            print()
 
         # normal case: simple variable reference
         elif var.vtype in [VariableType.ProcessInput, VariableType.ParamInput, VariableType.Local]:
@@ -800,8 +790,9 @@ class Unwrapper:
         ch_name.flatten()           = array -> singles (scatter.dot)
         cartesian_cross.ch_subname  = scatter.cross  
         """
-        ch = channels.get(self.scope, node.uuid)
-        assert(ch)
+        if self.context != 'workflow':
+            raise RuntimeError
+        ch = channels.get(self.scope, janis_uuid=node.uuid)
         return self.get_channel_expression(
             channel_name=ch.name,
             upstream_dtype=node.datatype,
@@ -811,6 +802,8 @@ class Unwrapper:
         return self.unwrap(sel.input_node)
             
     def unwrap_input_node(self, node: InputNode) -> Any:
+        if self.context != 'workflow':
+            raise RuntimeError
         if channels.exists(self.scope, janis_uuid=node.uuid):
             return self.unwrap_channel(node)
         

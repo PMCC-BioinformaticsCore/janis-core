@@ -40,6 +40,7 @@ from .ordering import OrderingTestWF
 from .plumbing_edge_cases import PlumbingEdgeCaseTestWF
 from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
 from .trace import EntityTraceTestWF
+from .optional import OptionalTestWF
 
 from .assembly import w as AssemblyTestWF
 from .string_formatter import StringFormatterTestWF

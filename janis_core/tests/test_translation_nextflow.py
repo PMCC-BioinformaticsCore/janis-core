@@ -70,7 +70,8 @@ from janis_core.tests.testworkflows import (
     FilePairsTestWF,
     ProcessInputsTestWF,
     OrderingTestWF,
-    PlumbingEdgeCaseTestWF
+    PlumbingEdgeCaseTestWF,
+    OptionalTestWF
 ) 
 
 from janis_core import (
@@ -112,7 +113,7 @@ from janis_core import settings
 
 ### helper functions
 
-def reset_global_settings() -> None:
+def reset_globals() -> None:
     # nextflow specific
     settings.translate.nextflow.MODE = 'workflow'
     settings.translate.nextflow.MINIMAL_PROCESS = True
@@ -136,6 +137,8 @@ def reset_global_settings() -> None:
     settings.translate.MAX_CORES = None           
     settings.translate.MAX_DURATION = None           
     settings.translate.MAX_MEM = None
+
+    nextflow.preprocessing.params_channels.no_file_count = 0
 
 def do_preprocessing_workflow(wf: Workflow) -> None:
     nextflow.params.clear()
@@ -188,7 +191,7 @@ class DataTypeNoSecondary(File):
 class TestPreprocessingHelpers(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_get_true_workflow_inputs_1(self) -> None:
         wf = DataSourceTestWF()
@@ -307,10 +310,11 @@ class TestPreprocessingHelpers(unittest.TestCase):
 class TestDataSourceCategories(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         self.wf = DataSourceTestWF()
         do_preprocessing_workflow(self.wf)
         self.pdsr = nextflow.data_sources.pds_register.data_structure
+        print(nextflow.data_sources.pds_register.to_string())
 
     def test_stp1(self) -> None:
         label = 'main.stp1'
@@ -509,7 +513,7 @@ class TestDataSourceCategories(unittest.TestCase):
 class TestDataSourceVaraibles(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         self.wf = DataSourceTestWF()
         do_preprocessing_workflow(self.wf)
         self.pdsv = nextflow.data_sources.pvn_register.data_structure
@@ -670,7 +674,7 @@ class TestDataSourceVaraibles(unittest.TestCase):
 class TestToGroovyStr(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_string(self) -> None:
         inp = 'Hello'
@@ -749,7 +753,7 @@ class TestToGroovyStr(unittest.TestCase):
 
 class TestSettings(unittest.TestCase):
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_get_settings(self):
         self.assertEquals(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
@@ -765,7 +769,7 @@ class TestSettings(unittest.TestCase):
 class TestParams(unittest.TestCase):
     
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
     
     def test_channel_params(self) -> None:
         """
@@ -800,11 +804,30 @@ class TestParams(unittest.TestCase):
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
-            'in_file_opt': 'null',
+            'in_file_opt': "'NO_FILE1'",
             'in_str': 'null',
             'in_str_opt': 'null',
             'in_int': 'null',
             'in_bool': 'null',
+        }
+        self.assertEquals(actual_params, expected_params)
+    
+    def test_optional_workflow_inputs(self) -> None:
+        wf = OptionalTestWF()
+        do_preprocessing_workflow(wf)
+        actual_params = nextflow.params.serialize()
+        expected_params = {
+            'in_file': "null",
+            'in_file_array': "[]",
+            'in_file_array_opt': "['NO_FILE5']",
+            'in_file_opt': "'NO_FILE6'",
+            'in_secondary': "null",
+            'in_secondary_array': "[]",
+            'in_secondary_array_opt': "[['NO_FILE1', 'NO_FILE2']]",
+            'in_secondary_opt': "['NO_FILE3', 'NO_FILE4']",
+            'in_file_pair': "[]",
+            'in_file_pair_opt': "[]",
+            'outdir': "'./outputs'",
         }
         self.assertEquals(actual_params, expected_params)
 
@@ -817,16 +840,16 @@ class TestParams(unittest.TestCase):
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
-            'in_str': 'null',
-            'in_int': 'null',
-            'in_bool': 'null',
-            'stp2_pos_default': '100',
-            'stp2_pos_optional': "'static'",
-            'stp2_flag_true': 'false',
-            'stp2_flag_false': 'true',
-            'stp2_opt_basic': "'static'",
-            'stp2_opt_default': '100',
-            'stp2_opt_optional': "''"
+            # 'in_str': 'null',
+            # 'in_int': 'null',
+            # 'in_bool': 'null',
+            # 'stp2_pos_default': '100',
+            # 'stp2_pos_optional': "'static'",
+            # 'stp2_flag_true': 'false',
+            # 'stp2_flag_false': 'true',
+            # 'stp2_opt_basic': "'static'",
+            # 'stp2_opt_default': '100',
+            # 'stp2_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
     
@@ -839,12 +862,12 @@ class TestParams(unittest.TestCase):
         expected_params = {
             'outdir': "'./outputs'",
             'in_file': 'null',
-            'in_str': 'null',
-            'in_int': 'null',
-            'in_bool': 'null',
-            'stp3_opt_basic': "'static'",
-            'stp3_opt_default': '100',
-            'stp3_opt_optional': "''"
+            # 'in_str': 'null',
+            # 'in_int': 'null',
+            # 'in_bool': 'null',
+            # 'stp3_opt_basic': "'static'",
+            # 'stp3_opt_default': '100',
+            # 'stp3_opt_optional': "''"
         }
         self.assertEquals(actual_params, expected_params)
     
@@ -858,8 +881,8 @@ class TestParams(unittest.TestCase):
             'outdir': "'./outputs'",
             'in_file': 'null',
             'in_str': 'null',
-            'in_int': 'null',
-            'in_bool': 'null',
+            # 'in_int': 'null',
+            # 'in_bool': 'null',
         }
         self.assertEquals(actual_params, expected_params)
 
@@ -913,11 +936,11 @@ class TestParams(unittest.TestCase):
 
 
 
-class TestFileFormatting(unittest.TestCase):
+class TestFileFormats(unittest.TestCase):
 
     def setUp(self) -> None:
         self.maxDiff = None
-        reset_global_settings()
+        reset_globals()
 
     def test_main_workflow(self) -> None:
         wf = AssemblyTestWF()
@@ -933,12 +956,12 @@ class TestFileFormatting(unittest.TestCase):
             "ch_in_long_reads        = Channel.fromPath( params.in_long_reads )",
             "ch_in_reverse_reads     = Channel.fromPath( params.in_reverse_reads )",
             "ch_test_input           = Channel.fromPath( params.test_input )",
-            "ch_fastqc1_adapters     = Channel.fromPath( params.fastqc1_adapters ).ifEmpty( null )",
-            "ch_fastqc1_contaminants = Channel.fromPath( params.fastqc1_contaminants ).ifEmpty( null )",
-            "ch_fastqc1_limits       = Channel.fromPath( params.fastqc1_limits ).ifEmpty( null )",
-            "ch_fastqc2_adapters     = Channel.fromPath( params.fastqc2_adapters ).ifEmpty( null )",
-            "ch_fastqc2_contaminants = Channel.fromPath( params.fastqc2_contaminants ).ifEmpty( null )",
-            "ch_fastqc2_limits       = Channel.fromPath( params.fastqc2_limits ).ifEmpty( null )",
+            "ch_fastqc1_adapters     = Channel.fromPath( params.fastqc1_adapters )",
+            "ch_fastqc1_contaminants = Channel.fromPath( params.fastqc1_contaminants )",
+            "ch_fastqc1_limits       = Channel.fromPath( params.fastqc1_limits )",
+            "ch_fastqc2_adapters     = Channel.fromPath( params.fastqc2_adapters )",
+            "ch_fastqc2_contaminants = Channel.fromPath( params.fastqc2_contaminants )",
+            "ch_fastqc2_limits       = Channel.fromPath( params.fastqc2_limits )",
             "workflow  {",
             "FASTQC1(",
             "ch_in_forward_reads,",
@@ -991,9 +1014,9 @@ class TestFileFormatting(unittest.TestCase):
             'path "output.html", emit: outHtmlFile',
             'path "output.txt", emit: outTextFile',
             'script:',
-            'def adapters = adapters ? "--adapters ${adapters}" : ""',
-            'def contaminants = contaminants ? "--contaminants ${contaminants}" : ""',
-            'def limits = limits ? "--limits ${limits}" : ""',
+            'def adapters = adapters != \'NO_FILE7\' ? "--adapters ${adapters}" : ""',
+            'def contaminants = contaminants != \'NO_FILE8\' ? "--contaminants ${contaminants}" : ""',
+            'def limits = limits != \'NO_FILE9\' ? "--limits ${limits}" : ""',
             '"""',
             'fastqc \\',
             '${adapters} \\',
@@ -1022,19 +1045,11 @@ class TestFileFormatting(unittest.TestCase):
             "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'",
             "workflow APPLES_SUBWORKFLOW {",
             "take:",
-            "ch_in_int",
-            "ch_in_str",
-            "ch_in_str_opt",
             "main:",
-            "STRING_TOOL(",
-            "ch_in_str",
-            ")",
-            "STRING_OPT_TOOL(",
-            "ch_in_str_opt",
-            ")",
+            "STRING_TOOL()",
+            "STRING_OPT_TOOL()",
             "ORANGES_SUBWORKFLOW(",
-            "STRING_TOOL.out.out,",
-            "ch_in_int",
+            "STRING_TOOL.out.out",
             ")",
             "emit:",
             "outStringFile = STRING_TOOL.out.out",
@@ -1059,9 +1074,9 @@ class TestFileFormatting(unittest.TestCase):
             "outdir  = './outputs'",
             "// INPUTS",
             "in_file     = null",
-            "in_str_opt  = null",
-            "in_str      = null",
             "in_int      = null",
+            "in_str      = null",
+            "in_str_opt  = null",
             "}",
         ]
         actual_lines = config.split('\n')
@@ -1073,7 +1088,7 @@ class TestChannels(unittest.TestCase):
     
     def setUp(self) -> None:
         self.maxDiff = None
-        reset_global_settings()
+        reset_globals()
 
     def test_infer_wf_inputs(self) -> None:
         # checks the inferred wf inputs (from total wf inputs) are correct
@@ -1095,6 +1110,7 @@ class TestChannels(unittest.TestCase):
         }
         self.assertEqual(channel_ids, expected_ids)
     
+    @unittest.skip('deprecated optionality handling')
     def test_optional_file_channels(self) -> None:
         """
         Every Optional(File) type wf input should have a channel. 
@@ -1209,20 +1225,22 @@ class TestChannels(unittest.TestCase):
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
         do_preprocessing_workflow(wf)
+        print(nextflow.data_sources.pvn_register.to_string())
         scope = nextflow.Scope()
         channels_ids = {c.name for c in nextflow.channels.getall(scope)}
         expected_ids = {
             'ch_in_file',
             'ch_in_file_opt',
-            'ch_in_str',
         }
         self.assertEqual(channels_ids, expected_ids)
     
     
+
+
 class TestChannelsSubworkflows(unittest.TestCase):
     
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         self.wf = DataSourceTestWF()
         do_preprocessing_workflow(self.wf)
         self.scope = nextflow.Scope()
@@ -1233,7 +1251,7 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
-            'ch_in_file_opt1 = Channel.of( params.in_file_opt1 ).ifEmpty( null )',
+            'ch_in_file_opt1 = Channel.fromPath( params.in_file_opt1 )',
             'ch_in_file1     = Channel.fromPath( params.in_file1 )',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
@@ -1438,7 +1456,7 @@ class TestCmdtoolProcess(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings() 
+        reset_globals() 
     
     def test_fastqc(self) -> None:
         tool = FastqcTestTool()
@@ -1468,7 +1486,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_directives_order(self) -> None:
         wf = DirectivesTestWF()
@@ -1530,7 +1548,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         
     def test_stage_as(self) -> None:
         wf = ProcessInputsTestWF()
@@ -1702,10 +1720,10 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             "path inp1, stageAs: 'inp1'",
-            'val inp2',
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
@@ -1713,6 +1731,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             "path inp1, stageAs: 'inp1'",
@@ -1737,7 +1756,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         self.wf = OutputCollectionTestWF()
         do_preprocessing_workflow(self.wf)
 
@@ -1813,19 +1832,19 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = FilenameTestWF()
         do_preprocessing_workflow(wf)
         
-        # # inp1 is in step.sources
-        # step = wf.step_nodes['stp4']
-        # scope = nextflow.Scope()
-        # scope.update(step)
-        # process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        # actual_outputs = {out.get_string() for out in process.outputs}
-        # expected_outputs = {
-        #     'path "${inp1.simpleName + ".csv"}", emit: out3',
-        #     'path "${"generated" + ".csv"}", emit: out4',
-        #     'path "generated.csv", emit: out5',
-        #     'path "generated.merged.csv", emit: out6'
-        # }
-        # self.assertEqual(actual_outputs, expected_outputs)
+        # inp1 is in step.sources
+        step = wf.step_nodes['stp4']
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        actual_outputs = {out.get_string() for out in process.outputs}
+        expected_outputs = {
+            'path "${inp1.simpleName + ".csv"}", emit: out3',
+            'path "${"generated" + ".csv"}", emit: out4',
+            'path "generated.csv", emit: out5',
+            'path "generated.merged.csv", emit: out6'
+        }
+        self.assertEqual(actual_outputs, expected_outputs)
         
         # inp1, inp1_1, inp4, inp5, inp6 are in step.sources
         step = wf.step_nodes['stp5']
@@ -1835,9 +1854,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
-            'path "${inp4 + ".csv"}", emit: out4',
-            'path "${inp5 + ".csv"}", emit: out5',
-            'path "${inp6 + ".merged.csv"}", emit: out6'
+            'path "${params.in_str + ".csv"}", emit: out4',
+            'path "${params.in_str + ".csv"}", emit: out5',
+            'path "${params.in_str + ".merged.csv"}", emit: out6'
         }
         print(process.get_string())
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1948,7 +1967,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_multiple_statements(self) -> None:
         pass
@@ -2065,7 +2084,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = set(process.pre_script.split('\n'))
         expected_prescript = set([
             "def pos_basic_joined = pos_basic.join(' ')",
-            "def pos_basic2_joined = pos_basic2 ? pos_basic2.join(' ') : \"\"",
+            "def pos_basic2_joined = pos_basic2 != ['NO_FILE1'] ? pos_basic2.join(' ') : \"\"",
             "def pos_default_joined = params.in_int_array ? params.in_int_array.join(' ') : \"1 2 3\"",
             "def pos_optional_joined = params.in_str_array ? params.in_str_array.join(' ') : \"\"",
             "def opt_default_items = params.in_int_array ? params.in_int_array.collect{ \"--opt-default \" + it }.join(' ') : \"--opt-default 1 --opt-default 2 --opt-default 3\"",
@@ -2179,7 +2198,6 @@ process STP3 {
     input:
     path file_inp, stageAs: 'file_inp.txt'
     path file_inp_optional, stageAs: 'file_inp_optional.txt'
-    val inp
 
     output:
     val "*", emit: out
@@ -2187,7 +2205,7 @@ process STP3 {
     script:
     \"\"\"
     echo \\
-    ${inp} \\
+    ${params.in_str} \\
     ${params.in_str_opt} \\
     ${file_inp.simpleName}.transformed.fnp \\
     ${file_inp_optional.simpleName}.optional.txt \\
@@ -2206,13 +2224,13 @@ process STP3 {
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_script = process.script
         expected_lines = {
             'echo',
             '${inp1}',
-            '${inp2}',
+            '${params.in_str}',
         }
-        print(process.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
@@ -2220,15 +2238,35 @@ process STP3 {
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_script = process.script
         expected_lines = {
             'echo',
             '${inp1}',
             '${inp1.simpleName}.processed.txt',
         }
-        print(process.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
+
+    def test_optional_types(self) -> None:
+        wf = OptionalTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        actual_prescript = process.pre_script
+        expected_lines = {
+            "def in_secondary_array_opt = get_primary_files(indexed_bam_flat)", 
+            "def in_secondary_array_opt_joined = in_secondary_array_opt != [['NO_FILE1', 'NO_FILE2']] ? in_secondary_array_opt.join(' ') : \"\"", 
+            "def in_secondary_opt = bam != ['NO_FILE3', 'NO_FILE4'] ? bam : \"\"", 
+            "def in_file_pair_opt_joined = in_file_pair_opt != None ? in_file_pair_opt.join(' ') : \"\"", 
+            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE5'] ? in_file_array_opt.join(' ') : \"\"", 
+            "def in_file_opt = in_file_opt != 'NO_FILE6' ? in_file_opt : \"\"", 
+        }
+        for ln in expected_lines:
+            self.assertIn(ln, actual_prescript)
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -2245,7 +2283,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_input_generation(self) -> None:
         # File, String, Int input types
@@ -2290,7 +2328,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = OutputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
     
     def test_output_generation(self) -> None:
         # file output
@@ -2329,7 +2367,7 @@ class TestPythontoolProcess(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_format(self) -> None:
         step = self.wf.step_nodes["stp0"]
@@ -2372,7 +2410,7 @@ class TestPythontoolProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_input_references(self) -> None:
         # File, String, Int input types
@@ -2426,13 +2464,13 @@ class TestEntityTracing(unittest.TestCase):
         self.maxDiff = None
         self.wf = EntityTraceTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_trace_entity_counts4(self) -> None:
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = nextflow.plumbing.trace_entity_counts(src)
+        actual_counts = nextflow.trace.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -2451,7 +2489,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = nextflow.plumbing.trace_entity_counts(src)
+        actual_counts = nextflow.trace.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -2467,7 +2505,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.trace.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -2475,7 +2513,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.trace.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -2483,7 +2521,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp3'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -2491,7 +2529,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -2499,7 +2537,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.plumbing.trace_source_datatype(src)
+        actual_dtype = nextflow.trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
 
@@ -2507,7 +2545,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp6'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = nextflow.plumbing.trace_source_scatter(src)
+        actual_scatter = nextflow.trace.trace_source_scatter(src)
         expected_scatter = False
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -2515,7 +2553,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp7'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = nextflow.plumbing.trace_source_scatter(src)
+        actual_scatter = nextflow.trace.trace_source_scatter(src)
         expected_scatter = True
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -2524,7 +2562,7 @@ class TestPlumbingModule(unittest.TestCase):
     """tests the public functions in nfgen.plumbing."""
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_get_array_depth(self):
         self.assertEqual(nextflow.plumbing.get_array_depth(String()), 0)
@@ -2744,13 +2782,12 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = PlumbingTypeMismatchTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_secondary_single_mismatch(self):
         step_id = 'bambai_to_bam'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2762,7 +2799,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'bambai_to_bam_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2774,7 +2810,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'fastawithindexes_to_fastadict'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2786,7 +2821,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'fastawithindexes_to_fastadict_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2798,7 +2832,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'array_to_single'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2810,7 +2843,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'single_to_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2822,7 +2854,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'secondary_array_to_secondary'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2834,7 +2865,6 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
         step_id = 'secondary_array_to_secondary_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2855,13 +2885,12 @@ class TestPlumbingScatter(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = ComprehensiveScatterTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_scatter_to_scatter(self):
         step_id = 'scatter_to_scatter'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         
@@ -2874,7 +2903,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'scatter_to_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2886,7 +2914,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'prestep1'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2898,7 +2925,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'array_to_scatter'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2910,7 +2936,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'scatter_secondary_to_scatter_secondary'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2922,7 +2947,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'scatter_secondary_to_secondary_array'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2934,7 +2958,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'secondary_array_to_scatter_secondary'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -2950,7 +2973,6 @@ class TestPlumbingScatter(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
 
@@ -2986,7 +3008,7 @@ class TestPlumbingBasic(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     # workflow input step inputs
     def test_workflow_inputs(self):
@@ -2995,7 +3017,6 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3011,7 +3032,6 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         not_expected = {
             'pos_default',
             'pos_default',
@@ -3033,7 +3053,6 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         expected = set(["STP1.out.out"])
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
@@ -3045,19 +3064,16 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
             "ch_in_file",
-            "ch_in_str",
         ])
         self.assertEqual(expected, actual)
         
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3081,7 +3097,7 @@ class TestPlumbingBasicArrays(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_array_connections(self) -> None:
         wf = ArrayStepConnectionsTestWF()
@@ -3089,7 +3105,6 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3103,7 +3118,6 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3118,7 +3132,6 @@ class TestPlumbingBasicArrays(unittest.TestCase):
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         actual = nextflow.call.gen_task_call(step, scope, step_id)
         not_expected = {
             'pos_default',
@@ -3240,7 +3253,7 @@ class TestPlumbingCombinations(unittest.TestCase):
     Includes combinations of scatter, arrays, secondary files. 
     """
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     # scatter + secondaries
     @unittest.skip('not implemented')
@@ -3302,13 +3315,12 @@ class TestPlumbingEdgeCases(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = PlumbingEdgeCaseTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_pythontool_array_string_output(self) -> None:
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3323,7 +3335,7 @@ class TestWorkflowOutputs(unittest.TestCase):
     Tests workflow outputs being created correctly
     """
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         
     @unittest.skip('not implemented')
     def test_files(self) -> None:
@@ -3355,7 +3367,7 @@ class TestWorkflowOutputs(unittest.TestCase):
 class TestConfig(unittest.TestCase):
     
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
     
     def test_outdir(self):
         wf = BasicIOTestWF()
@@ -3506,7 +3518,6 @@ class TestConfig(unittest.TestCase):
             self.assertIn(name, config)
             self.assertIn(val, config)
     
-    
     def test_nonfile_array_workflow_inputs(self):
         # string, int, bool
         wf = ArrayStepInputsTestWF()
@@ -3535,29 +3546,30 @@ class TestConfig(unittest.TestCase):
     def test_workflow_config(self) -> None:
         wf = AssemblyTestWF()
         do_preprocessing_workflow(wf)
-        params = translator.build_inputs_dict(wf)
-        config = translator.stringify_translated_inputs(params)
+        # params = translator.build_inputs_dict(wf)
+        config = translator.stringify_translated_inputs({})
         # basic structure
         self.assertIn('docker.enabled = true', config)
         self.assertIn('params {\n\n', config)
         self.assertIn('\n\n}', config)
         # expected params are present & correct
         expected_values = {
-            'test_input': 'null',
-            'fastqc1_adapters': 'null',
-            'fastqc1_contaminants': 'null',
-            'fastqc1_limits': 'null',
-            'fastqc2_adapters': 'null',
-            'fastqc2_contaminants': 'null',
-            'fastqc2_limits': 'null',
+            'fastqc1_adapters': 'NO_FILE1',
+            'fastqc1_contaminants': 'NO_FILE2',
+            'fastqc1_limits': 'NO_FILE3',
+            'fastqc2_adapters': 'NO_FILE4',
+            'fastqc2_contaminants': 'NO_FILE5',
+            'fastqc2_limits': 'NO_FILE6',
             'in_forward_reads': 'null',
             'in_long_reads': 'null',
             'in_reverse_reads': 'null',
+            'test_input': 'null',
             # 'unicycler_kmers': "''",
             # 'unicycler_scores': "''",
             # 'unicycler_start_gene_cov': '95.0',
             # 'unicycler_start_gene_id': '90.0',
         }
+        print(config)
         for name, val in expected_values.items():
             pattern = f'{name}.*?{val}'
             matches = re.findall(pattern, config)
@@ -3570,10 +3582,10 @@ class TestConfig(unittest.TestCase):
 
 
 
-class TestStepFeatures(unittest.TestCase):
+class TestPlumbingExpressions(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
 
     def test_first_selector(self):
         wf = ConditionStepTestWF()
@@ -3581,7 +3593,6 @@ class TestStepFeatures(unittest.TestCase):
         step_id = 'print'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3595,7 +3606,6 @@ class TestStepFeatures(unittest.TestCase):
         step_id = 'print'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
         expected = set([
@@ -3608,14 +3618,14 @@ class TestStepFeatures(unittest.TestCase):
 class TestUnwrapProcess(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
         wf = UnwrapTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
         variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool)
+        variable_manager.update_for_tool(step.tool, step.sources)
         self.prescript, self.script = nextflow.parsing.process.gen_script_for_cmdtool(
             scope=scope,
             tool=step.tool,
@@ -3662,23 +3672,25 @@ class TestUnwrapProcess(unittest.TestCase):
 class TestUnwrapWorkflow(unittest.TestCase):
 
     def setUp(self) -> None:
-        reset_global_settings()
-        self.wf = StepConnectionsTestWF()
-        do_preprocessing_workflow(self.wf)
+        reset_globals()
 
     def test_input_node_channel(self) -> None:
         # file input (channel)
+        wf = StepConnectionsTestWF()
+        do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
-        node = self.wf.input_nodes['inFile']
-        actual = nextflow.unwrap_expression(node, scope=scope)
+        node = wf.input_nodes['inFile']
+        actual = nextflow.unwrap_expression(node, scope=scope, context='workflow')
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
 
     def test_input_node_param(self) -> None:
         # nonfile input (param)
+        wf = StepConnectionsTestWF()
+        do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
-        node = self.wf.input_nodes['inStr']
-        actual = nextflow.unwrap_expression(node, scope=scope)
+        node = wf.input_nodes['inStr']
+        actual = nextflow.unwrap_expression(node, scope=scope, context='workflow')
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
 
@@ -3688,9 +3700,9 @@ class TestUnwrapWorkflow(unittest.TestCase):
         scope = nextflow.Scope()
         step_id = "stp2"
         inp_id = 'inp'
-        sources = self.wf.step_nodes[step_id].sources
+        sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope)
+        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
@@ -3702,7 +3714,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope)
+        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
@@ -3714,7 +3726,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope)
+        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
         expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
     
@@ -3726,15 +3738,15 @@ class TestUnwrapWorkflow(unittest.TestCase):
         inp_id = 'inp'
         sources = wf.step_nodes[step_id].sources
         src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope)
+        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
 
-class TestStringFormatter(unittest.TestCase):
+class TestUnwrapStringFormatter(unittest.TestCase):
     
     def setUp(self) -> None:
-        reset_global_settings()
+        reset_globals()
     
     def test_string_formatter(self):
         settings.translate.nextflow.MODE = 'tool'
@@ -3797,7 +3809,7 @@ class TestStringFormatter(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool)
+        variable_manager.update_for_tool(step.tool, step.sources)
         sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
         actual = nextflow.unwrap_expression(
             val=sf, 
@@ -3807,7 +3819,7 @@ class TestStringFormatter(unittest.TestCase):
             tool=step.tool,
             in_shell_script=True
         )
-        expected = '"an input ${params.stp1_compression_level}"'
+        expected = '"an input ${5}"'
         self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
@@ -3892,7 +3904,7 @@ class TestStringFormatter(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool)
+        variable_manager.update_for_tool(step.tool, step.sources)
         arg = step.tool.arguments()[0]
         actual = nextflow.unwrap_expression(
             val=arg.value, 
@@ -3902,7 +3914,7 @@ class TestStringFormatter(unittest.TestCase):
             tool=step.tool,
             in_shell_script=True
         )
-        expected = '"-Xmx${8 * 3 / 4}G ${params.stp1_compression_level ? "-Dsamjdk.compress_level=" + params.stp1_compression_level : ""} ${[params.stp1_java_options, []].find{ it != null }.join(" ")}"'
+        expected = '"-Xmx${8 * 3 / 4}G ${5 ? "-Dsamjdk.compress_level=" + 5 : ""} ${["EXTRA_ARG1", []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
 
 
@@ -3912,14 +3924,13 @@ class TestOrdering(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = OrderingTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     def test_process_call(self) -> None:
         # from workflow inputs
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = split_task_call_to_lines(call)
         expected = [
@@ -3933,7 +3944,6 @@ class TestOrdering(unittest.TestCase):
         step_id = 'stp3'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = split_task_call_to_lines(call)
         expected = [
@@ -3950,7 +3960,6 @@ class TestOrdering(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = split_task_call_to_lines(call)
         expected = [
@@ -3963,58 +3972,6 @@ class TestOrdering(unittest.TestCase):
         ]
         self.assertEqual(expected, actual)
 
-    def test_subworkflow_call(self) -> None:
-        # from workflow inputs
-        step_id = 'stp2'
-        step = self.wf.step_nodes[step_id]
-        scope = nextflow.Scope()
-        scope.update(step)
-        call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = split_task_call_to_lines(call)
-        expected = [
-            "ch_in_fastq",
-            "ch_in_fastq_array",
-            "ch_in_file",
-            "params.in_int",
-            "params.in_int_array",
-            "params.in_str"
-        ]
-        self.assertEqual(expected, actual)
-        
-        # from process outputs
-        step_id = 'stp4'
-        step = self.wf.step_nodes[step_id]
-        scope = nextflow.Scope()
-        scope.update(step)
-        call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = split_task_call_to_lines(call)
-        expected = [
-            "STP1.out.outFastq",
-            "STP1.out.outFastqArray",
-            "STP1.out.outFile",
-            "STP1.out.outInt",
-            "STP1.out.outIntArray",
-            "STP1.out.outStr",
-        ]
-        self.assertEqual(expected, actual)
-
-        # from subworkflow outputs
-        step_id = 'stp6'
-        step = self.wf.step_nodes[step_id]
-        scope = nextflow.Scope()
-        scope.update(step)
-        call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = split_task_call_to_lines(call)
-        expected = [
-            "STP2.out.outFastq",
-            "STP2.out.outFastqArray",
-            "STP2.out.outFile",
-            "STP2.out.outInt",
-            "STP2.out.outIntArray",
-            "STP2.out.outStr",
-        ]
-        self.assertEqual(expected, actual)
-    
     def test_process_inputs(self) -> None:
         # from workflow inputs
         step = self.wf.step_nodes["stp1"]
@@ -4062,6 +4019,52 @@ class TestOrdering(unittest.TestCase):
         actual_inputs = [inp.get_string() for inp in process.inputs]
         self.assertEqual(actual_inputs, expected_inputs)
 
+    def test_subworkflow_call(self) -> None:
+        # from workflow inputs
+        step_id = 'stp2'
+        step = self.wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_fastq",
+            "ch_in_fastq_array",
+            "ch_in_file",
+        ]
+        self.assertEqual(expected, actual)
+        
+        # from process outputs
+        step_id = 'stp4'
+        step = self.wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "STP1.out.outFastq",
+            "STP1.out.outFastqArray",
+            "STP1.out.outFile",
+            "STP1.out.outInt",
+            "STP1.out.outIntArray",
+            "STP1.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+
+        # from subworkflow outputs
+        step_id = 'stp6'
+        step = self.wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "STP2.out.outFastq",
+            "STP2.out.outFastqArray",
+            "STP2.out.outFile",
+            "STP2.out.outInt",
+            "STP2.out.outIntArray",
+            "STP2.out.outStr",
+        ]
+        self.assertEqual(expected, actual)
+    
 
     def test_subworkflow_inputs(self) -> None:
         # from workflow inputs
@@ -4069,10 +4072,10 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.workflow.gen_workflow(
+        
+        nf_workflow = nextflow.parsing.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
-            sources=step.sources,
             wf=step.tool,
             item_register=translator.item_register
         )
@@ -4080,11 +4083,8 @@ class TestOrdering(unittest.TestCase):
             "ch_in_fastq",
             "ch_in_fastq_array",
             "ch_in_file",
-            "ch_in_int",
-            "ch_in_int_array",
-            "ch_in_str"
         ]
-        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        actual_inputs = [ch.get_string() for ch in nf_workflow.take]
         self.assertEqual(actual_inputs, expected_inputs)
 
         # from process outputs
@@ -4092,10 +4092,9 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.workflow.gen_workflow(
+        nf_workflow = nextflow.parsing.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
-            sources=step.sources,
             wf=step.tool,
             item_register=translator.item_register
         )
@@ -4107,7 +4106,7 @@ class TestOrdering(unittest.TestCase):
             "ch_in_int_array",
             "ch_in_str"
         ]
-        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        actual_inputs = [ch.get_string() for ch in nf_workflow.take]
         self.assertEqual(actual_inputs, expected_inputs)
 
         # from subworkflow outputs
@@ -4115,10 +4114,9 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.workflow.gen_workflow(
+        nf_workflow = nextflow.parsing.workflow.gen_workflow(
             name=step_id, 
             scope=scope,
-            sources=step.sources,
             wf=step.tool,
             item_register=translator.item_register
         )
@@ -4130,7 +4128,7 @@ class TestOrdering(unittest.TestCase):
             "ch_in_int_array",
             "ch_in_str"
         ]
-        actual_inputs = [inp.get_string() for inp in nf_workflow.take]
+        actual_inputs = [ch.get_string() for ch in nf_workflow.take]
         self.assertEqual(actual_inputs, expected_inputs)
 
     @unittest.skip('not implemented')
@@ -4155,7 +4153,7 @@ class TestSubWorkflows(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = SubworkflowTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_global_settings()
+        reset_globals()
 
     @unittest.skip('not implemented')
     def test_param_system(self) -> None:
@@ -4196,24 +4194,23 @@ class TestSubWorkflows(unittest.TestCase):
         step_id = 'apples_subworkflow'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
+
         call = nextflow.call.gen_task_call(step, scope, step_id)
         actual = set(split_task_call_to_lines(call))
-        expected = set(['params.in_int', 'params.in_str', 'ch_in_str_opt'])
-        self.assertEquals(actual, expected)
+        expected = set([])
+        self.assertSetEqual(actual, expected)
 
-        # subworkflow inputs are correct & in order
-        nf_workflow = nextflow.workflow.gen_workflow(
-            name=step_id, 
-            scope=scope,
-            sources=step.sources,
-            wf=step.tool,
-            item_register=translator.item_register
-        )
-        # check the arg order matches the subworkflow input channel order
-        actual_channel_order = [t.get_string() for t in nf_workflow.take]
-        expected_channel_order = ['ch_in_int', 'ch_in_str', 'ch_in_str_opt']
-        self.assertEquals(actual_channel_order, expected_channel_order)
+        # # subworkflow inputs are correct & in order
+        # nf_workflow = nextflow.parsing.workflow.gen_workflow(
+        #     name=step_id, 
+        #     scope=scope,
+        #     wf=step.tool,
+        #     item_register=translator.item_register
+        # )
+        # # check the arg order matches the subworkflow input channel order
+        # actual_channel_order = [t.get_string() for t in nf_workflow.take]
+        # expected_channel_order = ['ch_in_int', 'ch_in_str', 'ch_in_str_opt']
+        # self.assertEquals(actual_channel_order, expected_channel_order)
 
     def test_imports(self) -> None:
         # translate workflow, building all nf items and files
@@ -4225,31 +4222,13 @@ class TestSubWorkflows(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         subwf_file = translator.file_register.get(scope)
-
-        self.assertEquals(len(subwf_file.imports), 3)
-
+        actual_imports = subwf_file.items[0].imports
         expected_imports = [
-            {
-                'name': 'string_tool', 
-                'source': '../modules/string_tool'
-            },
-            {
-                'name': 'string_opt_tool', 
-                'source': '../modules/string_opt_tool'
-            },
-            {
-                'name': 'oranges_subworkflow', 
-                'source': './oranges_subworkflow'
-            },
+            "include { STRING_TOOL } from '../modules/string_tool'",
+            "include { STRING_OPT_TOOL } from '../modules/string_opt_tool'",
+            "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'"
         ]
-        actual_imports = []
-        for nf_import in subwf_file.imports:
-            import_item = {
-                'name': nf_import.items[0].name, 
-                'source': nf_import.source
-            },
-            actual_imports += import_item
-        
+        self.assertEquals(len(actual_imports), 3)
         self.assertEquals(actual_imports, expected_imports)
     
     @unittest.skip('not implemented')
@@ -4261,7 +4240,7 @@ class TestNaming(unittest.TestCase):
     
     def setUp(self) -> None:
         self.wf = NamingTestWF()
-        reset_global_settings()
+        reset_globals()
         do_preprocessing_workflow(self.wf)
 
     def test_workflow(self) -> None:
@@ -4438,7 +4417,6 @@ class TestNaming(unittest.TestCase):
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        scope.update(step)
         task_call = nextflow.call.gen_task_call(step, scope, step_id)
         actual_inputs = set(split_task_call_to_lines(task_call))
         expected_inputs = set([

@@ -6,13 +6,14 @@ from typing import Optional, Any
 from textwrap import indent 
 
 from janis_core import settings
+
 from ... import naming
+from ...channels import Channel
 
 
 class NFFile:
-    def __init__(self, subtype: str, imports: list[NFImport], items: list[Any], name: str):
+    def __init__(self, subtype: str, items: list[Any], name: str):
         self.subtype = subtype
-        self.imports = imports
         self.items = items
         self.name = name
 
@@ -28,14 +29,9 @@ class NFFile:
 
     def get_string(self) -> str:
         components = [f"nextflow.enable.dsl=2"]
-
-        if self.imports:
-            components.append("\n".join(i.get_string() for i in self.imports))
         if self.items:
             components.extend(i.get_string() for i in self.items)
-
         return "\n\n".join(components)
-
 
 
 class NFImportItem:
@@ -51,7 +47,8 @@ class NFImportItem:
 
 
 class NFImport:
-    def __init__(self, items: list[NFImportItem], source: str):
+    def __init__(self, method: str, items: list[NFImportItem], source: str):
+        self.method = method
         self.items = items
         self.source = source
 
@@ -62,7 +59,7 @@ class NFImport:
             )
 
         items = "; ".join(i.get_string() for i in self.items)
-        return f"include {{ {items} }} from '{self.source}'"
+        return f"{self.method} {{ {items} }} from '{self.source}'"
 
 
 class NFFunction:
@@ -88,12 +85,29 @@ class NFFunctionsBlock:
 
 class NFImportsBlock:
     def __init__(self, imports: list[str], declarations: list[str]) -> None:
+        # assert(len(methods) == len(imports))
+        # self.methods = methods
         self.imports = imports
         self.declarations = declarations
 
     def get_string(self) -> str:
-        imports = [f'import {imp}' for imp in self.imports]
+        # imports = [f'{meth} {imp}' for meth, imp in zip(self.methods, self.imports)]
+        imports = [f'{imp}' for imp in self.imports]
         declarations = [f'def {dec}' for dec in self.declarations]
         imports = '\n'.join(imports)
         declarations = '\n'.join(declarations)
         return f'{imports}\n{declarations}'
+
+
+class NFChannelsBlock: 
+    def __init__(self, channels: list[Channel]) -> None:
+        self.channels = channels
+    
+    def get_string(self) -> str:
+        outstr = ''
+        channels = self.channels
+        channels = [ch for ch in channels if ch.define]
+        width_col_1 = max([ch.width for ch in channels])
+        for ch in channels:
+            outstr += f'{ch.name:<{width_col_1}} = {ch.get_string()}\n'
+        return outstr

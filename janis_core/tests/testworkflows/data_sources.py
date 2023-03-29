@@ -56,7 +56,7 @@ class DataSourceTestWF(Workflow):
                 inFile=self.inFile1,
                 inFileOpt=self.inFileOpt1,
                 inStr='hello',
-                inStrOpt=None,
+                inStrOpt='there',
             )
         )
         self.step(
@@ -83,7 +83,7 @@ class DataSourceTestWF(Workflow):
                 inFile2=self.inFile1,
                 inFileOpt2=self.inFileOpt1,
                 inStr2='hello',
-                inStrOpt2=None,
+                inStrOpt2='there',
             )
         )
         # omitted + statics
@@ -124,7 +124,7 @@ class SubDataSourceTestWF(Workflow):
                 inFile=self.inFile2,
                 inFileOpt=self.inFileOpt2,
                 inStr='hello',
-                inStrOpt=None,
+                inStrOpt='there',
             )
         )
         self.step(
@@ -149,7 +149,7 @@ class SubDataSourceTestWF(Workflow):
                 inFile3=self.inFile2,
                 inFileOpt3=self.inFileOpt2,
                 inStr3='hello',
-                inStrOpt3=None,
+                inStrOpt3='there',
             )
         )
         self.step(
@@ -189,7 +189,7 @@ class SubSubDataSourceTestWF(Workflow):
                 inFile=self.inFile3,
                 inFileOpt=self.inFileOpt3,
                 inStr='hello',
-                inStrOpt=None,
+                inStrOpt='there',
             )
         )
         self.step(

@@ -12,7 +12,7 @@ from .... import ordering
 
 from ....unwrap import unwrap_expression
 from ....scope import Scope
-from ....plumbing import trace
+from .... import trace
 
 from ..VariableManager import VariableManager
 from ..VariableManager import VariableType
@@ -95,7 +95,6 @@ class ProcessScriptGenerator:
             context='process_script',
             variable_manager=self.variable_manager,
             tool=self.tool,
-            sources=self.sources,
             in_shell_script=True,
             quote_strings=arg.shell_quote
         )

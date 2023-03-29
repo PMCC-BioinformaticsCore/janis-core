@@ -51,18 +51,20 @@ from janis_core.operators.selectors import (
     ResourceSelector
 )
 from janis_core.operators.stringformatter import StringFormatter
-from janis_core import CommandTool, ToolInput, TInput, ToolArgument, ToolOutput
+from janis_core.workflow.workflow import InputNode
+
+from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool
 
 from janis_core import translation_utils as utils
 
 
 
-def trace_entity_counts(entity: Any, tool: Optional[CommandTool]=None) -> dict[str, int]:
+def trace_entity_counts(entity: Any, tool: Optional[Tool]=None) -> dict[str, int]:
     tracer = EntityCountTracer(tool)
     tracer.trace(entity)
     return tracer.counter
 
-def trace_source_datatype(entity: Any, tool: Optional[CommandTool]=None) -> Optional[DataType]:
+def trace_source_datatype(entity: Any, tool: Optional[Tool]=None) -> Optional[DataType]:
     tracer = SourceDatatypeTracer(tool)
     tracer.trace(entity)
     src_types = tracer.datatypes
@@ -77,12 +79,12 @@ def trace_source_datatype(entity: Any, tool: Optional[CommandTool]=None) -> Opti
         return src_types[0]
     return 
 
-def trace_source_scatter(entity: Any, tool: Optional[CommandTool]=None) -> bool:
+def trace_source_scatter(entity: Any, tool: Optional[Tool]=None) -> bool:
     tracer = SourceScatterTracer(tool)
     tracer.trace(entity)
     return tracer.source_scatter
 
-def trace_referenced_variables(entity: Any, tool: Optional[CommandTool]) -> set[str]:
+def trace_referenced_variables(entity: Any, tool: Optional[Tool]=None) -> set[str]:
     tracer = ReferencedVariableTracer(tool)
     
     if isinstance(entity, ToolInput):
@@ -99,7 +101,7 @@ def trace_referenced_variables(entity: Any, tool: Optional[CommandTool]) -> set[
         tracer.trace(entity.selector)
     
     else:
-        raise NotImplementedError
+        tracer.trace(entity)
 
     return tracer.variables
 
@@ -108,7 +110,7 @@ def trace_referenced_variables(entity: Any, tool: Optional[CommandTool]) -> set[
 
 class Tracer(ABC):
     
-    def __init__(self, tool: Optional[CommandTool]=None):
+    def __init__(self, tool: Optional[Tool]=None):
         self.tool = tool
         self.single_arg_trace_types = {
             IsDefined,
@@ -273,7 +275,7 @@ class Tracer(ABC):
 
 class EntityCountTracer(Tracer):
 
-    def __init__(self, tool: Optional[CommandTool]=None):
+    def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
         self.counter: dict[str, int] = defaultdict(int)
     
@@ -300,7 +302,7 @@ class EntityCountTracer(Tracer):
 
 class SourceDatatypeTracer(Tracer):
 
-    def __init__(self, tool: Optional[CommandTool]=None):
+    def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
         self.datatypes: list[DataType] = []
     
@@ -365,7 +367,7 @@ class SourceDatatypeTracer(Tracer):
 
 class SourceScatterTracer(Tracer):
     
-    def __init__(self, tool: Optional[CommandTool]=None):
+    def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
         self.source_scatter: bool = False
 
@@ -401,16 +403,25 @@ class SourceScatterTracer(Tracer):
 
 class ReferencedVariableTracer(Tracer):
 
-    def __init__(self, tool: Optional[CommandTool]=None):
+    def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
         self.variables: set[str] = set()
+
+    def get_datatype(self, entity: Any) -> Optional[DataType]:
+        if isinstance(entity, ToolInput):
+            return entity.input_type
+        elif isinstance(entity, TInput):
+            return entity.intype
+        elif isinstance(entity, InputNode):
+            return entity.datatype
+        return None
     
     def trace(self, entity: Any) -> None:
         # reached a leaf node (variable reference to tool input)
-        if isinstance(entity, (ToolInput, TInput)):
+        if isinstance(entity, (ToolInput, TInput, InputNode)):
             # we need to check whether the TInput is a deadend.
-            # in the case of a Filename type, can always guarantee a value? I hope? 
-            dtype = entity.input_type if isinstance(entity, ToolInput) else entity.intype
+            # in the case of a Filename type, can always guarantee a value? I hope?
+            dtype = self.get_datatype(entity)
             if isinstance(dtype, Filename):
                 pass
             else:

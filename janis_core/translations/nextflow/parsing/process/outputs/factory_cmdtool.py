@@ -15,7 +15,7 @@ from janis_core import (
 )
 from janis_core import translation_utils as utils
 
-from ....plumbing import trace_entity_counts
+from ....trace import trace_entity_counts
 from ....unwrap import unwrap_expression
 from .... import data_sources
 from ....scope import Scope
@@ -259,7 +259,6 @@ class CmdtoolProcessOutputFactory:
             context='process_output',
             variable_manager=self.variable_manager,
             tool=self.tool,
-            sources=self.sources,
             in_shell_script=self.add_braces,
             quote_strings=self.add_quotes,
         )

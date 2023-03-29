@@ -60,7 +60,7 @@ class ArraysOfSecondaryFilesOutputsTestWF(Workflow):
 
 class ConditionStepTestWF(Workflow):
     def constructor(self):
-        self.input("mystring", Optional[str], value=None)
+        self.input("mystring", String(optional=True), value=None)
 
         someString = FirstOperator(
             [

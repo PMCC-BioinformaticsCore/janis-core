@@ -1,11 +1,16 @@
 
 
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum, auto
 from dataclasses import dataclass, field
+
 from janis_core import CommandTool, PythonTool
+from janis_core.workflow.workflow import InputNode
+from janis_core import translation_utils as utils
+
 from ... import data_sources
 from ...scope import Scope
+
 
 
 class VariableType(Enum): 
@@ -103,16 +108,41 @@ class VariableManager:
         new_variable = self.gen_variable(category, value)
         history.items.append(new_variable)
 
-    def update_for_tool(self, tool: CommandTool | PythonTool) -> None:
+    def update_for_tool(self, tool: CommandTool | PythonTool, sources: Optional[dict[str, Any]]=None) -> None:
         for tinput in tool.inputs():
-            src = data_sources.get_variable(self.scope, tinput)
-            # src is how the variable will be initially referred to inside a process
-            # will be a process input, a param input or None (static input)
-            if src is None:
-                if tinput.id() in tool.connections:
-                    src = tool.connections[tinput.id()]
-            category = self.get_category(tinput.id(), src)
-            self.update(tinput.id(), category, src)
+            value = data_sources.get_variable(self.scope, tinput)
+            # value is how the variable will be initially referred to inside a process
+            # will be a process input, or param input.
+
+            # if not fed via process input or param input, is a static input, or ignored input. 
+            # check sources to see if there is an edge to an input node. if so, use its default. 
+            if value is None:
+                
+                # workflow translations will use step.sources
+                if sources:
+                    value = self.get_value_from_input_node_default(tinput.id(), sources)
+                    print()
+                
+                # tool translations will use tool.connections
+                else:
+                    value = self.get_value_from_input_node_default(tinput.id(), tool.connections)
+                    print()
+            
+            category = self.get_category(tinput.id(), value)
+            self.update(tinput.id(), category, value)
+
+    def get_value_from_input_node_default(self, tinput_id: str, sources: dict[str, Any]) -> Any:
+        if tinput_id in sources:
+            src = sources[tinput_id]
+            node = utils.resolve_node(src)
+            if isinstance(node, InputNode):
+                return node.default
+        return None
+    
+    def get_value_from_connection(self, tinput_id: str, connections: dict[str, Any]) -> Any:
+        if tinput_id in connections:
+            return connections[tinput_id]
+        return None
 
     def gen_variable(self, category: str, value: Optional[str | list[str]]) -> Variable:
         vtype_map = {

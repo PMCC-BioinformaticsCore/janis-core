@@ -60,16 +60,16 @@ class FilePriorityStrategy(CmdtoolInsArgsStrategy):
                 bottom.append(elem)
         return top + bottom
 
-class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        top: list[ToolInput | ToolArgument] = []
-        bottom: list[ToolInput | ToolArgument] = []
-        for x in ins_args:
-            if isinstance(x, ToolInput) and x.id() in tool.connections:
-                top.append(x)
-            else:
-                bottom.append(x)
-        return top + bottom
+# class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
+#     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
+#         top: list[ToolInput | ToolArgument] = []
+#         bottom: list[ToolInput | ToolArgument] = []
+#         for x in ins_args:
+#             if isinstance(x, ToolInput) and x.id() in tool.connections:
+#                 top.append(x)
+#             else:
+#                 bottom.append(x)
+#         return top + bottom
 
 
 class PositionStrategy(CmdtoolInsArgsStrategy):
@@ -86,7 +86,7 @@ ins_args_strategies = [
     AlphabeticalStrategy,
     FilePriorityStrategy,
     ComponentTypeStrategy,
-    ExposedPriorityStrategy,
+    # ExposedPriorityStrategy,
     InsPriorityStrategy,
     # correctness
     NoPrefixPriorityStrategy,

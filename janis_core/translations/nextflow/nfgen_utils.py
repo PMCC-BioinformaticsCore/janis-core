@@ -1,12 +1,9 @@
 
 
 import ast
-import regex as re
-from collections import defaultdict
 from typing import Any, Optional
 
 from janis_core.types import (
-    File,
     Boolean,
     Int,
     Float,
@@ -15,11 +12,9 @@ from janis_core import (
     DataType,
     ToolInput,
     TInput,
-    Workflow,
 )
 
 from janis_core.workflow.workflow import InputNode
-from janis_core.operators.selectors import InputNodeSelector
 from janis_core import translation_utils as utils
 
 
@@ -138,56 +133,3 @@ def get_base_type_task_input(task_input: ToolInput | InputNode | TInput) -> Data
     return utils.get_base_type(dtype)
 
 
-
-
-### DEPRECATED
-
-# def is_path(task_input: ToolInput | InputNode) -> bool:
-#     datatype = get_base_type_task_input(task_input)
-#     if isinstance(datatype, File):
-#         return True
-#     return False
-
-# def is_file_pair(task_input: ToolInput | InputNode) -> bool:
-#     datatype = get_base_type_task_input(task_input)
-#     if isinstance(datatype, File):
-#         if datatype.has_secondary_files():
-#             if len(datatype.secondary_files()) == 1:
-#                 return True
-#             if len(datatype.secondary_files()) > 1:
-#                 raise NotImplementedError(f'{task_input.id()} has multiple secondaries!')
-#     return False
-
-# def roughly_equivalent(val1: Any, val2: Any) -> bool:
-#     equivalents = {
-#         '': ' ',
-#     }
-#     map_fwd = equivalents
-#     map_rev = {v: k for k, v in equivalents.items()}
-#     if val1 is None and val2 is None:
-#         return True
-#     elif str(val1) == str(val2):
-#         return True
-#     elif val1 in map_fwd and map_fwd[val1] == val2:
-#         return True
-#     elif val1 in map_rev and map_rev[val1] == val2:
-#         return True
-#     return False
-
-# def get_connections(inp: InputNode, wf: Workflow) -> dict[str, list[str]]:
-#     connected: dict[str, list[str]] = defaultdict(list)
-#     for step in wf.step_nodes.values():
-#         for tinp_id, src in step.sources.items():
-#             sel = src.source_map[0].source
-#             if isinstance(sel, InputNodeSelector) and sel.input_node.id() == inp.id():
-#                 connected[step.id()].append(tinp_id)
-#     return connected
-
-# def is_simple_path(text: str) -> bool:
-#     PATH = r'[\w./]+'
-#     text = text.strip('\'"')
-#     matches = re.finditer(PATH, text)
-#     for m in matches:
-#         if m.span()[1] - m.span()[0] == len(text):
-#             return True
-#     return False

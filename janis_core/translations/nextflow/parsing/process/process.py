@@ -21,7 +21,7 @@ from . import script
 from . import directives
 from . import inputs
 from . import outputs
-from ...plumbing import trace_entity_counts
+from ...trace import trace_entity_counts
 
 from .VariableManager import VariableManager
 
@@ -39,14 +39,17 @@ def get_primary_files(var, element_count) {
 
 
 def gen_imports_for_process(tool: CommandTool) -> Optional[NFImportsBlock]:
+    # methods: list[str] = []
     imports: list[str] = []
     declarations: list[str] = []
 
     if should_add_json_slurper(tool):
-        imports.append('groovy.json.JsonSlurper')
+        # methods.append('include')
+        imports.append('import groovy.json.JsonSlurper')
         declarations.append('jsonSlurper = new JsonSlurper()')
     
     if imports:
+        # return NFImportsBlock(methods, imports, declarations)
         return NFImportsBlock(imports, declarations)
     else:
         return None
@@ -95,7 +98,7 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
 
     # managing current variable names for tinputs
     variable_manager = VariableManager(scope)
-    variable_manager.update_for_tool(tool)
+    variable_manager.update_for_tool(tool, sources)
 
     # directives
     resources = {}

@@ -2,11 +2,13 @@
 
 from typing import Optional, Any, Tuple
 
+from janis_core.workflow.workflow import InputNode
 from janis_core import ToolInput, CommandTool
-from janis_core.types import Boolean, Filename, DataType
+from janis_core.types import Boolean, Filename, DataType, File
 from janis_core import translation_utils as utils
 
 from .... import naming
+from .... import params
 from .... import nfgen_utils
 
 from ....unwrap import unwrap_expression
@@ -24,22 +26,27 @@ PS_FLAG_FALSE                   = 'def {name} = {src} ? "{prefix}" : ""'
 PS_POS_BASIC                    = ''
 PS_POS_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
 PS_POS_OPTIONAL                 = 'def {name} = {src} ? {src} : ""'
+PS_POS_OPTIONAL_FILETYPES       = 'def {name} = {src} != {default} ? {src} : ""'
 
 PS_POS_BASIC_ARR                = 'def {name} = {arr_join}'
 PS_POS_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
 PS_POS_OPTIONAL_ARR             = 'def {name} = {src} ? {arr_join} : ""'
+PS_POS_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src} != {default} ? {arr_join} : ""'
 
 PS_OPT_BASIC                    = ''
 PS_OPT_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
 PS_OPT_OPTIONAL                 = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
+PS_OPT_OPTIONAL_FILETYPES       = 'def {name} = {src} != {default} ? "{prefix}${{{src}}}" : ""'
 
 PS_OPT_BASIC_ARR                = 'def {name} = {arr_join}'
 PS_OPT_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
 PS_OPT_OPTIONAL_ARR             = 'def {name} = {src} ? "{prefix}" + {arr_join} : ""'
+PS_OPT_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src} != {default} ? "{prefix}" + {arr_join} : ""'
 
-PS_OPT_BASIC_ARR_PREFIXEACH     = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR_PREFIXEACH   = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR_PREFIXEACH  = 'def {name} = {src} ? {arr_join} : ""'
+PS_OPT_BASIC_ARR_PREFIXEACH              = 'def {name} = {arr_join}'
+PS_OPT_DEFAULT_ARR_PREFIXEACH            = 'def {name} = {src} ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR_PREFIXEACH           = 'def {name} = {src} ? {arr_join} : ""'
+PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES = 'def {name} = {src} != {default} ? {arr_join} : ""'
 
 # script (SC) formatting
 SC_FLAG_TRUE                    = '${{{var}}}'
@@ -216,6 +223,13 @@ class ScriptFormatter:
         return self.tinput.input_type  # type: ignore
     
     @property
+    def is_optional_filetype(self) -> bool:
+        if isinstance(self.basetype, File):
+            if self.tinput.input_type.optional:
+                return True
+        return False
+    
+    @property
     def basetype(self) -> DataType:
         basetype = utils.get_base_type(self.dtype)
         basetype = utils.ensure_single_type(basetype)
@@ -237,6 +251,20 @@ class ScriptFormatter:
         return self.tinput.separator if self.tinput.separator else ' '
     
     @property
+    def param_default(self) -> Any:
+        if self.tinput.id() in self.sources:
+            src = self.sources[self.tinput.id()]
+            node = utils.resolve_node(src)
+            if isinstance(node, InputNode):
+                if params.exists(node.uuid):
+                    param = params.get(node.uuid)
+                    if param.default is not None:
+                        return nfgen_utils.to_groovy(param.default)
+                else:
+                    print()
+        return None
+    
+    @property
     def default(self) -> Any:
         default = self.tinput.default
         if default is None and isinstance(self.basetype, Filename):
@@ -254,7 +282,6 @@ class ScriptFormatter:
             context='process_script',
             variable_manager=self.variable_manager,
             tool=self.tool,
-            sources=self.sources,
             in_shell_script=True,
         )
     
@@ -389,10 +416,17 @@ class ScriptFormatter:
 
     def pos_optional(self) -> Tuple[Optional[str], Optional[str]]:
         new_varname = self.generic_varname
-        prescript = PS_POS_OPTIONAL.format(
-            name=new_varname, 
-            src=self.current_value
-        )
+        if self.is_optional_filetype:
+            prescript = PS_POS_OPTIONAL_FILETYPES.format(
+                name=new_varname, 
+                src=self.current_value,
+                default=self.param_default
+            )
+        else:
+            prescript = PS_POS_OPTIONAL.format(
+                name=new_varname, 
+                src=self.current_value,
+            )
         self.update_varname(new_varname)
         script = SC_POS_OPTIONAL.format(var=self.current_value)
         return prescript, script
@@ -421,11 +455,19 @@ class ScriptFormatter:
 
     def pos_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         new_varname = f'{self.generic_varname}_joined'
-        prescript = PS_POS_OPTIONAL_ARR.format(
-            name=new_varname, 
-            src=self.current_value, 
-            arr_join=self.arr_join
-        )
+        if self.is_optional_filetype:
+            prescript = PS_POS_OPTIONAL_ARR_FILETYPES.format(
+                name=new_varname, 
+                src=self.current_value, 
+                default=self.param_default,
+                arr_join=self.arr_join
+            )
+        else:
+            prescript = PS_POS_OPTIONAL_ARR.format(
+                name=new_varname, 
+                src=self.current_value, 
+                arr_join=self.arr_join
+            )
         self.update_varname(new_varname)
         script = SC_POS_OPTIONAL_ARR.format(var=self.current_value)
         return prescript, script
@@ -448,11 +490,19 @@ class ScriptFormatter:
 
     def opt_optional(self) -> Tuple[Optional[str], Optional[str]]:
         new_varname = self.generic_varname
-        prescript = PS_OPT_OPTIONAL.format(
-            name=new_varname,
-            src=self.current_value,
-            prefix=self.prefix
-        )
+        if self.is_optional_filetype:
+            prescript = PS_OPT_OPTIONAL_FILETYPES.format(
+                name=new_varname,
+                src=self.current_value,
+                default=self.param_default,
+                prefix=self.prefix
+            )
+        else:
+            prescript = PS_OPT_OPTIONAL.format(
+                name=new_varname,
+                src=self.current_value,
+                prefix=self.prefix
+            )
         self.update_varname(new_varname)
         script = SC_OPT_OPTIONAL.format(var=self.current_value)
         return prescript, script
@@ -481,12 +531,21 @@ class ScriptFormatter:
     
     def opt_optional_arr(self) -> Tuple[Optional[str], Optional[str]]:
         new_varname = f'{self.generic_varname}_joined'
-        prescript = PS_OPT_OPTIONAL_ARR.format(
-            name=new_varname, 
-            src=self.current_value, 
-            prefix=self.prefix,
-            arr_join=self.arr_join
-        )
+        if self.is_optional_filetype:
+            prescript = PS_OPT_OPTIONAL_ARR_FILETYPES.format(
+                name=new_varname, 
+                src=self.current_value, 
+                default=self.param_default,
+                prefix=self.prefix,
+                arr_join=self.arr_join
+            )
+        else:
+            prescript = PS_OPT_OPTIONAL_ARR.format(
+                name=new_varname, 
+                src=self.current_value, 
+                prefix=self.prefix,
+                arr_join=self.arr_join
+            )
         self.update_varname(new_varname)
         script = SC_OPT_OPTIONAL_ARR.format(var=self.current_value)
         return prescript, script
@@ -517,12 +576,21 @@ class ScriptFormatter:
 
     def opt_optional_arr_prefixeach(self) -> Tuple[Optional[str], Optional[str]]:
         new_varname = f'{self.generic_varname}_items'
-        prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH.format(
-            name=new_varname, 
-            src=self.current_value, 
-            prefix=self.prefix,
-            arr_join=self.arr_join
-        )
+        if self.is_optional_filetype:
+            prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES.format(
+                name=new_varname, 
+                src=self.current_value, 
+                default=self.param_default,
+                prefix=self.prefix,
+                arr_join=self.arr_join
+            )
+        else:
+            prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH.format(
+                name=new_varname, 
+                src=self.current_value, 
+                prefix=self.prefix,
+                arr_join=self.arr_join
+            )
         self.update_varname(new_varname)
         script = SC_OPT_OPTIONAL_ARR_PREFIXEACH.format(var=self.current_value)
         return prescript, script
