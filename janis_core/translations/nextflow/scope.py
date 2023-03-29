@@ -61,6 +61,8 @@ class Scope:
     def to_string(self, ignore_base_item: bool=False) -> str:
         if ignore_base_item and len(self.labels) > 1:
             out = '.'.join(self.labels[1:])
+        # elif ignore_base_item:
+        #     out = ''
         elif len(self.labels) >= 1:
             out = '.'.join(self.labels)
         else:

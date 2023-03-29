@@ -143,6 +143,7 @@ class NextflowTranslator(TranslatorBase):
         # register params and channels for workflow inputs
         params.clear()
         channels.clear()
+        preprocessing.ensure_unique_task_names(wf)
         preprocessing.register_params_channels(wf)
         preprocessing.register_ds_categories(wf)
         preprocessing.register_ds_variables(wf)

@@ -71,7 +71,8 @@ from janis_core.tests.testworkflows import (
     ProcessInputsTestWF,
     OrderingTestWF,
     PlumbingEdgeCaseTestWF,
-    OptionalTestWF
+    OptionalTestWF,
+    DuplicateTasksTestWF
 ) 
 
 from janis_core import (
@@ -934,6 +935,29 @@ class TestParams(unittest.TestCase):
     def test_translate_pythontool(self) -> None:
         raise NotImplementedError
 
+
+
+class TestFiles(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.maxDiff = None
+        reset_globals()
+        wf = DuplicateTasksTestWF()
+        do_preprocessing_workflow(wf)
+        self.maintask, self.subtask_dict = translator.translate_workflow_internal(wf)
+
+    def test_duplicate_tool_usage(self) -> None:
+        actual_subtasks = len(self.subtask_dict)
+        expected_subtasks = 12
+        self.assertEqual(actual_subtasks, expected_subtasks)
+
+        # checking values supplied 
+        subtask = self.subtask_dict['modules/stp1']
+        print(subtask)
+        raise NotImplementedError
+
+    def test_duplicate_subworkflow_usage(self) -> None:
+        raise NotImplementedError
 
 
 class TestFileFormats(unittest.TestCase):
