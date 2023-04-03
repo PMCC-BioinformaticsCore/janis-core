@@ -192,6 +192,178 @@ class DataTypeNoSecondary(File):
 
 ### test classes
 
+class TestTaskInputs(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_globals()
+
+    # no subworkflows
+    def test_one_call(self) -> None:
+        wf = MinimalTaskInputsTestWF1()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+    
+    def test_two_calls(self) -> None:
+        wf = MinimalTaskInputsTestWF2()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int2',
+            'val in_int3',
+            'val in_str4',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+    
+    def test_three_calls(self) -> None:
+        wf = MinimalTaskInputsTestWF3()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int2',
+            'val in_int3',
+            'val in_str4',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+    
+    # subworkflows
+    def test_one_call_sub(self) -> None:
+        # TODO improve? 
+        wf = MinimalTaskInputsTestWF4()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        step = step.tool.step_nodes["stp1"]
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+
+    def test_two_calls_sub(self) -> None:
+        # TODO improve? 
+        # main wf process
+        wf = MinimalTaskInputsTestWF5()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
+            'val in_int2',
+            'val in_str1',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # sub wf process
+        step = wf.step_nodes["stp2"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        step = step.tool.step_nodes["stp1"]
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
+            'val in_int2',
+            'val in_str1',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+    
+    def test_three_calls_sub(self) -> None:
+        # TODO improve? 
+        wf = MinimalTaskInputsTestWF6()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
+            'val in_int2',
+            'val in_int3',
+            'val in_str1',
+            'val in_str2',
+            'val in_str3',
+            'val in_str4',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+        
+        step = wf.step_nodes["stp2"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
+            'val in_int2',
+            'val in_int3',
+            'val in_str1',
+            'val in_str2',
+            'val in_str3',
+            'val in_str4',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+
+        # sub wf process
+        step = wf.step_nodes["stp3"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        step = step.tool.step_nodes["stp1"]
+        scope.update(step)
+        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
+        expected_inputs = {
+            'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
+            'val in_int2',
+            'val in_int3',
+            'val in_str1',
+            'val in_str2',
+            'val in_str3',
+            'val in_str4',
+        }
+        actual_inputs = {inp.get_string() for inp in process.inputs}
+        self.assertEqual(actual_inputs, expected_inputs)
+
+
+
+
 class TestPreprocessingMinimalTaskInputs(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -1688,34 +1860,34 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
 
-    def test_wf_inputs(self) -> None:
-        # need a process input for each File wf input in step sources.
-        # non-files are fed data via params.
-        wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["unicycler"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        expected_inputs = {
-            "path option2, stageAs: 'option2'",
-            "path option1, stageAs: 'option1'",
-            "path option_l, stageAs: 'option_l'",
-        }
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        self.assertEqual(actual_inputs, expected_inputs)
+    # def test_wf_inputs(self) -> None:
+    #     # need a process input for each File wf input in step sources.
+    #     # non-files are fed data via params.
+    #     wf = AssemblyTestWF()
+    #     do_preprocessing_workflow(wf)
+    #     step = wf.step_nodes["unicycler"]
+    #     scope = nextflow.Scope()
+    #     scope.update(step)
+    #     process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+    #     expected_inputs = {
+    #         "path option2, stageAs: 'option2'",
+    #         "path option1, stageAs: 'option1'",
+    #         "path option_l, stageAs: 'option_l'",
+    #     }
+    #     actual_inputs = {inp.get_string() for inp in process.inputs}
+    #     self.assertEqual(actual_inputs, expected_inputs)
     
-    def test_connections(self) -> None:
-        # need a process input for each connection in step sources.
-        wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["CatTestTool"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-        expected_inputs = {"path inp, stageAs: 'inp'"}
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        self.assertEqual(actual_inputs, expected_inputs)
+    # def test_connections(self) -> None:
+    #     # need a process input for each connection in step sources.
+    #     wf = AssemblyTestWF()
+    #     do_preprocessing_workflow(wf)
+    #     step = wf.step_nodes["CatTestTool"]
+    #     scope = nextflow.Scope()
+    #     scope.update(step)
+    #     process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+    #     expected_inputs = {"path inp, stageAs: 'inp'"}
+    #     actual_inputs = {inp.get_string() for inp in process.inputs}
+    #     self.assertEqual(actual_inputs, expected_inputs)
     
     def test_static_inputs(self) -> None:
         # DO NOT need a process input for each static value in step sources.
@@ -1736,7 +1908,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         for input_id in non_expected_ids:
             self.assertNotIn(input_id, actual_inputs)
     
-    def test_internal_inputs(self) -> None:
+    def test_ignored_inputs(self) -> None:
         # DO NOT need a process input for each non-exposed tool input. 
         # tool input will be autofilled or ignored in script.
         wf = AssemblyTestWF()
@@ -1755,7 +1927,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         for input_id in non_expected_ids:
             self.assertNotIn(input_id, actual_inputs)
     
-    def test_file_pairs(self) -> None:
+    def test_file_pairs_fmt(self) -> None:
         wf = FilePairsTestWF()
         do_preprocessing_workflow(wf)
 
@@ -1781,7 +1953,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
 
-    def test_arrays(self) -> None:
+    def test_arrays_fmt(self) -> None:
         # definition should be the same as singles. 
         # nextflow doesn't differentiate. 
         wf = ArrayStepInputsTestWF()
@@ -1797,7 +1969,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
-    def test_secondaries(self) -> None:
+    def test_secondaries_fmt(self) -> None:
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1808,7 +1980,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         expected_inputs = {'tuple path(bam), path(bai)'}
         self.assertEqual(actual_inputs, expected_inputs)   
     
-    def test_secondaries_array(self) -> None:
+    def test_secondaries_array_fmt(self) -> None:
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp4"]
@@ -2385,8 +2557,8 @@ process STP3 {
             "def in_secondary_array_opt = get_primary_files(indexed_bam_flat)", 
             "def in_secondary_array_opt_joined = in_secondary_array_opt != [['NO_FILE1', 'NO_FILE2']] ? in_secondary_array_opt.join(' ') : \"\"", 
             "def in_secondary_opt = bam != ['NO_FILE3', 'NO_FILE4'] ? bam : \"\"", 
-            "def in_file_pair_opt_joined = in_file_pair_opt != None ? in_file_pair_opt.join(' ') : \"\"", 
-            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE5'] ? in_file_array_opt.join(' ') : \"\"", 
+            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE4', 'NO_FILE5'] ? in_file_pair_opt.join(' ') : \"\"", 
+            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE6'] ? in_file_array_opt.join(' ') : \"\"", 
             "def in_file_opt = in_file_opt != 'NO_FILE6' ? in_file_opt : \"\"", 
         }
         for ln in expected_lines:

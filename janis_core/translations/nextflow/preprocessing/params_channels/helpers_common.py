@@ -4,12 +4,11 @@ from typing import Any
 from collections import Counter
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
-from janis_core.types import File, Filename, Directory
+from janis_core.types import File, Filename
 from janis_core import translation_utils as utils
 
 from ... import params
 from ... import trace
-from ... import task_inputs
 
 
 def get_linkable_params(wf: Workflow, sources: dict[str, Any]) -> dict[str, params.Param]:
@@ -30,41 +29,53 @@ def get_linkable_params(wf: Workflow, sources: dict[str, Any]) -> dict[str, para
     return out
 
 def get_all_workflow_inputs(wf: Workflow) -> set[str]:
-    true_inputs = get_task_referenced_wf_inputs(wf)
+    true_inputs = get_true_workflow_inputs(wf)
     file_inputs = get_file_wf_inputs(wf)
-    non_optional_inputs = get_non_optional_wf_inputs(wf)
+    filename_inputs = get_filename_wf_inputs(wf)
     scatter_inputs = get_scatter_wf_inputs(wf)
-    final_inputs = true_inputs | file_inputs | non_optional_inputs | scatter_inputs
+    final_inputs = true_inputs | file_inputs | filename_inputs | scatter_inputs
     return final_inputs
 
-def get_task_referenced_wf_inputs(wf: Workflow) -> set[str]:
+def get_true_workflow_inputs(wf: Workflow) -> set[str]:
     """
-    identifies which workflow InputNodes are referenced in minimal task inputs. 
+    identifies which workflow InputNodes are 'true' workflow inputs, and which 
+    are simply static values provided in the step call. 
+
+    'true' workflow inputs:
+    1. if an InputNode is referenced in > 1 step inputs among all steps
+    2. if an InputNode is referenced in 1 step input among all steps, but has no default value
+
+    other inputs are either not referenced in workflow (will be ignored), or 
+    are referenced in 1 step input with a default (static)
     """
     out: set[str] = set()
-
-    for step in wf.step_nodes.values():
-        identifier = step.tool.id()
-        minimal_task_inputs = task_inputs.get(identifier)
-
-        for tinput_id in minimal_task_inputs:
-            if tinput_id in step.sources:
-                src = step.sources[tinput_id]
-                refs = _get_input_node_refs(src, wf)
-                out = out | refs
+    counts = _get_input_node_reference_counts(wf)
+    for input_node_id, count in counts.items():
+        if count > 1:
+            out.add(input_node_id)
+        elif count == 1:
+            inp = wf.input_nodes[input_node_id]
+            if inp.default is None:
+                out.add(input_node_id)
 
     return out
 
-def _get_input_node_refs(src: Any, wf: Workflow) -> set[str]:
+def _get_input_node_reference_counts(wf: Workflow) -> dict[str, int]:
     """
     identifies the number of times each workflow input is referenced in step inputs. 
     to facilitate: 
         - for each step, each step input expression is explored
         - any references to workflow inputs in the expression are noted. 
     """
-    refs = trace.trace_referenced_variables(src, wf)
-    refs = _filter_to_input_node_refs(refs, wf)
-    return refs
+    counts = Counter()
+
+    for step in wf.step_nodes.values():
+        for tinput_id, src in step.sources.items():
+            refs = trace.trace_referenced_variables(src, wf)
+            refs = _filter_to_input_node_refs(refs, wf)
+            for ref in refs:
+                counts[ref] += 1
+    return counts
 
 def _filter_to_input_node_refs(references: set[str], wf: Workflow) -> set[str]:
     out: set[str] = set()
@@ -80,18 +91,20 @@ def get_file_wf_inputs(wf: Workflow) -> set[str]:
         basetype = utils.get_base_type(inp.datatype)
         basetype = utils.ensure_single_type(basetype)
         # main file types
-        if isinstance(basetype, (File, Filename, Directory)):
+        if isinstance(basetype, File):
             out.add(name)
         # file pairs
         elif basetype.name() in ['FastqPair', 'FastqGzPair']:
             out.add(name)
     return out
 
-def get_non_optional_wf_inputs(wf: Workflow) -> set[str]:
-    # wf inputs with file type
+def get_filename_wf_inputs(wf: Workflow) -> set[str]:
+    # wf inputs with filename type
     out: set[str] = set()
     for name, inp in wf.input_nodes.items():
-        if not inp.datatype.optional:
+        basetype = utils.get_base_type(inp.datatype)
+        basetype = utils.ensure_single_type(basetype)
+        if isinstance(basetype, Filename):
             out.add(name)
     return out
 

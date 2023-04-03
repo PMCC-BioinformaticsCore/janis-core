@@ -13,6 +13,7 @@ from ...scope import Scope
 from ... import data_sources
 from ... import params
 from ... import channels
+from ... import task_inputs
 
 
 def register_ds_categories(entity: Workflow | CommandTool | PythonTool) -> None:
@@ -69,14 +70,14 @@ class ProcessDSCategoryGenerator:
         self.param_inputs: set[str] = set()
         self.internal_inputs: set[str] = set()
 
-    @property
-    def tinputs(self) -> list[TInput]:
-        if isinstance(self.tool, (CommandTool, Workflow)):
-            return self.tool.tool_inputs()
-        elif isinstance(self.tool, PythonTool):  # type: ignore
-            return self.tool.inputs()
-        else:  # workflow
-            raise NotImplementedError
+    # @property
+    # def tinputs(self) -> list[TInput]:
+    #     if isinstance(self.tool, (CommandTool, Workflow)):
+    #         return self.tool.tool_inputs()
+    #     elif isinstance(self.tool, PythonTool):  # type: ignore
+    #         return self.tool.inputs()
+    #     else:  # workflow
+    #         raise NotImplementedError
     
     @property
     def all_input_ids(self) -> set[str]:
@@ -86,26 +87,15 @@ class ProcessDSCategoryGenerator:
         else:
             assert(self.all_input_ids_workflow is not None)
             return self.all_input_ids_workflow
-    
+        
     @property
     def all_input_ids_tool(self) -> Optional[set[str]]:
-        return {x.id() for x in self.tinputs} 
+        return {x.id() for x in self.tool.tool_inputs()} 
     
     @property
     def all_input_ids_workflow(self) -> Optional[set[str]]:
         return get_all_workflow_inputs(self.tool)
-
-    @property
-    def channel_input_ids(self) -> set[str]:
-        """get tool inputs (ids) which are linked to a channel"""
-        out: set[str] = set()
-        for tag, src in self.sources.items():
-            node = utils.resolve_node(src)
-            if isinstance(node, InputNode):
-                if channels.exists(self.scope, node.uuid, for_parent=True):
-                    out.add(tag)
-        return out
-
+        
     @property
     def param_input_ids(self) -> set[str]:
         """get tool inputs (ids) which are linked to a param"""
@@ -116,68 +106,80 @@ class ProcessDSCategoryGenerator:
                 if params.exists(node.uuid):
                     out.add(tag)
         return out
+    
 
-    @property
-    def connection_input_ids(self) -> set[str]:
-        """get tool inputs (ids) which are being fed a value from a step connection"""
-        out: set[str] = set()
-        for tag, src in self.sources.items():
-            node = utils.resolve_node(src)
-            if isinstance(node, StepNode):
-                out.add(tag)
-        return out
+    
+    # @property
+    # def channel_input_ids(self) -> set[str]:
+    #     """get tool inputs (ids) which are linked to a channel"""
+    #     out: set[str] = set()
+    #     for tag, src in self.sources.items():
+    #         node = utils.resolve_node(src)
+    #         if isinstance(node, InputNode):
+    #             if channels.exists(self.scope, node.uuid, for_parent=True):
+    #                 out.add(tag)
+    #     return out
 
-    @property
-    def scatter_input_ids(self) -> set[str]:
-        """get tool inputs (ids) which are being scattered on"""
-        out: set[str] = set()
-        for inname, src in self.sources.items():
-            should_scatter = src.source_map[0].should_scatter
-            node = utils.resolve_node(src)
-            if should_scatter and isinstance(node, InputNode):
-                out.add(inname)
-        return out
+    # @property
+    # def connection_input_ids(self) -> set[str]:
+    #     """get tool inputs (ids) which are being fed a value from a step connection"""
+    #     out: set[str] = set()
+    #     for tag, src in self.sources.items():
+    #         node = utils.resolve_node(src)
+    #         if isinstance(node, StepNode):
+    #             out.add(tag)
+    #     return out
 
-    @property
-    def complex_expression_input_ids(self) -> set[str]:
-        """get tool inputs (ids) which are fed data using a complex janis expression"""
-        out: set[str] = set()
-        for inname, src in self.sources.items():
-            node = utils.resolve_node(src)
-            if not isinstance(node, InputNode) and not isinstance(node, StepNode):
-                out.add(inname)
-        return out
+    # @property
+    # def scatter_input_ids(self) -> set[str]:
+    #     """get tool inputs (ids) which are being scattered on"""
+    #     out: set[str] = set()
+    #     for inname, src in self.sources.items():
+    #         should_scatter = src.source_map[0].should_scatter
+    #         node = utils.resolve_node(src)
+    #         if should_scatter and isinstance(node, InputNode):
+    #             out.add(inname)
+    #     return out
+
+    # @property
+    # def complex_expression_input_ids(self) -> set[str]:
+    #     """get tool inputs (ids) which are fed data using a complex janis expression"""
+    #     out: set[str] = set()
+    #     for inname, src in self.sources.items():
+    #         node = utils.resolve_node(src)
+    #         if not isinstance(node, InputNode) and not isinstance(node, StepNode):
+    #             out.add(inname)
+    #     return out
     
     ### main method
     def generate(self) -> None:
-        if self.scope.to_string() == 'main.stp4.stp1':
-            print()
         self.process_inputs = self.get_process_inputs()
         self.param_inputs = self.get_param_inputs()
         self.internal_inputs = self.get_internal_inputs()
-        print()
 
     ### process inputs
     def get_process_inputs(self) -> set[str]:
         """gets the tool inputs which will become nextflow process inputs"""
-        if settings.translate.nextflow.MODE == 'workflow':
-            return self.get_process_inputs_workflowmode()
-        elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
-            return self.get_process_inputs_toolmode()
-        else:
-            raise RuntimeError
+        return task_inputs.get(self.tool.id())
 
-    def get_process_inputs_workflowmode(self) -> set[str]:
-        """
-        inputs which are fed (via step inputs) using a file type workflow input
-        inputs which are fed (via step inputs) using a connection
-        inputs which are involved in scatter
-        """
-        return self.channel_input_ids | self.connection_input_ids | self.scatter_input_ids | self.complex_expression_input_ids
+    #     if settings.translate.nextflow.MODE == 'workflow':
+    #         return self.get_process_inputs_workflowmode()
+    #     elif settings.translate.nextflow.MODE == 'tool':  # type: ignore
+    #         return self.get_process_inputs_toolmode()
+    #     else:
+    #         raise RuntimeError
 
-    def get_process_inputs_toolmode(self) -> set[str]:
-        """all CommandTool inputs. in toolmode, we have no greater scope than the tool itself."""
-        return self.all_input_ids
+    # def get_process_inputs_workflowmode(self) -> set[str]:
+    #     """
+    #     inputs which are fed (via step inputs) using a file type workflow input
+    #     inputs which are fed (via step inputs) using a connection
+    #     inputs which are involved in scatter
+    #     """
+    #     return self.channel_input_ids | self.connection_input_ids | self.scatter_input_ids | self.complex_expression_input_ids
+
+    # def get_process_inputs_toolmode(self) -> set[str]:
+    #     """all CommandTool inputs. in toolmode, we have no greater scope than the tool itself."""
+    #     return self.all_input_ids
     
     ### param inputs
     def get_param_inputs(self) -> set[str]:
