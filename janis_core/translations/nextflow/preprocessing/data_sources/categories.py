@@ -19,10 +19,10 @@ def register_ds_categories(entity: Workflow | CommandTool | PythonTool) -> None:
     """
     MAIN ENTRY POINT for this preprocessing task.
 
-    for each Workflow / CommandTool / PythonTool in entity, decides which ToolInputs are:
+    for each nextflow task to create, decides which ToolInputs are:
         - process inputs
-        - param inputs
-        - internal inputs
+        - accessed internally via param
+        - accessed internally via static value
     """
     
     scope = Scope()
@@ -56,10 +56,10 @@ def do_register_ds_categories(tool: Workflow | CommandTool | PythonTool, sources
 
 class ProcessDSCategoryGenerator:
     """
-    for a CommandTool / PythonTool, decides which of the ToolInputs / TInputs which will be:
+    for a nextflow task to create, decides which of the ToolInputs / TInputs which will be:
         - process inputs
-        - param inputs
-        - internal inputs
+        - accessed internally via param
+        - accessed internally via static value
     """
     def __init__(self, scope: Scope, tool: Workflow | CommandTool | PythonTool, sources: dict[str, Any]) -> None:
         self.scope = scope

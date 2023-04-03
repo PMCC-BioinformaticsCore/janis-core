@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, List, Dict, Set, Any
+from uuid import uuid4
 
 from janis_core.types.common_data_types import Array
 from janis_core.tool.documentation import (
@@ -81,7 +82,7 @@ class Tool(ABC, object):
         :param metadata_class:
         :param connections:
         """
-
+        self.uuid: str = str(uuid4())
         self.metadata: metadata_class = metadata_class()
         meta = self.bind_metadata()
         if meta:

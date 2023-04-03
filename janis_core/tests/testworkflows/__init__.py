@@ -42,6 +42,13 @@ from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
 from .trace import EntityTraceTestWF
 from .optional import OptionalTestWF
 from .duplicate_tasks import DuplicateTasksTestWF
+from .minimal_task_inputs import MinimalTaskInputsTestWF1
+from .minimal_task_inputs import MinimalTaskInputsTestWF2
+from .minimal_task_inputs import MinimalTaskInputsTestWF3
+from .minimal_task_inputs import MinimalTaskInputsTestWF4
+from .minimal_task_inputs import MinimalTaskInputsTestWF5
+from .minimal_task_inputs import MinimalTaskInputsTestWF6
+
 
 from .assembly import w as AssemblyTestWF
 from .string_formatter import StringFormatterTestWF

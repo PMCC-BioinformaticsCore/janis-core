@@ -288,7 +288,6 @@ class CommandTool(Tool, ABC):
 
     def __init__(self, **connections):
         super().__init__(metadata_class=ToolMetadata, **connections)
-        self.uuid = str(uuid4())
 
     # Tool base
     @abstractmethod

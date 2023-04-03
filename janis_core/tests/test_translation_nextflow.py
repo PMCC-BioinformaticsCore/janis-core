@@ -72,7 +72,13 @@ from janis_core.tests.testworkflows import (
     OrderingTestWF,
     PlumbingEdgeCaseTestWF,
     OptionalTestWF,
-    DuplicateTasksTestWF
+    DuplicateTasksTestWF,
+    MinimalTaskInputsTestWF1,
+    MinimalTaskInputsTestWF2,
+    MinimalTaskInputsTestWF3,
+    MinimalTaskInputsTestWF4,
+    MinimalTaskInputsTestWF5,
+    MinimalTaskInputsTestWF6,
 ) 
 
 from janis_core import (
@@ -88,8 +94,6 @@ from janis_core.translations import translate
 from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
 
-from janis_core.translations.nextflow.data_sources import ProcessDSCategoryRegister
-from janis_core.translations.nextflow.data_sources import ProcessDSVariableRegister
 from janis_core.translations.nextflow.parsing.process.VariableManager import VariableManager
 
 from janis_core import (
@@ -140,21 +144,20 @@ def reset_globals() -> None:
     settings.translate.MAX_MEM = None
 
     nextflow.preprocessing.params_channels.no_file_count = 0
-
-def do_preprocessing_workflow(wf: Workflow) -> None:
     nextflow.params.clear()
     nextflow.channels.clear()
-    nextflow.data_sources.pds_register = ProcessDSCategoryRegister()
-    nextflow.data_sources.pvn_register = ProcessDSVariableRegister()
+    nextflow.task_inputs.clear()
+    nextflow.data_sources.clear()
+    nextflow.data_sources.clear()
+
+def do_preprocessing_workflow(wf: Workflow) -> None:
+    nextflow.preprocessing.register_minimal_task_inputs(wf)
     nextflow.preprocessing.register_params_channels(wf)
     nextflow.preprocessing.register_ds_categories(wf)
     nextflow.preprocessing.register_ds_variables(wf)
 
 def do_preprocessing_tool(tool: CommandTool | PythonTool) -> None:
-    nextflow.params.clear()
-    nextflow.channels.clear()
-    nextflow.data_sources.pds_register = ProcessDSCategoryRegister()
-    nextflow.data_sources.pvn_register = ProcessDSVariableRegister()
+    nextflow.preprocessing.register_minimal_task_inputs(tool)
     nextflow.preprocessing.register_ds_categories(tool)
     nextflow.preprocessing.register_ds_variables(tool)
 
@@ -188,6 +191,103 @@ class DataTypeNoSecondary(File):
 
 
 ### test classes
+
+class TestPreprocessingMinimalTaskInputs(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_globals()
+
+    # no subworkflows
+    def test_one_call(self) -> None:
+        wf = MinimalTaskInputsTestWF1()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        actual_inputs = nextflow.task_inputs.get('TaskInputsTestTool1')
+        expected_inputs = {'inFile'}
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+    def test_two_calls(self) -> None:
+        wf = MinimalTaskInputsTestWF2()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        actual_inputs = nextflow.task_inputs.get('TaskInputsTestTool1')
+        expected_inputs = {
+            'inFile',
+            'inStr4',
+            'inInt2',
+            'inInt3',
+        }
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+    def test_three_calls(self) -> None:
+        wf = MinimalTaskInputsTestWF3()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        actual_inputs = nextflow.task_inputs.get('TaskInputsTestTool1')
+        expected_inputs = {
+            'inFile',
+            'inStr4',
+            'inInt2',
+            'inInt3',
+        }
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+    # subworkflows
+    def test_one_call_sub(self) -> None:
+        # TODO improve? 
+        wf = MinimalTaskInputsTestWF4()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        
+        # workflow
+        actual_inputs = nextflow.task_inputs.get('SubMinimalTaskInputsTestWF')
+        expected_inputs = {'inFile'}
+        self.assertSetEqual(actual_inputs, expected_inputs)
+
+    def test_two_calls_sub(self) -> None:
+        # TODO improve? 
+        wf = MinimalTaskInputsTestWF5()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        
+        # tool
+        actual_inputs = nextflow.task_inputs.get('TaskInputsTestTool1')
+        expected_inputs = {
+            'inFile',
+            'inStr1',
+            'inInt1',
+            'inInt2',
+        }
+        self.assertSetEqual(actual_inputs, expected_inputs)
+        
+        # workflow
+        actual_inputs = nextflow.task_inputs.get('SubMinimalTaskInputsTestWF')
+        expected_inputs = {'inFile'}
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+    def test_three_calls_sub(self) -> None:
+        # TODO improve? 
+        wf = MinimalTaskInputsTestWF6()
+        nextflow.preprocessing.register_minimal_task_inputs(wf)
+        
+        # tool
+        actual_inputs = nextflow.task_inputs.get('TaskInputsTestTool1')
+        expected_inputs = {
+            'inFile',
+            'inStr1',
+            'inStr2',
+            'inStr3',
+            'inStr4',
+            'inInt1',
+            'inInt2',
+            'inInt3',
+        }
+        self.assertSetEqual(actual_inputs, expected_inputs)
+        
+        # workflow
+        actual_inputs = nextflow.task_inputs.get('SubMinimalTaskInputsTestWF')
+        expected_inputs = {'inFile'}
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+
+
+
+
 
 class TestPreprocessingHelpers(unittest.TestCase):
 
@@ -314,8 +414,8 @@ class TestDataSourceCategories(unittest.TestCase):
         reset_globals()
         self.wf = DataSourceTestWF()
         do_preprocessing_workflow(self.wf)
-        self.pdsr = nextflow.data_sources.pds_register.data_structure
-        print(nextflow.data_sources.pds_register.to_string())
+        self.pdsr = nextflow.data_sources.tds_register.data_structure
+        print(nextflow.data_sources.tds_register.to_string())
 
     def test_stp1(self) -> None:
         label = 'main.stp1'
@@ -430,7 +530,7 @@ class TestDataSourceCategories(unittest.TestCase):
         expected_process_inputs = {'inFile', 'inFileOpt'}
         expected_param_inputs = {'inStr', 'inStrOpt'}
         expected_internal_inputs: set[str] = set()
-        print(nextflow.data_sources.pds_register.to_string())
+        print(nextflow.data_sources.tds_register.to_string())
         self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
         self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
         self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
@@ -440,7 +540,7 @@ class TestDataSourceCategories(unittest.TestCase):
         expected_process_inputs = {'inFile', 'inFileOpt'}
         expected_param_inputs: set[str] = set()
         expected_internal_inputs = {'inStr', 'inStrOpt'}
-        print(nextflow.data_sources.pds_register.to_string())
+        print(nextflow.data_sources.tds_register.to_string())
         self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
         self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
         self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
@@ -486,7 +586,7 @@ class TestDataSourceCategories(unittest.TestCase):
         expected_process_inputs = {'inFile'}
         expected_param_inputs = {'inStr', 'inStrOpt', 'inFileOpt'}
         expected_internal_inputs: set[str] = set()
-        print(nextflow.data_sources.pds_register.to_string())
+        print(nextflow.data_sources.tds_register.to_string())
         self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
         self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
         self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
@@ -496,7 +596,7 @@ class TestDataSourceCategories(unittest.TestCase):
         expected_process_inputs = {'inFile'}
         expected_param_inputs = {'inFileOpt'}
         expected_internal_inputs = {'inStr', 'inStrOpt'}
-        print(nextflow.data_sources.pds_register.to_string())
+        print(nextflow.data_sources.tds_register.to_string())
         self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
         self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
         self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
@@ -517,8 +617,8 @@ class TestDataSourceVaraibles(unittest.TestCase):
         reset_globals()
         self.wf = DataSourceTestWF()
         do_preprocessing_workflow(self.wf)
-        self.pdsv = nextflow.data_sources.pvn_register.data_structure
-        print(nextflow.data_sources.pvn_register.to_string())
+        self.pdsv = nextflow.data_sources.tvn_register.data_structure
+        print(nextflow.data_sources.tvn_register.to_string())
 
     def test_stp1(self) -> None:
         label = 'main.stp1'
@@ -1249,7 +1349,7 @@ class TestChannels(unittest.TestCase):
     def test_filename_types(self) -> None:
         wf = FilenameTestWF()
         do_preprocessing_workflow(wf)
-        print(nextflow.data_sources.pvn_register.to_string())
+        print(nextflow.data_sources.tvn_register.to_string())
         scope = nextflow.Scope()
         channels_ids = {c.name for c in nextflow.channels.getall(scope)}
         expected_ids = {

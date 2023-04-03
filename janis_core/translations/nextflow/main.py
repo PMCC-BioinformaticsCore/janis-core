@@ -59,11 +59,11 @@ def dot_to_scope_notation(dot: str) -> list[str]:
 
 
 class NFFileRegister:
-    # TODO CHECK
     """
     Stores generated nf files. 
     Organised by {scope: file}.
-    Each entity (ie workflow, subworkflow, tool) only will have 1 file.
+    Each entity (ie workflow, subworkflow, tool) only belongs to 1 file.
+    Some entities (Tools / Workflows) may have multiple items (imports, function definitions, process / workflow body etc). 
     """
     def __init__(self):
         self.files: dict[str, NFFile] = {}
@@ -100,7 +100,7 @@ class NFItemRegister:
     """
     Stores generated nf items. 
     Organised by {scope: [items]}.
-    Some entities (Tools / Workflows) may have multiple items. 
+    Some entities (Tools / Workflows) may have multiple items (imports, function definitions, process / workflow body etc). 
     """
     def __init__(self):
         self.items: dict[str, list[IGetStringMethod]] = defaultdict(list)
@@ -143,7 +143,8 @@ class NextflowTranslator(TranslatorBase):
         # register params and channels for workflow inputs
         params.clear()
         channels.clear()
-        preprocessing.ensure_unique_task_names(wf)
+        # preprocessing.ensure_unique_task_names(wf)
+        preprocessing.register_minimal_task_inputs(wf)
         preprocessing.register_params_channels(wf)
         preprocessing.register_ds_categories(wf)
         preprocessing.register_ds_variables(wf)
@@ -672,167 +673,3 @@ class NextflowTranslator(TranslatorBase):
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
         pass
-
-
-
-
-    # DEPRECATED
-
-    # @classmethod
-    # def collect_workflow_imports(
-    #     cls, files: dict[str, nfgen.NFFile]
-    # ) -> list[nfgen.Import]:
-    #     """
-    #     Generate a list of Nextflow Import objects for each of the steps in a workflow.
-
-    #     :param files:
-    #     :type files:
-    #     :return:
-    #     :rtype:
-    #     """
-    #     imports: list[nfgen.Import] = []
-        
-    #     for filename, nf_file in files.items():
-    #         file_imports = []
-    #         for process in nf_file.items:
-    #             i_item = nfgen.ImportItem(name=process.name)
-    #             file_imports.append(i_item)
-
-    #         imp = nfgen.Import(
-    #             file_imports, os.path.join(".", settings.PROCESS_OUTDIR, filename)
-    #         )
-    #         imports.append(imp)
-
-    #     return imports
-
-
-    # @classmethod
-    # def handle_scatter_argument(
-    #     cls, p: str, input: ToolInput, step_keys: List[str] = []
-    # ):
-    #     """
-
-    #     :param p: string to represent the argument
-    #     :type p: str
-    #     :param step_keys: List of worfklow step names
-    #     :type step_keys: List[str]
-
-    #     :return:
-    #     :rtype:
-    #     """
-    #     if isinstance(input, ToolInput):
-    #         input_type = input.input_type
-    #     elif isinstance(input, TInput):
-    #         input_type = input.intype
-    #     else:
-    #         raise Exception("Unknown input object")
-
-    #     # If it comes from our input files, it is already properly formatted
-    #     # e.g array of array are in the correct formats
-    #     matches = []
-    #     pattern = r"\b(params(\..+?)+)\b"
-    #     found = re.findall(pattern, p)
-    #     # found is in this format
-    #     # [('params.intervals', '.intervals'), ('step_id.out.test', '.test')]
-    #     if found is not None:
-    #         matches += [t[0] for t in found]
-
-    #     for m in matches:
-    #         p = p.replace(m, f"Channel.from({m}).map{{ item -> item }}")
-
-    #     # Handling outputs from internal workflow steps
-    #     matches = []
-    #     for step_id in step_keys:
-    #         pattern = rf"\b({step_id}(\..+?)+)\b"
-    #         found = re.findall(pattern, p)
-    #         # found is in this format
-    #         # [('params.intervals', '.intervals'), ('step_id.out.test', '.test')]
-    #         if found is not None:
-    #             matches += [t[0] for t in found]
-
-    #     for m in matches or []:
-    #         if hasattr(input_type, 'has_secondary_files'):
-    #             if input_type.has_secondary_files() or input_type.is_paired():
-    #                 p = p.replace(m, f"{m}.map{{ pair -> pair }}")
-    #         else:
-    #             p = p.replace(m, f"{m}.flatten()")
-
-    #     return p
-
-    # @classmethod
-    # def gen_process_workflow(
-    #     cls, tool: Tool, process: nfgen.NFProcess
-    # ) -> nfgen.Workflow:
-    #     """
-    #     In the main translation file, we call a Nextflow Workflow even if it is only for a tool.
-    #     This function generates this Nextflow Workflow object.
-
-    #     :param tool:
-    #     :type tool:
-    #     :param process:
-    #     :type process:
-    #     :return:
-    #     :rtype:
-    #     """
-    #     main: list[str] = []
-    #     name = ""
-
-    #     # gather input args for the tool process call
-    #     args_list = []
-    #     for i in process.inputs:
-    #         p = f"ch_{i.name}"
-
-    #         # Extra processing when we need to set up the process input parameters
-    #         if i.as_param:
-    #             if settings.LIST_OF_FILES_PARAM in i.as_param:
-    #                 p = i.as_param.replace(
-    #                     settings.LIST_OF_FILES_PARAM, f"Channel.fromPath({p}).collect()"
-    #                 )
-    #             elif settings.LIST_OF_FILE_PAIRS_PARAM in i.as_param:
-    #                 p = i.as_param.replace(
-    #                     settings.LIST_OF_FILE_PAIRS_PARAM,
-    #                     f"Channel.from({p}).map{{ pair -> pair }}",
-    #                 )
-    #             elif settings.PYTHON_CODE_FILE_SYMBOL in i.as_param:
-    #                 path_to_python_code_file = posixpath.join(
-    #                     #"$baseDir", settings.PROCESS_OUTDIR, f"{tool.versioned_id()}.py"
-    #                     "$baseDir", settings.PROCESS_OUTDIR, f"{tool.id()}.py"
-    #                 )
-    #                 p = i.as_param.replace(
-    #                     settings.PYTHON_CODE_FILE_SYMBOL, f'"{path_to_python_code_file}"'
-    #                 )
-    #         args_list.append(p)
-
-    #     # gather input args for the output collection process call
-    #     #output_args_list = [f"{process.name}.out.{o.name}" for o in process.outputs]
-        
-    #     main.append((process.name, args_list))
-    #     #body.append((settings.FINAL_STEP_NAME, output_args_list))
-    #     raise NotImplementedError
-    #     return nfgen.Workflow(name, main)
-
-
-    # @classmethod
-    # def gen_wf_tool_outputs(
-    #     cls, wf: WorkflowBase, tool_var_prefix: str = ""
-    # ) -> Dict[str, str]:
-    #     """
-    #     Generate a dictionary containing values of tool output expressions
-    #     key is the output tag name
-    #     value is the output expression
-
-    #     :param wf:
-    #     :type wf:
-    #     :param tool_var_prefix:
-    #     :type tool_var_prefix:
-    #     :return:
-    #     :rtype:
-    #     """
-    #     outputs = {}
-    #     for o in wf.output_nodes:
-    #         if hasattr(wf.output_nodes[o].source, "nextflow"):
-    #             val = wf.output_nodes[o].source.to_nextflow(step_indicator=tool_var_prefix)
-    #         else:
-    #             val = str(val)
-    #         outputs[o] = val
-    #     return outputs

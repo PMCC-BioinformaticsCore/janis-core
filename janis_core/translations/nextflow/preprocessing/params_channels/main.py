@@ -6,19 +6,16 @@ from typing import Any
 from janis_core.workflow.workflow import Workflow
 
 from ...scope import Scope
+from ... import params
 
 from .ChannelRegistrationHelper import ChannelRegistrationHelper
 from .ParamRegistrationHelper import ParamRegistrationHelper
-
 from .helpers_common import get_linkable_params
-
 from .helpers_main import get_param_inputs_to_register_main
 from .helpers_main import get_channel_inputs_to_register_main
-
 from .helpers_sub import get_param_inputs_to_register_sub
 from .helpers_sub import get_channel_inputs_to_register_sub
 
-from ... import params
 
 
 def register_params_channels(wf: Workflow) -> None:

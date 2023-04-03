@@ -19,6 +19,7 @@ from . import workflow
 from . import process
 from . import naming
 from . import data_sources
+from . import task_inputs
 from . import parsing
 from . import preprocessing
 

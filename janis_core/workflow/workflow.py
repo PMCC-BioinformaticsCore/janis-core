@@ -1,9 +1,9 @@
 import copy
 import os
-from uuid import uuid4
 from abc import abstractmethod
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
+from uuid import uuid4
 
 from janis_core.messages import log_warning
 from janis_core import settings
@@ -311,7 +311,6 @@ class OutputNode(Node):
 class WorkflowBase(Tool):
     def __init__(self, **connections):
         super().__init__(metadata_class=WorkflowMetadata)
-        self.uuid: str = str(uuid4())
 
         self.connections = connections
 

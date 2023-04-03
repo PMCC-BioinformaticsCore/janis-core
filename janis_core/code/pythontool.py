@@ -43,7 +43,6 @@ class PythonTool(CodeTool, ABC):
     def __init__(self, **connections):
         self._cached_input_signature = None
         super().__init__(metadata_class=ToolMetadata, **connections)
-        self.uuid = str(uuid4())
 
     # Other internal methods
 
