@@ -67,7 +67,7 @@ class TranslatorMeta(type(ABC)):
 
 class TranslatorBase(ABC):
     """
-    So you're thinking about adding a new tWranslation :)
+    So you're thinking about adding a new translation :)
 
     This class will hopefully give you a pretty good indication
     on what's required to add a new translation, however what I
@@ -91,7 +91,7 @@ class TranslatorBase(ABC):
     and then write unit tests to cover each component of the translation
     and then an integration test of the whole translation on the related workflows.
 
-    You can find these in /janis/tests/test_translation_*.py)
+    You can find these in /janis_core/tests/test_translation_*.py)
     """
 
     __metaclass__ = TranslatorMeta

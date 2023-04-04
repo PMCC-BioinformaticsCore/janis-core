@@ -4,6 +4,7 @@ import functools
 import os
 import re
 from types import LambdaType
+
 from typing import List, Union, Optional, Callable
 import WDL
 
@@ -113,6 +114,7 @@ class WdlParser:
                     ),
                     expr_alias=expr_alias,
                     foreach=foreach,
+                    foreach=foreach,
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -178,13 +180,15 @@ class WdlParser:
 
     def parse_memory_requirement(self, value):
         s = self.translate_expr(value)
-        if isinstance(s, str):
+        if s is None:
+            return 1.074
+        elif isinstance(s, str):
             if s.lower().endswith("g"):
                 return float(s[:-1].strip())
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 0.931323
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
@@ -215,17 +219,19 @@ class WdlParser:
             if s.lower().endswith("gb"):
                 return float(s[:-2].strip())
             elif s.lower().endswith("gib"):
-                return float(s[:-3].strip()) * 0.931323
+                return float(s[:-3].strip()) * 1.074
             elif s.lower().endswith("mb"):
                 return float(s[:-2].strip()) / 1000
             elif s.lower().endswith("mib"):
                 return float(s[:-3].strip()) / 1024
             raise Exception(f"Disk type type {s}")
         elif isinstance(s, (float, int)):
-            # in bytes?
-            return s / (1024**3)
+            # in GiB
+            return s * 1.07374
         elif isinstance(s, j.Selector):
             return s
+        elif s is None:
+            return 2.14748  # 2 GiB
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
 
     def from_loaded_task(self, obj: WDL.Task):
@@ -234,7 +240,11 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if cpus is not None and not isinstance(cpus, j.Selector) and not isinstance(cpus, (int, float)):
+        if (
+            cpus is not None
+            and not isinstance(cpus, j.Selector)
+            and not isinstance(cpus, (int, float))
+        ):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
@@ -442,8 +452,23 @@ class WdlParser:
 
 
 if __name__ == "__main__":
-    # doc = "path/to/doc.wdl"
-    doc = "/Users/mfranklin/source/gatk/scripts/cnv_wdl/germline/cnv_germline_case_workflow.wdl"
-    t = WdlParser.from_doc(doc)
-    t.get_dot_plot(log_to_stdout=True)
-    t.translate("hail")
+    import sys
+
+    if len(sys.argv) != 2:
+        raise Exception("Expected 1 argument, the name of a CWL tool.")
+
+    toolname = sys.argv[1]
+
+    try:
+        tool = WdlParser.from_doc(toolname)
+        tool.translate("janis")
+
+    except WDL.Error.MultipleValidationErrors as err:
+        for exc in err.exceptions:
+            print(exc, file=sys.stderr)
+            print(exc.pos, file=sys.stderr)
+            print(exc.node, file=sys.stderr)
+    except WDL.Error.ValidationError as exc:
+        print(exc, file=sys.stderr)
+        print(exc.pos, file=sys.stderr)
+        print(exc.node, file=sys.stderr)
