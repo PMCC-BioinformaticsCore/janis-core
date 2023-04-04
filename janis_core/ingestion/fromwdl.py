@@ -114,7 +114,6 @@ class WdlParser:
                     ),
                     expr_alias=expr_alias,
                     foreach=foreach,
-                    foreach=foreach,
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
