@@ -1,16 +1,18 @@
-from typing import Any
+from typing import Any, Optional
 from copy import deepcopy
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from janis_core import Workflow
+from janis_core import settings
 
 from ..scope import Scope
 from ..plumbing import gen_task_call
 
-from .. import naming
 from .. import channels
 from .. import unwrap
+from ..casefmt import to_case
+
 
 from ..model.process import NFProcess
 from ..model.files import NFImportsBlock
@@ -23,13 +25,13 @@ from ..model.workflow import NFWorkflowEmit
 
 
 
-def gen_workflow(name: str, scope: Scope, wf: Workflow, item_register: Any) -> NFWorkflow:
+def gen_workflow(name: str, alias: Optional[str], scope: Scope, wf: Workflow, item_register: Any) -> NFWorkflow:
     """Generate a Nextflow Workflow object"""
     is_subworkflow = True if len(scope.labels) > 1 else False
     if is_subworkflow:
-        generator = SubWFGenerator(scope, name, wf, item_register)
+        generator = SubWFGenerator(scope, name, alias, wf, item_register)
     else:
-        generator = MainWFGenerator(scope, name, wf, item_register)
+        generator = MainWFGenerator(scope, name, alias, wf, item_register)
     return generator.generate()
 
 
@@ -37,13 +39,10 @@ def gen_workflow(name: str, scope: Scope, wf: Workflow, item_register: Any) -> N
 class WFGenerator(ABC):
     scope: Scope
     name: str
+    alias: Optional[str]
     wf: Workflow
     item_register: Any
 
-    @property
-    def nf_name(self) -> str:
-        return naming.constructs.gen_varname_workflow(self.name)
-    
     @property
     def main_block(self) -> list[str]:
         # MAIN (workflow step calls, channel operations)
@@ -67,7 +66,7 @@ class WFGenerator(ABC):
                 
                 # subtask to call
                 elif isinstance(nf_item, NFProcess) or isinstance(nf_item, NFWorkflow):
-                    entity_name = nf_item.name
+                    entity_name = to_case(step.id(), settings.translate.nextflow.NF_PROCESS_CASE)
                     task_call = gen_task_call(step, workflow_scope, entity_name)
                     main.append(task_call)
                 
@@ -92,7 +91,7 @@ class WFGenerator(ABC):
 class MainWFGenerator(WFGenerator):
 
     def generate(self) -> NFMainWorkflow:
-        return NFMainWorkflow(self.nf_name, self.main_block)
+        return NFMainWorkflow(self.name, self.alias, self.main_block)
 
 
 @dataclass 
@@ -118,5 +117,5 @@ class SubWFGenerator(WFGenerator):
         return emit
 
     def generate(self) -> NFSubWorkflow:
-        return NFSubWorkflow(self.nf_name, self.main_block, self.take_items, self.emit_items)
+        return NFSubWorkflow(self.name, self.alias, self.main_block, self.take_items, self.emit_items)
    

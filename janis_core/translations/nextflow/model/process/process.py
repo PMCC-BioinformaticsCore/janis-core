@@ -25,6 +25,7 @@ class NFProcessScriptType(Enum):
 @dataclass
 class NFProcess:
     name: str
+    alias: Optional[str]
     script: str
     script_type: Optional[NFProcessScriptType] = None
     script_quote: Optional[str] = '"'
@@ -36,9 +37,6 @@ class NFProcess:
     when: Optional[str] = None  # TODO unimplemented?
     pre_script: Optional[str] = None
     
-    def __post_init__(self) -> None:
-        self.name = naming.constructs.gen_varname_process(self.name)
-
     @property
     def formatted_directives(self):
         if not self.directives:

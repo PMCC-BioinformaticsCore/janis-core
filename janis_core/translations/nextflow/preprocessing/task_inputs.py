@@ -41,10 +41,16 @@ class TaskInputHistory:
 
     @property
     def is_file(self) -> bool:
+        # file pair types
+        if utils.is_file_pair_type(self.dtype):
+            return True
+        
+        # generic file types
         basetype = utils.get_base_type(self.dtype)
         basetype = utils.ensure_single_type(basetype)
         if isinstance(basetype, (File, Filename, Directory)):
             return True
+        
         return False
     
     @property

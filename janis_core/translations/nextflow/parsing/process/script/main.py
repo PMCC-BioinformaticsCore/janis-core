@@ -135,14 +135,14 @@ class ProcessScriptGenerator:
             # check if any are internal inputs with no default value
             for ref in referenced_ids:
                 var = self.variable_manager.get(ref).original
-                if var.vtype == VariableType.Ignored:
+                if var.vtype == VariableType.IGNORED:
                     tinput = [x for x in self.tool.inputs() if x.id() == ref][0]
                     if tinput.default is None:
                         varname = naming.process.generic(tinput)
                         undef_variables.add(varname)
                         self.variable_manager.update(
                             tinput_id=tinput.id(), 
-                            category='local',
+                            vtype=VariableType.LOCAL,
                             value=varname
                         )
         

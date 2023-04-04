@@ -16,6 +16,7 @@ INDENT = settings.translate.nextflow.NF_INDENT
 @dataclass
 class NFWorkflow(ABC):
     name: str
+    alias: Optional[str]
     main: list[str]   
 
     @abstractproperty

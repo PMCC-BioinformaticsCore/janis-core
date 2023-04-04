@@ -26,6 +26,7 @@ NF_PARAM_CASE = 'snake'
 NF_CHANNEL_CASE = 'snake'
 NF_PROCESS_CASE = 'snake_caps'
 NF_PROCESS_INPUT_CASE = 'snake'
+NF_FILE_CASE = 'snake'
 NF_MAIN_NAME = 'main'
 
 # process translation

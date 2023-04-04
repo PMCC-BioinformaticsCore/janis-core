@@ -29,7 +29,7 @@ def gen_directives_for_process(tool: CommandTool | PythonTool, resources: dict[s
     # TODO REFACTOR
     nf_directives: dict[str, NFProcessDirective] = {}
     if settings.translate.nextflow.MODE == 'workflow':
-        nf_directives['publishDir'] = NFPublishDirDirective(scope)
+        nf_directives['publishDir'] = NFPublishDirDirective(tool.id())
     nf_directives['debug'] = NFDebugDirective(debug='true')
 
     # Add directives from input resources

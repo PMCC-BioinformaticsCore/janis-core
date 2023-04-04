@@ -79,7 +79,7 @@ def should_add_get_primary_files(tool: CommandTool) -> bool:
     return False
 
 
-def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: Scope) -> NFProcess:
+def gen_process_from_cmdtool(name: str, alias: Optional[str], tool: CommandTool, sources: dict[str, Any], scope: Scope) -> NFProcess:
     """
     Generate a Nextflow Process object for a Janis Command line tool
 
@@ -93,12 +93,9 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     :rtype:
     """
 
-    # name
-    process_name = scope.current_entity
-
     # managing current variable names for tinputs
     variable_manager = VariableManager(scope)
-    variable_manager.update_for_tool(tool, sources)
+    variable_manager.update_for_tool(tool)
 
     # directives
     resources = {}
@@ -126,7 +123,8 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
 
     # process
     process = NFProcess(
-        name=process_name,
+        name=name,
+        alias=alias,
         pre_script=pre_script,
         script=main_script,
         script_type=NFProcessScriptType.script,
@@ -138,8 +136,9 @@ def gen_process_from_cmdtool(tool: CommandTool, sources: dict[str, Any], scope: 
     return process
 
 
-
 def gen_process_from_codetool(
+    name: str, 
+    alias: Optional[str],
     tool: PythonTool,
     sources: dict[str, Any],   # values fed to tool inputs (step translation)
     scope: Scope,
@@ -156,9 +155,6 @@ def gen_process_from_codetool(
     :return:
     :rtype:
     """   
-
-    # name
-    process_name = scope.current_entity if scope.labels else tool.id()
 
     # managing current variable names for tinputs
     variable_manager = VariableManager(scope)
@@ -191,7 +187,8 @@ def gen_process_from_codetool(
 
     # process
     process = NFProcess(
-        name=process_name,
+        name=name,
+        alias=alias,
         script=main_script,
         script_type=NFProcessScriptType.script,
         inputs=process_inputs,
@@ -222,8 +219,8 @@ def prepare_script_for_python_code_tool(scope: Scope, tool: PythonTool, sources:
         value: Any = None
         dtype: DataType = inp.intype
 
-        if inp.id() in data_sources.process_inputs(scope) or inp.id() in data_sources.param_inputs(scope):
-            varname = data_sources.get_variable(scope, inp)
+        if inp.id() in data_sources.task_inputs(scope) or inp.id() in data_sources.param_inputs(scope):
+            varname = data_sources.get(scope, inp).value
             if isinstance(varname, list):
                 varname = varname[0]
             value = f'${{{varname}}}'

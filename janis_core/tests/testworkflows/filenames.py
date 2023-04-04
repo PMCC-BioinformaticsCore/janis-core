@@ -12,7 +12,7 @@ from ..testtools import FilenameGeneratedTool
 
 
 
-class FilenameTestWF(Workflow):
+class FilenameTestWF1(Workflow):
 
     def constructor(self):
         self.input('inFile', File)
@@ -60,6 +60,29 @@ class FilenameTestWF(Workflow):
 
         self.output("outFilename", File, source=self.stp1.out)
         self.output("outFilenameInputSelector", File, source=self.stp2.out)
+
+    def friendly_name(self):
+        return "TEST: FilenameTestWF"
+
+    def id(self) -> str:
+        return self.__class__.__name__
+
+    
+
+class FilenameTestWF2(Workflow):
+
+    def constructor(self):
+        self.input('inFile', File)
+        self.input('inStr', String)
+        self.input('inStrOpt', String(optional=True))
+        self.input('inFileOpt', File(optional=True))
+
+        self.step(
+            "stp1", 
+            FilenameCollectionTestTool(
+                inp1=self.inFile,
+            )
+        )
 
     def friendly_name(self):
         return "TEST: FilenameTestWF"

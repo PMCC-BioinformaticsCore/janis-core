@@ -24,7 +24,8 @@ from .scatter import ComprehensiveScatterTestWF
 
 from .secondaries import SecondariesTestWF
 from .secondaries import SecondariesTestTool
-from .filenames import FilenameTestWF
+from .filenames import FilenameTestWF1
+from .filenames import FilenameTestWF2
 
 from .combos import ScatterSecondariesTestWF
 from .outputs import OutputCollectionTestWF

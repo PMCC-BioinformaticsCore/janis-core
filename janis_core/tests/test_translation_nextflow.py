@@ -61,7 +61,8 @@ from janis_core.tests.testworkflows import (
     Subworkflow2TestWF,
     Subworkflow3TestWF,
     DataSourceTestWF,
-    FilenameTestWF,
+    FilenameTestWF1,
+    FilenameTestWF2,
     OutputCollectionTestWF,
     UnwrapTestWF,
     NamingTestWF,
@@ -153,13 +154,11 @@ def reset_globals() -> None:
 def do_preprocessing_workflow(wf: Workflow) -> None:
     nextflow.preprocessing.register_minimal_task_inputs(wf)
     nextflow.preprocessing.register_params_channels(wf)
-    nextflow.preprocessing.register_ds_categories(wf)
-    nextflow.preprocessing.register_ds_variables(wf)
+    nextflow.preprocessing.register_data_sources(wf)
 
 def do_preprocessing_tool(tool: CommandTool | PythonTool) -> None:
     nextflow.preprocessing.register_minimal_task_inputs(tool)
-    nextflow.preprocessing.register_ds_categories(tool)
-    nextflow.preprocessing.register_ds_variables(tool)
+    nextflow.preprocessing.register_data_sources(tool)
 
 def split_task_call_to_lines(call: str) -> list[str]:
     lines = call.split('\n')                             # split
@@ -580,210 +579,9 @@ class TestPreprocessingHelpers(unittest.TestCase):
         self.assertSetEqual(actual_param_names, expected_ids)
 
 
-class TestDataSourceCategories(unittest.TestCase):
-
-    def setUp(self) -> None:
-        reset_globals()
-        self.wf = DataSourceTestWF()
-        do_preprocessing_workflow(self.wf)
-        self.pdsr = nextflow.data_sources.tds_register.data_structure
-        print(nextflow.data_sources.tds_register.to_string())
-
-    def test_stp1(self) -> None:
-        label = 'main.stp1'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs = {'inStr', 'inStrOpt'}
-        expected_internal_inputs: set[str] = set()
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp2(self) -> None:
-        label = 'main.stp2'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp3(self) -> None:
-        label = 'main.stp3'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inFileOpt', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp4(self) -> None:
-        label = 'main.stp4'
-        expected_process_inputs = {'inFile2', 'inFileOpt2'}
-        expected_param_inputs = {'inStr2', 'inStrOpt2'}
-        expected_internal_inputs: set[str] = set()
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-        
-    def test_stp5(self) -> None:
-        label = 'main.stp5'
-        expected_process_inputs = {'inFile2', 'inFileOpt2'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr2', 'inStrOpt2'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp6(self) -> None:
-        label = 'main.stp6'
-        expected_process_inputs = {'inFile2'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr2', 'inFileOpt2', 'inStrOpt2'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp4_stp1(self) -> None:
-        label = 'main.stp4.stp1'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs = {'inStr', 'inStrOpt'}
-        expected_internal_inputs: set[str] = set()
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp4_stp2(self) -> None:
-        label = 'main.stp4.stp2'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp4_stp3(self) -> None:
-        label = 'main.stp4.stp3'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inFileOpt', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp4_stp4(self) -> None:
-        label = 'main.stp4.stp4'
-        expected_process_inputs = {'inFile3', 'inFileOpt3'}
-        expected_param_inputs = {'inStr3', 'inStrOpt3'}
-        expected_internal_inputs: set[str] = set()
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-        
-    def test_stp4_stp5(self) -> None:
-        label = 'main.stp4.stp5'
-        expected_process_inputs = {'inFile3', 'inFileOpt3'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr3', 'inStrOpt3'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp4_stp6(self) -> None:
-        label = 'main.stp4.stp6'
-        expected_process_inputs = {'inFile3'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr3', 'inFileOpt3', 'inStrOpt3'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp5_stp1(self) -> None:
-        label = 'main.stp5.stp1'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs = {'inStr', 'inStrOpt'}
-        expected_internal_inputs: set[str] = set()
-        print(nextflow.data_sources.tds_register.to_string())
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp5_stp2(self) -> None:
-        label = 'main.stp5.stp2'
-        expected_process_inputs = {'inFile', 'inFileOpt'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inStrOpt'}
-        print(nextflow.data_sources.tds_register.to_string())
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp5_stp3(self) -> None:
-        label = 'main.stp5.stp3'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inFileOpt', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp5_stp4(self) -> None:
-        label = 'main.stp5.stp4'
-        expected_process_inputs = {'inFile3', 'inFileOpt3'}
-        expected_param_inputs = {'inStr3', 'inStrOpt3'}
-        expected_internal_inputs: set[str] = set()
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-        
-    def test_stp5_stp5(self) -> None:
-        label = 'main.stp5.stp5'
-        expected_process_inputs = {'inFile3', 'inFileOpt3'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr3', 'inStrOpt3'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-    
-    def test_stp5_stp6(self) -> None:
-        label = 'main.stp5.stp6'
-        expected_process_inputs = {'inFile3'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr3', 'inFileOpt3', 'inStrOpt3'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp6_stp1(self) -> None:
-        label = 'main.stp6.stp1'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs = {'inStr', 'inStrOpt', 'inFileOpt'}
-        expected_internal_inputs: set[str] = set()
-        print(nextflow.data_sources.tds_register.to_string())
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp6_stp2(self) -> None:
-        label = 'main.stp6.stp2'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs = {'inFileOpt'}
-        expected_internal_inputs = {'inStr', 'inStrOpt'}
-        print(nextflow.data_sources.tds_register.to_string())
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
-
-    def test_stp6_stp3(self) -> None:
-        label = 'main.stp6.stp3'
-        expected_process_inputs = {'inFile'}
-        expected_param_inputs: set[str] = set()
-        expected_internal_inputs = {'inStr', 'inFileOpt', 'inStrOpt'}
-        self.assertSetEqual(self.pdsr[label]['process'], expected_process_inputs)
-        self.assertSetEqual(self.pdsr[label]['param'], expected_param_inputs)
-        self.assertSetEqual(self.pdsr[label]['internal'], expected_internal_inputs)
 
 
-class TestDataSourceVaraibles(unittest.TestCase):
+class TestDataSourceVariables(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_globals()
@@ -794,23 +592,17 @@ class TestDataSourceVaraibles(unittest.TestCase):
 
     def test_stp1(self) -> None:
         label = 'main.stp1'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': 'params.in_str1',
-            'inStrOpt': 'params.in_str_opt1',
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
+        self.assertEqual(self.pdsv[label]['inFile'].value, 'in_file')
+        self.assertEqual(self.pdsv[label]['inFileOpt'].value, 'in_file_opt')
+        self.assertEqual(self.pdsv[label]['inStr'].value, 'params.in_str1')
+        self.assertEqual(self.pdsv[label]['inStrOpt'].value, 'params.in_str_opt1')
     
     def test_stp2(self) -> None:
         label = 'main.stp2'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
+        self.assertEqual(self.pdsv[label]['inFile'].value, 'in_file')
+        self.assertEqual(self.pdsv[label]['inFileOpt'].value, 'in_file_opt')
+        self.assertEqual(self.pdsv[label]['inStr'].value, None)
+        self.assertEqual(self.pdsv[label]['inStrOpt'].value, None)
     
     def test_stp3(self) -> None:
         label = 'main.stp3'
@@ -1243,10 +1035,10 @@ class TestFileFormats(unittest.TestCase):
         mainstr, _ = translator.translate_workflow_internal(wf)
         expected_lines = [
             "nextflow.enable.dsl=2",
-            "include { FASTQC1 } from './modules/fastqc1'",
-            "include { FASTQC2 } from './modules/fastqc2'",
-            "include { FASTQC3 } from './modules/fastqc3'",
-            "include { CAT_TEST_TOOL } from './modules/CatTestTool'",
+            "include { FASTQC as FASTQC1 } from './modules/fastqc'",
+            "include { FASTQC as FASTQC2 } from './modules/fastqc'",
+            "include { FASTQC as FASTQC3 } from './modules/fastqc'",
+            "include { CAT_TEST_TOOL } from './modules/cat_test_tool'",
             "include { UNICYCLER } from './modules/unicycler'",
             "ch_in_forward_reads     = Channel.fromPath( params.in_forward_reads )",
             "ch_in_long_reads        = Channel.fromPath( params.in_long_reads )",
@@ -1272,7 +1064,10 @@ class TestFileFormats(unittest.TestCase):
             "ch_fastqc2_limits",
             ")",
             "FASTQC3(",
-            "ch_test_input",
+            "ch_test_input,",
+            "null,",
+            "null,",
+            "null",
             ")",
             "CAT_TEST_TOOL(",
             "FASTQC3.out.outTextFile",
@@ -1297,10 +1092,10 @@ class TestFileFormats(unittest.TestCase):
         _, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
             'nextflow.enable.dsl=2',
-            'process FASTQC1 {',
+            'process FASTQC {',
             'debug true',
             'container "quay.io/biocontainers/fastqc:0.11.8--2"',
-            'publishDir "${params.outdir}/fastqc1"',
+            'publishDir "${params.outdir}/fastqc"',
             'input:',
             'path input_file, stageAs: \'input_file\'',
             'path adapters, stageAs: \'adapters\'',
@@ -1323,7 +1118,7 @@ class TestFileFormats(unittest.TestCase):
             '"""',
             '}',
         ]
-        process_str = substr_dict['modules/fastqc1']
+        process_str = substr_dict['modules/fastqc']
         actual_lines = process_str.split('\n')
         actual_lines = [ln.strip() for ln in actual_lines]
         actual_lines = [ln for ln in actual_lines if ln != '']
@@ -1519,7 +1314,7 @@ class TestChannels(unittest.TestCase):
         self.assertEqual(actual_definition, expected_definition)
 
     def test_filename_types(self) -> None:
-        wf = FilenameTestWF()
+        wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         print(nextflow.data_sources.tvn_register.to_string())
         scope = nextflow.Scope()
@@ -1561,8 +1356,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
-            'ch_in_file_opt2',
             'ch_in_file2',
+            'ch_in_file_opt2',
+            'ch_in_str2',
+            'ch_in_str_opt2',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
 
@@ -1577,6 +1374,8 @@ class TestChannelsSubworkflows(unittest.TestCase):
         expected_declarations = set([
             'ch_in_file_opt2',
             'ch_in_file2',
+            'ch_in_str2',
+            'ch_in_str_opt2',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
 
@@ -1589,7 +1388,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt2',
             'ch_in_file2',
+            'ch_in_str2',
+            'ch_in_str_opt2',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1606,6 +1408,8 @@ class TestChannelsSubworkflows(unittest.TestCase):
         expected_declarations = set([
             'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1622,6 +1426,8 @@ class TestChannelsSubworkflows(unittest.TestCase):
         expected_declarations = set([
             'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1636,7 +1442,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
  
@@ -1653,6 +1462,8 @@ class TestChannelsSubworkflows(unittest.TestCase):
         expected_declarations = set([
             'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1669,6 +1480,8 @@ class TestChannelsSubworkflows(unittest.TestCase):
         expected_declarations = set([
             'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1683,7 +1496,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
 
@@ -1698,7 +1514,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1713,7 +1532,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1728,7 +1550,10 @@ class TestChannelsSubworkflows(unittest.TestCase):
         channel_declarations = channel_declarations.strip('[]').split('\n')
         channel_declarations = {x for x in channel_declarations if x != ''}
         expected_declarations = set([
+            'ch_in_file_opt3',
             'ch_in_file3',
+            'ch_in_str3',
+            'ch_in_str_opt3',
         ])
         self.assertEqual(channel_declarations, expected_declarations)
     
@@ -1860,35 +1685,6 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
 
-    # def test_wf_inputs(self) -> None:
-    #     # need a process input for each File wf input in step sources.
-    #     # non-files are fed data via params.
-    #     wf = AssemblyTestWF()
-    #     do_preprocessing_workflow(wf)
-    #     step = wf.step_nodes["unicycler"]
-    #     scope = nextflow.Scope()
-    #     scope.update(step)
-    #     process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-    #     expected_inputs = {
-    #         "path option2, stageAs: 'option2'",
-    #         "path option1, stageAs: 'option1'",
-    #         "path option_l, stageAs: 'option_l'",
-    #     }
-    #     actual_inputs = {inp.get_string() for inp in process.inputs}
-    #     self.assertEqual(actual_inputs, expected_inputs)
-    
-    # def test_connections(self) -> None:
-    #     # need a process input for each connection in step sources.
-    #     wf = AssemblyTestWF()
-    #     do_preprocessing_workflow(wf)
-    #     step = wf.step_nodes["CatTestTool"]
-    #     scope = nextflow.Scope()
-    #     scope.update(step)
-    #     process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
-    #     expected_inputs = {"path inp, stageAs: 'inp'"}
-    #     actual_inputs = {inp.get_string() for inp in process.inputs}
-    #     self.assertEqual(actual_inputs, expected_inputs)
-    
     def test_static_inputs(self) -> None:
         # DO NOT need a process input for each static value in step sources.
         # non-files are fed data via params. 
@@ -1898,6 +1694,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_inputs = {inp.name for inp in process.inputs}
         non_expected_ids = {
             'kmers',
@@ -1966,6 +1763,11 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         expected_inputs = {
             'path pos_basic',
             'path pos_basic2',
+            'val pos_default',
+            'val pos_optional',
+            'val opt_basic',
+            'val opt_default',
+            'val opt_optional',
         }
         self.assertEqual(actual_inputs, expected_inputs)
 
@@ -2009,7 +1811,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         self.assertEqual(actual_inputs, expected_inputs)   
 
     def test_filename_types(self) -> None:
-        wf = FilenameTestWF()
+        wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
 
         step = wf.step_nodes["stp1"]
@@ -2124,12 +1926,12 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         print(process.get_string())
         self.assertEqual(actual_outputs, expected_outputs)
     
-    def test_filenames(self) -> None:
-        wf = FilenameTestWF()
+    def test_filenames_generated(self) -> None:
+        wf = FilenameTestWF2()
         do_preprocessing_workflow(wf)
         
         # inp1 is in step.sources
-        step = wf.step_nodes['stp4']
+        step = wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
@@ -2140,9 +1942,13 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
             'path "generated.csv", emit: out5',
             'path "generated.merged.csv", emit: out6'
         }
+        print(process.get_string())
         self.assertEqual(actual_outputs, expected_outputs)
         
+    def test_filenames_referenced(self) -> None:
         # inp1, inp1_1, inp4, inp5, inp6 are in step.sources
+        wf = FilenameTestWF1()
+        do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp5']
         scope = nextflow.Scope()
         scope.update(step)
@@ -2150,9 +1956,9 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
-            'path "${params.in_str + ".csv"}", emit: out4',
-            'path "${params.in_str + ".csv"}", emit: out5',
-            'path "${params.in_str + ".merged.csv"}", emit: out6'
+            'path "${inp4 + ".csv"}", emit: out4',
+            'path "${inp5 + ".csv"}", emit: out5',
+            'path "${inp6 + ".merged.csv"}", emit: out6'
         }
         print(process.get_string())
         self.assertEqual(actual_outputs, expected_outputs)
@@ -2336,14 +2142,15 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_prescript = process.pre_script
         expected_lines = {
-            'def pos_default = params.in_int ? params.in_int : 95',
-            'def pos_optional = params.in_str ? params.in_str : ""',
-            'def flag_true = params.in_bool == false ? "" : "--flag-true"',
-            'def flag_false = params.in_bool ? "--flag-false" : ""',
-            'def opt_default = params.in_int ? params.in_int : 5',
-            'def opt_optional = params.in_str ? "--opt-optional ${params.in_str}" : ""',
+            'def pos_default = pos_default ? pos_default : 95',
+            'def pos_optional = pos_optional ? pos_optional : ""',
+            'def flag_true = flag_true == false ? "" : "--flag-true"',
+            'def flag_false = flag_false ? "--flag-false" : ""',
+            'def opt_default = opt_default ? opt_default : 5',
+            'def opt_optional = opt_optional ? "--opt-optional ${opt_optional}" : ""',
         }
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
@@ -2355,6 +2162,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -2363,7 +2171,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${pos_optional}',
             '${flag_true}',
             '${flag_false}',
-            '--opt-basic ${params.in_str}',
+            '--opt-basic ${opt_basic}',
             '--opt-default ${opt_default}',
             '${opt_optional}',
         ]
@@ -2377,24 +2185,19 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.parsing.process.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        print(process.get_string())
         actual_prescript = set(process.pre_script.split('\n'))
         expected_prescript = set([
-            "def pos_basic_joined = pos_basic.join(' ')",
-            "def pos_basic2_joined = pos_basic2 != ['NO_FILE1'] ? pos_basic2.join(' ') : \"\"",
-            "def pos_default_joined = params.in_int_array ? params.in_int_array.join(' ') : \"1 2 3\"",
-            "def pos_optional_joined = params.in_str_array ? params.in_str_array.join(' ') : \"\"",
-            "def opt_default_items = params.in_int_array ? params.in_int_array.collect{ \"--opt-default \" + it }.join(' ') : \"--opt-default 1 --opt-default 2 --opt-default 3\"",
-            "def opt_basic_joined = params.in_str_array.join(' ')",
-            "def opt_optional_joined = params.in_str_array ? \"--opt-optional \" + params.in_str_array.join(',') : \"\""
+            'def pos_basic_joined = pos_basic.join(\' \')',
+            'def pos_basic2_joined = pos_basic2 != [\'NO_FILE1\'] ? pos_basic2.join(\' \') : ""',
+            'def pos_default_joined = pos_default ? pos_default.join(\' \') : "1 2 3"',
+            'def pos_optional_joined = pos_optional ? pos_optional.join(\' \') : ""',
+            'def opt_basic_joined = opt_basic.join(\' \')',
+            'def opt_default_items = opt_default ? opt_default.collect{ "--opt-default " + it }.join(\' \') : "--opt-default 1 --opt-default 2 --opt-default 3"',
+            'def opt_optional_joined = opt_optional ? "--opt-optional " + opt_optional.join(\',\') : ""',
         ])
         actual_prescript = sorted(actual_prescript)
         expected_prescript = sorted(expected_prescript)
-        print('\nactual_prescript')
-        for ln in actual_prescript:
-            print(ln)
-        print('\nexpected_prescript')
-        for ln in expected_prescript:
-            print(ln)
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
     
@@ -2479,7 +2282,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             self.assertIn(ln, actual_script)
 
     def test_filename_generated_tool(self):
-        wf = FilenameTestWF()
+        wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp3"]
         scope = nextflow.Scope()
@@ -2513,7 +2316,7 @@ process STP3 {
         self.assertEqual(expected, process.get_string())
    
     def test_filename_types(self) -> None:
-        wf = FilenameTestWF()
+        wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
 
         step = wf.step_nodes["stp1"]
@@ -2525,7 +2328,7 @@ process STP3 {
         expected_lines = {
             'echo',
             '${inp1}',
-            '${params.in_str}',
+            '${inp2}',
         }
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
@@ -2557,9 +2360,9 @@ process STP3 {
             "def in_secondary_array_opt = get_primary_files(indexed_bam_flat)", 
             "def in_secondary_array_opt_joined = in_secondary_array_opt != [['NO_FILE1', 'NO_FILE2']] ? in_secondary_array_opt.join(' ') : \"\"", 
             "def in_secondary_opt = bam != ['NO_FILE3', 'NO_FILE4'] ? bam : \"\"", 
-            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE4', 'NO_FILE5'] ? in_file_pair_opt.join(' ') : \"\"", 
-            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE6'] ? in_file_array_opt.join(' ') : \"\"", 
-            "def in_file_opt = in_file_opt != 'NO_FILE6' ? in_file_opt : \"\"", 
+            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE5', 'NO_FILE6'] ? in_file_pair_opt.join(' ') : \"\"", 
+            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE7'] ? in_file_array_opt.join(' ') : \"\"", 
+            "def in_file_opt = in_file_opt != 'NO_FILE8' ? in_file_opt : \"\"", 
         }
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
@@ -3349,37 +3152,156 @@ class TestPlumbingBasic(unittest.TestCase):
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
-        expected = set(["STP1.out.out"])
         call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = set(split_task_call_to_lines(call))
-        self.assertEqual(expected, actual)
+        
+        actual = split_task_call_to_lines(call)
+        expected = ["STP1.out.out"]
+        
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
 
     def test_filename_types(self) -> None:
-        wf = FilenameTestWF()
+        wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         step_id = 'stp1'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = set(split_task_call_to_lines(call))
-        expected = set([
+        actual = split_task_call_to_lines(call)
+        expected = [
             "ch_in_file",
-        ])
-        self.assertEqual(expected, actual)
+            "params.in_str",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
         
         step_id = 'stp2'
         step = wf.step_nodes[step_id]
         scope = nextflow.Scope()
         call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = set(split_task_call_to_lines(call))
-        expected = set([
+        actual = split_task_call_to_lines(call)
+        expected = [
             "ch_in_file",
-        ])
-        self.assertEqual(expected, actual)
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
 
-    @unittest.skip('not implemented')
-    def test_connections_nonfiles(self) -> None:
-        raise NotImplementedError
+    def test_subworkflows1(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp1'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "ch_in_file_opt1",
+            "params.in_str1",
+            "params.in_str_opt1",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
+    
+    def test_subworkflows2(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp2'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "ch_in_file_opt1",
+            "'hello'",
+            "'there'",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
+    
+    def test_subworkflows3(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp3'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "'hello'",
+            "null",
+            "null",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
+    
+    def test_subworkflows4(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp4'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "ch_in_file_opt1",
+            "params.in_str1",
+            "params.in_str_opt1",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
+    
+    def test_subworkflows5(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp5'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "ch_in_file_opt1",
+            "'hello'",
+            "'there'",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
+    
+    def test_subworkflows6(self) -> None:
+        wf = DataSourceTestWF()
+        do_preprocessing_workflow(wf)
+        
+        step_id = 'stp6'
+        step = wf.step_nodes[step_id]
+        scope = nextflow.Scope()
+        call = nextflow.call.gen_task_call(step, scope, step_id)
+        actual = split_task_call_to_lines(call)
+        expected = [
+            "ch_in_file1",
+            "'hello'",
+            "null",
+            "null",
+        ]
+        self.assertEqual(len(actual), len(expected))
+        for arg in expected:
+            self.assertIn(arg, actual)
 
 
 

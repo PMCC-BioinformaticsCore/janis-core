@@ -37,9 +37,9 @@ class ProcessInputGenerator:
     def generate(self) -> list[NFProcessInput]:
         process_inputs: list[NFProcessInput] = []
 
-        tinput_ids = data_sources.process_inputs(self.scope)
+        tinput_ids = data_sources.task_inputs(self.scope)
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
-        tinputs = ordering.order_janis_process_inputs(tinputs)
+        tinputs = ordering.order_process_inputs(tinputs)
         for inp in tinputs:
             process_inputs.append(self.create_input(inp))
         return process_inputs
@@ -92,14 +92,16 @@ class ProcessInputGenerator:
 
     def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFProcessInput:
         # TODO ignoring secondaries_presents_as for now!
-        name = data_sources.get_variable(self.scope, inp)
+        ds = data_sources.get(self.scope, inp)
+        name = ds.value
         assert(isinstance(name, str))
         new_input = NFPathProcessInput(name=name)
         return new_input
 
     def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> NFTupleProcessInput:
         # tuple sub-element for each file
-        subnames = data_sources.get_variable(self.scope, inp)
+        ds = data_sources.get(self.scope, inp)
+        subnames = ds.value
         assert(isinstance(subnames, list))
         qualifiers = ['path'] * len(subnames)
         
@@ -111,7 +113,8 @@ class ProcessInputGenerator:
         return new_input
 
     def create_path_input(self, inp: ToolInput | TInput) -> NFPathProcessInput:
-        name = data_sources.get_variable(self.scope, inp)
+        ds = data_sources.get(self.scope, inp)
+        name = ds.value
         assert(isinstance(name, str))
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         presents_as = None
@@ -121,7 +124,8 @@ class ProcessInputGenerator:
         return new_input
 
     def create_val_input(self, inp: ToolInput | TInput) -> NFValProcessInput:
-        name = data_sources.get_variable(self.scope, inp)
+        ds = data_sources.get(self.scope, inp)
+        name = ds.value
         assert(isinstance(name, str))
         new_input = NFValProcessInput(name=name)
         return new_input

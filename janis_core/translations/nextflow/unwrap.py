@@ -78,6 +78,7 @@ from . import channels
 from . import params
 from . import naming
 from . import data_sources
+from . import nfgen_utils
 
 # from .plumbing import cartesian_cross_subname
 from .expressions import stringformatter_matcher
@@ -338,7 +339,7 @@ class Unwrapper:
         if inp.id() in data_sources.internal_inputs(self.scope) and inp.default is not None:
             src = self.unwrap(inp.default)
         else:
-            src = data_sources.get_variable(self.scope, inp)
+            src = data_sources.get(self.scope, inp).value
         return src
 
     def get_input_by_id(self, input_id: str) -> ToolInput:
@@ -712,6 +713,7 @@ class Unwrapper:
         basetype = utils.ensure_single_type(basetype)
 
         # get the current variable for this tinput
+        # making a copy so it can be modified locally without altering original
         if self.context == 'process_script':
             real_var = self.variable_manager.get(inp.id()).current
             var = deepcopy(real_var)
@@ -744,15 +746,16 @@ class Unwrapper:
             expr = f'{var.value}.simpleName'
 
         # normal case: simple variable reference
-        elif var.vtype in [VariableType.ProcessInput, VariableType.ParamInput, VariableType.Local]:
+        elif var.vtype in [VariableType.PROCESS_INPUT, VariableType.PARAM, VariableType.LOCAL]:
             expr = var.value
 
         # static value for TInput in this process
-        elif var.vtype == VariableType.Static:
+        elif var.vtype == VariableType.STATIC:
             expr = self.unwrap(var.value)
+            print()
 
         # TInput not given value in this process, but has default
-        elif var.vtype == VariableType.Ignored and inp.default is not None:
+        elif var.vtype == VariableType.IGNORED and inp.default is not None:
             expr = self.unwrap(inp.default)
             print()
         
@@ -806,10 +809,11 @@ class Unwrapper:
             raise RuntimeError
         if channels.exists(self.scope, janis_uuid=node.uuid):
             return self.unwrap_channel(node)
-        
         elif params.exists(janis_uuid=node.uuid):
             param = params.get(janis_uuid=node.uuid)
             return f'params.{param.name}'
+        else:
+            return nfgen_utils.to_groovy(node.default)
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
         # TODO save state of self.quote string

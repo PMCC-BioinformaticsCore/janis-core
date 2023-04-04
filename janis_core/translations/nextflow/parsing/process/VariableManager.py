@@ -1,24 +1,23 @@
 
 
-from typing import Optional, Any
+from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
 from janis_core import CommandTool, PythonTool
-from janis_core.workflow.workflow import InputNode
-from janis_core import translation_utils as utils
 
 from ... import data_sources
+from ...data_sources import DataSourceType
 from ...scope import Scope
 
 
 
 class VariableType(Enum): 
-    ProcessInput    = auto()
-    ParamInput      = auto()
-    Static          = auto()
-    Ignored         = auto()
-    Local           = auto()
+    PROCESS_INPUT   = auto()
+    PARAM           = auto()
+    STATIC          = auto()
+    IGNORED         = auto()
+    LOCAL           = auto()
 
 @dataclass
 class Variable:
@@ -90,14 +89,14 @@ class VariableManager:
     def __init__(self, scope: Scope) -> None:
         self.scope = scope
         self.data_structure: dict[str, VariableHistory] = {}
-        self.process_inputs = data_sources.process_inputs(self.scope)
+        self.process_inputs = data_sources.task_inputs(self.scope)
         self.param_inputs = data_sources.param_inputs(self.scope)
         self.internal_inputs = data_sources.internal_inputs(self.scope)
 
     def get(self, tinput_id: str) -> VariableHistory:
         return self.data_structure[tinput_id]
         
-    def update(self, tinput_id: str, category: str, value: Optional[str | list[str]]) -> None:
+    def update(self, tinput_id: str, vtype: VariableType, value: Optional[str | list[str]]) -> None:
         # create new variable history to track tinput_id if not exists
         if tinput_id not in self.data_structure:
             new_history = VariableHistory(tinput_id)
@@ -105,68 +104,26 @@ class VariableManager:
         
         # gen new variable & update history
         history = self.data_structure[tinput_id]
-        new_variable = self.gen_variable(category, value)
+        new_variable = Variable(vtype, value)
         history.items.append(new_variable)
 
-    def update_for_tool(self, tool: CommandTool | PythonTool, sources: Optional[dict[str, Any]]=None) -> None:
+    def update_for_tool(self, tool: CommandTool | PythonTool) -> None:
         for tinput in tool.inputs():
-            value = data_sources.get_variable(self.scope, tinput)
-            # value is how the variable will be initially referred to inside a process
-            # will be a process input, or param input.
+            ds = data_sources.get(self.scope, tinput)
+            vtype = self.cast_to_variable_type(ds.dstype)
+            self.update(tinput.id(), vtype, ds.value)
 
-            # if not fed via process input or param input, is a static input, or ignored input. 
-            # check sources to see if there is an edge to an input node. if so, use its default. 
-            if value is None:
-                
-                # workflow translations will use step.sources
-                if sources:
-                    value = self.get_value_from_input_node_default(tinput.id(), sources)
-                    print()
-                
-                # tool translations will use tool.connections
-                else:
-                    value = self.get_value_from_input_node_default(tinput.id(), tool.connections)
-                    print()
-            
-            category = self.get_category(tinput.id(), value)
-            self.update(tinput.id(), category, value)
-
-    def get_value_from_input_node_default(self, tinput_id: str, sources: dict[str, Any]) -> Any:
-        if tinput_id in sources:
-            src = sources[tinput_id]
-            node = utils.resolve_node(src)
-            if isinstance(node, InputNode):
-                return node.default
-        return None
-    
-    def get_value_from_connection(self, tinput_id: str, connections: dict[str, Any]) -> Any:
-        if tinput_id in connections:
-            return connections[tinput_id]
-        return None
-
-    def gen_variable(self, category: str, value: Optional[str | list[str]]) -> Variable:
-        vtype_map = {
-            'process': VariableType.ProcessInput,
-            'param': VariableType.ParamInput,
-            'static': VariableType.Static,
-            'ignored': VariableType.Ignored,
-            'local': VariableType.Local,
-        }
-        vtype = vtype_map[category]
-        return Variable(vtype, value)
-
-    def get_category(self, tinput_id: str, value: Optional[str | list[str]]) -> str:
-        if tinput_id in self.process_inputs:
-            return 'process'
-        elif tinput_id in self.param_inputs:
-            return 'param'
-        elif tinput_id in self.internal_inputs:
-            if value is None:
-                return 'ignored'
-            else:
-                return 'static'
+    def cast_to_variable_type(self, dstype: DataSourceType) -> VariableType:
+        if dstype == DataSourceType.TASK_INPUT:
+            return VariableType.PROCESS_INPUT
+        elif dstype == DataSourceType.PARAM:
+            return VariableType.PARAM
+        elif dstype == DataSourceType.STATIC:
+            return VariableType.STATIC
+        elif dstype == DataSourceType.IGNORED:
+            return VariableType.IGNORED
         else:
-            return 'local'
+            raise RuntimeError
     
     def to_string(self) -> str:
         out: str = ''
@@ -179,27 +136,3 @@ class VariableManager:
             out += block
         return out
     
-
-
-    # # helper methods
-    # def _apply_index(self, var: Variable, index: Optional[int]) -> Variable:
-    #     """
-    #     for same variables, the var.value is actually a list of varnames.
-        
-    #     this will happen in the case of a ToolInput, where the type is a secondary file eg BamBai. 
-    #     in the nextflow process, this bambai may appear like the following:
-    #         inputs:
-    #         tuple path(bam), path(bai)
-        
-    #     in this case, the ToolInput is split into the var.value ['bam', 'bai']
-    #     to get the current var.value for the bam, we want var.value[0].
-    #     to get the current var.value for the bai, we want var.value[1].
-
-    #     """
-    #     if isinstance(var.value, list):
-    #         if index is not None:
-    #             var.value = var.value[index]
-    #         else:
-    #             var.value = var.value[0]
-    #     return var
-

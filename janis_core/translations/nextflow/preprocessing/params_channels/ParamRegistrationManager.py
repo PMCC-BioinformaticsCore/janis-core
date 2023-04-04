@@ -13,7 +13,7 @@ from ...scope import Scope
 no_file_count: int = 0
 
 
-class ParamRegistrationHelper:
+class ParamRegistrationManager:
     def __init__(self, inp: InputNode, scope: Scope) -> None:
         self.inp = inp
         self.scope = scope
@@ -46,6 +46,14 @@ class ParamRegistrationHelper:
         # anything else
         else:
             return 'generic'
+        
+    @property 
+    def is_file_type(self) -> bool:
+        if isinstance(self.basetype, (File, Filename, Directory)):
+            return True
+        elif utils.is_file_pair_type(self.inp.datatype):
+            return True
+        return False
 
     @property 
     def basetype(self) -> DataType:
@@ -61,7 +69,7 @@ class ParamRegistrationHelper:
             return self.inp.default
         
         # no default, but optional type
-        if isinstance(self.basetype, (File, Filename, Directory)) and self.inp.datatype.optional:
+        if self.is_file_type and self.inp.datatype.optional:
             if self.tformat == 'secondary_array':
                 return self.get_default_secondary_array()
             

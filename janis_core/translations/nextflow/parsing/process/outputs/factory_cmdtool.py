@@ -203,7 +203,7 @@ class CmdtoolProcessOutputFactory:
                 # ToolInput does not refer to another ToolInput
                 # This must be first as less specific
                 if entities.issubset(filename_gen_whitelist):
-                    if tinput.id() in data_sources.process_inputs(self.scope):
+                    if tinput.id() in data_sources.task_inputs(self.scope):
                         return FmtType.FILENAME
                     elif tinput.id() in data_sources.param_inputs(self.scope):
                         return FmtType.FILENAME

@@ -17,11 +17,12 @@ from .factory_pythontool import PythonToolProcessOutputFactory
 from ..VariableManager import VariableManager
 
 def create_nextflow_process_outputs(
-        scope: Scope, 
-        tool: CommandTool | PythonTool,
-        variable_manager: VariableManager, 
-        sources: dict[str, Any]
+    scope: Scope, 
+    tool: CommandTool | PythonTool,
+    variable_manager: VariableManager, 
+    sources: dict[str, Any]
     ) -> list[NFProcessOutput]:
+    
     process_outputs: list[NFProcessOutput] = []
     # name_clashes: set[str] = set()
     # if isinstance(tool, CommandTool):

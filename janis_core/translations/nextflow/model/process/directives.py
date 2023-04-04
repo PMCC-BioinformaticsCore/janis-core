@@ -19,16 +19,14 @@ class NFProcessDirective(ABC):
 
 @dataclass
 class NFPublishDirDirective(NFProcessDirective):
-    scope: Scope
+    name: str
 
     def get_string(self) -> str:
-        scope = self.scope.labels[1:]  # remove 'settings.NF_MAIN_NAME' from start of the scope
-        subpath = '/'.join(scope)
-        subpath = to_case(subpath, settings.translate.nextflow.NF_OUTDIR_CASE)
-        if subpath == '':
+        path = to_case(self.name, settings.translate.nextflow.NF_OUTDIR_CASE)
+        if path == '':
             return f"publishDir \"$params.outdir\""
         else:
-            return f"publishDir \"${{params.outdir}}/{subpath}\""
+            return f"publishDir \"${{params.outdir}}/{path}\""
 
         #return f"publishDir \"$params.outdir/$task.process\""
         #return f"publishDir \"$launchDir/{self.process_name}\""

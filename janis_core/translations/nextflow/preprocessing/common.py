@@ -7,26 +7,10 @@ from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
 from janis_core.types import File, Filename
 from janis_core import translation_utils as utils
 
-from ... import params
-from ... import trace
+from .. import params
+from .. import trace
 
 
-def get_linkable_params(wf: Workflow, sources: dict[str, Any]) -> dict[str, params.Param]:
-    all_inputs = get_all_workflow_inputs(wf)
-    input_nodes = [wf.input_nodes[x] for x in all_inputs]
-
-    out: dict[str, params.Param] = {}
-    for inp in input_nodes:
-        if inp.id() not in sources:
-            continue
-        else:
-            src = sources[inp.id()]
-            node = utils.resolve_node(src)
-            if isinstance(node, InputNode):
-                if params.exists(node.uuid):
-                    param = params.get(node.uuid)
-                    out[inp.uuid] = param
-    return out
 
 def get_all_workflow_inputs(wf: Workflow) -> set[str]:
     true_inputs = get_true_workflow_inputs(wf)

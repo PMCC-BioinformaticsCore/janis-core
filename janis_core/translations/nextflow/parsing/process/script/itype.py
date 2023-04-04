@@ -37,6 +37,7 @@ class IType(Enum):
     OPT_BASIC_ARR               = auto()
     OPT_DEFAULT_ARR             = auto()
     OPT_OPTIONAL_ARR            = auto()
+    
     OPT_BASIC_ARR_PREFIXEACH    = auto()
     OPT_DEFAULT_ARR_PREFIXEACH  = auto()
     OPT_OPTIONAL_ARR_PREFIXEACH = auto()

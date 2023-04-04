@@ -11,7 +11,7 @@ from ... import channels
 from ...scope import Scope
 
 
-class ChannelRegistrationHelper:
+class ChannelRegistrationManager:
     def __init__(self, inp: InputNode, scope: Scope) -> None:
         self.inp = inp
         self.scope = scope

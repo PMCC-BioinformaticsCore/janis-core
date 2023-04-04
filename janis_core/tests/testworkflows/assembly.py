@@ -2,9 +2,6 @@
 
 from janis_core import WorkflowMetadata
 from janis_core import WorkflowBuilder
-from janis_core import ScatterDescription
-from janis_core import ScatterMethods
-from janis_core import Array
 from janis_core import File, Int
 
 from janis_core.tests.testtools import FastqcTestTool

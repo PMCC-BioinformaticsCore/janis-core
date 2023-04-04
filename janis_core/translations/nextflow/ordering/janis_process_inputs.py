@@ -64,7 +64,7 @@ process_input_strategies = [
     TuplePriorityStrategy,
 ]
 
-def order_janis_process_inputs(inputs: list[ToolInput | TInput]) -> list[ToolInput | TInput]:
+def order_process_inputs(inputs: list[ToolInput | TInput]) -> list[ToolInput | TInput]:
     for strategy in process_input_strategies:
         inputs = strategy().order(inputs)
     return inputs

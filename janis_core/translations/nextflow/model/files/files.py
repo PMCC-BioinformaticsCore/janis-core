@@ -7,7 +7,8 @@ from textwrap import indent
 
 from janis_core import settings
 
-from ... import naming
+from ...casefmt import to_case
+
 from ...channels import Channel
 
 
@@ -18,6 +19,10 @@ class NFFile:
         self.name = name
 
     @property
+    def formatted_name(self) -> str:
+        return to_case(self.name, settings.translate.nextflow.NF_FILE_CASE)
+
+    @property
     def path(self) -> str:
         if self.subtype == 'process':
             directory = 'modules'
@@ -25,7 +30,7 @@ class NFFile:
             directory = 'subworkflows'
         elif self.subtype == 'main_workflow':
             directory = ''
-        return os.path.join(directory, self.name)
+        return os.path.join(directory, self.formatted_name)
 
     def get_string(self) -> str:
         components = [f"nextflow.enable.dsl=2"]
@@ -40,10 +45,10 @@ class NFImportItem:
         self.alias = alias
 
     def get_string(self) -> str:
-        name = naming.constructs.gen_varname_process(self.name)
-        if self.alias:
-            return f"{name} as {self.alias}"
-        return name
+        if self.alias and self.alias != self.name:
+            return f"{self.name} as {self.alias}"
+        else:
+            return self.name
 
 
 class NFImport:
