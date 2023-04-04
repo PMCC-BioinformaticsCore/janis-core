@@ -27,6 +27,7 @@ def error_boundary(return_value=None):
 
     return try_catch_translate_inner
 
+
 class WdlParser:
 
     allow_errors = False
@@ -111,7 +112,7 @@ class WdlParser:
                         call.expr, input_selector_getter=selector_getter
                     ),
                     expr_alias=expr_alias,
-                    foreach=foreach
+                    foreach=foreach,
                 )
         elif isinstance(call, WDL.Scatter):
             # for scatter, we want to take the call.expr, and pass it to a step.foreach
@@ -191,7 +192,7 @@ class WdlParser:
             raise Exception(f"Memory type {s}")
         elif isinstance(s, (float, int)):
             # in bytes?
-            return s / (1024 ** 3)
+            return s / (1024**3)
         elif isinstance(s, j.Selector):
             return s
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
@@ -222,7 +223,7 @@ class WdlParser:
             raise Exception(f"Disk type type {s}")
         elif isinstance(s, (float, int)):
             # in bytes?
-            return s / (1024 ** 3)
+            return s / (1024**3)
         elif isinstance(s, j.Selector):
             return s
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
@@ -233,7 +234,7 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if cpus is not None and not isinstance(cpus, (int, float)):
+        if cpus is not None and not isinstance(cpus, j.Selector) and not isinstance(cpus, (int, float)):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
@@ -280,7 +281,7 @@ class WdlParser:
             n = str(expr.expr)
             if input_selector_getter:
                 return input_selector_getter(n)
-            return j.InputSelector(n)
+            return j.InputSelector(str(n))
         elif isinstance(expr, WDL.Expr.Apply):
             return self.translate_apply(
                 expr, input_selector_getter=input_selector_getter
@@ -388,9 +389,12 @@ class WdlParser:
             "sub": j.ReplaceOperator,
             "round": j.RoundOperator,
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
-            "read_tsv": lambda exp: f'JANIS: j.read_tsv({exp})',
-            "read_boolean": lambda exp: f'JANIS: j.read_boolean({exp})',
-            'read_lines': lambda exp: f'JANIS: j.read_lines({exp})',
+            "read_tsv": lambda exp: f"JANIS: j.read_tsv({exp})",
+            "read_boolean": lambda exp: f"JANIS: j.read_boolean({exp})",
+            "read_lines": lambda exp: f"JANIS: j.read_lines({exp})",
+            "zip": lambda exp: f"JANIS: j.zip({exp})",
+            "transpose": j.TransposeOperator,
+            "read_string": j.ReadContents,
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -415,6 +419,8 @@ class WdlParser:
             return j.Directory(optional=optional)
         elif isinstance(t, WDL.Type.Array):
             return j.Array(self.parse_wdl_type(t.item_type), optional=optional)
+        elif isinstance(t, WDL.Type.Pair):
+            return j.Array(self.parse_wdl_type(t.left_type), optional=optional)
 
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")
 
@@ -437,17 +443,7 @@ class WdlParser:
 
 if __name__ == "__main__":
     # doc = "path/to/doc.wdl"
-    doc = "/Users/michael.franklin/source/wdlz/cramqc.wdl"
+    doc = "/Users/mfranklin/source/gatk/scripts/cnv_wdl/germline/cnv_germline_case_workflow.wdl"
     t = WdlParser.from_doc(doc)
     t.get_dot_plot(log_to_stdout=True)
     t.translate("hail")
-
-    import sys
-    if len(sys.argv) != 2:
-        raise Exception("Expected 1 argument, the name of a CWL tool.")
-        
-    toolname = sys.argv[1]
-
-    tool = WdlParser.from_doc(toolname)
-
-    tool.translate("janis")

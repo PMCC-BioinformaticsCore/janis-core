@@ -9,7 +9,7 @@ Does not support:
 - scattering by multiple fields
 """
 
-
+import re
 import inspect
 from textwrap import indent
 from typing import Tuple, Union, Callable
@@ -30,11 +30,14 @@ from janis_core import (
     Operator,
     apply_secondary_file_format_to_filename,
     TInput,
-    Tool
+    Tool,
 )
 from janis_core.tool.commandtool import CommandTool
 from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translations.translationbase import TranslatorBase, WorkflowTranslationOutput
+from janis_core.translations.translationbase import (
+    TranslatorBase,
+    WorkflowTranslationOutput,
+)
 from janis_core.translations.janis import JanisTranslator
 from janis_core.types.common_data_types import *
 from janis_core.workflow.workflow import WorkflowBase, StepNode
@@ -56,12 +59,7 @@ class HailBatchTranslator(TranslatorBase):
         super().__init__(name=HailBatchTranslator.name)
 
     @classmethod
-    def translate_workflow(
-        cls,
-        *args,
-        generate_click_cli=True,
-        **kwargs
-    ):
+    def translate_workflow(cls, *args, generate_click_cli=True, **kwargs):
         cls.generate_click_cli = generate_click_cli
 
         return super().translate_workflow(cls, *args, **kwargs)
@@ -69,7 +67,14 @@ class HailBatchTranslator(TranslatorBase):
     # internal translators
 
     @classmethod
-    def translate_workflow_internal(cls, workflow: WorkflowBase, allow_empty_container=False, container_override: dict=None, function_name="main", **kwargs) -> WorkflowTranslationOutput:
+    def translate_workflow_internal(
+        cls,
+        workflow: WorkflowBase,
+        allow_empty_container=False,
+        container_override: dict = None,
+        function_name="main",
+        **kwargs,
+    ) -> WorkflowTranslationOutput:
         kwargs, kwargs_with_defaults = [], []
         step_definitions = []
         step_calls = []
@@ -101,7 +106,7 @@ class HailBatchTranslator(TranslatorBase):
                 kwargs_with_defaults.append(kwarg)
 
             if dt.is_base_type(File) or (
-                    isinstance(dt, Array) and dt.fundamental_type().is_base_type(File)
+                isinstance(dt, Array) and dt.fundamental_type().is_base_type(File)
             ):
                 inputs_to_read.append(inp)
 
@@ -110,8 +115,12 @@ class HailBatchTranslator(TranslatorBase):
             if isinstance(stp.tool, WorkflowBase):
                 raise NotImplementedError("Hail Batch doesn't support subworkflows")
             if isinstance(stp.tool, CodeTool):
-                raise NotImplementedError("Janis -> Hail Batch does not support CodeTool")
-            step_definitions.append(cls.translate_command_tool_internal(tool=stp.tool, step_id=stp.id())[0])
+                raise NotImplementedError(
+                    "Janis -> Hail Batch does not support CodeTool"
+                )
+            step_definitions.append(
+                cls.translate_command_tool_internal(tool=stp.tool, step_id=stp.id())[0]
+            )
 
             call = cls.prepare_step_definition_and_call(stp)
             step_calls.append(call)
@@ -155,7 +164,7 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
         with_resource_overrides=False,
         allow_empty_container=False,
         container_override: dict = None,
-            step_id=None
+        step_id=None,
     ) -> Tuple[str, CommandTool]:
         step_id = step_id or tool.id()
 
@@ -272,9 +281,9 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
                 )
                 .strip()
                 .replace("\\n", "\\\\\n")
-                .replace("{", "{{")
-                .replace("}", "}}")
             )
+            code_block = re.sub(r"\$\{(.+)\}", "${{\g<1>}}", code_block)
+
             command_constructor_str = f'''\
     j.command(f"""{code_block}""")
 '''
@@ -345,7 +354,8 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
             f"{pd}j.command({o})" for o in output_collectors
         )
 
-        return f"""\
+        return (
+            f"""\
 def {cls.get_method_name_for_id(step_id)}(b, {", ".join([*kwargs, *kwargs_with_defaults])}):
     j = b.new_job('{step_id}')
 {additional_expressions_str}
@@ -354,16 +364,26 @@ def {cls.get_method_name_for_id(step_id)}(b, {", ".join([*kwargs, *kwargs_with_d
 {output_collectors_str}
     
     return j
-""", tool
+""",
+            tool,
+        )
 
     @classmethod
-    def translate_code_tool_internal(cls, tool, with_docker=True, allow_empty_container=False,
-                                     container_override: dict = None):
-        raise NotImplementedError("Hail batch translator does not support code tool yet")
-
+    def translate_code_tool_internal(
+        cls,
+        tool,
+        with_docker=True,
+        allow_empty_container=False,
+        container_override: dict = None,
+    ):
+        raise NotImplementedError(
+            "Hail batch translator does not support code tool yet"
+        )
 
     @classmethod
-    def stringify_translated_workflow(cls, wf_intermediate: Tuple[str, WorkflowBase]) -> str:
+    def stringify_translated_workflow(
+        cls, wf_intermediate: Tuple[str, WorkflowBase]
+    ) -> str:
         extra_imports = []
         wf_str, wf = wf_intermediate
 
@@ -377,7 +397,11 @@ if __name__ == "__main__":
     b.run(dry_run=True)
 """
         else:
-            kwargs = [inp.id() for inp in wf.tool_inputs() if not (inp.intype.optional or inp.default)]
+            kwargs = [
+                inp.id()
+                for inp in wf.tool_inputs()
+                if not (inp.intype.optional or inp.default)
+            ]
             name_equals_main_arg = f"""\
 if __name__ == "__main__":
     b = main({", ".join(k + "=None" for k in kwargs)})
@@ -402,6 +426,7 @@ import hailtop.batch as hb
 
         try:
             import black
+
             try:
                 return black.format_str(retval, mode=black.FileMode())
             except black.InvalidInput as e:
@@ -432,7 +457,11 @@ if __name__ == "__main__":
     b.run(dry_run=True)
         """
         else:
-            kwargs = [inp.id() for inp in tool.tool_inputs() if not (inp.intype.optional or inp.default)]
+            kwargs = [
+                inp.id()
+                for inp in tool.tool_inputs()
+                if not (inp.intype.optional or inp.default)
+            ]
             name_equals_main_arg = f"""\
 if __name__ == "__main__":
     b = hb.Batch("{tool.id()}")
@@ -458,6 +487,7 @@ import hailtop.batch as hb
 
         try:
             import black
+
             try:
                 return black.format_str(retval, mode=black.FileMode())
             except black.InvalidInput as e:
@@ -497,7 +527,6 @@ import hailtop.batch as hb
         return ["python3", wfpath]
 
     # other helpers
-
 
     @classmethod
     def get_method_name_for_id(cls, identifier):
@@ -541,7 +570,11 @@ import hailtop.batch as hb
         if isinstance(dt, File) and dt.secondary_files():
             # we need to build a reference group
             ext = (dt.extension or "").replace(".", "")
-            exts = "|".join(a.replace(".", "\\\\.") for a in [dt.extension, *(dt.alternate_extensions or [])] if a)
+            exts = "|".join(
+                a.replace(".", "\\\\.")
+                for a in [dt.extension, *(dt.alternate_extensions or [])]
+                if a
+            )
             base = f're.sub({reference_var}, r"({exts})$", "")'
             dsec = {}
             for sec in dt.secondary_files():
@@ -640,6 +673,7 @@ if {when_str}:
         """
 
         return call
+
     @classmethod
     def translate_tool_output(cls, outp) -> Tuple[Optional[str], List[str], List[str]]:
         command_extras = ""
@@ -722,7 +756,9 @@ if {when_str}:
                 else:
                     dests.append(f'f"{{j.{outp.id()}}}{final_ext}"')
         else:
-            Logger.warn(f"Couldn't translate output selector for '{outp.id()}' as it's an unrecognised type {outp.selector} ({type(outp.selector)})")
+            Logger.warn(
+                f"Couldn't translate output selector for '{outp.id()}' as it's an unrecognised type {outp.selector} ({type(outp.selector)})"
+            )
 
         if values and dests:
             for value, dest in zip(values, dests):
@@ -935,7 +971,9 @@ if {check_condition}:
             val = None
             if input_selector_overrider is not None:
                 val = input_selector_overrider(value)
-            return val or value.input_to_select
+            if code_environment:
+                return val or value.input_to_select
+            return f"{{{val or value.input_to_select}}}"
         elif isinstance(value, Filename):
             prefix = value.prefix
             if not isinstance(prefix, str):
@@ -945,11 +983,11 @@ if {check_condition}:
                 prefix = "generated"
             return value.generated_filename({"prefix": prefix})
         elif isinstance(value, StringFormatter):
-            retval = value.to_python(
-                unwrap_operator=lambda val: cls.unwrap_expression(
-                    val, code_environment=False, **uwkwargs
-                )
-            )
+            fields = {
+                k: cls.unwrap_expression(v, code_environment=False, **uwkwargs)
+                for k, v in value.kwargs.items()
+            }
+            retval = value.resolve_with_resolved_values(**fields)
             if code_environment:
                 return f'f"{retval}"'
             return retval

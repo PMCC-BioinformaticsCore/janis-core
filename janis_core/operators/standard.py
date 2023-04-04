@@ -25,6 +25,7 @@ class ReadContents(Operator):
         return [File()]
 
     def to_python(self, unwrap_operator, *args):
+        return f"open({unwrap_operator(args[0])!r}).read()"
         raise NotImplementedError("Determine _safe_ one line solution for ReadContents")
 
     def to_wdl(self, unwrap_operator, *args):
@@ -472,7 +473,7 @@ class FilterNullOperator(Operator):
                 if not isinstance(self.args[0], InputSelector):
                     Logger.warn(
                         f'Expected return type of "{self.args[0]}" to be an array, '
-                        f'but found {outer_rettype}, will return this as a returntype.'
+                        f"but found {outer_rettype}, will return this as a returntype."
                     )
             else:
                 rettype = outer_rettype.subtype()
@@ -506,7 +507,6 @@ class FilterNullOperator(Operator):
 
 
 class ReplaceOperator(Operator):
-
     @staticmethod
     def friendly_signature():
         return "Base: String, Pattern: String, Replacement: String -> String"
@@ -517,6 +517,7 @@ class ReplaceOperator(Operator):
     def evaluate(self, inputs):
         base, pattern, replacement = [self.evaluate_arg(a, inputs) for a in self.args]
         import re
+
         return re.sub(pattern, replacement, base)
 
     def to_wdl(self, unwrap_operator, *args):

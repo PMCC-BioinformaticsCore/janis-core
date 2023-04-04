@@ -92,8 +92,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         return io.getvalue()
 
     @classmethod
-    def stringify_translated_workflow(cls, 
-        wf: cwlgen.Savable, should_format=True, as_json=False
+    def stringify_translated_workflow(
+        cls, wf: cwlgen, should_format=True, as_json=False
     ):
         saved = wf.save()
 
@@ -109,9 +109,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         return formatted
 
     @classmethod
-    def stringify_translated_tool(cls, 
-        tool: cwlgen.Savable, should_format=True, as_json=False
-    ):
+    def stringify_translated_tool(cls, tool: cwlgen, should_format=True, as_json=False):
         saved = tool.save()
 
         if as_json:
