@@ -101,7 +101,7 @@ class JanisTranslator(TranslatorBase):
             f"Unrecognised tool type {tool}: {tool.__class__.__name__}"
         )
 
-    def translate_workflow(
+    def translate_workflow_internal(
         self,
         workflow,
         with_container=True,
@@ -127,7 +127,7 @@ from janis_core import *
 """
         return bigger_file, {}
 
-    def translate_tool_internal(
+    def translate_command_tool_internal(
         self,
         tool,
         with_container=True,

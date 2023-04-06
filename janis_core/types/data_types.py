@@ -284,7 +284,7 @@ class DataType(ABC):
         parameter.secondaryFiles = self.secondary_files()
         return parameter
 
-    def cwl_input(self, value: Any):
+    def cwl_input(self, value: Any, input_name=None):
         return value
 
     def wdl(self, has_default=False) -> wdlgen.WdlType:

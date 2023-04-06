@@ -440,14 +440,14 @@ class TestCwlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = cwl.CwlTranslator
-        translated = trans.translate_tool_internal(TestTool())
+        translated = trans.translate_command_tool_internal(TestTool())
         arg: cwlgen.CommandLineBinding = translated.arguments[0]
         self.assertEqual('test:\\\\t:escaped:\\\\n:characters\\"', arg.valueFrom)
 
 
 class TestCwlEnvVar(unittest.TestCase):
     def test_environment1(self):
-        t = CwlTranslator().translate_tool_internal(tool=TestTool())
+        t = CwlTranslator().translate_command_tool_internal(tool=TestTool())
         envvar: cwlgen.EnvVarRequirement = [
             t for t in t.requirements if t.class_ == "EnvVarRequirement"
         ][0]
@@ -597,11 +597,11 @@ class TestEmptyContainer(unittest.TestCase):
     def test_empty_container_raises(self):
 
         self.assertRaises(
-            Exception, CwlTranslator().translate_tool_internal, SingleTestTool()
+            Exception, CwlTranslator().translate_command_tool_internal, SingleTestTool()
         )
 
     def test_empty_container(self):
-        c = CwlTranslator().translate_tool_internal(
+        c = CwlTranslator().translate_command_tool_internal(
             SingleTestTool(), allow_empty_container=True
         )
         self.assertNotIn("DockerRequirement", c.requirements)
@@ -613,9 +613,10 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
         w.input("inp1", str)
         w.step("stp1", ArrayTestTool(inps=w.inp1))
 
-        c, _, _ = CwlTranslator().translate(
-            w, to_console=False, allow_empty_container=True
+        c, _, _ = CwlTranslator().translate_workflow(
+            w, allow_empty_container=True, to_console=False
         )
+        self.maxDiff = None
         self.assertEqual(cwl_multiinput, c)
 
 
@@ -794,7 +795,7 @@ class WorkflowCwlInputDefaultOperator(unittest.TestCase):
         )
         wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
         wf.output("out", source=wf.print)
-        d, _ = cwl.CwlTranslator.translate_workflow(
+        d, _ = cwl.CwlTranslator.translate_workflow_internal(
             wf, with_container=False, allow_empty_container=True
         )
         stepinputs = d.save()["steps"][0]["in"]
@@ -823,7 +824,7 @@ class WorkflowCwlInputDefaultOperator(unittest.TestCase):
             ),
         )
         wf.output("out", source=wf.print)
-        d, _ = cwl.CwlTranslator.translate_workflow(
+        d, _ = cwl.CwlTranslator.translate_workflow_internal(
             wf, with_container=False, allow_empty_container=True
         )
         stepinputs = d.save()["steps"][0]["in"]
@@ -863,7 +864,7 @@ class TestCWLRunRefs(unittest.TestCase):
         w.step("stp1", TestTool(testtool=w.inp))
         w.step("stp2", TestToolV2(testtool=w.inp))
 
-        wf_cwl, _ = CwlTranslator.translate_workflow(w)
+        wf_cwl, _ = CwlTranslator.translate_workflow_internal(w)
         stps = {stp.id: stp for stp in wf_cwl.steps}
 
         self.assertEqual("tools/TestTranslationtool.cwl", stps["stp1"].run)
@@ -872,7 +873,7 @@ class TestCWLRunRefs(unittest.TestCase):
 
 class TestCwlResourceOperators(unittest.TestCase):
     def test_1(self):
-        tool_cwl = CwlTranslator.translate_tool_internal(
+        tool_cwl = CwlTranslator.translate_command_tool_internal(
             OperatorResourcesTestTool(), with_resource_overrides=True
         )
         resourcereq = [
@@ -900,7 +901,7 @@ class TestReadContentsOperator(unittest.TestCase):
             version="-1",
         )
 
-        translated = CwlTranslator.translate_tool_internal(
+        translated = CwlTranslator.translate_command_tool_internal(
             t, allow_empty_container=True
         )
         self.assertTrue(translated.outputs[0].outputBinding.loadContents)
@@ -915,7 +916,7 @@ class TestReadContentsOperator(unittest.TestCase):
             container=None,
             version="-1",
         )
-        translated = CwlTranslator.translate_tool_internal(
+        translated = CwlTranslator.translate_command_tool_internal(
             t, allow_empty_container=True
         )
         self.assertTrue(translated.outputs[0].outputBinding.loadContents)
@@ -963,7 +964,7 @@ class TestCwlScatterExpression(unittest.TestCase):
         w.step("stp", T(inp=FilterNullOperator(w.inp)), scatter="inp")
         w.output("out", source=w.stp.out)
 
-        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+        w_cwl = cwl.CwlTranslator().translate_workflow_internal(w, with_container=False)[0]
         self.assertEqual(2, len(w_cwl.steps))
         self.assertEqual(
             "_evaluate_prescatter-stp-inp/out", w_cwl.steps[1].in_[0].source
@@ -977,7 +978,7 @@ class TestWorkflowOutputExpression(unittest.TestCase):
         w.step("stp", EchoTestTool(inp=w.inp))
         w.output("out", source=w.stp.out.contents())
 
-        w_cwl = cwl.CwlTranslator().translate_workflow(w, with_container=False)[0]
+        w_cwl = cwl.CwlTranslator().translate_workflow_internal(w, with_container=False)[0]
 
         self.assertEqual(2, len(w_cwl.steps))
         self.assertEqual(
@@ -1026,7 +1027,8 @@ class TestForEachSelectors(unittest.TestCase):
     def test_minimal(self):
         tool = TestForEach()
         # tool.translate("cwl", export_path="~/Desktop/tmp", to_disk=True)
-        w, _ = CwlTranslator.translate_workflow(tool)
+        w, _ = CwlTranslator.translate_workflow_internal(tool)
+        tool.translate("cwl")
 
         stp = w.steps[0]
         self.assertEqual("inp", stp.in_[0].source)

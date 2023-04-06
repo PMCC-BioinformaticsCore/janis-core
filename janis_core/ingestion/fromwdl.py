@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import functools
 import os
 import re
@@ -194,7 +195,7 @@ class WdlParser:
             raise Exception(f"Memory type {s}")
         elif isinstance(s, (float, int)):
             # in bytes?
-            return s / (1024 ** 3)
+            return s / (1024**3)
         elif isinstance(s, j.Selector):
             return s
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
@@ -238,7 +239,11 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if not isinstance(cpus, j.Selector) and cpus is not None and not isinstance(cpus, (int, float)):
+        if (
+            cpus is not None
+            and not isinstance(cpus, j.Selector)
+            and not isinstance(cpus, (int, float))
+        ):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(
@@ -272,7 +277,10 @@ class WdlParser:
 
         if isinstance(expr, WDL.Expr.Array):
             # a literal array
-            return [self.translate_expr(e) for e in expr.items]
+            return [
+                self.translate_expr(e, input_selector_getter=input_selector_getter)
+                for e in expr.items
+            ]
         if isinstance(expr, WDL.Expr.String):
             return self.translate_wdl_string(expr)
         elif isinstance(expr, (WDL.Expr.Int, WDL.Expr.Boolean, WDL.Expr.Float)):
@@ -285,7 +293,7 @@ class WdlParser:
             n = str(expr.expr)
             if input_selector_getter:
                 return input_selector_getter(n)
-            return j.InputSelector(n)
+            return j.InputSelector(str(n))
         elif isinstance(expr, WDL.Expr.Apply):
             return self.translate_apply(
                 expr, input_selector_getter=input_selector_getter
@@ -394,8 +402,12 @@ class WdlParser:
             "round": j.RoundOperator,
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "read_tsv": lambda exp: f"JANIS: j.read_tsv({exp})",
+            "write_tsv": lambda exp: f"JANIS: j.write_tsv({exp})",
             "read_boolean": lambda exp: f"JANIS: j.read_boolean({exp})",
             "read_lines": lambda exp: f"JANIS: j.read_lines({exp})",
+            "zip": lambda exp: f"JANIS: j.zip({exp})",
+            "transpose": j.TransposeOperator,
+            "read_string": j.ReadContents,
         }
         fn = fn_map.get(expr.function_name)
         if fn is None:
@@ -420,6 +432,8 @@ class WdlParser:
             return j.Directory(optional=optional)
         elif isinstance(t, WDL.Type.Array):
             return j.Array(self.parse_wdl_type(t.item_type), optional=optional)
+        elif isinstance(t, WDL.Type.Pair):
+            return j.Array(self.parse_wdl_type(t.left_type), optional=optional)
 
         raise Exception(f"Didn't handle WDL type conversion for '{t}' ({type(t)})")
 

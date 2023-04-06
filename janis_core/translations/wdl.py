@@ -45,7 +45,7 @@ from janis_core.translationdeps.supportedtranslations import SupportedTranslatio
 from janis_core.translations.translationbase import (
     TranslatorBase,
     TranslatorMeta,
-    try_catch_translate,
+    try_catch_translate, WorkflowTranslationOutput,
 )
 from janis_core.types import get_instantiated_type, DataType
 from janis_core.types.common_data_types import (
@@ -100,25 +100,25 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
     def __init__(self):
         super().__init__(name="wdl")
 
-    @staticmethod
-    def stringify_translated_workflow(wf):
+    @classmethod
+    def stringify_translated_workflow(cls, wf):
         return wf.get_string()
 
-    @staticmethod
-    def stringify_translated_tool(tool):
+    @classmethod
+    def stringify_translated_tool(cls, tool):
         return tool.get_string()
 
-    @staticmethod
-    def stringify_translated_inputs(inputs):
+    @classmethod
+    def stringify_translated_inputs(cls, inputs):
         return json.dumps(inputs, sort_keys=True, indent=4, separators=(",", ": "))
 
-    @staticmethod
-    def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
+    @classmethod
+    def validate_command_for(cls, wfpath, inppath, tools_dir_path, tools_zip_path):
         return ["java", "-jar", "$womtooljar", "validate", wfpath]
 
     @classmethod
     @try_catch_translate(type="workflow")
-    def translate_workflow(
+    def translate_workflow_internal(
         cls,
         wfi,
         with_container=True,
@@ -126,7 +126,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         is_nested_tool=False,
         allow_empty_container=False,
         container_override=None,
-    ) -> Tuple[wdl.Workflow, Dict[str, any]]:
+    ) -> WorkflowTranslationOutput:
         """
         Translate the workflow into wdlgen classes!
 
@@ -271,7 +271,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             if t.versioned_id() not in wtools:
                 if t.type() == ToolType.Workflow:
-                    wf_wdl, wf_tools = cls.translate_workflow(
+                    wf_wdl, wf_tools = cls.translate_workflow_internal(
                         t,
                         with_container=with_container,
                         is_nested_tool=True,
@@ -283,7 +283,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                     wtools.update(wf_tools)
 
                 elif isinstance(t, CommandTool):
-                    wtools[t.versioned_id()] = cls.translate_tool_internal(
+                    wtools[t.versioned_id()] = cls.translate_command_tool_internal(
                         t,
                         with_container=with_container,
                         with_resource_overrides=with_resource_overrides,
@@ -318,11 +318,11 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             w.calls.append(call)
 
-        return w, wtools
+        return WorkflowTranslationOutput(workflow_obj=w, tools_dict=wtools)
 
     @classmethod
     @try_catch_translate(type="command tool")
-    def translate_tool_internal(
+    def translate_command_tool_internal(
         cls,
         tool: CommandTool,
         with_container=True,
@@ -498,8 +498,8 @@ EOT"""
 
         return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
 
-    @staticmethod
-    def wrap_if_string_environment(value, string_environment: bool):
+    @classmethod
+    def wrap_if_string_environment(cls, value, string_environment: bool):
         return f'"{value}"' if not string_environment else value
 
     @classmethod
@@ -1132,20 +1132,20 @@ EOT"""
             return {f"{tool.id()}.{k}": v for k, v in d.items()}
         return d
 
-    @staticmethod
-    def workflow_filename(workflow):
+    @classmethod
+    def workflow_filename(cls, workflow):
         return workflow.versioned_id() + ".wdl"
 
-    @staticmethod
-    def inputs_filename(workflow):
+    @classmethod
+    def inputs_filename(cls, workflow):
         return workflow.id() + "-inp.json"
 
-    @staticmethod
-    def tool_filename(tool):
+    @classmethod
+    def tool_filename(cls, tool):
         return (tool.versioned_id() if isinstance(tool, Tool) else str(tool)) + ".wdl"
 
-    @staticmethod
-    def resources_filename(workflow):
+    @classmethod
+    def resources_filename(cls, workflow):
         return workflow.id() + "-resources.json"
 
 

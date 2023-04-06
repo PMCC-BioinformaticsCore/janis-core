@@ -2,6 +2,8 @@ import operator
 import os
 from typing import Optional, List, Dict, Union
 from unittest import TestCase, mock
+from unittest.case import skipUnless
+
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
 from janis_core.tool.test_classes import (
     TTestCase,
@@ -14,6 +16,13 @@ from janis_core import ToolOutput, ToolInput, CommandTool, Stdout
 from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
 from nose.tools import nottest
+
+has_janis_assistant = False
+try:
+    import janis_assistant
+    has_janis_assistant = True
+except ImportError:
+    pass
 
 
 valid_url = "https://abc.com/some_dir/expected_output_file.txt"
@@ -165,6 +174,7 @@ class TestToolTestRunner(TestCase):
         assert runner.get_value_to_compare(t2, file_path) == 3
 
     @nottest
+    @skipUnless(has_janis_assistant, reason="Janis assistant is required to test downloading remote files")
     @mock.patch("urllib.request.urlopen", side_effect=mocked_urllib_urlopen)
     @mock.patch("urllib.request.urlretrieve", side_effect=mocked_urllib_urlretrieve)
     def test_download_remote_files(self, mock_urlopen, mock_urlretrieve):

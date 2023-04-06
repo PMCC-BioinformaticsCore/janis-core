@@ -19,6 +19,7 @@ from janis_core import (
     InputQualityType,
     Workflow,
     ForEachSelector,
+    RangeOperator
 )
 
 
@@ -320,6 +321,20 @@ class TestForEach(Workflow):
         self.input("inp", Array(str))
         self.step(
             "print", EchoTestTool(inp=ForEachSelector() + "-hello"), _foreach=self.inp
+        )
+        self.output("out", source=self.print.out)
+
+    def friendly_name(self):
+        return self.id()
+
+    def id(self) -> str:
+        return "TestForEach"
+
+class TestForEachWithOperation(Workflow):
+    def constructor(self):
+        self.input("inp", Array(str))
+        self.step(
+            "print", EchoTestTool(inp=self.inp[ForEachSelector()] + ForEachSelector() + "-hello"), _foreach=RangeOperator(self.inp.length())
         )
         self.output("out", source=self.print.out)
 

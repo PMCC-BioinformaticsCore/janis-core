@@ -955,7 +955,6 @@ class WorkflowBase(Tool):
             should_validate=validate,
             merge_resources=merge_resources,
             hints=hints,
-            allow_null_if_not_optional=allow_null_if_not_optional,
             additional_inputs=additional_inputs,
             max_cores=max_cores,
             max_mem=max_mem,

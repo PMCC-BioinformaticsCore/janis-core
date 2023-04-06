@@ -390,7 +390,7 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
 
     def test_escaped_characters(self):
         trans = wdl.WdlTranslator
-        translated = trans.translate_tool_internal(TestTool())
+        translated = trans.translate_command_tool_internal(TestTool())
         arg = translated.command[-1].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 
@@ -723,7 +723,7 @@ class TestWdlInputTranslation(unittest.TestCase):
 
 class TestWdlEnvVar(unittest.TestCase):
     def test_environment1(self):
-        t = WdlTranslator().translate_tool_internal(tool=TestTool())
+        t = WdlTranslator().translate_command_tool_internal(tool=TestTool())
         s = t.get_string()
         print(s)
 
@@ -1096,7 +1096,7 @@ class TestWDLRunRefs(unittest.TestCase):
         w.step("stp1", TestTool(testtool=w.inp))
         w.step("stp2", TestToolV2(testtool=w.inp))
 
-        wf_wdl, _ = WdlTranslator.translate_workflow(w)
+        wf_wdl, _ = WdlTranslator.translate_workflow_internal(w)
 
         expected = """\
 version development
@@ -1178,7 +1178,7 @@ workflow wf {
 
     def test_workflow_secondary_outputs(self):
         wf = TestWorkflowThatOutputsArraysOfSecondaryFiles()
-        wfwdl, _ = WdlTranslator.translate_workflow(wf)
+        wfwdl, _ = WdlTranslator.translate_workflow_internal(wf)
 
         outs = [o.get_string() for o in wfwdl.outputs]
         self.assertEqual("Array[File] out = stp.out", outs[0])
@@ -1450,7 +1450,7 @@ workflow wf {
 
 class TestWdlResourceOperators(unittest.TestCase):
     def test_1(self):
-        tool_wdl = WdlTranslator.translate_tool_internal(
+        tool_wdl = WdlTranslator.translate_command_tool_internal(
             OperatorResourcesTestTool(), with_resource_overrides=True
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)
@@ -1466,7 +1466,7 @@ class TestWdlResourceOperators(unittest.TestCase):
         self.assertEqual("duration: select_first([runtime_seconds, 60, 86400])", time)
 
     def test_base(self):
-        tool_wdl = WdlTranslator.translate_tool_internal(
+        tool_wdl = WdlTranslator.translate_command_tool_internal(
             EchoTestTool(), with_resource_overrides=True
         ).get_string()
         lines = tool_wdl.splitlines(keepends=False)

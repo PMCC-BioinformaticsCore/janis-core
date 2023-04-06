@@ -30,7 +30,6 @@ def translate_workflow(
     should_zip=True,
     merge_resources=False,
     hints=None,
-    allow_null_if_not_optional=True,
     additional_inputs: Dict = None,
     max_cores=None,
     max_mem=None,
@@ -39,7 +38,7 @@ def translate_workflow(
     container_override: dict = None,
 ):
     translator = get_translator(translation)
-    return translator.translate(
+    return translator.translate_workflow(
         workflow,
         to_console=to_console,
         tool_to_console=tool_to_console,
@@ -52,7 +51,6 @@ def translate_workflow(
         should_zip=should_zip,
         merge_resources=merge_resources,
         hints=hints,
-        allow_null_if_not_optional=allow_null_if_not_optional,
         additional_inputs=additional_inputs,
         max_cores=max_cores,
         max_mem=max_mem,
