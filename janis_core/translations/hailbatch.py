@@ -282,7 +282,7 @@ def {function_name}({', '.join([*kwargs, *kwargs_with_defaults])}):
                 .strip()
                 .replace("\\n", "\\\\\n")
             )
-            code_block = re.sub(r"\$\{(.+)\}", "${{\g<1>}}", code_block)
+            code_block = re.sub(r"\$\{(.+?)\}", "${{\g<1>}}", code_block)
 
             command_constructor_str = f'''\
     j.command(f"""{code_block}""")

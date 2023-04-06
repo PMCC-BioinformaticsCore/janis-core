@@ -277,7 +277,10 @@ class WdlParser:
 
         if isinstance(expr, WDL.Expr.Array):
             # a literal array
-            return [self.translate_expr(e) for e in expr.items]
+            return [
+                self.translate_expr(e, input_selector_getter=input_selector_getter)
+                for e in expr.items
+            ]
         if isinstance(expr, WDL.Expr.String):
             return self.translate_wdl_string(expr)
         elif isinstance(expr, (WDL.Expr.Int, WDL.Expr.Boolean, WDL.Expr.Float)):
@@ -399,6 +402,7 @@ class WdlParser:
             "round": j.RoundOperator,
             "write_lines": lambda exp: f"JANIS: write_lines({exp})",
             "read_tsv": lambda exp: f"JANIS: j.read_tsv({exp})",
+            "write_tsv": lambda exp: f"JANIS: j.write_tsv({exp})",
             "read_boolean": lambda exp: f"JANIS: j.read_boolean({exp})",
             "read_lines": lambda exp: f"JANIS: j.read_lines({exp})",
             "zip": lambda exp: f"JANIS: j.zip({exp})",
