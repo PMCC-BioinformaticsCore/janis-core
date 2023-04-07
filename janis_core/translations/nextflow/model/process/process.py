@@ -6,7 +6,6 @@ from typing import Optional
 from dataclasses import dataclass, field
 
 from janis_core import settings
-from ... import naming
 from ... import ordering
 
 from .directives import NFProcessDirective
@@ -17,17 +16,16 @@ INDENT = settings.translate.nextflow.NF_INDENT
 
 
 class NFProcessScriptType(Enum):
-    script = "script"
-    shell = "shell"
-    exec = "exec"
+    SCRIPT = "script"
+    SHELL = "shell"
+    EXEC = "exec"
 
 
 @dataclass
 class NFProcess:
     name: str
-    alias: Optional[str]
     script: str
-    script_type: Optional[NFProcessScriptType] = None
+    script_type: NFProcessScriptType = NFProcessScriptType.SCRIPT
     script_quote: Optional[str] = '"'
     directives: list[NFProcessDirective] = field(default_factory=list)
     inputs: list[NFProcessInput] = field(default_factory=list)
@@ -77,7 +75,7 @@ class NFProcess:
     def formatted_script(self):
         script_body = str(self.script).strip()
         
-        if self.script_type:
+        if self.script_type == NFProcessScriptType.SCRIPT:
             script = ''
             script += f'{self.script_type.value}:\n'
             script += f'{self.pre_script}\n' if self.pre_script else ''

@@ -2,24 +2,20 @@
 
 from typing import Optional, Any, Tuple
 
-from janis_core.workflow.workflow import InputNode
 from janis_core import ToolInput, CommandTool
 from janis_core.types import Boolean, Filename, DataType, File, Directory
 from janis_core import translation_utils as utils
 
-from .... import naming
-from .... import params
-from .... import nfgen_utils
-from .... import data_sources
+from ....variables import VariableManager
+from ....variables import VariableType
+from ....variables import VariableHistory
+from ....variables import Variable
 
+from .... import naming
+from .... import nfgen_utils
 from ....unwrap import unwrap_expression
-from ....scope import Scope
 
 from .itype import IType, get_itype
-from ..VariableManager import VariableManager
-from ..VariableManager import VariableType
-from ..VariableManager import VariableHistory
-from ..VariableManager import Variable
 
 
 # pre-script (PS) formatting
@@ -76,15 +72,12 @@ SC_OPT_DEFAULT_ARR_PREFIXEACH   = '${{{var}}}'
 SC_OPT_OPTIONAL_ARR_PREFIXEACH  = '${{{var}}}'
 
 
-
 class ScriptFormatter:
     def __init__(self, 
-        scope: Scope, 
         tool: CommandTool,
         variable_manager: VariableManager,
         sources: dict[str, Any]
     ) -> None:
-        self.scope = scope
         self.tool = tool
         self.variable_manager = variable_manager
         self.sources = sources
@@ -204,7 +197,7 @@ class ScriptFormatter:
     def update_variable(self, new_value: Optional[str]) -> None:
         self.variable_manager.update(
             tinput_id=self.tinput.id(),
-            vtype=VariableType.LOCAL,
+            vtype_str='local',
             value=new_value
         )
     
@@ -243,24 +236,18 @@ class ScriptFormatter:
         return self.tinput.separator if self.tinput.separator else ' '
     
     @property
-    def param_default(self) -> Any:
-        # TODO HERE - tools inputs themselves should be linked to param defaults - 'NO_FILE1' etc
-        if self.tinput.id() in data_sources.task_inputs(self.scope):
-        if self.tinput.id() in self.sources:
-            src = self.sources[self.tinput.id()]
-            node = utils.resolve_node(src)
-            if isinstance(node, InputNode):
-                if params.exists(node.uuid):
-                    param = params.get(node.uuid)
-                    if param.default is not None:
-                        return nfgen_utils.to_groovy(param.default)
-                else:
-                    print()
+    def optional_default(self) -> Optional[str]:
+        OPTIONAL_FILE_DEFAULT = '"NO_FILE"'
+        OPTIONAL_FILE_ARR_DEFAULT = '["NO_FILE"]'
+        OPTIONAL_FILE_PAIR_DEFAULT = '["NO_FILE", "NO_FILE"]'
+        if self.is_optional_filetype:
+            if utils.is_file_pair_type(self.dtype):
+                return OPTIONAL_FILE_PAIR_DEFAULT
+            elif self.dtype.is_array():
+                return OPTIONAL_FILE_ARR_DEFAULT
+            else:
+                return OPTIONAL_FILE_DEFAULT
         return None
-    
-    # @property
-    # def unwrapped_static_value(self) -> Any:
-    #     return self.unwrap(self.original_var.value)
 
     @property
     def unwrapped_tinput_default(self) -> Any:
@@ -276,7 +263,6 @@ class ScriptFormatter:
     def unwrap(self, val: Any) -> Any:
         return unwrap_expression(
             val=val,
-            scope=self.scope,
             context='process_script',
             variable_manager=self.variable_manager,
             tool=self.tool,
@@ -431,7 +417,7 @@ class ScriptFormatter:
             prescript = PS_POS_OPTIONAL_FILETYPES.format(
                 name=new_varname, 
                 src=self.current_var_value,
-                default=self.param_default
+                default=self.optional_default
             )
         else:
             prescript = PS_POS_OPTIONAL.format(
@@ -470,7 +456,7 @@ class ScriptFormatter:
             prescript = PS_POS_OPTIONAL_ARR_FILETYPES.format(
                 name=new_varname, 
                 src=self.current_var_value, 
-                default=self.param_default,
+                default=self.optional_default,
                 arr_join=self.arr_join
             )
         else:
@@ -505,7 +491,7 @@ class ScriptFormatter:
             prescript = PS_OPT_OPTIONAL_FILETYPES.format(
                 name=new_varname,
                 src=self.current_var_value,
-                default=self.param_default,
+                default=self.optional_default,
                 prefix=self.prefix
             )
         else:
@@ -546,7 +532,7 @@ class ScriptFormatter:
             prescript = PS_OPT_OPTIONAL_ARR_FILETYPES.format(
                 name=new_varname, 
                 src=self.current_var_value, 
-                default=self.param_default,
+                default=self.optional_default,
                 prefix=self.prefix,
                 arr_join=self.arr_join
             )
@@ -591,7 +577,7 @@ class ScriptFormatter:
             prescript = PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES.format(
                 name=new_varname, 
                 src=self.current_var_value, 
-                default=self.param_default,
+                default=self.optional_default,
                 prefix=self.prefix,
                 arr_join=self.arr_join
             )

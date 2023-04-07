@@ -11,16 +11,14 @@ from .... import naming
 from .... import ordering
 
 from ....unwrap import unwrap_expression
-from ....scope import Scope
 from .... import trace
 
-from ..VariableManager import VariableManager
-from ..VariableManager import VariableType
+from ....variables import VariableManager
+from ....variables import VariableType
 from .ScriptFormatter import ScriptFormatter
 
 
-def gen_script_for_cmdtool(
-    scope: Scope,
+def gen_nf_process_script(
     tool: CommandTool,
     variable_manager: VariableManager,
     sources: dict[str, Any],
@@ -30,16 +28,13 @@ def gen_script_for_cmdtool(
         tool=tool,
         variable_manager=variable_manager,
         stdout_filename=stdout_filename,
-        scope=scope,
         sources=sources,
     ).generate()
-
 
 
 class ProcessScriptGenerator:
     def __init__(
         self,
-        scope: Scope,
         tool: CommandTool, 
         variable_manager: VariableManager,
         stdout_filename: str,
@@ -47,8 +42,6 @@ class ProcessScriptGenerator:
     ):
         self.tool = tool
         self.variable_manager = variable_manager
-        self.scope = scope
-        self.process_name = scope.current_entity
         self.stdout_filename = stdout_filename
         self.sources = sources if sources is not None else {}
 
@@ -67,7 +60,6 @@ class ProcessScriptGenerator:
     
     def handle_cmdtool_inputs(self) -> None:
         tool_input_formatter = ScriptFormatter(
-            scope=self.scope, 
             tool=self.tool, 
             variable_manager=self.variable_manager,
             sources=self.sources
@@ -91,7 +83,6 @@ class ProcessScriptGenerator:
         # unwrap toolargument value
         expr = unwrap_expression(
             val=arg.value,
-            scope=self.scope,
             context='process_script',
             variable_manager=self.variable_manager,
             tool=self.tool,
@@ -142,7 +133,7 @@ class ProcessScriptGenerator:
                         undef_variables.add(varname)
                         self.variable_manager.update(
                             tinput_id=tinput.id(), 
-                            vtype=VariableType.LOCAL,
+                            vtype_str='local',
                             value=varname
                         )
         
@@ -152,7 +143,6 @@ class ProcessScriptGenerator:
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 val=dirpath, 
-                scope=self.scope,
                 in_shell_script=True
             ) 
             line = f"mkdir -p '{unwrapped_dir}';"

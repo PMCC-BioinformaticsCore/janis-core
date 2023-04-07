@@ -1,23 +1,42 @@
 
+from __future__ import annotations
 
 from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
-from janis_core import CommandTool, PythonTool
+from janis_core import Tool
 
-from ... import data_sources
-from ...data_sources import DataSourceType
-from ...scope import Scope
+from . import task_inputs
+from .task_inputs import TaskInputType
 
+
+
+def init_variable_manager_for_task(tool: Tool) -> VariableManager:
+    vmanager = VariableManager()
+
+    types_map = {
+        TaskInputType.TASK_INPUT: 'task_input',
+        TaskInputType.PARAM: 'param',
+        TaskInputType.STATIC: 'static',
+        TaskInputType.IGNORED: 'ignored',
+    }
+
+    for tinput in tool.tool_inputs():
+        task_input = task_inputs.get(tool.id(), tinput)
+        vtype_str = types_map[task_input.ti_type]
+        vmanager.update(tinput.id(), vtype_str=vtype_str, value=task_input.value)
+    
+    return vmanager
+    
 
 
 class VariableType(Enum): 
-    PROCESS_INPUT   = auto()
-    PARAM           = auto()
-    STATIC          = auto()
-    IGNORED         = auto()
-    LOCAL           = auto()
+    TASK_INPUT  = auto()
+    PARAM       = auto()
+    STATIC      = auto()
+    IGNORED     = auto()
+    LOCAL       = auto()
 
 @dataclass
 class Variable:
@@ -86,17 +105,20 @@ class VariableManager:
     }
 
     """
-    def __init__(self, scope: Scope) -> None:
-        self.scope = scope
+    def __init__(self) -> None:
         self.data_structure: dict[str, VariableHistory] = {}
-        self.process_inputs = data_sources.task_inputs(self.scope)
-        self.param_inputs = data_sources.param_inputs(self.scope)
-        self.internal_inputs = data_sources.internal_inputs(self.scope)
+        self.type_map = {
+            'task_input': VariableType.TASK_INPUT,
+            'param': VariableType.PARAM,
+            'static': VariableType.STATIC,
+            'ignored': VariableType.IGNORED,
+            'local': VariableType.LOCAL,
+        }
 
     def get(self, tinput_id: str) -> VariableHistory:
         return self.data_structure[tinput_id]
         
-    def update(self, tinput_id: str, vtype: VariableType, value: Optional[str | list[str]]) -> None:
+    def update(self, tinput_id: str, vtype_str: str, value: Optional[str | list[str]]) -> None:
         # create new variable history to track tinput_id if not exists
         if tinput_id not in self.data_structure:
             new_history = VariableHistory(tinput_id)
@@ -104,27 +126,10 @@ class VariableManager:
         
         # gen new variable & update history
         history = self.data_structure[tinput_id]
+        vtype = self.type_map[vtype_str]
         new_variable = Variable(vtype, value)
         history.items.append(new_variable)
 
-    def update_for_tool(self, tool: CommandTool | PythonTool) -> None:
-        for tinput in tool.inputs():
-            ds = data_sources.get(self.scope, tinput)
-            vtype = self.cast_to_variable_type(ds.dstype)
-            self.update(tinput.id(), vtype, ds.value)
-
-    def cast_to_variable_type(self, dstype: DataSourceType) -> VariableType:
-        if dstype == DataSourceType.TASK_INPUT:
-            return VariableType.PROCESS_INPUT
-        elif dstype == DataSourceType.PARAM:
-            return VariableType.PARAM
-        elif dstype == DataSourceType.STATIC:
-            return VariableType.STATIC
-        elif dstype == DataSourceType.IGNORED:
-            return VariableType.IGNORED
-        else:
-            raise RuntimeError
-    
     def to_string(self) -> str:
         out: str = ''
         for tinput_id, history in self.data_structure.items():

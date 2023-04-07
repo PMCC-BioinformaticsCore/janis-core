@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from janis_core import settings
 from janis_core.types import (
     DataType,
     Directory,
@@ -16,7 +15,6 @@ from janis_core.types import (
 from janis_core import translation_utils as utils
 from .. import nfgen_utils
 from .. import naming
-from ..scope import Scope
 
 
 ### ORDERING
@@ -99,7 +97,6 @@ class ParamRegister:
 @dataclass
 class Param:
     name: str
-    scope: Scope
     default: Any=None
     janis_type: Optional[DataType]=None
 
@@ -124,18 +121,15 @@ class Param:
 ### MODULE ENTRY POINTS
 
 def add(
-    janis_tag: str, 
-    scope: Scope,
-    default: Any=None,
+    janis_tag: Optional[str]=None, 
+    task_id: Optional[str]=None,
+    default: Optional[Any]=None,
     name_override: Optional[str]=None,
     janis_dtype: Optional[DataType]=None, 
 ) -> Param:
     global param_register
-    # param name
-    name = naming.constructs.gen_varname_param(janis_tag, scope, name_override, janis_dtype)
-    # create param
-    param = Param(name, scope, default, janis_dtype)
-    # register param
+    name = naming.constructs.gen_varname_param(janis_tag, task_id, name_override, janis_dtype)
+    param = Param(name, default, janis_dtype)
     param_register.params.append(param)
     return param
 
@@ -183,7 +177,6 @@ def clear() -> None:
 default_params = [
     {
         'janis_tag': None,
-        'scope': Scope(),
         'default': './outputs',
         'name_override': 'outdir',
         'janis_dtype': Directory(),
@@ -194,7 +187,6 @@ def add_default_params():
     for p in default_params:
         add(
             janis_tag=p['janis_tag'], 
-            scope=p['scope'],
             default=p['default'],
             name_override=p['name_override'],
             janis_dtype=p['janis_dtype'],

@@ -18,29 +18,17 @@ class ScopeItem(ABC):
     label: str
     subtype: str
 
-@dataclass
-class ToolScopeItem(ScopeItem):
-    label: str
-    subtype: str = 'tool'
-
-@dataclass
-class WorkflowScopeItem(ScopeItem):
-    label: str
-    subtype: str = 'workflow'
-
-
-
 class Scope:
     def __init__(self, ):
         self.items: list[ScopeItem] = []
-        self.items.append(WorkflowScopeItem(settings.translate.nextflow.NF_MAIN_NAME))
-    
+        self.items.append(ScopeItem(settings.translate.nextflow.NF_MAIN_NAME, 'workflow'))
+     
     # main way to add
     def update(self, step: StepNode) -> None:
         if isinstance(step.tool, (CommandTool, PythonTool)):
-            new_item = ToolScopeItem(step.id())
+            new_item = ScopeItem(step.id(), 'tool')
         else:
-            new_item = WorkflowScopeItem(step.id())
+            new_item = ScopeItem(step.id(), 'workflow')
         self.items.append(new_item)
 
 

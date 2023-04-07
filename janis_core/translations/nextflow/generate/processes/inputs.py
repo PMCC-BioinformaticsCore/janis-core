@@ -12,7 +12,6 @@ from janis_core import translation_utils as utils
 
 from ... import nfgen_utils
 from ... import ordering
-from ...scope import Scope
 
 from ...model.process.inputs import (
     NFProcessInput, 
@@ -21,25 +20,25 @@ from ...model.process.inputs import (
     NFTupleProcessInput
 )
 
-from ... import data_sources
+from ... import task_inputs
 
 
-def create_nextflow_process_inputs(scope: Scope, tool: CommandTool | PythonTool) -> list[NFProcessInput]:
-    generator = ProcessInputGenerator(scope, tool)
+def gen_nf_process_inputs(tool: CommandTool | PythonTool) -> list[NFProcessInput]:
+    generator = ProcessInputGenerator(tool)
     return generator.generate()
 
 
 class ProcessInputGenerator:
-    def __init__(self, scope: Scope, tool: CommandTool | PythonTool):
-        self.scope = scope
+    def __init__(self, tool: CommandTool | PythonTool):
         self.tool = tool
 
     def generate(self) -> list[NFProcessInput]:
         process_inputs: list[NFProcessInput] = []
 
-        tinput_ids = data_sources.task_inputs(self.scope)
+        tinput_ids = task_inputs.task_inputs(self.tool.id())
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
         tinputs = ordering.order_process_inputs(tinputs)
+        
         for inp in tinputs:
             process_inputs.append(self.create_input(inp))
         return process_inputs
@@ -92,16 +91,16 @@ class ProcessInputGenerator:
 
     def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFProcessInput:
         # TODO ignoring secondaries_presents_as for now!
-        ds = data_sources.get(self.scope, inp)
-        name = ds.value
+        ti = task_inputs.get(self.tool.id(), inp)
+        name = ti.value
         assert(isinstance(name, str))
         new_input = NFPathProcessInput(name=name)
         return new_input
 
     def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> NFTupleProcessInput:
         # tuple sub-element for each file
-        ds = data_sources.get(self.scope, inp)
-        subnames = ds.value
+        ti = task_inputs.get(self.tool.id(), inp)
+        subnames = ti.value
         assert(isinstance(subnames, list))
         qualifiers = ['path'] * len(subnames)
         
@@ -113,8 +112,8 @@ class ProcessInputGenerator:
         return new_input
 
     def create_path_input(self, inp: ToolInput | TInput) -> NFPathProcessInput:
-        ds = data_sources.get(self.scope, inp)
-        name = ds.value
+        ti = task_inputs.get(self.tool.id(), inp)
+        name = ti.value
         assert(isinstance(name, str))
         dtype = inp.input_type if isinstance(inp, ToolInput) else inp.intype
         presents_as = None
@@ -124,8 +123,8 @@ class ProcessInputGenerator:
         return new_input
 
     def create_val_input(self, inp: ToolInput | TInput) -> NFValProcessInput:
-        ds = data_sources.get(self.scope, inp)
-        name = ds.value
+        ti = task_inputs.get(self.tool.id(), inp)
+        name = ti.value
         assert(isinstance(name, str))
         new_input = NFValProcessInput(name=name)
         return new_input

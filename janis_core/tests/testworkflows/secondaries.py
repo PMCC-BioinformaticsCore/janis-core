@@ -168,7 +168,7 @@ class SecondariesReplacedTestTool(CommandTool):
 
 class SecondariesArrayTestTool(CommandTool):
     def tool(self) -> str:
-        return "SecondariesTestTool"
+        return "SecondariesArrayTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return ['echo']

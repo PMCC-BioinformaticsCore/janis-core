@@ -10,7 +10,6 @@ from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType, Stdout
 from janis_core import settings
 
-from .. import data_sources
 from .. import nfgen_utils
 from .. import ordering
 

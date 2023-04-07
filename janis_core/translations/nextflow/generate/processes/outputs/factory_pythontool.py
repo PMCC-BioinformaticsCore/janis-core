@@ -18,7 +18,7 @@ from ....model.process.outputs import (
     NFValProcessOutput,
 )
 
-from ..VariableManager import VariableManager
+from ....variables import VariableManager
 
 
 class OType(Enum):
@@ -63,13 +63,11 @@ def is_non_file_type(out: TOutput) -> bool:
 class PythonToolProcessOutputFactory:
     def __init__(
         self, 
-        scope: Scope, 
         out: TOutput, 
         tool: PythonTool, 
         variable_manager: VariableManager,
         sources: dict[str, Any]
     ) -> None:
-        self.scope = scope
         self.out = out
         self.tool = tool
         self.variable_manager = variable_manager

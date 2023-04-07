@@ -14,10 +14,9 @@ from ....model.process.outputs import NFProcessOutput
 from .factory_cmdtool import CmdtoolProcessOutputFactory
 from .factory_pythontool import PythonToolProcessOutputFactory
 
-from ..VariableManager import VariableManager
+from ....variables import VariableManager
 
-def create_nextflow_process_outputs(
-    scope: Scope, 
+def gen_nf_process_outputs(
     tool: CommandTool | PythonTool,
     variable_manager: VariableManager, 
     sources: dict[str, Any]
@@ -31,7 +30,6 @@ def create_nextflow_process_outputs(
     for out in tool.outputs():
         if isinstance(out, ToolOutput) and isinstance(tool, CommandTool):
             factory = CmdtoolProcessOutputFactory(
-                scope=scope, 
                 out=out, 
                 tool=tool, 
                 variable_manager=variable_manager, 
@@ -39,7 +37,6 @@ def create_nextflow_process_outputs(
             )
         if isinstance(out, TOutput) and isinstance(tool, PythonTool):
             factory = PythonToolProcessOutputFactory(
-                scope=scope, 
                 out=out, 
                 tool=tool, 
                 variable_manager=variable_manager, 

@@ -1,13 +1,11 @@
 
 
-from typing import Any
 from collections import Counter
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
 from janis_core.types import File, Filename
 from janis_core import translation_utils as utils
 
-from .. import params
 from .. import trace
 
 

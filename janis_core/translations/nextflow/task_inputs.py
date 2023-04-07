@@ -1,27 +1,127 @@
 
 
+from typing import Optional
 from dataclasses import dataclass, field
 
+from janis_core import (
+    ToolInput,
+    TInput,
+    Tool,
+)
+from enum import Enum, auto
+
+
+class TaskInputType(Enum): 
+    TASK_INPUT  = auto()
+    PARAM       = auto()
+    STATIC      = auto()
+    IGNORED     = auto()
+
+
+@dataclass 
+class TaskInput:
+    tinput_id: str
+    value: Optional[str | list[str]]
+    ti_type: TaskInputType
+
+
 @dataclass
-class MinimalTaskInputRegister:
-    """for each task to call, stores minimal tool inputs needed as task inputs."""
-    data_structure: dict[str, set[str]] = field(default_factory=dict)
+class TaskInputRegister:
+    
+    data_structure: dict[str, dict[str, TaskInput]] = field(default_factory=dict)
+    
+    """ 
+    for each Workflow / CommandTool / PythonTool, stores a map of tinput_id: data_source.
+    the data_source is the initial value which drives the ToolInput inside a task. 
+    
+    data_structure description:
+    {
+        Scope: {
+            'my_file': str,
+            'my_string': None,
+            'my_secondary': list[str],
+            'my_secondary_arr': str,
+        }
+    }
+    """
+    def add(
+        self, 
+        tool_id: str,
+        dstype_str: str,
+        tinput_id: str, 
+        value: Optional[str | list[str]],
+    ) -> None:
+        """
+        adds some data to our data_structure. 
+        scope: tool scope
+        
+        """
+        # if scope not yet in data structure, add
+        if tool_id not in self.data_structure:
+            self.data_structure[tool_id] = {}
+
+        # cast the data source subtype to enum value
+        subtype_map = {
+            'task_input': TaskInputType.TASK_INPUT,
+            'param': TaskInputType.PARAM,
+            'static': TaskInputType.STATIC,
+            'ignored': TaskInputType.IGNORED,
+        }
+
+        # create new DataSource & add to data_structure
+        dstype = subtype_map[dstype_str]
+        ds = TaskInput(tinput_id, value, dstype)
+        self.data_structure[tool_id][tinput_id] = ds
+
+    def get(self, tool_id: str, tinput_id: str) -> TaskInput:
+        return self.data_structure[tool_id][tinput_id]
+    
+    def getall(self, tool_id: str) -> list[TaskInput]:
+        return list(self.data_structure[tool_id].values())
     
     def to_string(self) -> str:
         out: str = ''
-        for tool_id, minimal_task_input_ids in self.data_structure.items():
-            out += f'\n{tool_id} ---\n'
-            for tinput_id in minimal_task_input_ids:
-                out += f'{tinput_id}\n'
+        for scope_label, name_map in self.data_structure.items():
+            out += f'\n{scope_label}\n'
+            for tinput_id, ds in name_map.items():
+                out += f'{tinput_id}: {ds.value}\n'
         return out
+    
 
-mti_register = MinimalTaskInputRegister()
+ti_register = TaskInputRegister()
 
-def add(tool_id: str, minimal_task_input_ids: set[str]) -> None:
-    mti_register.data_structure[tool_id] = minimal_task_input_ids
+def exists(tool: Tool) -> bool:
+    # checks the tool id has an entry 
+    # checks each tinput id has an associated value in the entry
+    if tool.id() not in ti_register.data_structure:
+        return False
+    for tinput in tool.tool_inputs():
+        if tinput.id() not in ti_register.data_structure[tool.id()]:
+            return False
+    return True
 
-def get(tool_id: str) -> set[str]:
-    return mti_register.data_structure[tool_id]
+def get(tool_id: str, inp: ToolInput | TInput) -> TaskInput:
+    return ti_register.get(tool_id, inp.id())
+
+def update(tool_id: str, dstype_str: str, tinput_id: str, value: Optional[str | list[str]]):
+    ti_register.add(tool_id, dstype_str, tinput_id, value)
+
+def task_inputs(tool_id: str) -> set[str]:
+    all_inputs = ti_register.getall(tool_id)
+    return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.TASK_INPUT])
+
+def param_inputs(tool_id: str) -> set[str]:
+    all_inputs = ti_register.getall(tool_id)
+    return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.PARAM])
+
+def static_inputs(tool_id: str) -> set[str]:
+    all_inputs = ti_register.getall(tool_id)
+    return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.STATIC])
+
+def ignored_inputs(tool_id: str) -> set[str]:
+    all_inputs = ti_register.getall(tool_id)
+    return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.IGNORED])
 
 def clear() -> None:
-    mti_register.data_structure = {}    
+    ti_register.data_structure = {}
+

@@ -1,11 +1,14 @@
 
 
-from .params import Param
-from .params import add
-from .params import create_link
-from .params import exists
-from .params import get
-from .params import getall
-from .params import getstr
-from .params import serialize
-from .params import clear
+# from .main import register_params
+# from .ParamRegistrationManager import no_file_count
+
+from .main import Param
+from .main import add
+from .main import create_link
+from .main import exists
+from .main import get
+from .main import getall
+from .main import getstr
+from .main import serialize
+from .main import clear

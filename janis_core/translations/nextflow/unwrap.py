@@ -5,8 +5,8 @@ from __future__ import annotations
 # if TYPE_CHECKING:
 #     from .parsing.process.VariableManager import VariableManager
 
-from .parsing.process.VariableManager import VariableManager
-from .parsing.process.VariableManager import VariableType
+from .variables import VariableManager
+from .variables import VariableType
 
 from copy import deepcopy
 from typing import Any, Optional, Type
@@ -77,12 +77,10 @@ from janis_core import translation_utils as utils
 from . import channels
 from . import params
 from . import naming
-from . import data_sources
 from . import nfgen_utils
 
 # from .plumbing import cartesian_cross_subname
 from .expressions import stringformatter_matcher
-from .scope import Scope
 
 """
 NOTE: 
@@ -100,7 +98,7 @@ this stuff is supposed to be done inside the process.
 
 def unwrap_expression(
     val: Any,
-    scope: Scope,
+    # scope: Scope,
     context: str='general',
     variable_manager: Optional[VariableManager]=None,
     tool: Optional[CommandTool]=None,
@@ -113,7 +111,7 @@ def unwrap_expression(
     ) -> Any:
 
     unwrapper = Unwrapper(
-        scope=scope,
+        # scope=scope,
         context=context,
         variable_manager=variable_manager,
         tool=tool,
@@ -134,7 +132,7 @@ class Unwrapper:
     """
     def __init__(
         self,
-        scope: Scope,
+        # scope: Scope,
         context: str,
         variable_manager: Optional[VariableManager],
         tool: Optional[CommandTool],
@@ -145,7 +143,7 @@ class Unwrapper:
         in_shell_script: bool, 
         quote_strings: Optional[bool],
     ) -> None:
-        self.scope = scope
+        # self.scope = scope
         self.context = context
         self.variable_manager = variable_manager
         self.tool = tool
@@ -535,7 +533,7 @@ class Unwrapper:
     def unwrap_operator(self, op: Operator) -> str:
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
-            scope=self.scope,
+            # scope=self.scope,
             context=self.context,
             variable_manager=self.variable_manager,
             tool=self.tool,
@@ -746,7 +744,7 @@ class Unwrapper:
             expr = f'{var.value}.simpleName'
 
         # normal case: simple variable reference
-        elif var.vtype in [VariableType.PROCESS_INPUT, VariableType.PARAM, VariableType.LOCAL]:
+        elif var.vtype in [VariableType.TASK_INPUT, VariableType.PARAM, VariableType.LOCAL]:
             expr = var.value
 
         # static value for TInput in this process

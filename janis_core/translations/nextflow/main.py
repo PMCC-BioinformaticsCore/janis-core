@@ -22,9 +22,11 @@ from .model.process import NFContainerDirective
 from .model.process import NFProcess
 from .model.workflow import NFWorkflow
 
+from .generate.processes import generate_processes
+
 from . import channels
 from . import params
-from . import parsing
+from . import generate
 from . import naming
 from . import preprocessing
 
@@ -133,33 +135,32 @@ class NextflowTranslator(TranslatorBase):
         super().__init__(name="nextflow")
 
     @classmethod
-    def translate_workflow_internal(cls, wf: WorkflowBase) -> Tuple[Any, dict[str, Any]]:
+    def translate_workflow_internal(cls, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
 
         # set class variables to avoid passing junk params
         settings.translate.nextflow.BASE_OUTDIR = cls.basedir
 
-        # blank scope - main wf has not parent
-        scope = Scope()
+        preprocessing.populate_task_inputs(wf, wf)
+        processes = generate_processes(wf)
+        workflows = generate_workflows(wf)
+        files = generate_files(wf)
 
-        # register params and channels for workflow inputs
-        params.clear()
-        channels.clear()
-        # preprocessing.ensure_unique_task_names(wf)
-        preprocessing.register_minimal_task_inputs(wf)
-        preprocessing.register_params_channels(wf)
-        preprocessing.register_data_sources(wf)
+        print()
 
-        # main logic
-        cls.update_files('', '', scope, wf, sources={})
+        # # blank scope - main wf has not parent
+        # scope = Scope()
 
-        # get the main wf file and all sub files
-        main_file = cls.file_register.get(scope)  # main nf workflow usually
-        sub_files = cls.file_register.get_children(scope, direct_only=False)
+        # # main logic
+        # cls.update_files('', '', scope, wf, sources={})
 
-        # return format (gen str for each file)
-        main_file_str = main_file.get_string()
-        sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
-        return (main_file_str, sub_files_str)
+        # # get the main wf file and all sub files
+        # main_file = cls.file_register.get(scope)  # main nf workflow usually
+        # sub_files = cls.file_register.get_children(scope, direct_only=False)
+
+        # # return format (gen str for each file)
+        # main_file_str = main_file.get_string()
+        # sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
+        # return (main_file_str, sub_files_str)
 
 
     @classmethod
@@ -192,15 +193,15 @@ class NextflowTranslator(TranslatorBase):
             # groovy library imports & groovy functions used in process
             # item: imports
             # item: functions
-            imports_item = parsing.process.gen_imports_for_process(tool)
-            functions_item = parsing.process.gen_functions_for_process(tool)
+            imports_item = generate.processes.gen_imports_for_process(tool)
+            functions_item = generate.processes.gen_functions_for_process(tool)
             if imports_item:
                 cls.item_register.add(scope, imports_item)
             if functions_item:
                 cls.item_register.add(scope, functions_item)
 
             # item: process
-            process_item = parsing.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
+            process_item = generate.processes.gen_process_from_cmdtool(name, alias, tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
             
@@ -221,7 +222,7 @@ class NextflowTranslator(TranslatorBase):
             #     cls.item_register.add(scope, functions_item)
             
             # process
-            process_item = parsing.process.gen_process_from_codetool(name, alias, tool, sources, scope)
+            process_item = generate.processes.gen_process_from_codetool(name, alias, tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
 
@@ -299,7 +300,7 @@ class NextflowTranslator(TranslatorBase):
                 cls.item_register.add(scope, channels_item)
  
             # --- item: workflow body ---
-            workflow_item = parsing.workflow.gen_workflow(
+            workflow_item = generate.workflow.gen_workflow(
                 scope=scope,
                 name=name,
                 alias=alias,
@@ -342,8 +343,8 @@ class NextflowTranslator(TranslatorBase):
         # scope.items = [ToolScopeItem(tool.id())]
 
         # groovy library imports & groovy functions used in process
-        imports_item = parsing.process.gen_imports_for_process(tool)
-        functions_item = parsing.process.gen_functions_for_process(tool)
+        imports_item = generate.processes.gen_imports_for_process(tool)
+        functions_item = generate.processes.gen_functions_for_process(tool)
         if imports_item:
             cls.item_register.add(scope, imports_item)
         if functions_item:
@@ -352,7 +353,7 @@ class NextflowTranslator(TranslatorBase):
         # process
         name = naming.constructs.gen_varname_process(tool.id())
         alias = None
-        process_item = parsing.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
+        process_item = generate.processes.gen_process_from_cmdtool(name, alias, tool, sources, scope)
         process_item = cls.handle_container(scope, tool, process_item)
         cls.item_register.add(scope, process_item)
         
@@ -410,7 +411,6 @@ class NextflowTranslator(TranslatorBase):
     @classmethod
     def handle_container(
         cls,
-        scope: Scope,
         tool: Tool,
         process: NFProcess,
     ) -> NFProcess:
@@ -441,7 +441,6 @@ class NextflowTranslator(TranslatorBase):
         if container is not None:
             container_expr = unwrap_expression(
                 val=container, 
-                scope=scope, 
             )
             directive = NFContainerDirective(container_expr)
             process.directives.append(directive)
@@ -624,7 +623,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        return parsing.config.generate_config()
+        return generate.config.generate_config()
 
 
     @staticmethod

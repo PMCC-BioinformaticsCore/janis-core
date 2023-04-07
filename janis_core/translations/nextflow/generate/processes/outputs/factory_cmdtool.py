@@ -15,12 +15,10 @@ from janis_core import (
 )
 from janis_core import translation_utils as utils
 
+from .... import task_inputs
 from ....trace import trace_entity_counts
 from ....unwrap import unwrap_expression
-from .... import data_sources
-from ....scope import Scope
-
-from ..VariableManager import VariableManager
+from ....variables import VariableManager
 
 from ....model.process.outputs import (
     NFProcessOutput,
@@ -132,13 +130,11 @@ class FmtType(Enum):
 class CmdtoolProcessOutputFactory:
     def __init__(
         self, 
-        scope: Scope, 
         out: ToolOutput, 
         tool: CommandTool, 
         variable_manager: VariableManager,
         sources: dict[str, Any]
     ) -> None:
-        self.scope = scope
         self.out = out
         self.tool = tool
         self.variable_manager = variable_manager
@@ -186,6 +182,9 @@ class CmdtoolProcessOutputFactory:
     def get_fmttype(self) -> FmtType:
         """returns a FmtType based on the specific ToolOutput we have received"""
         # output uses WildcardSelector
+        if isinstance(self.out.selector, str):
+            return FmtType.WILDCARD
+        
         if isinstance(self.out.selector, WildcardSelector):
             return FmtType.WILDCARD
 
@@ -203,9 +202,9 @@ class CmdtoolProcessOutputFactory:
                 # ToolInput does not refer to another ToolInput
                 # This must be first as less specific
                 if entities.issubset(filename_gen_whitelist):
-                    if tinput.id() in data_sources.task_inputs(self.scope):
+                    if tinput.id() in task_inputs.task_inputs(self.tool.id()):
                         return FmtType.FILENAME
-                    elif tinput.id() in data_sources.param_inputs(self.scope):
+                    elif tinput.id() in task_inputs.param_inputs(self.tool.id()):
                         return FmtType.FILENAME
                     else:
                         return FmtType.FILENAME_GEN
@@ -231,6 +230,7 @@ class CmdtoolProcessOutputFactory:
             self.add_braces = False
             self.add_quotes = False
             expr = self.unwrap(expr)  
+        
         elif self.ftype in (FmtType.WILDCARD, FmtType.FILENAME_GEN):
             self.add_braces = False
             self.add_quotes = False
@@ -239,6 +239,7 @@ class CmdtoolProcessOutputFactory:
                 print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
+        
         elif self.ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
             self.add_braces = True
             self.add_quotes = False
@@ -247,6 +248,7 @@ class CmdtoolProcessOutputFactory:
                 print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
+        
         else:
             # some future FmtType
             raise NotImplementedError
@@ -255,7 +257,6 @@ class CmdtoolProcessOutputFactory:
     def unwrap(self, expr: Any):
         return unwrap_expression(
             val=expr,
-            scope=self.scope,
             context='process_output',
             variable_manager=self.variable_manager,
             tool=self.tool,
@@ -315,7 +316,6 @@ class CmdtoolProcessOutputFactory:
             return self.secondaries_output_reference()
         else:
             return self.secondaries_output_complex()
-
 
     def secondaries_output_reference(self) -> NFTupleProcessOutput:
         qualifiers: list[str] = []
