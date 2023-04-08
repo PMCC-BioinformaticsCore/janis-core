@@ -19,7 +19,6 @@ from ....variables import VariableManager
 def gen_nf_process_outputs(
     tool: CommandTool | PythonTool,
     variable_manager: VariableManager, 
-    sources: dict[str, Any]
     ) -> list[NFProcessOutput]:
     
     process_outputs: list[NFProcessOutput] = []
@@ -33,14 +32,12 @@ def gen_nf_process_outputs(
                 out=out, 
                 tool=tool, 
                 variable_manager=variable_manager, 
-                sources=sources
             )
         if isinstance(out, TOutput) and isinstance(tool, PythonTool):
             factory = PythonToolProcessOutputFactory(
                 out=out, 
                 tool=tool, 
                 variable_manager=variable_manager, 
-                sources=sources
             )
     
         new_output = factory.create()

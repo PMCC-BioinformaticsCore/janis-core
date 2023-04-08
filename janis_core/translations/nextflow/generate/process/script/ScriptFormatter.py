@@ -76,11 +76,9 @@ class ScriptFormatter:
     def __init__(self, 
         tool: CommandTool,
         variable_manager: VariableManager,
-        sources: dict[str, Any]
     ) -> None:
         self.tool = tool
         self.variable_manager = variable_manager
-        self.sources = sources
         
         self.tinput: ToolInput  # undefined at init
         self.itype: IType       # undefined at init
@@ -237,9 +235,9 @@ class ScriptFormatter:
     
     @property
     def optional_default(self) -> Optional[str]:
-        OPTIONAL_FILE_DEFAULT = '"NO_FILE"'
-        OPTIONAL_FILE_ARR_DEFAULT = '["NO_FILE"]'
-        OPTIONAL_FILE_PAIR_DEFAULT = '["NO_FILE", "NO_FILE"]'
+        OPTIONAL_FILE_DEFAULT = "'NO_FILE'"
+        OPTIONAL_FILE_ARR_DEFAULT = "['NO_FILE']"
+        OPTIONAL_FILE_PAIR_DEFAULT = "['NO_FILE', 'NO_FILE']"
         if self.is_optional_filetype:
             if utils.is_file_pair_type(self.dtype):
                 return OPTIONAL_FILE_PAIR_DEFAULT

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 from janis_core import ToolInput, TInput
-from janis_core.types import File, Array
+from janis_core.types import File
 
 from janis_core import translation_utils as utils
 

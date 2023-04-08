@@ -21,14 +21,12 @@ from .ScriptFormatter import ScriptFormatter
 def gen_nf_process_script(
     tool: CommandTool,
     variable_manager: VariableManager,
-    sources: dict[str, Any],
     stdout_filename: str,
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
         variable_manager=variable_manager,
         stdout_filename=stdout_filename,
-        sources=sources,
     ).generate()
 
 
@@ -38,12 +36,10 @@ class ProcessScriptGenerator:
         tool: CommandTool, 
         variable_manager: VariableManager,
         stdout_filename: str,
-        sources: Optional[dict[str, Any]]=None,
     ):
         self.tool = tool
         self.variable_manager = variable_manager
         self.stdout_filename = stdout_filename
-        self.sources = sources if sources is not None else {}
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -62,7 +58,6 @@ class ProcessScriptGenerator:
         tool_input_formatter = ScriptFormatter(
             tool=self.tool, 
             variable_manager=self.variable_manager,
-            sources=self.sources
         )
         for inp in ordering.order_cmdtool_inputs_arguments(self.tool):
             if isinstance(inp, ToolInput):

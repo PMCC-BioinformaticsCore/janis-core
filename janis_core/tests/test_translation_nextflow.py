@@ -195,7 +195,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -209,7 +209,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -226,7 +226,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -247,7 +247,7 @@ class TestTaskInputs(unittest.TestCase):
         scope.update(step)
         step = step.tool.step_nodes["stp1"]
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -263,7 +263,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -280,7 +280,7 @@ class TestTaskInputs(unittest.TestCase):
         scope.update(step)
         step = step.tool.step_nodes["stp1"]
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -298,7 +298,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -316,7 +316,7 @@ class TestTaskInputs(unittest.TestCase):
         step = wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -337,7 +337,7 @@ class TestTaskInputs(unittest.TestCase):
         scope.update(step)
         step = step.tool.step_nodes["stp1"]
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
@@ -364,6 +364,31 @@ class TestPreprocessingTaskInputs(unittest.TestCase):
     def test_one_call(self) -> None:
         wf = MinimalTaskInputsTestWF1()
         do_preprocessing_workflow(wf)
+
+        # main wf
+        actual_task_inputs = nextflow.task_inputs.task_inputs(wf.id())
+        expected_task_inputs: set[str] = set()
+        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+        
+        actual_param_inputs = nextflow.task_inputs.param_inputs(wf.id())
+        expected_param_inputs = {'inFile', 'inStr1', 'inInt1'}
+        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+        
+        actual_static_inputs = nextflow.task_inputs.static_inputs(wf.id())
+        expected_static_inputs: set[str] = set()
+        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+        
+        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(wf.id())
+        expected_ignored_inputs = {
+            'inStr2',
+            'inInt3',
+            'inInt2',
+            'stp1_inInt1',
+            'inStr3',
+        }
+        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+        
+        # TaskInputsTestTool1 tool
         tool = wf.step_nodes['stp1'].tool
 
         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
@@ -1679,7 +1704,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         process = translator.handle_container(step.tool, process)
         directives = nextflow.ordering.order_nf_directives(process.directives)
         actual_order = [type(x).__name__ for x in directives]
@@ -1701,7 +1726,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         process = translator.handle_container(step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
@@ -1740,7 +1765,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         do_preprocessing_workflow(wf)
 
         step = wf.step_nodes["stp2"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path fastq_inp1, stageAs: \'fastq_inp1.fastq\'',
@@ -1755,11 +1780,12 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = AssemblyTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["unicycler"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
-            'path option1, stageAs: \'option1\'',
-            'path option2, stageAs: \'option2\'',
+            "path option1, stageAs: 'option1'",
+            "path option2, stageAs: 'option2'",
+            "path option_l, stageAs: 'option_l'",
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -1770,7 +1796,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
         # filepair
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path reads'
@@ -1780,7 +1806,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         
         # filepair array
         step = wf.step_nodes["stp3"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         expected_inputs = {
             'path reads'
@@ -1794,7 +1820,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = ArrayStepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
@@ -1812,7 +1838,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
@@ -1824,7 +1850,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp4"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
@@ -1837,16 +1863,17 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         do_preprocessing_workflow(wf)
 
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             "path inp1, stageAs: 'inp1'",
+            "val inp2",
         }
         self.assertEqual(actual_inputs, expected_inputs)  
 
         step = wf.step_nodes["stp2"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
@@ -1884,14 +1911,14 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = BasicIOTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'stdout, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)  
 
     def test_wildcard(self) -> None:
         step = self.wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "myfile.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1900,7 +1927,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = WildcardSelectorOutputTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp2"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "*.txt", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1909,14 +1936,14 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = InputSelectorTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_input_selector_param(self) -> None:
         step = self.wf.step_nodes["stp4"]
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "myfile.txt", emit: out'}
@@ -1926,7 +1953,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = InputSelectorTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp3']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path inp, emit: out'}
         print(process.get_string())
@@ -1938,7 +1965,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
         # inp1 is in step.sources
         step = wf.step_nodes['stp1']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
@@ -1954,7 +1981,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp5']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'path "${inp1.simpleName + ".csv"}", emit: out3',
@@ -1969,7 +1996,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
         step = self.wf.step_nodes['stp6']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "[${inp.simpleName + "-R1.fastq"}, ${inp.simpleName + "-R2.fastq"}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1978,7 +2005,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp1']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bam.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1987,7 +2014,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp3']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'tuple path("*.bam"), path("*.bai"), emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -1996,7 +2023,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp5']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
@@ -2008,7 +2035,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp6']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
@@ -2026,14 +2053,14 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # two_value operator etc. uses ${} syntax around whole phrase.
         # strings inside are quoted. 
         step = self.wf.step_nodes['stp5']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName + ".gz"}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_edge_markduplicates_metrics(self) -> None:
         step = self.wf.step_nodes['stp8']
-        process = nextflow.generate.processes.generate_process(step.tool, step.sources)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.get_string())
         expected_outputs = {
@@ -2082,7 +2109,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp8"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -2097,7 +2124,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp9"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -2113,7 +2140,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp10"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         
         actual_prescript = process.pre_script
         assert(actual_prescript)
@@ -2129,7 +2156,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_prescript = process.pre_script
         expected_lines = {
@@ -2149,7 +2176,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_script = process.script
         expected_lines = [
@@ -2172,12 +2199,12 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_prescript = set(process.pre_script.split('\n'))
         expected_prescript = set([
             'def pos_basic_joined = pos_basic.join(\' \')',
-            'def pos_basic2_joined = pos_basic2 != [\'NO_FILE1\'] ? pos_basic2.join(\' \') : ""',
+            'def pos_basic2_joined = pos_basic2 != [\'NO_FILE\'] ? pos_basic2.join(\' \') : ""',
             'def pos_default_joined = pos_default ? pos_default.join(\' \') : "1 2 3"',
             'def pos_optional_joined = pos_optional ? pos_optional.join(\' \') : ""',
             'def opt_basic_joined = opt_basic.join(\' \')',
@@ -2195,7 +2222,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         actual_script = process.script
         expected_lines = [
             'echo',
@@ -2218,7 +2245,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         
         # pre-script
         actual_pre_script = process.pre_script
@@ -2245,7 +2272,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp4"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         
         # pre-script
         actual_pre_script = process.pre_script
@@ -2275,12 +2302,12 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         step = wf.step_nodes["stp3"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(f'actual: \n{process.get_string()}')
         expected = """\
-process STP3 {
+process FILENAME_GENERATED_TOOL {
     debug true
-    publishDir "${params.outdir}/stp3"
+    publishDir "${params.outdir}/filename_generated_tool"
 
     input:
     path file_inp, stageAs: 'file_inp.txt'
@@ -2292,8 +2319,8 @@ process STP3 {
     script:
     \"\"\"
     echo \\
-    ${params.in_str} \\
-    ${params.in_str_opt} \\
+    ${params.filename_generated_tool.inp} \\
+    ${params.filename_generated_tool.inp_optional} \\
     ${file_inp.simpleName}.transformed.fnp \\
     ${file_inp_optional.simpleName}.optional.txt \\
     \"\"\"
@@ -2310,7 +2337,7 @@ process STP3 {
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_script = process.script
         expected_lines = {
@@ -2324,7 +2351,7 @@ process STP3 {
         step = wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_script = process.script
         expected_lines = {
@@ -2341,16 +2368,16 @@ process STP3 {
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         print(process.get_string())
         actual_prescript = process.pre_script
         expected_lines = {
             "def in_secondary_array_opt = get_primary_files(indexed_bam_flat)", 
-            "def in_secondary_array_opt_joined = in_secondary_array_opt != [['NO_FILE1', 'NO_FILE2']] ? in_secondary_array_opt.join(' ') : \"\"", 
-            "def in_secondary_opt = bam != ['NO_FILE3', 'NO_FILE4'] ? bam : \"\"", 
-            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE5', 'NO_FILE6'] ? in_file_pair_opt.join(' ') : \"\"", 
-            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE7'] ? in_file_array_opt.join(' ') : \"\"", 
-            "def in_file_opt = in_file_opt != 'NO_FILE8' ? in_file_opt : \"\"", 
+            "def in_secondary_array_opt_joined = in_secondary_array_opt != ['NO_FILE'] ? in_secondary_array_opt.join(' ') : \"\"", 
+            "def in_secondary_opt = bam != 'NO_FILE' ? bam : \"\"", 
+            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE', 'NO_FILE'] ? in_file_pair_opt.join(' ') : \"\"", 
+            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE'] ? in_file_array_opt.join(' ') : \"\"", 
+            "def in_file_opt = in_file_opt != 'NO_FILE' ? in_file_opt : \"\"", 
         }
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
@@ -2362,6 +2389,37 @@ process STP3 {
     @unittest.skip('not implemented')
     def test_translate_pythontool(self) -> None:
         raise NotImplementedError
+
+
+
+
+
+
+class TestWorkflows(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        reset_globals()
+
+    def test_basic(self) -> None:
+        # DO NOT need a process input for each static value in step sources.
+        # non-files are fed data via params. 
+        wf = AssemblyTestWF()
+        do_preprocessing_workflow(wf)
+        process_dict = nextflow.generate.process.generate_processes(wf)
+        workflow_dict = nextflow.generate.workflow.generate_workflows(wf, process_dict)
+        nf_workflow = workflow_dict['UnicyclerAssembly']
+        print(nf_workflow.get_string())
+        print()
+
+
+class TestSubWorkflows(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        reset_globals()
+
+
+
+
 
 
 
@@ -2377,7 +2435,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         step = self.wf.step_nodes["stp0"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -2389,7 +2447,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         step = self.wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -2400,7 +2458,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         step = self.wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_inputs = {inp.get_string() for inp in process.inputs}
         expected_inputs = {
             'path code_file',
@@ -2422,7 +2480,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp0']
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -2431,7 +2489,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
@@ -2440,7 +2498,7 @@ class TestPythontoolProcessOutputs(unittest.TestCase):
         step = self.wf.step_nodes['stp2']
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
             'val "${file("${task.workDir}/out_out").text.replace(\'[\', \'\').replace(\']\', \'\')}", emit: out'
@@ -2460,7 +2518,7 @@ class TestPythontoolProcess(unittest.TestCase):
         step = self.wf.step_nodes["stp0"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_lines = process.get_string().split('\n')
         actual_lines = [x.strip() for x in actual_lines]
         actual_lines = [x for x in actual_lines if x != '\n' and x != '']
@@ -2504,7 +2562,7 @@ class TestPythontoolProcessScript(unittest.TestCase):
         step = self.wf.step_nodes["stp0"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
@@ -2517,7 +2575,7 @@ class TestPythontoolProcessScript(unittest.TestCase):
         step = self.wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp="${params.in_str_arr}".split(" "))',
@@ -2530,7 +2588,7 @@ class TestPythontoolProcessScript(unittest.TestCase):
         step = self.wf.step_nodes["stp2"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_codetool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
         actual_script = process.script
         expected_lines = {
             'result = code_block(inp="${bam}")',
@@ -3832,7 +3890,7 @@ class TestUnwrapProcess(unittest.TestCase):
         scope.update(step)
         variable_manager = VariableManager(scope)
         variable_manager.update_for_tool(step.tool, step.sources)
-        self.prescript, self.script = nextflow.generate.processes.gen_nf_process_script(
+        self.prescript, self.script = nextflow.generate.process.gen_nf_process_script(
             scope=scope,
             tool=step.tool,
             variable_manager=variable_manager,
@@ -4183,7 +4241,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -4197,7 +4255,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp3"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -4213,7 +4271,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes["stp5"]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(step.tool, step.sources, scope)
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
         expected_inputs = [
             "path in_fastq, stageAs: 'in_fastq.fastq'",
             "path in_fastq_array",
@@ -4279,7 +4337,7 @@ class TestOrdering(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         
-        nf_workflow = nextflow.generate.workflow.gen_workflow(
+        nf_workflow = nextflow.generate.workflow.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,
@@ -4298,7 +4356,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.generate.workflow.gen_workflow(
+        nf_workflow = nextflow.generate.workflow.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,
@@ -4320,7 +4378,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.generate.workflow.gen_workflow(
+        nf_workflow = nextflow.generate.workflow.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,
@@ -4496,7 +4554,7 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes['stp1']
         scope = nextflow.Scope()
         scope.update(step)
-        process_inputs = nextflow.generate.processes.gen_nf_process_inputs(scope, step.tool)
+        process_inputs = nextflow.generate.process.gen_nf_process_inputs(scope, step.tool)
         actual_input_names = [x.name for x in process_inputs]
         expected_input_names = [
             'secondary',
@@ -4512,7 +4570,7 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes['stp3']
         scope = nextflow.Scope()
         scope.update(step)
-        process_inputs = nextflow.generate.processes.gen_nf_process_inputs(scope, step.tool)
+        process_inputs = nextflow.generate.process.gen_nf_process_inputs(scope, step.tool)
         
         # checking the names of process inputs are correct
         actual_input_names = set([x.name for x in process_inputs])
@@ -4558,7 +4616,7 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        process = nextflow.generate.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
         
         # process output names correct?
         actual_output_names = [x.name for x in process.outputs]
@@ -4580,7 +4638,7 @@ class TestNaming(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        process = nextflow.generate.processes.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
+        process = nextflow.generate.process.gen_process_from_cmdtool(tool=step.tool, sources=step.sources, scope=scope)
         print(process.get_string())
         
         # pre-script

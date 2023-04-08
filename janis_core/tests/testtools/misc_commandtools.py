@@ -117,7 +117,7 @@ class SingleTestTool(CommandTool):
 
 class FilenameGeneratedTool(SingleTestTool):
     def id(self):
-        return "filenamegeneratedtool"
+        return "FilenameGeneratedTool"
 
     def inputs(self):
         return [

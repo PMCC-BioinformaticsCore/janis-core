@@ -20,6 +20,7 @@ from ...variables import init_variable_manager_for_task
 
 
 def generate_processes(wf: Workflow) -> dict[str, NFProcess]:
+    """for each CommandTool | PythonTool in workflow, generate a nextflow process"""
     process_dict = {}
     return do_generate_processes(wf, process_dict)
 
@@ -30,7 +31,7 @@ def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> d
         if isinstance(step.tool, CommandTool) or isinstance(step.tool, PythonTool):
             tool_id = step.tool.id()
             if tool_id not in process_dict:
-                process = generate_process(step.tool, step.sources, wf)
+                process = generate_process(step.tool, step.sources)
                 process_dict[tool_id] = process
         
         # recursively do for subworkflows 
@@ -44,14 +45,14 @@ def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> d
 
 def generate_process(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> NFProcess:
     if isinstance(tool, CommandTool):
-        return generate_process_cmdtool(tool, sources)
+        return generate_process_cmdtool(tool)
     elif isinstance(tool, PythonTool):  # type: ignore
         return generate_process_pythontool(tool, sources)
     else:
         raise RuntimeError
 
-def generate_process_cmdtool(tool: CommandTool, sources: dict[str, Any]) -> NFProcess:
-    generator = CmdToolProcessGenerator(tool, sources)
+def generate_process_cmdtool(tool: CommandTool) -> NFProcess:
+    generator = CmdToolProcessGenerator(tool)
     return generator.generate()
 
 def generate_process_pythontool(tool: PythonTool, sources: dict[str, Any]) -> NFProcess:
@@ -62,9 +63,8 @@ def generate_process_pythontool(tool: PythonTool, sources: dict[str, Any]) -> NF
 
 # helper class
 class CmdToolProcessGenerator:
-    def __init__(self, tool: CommandTool, sources: dict[str, Any]) -> None:
+    def __init__(self, tool: CommandTool) -> None:
         self.tool = tool
-        self.sources = sources
 
     @property
     def name(self) -> str:
@@ -85,7 +85,6 @@ class CmdToolProcessGenerator:
         pre_script, main_script = gen_nf_process_script(
             tool=self.tool,
             variable_manager=self.vmanager,
-            sources=self.sources,
             stdout_filename=settings.translate.nextflow.TOOL_STDOUT_FILENAME,
         )
         
@@ -93,7 +92,6 @@ class CmdToolProcessGenerator:
         process_outputs = gen_nf_process_outputs(
             tool=self.tool, 
             variable_manager=self.vmanager,
-            sources=self.sources
         )
 
         # process

@@ -20,7 +20,7 @@ metadata = WorkflowMetadata(
 )
 
 w = WorkflowBuilder(
-	"unicyclerTrainingImportedFromUploadedFile",
+	identifier="UnicyclerAssembly",
 	version="3",
 	doc="Unicycler Assembly",
 	metadata=metadata

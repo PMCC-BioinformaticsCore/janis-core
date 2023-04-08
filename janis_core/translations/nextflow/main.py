@@ -22,7 +22,8 @@ from .model.process import NFContainerDirective
 from .model.process import NFProcess
 from .model.workflow import NFWorkflow
 
-from .generate.processes import generate_processes
+from .generate.process import generate_processes
+from .generate.workflow import generate_workflows
 
 from . import channels
 from . import params
@@ -142,7 +143,7 @@ class NextflowTranslator(TranslatorBase):
 
         preprocessing.populate_task_inputs(wf, wf)
         processes = generate_processes(wf)
-        workflows = generate_workflows(wf)
+        workflows = generate_workflows(wf, processes)
         files = generate_files(wf)
 
         print()
@@ -193,15 +194,15 @@ class NextflowTranslator(TranslatorBase):
             # groovy library imports & groovy functions used in process
             # item: imports
             # item: functions
-            imports_item = generate.processes.gen_imports_for_process(tool)
-            functions_item = generate.processes.gen_functions_for_process(tool)
+            imports_item = generate.process.gen_imports_for_process(tool)
+            functions_item = generate.process.gen_functions_for_process(tool)
             if imports_item:
                 cls.item_register.add(scope, imports_item)
             if functions_item:
                 cls.item_register.add(scope, functions_item)
 
             # item: process
-            process_item = generate.processes.gen_process_from_cmdtool(name, alias, tool, sources, scope)
+            process_item = generate.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
             
@@ -222,7 +223,7 @@ class NextflowTranslator(TranslatorBase):
             #     cls.item_register.add(scope, functions_item)
             
             # process
-            process_item = generate.processes.gen_process_from_codetool(name, alias, tool, sources, scope)
+            process_item = generate.process.gen_process_from_codetool(name, alias, tool, sources, scope)
             process_item = cls.handle_container(scope, tool, process_item)
             cls.item_register.add(scope, process_item)
 
@@ -300,7 +301,7 @@ class NextflowTranslator(TranslatorBase):
                 cls.item_register.add(scope, channels_item)
  
             # --- item: workflow body ---
-            workflow_item = generate.workflow.gen_workflow(
+            workflow_item = generate.workflow.generate_workflow(
                 scope=scope,
                 name=name,
                 alias=alias,
@@ -343,8 +344,8 @@ class NextflowTranslator(TranslatorBase):
         # scope.items = [ToolScopeItem(tool.id())]
 
         # groovy library imports & groovy functions used in process
-        imports_item = generate.processes.gen_imports_for_process(tool)
-        functions_item = generate.processes.gen_functions_for_process(tool)
+        imports_item = generate.process.gen_imports_for_process(tool)
+        functions_item = generate.process.gen_functions_for_process(tool)
         if imports_item:
             cls.item_register.add(scope, imports_item)
         if functions_item:
@@ -353,7 +354,7 @@ class NextflowTranslator(TranslatorBase):
         # process
         name = naming.constructs.gen_varname_process(tool.id())
         alias = None
-        process_item = generate.processes.gen_process_from_cmdtool(name, alias, tool, sources, scope)
+        process_item = generate.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
         process_item = cls.handle_container(scope, tool, process_item)
         cls.item_register.add(scope, process_item)
         

@@ -8,6 +8,7 @@ from janis_core import translation_utils as utils
 from janis_core import Workflow, TInput, Tool
 from janis_core.types import DataType
 
+from ... import params
 from ... import naming
 from ... import task_inputs
 
@@ -52,13 +53,8 @@ class TaskInputsPopulator:
     def update_as_param_input(self, tinput_id: str) -> None:
         ti_type = 'param'
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
-        pname = naming.constructs.gen_varname_param(
-            tinput_id=tinput_id, 
-            task_id=self.tool.id(), 
-            name_override=None,
-            dtype=tinput.intype
-        )
-        value = f'params.{pname}'
+        param = params.register(tinput, self.tool.id())
+        value = f'params.{param.name}'
         task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
     
     def update_as_static_input(self, tinput_id: str) -> None:
@@ -85,7 +81,7 @@ class TaskInputsPopulator:
         for tinput in self.tool.tool_inputs():
             # dont check tinput against itself
             if tinput.id() == inp.id():
-                continue
+                continue 
             
             # only check against other task inputs
             if tinput.id() in self.categoriser.task_inputs:

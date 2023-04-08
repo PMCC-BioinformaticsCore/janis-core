@@ -94,7 +94,7 @@ class ProcessInputGenerator:
         ti = task_inputs.get(self.tool.id(), inp)
         name = ti.value
         assert(isinstance(name, str))
-        new_input = NFPathProcessInput(name=name)
+        new_input = NFPathProcessInput(name=name, janis_tag=inp.id())
         return new_input
 
     def create_tuple_input_secondaries(self, inp: ToolInput | TInput) -> NFTupleProcessInput:
@@ -106,6 +106,7 @@ class ProcessInputGenerator:
         
         new_input = NFTupleProcessInput(
             name=inp.id(), 
+            janis_tag=inp.id(),
             qualifiers=qualifiers, 
             subnames=subnames
         )
@@ -119,12 +120,12 @@ class ProcessInputGenerator:
         presents_as = None
         if isinstance(inp, ToolInput):
             presents_as = inp.presents_as
-        new_input = NFPathProcessInput(name=name, dtype=dtype, presents_as=presents_as)
+        new_input = NFPathProcessInput(name=name, janis_tag=inp.id(), dtype=dtype, presents_as=presents_as)
         return new_input
 
     def create_val_input(self, inp: ToolInput | TInput) -> NFValProcessInput:
         ti = task_inputs.get(self.tool.id(), inp)
         name = ti.value
         assert(isinstance(name, str))
-        new_input = NFValProcessInput(name=name)
+        new_input = NFValProcessInput(name=name, janis_tag=inp.id())
         return new_input

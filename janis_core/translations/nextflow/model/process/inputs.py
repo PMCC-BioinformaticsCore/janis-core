@@ -12,6 +12,7 @@ from janis_core import translation_utils as utils
 @dataclass
 class NFProcessInput(ABC):
     name: str
+    janis_tag: str
     
     @abstractmethod
     def get_string(self) -> str:

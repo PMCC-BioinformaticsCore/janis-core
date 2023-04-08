@@ -46,8 +46,9 @@ class NFProcess:
     def formatted_inputs(self):
         if not self.inputs:
             return None
+        process_inputs = ordering.order_nf_process_inputs(self.inputs)
         return indent(
-            "input:\n" + "\n".join(i.get_string() for i in self.inputs), 
+            "input:\n" + "\n".join(i.get_string() for i in process_inputs), 
             INDENT
         )
 

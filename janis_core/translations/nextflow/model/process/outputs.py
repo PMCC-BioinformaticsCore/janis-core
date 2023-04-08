@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass
 class NFProcessOutput(ABC):
     name: str
+    janis_tag: str
     is_optional: bool
 
     @abstractmethod

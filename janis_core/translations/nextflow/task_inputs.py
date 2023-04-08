@@ -16,6 +16,7 @@ class TaskInputType(Enum):
     PARAM       = auto()
     STATIC      = auto()
     IGNORED     = auto()
+    LOCAL       = auto()
 
 
 @dataclass 
@@ -66,6 +67,7 @@ class TaskInputRegister:
             'param': TaskInputType.PARAM,
             'static': TaskInputType.STATIC,
             'ignored': TaskInputType.IGNORED,
+            'local': TaskInputType.LOCAL,
         }
 
         # create new DataSource & add to data_structure
@@ -103,6 +105,9 @@ def exists(tool: Tool) -> bool:
 def get(tool_id: str, inp: ToolInput | TInput) -> TaskInput:
     return ti_register.get(tool_id, inp.id())
 
+def getall(tool_id: str) -> list[TaskInput]:
+    return ti_register.getall(tool_id)
+
 def update(tool_id: str, dstype_str: str, tinput_id: str, value: Optional[str | list[str]]):
     ti_register.add(tool_id, dstype_str, tinput_id, value)
 
@@ -121,6 +126,10 @@ def static_inputs(tool_id: str) -> set[str]:
 def ignored_inputs(tool_id: str) -> set[str]:
     all_inputs = ti_register.getall(tool_id)
     return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.IGNORED])
+
+def local_inputs(tool_id: str) -> set[str]:
+    all_inputs = ti_register.getall(tool_id)
+    return set([x.tinput_id for x in all_inputs if x.ti_type == TaskInputType.LOCAL])
 
 def clear() -> None:
     ti_register.data_structure = {}

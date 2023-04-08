@@ -66,12 +66,10 @@ class PythonToolProcessOutputFactory:
         out: TOutput, 
         tool: PythonTool, 
         variable_manager: VariableManager,
-        sources: dict[str, Any]
     ) -> None:
         self.out = out
         self.tool = tool
         self.variable_manager = variable_manager
-        self.sources = sources
         self.otype = get_otype(self.out)
         self.strategy_map = {
             OType.FILE: self.file_output,

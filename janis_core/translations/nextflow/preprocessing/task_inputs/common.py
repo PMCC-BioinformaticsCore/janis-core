@@ -1,24 +1,23 @@
 
-
 from collections import Counter
 
 from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
 from janis_core.types import File, Filename
 from janis_core import translation_utils as utils
 
-from .. import trace
+from ... import trace
 
 
 
-def get_all_workflow_inputs(wf: Workflow) -> set[str]:
-    true_inputs = get_true_workflow_inputs(wf)
+def get_true_workflow_inputs(wf: Workflow) -> set[str]:
+    true_inputs = get_referenced_workflow_inputs(wf)
     file_inputs = get_file_wf_inputs(wf)
     filename_inputs = get_filename_wf_inputs(wf)
     scatter_inputs = get_scatter_wf_inputs(wf)
     final_inputs = true_inputs | file_inputs | filename_inputs | scatter_inputs
     return final_inputs
 
-def get_true_workflow_inputs(wf: Workflow) -> set[str]:
+def get_referenced_workflow_inputs(wf: Workflow) -> set[str]:
     """
     identifies which workflow InputNodes are 'true' workflow inputs, and which 
     are simply static values provided in the step call. 

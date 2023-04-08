@@ -20,12 +20,13 @@ def init_variable_manager_for_task(tool: Tool) -> VariableManager:
         TaskInputType.PARAM: 'param',
         TaskInputType.STATIC: 'static',
         TaskInputType.IGNORED: 'ignored',
+        TaskInputType.LOCAL: 'local',
     }
 
-    for tinput in tool.tool_inputs():
-        task_input = task_inputs.get(tool.id(), tinput)
+    all_task_inputs = task_inputs.getall(tool.id())
+    for task_input in all_task_inputs:
         vtype_str = types_map[task_input.ti_type]
-        vmanager.update(tinput.id(), vtype_str=vtype_str, value=task_input.value)
+        vmanager.update(task_input.tinput_id, vtype_str=vtype_str, value=task_input.value)
     
     return vmanager
     

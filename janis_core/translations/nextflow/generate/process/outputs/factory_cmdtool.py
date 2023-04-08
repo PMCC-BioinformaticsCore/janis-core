@@ -133,12 +133,10 @@ class CmdtoolProcessOutputFactory:
         out: ToolOutput, 
         tool: CommandTool, 
         variable_manager: VariableManager,
-        sources: dict[str, Any]
     ) -> None:
         self.out = out
         self.tool = tool
         self.variable_manager = variable_manager
-        self.sources = sources
         self.otype = get_otype(self.out)
         self.ftype = self.get_fmttype()
         self.strategy_map = {
@@ -266,12 +264,13 @@ class CmdtoolProcessOutputFactory:
     
     # process output creation methods
     def stdout_output(self) -> NFStdoutProcessOutput:
-        return NFStdoutProcessOutput(name=self.out.id(), is_optional=self.optional)
+        return NFStdoutProcessOutput(name=self.out.id(), janis_tag=self.out.id(), is_optional=self.optional)
     
     def non_file_output(self) -> NFValProcessOutput:
         expr = self.unwrap_collection_expression(self.out.selector)
         new_output = NFValProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional, 
             expression=expr
         )
@@ -281,6 +280,7 @@ class CmdtoolProcessOutputFactory:
         expr = self.unwrap_collection_expression(self.out.selector)
         new_output = NFPathProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional, 
             expression=expr
         )
@@ -297,6 +297,7 @@ class CmdtoolProcessOutputFactory:
         
         new_output = NFTupleProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional,
             qualifiers=qualifiers, 
             expressions=expressions
@@ -340,6 +341,7 @@ class CmdtoolProcessOutputFactory:
 
         new_output = NFTupleProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional,
             qualifiers=qualifiers, 
             expressions=expressions
@@ -385,6 +387,7 @@ class CmdtoolProcessOutputFactory:
 
         new_output = NFTupleProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional,
             qualifiers=qualifiers, 
             expressions=expressions
