@@ -1,4 +1,4 @@
 
 from . import process
 from . import config
-from . import workflow
+from .workflow import main

@@ -74,8 +74,6 @@ from janis_core.operators.selectors import (
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core import translation_utils as utils
 
-from . import channels
-from . import params
 from . import naming
 from . import nfgen_utils
 
@@ -145,7 +143,7 @@ class Unwrapper:
     ) -> None:
         # self.scope = scope
         self.context = context
-        self.variable_manager = variable_manager
+        self.vmanager = variable_manager
         self.tool = tool
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
@@ -535,7 +533,7 @@ class Unwrapper:
             val=x,
             # scope=self.scope,
             context=self.context,
-            variable_manager=self.variable_manager,
+            variable_manager=self.vmanager,
             tool=self.tool,
             in_shell_script=self.in_shell_script,
 
@@ -555,7 +553,7 @@ class Unwrapper:
         """
         if self.context == 'process_script' or self.context == 'process_output':
             assert(self.tool)
-            assert(self.variable_manager)
+            assert(self.vmanager)
             return self.unwrap_string_formatter_process(selector)
         elif self.context == 'workflow':
             return self.unwrap_string_formatter_workflow(selector)
@@ -697,7 +695,7 @@ class Unwrapper:
         Translate Janis InputSelector data type into Nextflow expression
         I hate this function, and I am sorry. 
         """
-        assert(self.variable_manager)
+        assert(self.vmanager)
         
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
@@ -713,10 +711,10 @@ class Unwrapper:
         # get the current variable for this tinput
         # making a copy so it can be modified locally without altering original
         if self.context == 'process_script':
-            real_var = self.variable_manager.get(inp.id()).current
+            real_var = self.vmanager.get(inp.id()).current
             var = deepcopy(real_var)
         elif self.context == 'process_output':
-            real_var = self.variable_manager.get(inp.id()).original
+            real_var = self.vmanager.get(inp.id()).original
             var = deepcopy(real_var)
         else:
             raise RuntimeError
@@ -760,7 +758,7 @@ class Unwrapper:
         # TInput not given value in this process, and has no default
         else:
             print('\nVARIABLES')
-            print(self.variable_manager.to_string())
+            print(self.vmanager.to_string())
             expr = None
         
         return expr
@@ -805,13 +803,12 @@ class Unwrapper:
     def unwrap_input_node(self, node: InputNode) -> Any:
         if self.context != 'workflow':
             raise RuntimeError
-        if channels.exists(self.scope, janis_uuid=node.uuid):
-            return self.unwrap_channel(node)
-        elif params.exists(janis_uuid=node.uuid):
-            param = params.get(janis_uuid=node.uuid)
-            return f'params.{param.name}'
+        assert(self.vmanager)
+        cvar = self.vmanager.get(node.id()).current
+        if cvar.vtype == VariableType.STATIC:
+            return nfgen_utils.to_groovy(cvar.value)
         else:
-            return nfgen_utils.to_groovy(node.default)
+            return self.unwrap(cvar.value)
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
         # TODO save state of self.quote string

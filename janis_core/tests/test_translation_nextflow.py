@@ -159,6 +159,12 @@ def split_task_call_to_lines(call: str) -> list[str]:
     lines = [ln.strip(' ,') for ln in lines]             # strip indents & commas
     return lines
 
+def split_to_lines(call: str) -> list[str]:
+    lines = call.split('\n')                        # split
+    lines = [ln.strip(' ') for ln in lines]         # strip indents
+    lines = [ln for ln in lines if not ln == '']    # remove empty lines
+    return lines
+
 
 
 ### helper classes
@@ -360,8 +366,7 @@ class TestPreprocessingTaskInputs(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
 
-    # no subworkflows
-    def test_one_call(self) -> None:
+    def test_main_wf(self) -> None:
         wf = MinimalTaskInputsTestWF1()
         do_preprocessing_workflow(wf)
 
@@ -387,8 +392,11 @@ class TestPreprocessingTaskInputs(unittest.TestCase):
             'inStr3',
         }
         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
-        
-        # TaskInputsTestTool1 tool
+
+    # no subworkflows
+    def test_one_call(self) -> None:
+        wf = MinimalTaskInputsTestWF1()
+        do_preprocessing_workflow(wf)
         tool = wf.step_nodes['stp1'].tool
 
         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
@@ -2401,15 +2409,47 @@ class TestWorkflows(unittest.TestCase):
         reset_globals()
 
     def test_basic(self) -> None:
-        # DO NOT need a process input for each static value in step sources.
-        # non-files are fed data via params. 
         wf = AssemblyTestWF()
         do_preprocessing_workflow(wf)
         process_dict = nextflow.generate.process.generate_processes(wf)
-        workflow_dict = nextflow.generate.workflow.generate_workflows(wf, process_dict)
+        workflow_dict = nextflow.generate.main.generate_workflows(wf, process_dict)
         nf_workflow = workflow_dict['UnicyclerAssembly']
         print(nf_workflow.get_string())
-        print()
+        actual_lines = split_to_lines(nf_workflow.get_string())
+        expected_lines = [
+            'workflow {',
+            'FASTQC1(',
+            'ch_in_forward_reads,',
+            'fastqc1_adapters,',
+            'fastqc1_contaminants,',
+            'fastqc1_limits',
+            ')',
+            'FASTQC2(',
+            'ch_in_reverse_reads,',
+            'fastqc2_adapters,',
+            'fastqc2_contaminants,',
+            'fastqc2_limits',
+            ')',
+            'FASTQC3(',
+            'ch_test_input,',
+            'null,',
+            'null,',
+            'null',
+            ')',
+            'CAT_TEST_TOOL(',
+            'FASTQC3.out.outTextFile',
+            ')',
+            'UNICYCLER(',
+            'ch_in_forward_reads,',
+            'ch_in_reverse_reads,',
+            'ch_in_long_reads',
+            ')',
+            '}',
+        ]
+        self.assertListEqual(actual_lines, expected_lines)
+
+
+
 
 
 class TestSubWorkflows(unittest.TestCase):
@@ -4337,7 +4377,7 @@ class TestOrdering(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         
-        nf_workflow = nextflow.generate.workflow.generate_workflow(
+        nf_workflow = nextflow.generate.main.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,
@@ -4356,7 +4396,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.generate.workflow.generate_workflow(
+        nf_workflow = nextflow.generate.main.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,
@@ -4378,7 +4418,7 @@ class TestOrdering(unittest.TestCase):
         step = self.wf.step_nodes[step_id]
         scope = nextflow.Scope()
         scope.update(step)
-        nf_workflow = nextflow.generate.workflow.generate_workflow(
+        nf_workflow = nextflow.generate.main.generate_workflow(
             name=step_id, 
             scope=scope,
             wf=step.tool,

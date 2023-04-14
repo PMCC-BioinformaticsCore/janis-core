@@ -33,37 +33,37 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
     # Add directives from input resources
     for res, val in resources.items():
         if res.endswith("runtime_cpu"):
-            param = params.add(janis_tag='cpus', task_id=tool.id(), default=val, janis_dtype=Int())
+            param = params.add(tinput_id='cpus', task_id=tool.id(), default=val, janis_dtype=Int(), is_subtask_param=True)
             nf_directives['cpus'] = NFCpusDirective(param)
         
         elif res.endswith("runtime_memory"):
-            param = params.add(janis_tag='memory', task_id=tool.id(), default=val, janis_dtype=Int())
+            param = params.add(tinput_id='memory', task_id=tool.id(), default=val, janis_dtype=Int(), is_subtask_param=True)
             nf_directives['memory'] = NFMemoryDirective(param)
         
         elif res.endswith("runtime_seconds"):
-            param = params.add(janis_tag='time', task_id=tool.id(), default=val, janis_dtype=Int())
+            param = params.add(tinput_id='time', task_id=tool.id(), default=val, janis_dtype=Int(), is_subtask_param=True)
             nf_directives['time'] = NFTimeDirective(param)
         
         elif res.endswith("runtime_disk"):
-            param = params.add(janis_tag='disk', task_id=tool.id(), default=val, janis_dtype=Int())
+            param = params.add(tinput_id='disk', task_id=tool.id(), default=val, janis_dtype=Int(), is_subtask_param=True)
             nf_directives['disk'] = NFDiskDirective(param)
     
     # Add directives from tool resources
     if settings.translate.nextflow.MODE == 'workflow':
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
-            param = params.add(janis_tag='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int())
+            param = params.add(tinput_id='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int(), is_subtask_param=True)
             nf_directives['cpus'] = NFCpusDirective(param)
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
-            param = params.add(janis_tag='memory', task_id=tool.id(), default=tool.memory({}), janis_dtype=Int())
+            param = params.add(tinput_id='memory', task_id=tool.id(), default=tool.memory({}), janis_dtype=Int(), is_subtask_param=True)
             nf_directives['memory'] = NFMemoryDirective(param)
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
-            param = params.add(janis_tag='disk', task_id=tool.id(), default=tool.disk({}), janis_dtype=Int())
+            param = params.add(tinput_id='disk', task_id=tool.id(), default=tool.disk({}), janis_dtype=Int(), is_subtask_param=True)
             nf_directives['disk'] = NFDiskDirective(param)
         
         if 'time' not in nf_directives and tool.time({}) is not None:
-            param = params.add(janis_tag='time', task_id=tool.id(), default=tool.time({}), janis_dtype=Int())
+            param = params.add(tinput_id='time', task_id=tool.id(), default=tool.time({}), janis_dtype=Int(), is_subtask_param=True)
             nf_directives['time'] = NFTimeDirective(param)
     
     final_directives: list[NFProcessDirective] = []

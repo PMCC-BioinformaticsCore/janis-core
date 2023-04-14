@@ -37,6 +37,7 @@ class VariableType(Enum):
     PARAM       = auto()
     STATIC      = auto()
     IGNORED     = auto()
+    CHANNEL     = auto()
     LOCAL       = auto()
 
 @dataclass
@@ -113,6 +114,7 @@ class VariableManager:
             'param': VariableType.PARAM,
             'static': VariableType.STATIC,
             'ignored': VariableType.IGNORED,
+            'channel': VariableType.CHANNEL,
             'local': VariableType.LOCAL,
         }
 

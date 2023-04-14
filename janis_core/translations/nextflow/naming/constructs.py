@@ -42,11 +42,22 @@ def gen_varname_channel(janis_tag: str, name_override: Optional[str]=None, dtype
     name = f'ch_{name}'
     return name
 
-def gen_varname_param(tinput_id: Optional[str]=None, task_id: Optional[str]=None, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
+def gen_varname_file(janis_tag: str, name_override: Optional[str]=None, dtype: Optional[DataType]=None) -> str:
+    basename = name_override if name_override else janis_tag
+    # basename = _handle_plurals(basename, dtype)
+    name = to_case(basename, settings.translate.nextflow.NF_CHANNEL_CASE)
+    return name
+
+def gen_varname_param(
+    task_id: str, 
+    tinput_id: Optional[str]=None, 
+    name_override: Optional[str]=None, 
+    is_subtask_param: bool=False
+    ) -> str:
     assert(tinput_id or name_override)
     basename = name_override if name_override else tinput_id
     basename = to_case(basename, settings.translate.nextflow.NF_PARAM_CASE)
-    if task_id:
+    if task_id and is_subtask_param:
         task_id = to_case(task_id, settings.translate.nextflow.NF_PARAM_CASE)
         name = f'{task_id}.{basename}'
     else:

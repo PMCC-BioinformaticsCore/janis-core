@@ -12,7 +12,8 @@ from janis_core import translation_utils as utils
 @dataclass
 class NFProcessInput(ABC):
     name: str
-    janis_tag: str
+    tinput_id: str
+    dtype: DataType
     
     @abstractmethod
     def get_string(self) -> str:
@@ -28,7 +29,6 @@ class NFValProcessInput(NFProcessInput):
 
 @dataclass
 class NFPathProcessInput(NFProcessInput):
-    dtype: Optional[DataType]=None
     presents_as: Optional[str]=None
 
     @property

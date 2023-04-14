@@ -59,7 +59,7 @@ class ParamGroup:
         return out
     
     def param_to_string(self, param: Param) -> str:
-        dtype = param.janis_type
+        dtype = param.dtype
         basetype = utils.get_base_type(dtype)
         basetype = utils.ensure_single_type(basetype)
 
@@ -89,7 +89,7 @@ class ParamGroup:
         
 
     def format_param_array_secondary(self, param: Param) -> str:
-        dtype = param.janis_type
+        dtype = param.dtype
         basetype = utils.get_base_type(dtype)
         exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
 
@@ -105,7 +105,7 @@ class ParamGroup:
         return text
 
     def format_param_secondary(self, param: Param) -> str:
-        dtype = param.janis_type
+        dtype = param.dtype
         basetype = utils.get_base_type(dtype)
         exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
 

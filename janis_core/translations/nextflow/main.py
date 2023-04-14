@@ -17,15 +17,14 @@ from janis_core.translation_deps.supportedtranslations import SupportedTranslati
 from janis_core import InputSelector, File, Directory
 from janis_core import settings
 
-from .model.files.files import NFFile, NFImport, NFImportItem, NFChannelsBlock, NFFunctionsBlock, NFImportsBlock
+from .model.files.files import NFFile, NFImport, NFImportItem, NFFunctionsBlock, NFImportsBlock
 from .model.process import NFContainerDirective
 from .model.process import NFProcess
 from .model.workflow import NFWorkflow
 
 from .generate.process import generate_processes
-from .generate.workflow import generate_workflows
+from .generate.workflow.main import generate_workflows
 
-from . import channels
 from . import params
 from . import generate
 from . import naming
@@ -301,7 +300,7 @@ class NextflowTranslator(TranslatorBase):
                 cls.item_register.add(scope, channels_item)
  
             # --- item: workflow body ---
-            workflow_item = generate.workflow.generate_workflow(
+            workflow_item = generate.main.generate_workflow(
                 scope=scope,
                 name=name,
                 alias=alias,

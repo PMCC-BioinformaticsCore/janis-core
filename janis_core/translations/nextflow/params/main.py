@@ -41,7 +41,7 @@ class MandatoryPriority(OrderingMethod):
         top: list[Param] = []
         bottom: list[Param] = []
         for p in params:
-            if p.janis_type and p.janis_type.optional == False:
+            if p.dtype and p.dtype.optional == False:
                 top.append(p)
             else:
                 bottom.append(p)
@@ -53,7 +53,7 @@ class FileTypePriority(OrderingMethod):
         top: list[Param] = []
         bottom: list[Param] = []
         for p in params:
-            basetype = utils.get_base_type(p.janis_type)
+            basetype = utils.get_base_type(p.dtype)
             basetype = utils.ensure_single_type(basetype)
             if isinstance(basetype, File):
                 top.append(p)
@@ -81,7 +81,6 @@ orderers: list[OrderingMethod] = [
 class ParamRegister:
     def __init__(self):
         self.params: list[Param] = []
-        self.links: dict[str, Param] = {}
 
     @property
     def ordered_params(self) -> list[Param]:
@@ -90,6 +89,18 @@ class ParamRegister:
             params = orderer.order(params)
         return params
     
+    def exists(self, tinput_id: str, task_id: str) -> bool:
+        for p in self.params:
+            if p.tinput_id == tinput_id and p.task_id == task_id:
+                return True
+        return False
+    
+    def get(self, tinput_id: str, task_id: str) -> Param:
+        for p in self.params:
+            if p.tinput_id == tinput_id and p.task_id == task_id:
+                return p
+        raise RuntimeError
+    
     def get_string(self) -> str:
         raise NotImplementedError  
 
@@ -97,17 +108,19 @@ class ParamRegister:
 @dataclass
 class Param:
     name: str
-    default: Any=None
-    janis_type: Optional[DataType]=None
+    tinput_id: str
+    task_id: str
+    default: Any
+    dtype: Optional[DataType]
 
     @property
     def groovy_value(self) -> str:
         # get the default value as groovy code string
-        if isinstance(self.janis_type, Array) and self.default is None:
+        if isinstance(self.dtype, Array) and self.default is None:
             val: list[str] = []
         else:
             val = self.default
-        return nfgen_utils.to_groovy(val, self.janis_type)
+        return nfgen_utils.to_groovy(val, self.dtype)
     
     @property
     def width(self) -> int:
@@ -121,36 +134,31 @@ class Param:
 ### MODULE ENTRY POINTS
 
 def add(
-    janis_tag: Optional[str]=None, 
-    task_id: Optional[str]=None,
-    default: Optional[Any]=None,
+    task_id: str,
+    tinput_id: str,
     name_override: Optional[str]=None,
-    janis_dtype: Optional[DataType]=None, 
+    janis_dtype: Optional[DataType]=None,
+    default: Optional[Any]=None,
+    is_subtask_param: bool=False
 ) -> Param:
     global param_register
-    name = naming.constructs.gen_varname_param(janis_tag, task_id, name_override, janis_dtype)
-    param = Param(name, default, janis_dtype)
+    name = naming.constructs.gen_varname_param(task_id, tinput_id, name_override, is_subtask_param)
+    assert(tinput_id)
+    param = Param(name, tinput_id, task_id, default, janis_dtype)
     param_register.params.append(param)
     return param
 
-def create_link(janis_uuid: str, param: Param) -> None:
+def exists(tinput_id: str, task_id: str) -> bool:
     global param_register
-    param_register.links[janis_uuid] = param
-    
-def exists(janis_uuid: str) -> bool:
-    global param_register
-    if janis_uuid in param_register.links:
-        return True
-    return False
+    return param_register.exists(tinput_id, task_id)
 
-def get(janis_uuid: str) -> Param:
+def get(tinput_id: str, task_id: str) -> Param:
     global param_register
-    return param_register.links[janis_uuid]
+    return param_register.get(tinput_id, task_id)
 
 def getall() -> list[Param]:
     global param_register
-    params = param_register.ordered_params
-    return params
+    return param_register.ordered_params
 
 def getstr() -> str:
     global param_register
@@ -171,25 +179,28 @@ def clear() -> None:
     add_default_params()
 
 
-
 ### instantiation of param register & default params
 
 default_params = [
     {
-        'janis_tag': None,
-        'default': './outputs',
+        'task_id': '__DEFAULTS__',
+        'tinput_id': '__DEFAULTS__',
         'name_override': 'outdir',
         'janis_dtype': Directory(),
+        'default': './outputs',
+        'is_subtask_param': False,
     }
-]
+]    
 
 def add_default_params():
     for p in default_params:
         add(
-            janis_tag=p['janis_tag'], 
+            task_id=p['task_id'], 
+            tinput_id=p['tinput_id'], 
             default=p['default'],
             name_override=p['name_override'],
             janis_dtype=p['janis_dtype'],
+            is_subtask_param=p['is_subtask_param'],
         )
 
 param_register = ParamRegister()

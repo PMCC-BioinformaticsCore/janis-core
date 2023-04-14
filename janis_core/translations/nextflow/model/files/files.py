@@ -9,8 +9,6 @@ from janis_core import settings
 
 from ...casefmt import to_case
 
-from ...channels import Channel
-
 
 class NFFile:
     def __init__(self, subtype: str, items: list[Any], name: str):
@@ -103,16 +101,3 @@ class NFImportsBlock:
         declarations = '\n'.join(declarations)
         return f'{imports}\n{declarations}'
 
-
-class NFChannelsBlock: 
-    def __init__(self, channels: list[Channel]) -> None:
-        self.channels = channels
-    
-    def get_string(self) -> str:
-        outstr = ''
-        channels = self.channels
-        channels = [ch for ch in channels if ch.define]
-        width_col_1 = max([ch.width for ch in channels])
-        for ch in channels:
-            outstr += f'{ch.name:<{width_col_1}} = {ch.get_string()}\n'
-        return outstr

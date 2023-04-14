@@ -8,7 +8,6 @@
 """
 
 # from . import casefmt
-from . import channels
 from . import generate
 from . import model
 from . import naming

@@ -5,10 +5,11 @@ from textwrap import indent
 from typing import Optional
 
 from janis_core import settings
+from janis_core.types import DataType
 
 from dataclasses import dataclass
 from abc import ABC, abstractmethod, abstractproperty
-
+ 
 INDENT = settings.translate.nextflow.NF_INDENT
 
 
@@ -16,8 +17,9 @@ INDENT = settings.translate.nextflow.NF_INDENT
 @dataclass
 class NFWorkflow(ABC):
     name: str
-    alias: Optional[str]
     main: list[str]   
+    take: list[NFWorkflowTake]
+    emit: list[NFWorkflowEmit]
 
     @abstractproperty
     def main_block(self) -> str:
@@ -38,7 +40,7 @@ class NFMainWorkflow(NFWorkflow):
     
     def get_string(self) -> str:
         return f"""\
-workflow {self.name} {{
+workflow {{
 
 {self.main_block}
 
@@ -48,8 +50,6 @@ workflow {self.name} {{
 
 @dataclass
 class NFSubWorkflow(NFWorkflow):
-    take: list[NFWorkflowTake]
-    emit: list[NFWorkflowEmit]
 
     @property
     def main_block(self) -> str:
@@ -85,8 +85,6 @@ workflow {self.name} {{
 
 class NFWorkflowTake:
     """
-    A nextflow workflow can accept channels as inputs.
-    These channels are assigned new names in the workflow `take:` section.
     The only thing binding these channels is their argument position. 
     eg 
         // main wf
@@ -99,9 +97,10 @@ class NFWorkflowTake:
             ch_greeting
         }
     """
-    def __init__(self, name: str, as_param: Optional[str] = None):
+    def __init__(self, name: str, tinput_id: str, dtype: DataType):
         self.name = name
-        self.as_param = as_param
+        self.tinput_id = tinput_id
+        self.dtype = dtype
 
     def get_string(self) -> str:
         return self.name
@@ -138,3 +137,39 @@ class NFWorkflowEmit:
             return f"{self.name} = {self.expression}"
 
         return self.name
+    
+
+
+from abc import ABC, abstractmethod
+# from janis_core.workflow.workflow import InputNode
+from janis_core.types import File
+from janis_core import TInput
+
+
+class WinpStrategy(ABC):
+    @abstractmethod
+    def order(self, inputs: list[TInput]) -> list[TInput]:
+        ...
+
+class AlphabeticalWinpStrategy(WinpStrategy):
+    def order(self, inputs: list[TInput]) -> list[TInput]:
+        return sorted(inputs, key=lambda x: x.id())
+
+class FileWinpStrategy(WinpStrategy):
+    def order(self, inputs: list[TInput]) -> list[TInput]:
+        return sorted(inputs, key=lambda x: isinstance(x, File), reverse=True)
+
+class MandatoryWinpStrategy(WinpStrategy):
+    def order(self, inputs: list[TInput]) -> list[TInput]:
+        return sorted(inputs, key=lambda x: x.intype.optional == True)
+
+workflow_input_strategies = [
+    AlphabeticalWinpStrategy, 
+    FileWinpStrategy,
+    MandatoryWinpStrategy,
+]
+
+def order_workflow_inputs(inputs: list[TInput]) -> list[TInput]:
+    for strategy in workflow_input_strategies:
+        inputs = strategy().order(inputs)
+    return inputs
