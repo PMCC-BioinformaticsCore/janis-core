@@ -23,7 +23,8 @@ from .model.process import NFProcess
 from .model.workflow import NFWorkflow
 
 from .generate.process import generate_processes
-from .generate.workflow.main import generate_workflows
+from .generate.workflow import generate_workflows
+from .generate.files import generate_files 
 
 from . import params
 from . import generate
@@ -143,24 +144,18 @@ class NextflowTranslator(TranslatorBase):
         preprocessing.populate_task_inputs(wf, wf)
         processes = generate_processes(wf)
         workflows = generate_workflows(wf, processes)
-        files = generate_files(wf)
+        files = generate_files(wf, processes, workflows)
 
-        print()
+        # get the main wf file and all sub files
+        main_file = files[wf.id()]
+        sub_files = 
+        main_file = cls.file_register.get(scope)  # main nf workflow usually
+        sub_files = cls.file_register.get_children(scope, direct_only=False)
 
-        # # blank scope - main wf has not parent
-        # scope = Scope()
-
-        # # main logic
-        # cls.update_files('', '', scope, wf, sources={})
-
-        # # get the main wf file and all sub files
-        # main_file = cls.file_register.get(scope)  # main nf workflow usually
-        # sub_files = cls.file_register.get_children(scope, direct_only=False)
-
-        # # return format (gen str for each file)
-        # main_file_str = main_file.get_string()
-        # sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
-        # return (main_file_str, sub_files_str)
+        # return format (gen str for each file)
+        main_file_str = main_file.get_string()
+        sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
+        return (main_file_str, sub_files_str)
 
 
     @classmethod

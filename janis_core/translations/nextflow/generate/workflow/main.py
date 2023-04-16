@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from janis_core import settings
 from janis_core.workflow.workflow import StepNode, Workflow
-from janis_core.types import File, DataType
+from janis_core.types import File
 
 from ... import params
 from ... import naming

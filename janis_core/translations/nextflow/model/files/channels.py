@@ -11,7 +11,7 @@ from dataclasses import dataclass
 ### main class 
 
 @dataclass
-class ChannelDefinition:
+class NFChannelDefinition:
     name: str
     source: str
     method: str
@@ -26,8 +26,8 @@ class ChannelDefinition:
     
 
 @dataclass
-class ChannelDefinitionBlock:
-    channels: list[ChannelDefinition]
+class NFChannelDefinitionBlock:
+    channels: list[NFChannelDefinition]
 
     @property
     def def_width(self) -> int:
@@ -49,27 +49,27 @@ class ChannelDefinitionBlock:
 @dataclass
 class OrderingMethod(ABC):
     @abstractmethod
-    def order(self, channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+    def order(self, channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
         ...
 
 @dataclass
 class QueueChannelPriority(OrderingMethod):
-    def order(self, channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+    def order(self, channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
         return sorted(channels, key=lambda x: x.method != 'value', reverse=True) 
 
 @dataclass
 class FileTypePriority(OrderingMethod):
-    def order(self, channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+    def order(self, channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
         return sorted(channels, key=lambda x: x.method == 'fromPath' or x.method == 'fromFilePairs', reverse=True) 
 
 @dataclass
 class MandatoryPriority(OrderingMethod):
-    def order(self, channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+    def order(self, channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
         return sorted(channels, key=lambda x: 'ifEmpty' in x.operations if x.operations else False, reverse=True)
     
 @dataclass
 class Alphabetical(OrderingMethod):
-    def order(self, channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+    def order(self, channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
         return sorted(channels, key=lambda x: x.name) 
 
 orderers: list[OrderingMethod] = [
@@ -79,7 +79,7 @@ orderers: list[OrderingMethod] = [
     MandatoryPriority()
 ]
 
-def order_nf_channels(channels: list[ChannelDefinition]) -> list[ChannelDefinition]:
+def order_nf_channels(channels: list[NFChannelDefinition]) -> list[NFChannelDefinition]:
     for orderer in orderers:
         channels = orderer.order(channels)
     return channels

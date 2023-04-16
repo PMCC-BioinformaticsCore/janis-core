@@ -1,12 +1,13 @@
 
 from typing import Optional
 
-from janis_core import CommandTool
-
+from janis_core import CommandTool, PythonTool
 from janis_core import translation_utils as utils
 
+from ...model.files import NFFile
 from ...model.files import NFImportsBlock
 from ...model.files import NFFunctionsBlock
+from ...model.process import NFProcess
 
 from ...trace import trace_entity_counts
 
@@ -21,6 +22,37 @@ def get_primary_files(var, element_count) {
     }
     return primary_files
 }"""
+
+
+def generate_file_pythontool(process: NFProcess, tool: PythonTool) -> NFFile:
+    """generates nextflow file for nextflow process derived from PythonTool"""
+    nf_file = NFFile(subtype='process', name=process.name)
+    nf_file.items.append(process)
+    return nf_file
+
+
+def generate_file_cmdtool(process: NFProcess, tool: CommandTool) -> NFFile:
+    """generates nextflow file for nextflow process derived from CommandTool"""
+    nf_file = NFFile(subtype='process', name=process.name)
+
+    # groovy library imports & groovy functions used in process
+    # item: imports
+    imports_item = gen_imports_for_process_file(tool)
+    if imports_item:
+        nf_file.items.append(imports_item)
+    
+    # item: functions
+    functions_item = gen_functions_for_process_file(tool)
+    if functions_item:
+        nf_file.items.append(functions_item)
+
+    # item: process
+    nf_file.items.append(process)
+
+    # process_item = cls.handle_container(scope, tool, process_item)
+    # cls.item_register.add(scope, process_item)
+    return nf_file
+
 
 def gen_imports_for_process_file(tool: CommandTool) -> Optional[NFImportsBlock]:
     # methods: list[str] = []

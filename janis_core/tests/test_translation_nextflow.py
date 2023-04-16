@@ -1103,11 +1103,19 @@ class TestFiles(unittest.TestCase):
     def setUp(self) -> None:
         self.maxDiff = None
         reset_globals()
+
+    def test_basic(self) -> None:
+        wf = AssemblyTestWF()
+        self.maintask, self.subtask_dict = translator.translate_workflow_internal(wf)
+        actual_subtasks = len(self.subtask_dict)
+        expected_subtasks = 3
+        self.assertEqual(actual_subtasks, expected_subtasks)
+        print()
+
+    def test_duplicate_tool_usage(self) -> None:
         wf = DuplicateTasksTestWF()
         do_preprocessing_workflow(wf)
         self.maintask, self.subtask_dict = translator.translate_workflow_internal(wf)
-
-    def test_duplicate_tool_usage(self) -> None:
         actual_subtasks = len(self.subtask_dict)
         expected_subtasks = 12
         self.assertEqual(actual_subtasks, expected_subtasks)

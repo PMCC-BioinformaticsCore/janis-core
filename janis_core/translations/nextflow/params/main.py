@@ -61,10 +61,6 @@ class FileTypePriority(OrderingMethod):
                 bottom.append(p)
         return top + bottom
 
-@dataclass
-class WfInputPriority(OrderingMethod):
-    def order(self, params: list[Param]) -> list[Param]:
-        return sorted(params, key=lambda x: x.is_channel_input, reverse=True) 
 
 orderers: list[OrderingMethod] = [
     #NotNullPriority(),

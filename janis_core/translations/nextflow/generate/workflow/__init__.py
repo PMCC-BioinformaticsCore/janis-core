@@ -11,3 +11,5 @@ from .common import get_common_type
 
 from .scatter import cartesian_cross_operation
 from .scatter import cartesian_cross_subname
+
+from .main import generate_workflows

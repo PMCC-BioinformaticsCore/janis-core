@@ -11,24 +11,24 @@ from ...casefmt import to_case
 
 
 class NFFile:
-    def __init__(self, subtype: str, items: list[Any], name: str):
+    def __init__(self, subtype: str, name: str):
         self.subtype = subtype
-        self.items = items
         self.name = name
+        self.items: list[Any] = []
 
     @property
     def formatted_name(self) -> str:
         return to_case(self.name, settings.translate.nextflow.NF_FILE_CASE)
 
-    @property
-    def path(self) -> str:
-        if self.subtype == 'process':
-            directory = 'modules'
-        elif self.subtype == 'sub_workflow':
-            directory = 'subworkflows'
-        elif self.subtype == 'main_workflow':
-            directory = ''
-        return os.path.join(directory, self.formatted_name)
+    # @property
+    # def path(self) -> str:
+    #     if self.subtype == 'process':
+    #         directory = 'modules'
+    #     elif self.subtype == 'sub_workflow':
+    #         directory = 'subworkflows'
+    #     elif self.subtype == 'main_workflow':
+    #         directory = ''
+    #     return os.path.join(directory, self.formatted_name)
 
     def get_string(self) -> str:
         components = [f"nextflow.enable.dsl=2"]

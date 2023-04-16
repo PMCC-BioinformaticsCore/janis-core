@@ -9,3 +9,9 @@ from .files import (
     NFImportItem,
     NFImportsBlock,
 )
+
+from .channels import NFChannelDefinition
+from .channels import NFChannelDefinitionBlock
+
+from .variables import NFVariableDefinition
+from .variables import NFVariableDefinitionBlock
