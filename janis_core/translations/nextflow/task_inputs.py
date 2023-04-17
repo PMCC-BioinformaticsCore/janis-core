@@ -92,7 +92,15 @@ class TaskInputRegister:
 
 ti_register = TaskInputRegister()
 
-def exists(tool: Tool) -> bool:
+def exists(tool_id: str, inp: ToolInput | TInput) -> bool:
+    # checks the tool id has an entry for this tool input
+    if tool_id not in ti_register.data_structure:
+        return False
+    if inp.id() not in ti_register.data_structure[tool_id]:
+        return False
+    return True
+
+def existsall(tool: Tool) -> bool:
     # checks the tool id has an entry 
     # checks each tinput id has an associated value in the entry
     if tool.id() not in ti_register.data_structure:

@@ -27,11 +27,13 @@ def generate_file_workflow(
     nf_workflow: NFWorkflow, 
     nf_processes: dict[str, NFProcess],
     nf_workflows: dict[str, NFWorkflow], 
-    wf: Workflow
+    wf: Workflow,
+    is_subworkflow: bool
     ) -> NFFile:
     """generates nextflow file for nextflow workflow"""
     # detect whether is main workflow or sub workflow
-    nf_file = NFFile(subtype='workflow', name=nf_workflow.name)
+    subtype = 'sub_workflow' if is_subworkflow else 'main_workflow'
+    nf_file = NFFile(subtype=subtype, name=nf_workflow.name)
     imports = gen_imports_for_workflow_file(nf_workflow, nf_processes, nf_workflows, wf)
     functions = gen_functions_for_workflow_file(nf_workflow, wf)
     channels = gen_channels_for_workflow_file(nf_workflow, wf)
@@ -101,19 +103,19 @@ def _get_relpath(task: NFProcess | NFWorkflow, nf_workflow: NFWorkflow) -> str:
     else:
         raise NotImplementedError
     
-def gen_functions_for_workflow_file(workflow: NFWorkflow, wf: Workflow) -> Optional[NFFunctionsBlock]:
+def gen_functions_for_workflow_file(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFFunctionsBlock]:
     # do we need to generate any groovy functions for this workflow?
     # nothing for now
     return None
 
-def gen_channels_for_workflow_file(workflow: NFWorkflow, wf: Workflow) -> Optional[NFChannelDefinitionBlock]:
+def gen_channels_for_workflow_file(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChannelDefinitionBlock]:
     # which wf input nodes will be declared as nextflow channels?
     # only valid if in main scope
-    return gen_channels_block(wf)
+    return gen_channels_block(nf_workflow, wf)
 
-def gen_variables_for_workflow_file(workflow: NFWorkflow, wf: Workflow) -> Optional[NFVariableDefinitionBlock]:
+def gen_variables_for_workflow_file(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVariableDefinitionBlock]:
     # which wf input nodes will be declared as nextflow file variables?
     # only valid if in main scope
-    return gen_variables_block(wf)
+    return gen_variables_block(nf_workflow, wf)
 
 

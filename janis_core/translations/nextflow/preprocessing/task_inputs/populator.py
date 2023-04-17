@@ -38,17 +38,35 @@ class TaskInputsPopulator:
     ### helper methods
     def update_as_task_input(self, tinput_id: str) -> None:
         ti_type = 'task_input'
+        ti_value = self.gen_task_input_value(tinput_id)
+        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
+    
+    def gen_task_input_value(self, tinput_id: str) -> None:
+        if isinstance(self.tool, Workflow):
+            return self.gen_task_input_value_workflow(tinput_id)
+        else:
+            return self.gen_task_input_value_process(tinput_id)
+
+    def gen_task_input_value_process(self, tinput_id: str) -> Any:
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
         dtype: DataType = tinput.intype  # type: ignore
         is_duplicate = self.duplicate_datatype_exists(tinput)
+        
         if utils.is_array_secondary_type(dtype):
             value = naming.process.secondaries_array(tinput, duplicate_datatype_exists=is_duplicate)
         elif utils.is_secondary_type(dtype):
             value = naming.process.secondaries(tinput, duplicate_datatype_exists=is_duplicate)
         else:
-            value = naming.process.generic(tinput)  
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
+            value = naming.process.generic(tinput)
+        
+        return value
     
+    def gen_task_input_value_workflow(self, tinput_id: str) -> Any:
+        tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
+        value = naming.process.generic(tinput)
+        value = f'ch_{value}'
+        return value
+
     def update_as_param_input(self, tinput_id: str) -> None:
         ti_type = 'param'
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]

@@ -1,6 +1,8 @@
 
 
 from typing import Any
+from copy import deepcopy
+
 from janis_core import Workflow, CommandTool, PythonTool, Tool
 
 from ... import params
@@ -15,7 +17,7 @@ from .common import get_true_workflow_inputs
 def populate_task_inputs(subwf: Workflow, main_wf: Workflow) -> None:
     for step in subwf.step_nodes.values():
         # if not already done, formulate task inputs for step task
-        if not task_inputs.exists(step.tool):
+        if not task_inputs.existsall(step.tool):
             populate_task_inputs_subtask(step.tool, step.sources, main_wf)
         
         # if subworkflow, do recursively for subworkflow
@@ -24,7 +26,7 @@ def populate_task_inputs(subwf: Workflow, main_wf: Workflow) -> None:
 
     # final task is the main workflow
     if subwf.id() == main_wf.id():
-        assert(not task_inputs.exists(main_wf))
+        assert(not task_inputs.existsall(main_wf))
         populate_task_inputs_mainwf(main_wf)
 
 
@@ -41,7 +43,7 @@ def populate_task_inputs_mainwf(wf: Workflow) -> None:
     all_tinput_ids = set([x.id() for x in wf.tool_inputs()])
     param_tinput_ids = get_true_workflow_inputs(wf)
     ignored_tinput_ids = all_tinput_ids - param_tinput_ids
-    
+
     # param inputs
     for tinput_id in param_tinput_ids:
         ti_type = 'param'
@@ -57,7 +59,6 @@ def populate_task_inputs_mainwf(wf: Workflow) -> None:
         value = None
         task_inputs.update(wf.id(), ti_type, tinput_id, value)
         print()
-
 
 def populate_task_inputs_toolmode(tool: CommandTool | PythonTool) -> None:
     """how to populate task inputs when doing tool translation (toolmode)"""

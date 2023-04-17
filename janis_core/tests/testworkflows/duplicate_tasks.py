@@ -76,7 +76,7 @@ class DuplicateTasksTestWF(Workflow):
 class EchoTestTool(CommandTool):
     
     def tool(self) -> str:
-        return "TestTool"
+        return "EchoTestTool"
         
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"

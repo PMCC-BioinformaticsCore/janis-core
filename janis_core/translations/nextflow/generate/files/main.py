@@ -13,12 +13,12 @@ from .process import generate_file_pythontool
 from .workflow import generate_file_workflow
 
 
-def generate_files(wf: Workflow, nf_processes: dict[str, NFProcess], nf_workflows: dict[str, NFWorkflow]) -> dict[str, NFFile]:
+def generate_files(main_wf: Workflow, nf_processes: dict[str, NFProcess], nf_workflows: dict[str, NFWorkflow]) -> dict[str, NFFile]:
     """generates nextflow files for processes and workflows"""
     nf_files: dict[str, NFFile] = {}
     
     for tool_id, process in nf_processes.items():
-        tool = _get_tool(tool_id, wf)
+        tool = _get_tool(tool_id, main_wf)
         if isinstance(tool, CommandTool):
             nffile = generate_file_cmdtool(process, tool)
         elif isinstance(tool, PythonTool):
@@ -28,9 +28,10 @@ def generate_files(wf: Workflow, nf_processes: dict[str, NFProcess], nf_workflow
         nf_files[tool_id] = nffile
     
     for tool_id, workflow in nf_workflows.items():
-        tool = _get_tool(tool_id, wf)
+        is_subworkflow = True if tool_id != main_wf.id() else False
+        tool = _get_tool(tool_id, main_wf)
         assert(isinstance(tool, Workflow))
-        nffile = generate_file_workflow(workflow, nf_processes, nf_workflows, tool)
+        nffile = generate_file_workflow(workflow, nf_processes, nf_workflows, tool, is_subworkflow)
         nf_files[tool_id] = nffile
 
     return nf_files
@@ -54,7 +55,7 @@ def _do_get_tool(tool_id: str, wf: Workflow) -> Optional[CommandTool | PythonToo
             return step.tool
 
         if isinstance(step.tool, Workflow):
-            tool = _get_tool(tool_id, step.tool)
+            tool = _do_get_tool(tool_id, step.tool)
             if tool:
                 return tool
     

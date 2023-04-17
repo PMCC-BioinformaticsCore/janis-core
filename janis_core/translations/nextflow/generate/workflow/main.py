@@ -66,9 +66,9 @@ class WorkflowGenerationManager:
         
         # do for this subworkflow
         tool_id = wf.id()
-        assert(tool_id) not in self.workflow_dict
-        workflow = self.generate_workflow(wf, is_subworkflow = not is_main)  # im sorry for this, I hate it too. 
-        self.workflow_dict[tool_id] = workflow
+        if tool_id not in self.workflow_dict:
+            workflow = self.generate_workflow(wf, is_subworkflow = not is_main)  # im sorry for this, I hate it too. 
+            self.workflow_dict[tool_id] = workflow
     
     def generate_workflow(self, wf: Workflow, is_subworkflow: bool=False) -> NFWorkflow:
         """Generate a Nextflow Workflow object"""
@@ -119,6 +119,7 @@ class WFGenerator(ABC):
 
     def __post_init__(self) -> None:
         self.vmanager = init_variable_manager_for_task(self.wf)
+        print()
     
     @property
     def name(self) -> str:

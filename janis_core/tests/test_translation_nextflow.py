@@ -1106,23 +1106,39 @@ class TestFiles(unittest.TestCase):
 
     def test_basic(self) -> None:
         wf = AssemblyTestWF()
-        self.maintask, self.subtask_dict = translator.translate_workflow_internal(wf)
-        actual_subtasks = len(self.subtask_dict)
+        maintask, subtask_dict = translator.translate_workflow_internal(wf)
+        actual_subtasks = len(subtask_dict)
         expected_subtasks = 3
         self.assertEqual(actual_subtasks, expected_subtasks)
+
+        actual_paths = set(subtask_dict.keys())
+        expected_paths = set([
+            'modules/fastqc',
+            'modules/unicycler',
+            'modules/cat_test_tool',
+        ])
+        self.assertSetEqual(actual_paths, expected_paths)
         print()
 
     def test_duplicate_tool_usage(self) -> None:
         wf = DuplicateTasksTestWF()
-        do_preprocessing_workflow(wf)
-        self.maintask, self.subtask_dict = translator.translate_workflow_internal(wf)
-        actual_subtasks = len(self.subtask_dict)
-        expected_subtasks = 12
+        maintask, subtask_dict = translator.translate_workflow_internal(wf)
+        actual_subtasks = len(subtask_dict)
+        expected_subtasks = 3
         self.assertEqual(actual_subtasks, expected_subtasks)
 
         # checking values supplied 
-        subtask = self.subtask_dict['modules/stp1']
+        print(maintask)
+        print()
+        subtask = subtask_dict['modules/echo_test_tool']
         print(subtask)
+        print()
+        subtask = subtask_dict['subworkflows/echo_test_workflow1']
+        print(subtask)
+        print()
+        subtask = subtask_dict['subworkflows/echo_test_workflow2']
+        print(subtask)
+        print()
         raise NotImplementedError
 
     def test_duplicate_subworkflow_usage(self) -> None:

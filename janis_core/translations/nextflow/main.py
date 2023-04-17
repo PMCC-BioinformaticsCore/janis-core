@@ -148,9 +148,7 @@ class NextflowTranslator(TranslatorBase):
 
         # get the main wf file and all sub files
         main_file = files[wf.id()]
-        sub_files = 
-        main_file = cls.file_register.get(scope)  # main nf workflow usually
-        sub_files = cls.file_register.get_children(scope, direct_only=False)
+        sub_files = [nf_file for tool_id, nf_file in files.items() if tool_id != wf.id()]
 
         # return format (gen str for each file)
         main_file_str = main_file.get_string()

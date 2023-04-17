@@ -11,6 +11,8 @@ from janis_core import translation_utils as utils
 
 from ...model.files.channels import NFChannelDefinition
 from ...model.files.channels import NFChannelDefinitionBlock
+from ...model.workflow import NFWorkflow
+from ...model.workflow import NFMainWorkflow
 
 from ... import naming 
 from ... import task_inputs
@@ -21,19 +23,22 @@ CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
 
-def gen_channels_block(wf: Workflow) -> Optional[NFChannelDefinitionBlock]:
+def gen_channels_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChannelDefinitionBlock]:
     # for each param
     # if it qualifies to create a channel, create channel declaration 
+    
     channel_definitions: list[NFChannelDefinition] = []
     channel_block: Optional[NFChannelDefinitionBlock] = None
     
-    for input_node in wf.tool_inputs():
-        task_input = task_inputs.get(wf.id(), input_node)
-        if task_input.ti_type == TaskInputType.PARAM:
-            if not input_node.intype.optional:
-                generator = ChannelDefinitionGenerator(input_node, wf)
-                ch_def = generator.register()
-                channel_definitions.append(ch_def)
+    if isinstance(nf_workflow, NFMainWorkflow):
+        for input_node in wf.tool_inputs():
+            if task_inputs.exists(wf.id(), input_node):
+                task_input = task_inputs.get(wf.id(), input_node)
+                if task_input.ti_type in (TaskInputType.PARAM, TaskInputType.TASK_INPUT):
+                    if not input_node.intype.optional:
+                        generator = ChannelDefinitionGenerator(input_node, wf)
+                        ch_def = generator.register()
+                        channel_definitions.append(ch_def)
 
     if channel_definitions:
         channel_block = NFChannelDefinitionBlock(channel_definitions)

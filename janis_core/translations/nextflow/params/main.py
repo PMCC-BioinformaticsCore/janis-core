@@ -144,7 +144,7 @@ def add(
     param_register.params.append(param)
     return param
 
-def exists(tinput_id: str, task_id: str) -> bool:
+def existsall(tinput_id: str, task_id: str) -> bool:
     global param_register
     return param_register.exists(tinput_id, task_id)
 

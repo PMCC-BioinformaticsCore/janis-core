@@ -7,7 +7,7 @@ from .main import Param
 from .update import register
 from .main import add
 # from .main import create_link
-from .main import exists
+from .main import existsall
 from .main import get
 from .main import getall
 from .main import getstr
