@@ -141,7 +141,7 @@ class NextflowTranslator(TranslatorBase):
         # set class variables to avoid passing junk params
         settings.translate.nextflow.BASE_OUTDIR = cls.basedir
 
-        preprocessing.populate_task_inputs(wf, wf)
+        preprocessing.populate_task_inputs_workflowmode(wf, wf)
         processes = generate_processes(wf)
         workflows = generate_workflows(wf, processes)
         files = generate_files(wf, processes, workflows)

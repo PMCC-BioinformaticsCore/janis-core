@@ -59,27 +59,27 @@ class NFSubWorkflow(NFWorkflow):
 
     @property
     def take_block(self) -> str:
-        return indent(
-            "take:\n" + "\n".join(i.get_string() for i in self.take) + '\n', 
-            INDENT
-        )
+        if len(self.take) == 0:
+            return ''
+        else:
+            take = "\ntake:\n" + "\n".join(i.get_string() for i in self.take) + '\n'
+            return indent(take, INDENT)
 
     @property
     def emit_block(self) -> str:
-        return indent(
-            "emit:\n" + "\n".join(i.get_string() for i in self.emit),
-            INDENT
-        )
+        if len(self.emit) == 0:
+            return ''
+        else:
+            emit = "emit:\n" + "\n".join(i.get_string() for i in self.emit)  + '\n\n'
+            return indent(emit, INDENT)
     
     def get_string(self) -> str:
+        # I hate this
         return f"""\
 workflow {self.name} {{
-
 {self.take_block}
 {self.main_block}
-{self.emit_block}
-
-}}
+{self.emit_block}}}
 """
 
 

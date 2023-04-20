@@ -1,3 +1,3 @@
 
 
-from .main import populate_task_inputs
+from .main import populate_task_inputs_workflowmode

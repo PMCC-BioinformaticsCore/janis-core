@@ -43,7 +43,7 @@ shoud should be included.
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
 
-def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
+def to_groovy(val: Any, dtype: Optional[DataType]=None, quote_override: Optional[bool]=None) -> Any:
     # must work with str version. 
     if dtype is not None:
         dtype = utils.get_base_type(dtype)
@@ -61,7 +61,7 @@ def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
     #     val = [primary_file] + secondary_files
 
     # wrap in quotes if necessary (for actual string values, file paths etc)
-    if _should_wrap(val, dtype):
+    if _should_wrap(val, dtype, quote_override):
         val = _wrap(val)
 
     # remove dollar variable references (unsure if needed)
@@ -72,7 +72,10 @@ def to_groovy(val: Any, dtype: Optional[DataType]=None) -> Any:
     val = _cast_keywords(val)
     return val
 
-def _should_wrap(val: str, dtype: Optional[DataType]) -> bool:
+def _should_wrap(val: str, dtype: Optional[DataType], quote_override: Optional[bool]) -> bool:
+    if quote_override is not None:
+        return True if quote_override else False
+    
     # don't quote lists
     try:
         literal_val = ast.literal_eval(val)

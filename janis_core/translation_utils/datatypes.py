@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 from janis_core.types import (
     File, 
     Directory,
-    UnionType
+    UnionType,
+    Filename
 )
 
 
@@ -24,6 +25,14 @@ def ensure_single_type(dtype: DataType) -> DataType:
     if isinstance(dtype, UnionType):
         return dtype.subtypes[0]
     return dtype    
+
+def is_file_type(dtype: DataType) -> bool:
+    basetype = get_base_type(dtype)
+    if isinstance(basetype, (File, Filename, Directory)):
+        return True
+    elif is_file_pair_type(dtype):
+        return True
+    return False
 
 
 

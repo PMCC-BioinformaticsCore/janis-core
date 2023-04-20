@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from janis_core import settings
+from janis_core import TInput
 from janis_core.workflow.workflow import StepNode, Workflow
 from janis_core.types import File
 
-from ... import params
 from ... import naming
 from ... import unwrap
 
@@ -21,7 +21,7 @@ from ...model.workflow import NFSubWorkflow
 from ...model.workflow import NFWorkflowTake
 from ...model.workflow import NFWorkflowEmit
 
-
+from janis_core import translation_utils as utils
 
 from .call import gen_task_call
 
@@ -188,42 +188,36 @@ class MainWFGenerator(WFGenerator):
     def emit_block(self) -> list[NFWorkflowEmit]:
         return []
     
+    # @property
+    # def param_inputs(self) -> set[str]:
+    #     out: set[str] = set()
+    #     for tinput in self.wf.tool_inputs():
+    #         var = self.vmanager.get(tinput.id()).current
+    #         if var.vtype == VariableType.PARAM:
+    #             out.add(tinput.id())
+    #     return out
+    
     @property
-    def param_inputs(self) -> set[str]:
-        out: set[str] = set()
+    def param_inputs(self) -> list[TInput]:
+        out: list[TInput] = []
         for tinput in self.wf.tool_inputs():
             var = self.vmanager.get(tinput.id()).current
             if var.vtype == VariableType.PARAM:
-                out.add(tinput.id())
+                out.append(tinput)
         return out
-
-    def update_params_to_channels(self) -> None:
-        # for each param
-        # if it qualifies to create a channel, create channel varname & update vmanager
-        # this is required because before the main workflow scope, these tinputs will have 
-        # already been redefined as channel variables
-        for tinput_id in self.param_inputs:
-            p = params.get(tinput_id, task_id=self.wf.id())
-            if not p.dtype.optional:
-                tinput = [x for x in self.wf.tool_inputs() if x.id() == tinput_id][0]
-                ch_name = naming.constructs.gen_varname_channel(tinput_id, dtype=tinput.intype)
-                self.vmanager.update(tinput_id, 'channel', ch_name)
-        
-    def update_params_to_files(self) -> None:
-        # for each param
-        # if it qualifies to create a file, create file varname & update vmanager
-        # this is required because before the main workflow scope, these tinputs will have 
-        # already been redefined as file variables
-        for tinput_id in self.param_inputs:
-            p = params.get(tinput_id, task_id=self.wf.id())
-            if p.dtype.optional:
-                tinput = [x for x in self.wf.tool_inputs() if x.id() == tinput_id][0]
-                f_name = naming.constructs.gen_varname_file(tinput_id, dtype=tinput.intype)
-                self.vmanager.update(tinput_id, 'local', f_name)
+    
+    def update_variables(self) -> None:
+        for tinput in self.param_inputs:
+            if utils.is_file_type(tinput.intype):
+                if tinput.intype.optional:
+                    f_name = naming.constructs.gen_varname_file(tinput.id(), dtype=tinput.intype)
+                    self.vmanager.update(tinput.id(), 'local', f_name)
+                else:
+                    ch_name = naming.constructs.gen_varname_channel(tinput.id(), dtype=tinput.intype)
+                    self.vmanager.update(tinput.id(), 'channel', ch_name)
 
     def generate(self) -> NFMainWorkflow:
-        self.update_params_to_channels()
-        self.update_params_to_files()
+        self.update_variables()
         return NFMainWorkflow(self.name, self.main_block, self.take_block, self.emit_block)
 
 

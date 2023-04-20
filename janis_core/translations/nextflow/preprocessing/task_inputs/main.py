@@ -8,34 +8,42 @@ from janis_core import Workflow, CommandTool, PythonTool, Tool
 from ... import params
 from ... import task_inputs
 
-from .populator import TaskInputsPopulator
+from .populator import TaskInputsPopulatorWorkflowMode, TaskInputsPopulatorToolMode
 from .common import get_true_workflow_inputs
 
 
-# main module func
+# main module funcs
 
-def populate_task_inputs(subwf: Workflow, main_wf: Workflow) -> None:
+def populate_task_inputs_workflowmode(subwf: Workflow, main_wf: Workflow) -> None:
+    """how to populate task inputs when doing workflow translation (workflowmode)"""
     for step in subwf.step_nodes.values():
         # if not already done, formulate task inputs for step task
         if not task_inputs.existsall(step.tool):
-            populate_task_inputs_subtask(step.tool, step.sources, main_wf)
+            _populate_task_inputs_subtask(step.tool, step.sources, main_wf)
         
         # if subworkflow, do recursively for subworkflow
         if isinstance(step.tool, Workflow):
-            populate_task_inputs(step.tool, main_wf)
+            populate_task_inputs_workflowmode(step.tool, main_wf)
 
     # final task is the main workflow
     if subwf.id() == main_wf.id():
         assert(not task_inputs.existsall(main_wf))
-        populate_task_inputs_mainwf(main_wf)
+        _populate_task_inputs_mainwf(main_wf)
 
-
-def populate_task_inputs_subtask(tool: Tool, sources: dict[str, Any], main_wf: Workflow) -> None:
-    """how to populate task inputs for subtask"""
-    populator = TaskInputsPopulator(tool, sources, main_wf)
+def populate_task_inputs_toolmode(tool: CommandTool | PythonTool) -> None:
+    """how to populate task inputs when doing tool translation (toolmode)"""
+    populator = TaskInputsPopulatorToolMode(tool)
     populator.populate()
 
-def populate_task_inputs_mainwf(wf: Workflow) -> None:
+
+# helper funcs
+
+def _populate_task_inputs_subtask(tool: Tool, sources: dict[str, Any], main_wf: Workflow) -> None:
+    """how to populate task inputs for subtask"""
+    populator = TaskInputsPopulatorWorkflowMode(tool, sources, main_wf)
+    populator.populate()
+
+def _populate_task_inputs_mainwf(wf: Workflow) -> None:
     """
     how to populate task inputs for main wf.
     all the valid workflow inputs start as a param.
@@ -60,7 +68,5 @@ def populate_task_inputs_mainwf(wf: Workflow) -> None:
         task_inputs.update(wf.id(), ti_type, tinput_id, value)
         print()
 
-def populate_task_inputs_toolmode(tool: CommandTool | PythonTool) -> None:
-    """how to populate task inputs when doing tool translation (toolmode)"""
-    pass
+
 

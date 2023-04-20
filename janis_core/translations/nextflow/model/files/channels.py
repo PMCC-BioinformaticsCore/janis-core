@@ -35,6 +35,7 @@ class NFChannelDefinitionBlock:
 
     def get_string(self) -> str:
         out: str = ''
+        out += '// data which will be passed as channels\n'
         ordered_channels = order_nf_channels(self.channels)
         for ch in ordered_channels:
             line = f'{ch.name:<{self.def_width}} = {ch.get_string()}\n'

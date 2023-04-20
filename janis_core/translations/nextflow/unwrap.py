@@ -136,7 +136,7 @@ class Unwrapper:
         tool: Optional[CommandTool],
          
         scatter_target: bool,
-        scatter_method: Optional[ScatterMethod],
+        scatter_method: Optional[ScatterMethod], 
         
         in_shell_script: bool, 
         quote_strings: Optional[bool],
@@ -226,10 +226,11 @@ class Unwrapper:
 
         # add to operator stack if entity is a Selector
         self.update_operator_stack(val, life_cycle='start')
-        
-        # unwrap this entity. always returns a primitive?
+
+        # do the unwrap  
         expr = self.unwrap_entity(val)
 
+        # apply quotes if needed
         if self.should_quote(val, expr):
             expr = f'"{expr}"'
 
@@ -318,10 +319,15 @@ class Unwrapper:
         # dont quote if already quoted
         if expr.startswith('"') or expr.endswith('"'):
             return False
+        # # dont quote if wrapped isn't string & context is workflow
+        if not isinstance(val, str) and self.context == 'workflow':
+            return False
         # master override - set when calling unwrap_expression.
         # some sort of external context means the expr should be quoted. 
         if self.quote_strings == True:
             return True
+        if self.quote_strings == False:
+            return False
         # string within curly braces
         if isinstance(val, str) and len(self.operator_stack) > 0:
             return True
@@ -330,13 +336,6 @@ class Unwrapper:
             if self.quote_strings != False:
                 return True
         return False
-
-    def get_src_variable(self, inp: ToolInput) -> Optional[str | list[str]]:
-        if inp.id() in data_sources.internal_inputs(self.scope) and inp.default is not None:
-            src = self.unwrap(inp.default)
-        else:
-            src = data_sources.get(self.scope, inp).value
-        return src
 
     def get_input_by_id(self, input_id: str) -> ToolInput:
         assert(self.tool is not None)
@@ -806,8 +805,10 @@ class Unwrapper:
         assert(self.vmanager)
         cvar = self.vmanager.get(node.id()).current
         if cvar.vtype == VariableType.STATIC:
-            return nfgen_utils.to_groovy(cvar.value)
+            should_quote = self.should_quote(cvar.value, cvar.value)
+            return nfgen_utils.to_groovy(cvar.value, quote_override=should_quote)
         else:
+            self.quote_strings = False
             return self.unwrap(cvar.value)
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:

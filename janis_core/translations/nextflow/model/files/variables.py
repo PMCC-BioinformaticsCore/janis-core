@@ -35,6 +35,7 @@ class NFVariableDefinitionBlock:
 
     def get_string(self) -> str:
         out: str = ''
+        out += '// data which will be passed as optional files\n'
         ordered_variables = order_nf_variables(self.variables)
         for v in ordered_variables:
             line = f'{v.name:<{self.def_width}} = {v.get_string()}\n'

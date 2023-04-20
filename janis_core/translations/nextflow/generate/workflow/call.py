@@ -9,8 +9,6 @@ from janis_core.workflow.workflow import StepNode
 from janis_core.types import DataType, Stdout
 from janis_core import settings
 
-from ... import nfgen_utils
-from ... import ordering
 from ... import trace
 
 from ...model.process import NFProcess
@@ -162,6 +160,7 @@ class TaskCallArgumentGenerator:
             val=self.src,
             context='workflow',
             variable_manager=self.vmanager,
+            quote_strings=True
         )
         if arg is None:
             arg = 'null'

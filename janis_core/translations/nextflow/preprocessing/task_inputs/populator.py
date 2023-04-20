@@ -3,6 +3,7 @@
 
 
 from typing import Any
+from abc import ABC, abstractmethod
 
 from janis_core import translation_utils as utils
 from janis_core import Workflow, TInput, Tool
@@ -16,37 +17,47 @@ from .categories import TaskInputsCategoriser
 
 
 
-class TaskInputsPopulator:
-    def __init__(self, tool: Tool, sources: dict[str, Any], main_wf: Workflow) -> None:
+class TaskInputsPopulator(ABC):
+    
+    def __init__(self, tool: Tool) -> None:
         self.tool = tool
-        self.sources = sources
-        self.main_wf = main_wf
-        self.categoriser = TaskInputsCategoriser(self.tool, self.main_wf)
-        self.categoriser.categorise()
-        print()
-    
+        self.task_inputs: set[str] = set()
+        self.param_inputs: set[str] = set()
+        self.static_inputs: set[str] = set()
+        self.ignored_inputs: set[str] = set()
+
+    @abstractmethod
     def populate(self) -> None:
-        for tinput_id in self.categoriser.task_inputs: 
-            self.update_as_task_input(tinput_id)
-        for tinput_id in self.categoriser.param_inputs: 
-            self.update_as_param_input(tinput_id)
-        for tinput_id in self.categoriser.static_inputs: 
-            self.update_as_static_input(tinput_id)
-        for tinput_id in self.categoriser.ignored_inputs: 
-            self.update_as_ignored_input(tinput_id)
+        ...
+        
+    def duplicate_datatype_exists(self, inp: TInput) -> bool:
+        """
+        check if another TInput has the same dtype as this TInput.
+        only checking for secondary and array secondary datatype duplicates.
+        """
+        rtype = inp.intype  # type: ignore
+        rbasetype = utils.get_base_type(rtype)  # type: ignore
+        
+        for tinput in self.tool.tool_inputs():
+            # dont check tinput against itself
+            if tinput.id() == inp.id():
+                continue 
+            
+            # only check against other task inputs
+            if tinput.id() in self.task_inputs:
+                # check if types match
+                qtype = tinput.intype  # type: ignore
+                qbasetype = utils.get_base_type(qtype)  # type: ignore
 
-    ### helper methods
-    def update_as_task_input(self, tinput_id: str) -> None:
-        ti_type = 'task_input'
-        ti_value = self.gen_task_input_value(tinput_id)
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
-    
-    def gen_task_input_value(self, tinput_id: str) -> None:
-        if isinstance(self.tool, Workflow):
-            return self.gen_task_input_value_workflow(tinput_id)
-        else:
-            return self.gen_task_input_value_process(tinput_id)
-
+                if utils.is_array_secondary_type(rtype) and utils.is_array_secondary_type(qtype):  # type: ignore
+                    if type(rbasetype) == type(qbasetype):
+                        return True
+                
+                elif utils.is_secondary_type(rtype) and utils.is_secondary_type(qtype):  # type: ignore
+                    if type(rtype) == type(qtype):  # type: ignore
+                        return True
+        return False
+               
     def gen_task_input_value_process(self, tinput_id: str) -> Any:
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
         dtype: DataType = tinput.intype  # type: ignore
@@ -60,6 +71,69 @@ class TaskInputsPopulator:
             value = naming.process.generic(tinput)
         
         return value
+
+
+class TaskInputsPopulatorToolMode(TaskInputsPopulator):
+
+    def __init__(self, tool: Tool) -> None:
+        super().__init__(tool)
+
+    def populate(self) -> None:
+        for tinput in self.tool.tool_inputs():
+            if tinput.default is not None:
+                self.update_as_static_input(tinput.id())
+            else:
+                self.update_as_task_input(tinput.id())
+
+    def update_as_task_input(self, tinput_id: str) -> None:
+        ti_type = 'task_input'
+        ti_value = self.gen_task_input_value_process(tinput_id)
+        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
+    
+    def update_as_static_input(self, tinput_id: str) -> None:
+        tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
+        ti_type = 'static'
+        ti_value = tinput.default
+        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
+
+
+class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
+
+    def __init__(self, tool: Tool, sources: dict[str, Any], main_wf: Workflow) -> None:
+        super().__init__(tool)
+        self.sources = sources
+        self.main_wf = main_wf
+    
+    def populate(self) -> None:
+        self.update_categories()
+        for tinput_id in self.task_inputs: 
+            self.update_as_task_input(tinput_id)
+        for tinput_id in self.param_inputs: 
+            self.update_as_param_input(tinput_id)
+        for tinput_id in self.static_inputs: 
+            self.update_as_static_input(tinput_id)
+        for tinput_id in self.ignored_inputs: 
+            self.update_as_ignored_input(tinput_id)
+
+    def update_categories(self) -> None:
+        categoriser = TaskInputsCategoriser(self.tool, self.main_wf)
+        categoriser.categorise()
+        self.task_inputs = categoriser.task_inputs
+        self.param_inputs = categoriser.param_inputs
+        self.static_inputs = categoriser.static_inputs
+        self.ignored_inputs = categoriser.ignored_inputs
+
+    ### helper methods
+    def update_as_task_input(self, tinput_id: str) -> None:
+        ti_type = 'task_input'
+        ti_value = self.gen_task_input_value(tinput_id)
+        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
+    
+    def gen_task_input_value(self, tinput_id: str) -> None:
+        if isinstance(self.tool, Workflow):
+            return self.gen_task_input_value_workflow(tinput_id)
+        else:
+            return self.gen_task_input_value_process(tinput_id)
     
     def gen_task_input_value_workflow(self, tinput_id: str) -> Any:
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
@@ -86,32 +160,3 @@ class TaskInputsPopulator:
         ti_type = 'ignored'
         value = None
         task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
-
-    def duplicate_datatype_exists(self, inp: TInput) -> bool:
-        """
-        check if another TInput has the same dtype as this TInput.
-        only checking for secondary and array secondary datatype duplicates.
-        """
-        rtype = inp.intype  # type: ignore
-        rbasetype = utils.get_base_type(rtype)  # type: ignore
-        
-        for tinput in self.tool.tool_inputs():
-            # dont check tinput against itself
-            if tinput.id() == inp.id():
-                continue 
-            
-            # only check against other task inputs
-            if tinput.id() in self.categoriser.task_inputs:
-                # check if types match
-                qtype = tinput.intype  # type: ignore
-                qbasetype = utils.get_base_type(qtype)  # type: ignore
-
-                if utils.is_array_secondary_type(rtype) and utils.is_array_secondary_type(qtype):  # type: ignore
-                    if type(rbasetype) == type(qbasetype):
-                        return True
-                
-                elif utils.is_secondary_type(rtype) and utils.is_secondary_type(qtype):  # type: ignore
-                    if type(rtype) == type(qtype):  # type: ignore
-                        return True
-        return False
-               

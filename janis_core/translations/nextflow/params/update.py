@@ -62,14 +62,6 @@ class ParamRegistrationManager:
             return 'generic'
         
     @property 
-    def is_file_type(self) -> bool:
-        if isinstance(self.basetype, (File, Filename, Directory)):
-            return True
-        elif utils.is_file_pair_type(self.tinput.intype):
-            return True
-        return False
-
-    @property 
     def basetype(self) -> DataType:
         basetype = utils.get_base_type(self.tinput.intype)
         basetype = utils.ensure_single_type(basetype)
@@ -83,7 +75,7 @@ class ParamRegistrationManager:
             return self.tinput.default
         
         # no default, but optional file type
-        if self.is_file_type and self.tinput.intype.optional:
+        if utils.is_file_type(self.tinput.intype) and self.tinput.intype.optional:
             if self.tformat == 'secondary_array':
                 return self.get_file_default_secondary_array()
             

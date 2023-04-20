@@ -7,7 +7,7 @@ from copy import deepcopy
 from janis_core import Tool, Workflow, CommandTool, PythonTool
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
-from janis_core.types import File, Filename, Directory, DataType
+from janis_core.types import DataType
 
 
 
@@ -19,17 +19,10 @@ class TaskInputHistory:
 
     @property
     def is_file(self) -> bool:
-        # file pair types
-        if utils.is_file_pair_type(self.dtype):
+        if True:
+            pass
+        elif utils.is_file_type(self.dtype):
             return True
-        
-        # generic file types
-        basetype = utils.get_base_type(self.dtype)
-        basetype = utils.ensure_single_type(basetype)
-        if isinstance(basetype, (File, Filename, Directory)):
-            return True
-        
-        return False
     
     @property
     def is_optional(self) -> bool:

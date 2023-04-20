@@ -89,6 +89,8 @@ from janis_core import (
     InputSelector,
     StringFormatter,
     JoinOperator,
+    TInput,
+    Tool
 )
 
 from janis_core.translations import translate
@@ -96,6 +98,8 @@ from janis_core.translations import NextflowTranslator as translator
 from janis_core.translations import nextflow
 
 from janis_core.translations.nextflow.variables import VariableManager
+from janis_core.translations.nextflow.variables import VariableType
+from janis_core.translations.nextflow.variables import init_variable_manager_for_task
 
 from janis_core import (
     String, 
@@ -114,6 +118,7 @@ from janis_bioinformatics.data_types.sam import Sam
 from janis_bioinformatics.data_types.cram import Cram
 
 from janis_core.translations.nextflow.nfgen_utils import to_groovy
+from janis_core import translation_utils as utils
 from janis_core import settings
 
 
@@ -147,10 +152,10 @@ def reset_globals() -> None:
     nextflow.task_inputs.clear()
 
 def do_preprocessing_workflow(wf: Workflow) -> None:
-    nextflow.preprocessing.populate_task_inputs(wf, wf)
+    nextflow.preprocessing.populate_task_inputs_workflowmode(wf, wf)
 
 def do_preprocessing_tool(tool: CommandTool | PythonTool) -> None:
-    pass
+    nextflow.preprocessing.populate_task_inputs_toolmode(tool)
 
 def split_task_call_to_lines(call: str) -> list[str]:
     lines = call.split('\n')                             # split
@@ -221,6 +226,8 @@ class TestTaskInputs(unittest.TestCase):
             'path in_file, stageAs: \'in_file\'',
             'val in_int2',
             'val in_int3',
+            'val in_str2',
+            'val in_str3',
             'val in_str4',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
@@ -236,8 +243,13 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
+            'val in_int1',
             'val in_int2',
             'val in_int3',
+            'val in_int4',
+            'val in_str1',
+            'val in_str2',
+            'val in_str3',
             'val in_str4',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
@@ -273,9 +285,11 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
-            'val in_int1',
-            'val in_int2',
             'val in_str1',
+            'val in_str2',
+            'val in_str3',
+            'val in_int2',
+            'val in_int4',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -290,9 +304,11 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
-            'val in_int1',
-            'val in_int2',
             'val in_str1',
+            'val in_str2',
+            'val in_str3',
+            'val in_int2',
+            'val in_int4',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -308,10 +324,9 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file, stageAs: \'in_file\'',
-            'val in_int1',
             'val in_int2',
             'val in_int3',
-            'val in_str1',
+            'val in_int4',
             'val in_str2',
             'val in_str3',
             'val in_str4',
@@ -319,46 +334,6 @@ class TestTaskInputs(unittest.TestCase):
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
         
-        step = wf.step_nodes["stp2"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.generate_process(step.tool, step.sources)
-        print(process.get_string())
-        expected_inputs = {
-            'path in_file, stageAs: \'in_file\'',
-            'val in_int1',
-            'val in_int2',
-            'val in_int3',
-            'val in_str1',
-            'val in_str2',
-            'val in_str3',
-            'val in_str4',
-        }
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        self.assertEqual(actual_inputs, expected_inputs)
-
-        # sub wf process
-        step = wf.step_nodes["stp3"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        step = step.tool.step_nodes["stp1"]
-        scope.update(step)
-        process = nextflow.generate.process.generate_process(step.tool, step.sources)
-        print(process.get_string())
-        expected_inputs = {
-            'path in_file, stageAs: \'in_file\'',
-            'val in_int1',
-            'val in_int2',
-            'val in_int3',
-            'val in_str1',
-            'val in_str2',
-            'val in_str3',
-            'val in_str4',
-        }
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        self.assertEqual(actual_inputs, expected_inputs)
-
-
 
 
 class TestPreprocessingTaskInputs(unittest.TestCase):
@@ -557,279 +532,13 @@ class TestPreprocessingTaskInputs(unittest.TestCase):
 
 
 
-class TestPreprocessingHelpers(unittest.TestCase):
+
+
+class TestVariableManager(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_globals()
 
-    def test_get_true_workflow_inputs_1(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-
-        # main data source wf
-        actual_ids = nextflow.preprocessing.params_channels.get_all_workflow_inputs(wf)
-        expected_ids = set([
-            'inFile1',
-            'inFileOpt1',
-            'inStr1',
-            'inStrOpt1',
-        ])
-        self.assertSetEqual(actual_ids, expected_ids)
-
-    def test_get_true_workflow_inputs_2(self) -> None:
-        # assembly wf
-        wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
-        actual_ids = nextflow.preprocessing.params_channels.get_all_workflow_inputs(wf)
-        expected_ids = set([
-            "inForwardReads",
-            "inReverseReads",
-            "inLongReads",
-            "testInput",
-            "fastqc1_adapters",
-            "fastqc1_contaminants",
-            "fastqc1_limits",
-            "fastqc2_adapters",
-            "fastqc2_contaminants",
-            "fastqc2_limits",
-        ])
-        self.assertSetEqual(actual_ids, expected_ids)
-
-    def test_get_linkable_params_sub_connected(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        # sub connected
-        step = wf.step_nodes['stp4']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-            'in_file_opt1',
-            'in_str1',
-            'in_str_opt1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-        
-    def test_get_linkable_params_sub_static(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        # sub static
-        step = wf.step_nodes['stp5']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-            'in_file_opt1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-        
-    def test_get_linkable_params_sub_omitted(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        # sub omitted
-        step = wf.step_nodes['stp6']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-
-    def test_get_linkable_params_sub_connected_sub_connected(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        subwf = wf.step_nodes['stp4'].tool
-        step = subwf.step_nodes['stp4']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-            'in_file_opt1',
-            'in_str1',
-            'in_str_opt1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-    
-    def test_get_linkable_params_sub_connected_sub_static(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        subwf = wf.step_nodes['stp4'].tool
-        step = subwf.step_nodes['stp5']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-            'in_file_opt1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-    
-    def test_get_linkable_params_sub_connected_sub_omitted(self) -> None:
-        wf = DataSourceTestWF()
-        do_preprocessing_workflow(wf)
-        subwf = wf.step_nodes['stp4'].tool
-        step = subwf.step_nodes['stp6']
-        linking_dict = nextflow.preprocessing.params_channels.get_linkable_params(step.tool, step.sources)
-        actual_param_names = set([x.name for x in linking_dict.values()])
-        expected_ids = set([
-            'in_file1',
-        ])
-        self.assertSetEqual(actual_param_names, expected_ids)
-
-
-
-
-class TestDataSourceVariables(unittest.TestCase):
-
-    def setUp(self) -> None:
-        reset_globals()
-        self.wf = DataSourceTestWF()
-        do_preprocessing_workflow(self.wf)
-        self.pdsv = nextflow.data_sources.tvn_register.data_structure
-        print(nextflow.data_sources.tvn_register.to_string())
-
-    def test_stp1(self) -> None:
-        label = 'main.stp1'
-        self.assertEqual(self.pdsv[label]['inFile'].value, 'in_file')
-        self.assertEqual(self.pdsv[label]['inFileOpt'].value, 'in_file_opt')
-        self.assertEqual(self.pdsv[label]['inStr'].value, 'params.in_str1')
-        self.assertEqual(self.pdsv[label]['inStrOpt'].value, 'params.in_str_opt1')
-    
-    def test_stp2(self) -> None:
-        label = 'main.stp2'
-        self.assertEqual(self.pdsv[label]['inFile'].value, 'in_file')
-        self.assertEqual(self.pdsv[label]['inFileOpt'].value, 'in_file_opt')
-        self.assertEqual(self.pdsv[label]['inStr'].value, None)
-        self.assertEqual(self.pdsv[label]['inStrOpt'].value, None)
-    
-    def test_stp3(self) -> None:
-        label = 'main.stp3'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': None,
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp1(self) -> None:
-        label = 'main.stp4.stp1'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': 'params.in_str1',
-            'inStrOpt': 'params.in_str_opt1',
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp2(self) -> None:
-        label = 'main.stp4.stp2'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp3(self) -> None:
-        label = 'main.stp4.stp3'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': None,
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp4_stp1(self) -> None:
-        label = 'main.stp4.stp4.stp1'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': 'params.in_str1',
-            'inStrOpt': 'params.in_str_opt1',
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp4_stp2(self) -> None:
-        label = 'main.stp4.stp4.stp2'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp4_stp3(self) -> None:
-        label = 'main.stp4.stp4.stp3'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': None,
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-
-    def test_stp4_stp5_stp1(self) -> None:
-        label = 'main.stp4.stp5.stp1'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': 'params.stp4.stp5.in_str3',
-            'inStrOpt': 'params.stp4.stp5.in_str_opt3',
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp5_stp2(self) -> None:
-        label = 'main.stp4.stp5.stp2'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'in_file_opt',
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp5_stp3(self) -> None:
-        label = 'main.stp4.stp5.stp3'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': None,
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-
-    def test_stp4_stp6_stp1(self) -> None:
-        label = 'main.stp4.stp6.stp1'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'params.stp4.stp6.in_file_opt3',
-            'inStr': 'params.stp4.stp6.in_str3',
-            'inStrOpt': 'params.stp4.stp6.in_str_opt3',
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp6_stp2(self) -> None:
-        label = 'main.stp4.stp6.stp2'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': 'params.stp4.stp6.in_file_opt3',
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
-    
-    def test_stp4_stp6_stp3(self) -> None:
-        label = 'main.stp4.stp6.stp3'
-        expected_map = {
-            'inFile': 'in_file',
-            'inFileOpt': None,
-            'inStr': None,
-            'inStrOpt': None,
-        }
-        self.assertDictEqual(self.pdsv[label], expected_map)
 
 
 
@@ -928,230 +637,13 @@ class TestSettings(unittest.TestCase):
 
 
 
-class TestParams(unittest.TestCase):
-    
-    def setUp(self) -> None:
-        reset_globals()
-    
-    def test_channel_params(self) -> None:
-        """
-        Every channel requires a param. 
-        Channels are created from a subset of workflow inputs.
-        """
-        wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
-        params = nextflow.params.getall()
-        param_ids = {p.name for p in params}
-        expected_ids = {
-            'test_input', 
-            'fastqc2_limits', 
-            'fastqc1_adapters', 
-            'fastqc2_adapters', 
-            'fastqc2_contaminants', 
-            'in_long_reads', 
-            'in_reverse_reads', 
-            'in_forward_reads', 
-            'fastqc1_contaminants', 
-            'fastqc1_limits'
-        }
-        for inp_id in expected_ids:
-            self.assertIn(inp_id, param_ids)
-
-    def test_fed_step_inputs(self) -> None:
-        wf = StepInputsWFInputTestWF()
-        
-        # minimal
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'outdir': "'./outputs'",
-            'in_file': 'null',
-            'in_file_opt': "'NO_FILE1'",
-            'in_str': 'null',
-            'in_str_opt': 'null',
-            'in_int': 'null',
-            'in_bool': 'null',
-        }
-        self.assertEquals(actual_params, expected_params)
-    
-    def test_optional_workflow_inputs(self) -> None:
-        wf = OptionalTestWF()
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'in_file': "null",
-            'in_file_array': "[]",
-            'in_file_array_opt': "['NO_FILE5']",
-            'in_file_opt': "'NO_FILE6'",
-            'in_secondary': "null",
-            'in_secondary_array': "[]",
-            'in_secondary_array_opt': "[['NO_FILE1', 'NO_FILE2']]",
-            'in_secondary_opt': "['NO_FILE3', 'NO_FILE4']",
-            'in_file_pair': "[]",
-            'in_file_pair_opt': "[]",
-            'outdir': "'./outputs'",
-        }
-        self.assertEquals(actual_params, expected_params)
-
-    def test_static_step_inputs(self) -> None:
-        wf = StepInputsStaticTestWF()
-        
-        # minimal
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'outdir': "'./outputs'",
-            'in_file': 'null',
-            # 'in_str': 'null',
-            # 'in_int': 'null',
-            # 'in_bool': 'null',
-            # 'stp2_pos_default': '100',
-            # 'stp2_pos_optional': "'static'",
-            # 'stp2_flag_true': 'false',
-            # 'stp2_flag_false': 'true',
-            # 'stp2_opt_basic': "'static'",
-            # 'stp2_opt_default': '100',
-            # 'stp2_opt_optional': "''"
-        }
-        self.assertEquals(actual_params, expected_params)
-    
-    def test_static_and_omitted_step_inputs(self) -> None:
-        wf = StepInputsPartialStaticTestWF()
-        
-        # minimal
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'outdir': "'./outputs'",
-            'in_file': 'null',
-            # 'in_str': 'null',
-            # 'in_int': 'null',
-            # 'in_bool': 'null',
-            # 'stp3_opt_basic': "'static'",
-            # 'stp3_opt_default': '100',
-            # 'stp3_opt_optional': "''"
-        }
-        self.assertEquals(actual_params, expected_params)
-    
-    def test_omitted_step_inputs(self) -> None:
-        wf = StepInputsMinimalTestWF()
-        
-        # minimal
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'outdir': "'./outputs'",
-            'in_file': 'null',
-            'in_str': 'null',
-            # 'in_int': 'null',
-            # 'in_bool': 'null',
-        }
-        self.assertEquals(actual_params, expected_params)
-
-    def test_array_inputs(self) -> None:
-        wf = ArrayIOTestWF()
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'outdir': "'./outputs'",
-            'in_file_array': '[]',
-            'in_str_array': '[]',
-            'in_int_array': '[]',
-        }
-        self.assertEquals(actual_params, expected_params)
-
-    def test_secondaries_inputs(self) -> None:
-        wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'in_alignments': 'null',
-        }
-        self.assertDictContainsSubset(expected_params, actual_params)
-    
-    def test_secondaries_array_inputs(self) -> None:
-        wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'in_alignments_arr': '[]',
-        }
-        self.assertDictContainsSubset(expected_params, actual_params)
-    
-    def test_subworkflow(self) -> None:
-        wf = Subworkflow2TestWF()
-        do_preprocessing_workflow(wf)
-        actual_params = nextflow.params.serialize()
-        expected_params = {
-            'in_file': 'null',
-            'new_filename': 'null',
-        }
-        self.assertDictContainsSubset(expected_params, actual_params)
-
-    @unittest.skip('not implemented')
-    def test_translate_commandtool(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_translate_pythontool(self) -> None:
-        raise NotImplementedError
-
-
-
 class TestFiles(unittest.TestCase):
 
     def setUp(self) -> None:
         self.maxDiff = None
         reset_globals()
 
-    def test_basic(self) -> None:
-        wf = AssemblyTestWF()
-        maintask, subtask_dict = translator.translate_workflow_internal(wf)
-        actual_subtasks = len(subtask_dict)
-        expected_subtasks = 3
-        self.assertEqual(actual_subtasks, expected_subtasks)
-
-        actual_paths = set(subtask_dict.keys())
-        expected_paths = set([
-            'modules/fastqc',
-            'modules/unicycler',
-            'modules/cat_test_tool',
-        ])
-        self.assertSetEqual(actual_paths, expected_paths)
-        print()
-
-    def test_duplicate_tool_usage(self) -> None:
-        wf = DuplicateTasksTestWF()
-        maintask, subtask_dict = translator.translate_workflow_internal(wf)
-        actual_subtasks = len(subtask_dict)
-        expected_subtasks = 3
-        self.assertEqual(actual_subtasks, expected_subtasks)
-
-        # checking values supplied 
-        print(maintask)
-        print()
-        subtask = subtask_dict['modules/echo_test_tool']
-        print(subtask)
-        print()
-        subtask = subtask_dict['subworkflows/echo_test_workflow1']
-        print(subtask)
-        print()
-        subtask = subtask_dict['subworkflows/echo_test_workflow2']
-        print(subtask)
-        print()
-        raise NotImplementedError
-
-    def test_duplicate_subworkflow_usage(self) -> None:
-        raise NotImplementedError
-
-
-class TestFileFormats(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.maxDiff = None
-        reset_globals()
-
-    def test_main_workflow(self) -> None:
+    def test_main_workflow_format(self) -> None:
         wf = AssemblyTestWF()
         mainstr, _ = translator.translate_workflow_internal(wf)
         expected_lines = [
@@ -1207,7 +699,7 @@ class TestFileFormats(unittest.TestCase):
         for ln in actual_lines:
             self.assertIn(ln, expected_lines)
 
-    def test_process(self) -> None:
+    def test_process_format(self) -> None:
         wf = AssemblyTestWF()
         do_preprocessing_workflow(wf)
         _, substr_dict = translator.translate_workflow_internal(wf)
@@ -1247,7 +739,7 @@ class TestFileFormats(unittest.TestCase):
         for ln in actual_lines:
             self.assertIn(ln, expected_lines)
     
-    def test_subworkflow(self) -> None:
+    def test_subworkflow_format(self) -> None:
         wf = SubworkflowTestWF()
         _, substr_dict = translator.translate_workflow_internal(wf)
         expected_lines = [
@@ -1274,7 +766,7 @@ class TestFileFormats(unittest.TestCase):
         actual_lines = [ln for ln in actual_lines if ln != '']
         self.assertEqual(actual_lines, expected_lines)
     
-    def test_config(self) -> None:
+    def test_config_format(self) -> None:
         # TODO expand this to subworkflow with subworkflow, process specific params
         wf = SubworkflowTestWF()
         do_preprocessing_workflow(wf)
@@ -1296,34 +788,54 @@ class TestFileFormats(unittest.TestCase):
         actual_lines = [ln for ln in actual_lines if ln != '']
         self.assertEqual(actual_lines, expected_lines)
 
-class TestChannels(unittest.TestCase):
-    
-    def setUp(self) -> None:
-        self.maxDiff = None
-        reset_globals()
-
-    def test_infer_wf_inputs(self) -> None:
-        # checks the inferred wf inputs (from total wf inputs) are correct
+    def test_basic(self) -> None:
         wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
+        maintask, subtask_dict = translator.translate_workflow_internal(wf)
+        actual_subtasks = len(subtask_dict)
+        expected_subtasks = 3
+        self.assertEqual(actual_subtasks, expected_subtasks)
+
+        actual_paths = set(subtask_dict.keys())
+        expected_paths = set([
+            'modules/fastqc',
+            'modules/unicycler',
+            'modules/cat_test_tool',
+        ])
+        self.assertSetEqual(actual_paths, expected_paths)
+        print(maintask)
+        print()
+        subtask = subtask_dict['modules/fastqc']
+        print(subtask)
+        print()
+        subtask = subtask_dict['modules/unicycler']
+        print(subtask)
+        print()
+        subtask = subtask_dict['modules/cat_test_tool']
+        print(subtask)
+        print()
+        print()
+
+    def test_imports(self) -> None:
+        # translate workflow, building all nf items and files
+        wf = SubworkflowTestWF()
+        translator.translate_workflow_internal(wf)
+
+        # focusing in on specific subworkflow
+        step = wf.step_nodes['apples_subworkflow']
         scope = nextflow.Scope()
-        channel_ids = {c.name for c in nextflow.channels.getall(scope)}
-        expected_ids = {
-            'ch_in_forward_reads',
-            'ch_in_reverse_reads',
-            'ch_in_long_reads',
-            'ch_test_input',
-            'ch_fastqc1_adapters',
-            'ch_fastqc1_contaminants',
-            'ch_fastqc1_limits',
-            'ch_fastqc2_adapters',
-            'ch_fastqc2_contaminants',
-            'ch_fastqc2_limits',
-        }
-        self.assertEqual(channel_ids, expected_ids)
+        scope.update(step)
+        subwf_file = translator.file_register.get(scope)
+        actual_imports = subwf_file.items[0].imports
+        expected_imports = [
+            "include { STRING_TOOL } from '../modules/string_tool'",
+            "include { STRING_OPT_TOOL } from '../modules/string_opt_tool'",
+            "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'"
+        ]
+        self.assertEquals(len(actual_imports), 3)
+        self.assertEquals(actual_imports, expected_imports)
     
-    @unittest.skip('deprecated optionality handling')
-    def test_optional_file_channels(self) -> None:
+    def test_channel_declarations(self) -> None:
+                # optional files (not channels)
         """
         Every Optional(File) type wf input should have a channel. 
         '.ifEmpty(null)' should appear in the channel string definition.
@@ -1349,7 +861,6 @@ class TestChannels(unittest.TestCase):
         for channel in optional_channels:
             self.assertIn('.ifEmpty( null )', channel.get_string())
 
-    def test_nonfile_no_channel(self) -> None:
         """
         Non-File-type wf input should not have nextflow.channels.
         """
@@ -1366,7 +877,6 @@ class TestChannels(unittest.TestCase):
             node = wf.input_nodes[inp_id]
             self.assertFalse(nextflow.channels.exists(scope, node.uuid))
 
-    def test_array_inputs(self) -> None:
         wf = ArrayIOTestWF()
         do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
@@ -1388,7 +898,6 @@ class TestChannels(unittest.TestCase):
         expected_definition = 'ch_in_file_array = Channel.fromPath( params.in_file_array ).toList()'
         self.assertEqual(actual_definition, expected_definition)
         
-    def test_secondaries_inputs(self) -> None:
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
@@ -1411,7 +920,6 @@ class TestChannels(unittest.TestCase):
         expected_definition = 'ch_in_alignments = Channel.fromPath( params.in_alignments ).toList()'
         self.assertEqual(actual_definition, expected_definition)
     
-    def test_secondaries_array_inputs(self) -> None:
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
@@ -1434,7 +942,6 @@ class TestChannels(unittest.TestCase):
         expected_definition = 'ch_in_alignments_arr = Channel.fromPath( params.in_alignments_arr.flatten() ).collate( 2 )'
         self.assertEqual(actual_definition, expected_definition)
 
-    def test_filename_types(self) -> None:
         wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         print(nextflow.data_sources.tvn_register.to_string())
@@ -1446,250 +953,59 @@ class TestChannels(unittest.TestCase):
         }
         self.assertEqual(channels_ids, expected_ids)
     
-    
+    def test_variable_declarations(self) -> None:
+        pass
 
+    def test_duplicate_tool_usage(self) -> None:
+        wf = DuplicateTasksTestWF()
+        maintask, subtask_dict = translator.translate_workflow_internal(wf)
+        actual_subtasks = len(subtask_dict)
+        expected_subtasks = 3
+        self.assertEqual(actual_subtasks, expected_subtasks)
 
-class TestChannelsSubworkflows(unittest.TestCase):
+        # checking values supplied 
+        print(maintask)
+        print()
+        subtask = subtask_dict['modules/echo_test_tool']
+        print(subtask)
+        print()
+        subtask = subtask_dict['subworkflows/echo_test_workflow1']
+        print(subtask)
+        print()
+        subtask = subtask_dict['subworkflows/echo_test_workflow2']
+        print(subtask)
+        print()
+        raise NotImplementedError
+
+    def test_duplicate_subworkflow_usage(self) -> None:
+        raise NotImplementedError
     
-    def setUp(self) -> None:
-        reset_globals()
-        self.wf = DataSourceTestWF()
+    def test_structure(self) -> None:
+        # take main emit
+        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
+        self.assertNotIn('take:', mainstr)
+        self.assertNotIn('main:', mainstr)
+        self.assertNotIn('emit:', mainstr)
+        subwfstr = substr_dict['subworkflows/oranges_subworkflow']
+        self.assertIn('take:', subwfstr)
+        self.assertIn('main:', subwfstr)
+        self.assertIn('emit:', subwfstr)
+
+    def test_files_created(self) -> None:
         do_preprocessing_workflow(self.wf)
-        self.scope = nextflow.Scope()
+        _, substr_dict = translator.translate_workflow_internal(self.wf)
+        expected_filepaths = set([
+            'modules/file_tool',
+            'modules/string_tool',
+            'modules/int_tool',
+            'modules/string_opt_tool',
+            'subworkflows/oranges_subworkflow',
+            'subworkflows/apples_subworkflow',
+        ])
+        actual_filepaths = set(substr_dict.keys())
+        self.assertEqual(actual_filepaths, expected_filepaths)
 
-    def test_subworkflows_main(self) -> None:
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt1 = Channel.fromPath( params.in_file_opt1 )',
-            'ch_in_file1     = Channel.fromPath( params.in_file1 )',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_connected(self) -> None:
-        step =self.wf.step_nodes['stp4']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file2',
-            'ch_in_file_opt2',
-            'ch_in_str2',
-            'ch_in_str_opt2',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
 
-    def test_subworkflows_sub_static(self) -> None:
-        step =self.wf.step_nodes['stp5']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt2',
-            'ch_in_file2',
-            'ch_in_str2',
-            'ch_in_str_opt2',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-
-    def test_subworkflows_sub_omitted(self) -> None:
-        step =self.wf.step_nodes['stp6']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt2',
-            'ch_in_file2',
-            'ch_in_str2',
-            'ch_in_str_opt2',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_connected_sub_connected(self) -> None:
-        step =self.wf.step_nodes['stp4']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp4']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_connected_sub_static(self) -> None:
-        step =self.wf.step_nodes['stp4']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp5']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_connected_sub_omitted(self) -> None:
-        step =self.wf.step_nodes['stp4']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp6']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
- 
-    def test_subworkflows_sub_static_sub_connected(self) -> None:
-        step =self.wf.step_nodes['stp5']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp4']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_static_sub_static(self) -> None:
-        step =self.wf.step_nodes['stp5']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp5']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_static_sub_omitted(self) -> None:
-        step =self.wf.step_nodes['stp5']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp6']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-
-    def test_subworkflows_sub_omitted_sub_connected(self) -> None:
-        step =self.wf.step_nodes['stp6']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp4']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_omitted_sub_static(self) -> None:
-        step =self.wf.step_nodes['stp6']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp5']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-    def test_subworkflows_sub_omitted_sub_omitted(self) -> None:
-        step =self.wf.step_nodes['stp6']
-        self.scope.update(step)
-        step = step.tool.step_nodes['stp6']
-        self.scope.update(step)
-        
-        # main wf channels
-        channel_declarations = nextflow.channels.getstr(self.scope)
-        channel_declarations = channel_declarations.strip('[]').split('\n')
-        channel_declarations = {x for x in channel_declarations if x != ''}
-        expected_declarations = set([
-            'ch_in_file_opt3',
-            'ch_in_file3',
-            'ch_in_str3',
-            'ch_in_str_opt3',
-        ])
-        self.assertEqual(channel_declarations, expected_declarations)
-    
-        
-    @unittest.skip('not implemented')
-    def test_channel_methods(self) -> None:
-        raise NotImplementedError
-
-    @unittest.skip('not implemented')
-    def test_translate_commandtool(self) -> None:
-        raise NotImplementedError
-    
-    @unittest.skip('not implemented')
-    def test_translate_pythontool(self) -> None:
-        raise NotImplementedError
 
 
 class TestCmdtoolProcess(unittest.TestCase):
@@ -1734,8 +1050,6 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         wf = DirectivesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool, step.sources)
         process = translator.handle_container(step.tool, process)
         directives = nextflow.ordering.order_nf_directives(process.directives)
@@ -1756,8 +1070,6 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         wf = DirectivesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool, step.sources)
         process = translator.handle_container(step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
@@ -3950,17 +3262,11 @@ class TestUnwrapProcess(unittest.TestCase):
         wf = UnwrapTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool, step.sources)
-        self.prescript, self.script = nextflow.generate.process.gen_nf_process_script(
-            scope=scope,
-            tool=step.tool,
-            variable_manager=variable_manager,
-            sources=step.sources,
-            stdout_filename='out'
-        )
+        process = nextflow.generate.process.generate_process(step.tool, step.sources)
+        self.prescript = process.pre_script
+        self.script = process.script
+        print(self.prescript)
+        print(self.script)
 
     # PROCESS RELATED
     def test_filename_generated(self) -> None:
@@ -3973,7 +3279,7 @@ class TestUnwrapProcess(unittest.TestCase):
         self.assertIn("--inputSelectorProcess ${in_file}", self.script)
 
     def test_input_selector_param_input(self) -> None:
-        self.assertIn("--inputSelectorParam ${params.in_str}", self.script)
+        self.assertIn("--inputSelectorParam ${params.unwrap_test_tool.in_str}", self.script)
        
     def test_list(self) -> None:
         self.assertIn("--list [1, 2, 3, 4, 5]", self.script) # this is correct
@@ -3982,7 +3288,7 @@ class TestUnwrapProcess(unittest.TestCase):
         self.assertIn("--TwoValueOperator ${in_file + \".gz\"}", self.script)
     
     def test_first_operator(self) -> None:
-        self.assertIn("--FirstOperator ${[params.in_str, []].find{ it != null }}", self.script)
+        self.assertIn("--FirstOperator ${[params.unwrap_test_tool.in_str, []].find{ it != null }}", self.script)
     
     def test_index_operator(self) -> None:
         self.assertIn("--IndexOperator ${in_file_arr[0]}", self.script)
@@ -3997,6 +3303,26 @@ class TestUnwrapProcess(unittest.TestCase):
         self.assertIn("--IndexOperatorArraySecondariesBais ${indexed_bam_flat[1]}", self.script)
 
 
+
+def update_variables(tool: Tool, vmanager: VariableManager) -> None:
+    for tinput in _get_param_inputs(tool, vmanager):
+        if utils.is_file_type(tinput.intype):
+            if tinput.intype.optional: 
+                f_name = nextflow.naming.constructs.gen_varname_file(tinput.id(), dtype=tinput.intype)
+                vmanager.update(tinput.id(), 'local', f_name)
+            else:
+                ch_name = nextflow.naming.constructs.gen_varname_channel(tinput.id(), dtype=tinput.intype)
+                vmanager.update(tinput.id(), 'channel', ch_name)
+
+def _get_param_inputs(tool: Tool, vmanager: VariableManager) -> list[TInput]:
+    out: list[TInput] = []
+    for tinput in tool.tool_inputs():
+        var = vmanager.get(tinput.id()).current
+        if var.vtype == VariableType.PARAM:
+            out.append(tinput)
+    return out
+
+
 class TestUnwrapWorkflow(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -4006,9 +3332,15 @@ class TestUnwrapWorkflow(unittest.TestCase):
         # file input (channel)
         wf = StepConnectionsTestWF()
         do_preprocessing_workflow(wf)
-        scope = nextflow.Scope()
         node = wf.input_nodes['inFile']
-        actual = nextflow.unwrap_expression(node, scope=scope, context='workflow')
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=node,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
 
@@ -4016,33 +3348,47 @@ class TestUnwrapWorkflow(unittest.TestCase):
         # nonfile input (param)
         wf = StepConnectionsTestWF()
         do_preprocessing_workflow(wf)
-        scope = nextflow.Scope()
         node = wf.input_nodes['inStr']
-        actual = nextflow.unwrap_expression(node, scope=scope, context='workflow')
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=node,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
 
     def test_step_connection(self) -> None:
         wf = StepConnectionsTestWF()
         do_preprocessing_workflow(wf)
-        scope = nextflow.Scope()
-        step_id = "stp2"
-        inp_id = 'inp'
-        sources = wf.step_nodes[step_id].sources
-        src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
+        sources = wf.step_nodes["stp2"].sources
+        src = sources['inp']
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=src,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
     def test_alias_selector_wf(self) -> None:
         wf = AliasSelectorTestWF()
         do_preprocessing_workflow(wf)
-        scope = nextflow.Scope()
-        step_id = "stp2"
-        inp_id = 'inp'
-        sources = wf.step_nodes[step_id].sources
-        src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
+        sources = wf.step_nodes["stp2"].sources
+        src = sources['inp']
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=src,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
     
@@ -4050,23 +3396,32 @@ class TestUnwrapWorkflow(unittest.TestCase):
         wf = ConditionStepTestWF()
         do_preprocessing_workflow(wf)
         scope = nextflow.Scope()
-        step_id = "print"
-        inp_id = 'inp'
-        sources = wf.step_nodes[step_id].sources
-        src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
+        sources = wf.step_nodes["print"].sources
+        src = sources['inp']
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=src,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
     
     def test_index_operator_wf(self) -> None:
         wf = IndexOperatorTestWF()
         do_preprocessing_workflow(wf)
-        scope = nextflow.Scope()
-        step_id = "stp1"
-        inp_id = 'inp'
-        sources = wf.step_nodes[step_id].sources
-        src = sources[inp_id]
-        actual = nextflow.unwrap_expression(src, scope=scope, context='workflow')
+        sources = wf.step_nodes["stp1"].sources
+        src = sources['inp']
+        variable_manager = init_variable_manager_for_task(wf)
+        update_variables(wf, variable_manager)
+        actual = nextflow.unwrap_expression(
+            val=src,
+            context='workflow',
+            variable_manager=variable_manager,
+            quote_strings=True
+        )
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)
 
@@ -4080,13 +3435,10 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter("no format")
         actual = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4098,13 +3450,10 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
         actual = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4116,13 +3465,10 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
         actual = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4134,29 +3480,23 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         wf = StringFormatterTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool, step.sources)
+        variable_manager = init_variable_manager_for_task(step.tool)
         sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
         actual = nextflow.unwrap_expression(
             val=sf, 
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=step.tool,
             in_shell_script=True
         )
-        expected = '"an input ${5}"'
+        expected = '"an input ${compression_level}"'
         self.assertEqual(actual, expected)
 
     def test_string_formatter_two_param(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = InputQualityTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter(
             "{username}:{password}",
             username=InputSelector("user"),
@@ -4164,7 +3504,6 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         )
         actual = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4176,9 +3515,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         settings.translate.nextflow.MODE = 'tool'
         tool = InputQualityTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter(
             "{username}\\t{password}",
             username=InputSelector("user"),
@@ -4186,7 +3523,6 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         )
         actual_scripting = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4194,7 +3530,6 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         )
         actual_shell = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4207,9 +3542,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
-        scope = nextflow.Scope()
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(tool)
+        variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter(
             "{name}:{items}",
             name=InputSelector("testtool"),
@@ -4217,7 +3550,6 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         )
         res = nextflow.unwrap_expression(
             val=sf,
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
@@ -4229,20 +3561,16 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         wf = StringFormatterTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        variable_manager = VariableManager(scope)
-        variable_manager.update_for_tool(step.tool, step.sources)
+        variable_manager = init_variable_manager_for_task(step.tool)
         arg = step.tool.arguments()[0]
         actual = nextflow.unwrap_expression(
             val=arg.value, 
-            scope=scope,
             context='process_script',
             variable_manager=variable_manager,
             tool=step.tool,
             in_shell_script=True
         )
-        expected = '"-Xmx${8 * 3 / 4}G ${5 ? "-Dsamjdk.compress_level=" + 5 : ""} ${["EXTRA_ARG1", []].find{ it != null }.join(" ")}"'
+        expected = '"-Xmx${8 * 3 / 4}G ${compression_level ? "-Dsamjdk.compress_level=" + compression_level : ""} ${[java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
 
 
@@ -4472,97 +3800,6 @@ class TestOrdering(unittest.TestCase):
         raise NotImplementedError
     
 
-
-
-class TestSubWorkflows(unittest.TestCase):
-    # sometimes logic here a bit more complex or weird 
-    # due to subworkflows. apologies. 
-    
-    def setUp(self) -> None:
-        self.wf = SubworkflowTestWF()
-        do_preprocessing_workflow(self.wf)
-        reset_globals()
-
-    @unittest.skip('not implemented')
-    def test_param_system(self) -> None:
-        # currently params system doesnt reach to subworkflows. 
-        # will implement in future (time permitting)
-        raise NotImplementedError
-       
-    def test_files_created(self) -> None:
-        do_preprocessing_workflow(self.wf)
-        _, substr_dict = translator.translate_workflow_internal(self.wf)
-        expected_filepaths = set([
-            'modules/file_tool',
-            'modules/string_tool',
-            'modules/int_tool',
-            'modules/string_opt_tool',
-            'subworkflows/oranges_subworkflow',
-            'subworkflows/apples_subworkflow',
-        ])
-        actual_filepaths = set(substr_dict.keys())
-        self.assertEqual(actual_filepaths, expected_filepaths)
-
-    def test_structure(self) -> None:
-        # take main emit
-        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
-        self.assertNotIn('take:', mainstr)
-        self.assertNotIn('main:', mainstr)
-        self.assertNotIn('emit:', mainstr)
-        subwfstr = substr_dict['subworkflows/oranges_subworkflow']
-        self.assertIn('take:', subwfstr)
-        self.assertIn('main:', subwfstr)
-        self.assertIn('emit:', subwfstr)
-
-    def test_call(self) -> None:
-        # translate workflow, building all nf items and files
-        translator.translate_workflow_internal(self.wf)
-
-        # call args are correct & in order
-        step_id = 'apples_subworkflow'
-        step = self.wf.step_nodes[step_id]
-        scope = nextflow.Scope()
-
-        call = nextflow.call.gen_task_call(step, scope, step_id)
-        actual = set(split_task_call_to_lines(call))
-        expected = set([])
-        self.assertSetEqual(actual, expected)
-
-        # # subworkflow inputs are correct & in order
-        # nf_workflow = nextflow.parsing.workflow.gen_workflow(
-        #     name=step_id, 
-        #     scope=scope,
-        #     wf=step.tool,
-        #     item_register=translator.item_register
-        # )
-        # # check the arg order matches the subworkflow input channel order
-        # actual_channel_order = [t.get_string() for t in nf_workflow.take]
-        # expected_channel_order = ['ch_in_int', 'ch_in_str', 'ch_in_str_opt']
-        # self.assertEquals(actual_channel_order, expected_channel_order)
-
-    def test_imports(self) -> None:
-        # translate workflow, building all nf items and files
-        wf = SubworkflowTestWF()
-        translator.translate_workflow_internal(wf)
-
-        # focusing in on specific subworkflow
-        step = wf.step_nodes['apples_subworkflow']
-        scope = nextflow.Scope()
-        scope.update(step)
-        subwf_file = translator.file_register.get(scope)
-        actual_imports = subwf_file.items[0].imports
-        expected_imports = [
-            "include { STRING_TOOL } from '../modules/string_tool'",
-            "include { STRING_OPT_TOOL } from '../modules/string_opt_tool'",
-            "include { ORANGES_SUBWORKFLOW } from './oranges_subworkflow'"
-        ]
-        self.assertEquals(len(actual_imports), 3)
-        self.assertEquals(actual_imports, expected_imports)
-    
-    @unittest.skip('not implemented')
-    def test_nested(self) -> None:
-        raise NotImplementedError
-    
 
 class TestNaming(unittest.TestCase):
     

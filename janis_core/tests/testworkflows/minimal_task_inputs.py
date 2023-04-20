@@ -189,7 +189,6 @@ class MinimalTaskInputsTestWF5(Workflow):
             SubMinimalTaskInputsTestWF(
                 inFile=self.inFile, 
                 inStr1=self.inStr1, 
-                inInt1=5, 
                 inInt2=self.inInt1, 
             )
         )
@@ -216,7 +215,6 @@ class MinimalTaskInputsTestWF6(Workflow):
             "stp1", 
             TaskInputsTestTool1(
                 inFile=self.inFile, 
-                inStr1=self.inStr1,
                 inStr2=self.inStr2,
                 inStr3='hello',
                 inStr4=self.inStr3,
@@ -229,7 +227,6 @@ class MinimalTaskInputsTestWF6(Workflow):
             "stp2", 
             TaskInputsTestTool1(
                 inFile=self.inFile, 
-                inStr1=self.inStr1,
                 inStr4='there',
                 inInt1=5, 
                 inInt2=self.inInt2, 
@@ -240,7 +237,6 @@ class MinimalTaskInputsTestWF6(Workflow):
             "stp3", 
             SubMinimalTaskInputsTestWF(
                 inFile=self.inFile, 
-                inStr1=self.inStr1, 
                 inInt1=5, 
                 inInt2=self.inInt1, 
             )
@@ -268,10 +264,9 @@ class SubMinimalTaskInputsTestWF(Workflow):
             "stp1", 
             TaskInputsTestTool1(
                 inFile=self.inFile, 
-                inStr1=self.inStr1, 
                 inStr2=self.inStr2, 
                 inStr3='hi', 
-                inInt1=self.inInt1, 
+                inInt1=5, 
                 inInt2=self.inInt2, 
                 inInt4=999, 
             )

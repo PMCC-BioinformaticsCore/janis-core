@@ -123,6 +123,8 @@ class EchoTestWorkflow1(Workflow):
             )
         )
 
+        self.output('out', File(), source=self.stp2.out)
+
     def friendly_name(self):
         return "TEST: EchoTestWorkflow"
 
