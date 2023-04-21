@@ -191,6 +191,11 @@ class AlphabeticalInputStrategy(InputOrderingStrategy):
             name = pinput.name
         return name
 
+class MandatoryPriorityInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        out = sorted(inputs, key=lambda x: x.dtype.optional, reverse=False)
+        return out
+
 class PathPriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
         out = sorted(inputs, key=lambda x: isinstance(x, NFPathProcessInput), reverse=True)
@@ -203,6 +208,7 @@ class TuplePriorityInputStrategy(InputOrderingStrategy):
 
 process_input_strategies = [
     AlphabeticalInputStrategy,
+    MandatoryPriorityInputStrategy,
     PathPriorityInputStrategy,
     TuplePriorityInputStrategy,
 ]

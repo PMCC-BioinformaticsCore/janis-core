@@ -24,14 +24,7 @@ def get_primary_files(var, element_count) {
 }"""
 
 
-def generate_file_pythontool(process: NFProcess, tool: PythonTool) -> NFFile:
-    """generates nextflow file for nextflow process derived from PythonTool"""
-    nf_file = NFFile(subtype='process', name=process.name)
-    nf_file.items.append(process)
-    return nf_file
-
-
-def generate_file_cmdtool(process: NFProcess, tool: CommandTool) -> NFFile:
+def generate_file_process(process: NFProcess, tool: CommandTool | PythonTool) -> NFFile:
     """generates nextflow file for nextflow process derived from CommandTool"""
     nf_file = NFFile(subtype='process', name=process.name)
 
@@ -54,7 +47,7 @@ def generate_file_cmdtool(process: NFProcess, tool: CommandTool) -> NFFile:
     return nf_file
 
 
-def gen_imports_for_process_file(tool: CommandTool) -> Optional[NFImportsBlock]:
+def gen_imports_for_process_file(tool: CommandTool | PythonTool) -> Optional[NFImportsBlock]:
     # methods: list[str] = []
     imports: list[str] = []
     declarations: list[str] = []
@@ -70,14 +63,15 @@ def gen_imports_for_process_file(tool: CommandTool) -> Optional[NFImportsBlock]:
     else:
         return None
 
-def _should_add_json_slurper(tool: CommandTool) -> bool:
-    for toutput in tool.outputs():
-        entity_counts = trace_entity_counts(toutput.selector, tool)
-        if 'ReadJsonOperator' in entity_counts:
-            return True
+def _should_add_json_slurper(tool: CommandTool | PythonTool) -> bool:
+    if isinstance(tool, CommandTool):
+        for toutput in tool.outputs():
+            entity_counts = trace_entity_counts(toutput.selector, tool)
+            if 'ReadJsonOperator' in entity_counts:
+                return True
     return False
 
-def gen_functions_for_process_file(tool: CommandTool) -> Optional[NFFunctionsBlock]:
+def gen_functions_for_process_file(tool: CommandTool | PythonTool) -> Optional[NFFunctionsBlock]:
     funcs: list[str] = []
 
     if _should_add_get_primary_files(tool):
@@ -88,8 +82,8 @@ def gen_functions_for_process_file(tool: CommandTool) -> Optional[NFFunctionsBlo
     else:
         return None
     
-def _should_add_get_primary_files(tool: CommandTool) -> bool:
-    for tinput in tool.inputs():
-        if utils.is_array_secondary_type(tinput.input_type):
+def _should_add_get_primary_files(tool: CommandTool | PythonTool) -> bool:
+    for tinput in tool.tool_inputs():
+        if utils.is_array_secondary_type(tinput.intype):
             return True
     return False

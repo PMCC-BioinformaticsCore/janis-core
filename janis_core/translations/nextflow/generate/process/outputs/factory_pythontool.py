@@ -1,6 +1,5 @@
 
 
-from typing import Any
 from enum import Enum, auto
 
 from janis_core.types import File
@@ -12,7 +11,6 @@ from janis_core import (
 from janis_core import settings
 from janis_core import translation_utils as utils
 
-from ....scope import Scope
 from ....model.process.outputs import (
     NFProcessOutput,
     NFValProcessOutput,
@@ -99,7 +97,8 @@ class PythonToolProcessOutputFactory:
         expr = f'"${{file("{work_dir}/" + {local_path})}}"'
         
         new_output = NFValProcessOutput(
-            name=self.out.id(), 
+            name=self.out.id(),
+            janis_tag=self.out.id(),
             is_optional=self.optional, 
             expression=expr
         )
@@ -110,7 +109,8 @@ class PythonToolProcessOutputFactory:
         processing = ".text"
         expr = f'"${{file({filepath}){processing}}}"'
         new_output = NFValProcessOutput(
-            name=self.out.id(), 
+            name=self.out.id(),
+            janis_tag=self.out.id(),
             is_optional=self.optional, 
             expression=expr
         )
@@ -123,6 +123,7 @@ class PythonToolProcessOutputFactory:
         expr = f'"${{file({filepath}){processing}}}"'
         new_output = NFValProcessOutput(
             name=self.out.id(), 
+            janis_tag=self.out.id(),
             is_optional=self.optional, 
             expression=expr
         )

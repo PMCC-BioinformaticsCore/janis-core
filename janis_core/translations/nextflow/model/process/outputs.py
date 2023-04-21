@@ -18,7 +18,7 @@ class NFProcessOutput(ABC):
         return f', emit: {alias}'
     
     @property
-    def optional(self) -> str:
+    def optional_modifier(self) -> str:
         if self.is_optional:
             return ', optional: true'
         return ''
@@ -28,7 +28,7 @@ class NFProcessOutput(ABC):
 class NFStdoutProcessOutput(NFProcessOutput):
 
     def get_string(self) -> str:
-        return f'stdout{self.optional}{self.emit(self.name)}'
+        return f'stdout{self.optional_modifier}{self.emit(self.name)}'
 
 
 @dataclass
@@ -36,7 +36,7 @@ class NFValProcessOutput(NFProcessOutput):
     expression: str
 
     def get_string(self) -> str:
-        return f'val {self.expression}{self.optional}{self.emit(self.name)}'
+        return f'val {self.expression}{self.optional_modifier}{self.emit(self.name)}'
 
 
 @dataclass
@@ -44,7 +44,7 @@ class NFPathProcessOutput(NFProcessOutput):
     expression: str
 
     def get_string(self) -> str:
-        return f'path {self.expression}{self.optional}{self.emit(self.name)}'
+        return f'path {self.expression}{self.optional_modifier}{self.emit(self.name)}'
 
 
 @dataclass
@@ -61,7 +61,7 @@ class NFTupleProcessOutput(NFProcessOutput):
         return out
     
     def get_string(self) -> str:
-        return f'tuple {self.fields}{self.optional}{self.emit(self.name)}'
+        return f'tuple {self.fields}{self.optional_modifier}{self.emit(self.name)}'
 
 
 @dataclass
@@ -73,6 +73,6 @@ class NFSecondariesArrayProcessOutput(NFProcessOutput):
     def get_string(self) -> str:
         lines: list[str] = []
         for qual, expr, name in zip(self.qualifiers, self.expressions, self.names):
-            line = f'{qual} {expr}{self.optional}{self.emit(name)}'
+            line = f'{qual} {expr}{self.optional_modifier}{self.emit(name)}'
             lines.append(line)
         return '\n'.join(lines)

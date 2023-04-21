@@ -8,8 +8,6 @@ NoneType = type(None)
 
 from ... import naming
 from ...model.process import NFProcess
-from ...model.process import NFProcessInput
-from ...model.process import NFPathProcessInput
 
 from .directives import gen_nf_process_directives
 from .inputs import gen_nf_process_inputs
@@ -17,6 +15,7 @@ from .script import gen_nf_process_script
 from .outputs import gen_nf_process_outputs
 
 from ...variables import init_variable_manager_for_task
+from ...variables import VariableType
 
 
 def generate_processes(wf: Workflow) -> dict[str, NFProcess]:
@@ -31,7 +30,7 @@ def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> d
         if isinstance(step.tool, CommandTool) or isinstance(step.tool, PythonTool):
             tool_id = step.tool.id()
             if tool_id not in process_dict:
-                process = generate_process(step.tool, step.sources)
+                process = generate_process(step.tool)
                 process_dict[tool_id] = process
         
         # recursively do for subworkflows 
@@ -43,11 +42,11 @@ def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> d
     
     return process_dict
 
-def generate_process(tool: CommandTool | PythonTool, sources: dict[str, Any]) -> NFProcess:
+def generate_process(tool: CommandTool | PythonTool) -> NFProcess:
     if isinstance(tool, CommandTool):
         return generate_process_cmdtool(tool)
     elif isinstance(tool, PythonTool):  # type: ignore
-        return generate_process_pythontool(tool, sources)
+        return generate_process_pythontool(tool)
     else:
         raise RuntimeError
 
@@ -55,8 +54,8 @@ def generate_process_cmdtool(tool: CommandTool) -> NFProcess:
     generator = CmdToolProcessGenerator(tool)
     return generator.generate()
 
-def generate_process_pythontool(tool: PythonTool, sources: dict[str, Any]) -> NFProcess:
-    generator = PythonToolProcessGenerator(tool, sources)
+def generate_process_pythontool(tool: PythonTool) -> NFProcess:
+    generator = PythonToolProcessGenerator(tool)
     return generator.generate()
 
 
@@ -65,15 +64,13 @@ def generate_process_pythontool(tool: PythonTool, sources: dict[str, Any]) -> NF
 class CmdToolProcessGenerator:
     def __init__(self, tool: CommandTool) -> None:
         self.tool = tool
+        self.vmanager = init_variable_manager_for_task(self.tool)
 
     @property
     def name(self) -> str:
         return naming.constructs.gen_varname_process(self.tool.id())
 
     def generate(self) -> NFProcess:
-        # variable mappings 
-        self.vmanager = init_variable_manager_for_task(self.tool)
-
         # directives
         resources = {}
         process_directives = gen_nf_process_directives(self.tool, resources)
@@ -107,101 +104,128 @@ class CmdToolProcessGenerator:
         return process
 
 
+PYINDENT = '    '
+
 # helper class
 class PythonToolProcessGenerator:
-    def __init__(self, tool: PythonTool, sources: dict[str, Any]) -> None:
+    def __init__(self, tool: PythonTool) -> None:
         self.tool = tool
-        self.sources = sources
+        self.vmanager = init_variable_manager_for_task(self.tool)
 
     @property
     def name(self) -> str:
         return naming.constructs.gen_varname_process(self.tool.id())
     
     @property
-    def script(self) -> str:
-        """
-        Generate the content of the script section in a Nextflow process for Janis python code tool
-
-        :param tool:
-        :type tool:
-        :param inputs:
-        :type inputs:
-        :return:
-        :rtype:
-        """
+    def code_file_path(self) -> str:
+        return f'templates.{self.name.lower()}'
+    
+    @property
+    def args(self) -> list[str]:
         # TODO: handle args of type list of string (need to quote them)
         args: list[str] = []
         
-        for tinput in self.tool.inputs():
+        # supply args to pythontool call
+        for tinput in self.tool.tool_inputs():
             tag: str = tinput.tag
             value: Any = None
             dtype: DataType = tinput.intype
 
-            if tinput.id() in data_sources.task_inputs(scope) or tinput.id() in data_sources.param_inputs(scope):
-                varname = data_sources.get(scope, tinput).value
-                if isinstance(varname, list):
-                    varname = varname[0]
-                value = f'${{{varname}}}'
+            # get final arg for this tinput 
+            cvar = self.vmanager.get(tag).current
+            if cvar.vtype in [VariableType.TASK_INPUT, VariableType.PARAM]:
+                
+                # get varname
+                # workaround for secondaries
+                if isinstance(cvar.value, list):
+                    varname = cvar.value[0]
+                else:
+                    varname = cvar.value
+                
+                # format varname
                 if isinstance(dtype, Array):
-                    value = f'"{value}".split(" ")'
+                    value = f'"${{{varname}}}".split(" ")'  # this is python not groovy
+                else:
+                    value = f'${{{varname}}}'
 
-            elif tinput.default is not None:
-                value = tinput.default
-
-            elif tinput.intype.optional == True:
-                value = None
-
+            elif cvar.vtype == VariableType.STATIC:
+                value = cvar.value
+            
+            elif cvar.vtype == VariableType.IGNORED:
+                continue
+            
+            elif cvar.vtype == VariableType.LOCAL:
+                value = cvar.value
+            
             else:
-                raise NotImplementedError
+                raise RuntimeError(f"Unknown variable type: {cvar.vtype}")
 
             # wrap in quotes unless numeric or bool
             if not isinstance(dtype, (Array, Int, Float, Double, Boolean, NoneType)):
                 value = f'"{value}"'
 
             arg = f"{tag}={value}"
-            args.append(arg)  
+            args.append(arg) 
+        
+        return args 
+    
+    @property
+    def call_block(self) -> str:
+        # one-liner if only one arg
+        if len(self.args) <= 1:
+            args_str = ", ".join(a for a in self.args)
+            args_str = f'result = code_block({args_str})'
+            return args_str
+        
+        # multi-liner if more than one arg
+        else:
+            args_str = ''
+            args_str += f'result = code_block(\n'
+            
+            # middle lines get commas on the end
+            for arg in self.args[:-1]:
+                args_str += f'{PYINDENT}{arg},\n'
+            
+            # last line
+            args_str += f'{PYINDENT}{self.args[-1]}\n'
+            args_str += f')'
+            return args_str
 
-        args_str = ", ".join(a for a in args)
+
+    @property
+    def script(self) -> str:
+        """
+        Generate the content of the script section in a Nextflow process for Janis python code tool
+        """
+
         script = f"""\
-    {settings.translate.nextflow.PYTHON_SHEBANG}
+{settings.translate.nextflow.PYTHON_SHEBANG}
 
-    from ${{code_file.simpleName}} import code_block
-    import os
-    import json
+from {self.code_file_path} import code_block
+import os
+import json
 
-    result = code_block({args_str})
+{self.call_block}
 
-    work_dir = os.getcwd()
-    for key in result:
-        with open(os.path.join(work_dir, f"{settings.translate.nextflow.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as fp:
-            fp.write(json.dumps(result[key]))
-    """
+work_dir = os.getcwd()
+for key in result:
+    with open(os.path.join(work_dir, f"{settings.translate.nextflow.PYTHON_CODE_OUTPUT_FILENAME_PREFIX}{{key}}"), "w") as fp:
+        fp.write(json.dumps(result[key]))
+"""
         return script
 
     def generate(self) -> NFProcess:
-        # variable mappings 
-        self.vmanager = init_variable_manager_for_task(self.tool)
-        
         # directives
         resources = {}
-        process_directives = gen_nf_process_directives(tool, resources)
+        process_directives = gen_nf_process_directives(self.tool, resources)
         
         # inputs
-        process_inputs: list[NFProcessInput] = []
-        
-        # inputs: python script
-        python_file_input = NFPathProcessInput(name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL)
-        process_inputs.append(python_file_input)
-
-        # inputs: tool inputs
-        process_inputs += gen_nf_process_inputs(scope, tool)
+        process_inputs = gen_nf_process_inputs(self.tool)
 
         # outputs
         process_outputs = gen_nf_process_outputs(
-            scope=scope, 
-            tool=tool, 
-            variable_manager=variable_manager, 
-            sources=sources
+            tool=self.tool, 
+            variable_manager=self.vmanager,
         )
 
         # process

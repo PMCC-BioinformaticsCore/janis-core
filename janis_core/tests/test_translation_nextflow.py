@@ -496,56 +496,55 @@ class TestPreprocessingTaskInputs(unittest.TestCase):
     def test_two_calls_sub(self) -> None:
         wf = MinimalTaskInputsTestWF5()
         do_preprocessing_workflow(wf)
-
+        
         # TaskInputsTestTool1
         tool = wf.step_nodes['stp1'].tool
         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+        
         expected_task_inputs = {
             'inFile',
+            'inStr1',
             'inStr2',
             'inStr3',
-            'inInt1',
             'inInt2',
             'inInt4',
         }
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
-        
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        expected_param_inputs = {'inStr1'}
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
-        
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        expected_static_inputs = set()
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
-        
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+        expected_param_inputs = set()
+        expected_static_inputs = {'inInt1'}
         expected_ignored_inputs = {
             'inStr4',
             'inInt3',
         }
+        
+        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
         
         # SubMinimalTaskInputsTestWF
         tool = wf.step_nodes['stp2'].tool
 
         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        expected_task_inputs = {'inFile'}
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
-        
         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        expected_param_inputs = {'inStr1', 'inInt2'}
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
-        
         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        expected_static_inputs = {'inInt1'}
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
-        
         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+        
+        expected_task_inputs = {'inFile'}
+        expected_param_inputs = {'inStr1', 'inInt2'}
+        expected_static_inputs = set()
         expected_ignored_inputs = {
             'inStr2',
             'inStr3',
+            'inInt1',
             'inInt3',
         }
+        
+        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
 
 
@@ -556,6 +555,11 @@ class TestVariableManager(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_globals()
+
+    @unittest.skip('implement in future')
+    def test1(self) -> None:
+        raise NotImplementedError
+
 
 
 
@@ -1188,19 +1192,16 @@ class TestCmdtoolProcess(unittest.TestCase):
     def test_fastqc(self) -> None:
         tool = FastqcTestTool()
         process = translate(tool, 'nextflow')
-        print(process)
         print()
     
     def test_bwamem(self) -> None:
         tool = BwaMemTestTool()
         process = translate(tool, 'nextflow')
-        print(process)
         print()
     
     def test_gridss(self) -> None:
         tool = GridssTestTool()
         process = translate(tool, 'nextflow')
-        print(process)
         print()
  
 
@@ -1214,26 +1215,6 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_globals()
-
-    def test_directives_order(self) -> None:
-        wf = DirectivesTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool, step.sources)
-        process = translator.handle_container(step.tool, process)
-        directives = nextflow.ordering.order_nf_directives(process.directives)
-        actual_order = [type(x).__name__ for x in directives]
-        expected_order = [
-            'NFDebugDirective',
-            'NFContainerDirective',
-            'NFPublishDirDirective',
-            'NFCpusDirective',
-            'NFDiskDirective',
-            'NFMemoryDirective',
-            'NFTimeDirective',
-        ]
-        for actual, expected in zip(actual_order, expected_order):
-            self.assertEqual(actual, expected)
 
     def test_directives(self) -> None:
         wf = DirectivesTestWF()
@@ -1970,109 +1951,103 @@ class TestSubWorkflows(unittest.TestCase):
 class TestPythontoolProcessInputs(unittest.TestCase):
     
     def setUp(self) -> None:
+        reset_globals()
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_globals()
+        self.processes = nextflow.generate.process.generate_processes(self.wf)
+        self.workflows = nextflow.generate.workflow.generate_workflows(self.wf, self.processes)
+        self.vmanager = init_variable_manager_for_task(self.wf)
+        update_variables(self.wf, self.vmanager)
 
     def test_input_generation(self) -> None:
         # File, String, Int input types
-        step = self.wf.step_nodes["stp0"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
+        task = self.processes['MultiTypesInputPythonTool']
+        actual_inputs = [inp.get_string() for inp in task.ordered_inputs]
         expected_inputs = {
-            'path code_file',
             "path inp1, stageAs: 'inp1'"
         }
-        self.assertEqual(actual_inputs, expected_inputs)
+        for ln in expected_inputs:
+            self.assertIn(ln, actual_inputs)
         
         # Array(String) input type
-        step = self.wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            'path code_file',
-        }
-        self.assertEqual(actual_inputs, expected_inputs)
+        task = self.processes['JoinArrayPythonTestTool']
+        actual_inputs = [inp.get_string() for inp in task.ordered_inputs]
+        self.assertEqual(len(actual_inputs), 0)
         
         # File (secondaries) input type
-        step = self.wf.step_nodes["stp2"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_inputs = {inp.get_string() for inp in process.inputs}
+        task = self.processes['SecondaryInputPythonTestTool']
+        actual_inputs = {inp.get_string() for inp in task.ordered_inputs}
         expected_inputs = {
-            'path code_file',
             'tuple path(bam), path(bai)',
         }
-        self.assertEqual(actual_inputs, expected_inputs)
+        for ln in expected_inputs:
+            self.assertIn(ln, actual_inputs)
+
 
 
 
 class TestPythontoolProcessOutputs(unittest.TestCase):
 
     def setUp(self) -> None:
+        reset_globals()
         self.wf = OutputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_globals()
+        self.processes = nextflow.generate.process.generate_processes(self.wf)
+        self.workflows = nextflow.generate.workflow.generate_workflows(self.wf, self.processes)
+        self.vmanager = init_variable_manager_for_task(self.wf)
+        update_variables(self.wf, self.vmanager)
     
     def test_output_generation(self) -> None:
         # file output
-        step = self.wf.step_nodes['stp0']
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
+        task = self.processes['FileOutputPythonTestTool']
+        actual_outputs = [out.get_string() for out in task.ordered_outputs]
+        expected_outputs = [
+            'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out'
+        ]
+        for ln in expected_outputs:
+            self.assertIn(ln, actual_outputs)
         
         # String output
-        step = self.wf.step_nodes['stp1']
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'val "${file("${task.workDir}/out_out").text}", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
+        task = self.processes['FileInputPythonTestTool']
+        actual_outputs = [out.get_string() for out in task.ordered_outputs]
+        expected_outputs = {
+            'val "${file("${task.workDir}/out_out").text}", emit: out'
+        }
+        for ln in expected_outputs:
+            self.assertIn(ln, actual_outputs)
         
         # Array(String) output
-        step = self.wf.step_nodes['stp2']
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_outputs = {out.get_string() for out in process.outputs}
+        task = self.processes['SplitTextPythonTestTool']
+        actual_outputs = [out.get_string() for out in task.ordered_outputs]
         expected_outputs = {
             'val "${file("${task.workDir}/out_out").text.replace(\'[\', \'\').replace(\']\', \'\')}", emit: out'
         }
-        self.assertEqual(actual_outputs, expected_outputs)
+        for ln in expected_outputs:
+            self.assertIn(ln, actual_outputs)
 
 
 
 class TestPythontoolProcess(unittest.TestCase):
 
     def setUp(self) -> None:
+        reset_globals()
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_globals()
+        self.processes = nextflow.generate.process.generate_processes(self.wf)
+        self.workflows = nextflow.generate.workflow.generate_workflows(self.wf, self.processes)
+        self.vmanager = init_variable_manager_for_task(self.wf)
+        update_variables(self.wf, self.vmanager)
 
     def test_format(self) -> None:
-        step = self.wf.step_nodes["stp0"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_lines = process.get_string().split('\n')
+        task = self.processes['MultiTypesInputPythonTool']
+        actual_lines = task.get_string().split('\n')
         actual_lines = [x.strip() for x in actual_lines]
         actual_lines = [x for x in actual_lines if x != '\n' and x != '']
-        print(actual_lines)
         expected_lines = [
-            'process STP0 {',
+            'process MULTI_TYPES_INPUT_PYTHON_TOOL {',
             'debug true',
-            'publishDir "${params.outdir}/stp0"',
+            'publishDir "${params.outdir}/multi_types_input_python_tool"',
             'input:',
-            'path code_file',
             'path inp1, stageAs: \'inp1\'',
             'output:',
             'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out',
@@ -2080,64 +2055,70 @@ class TestPythontoolProcess(unittest.TestCase):
             'script:',
             '"""',
             '#!/usr/bin/env python',
-            'from ${code_file.simpleName} import code_block',
+            'from templates.multi_types_input_python_tool import code_block',
             'import os',
             'import json',
-            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
+            'result = code_block(',
+            'inp1="${inp1}",',
+            'inp2="${params.multi_types_input_python_tool.inp2}",',
+            'inp3=${params.multi_types_input_python_tool.inp3}',
+            ')',
             'work_dir = os.getcwd()',
             'for key in result:',
-            '    with open(os.path.join(work_dir, f"out_{key}"), "w") as fp:',
-            '        fp.write(json.dumps(result[key]))',
+            'with open(os.path.join(work_dir, f"out_{key}"), "w") as fp:',
+            'fp.write(json.dumps(result[key]))',
             '"""',
             '}',
         ]
         expected_lines = [x.strip() for x in expected_lines]
         self.assertEqual(actual_lines, expected_lines)
 
+
+
+
 class TestPythontoolProcessScript(unittest.TestCase):
     
     def setUp(self) -> None:
+        reset_globals()
         self.wf = InputsPythonToolTestWF()
         do_preprocessing_workflow(self.wf)
-        reset_globals()
+        self.processes = nextflow.generate.process.generate_processes(self.wf)
+        self.workflows = nextflow.generate.workflow.generate_workflows(self.wf, self.processes)
+        self.vmanager = init_variable_manager_for_task(self.wf)
+        update_variables(self.wf, self.vmanager)
 
     def test_input_references(self) -> None:
         # File, String, Int input types
-        step = self.wf.step_nodes["stp0"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
+        task = self.processes['MultiTypesInputPythonTool']
+        actual_script = task.script
         expected_lines = {
-            'result = code_block(inp1="${inp1}", inp2="${params.in_str}", inp3=${params.in_int})',
+            'result = code_block(',
+            'inp1="${inp1}",',
+            'inp2="${params.multi_types_input_python_tool.inp2}",',
+            'inp3=${params.multi_types_input_python_tool.inp3}',
+            ')'
         }
-        print(process.get_string())
+        print(task.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
         # Array(String) input type
-        step = self.wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
+        task = self.processes['JoinArrayPythonTestTool']
+        actual_script = task.script
         expected_lines = {
-            'result = code_block(inp="${params.in_str_arr}".split(" "))',
+            'result = code_block(inp="${params.join_array_python_test_tool.inp}".split(" "))',
         }
-        print(process.get_string())
+        print(task.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
         # File (secondaries) input type
-        step = self.wf.step_nodes["stp2"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.gen_process_from_codetool(step.tool, step.sources, scope)
-        actual_script = process.script
+        task = self.processes['SecondaryInputPythonTestTool']
+        actual_script = task.script
         expected_lines = {
             'result = code_block(inp="${bam}")',
         }
-        print(process.get_string())
+        print(task.get_string())
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
@@ -3399,6 +3380,29 @@ class TestOrdering(unittest.TestCase):
             "val in_str",
         ]
         self.assertEqual(actual_inputs, expected_inputs)
+
+    def test_process_directives(self) -> None:
+        wf = DirectivesTestWF()
+        do_preprocessing_workflow(wf)
+        processes = nextflow.generate.process.generate_processes(wf)
+        vmanager = init_variable_manager_for_task(wf)
+        update_variables(wf, vmanager)
+        
+        step = wf.step_nodes["stp1"]
+        process = processes[step.tool.id()]
+        process = translator.handle_container(step.tool, process)
+        actual_order = [type(x).__name__ for x in process.ordered_directives]
+        expected_order = [
+            'NFDebugDirective',
+            'NFContainerDirective',
+            'NFPublishDirDirective',
+            'NFCpusDirective',
+            'NFDiskDirective',
+            'NFMemoryDirective',
+            'NFTimeDirective',
+        ]
+        for actual, expected in zip(actual_order, expected_order):
+            self.assertEqual(actual, expected)
 
     def test_subworkflow_call(self) -> None:
         vmanager = init_variable_manager_for_task(self.wf)

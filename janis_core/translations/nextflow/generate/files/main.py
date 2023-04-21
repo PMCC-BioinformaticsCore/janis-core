@@ -8,8 +8,7 @@ from ...model.process import NFProcess
 from ...model.workflow import NFWorkflow
 from ...model.files import NFFile
 
-from .process import generate_file_cmdtool
-from .process import generate_file_pythontool
+from .process import generate_file_process
 from .workflow import generate_file_workflow
 
 
@@ -19,10 +18,8 @@ def generate_files(main_wf: Workflow, nf_processes: dict[str, NFProcess], nf_wor
     
     for tool_id, process in nf_processes.items():
         tool = _get_tool(tool_id, main_wf)
-        if isinstance(tool, CommandTool):
-            nffile = generate_file_cmdtool(process, tool)
-        elif isinstance(tool, PythonTool):
-            nffile = generate_file_pythontool(process, tool)
+        if isinstance(tool, CommandTool | PythonTool):
+            nffile = generate_file_process(process, tool)
         else:
             raise Exception(f"Tool '{tool_id}' is not a CommandTool or PythonTool")
         nf_files[tool_id] = nffile

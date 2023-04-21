@@ -3,7 +3,6 @@ import os
 from collections import defaultdict
 from typing import Tuple, Optional, Any, Protocol
 
-from janis_core.utils.scatter import ScatterDescription
 from janis_core.tool.commandtool import (
     CommandTool,
     Tool,
@@ -17,14 +16,15 @@ from janis_core.translation_deps.supportedtranslations import SupportedTranslati
 from janis_core import InputSelector, File, Directory
 from janis_core import settings
 
-from .model.files.files import NFFile, NFImport, NFImportItem, NFFunctionsBlock, NFImportsBlock
+from .model.files.files import NFFile
 from .model.process import NFContainerDirective
 from .model.process import NFProcess
-from .model.workflow import NFWorkflow
 
 from .generate.process import generate_processes
+from .generate.process import generate_process
 from .generate.workflow import generate_workflows
 from .generate.files import generate_files 
+from .generate.files import generate_file_process 
 
 from . import params
 from . import generate
@@ -137,7 +137,6 @@ class NextflowTranslator(TranslatorBase):
 
     @classmethod
     def translate_workflow_internal(cls, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
-
         # set class variables to avoid passing junk params
         settings.translate.nextflow.BASE_OUTDIR = cls.basedir
 
@@ -156,165 +155,165 @@ class NextflowTranslator(TranslatorBase):
         return (main_file_str, sub_files_str)
 
 
-    @classmethod
-    def update_files(
-        cls, 
-        name: str,
-        alias: str,
-        scope: Scope,
-        tool: Workflow | CommandTool | PythonTool,
-        sources: dict[str, Any],
-        scatter: Optional[ScatterDescription]=None,
-        ) -> None:
+    # @classmethod
+    # def update_files(
+    #     cls, 
+    #     name: str,
+    #     alias: str,
+    #     scope: Scope,
+    #     tool: Workflow | CommandTool | PythonTool,
+    #     sources: dict[str, Any],
+    #     scatter: Optional[ScatterDescription]=None,
+    #     ) -> None:
         
-        """
-        1. generate all nextflow items (currently: nfgen.NFProcess, nfgen.Workflow, nfgen.ChannelOperation).
-        2. write any nextflow items that are processes or workflows to file.
-        3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
-        """
-        subtype: str = naming.constructs.get_construct_name(tool, scope)
+    #     """
+    #     1. generate all nextflow items (currently: nfgen.NFProcess, nfgen.Workflow, nfgen.ChannelOperation).
+    #     2. write any nextflow items that are processes or workflows to file.
+    #     3. return the nextflow items (so a workflow in scope above can generate process / workflow calls).
+    #     """
+    #     subtype: str = naming.constructs.get_construct_name(tool, scope)
 
-        # groovy code for plumbing
-        # TODO: reimplement
-        # if scatter and scatter.method == ScatterMethod.cross:
-        #     operation_item = nfgen.channels.gen_scatter_cross_operation(sources, scatter)
-        #     cls.item_register.add(scope, operation_item)
+    #     # groovy code for plumbing
+    #     # TODO: reimplement
+    #     # if scatter and scatter.method == ScatterMethod.cross:
+    #     #     operation_item = nfgen.channels.gen_scatter_cross_operation(sources, scatter)
+    #     #     cls.item_register.add(scope, operation_item)
 
-        # command tool
-        if isinstance(tool, CommandTool):
+    #     # command tool
+    #     if isinstance(tool, CommandTool):
 
-            # groovy library imports & groovy functions used in process
-            # item: imports
-            # item: functions
-            imports_item = generate.process.gen_imports_for_process(tool)
-            functions_item = generate.process.gen_functions_for_process(tool)
-            if imports_item:
-                cls.item_register.add(scope, imports_item)
-            if functions_item:
-                cls.item_register.add(scope, functions_item)
+    #         # groovy library imports & groovy functions used in process
+    #         # item: imports
+    #         # item: functions
+    #         imports_item = generate.process.gen_imports_for_process(tool)
+    #         functions_item = generate.process.gen_functions_for_process(tool)
+    #         if imports_item:
+    #             cls.item_register.add(scope, imports_item)
+    #         if functions_item:
+    #             cls.item_register.add(scope, functions_item)
 
-            # item: process
-            process_item = generate.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
-            process_item = cls.handle_container(scope, tool, process_item)
-            cls.item_register.add(scope, process_item)
+    #         # item: process
+    #         process_item = generate.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
+    #         process_item = cls.handle_container(scope, tool, process_item)
+    #         cls.item_register.add(scope, process_item)
             
-            # file: process file
-            process_file = NFFile(
-                name=name,
-                subtype=subtype,
-                items=cls.item_register.get(scope),
-            )
-            cls.file_register.add(scope, process_file)
+    #         # file: process file
+    #         process_file = NFFile(
+    #             name=name,
+    #             subtype=subtype,
+    #             items=cls.item_register.get(scope),
+    #         )
+    #         cls.file_register.add(scope, process_file)
 
-        # python tool
-        elif isinstance(tool, PythonTool):
+    #     # python tool
+    #     elif isinstance(tool, PythonTool):
 
-            # # groovy functions used in process
-            # functions_item = nfgen.parsing.process.gen_functions_for_process(tool)
-            # if functions_item:
-            #     cls.item_register.add(scope, functions_item)
+    #         # # groovy functions used in process
+    #         # functions_item = nfgen.parsing.process.gen_functions_for_process(tool)
+    #         # if functions_item:
+    #         #     cls.item_register.add(scope, functions_item)
             
-            # process
-            process_item = generate.process.gen_process_from_codetool(name, alias, tool, sources, scope)
-            process_item = cls.handle_container(scope, tool, process_item)
-            cls.item_register.add(scope, process_item)
+    #         # process
+    #         process_item = generate.process.gen_process_from_codetool(name, alias, tool, sources, scope)
+    #         process_item = cls.handle_container(scope, tool, process_item)
+    #         cls.item_register.add(scope, process_item)
 
-            # file            
-            process_file = NFFile(
-                name=name,
-                subtype=subtype,
-                items=cls.item_register.get(scope),
-            )
-            cls.file_register.add(scope, process_file)
+    #         # file            
+    #         process_file = NFFile(
+    #             name=name,
+    #             subtype=subtype,
+    #             items=cls.item_register.get(scope),
+    #         )
+    #         cls.file_register.add(scope, process_file)
 
-        # workflow
-        elif isinstance(tool, WorkflowBase):  # type: ignore
+    #     # workflow
+    #     elif isinstance(tool, WorkflowBase):  # type: ignore
             
-            # parse, update items & files for sub elements (tool / workflow calls)
-            wf = tool
-            for substep in wf.step_nodes.values():
-                scope_copy = deepcopy(scope)
-                scope_copy.update(substep)
-                cls.update_files(
-                    name=naming.constructs.gen_varname_workflow(substep.tool.id()),
-                    alias=naming.constructs.gen_varname_workflow(substep.id()),
-                    scope=scope_copy,
-                    tool=substep.tool,
-                    sources=substep.sources,
-                    scatter=substep.scatter
-                )
+    #         # parse, update items & files for sub elements (tool / workflow calls)
+    #         wf = tool
+    #         for substep in wf.step_nodes.values():
+    #             scope_copy = deepcopy(scope)
+    #             scope_copy.update(substep)
+    #             cls.update_files(
+    #                 name=naming.constructs.gen_varname_workflow(substep.tool.id()),
+    #                 alias=naming.constructs.gen_varname_workflow(substep.id()),
+    #                 scope=scope_copy,
+    #                 tool=substep.tool,
+    #                 sources=substep.sources,
+    #                 scatter=substep.scatter
+    #             )
 
-            # --- item: imports ---
-            # (each file created during parsing sub elements needs to be imported)
-            imports_item: Optional[NFImportsBlock] = None
-            imports_list: list[NFImport] = []
-            for nf_file in cls.file_register.get_children(scope):
-                # get the relative import path. this is ugly last-min code. 
-                # (main wf)
-                if len(scope.labels) == 1: 
-                    source = f'./{nf_file.path}'
-                # (subwf)
-                elif settings.translate.nextflow.SUBWORKFLOW_OUTDIR in nf_file.path:
-                    folder = os.path.split(nf_file.path)[-1]
-                    source = f'./{folder}'
-                elif settings.translate.nextflow.PROCESS_OUTDIR in nf_file.path:
-                    source = f'../{nf_file.path}'
-                else:
-                    raise NotImplementedError
+    #         # --- item: imports ---
+    #         # (each file created during parsing sub elements needs to be imported)
+    #         imports_item: Optional[NFImportsBlock] = None
+    #         imports_list: list[NFImport] = []
+    #         for nf_file in cls.file_register.get_children(scope):
+    #             # get the relative import path. this is ugly last-min code. 
+    #             # (main wf)
+    #             if len(scope.labels) == 1: 
+    #                 source = f'./{nf_file.path}'
+    #             # (subwf)
+    #             elif settings.translate.nextflow.SUBWORKFLOW_OUTDIR in nf_file.path:
+    #                 folder = os.path.split(nf_file.path)[-1]
+    #                 source = f'./{folder}'
+    #             elif settings.translate.nextflow.PROCESS_OUTDIR in nf_file.path:
+    #                 source = f'../{nf_file.path}'
+    #             else:
+    #                 raise NotImplementedError
                 
-                # get the task definition we want to import.
-                # only 1 task per file.
-                task = [x for x in nf_file.items if isinstance(x, NFProcess) or isinstance(x, NFWorkflow)][0]
-                nf_item = NFImportItem(name=task.name, alias=task.alias)
-                nf_import = NFImport(method='include', items=[nf_item], source=source)
-                imports_list.append(nf_import)
+    #             # get the task definition we want to import.
+    #             # only 1 task per file.
+    #             task = [x for x in nf_file.items if isinstance(x, NFProcess) or isinstance(x, NFWorkflow)][0]
+    #             nf_item = NFImportItem(name=task.name, alias=task.alias)
+    #             nf_import = NFImport(method='include', items=[nf_item], source=source)
+    #             imports_list.append(nf_import)
 
-            if imports_list:
-                # methods = ['include'] * len(imports_list)
-                imports = [i.get_string() for i in imports_list]
-                declarations = []  # declarations are for instantiating etc def jsonSlurper = new JsonSlurper()  
-                imports_item = NFImportsBlock(imports, declarations)
-                cls.item_register.add(scope, imports_item)
+    #         if imports_list:
+    #             # methods = ['include'] * len(imports_list)
+    #             imports = [i.get_string() for i in imports_list]
+    #             declarations = []  # declarations are for instantiating etc def jsonSlurper = new JsonSlurper()  
+    #             imports_item = NFImportsBlock(imports, declarations)
+    #             cls.item_register.add(scope, imports_item)
 
-            # --- item: functions ---
-            # (nothing for now)
-            functions_item: Optional[NFFunctionsBlock] = None
-            if functions_item:
-                cls.item_register.add(scope, functions_item)
+    #         # --- item: functions ---
+    #         # (nothing for now)
+    #         functions_item: Optional[NFFunctionsBlock] = None
+    #         if functions_item:
+    #             cls.item_register.add(scope, functions_item)
             
-            # --- item: channels (if in main scope) ---
-            channels_item: Optional[NFChannelsBlock] = None
-            if len(scope.labels) == 1:
-                relevant_channels = channels.getall(scope)
-                if relevant_channels:
-                    channels_item = NFChannelsBlock(relevant_channels)
+    #         # --- item: channels (if in main scope) ---
+    #         channels_item: Optional[NFChannelsBlock] = None
+    #         if len(scope.labels) == 1:
+    #             relevant_channels = channels.getall(scope)
+    #             if relevant_channels:
+    #                 channels_item = NFChannelsBlock(relevant_channels)
 
-            if channels_item:
-                cls.item_register.add(scope, channels_item)
+    #         if channels_item:
+    #             cls.item_register.add(scope, channels_item)
  
-            # --- item: workflow body ---
-            workflow_item = generate.main.generate_workflow(
-                scope=scope,
-                name=name,
-                alias=alias,
-                wf=wf,
-                item_register=cls.item_register
-            )
-            cls.item_register.add(scope, workflow_item)
+    #         # --- item: workflow body ---
+    #         workflow_item = generate.main.generate_workflow(
+    #             scope=scope,
+    #             name=name,
+    #             alias=alias,
+    #             wf=wf,
+    #             item_register=cls.item_register
+    #         )
+    #         cls.item_register.add(scope, workflow_item)
 
-            # ---file: workflow file ---
-            # finally, create file for this workflow
-            workflow_file = NFFile( 
-                name=name,
-                subtype=subtype,
-                items=cls.item_register.get(scope)
-            )
-            cls.file_register.add(scope, workflow_file)
+    #         # ---file: workflow file ---
+    #         # finally, create file for this workflow
+    #         workflow_file = NFFile( 
+    #             name=name,
+    #             subtype=subtype,
+    #             items=cls.item_register.get(scope)
+    #         )
+    #         cls.file_register.add(scope, workflow_file)
 
-        else:
-            raise Exception(
-                f"Nextflow translation for this {tool.__class__} is not yet supported"
-            )
+    #     else:
+    #         raise Exception(
+    #             f"Nextflow translation for this {tool.__class__} is not yet supported"
+    #         )
 
     @classmethod
     def translate_tool_internal(cls, tool: CommandTool) -> str:
@@ -327,36 +326,11 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         settings.translate.nextflow.MODE = 'tool'
-        preprocessing.register_data_sources(tool)
-        
-        sources: dict[str, Any] = {}
-        scope: Scope = Scope()
-        
-        # hack workaround
-        # scope.items = [ToolScopeItem(tool.id())]
 
-        # groovy library imports & groovy functions used in process
-        imports_item = generate.process.gen_imports_for_process(tool)
-        functions_item = generate.process.gen_functions_for_process(tool)
-        if imports_item:
-            cls.item_register.add(scope, imports_item)
-        if functions_item:
-            cls.item_register.add(scope, functions_item)
+        preprocessing.populate_task_inputs_toolmode(tool)
+        process = generate_process(tool)
+        process_file = generate_file_process(process, tool)
 
-        # process
-        name = naming.constructs.gen_varname_process(tool.id())
-        alias = None
-        process_item = generate.process.gen_process_from_cmdtool(name, alias, tool, sources, scope)
-        process_item = cls.handle_container(scope, tool, process_item)
-        cls.item_register.add(scope, process_item)
-        
-        # file
-        process_file = NFFile(
-            name=tool.id(),  # TODO here name clash checking
-            subtype='tool',
-            items=cls.item_register.get(scope),
-        )
-        settings.translate.nextflow.MODE = 'workflow'
         return process_file.get_string()
 
     @classmethod
