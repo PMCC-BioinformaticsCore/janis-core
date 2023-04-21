@@ -79,38 +79,6 @@ class WorkflowGenerationManager:
         return generator.generate()
 
 
-
-
-class TakeSortStrategy(ABC):
-    @abstractmethod
-    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
-        ...
-
-class AlphabeticalTakeSortStrategy(TakeSortStrategy):
-    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
-        return sorted(take_items, key=lambda x: x.name)
-
-class FileTakeSortStrategy(TakeSortStrategy):
-    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
-        return sorted(take_items, key=lambda x: isinstance(x.dtype, File), reverse=True)
-
-class MandatoryTakeSortStrategy(TakeSortStrategy):
-    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
-        return sorted(take_items, key=lambda x: x.dtype.optional == True)
-
-workflow_input_strategies = [
-    AlphabeticalTakeSortStrategy, 
-    FileTakeSortStrategy,
-    MandatoryTakeSortStrategy,
-]
-
-def order_workflow_take(take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
-    for strategy in workflow_input_strategies:
-        take_items = strategy().order(take_items)
-    return take_items
-
-
-
 @dataclass 
 class WFGenerator(ABC):
     wf: Workflow
@@ -241,7 +209,7 @@ class SubWFGenerator(WFGenerator):
             dtype = [x for x in self.wf.tool_inputs() if x.id() == tinput_id][0].intype  # type: ignore
             take_item = NFWorkflowTake(name, tinput_id, dtype)
             take.append(take_item)
-        return order_workflow_take(take)
+        return take
     
     @property
     def emit_block(self) -> list[NFWorkflowEmit]:
@@ -251,6 +219,7 @@ class SubWFGenerator(WFGenerator):
             expression = unwrap.unwrap_expression(
                 val=out.source, 
                 context='workflow',
+                variable_manager=self.vmanager,
                 in_shell_script=True
             )
             emit_item = NFWorkflowEmit(outname, expression)

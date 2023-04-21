@@ -49,9 +49,9 @@ class TaskCallGenerator:
     @property
     def ordered_task_input_ids(self) -> list[str]:
         if isinstance(self.task, NFProcess):
-            return [x.tinput_id for x in self.task.inputs]
+            return [x.tinput_id for x in self.task.ordered_inputs]
         elif isinstance(self.task, NFWorkflow): # type: ignore
-            return [x.tinput_id for x in self.task.take]
+            return [x.tinput_id for x in self.task.ordered_take]
         else:
             raise RuntimeError
 

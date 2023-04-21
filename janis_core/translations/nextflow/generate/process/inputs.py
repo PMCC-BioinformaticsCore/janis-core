@@ -1,4 +1,7 @@
 
+
+from abc import ABC, abstractmethod
+
 from janis_core import (
     ToolInput, 
     TInput,
@@ -11,7 +14,7 @@ from janis_core import (
 from janis_core import translation_utils as utils
 
 from ... import nfgen_utils
-from ... import ordering
+from ... import task_inputs
 
 from ...model.process.inputs import (
     NFProcessInput, 
@@ -19,8 +22,6 @@ from ...model.process.inputs import (
     NFValProcessInput,
     NFTupleProcessInput
 )
-
-from ... import task_inputs
 
 
 def gen_nf_process_inputs(tool: CommandTool | PythonTool) -> list[NFProcessInput]:
@@ -48,7 +49,6 @@ class ProcessInputGenerator:
 
         tinput_ids = task_inputs.task_inputs(self.tool.id())
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
-        tinputs = ordering.order_process_inputs(tinputs)
         
         for inp in tinputs:
             self.tinput = inp

@@ -42,14 +42,14 @@ class StdoutTestTool(CommandTool):
 
 class FileTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "FileStdoutTestTool"
+        return "FileTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", File, position=1)]
 
 class StringTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "StringStdoutTestTool"
+        return "StringTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", String, position=1)]
@@ -63,7 +63,7 @@ class StringOptTestTool(StdoutTestTool):
 
 class IntTestTool(StdoutTestTool):
     def tool(self) -> str:
-        return "IntStdoutTestTool"
+        return "IntTestTool"
 
     def inputs(self) -> list[ToolInput]:
         return [ToolInput("inp", Int, position=1)]
@@ -153,7 +153,7 @@ class StringInputSelectorTestTool(EchoBase):
 
 class ComponentsTestTool(CommandTool):
     def tool(self) -> str:
-        return "ComponentStdoutTestTool"
+        return "ComponentsTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"

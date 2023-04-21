@@ -16,7 +16,7 @@ class InputOrderingStrategy(ABC):
         """orders input values and returns ordered list"""
         ...
 
-class AlphabeticalStrategy(InputOrderingStrategy):
+class AlphabeticalInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[ToolInput]) -> list[ToolInput]:
         inputs.sort(key=lambda x: x.tag)
         return inputs
@@ -33,7 +33,7 @@ class PositionStrategy(InputOrderingStrategy):
 
 
 strategies = [
-    AlphabeticalStrategy(),
+    AlphabeticalInputStrategy(),
     MandatoryPriorityStrategy(),
     PositionStrategy(),
 ]

@@ -6,7 +6,7 @@ from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
-from janis_core import Tool, Workflow, CommandTool, PythonTool, TInput
+from janis_core import Tool, Workflow, TInput
 
 from . import task_inputs
 from .task_inputs import TaskInputType

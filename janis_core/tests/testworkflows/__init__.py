@@ -49,6 +49,7 @@ from .minimal_task_inputs import MinimalTaskInputsTestWF3
 from .minimal_task_inputs import MinimalTaskInputsTestWF4
 from .minimal_task_inputs import MinimalTaskInputsTestWF5
 from .minimal_task_inputs import MinimalTaskInputsTestWF6
+from .all_input_types import AllInputTypesTestWF
 
 
 from .assembly import w as AssemblyTestWF

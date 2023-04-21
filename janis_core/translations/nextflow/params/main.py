@@ -107,7 +107,8 @@ class Param:
     tinput_id: str
     task_id: str
     default: Any
-    dtype: Optional[DataType]
+    dtype: DataType
+    subtype: str
 
     @property
     def groovy_value(self) -> str:
@@ -132,15 +133,15 @@ class Param:
 def add(
     task_id: str,
     tinput_id: str,
+    subtype: str,
     name_override: Optional[str]=None,
     janis_dtype: Optional[DataType]=None,
-    default: Optional[Any]=None,
-    is_subtask_param: bool=False
+    default: Optional[Any]=None
 ) -> Param:
     global param_register
-    name = naming.constructs.gen_varname_param(task_id, tinput_id, name_override, is_subtask_param)
+    name = naming.constructs.gen_varname_param(task_id, subtype, tinput_id, name_override)
     assert(tinput_id)
-    param = Param(name, tinput_id, task_id, default, janis_dtype)
+    param = Param(name, tinput_id, task_id, default, janis_dtype, subtype)
     param_register.params.append(param)
     return param
 
@@ -184,7 +185,7 @@ default_params = [
         'name_override': 'outdir',
         'janis_dtype': Directory(),
         'default': './outputs',
-        'is_subtask_param': False,
+        'subtype': 'defaults',
     }
 ]    
 
@@ -196,7 +197,7 @@ def add_default_params():
             default=p['default'],
             name_override=p['name_override'],
             janis_dtype=p['janis_dtype'],
-            is_subtask_param=p['is_subtask_param'],
+            subtype=p['subtype'],
         )
 
 param_register = ParamRegister()

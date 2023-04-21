@@ -1,44 +1,35 @@
 
 
-from typing import Any, Optional
+from typing import Any
 
 from janis_core import TInput
-from janis_core.types import DataType, File, Filename, Directory
+from janis_core.types import DataType
 from janis_core import translation_utils as utils
 
 from .main import add
 from .main import Param
 
-"""
-task_id: str,
-tinput_id: str,
-name_override: Optional[str]=None,
-janis_dtype: Optional[DataType]=None,
-default: Optional[Any]=None,
-is_subtask_param: bool=False
-"""
 
-
-def register(tinput: TInput, task_id: str, is_subtask_param: bool=False) -> Param:
-    manager = ParamRegistrationManager(tinput, task_id, is_subtask_param)
+def register(tinput: TInput, task_id: str, subtype: str) -> Param:
+    manager = ParamRegistrationManager(tinput, task_id, subtype)
     return manager.register()
 
 
 class ParamRegistrationManager:
     
-    def __init__(self, tinput: TInput, task_id: str, is_subtask_param: bool=False) -> None:
+    def __init__(self, tinput: TInput, task_id: str, subtype: str) -> None:
         self.tinput = tinput
         self.task_id = task_id
-        self.is_subtask_param = is_subtask_param
+        self.subtype = subtype
     
     def register(self) -> Param:
         """registers param for each wf input which requires a param."""
         new_param = add(
             task_id=self.task_id,
             tinput_id=self.tinput.id(),
+            subtype=self.subtype,
             janis_dtype=self.tinput.intype,
             default=self.default,
-            is_subtask_param=self.is_subtask_param
         )
         return new_param
 

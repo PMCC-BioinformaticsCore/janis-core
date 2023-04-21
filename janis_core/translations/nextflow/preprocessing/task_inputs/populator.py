@@ -110,8 +110,11 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
             self.update_as_task_input(tinput_id)
         for tinput_id in self.param_inputs: 
             self.update_as_param_input(tinput_id)
-        for tinput_id in self.static_inputs: 
-            self.update_as_static_input(tinput_id)
+        for tinput_id in self.static_inputs:
+            try:
+                self.update_as_static_input(tinput_id)
+            except Exception:
+                self.update_as_task_input(tinput_id)
         for tinput_id in self.ignored_inputs: 
             self.update_as_ignored_input(tinput_id)
 
@@ -144,7 +147,16 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
     def update_as_param_input(self, tinput_id: str) -> None:
         ti_type = 'param'
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
-        param = params.register(tinput, self.tool.id(), is_subtask_param=True)
+        
+        # task subtype
+        if self.tool.id() == self.main_wf.id():
+            subtype = 'main_workflow'
+        elif isinstance(self.tool, Workflow):
+            subtype = 'sub_workflow'
+        else:
+            subtype = 'sub_tool'
+        
+        param = params.register(tinput, self.tool.id(), subtype)
         value = f'params.{param.name}'
         task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
     

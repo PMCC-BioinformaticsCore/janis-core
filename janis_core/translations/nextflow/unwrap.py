@@ -314,14 +314,14 @@ class Unwrapper:
 
     def should_quote(self, val: Any, expr: Any) -> bool:
         # only quote strings
-        if not isinstance(expr, str):
+        if not isinstance(val, str) or not isinstance(expr, str):
             return False
         # dont quote if already quoted
         if expr.startswith('"') or expr.endswith('"'):
             return False
         # # dont quote if wrapped isn't string & context is workflow
-        if not isinstance(val, str) and self.context == 'workflow':
-            return False
+        # if not isinstance(val, str) and self.context == 'workflow':
+        #     return False
         # master override - set when calling unwrap_expression.
         # some sort of external context means the expr should be quoted. 
         if self.quote_strings == True:
@@ -329,12 +329,11 @@ class Unwrapper:
         if self.quote_strings == False:
             return False
         # string within curly braces
-        if isinstance(val, str) and len(self.operator_stack) > 0:
+        if len(self.operator_stack) > 0:
             return True
         # stringformatter within shell script
         elif self.in_shell_script and isinstance(val, StringFormatter):
-            if self.quote_strings != False:
-                return True
+            return True
         return False
 
     def get_input_by_id(self, input_id: str) -> ToolInput:
@@ -553,16 +552,21 @@ class Unwrapper:
         if self.context == 'process_script' or self.context == 'process_output':
             assert(self.tool)
             assert(self.vmanager)
-            return self.unwrap_string_formatter_process(selector)
+            expr = self.unwrap_string_formatter_process(selector)
         elif self.context == 'workflow':
-            return self.unwrap_string_formatter_workflow(selector)
+            expr = self.unwrap_string_formatter_workflow(selector)
         else:
             raise RuntimeError
+        qs_temp = deepcopy(self.quote_strings)
+        self.quote_strings = True
+        expr = self.unwrap(expr)
+        self.quote_strings = qs_temp
+        return expr
         
     def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
         # assert(self.tool)  # n
         if len(selector.kwargs) == 0:
-            return str(selector)
+            return self.unwrap(selector._format)
 
         kwarg_replacements: dict[str, Any] = {}
 
@@ -576,11 +580,11 @@ class Unwrapper:
         if self.in_shell_script:
             arg_val = arg_val.replace("\\", "\\\\")
 
-        return arg_val
+        return self.unwrap(arg_val)
         
     def unwrap_string_formatter_workflow(self, selector: StringFormatter) -> str:
         if len(selector.kwargs) == 0:
-            return str(selector)
+            return self.unwrap(selector._format)
 
         kwarg_replacements: dict[str, Any] = {}
         for k, v in selector.kwargs.items():
@@ -600,7 +604,7 @@ class Unwrapper:
         for k in selector.kwargs:
             text_format = text_format.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
         
-        return text_format
+        return self.unwrap(text_format)
 
     def reformat_stringformatter_format_for_workflow_scope(self, old_format: str) -> str:
         # reformat the selector format to be correct groovy syntax for use in workflow scope
@@ -805,11 +809,15 @@ class Unwrapper:
         assert(self.vmanager)
         cvar = self.vmanager.get(node.id()).current
         if cvar.vtype == VariableType.STATIC:
+            # TODO debug make breakpoint. test = test_static_inputs()
             should_quote = self.should_quote(cvar.value, cvar.value)
             return nfgen_utils.to_groovy(cvar.value, quote_override=should_quote)
         else:
+            qs_temp = deepcopy(self.quote_strings)
             self.quote_strings = False
-            return self.unwrap(cvar.value)
+            expr = self.unwrap(cvar.value)
+            self.quote_strings = qs_temp
+            return expr
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:
         # TODO save state of self.quote string

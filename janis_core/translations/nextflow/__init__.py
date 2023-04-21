@@ -11,7 +11,6 @@
 from . import generate
 from . import model
 from . import naming
-from . import ordering
 from . import params
 # from . import plumbing
 from . import preprocessing

@@ -101,8 +101,6 @@ class OrderingTestWF(Workflow):
             )
         )
 
-
-
     def friendly_name(self):
         return "TEST: OrderingTestWF"
 
@@ -113,7 +111,7 @@ class OrderingTestWF(Workflow):
 
 class MultiTypeTestTool(CommandTool):
     def tool(self) -> str:
-        return "FastqTestTool"
+        return "MultiTypeTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return "echo"

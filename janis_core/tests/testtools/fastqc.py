@@ -88,7 +88,7 @@ All except Basic Statistics and Overrepresented sequences are plots.
     """
 )
 
-inputs = [
+mandatory_inputs = [
 	# Positionals
 	ToolInput(
 		'inputFile',
@@ -201,7 +201,7 @@ FastqcTestTool = CommandToolBuilder(
     metadata=metadata,
     container="quay.io/biocontainers/fastqc:0.11.8--2",
     base_command=['fastqc'],
-    inputs=inputs,
+    inputs=mandatory_inputs,
     outputs=outputs
 )
 

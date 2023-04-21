@@ -221,7 +221,7 @@ Galaxy's wrapped for Unicycler produces two outputs:
     """
 )
 
-inputs = [
+mandatory_inputs = [
 	# Positionals
 
 	# Flags
@@ -484,7 +484,7 @@ UnicyclerTestTool = CommandToolBuilder(
     metadata=metadata,
     container="quay.io/biocontainers/unicycler:0.4.8--py39h98c8e45_5",
     base_command=['unicycler'],
-    inputs=inputs,
+    inputs=mandatory_inputs,
     outputs=outputs
 )
 

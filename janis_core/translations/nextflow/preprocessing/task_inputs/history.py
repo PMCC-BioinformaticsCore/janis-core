@@ -4,11 +4,12 @@ from typing import Any, Optional
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from janis_core import Tool, Workflow, CommandTool, PythonTool
+from janis_core import Tool, Workflow, CommandTool, PythonTool, TInput, TOutput
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import DataType
 
+from ... import trace
 
 
 @dataclass
@@ -19,10 +20,7 @@ class TaskInputHistory:
 
     @property
     def is_file(self) -> bool:
-        if True:
-            pass
-        elif utils.is_file_type(self.dtype):
-            return True
+        return utils.is_file_type(self.dtype)
     
     @property
     def is_optional(self) -> bool:
@@ -61,7 +59,15 @@ class TaskInputCollector:
             return self.init_inputs_dict_tool()
         else:
             return self.init_inputs_dict_workflow()
-    
+
+    def trace_to_node(self, entity: Any, tool: Tool) -> Optional[TInput | TOutput]:
+        referenced_vars = trace.trace_referenced_variables(entity, tool)
+        for var in referenced_vars:
+            if var in tool.all_input_keys():
+                return tool.inputs_map()[var]
+            else:
+                print()
+            
     def init_inputs_dict_tool(self) -> dict[str, Any]:
         return {tinput_id: None for tinput_id in self.tool.inputs_map().keys()}
 
@@ -75,6 +81,7 @@ class TaskInputCollector:
             for step in self.tool.step_nodes.values():
                 for tinput_id, src in step.sources.items():
                     src_node = utils.resolve_node(src)
+                    # src_node = self.trace_to_node(src, self.tool)
                     if isinstance(src_node, InputNode) and src_node.id() == node.id():
                         derived_fmt = f'{step.id()}_{tinput_id}'
                         if node.id() == derived_fmt:
@@ -113,12 +120,14 @@ class TaskInputCollector:
             if tinput_id in sources:
                 src = sources[tinput_id]
                 node = utils.resolve_node(src)
+                # node = self.trace_to_node(src, self.tool)
                 inputs_dict[tinput_id] = node
         return inputs_dict
     
     def replace_static_values(self, inputs_dict: dict[str, Any]) -> dict[str, Any]:
         for tid, src in inputs_dict.items():
             node = utils.resolve_node(src)
+            # node = self.trace_to_node(src, self.tool)
             if isinstance(node, InputNode):
                 if node.default is not None:  # type: ignore
                     inputs_dict[tid] = node.default  # type: ignore

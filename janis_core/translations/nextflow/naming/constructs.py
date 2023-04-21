@@ -50,14 +50,14 @@ def gen_varname_file(janis_tag: str, name_override: Optional[str]=None, dtype: O
 
 def gen_varname_param(
     task_id: str, 
+    subtype: str,
     tinput_id: Optional[str]=None, 
     name_override: Optional[str]=None, 
-    is_subtask_param: bool=False
     ) -> str:
     assert(tinput_id or name_override)
     basename = name_override if name_override else tinput_id
     basename = to_case(basename, settings.translate.nextflow.NF_PARAM_CASE)
-    if task_id and is_subtask_param:
+    if task_id and subtype not in  ['main_workflow', 'defaults']:
         task_id = to_case(task_id, settings.translate.nextflow.NF_PARAM_CASE)
         name = f'{task_id}.{basename}'
     else:

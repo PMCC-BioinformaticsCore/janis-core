@@ -1,18 +1,36 @@
 
+
+
+from abc import ABC, abstractmethod
 from enum import Enum
 from textwrap import indent
-
-from typing import Optional
+from typing import Optional, Type
 from dataclasses import dataclass, field
 
 from janis_core import settings
-from ... import ordering
 
-from .directives import NFProcessDirective
-from .inputs import NFProcessInput
+from .directives import (
+    NFProcessDirective,
+    NFContainerDirective,
+    NFDebugDirective,
+    NFCpusDirective,
+    NFDiskDirective,
+    NFMemoryDirective,
+    NFPublishDirDirective,
+    NFTimeDirective
+)
+
+from .inputs import (
+    NFProcessInput, 
+    NFPathProcessInput, 
+    NFTupleProcessInput
+)
+
 from .outputs import NFProcessOutput
 
 INDENT = settings.translate.nextflow.NF_INDENT
+
+
 
 
 class NFProcessScriptType(Enum):
@@ -35,20 +53,30 @@ class NFProcess:
     when: Optional[str] = None  # TODO unimplemented?
     pre_script: Optional[str] = None
     
+    @property 
+    def ordered_directives(self) -> list[NFProcessDirective]:
+        return order_nf_directives(self.directives)
+    
+    @property 
+    def ordered_inputs(self) -> list[NFProcessInput]:
+        return order_nf_process_inputs(self.inputs)
+    
+    @property 
+    def ordered_outputs(self) -> list[NFProcessOutput]:
+        return order_nf_process_outputs(self.outputs)
+
     @property
     def formatted_directives(self):
         if not self.directives:
             return None
-        directives = ordering.order_nf_directives(self.directives)
-        return "\n".join(INDENT + d.get_string() for d in directives)
-
+        return "\n".join(INDENT + d.get_string() for d in self.ordered_directives)
+    
     @property
     def formatted_inputs(self):
         if not self.inputs:
             return None
-        process_inputs = ordering.order_nf_process_inputs(self.inputs)
         return indent(
-            "input:\n" + "\n".join(i.get_string() for i in process_inputs), 
+            "input:\n" + "\n".join(i.get_string() for i in self.ordered_inputs), 
             INDENT
         )
 
@@ -57,7 +85,7 @@ class NFProcess:
         if not self.outputs:
             return None
         return indent(
-            "output:\n" + "\n".join(o.get_string() for o in self.outputs),
+            "output:\n" + "\n".join(o.get_string() for o in self.ordered_outputs),
             INDENT,
         )
     
@@ -104,3 +132,105 @@ process {self.name} {{
 {tool_definition}
 }}
 """
+
+
+
+### ORDERING ###
+
+# ORDERING: DIRECTIVES
+
+directive_priorities: dict[Type[NFProcessDirective], int] = {
+    NFDebugDirective: 0,
+    NFContainerDirective: 1,
+    NFPublishDirDirective: 2,
+    NFCpusDirective: 9,
+    NFDiskDirective: 9,
+    NFMemoryDirective: 9,
+    NFTimeDirective: 9,
+}
+
+class DirectiveOrderer(ABC):
+    @abstractmethod
+    def order(self, directives: list[NFProcessDirective]) -> list[NFProcessDirective]:
+        ...
+
+class PriorityDirectiveOrderer(DirectiveOrderer):
+    def order(self, directives: list[NFProcessDirective]) -> list[NFProcessDirective]:
+        return sorted(directives, key=lambda x: directive_priorities[type(x)])
+
+class AlphabeticalDirectiveOrderer(DirectiveOrderer):
+    def order(self, directives: list[NFProcessDirective]) -> list[NFProcessDirective]:
+        return sorted(directives, key=lambda x: type(x).__name__)
+
+process_directive_strategies = [
+    AlphabeticalDirectiveOrderer,
+    PriorityDirectiveOrderer,
+]
+
+def order_nf_directives(directives: list[NFProcessDirective]) -> list[NFProcessDirective]:
+    for orderer in process_directive_strategies:
+        directives = orderer().order(directives)
+    return directives
+
+
+# ORDERING: PROCESS INPUTS
+
+class InputOrderingStrategy(ABC):
+    @abstractmethod
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        ...
+
+class AlphabeticalInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        return sorted(inputs, key=lambda x: self.input_name(x))
+
+    def input_name(self, pinput: NFProcessInput) -> str:
+        if isinstance(pinput, NFTupleProcessInput):
+            name = pinput.subnames[0]
+        else:
+            name = pinput.name
+        return name
+
+class PathPriorityInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        out = sorted(inputs, key=lambda x: isinstance(x, NFPathProcessInput), reverse=True)
+        return out
+
+class TuplePriorityInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        out = sorted(inputs, key=lambda x: isinstance(x, NFTupleProcessInput), reverse=True)
+        return out
+
+process_input_strategies = [
+    AlphabeticalInputStrategy,
+    PathPriorityInputStrategy,
+    TuplePriorityInputStrategy,
+]
+
+def order_nf_process_inputs(inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+    for strategy in process_input_strategies:
+        inputs = strategy().order(inputs)
+    return inputs
+
+
+
+# ORDERING: PROCESS OUTPUTS
+
+class OutputOrderingStrategy(ABC):
+    @abstractmethod
+    def order(self, outputs: list[NFProcessOutput]) -> list[NFProcessOutput]:
+        ...
+
+class AlphabeticalOutputStrategy(OutputOrderingStrategy):
+    def order(self, outputs: list[NFProcessOutput]) -> list[NFProcessOutput]:
+        return sorted(outputs, key=lambda x: x.name)
+
+process_output_strategies = [
+    AlphabeticalOutputStrategy,
+]
+
+def order_nf_process_outputs(outputs: list[NFProcessOutput]) -> list[NFProcessOutput]:
+    for strategy in process_output_strategies:
+        outputs = strategy().order(outputs)
+    return outputs
+

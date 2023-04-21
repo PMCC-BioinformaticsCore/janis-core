@@ -56,7 +56,8 @@ def _populate_task_inputs_mainwf(wf: Workflow) -> None:
     for tinput_id in param_tinput_ids:
         ti_type = 'param'
         tinput = [x for x in wf.tool_inputs() if x.id() == tinput_id][0]
-        param = params.register(tinput, task_id=wf.id())
+        subtype = 'main_workflow'
+        param = params.register(tinput, task_id=wf.id(), subtype=subtype)
         value = f'params.{param.name}'
         task_inputs.update(wf.id(), ti_type, tinput_id, value)
         print()

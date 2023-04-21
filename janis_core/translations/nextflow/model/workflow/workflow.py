@@ -5,7 +5,7 @@ from textwrap import indent
 from typing import Optional
 
 from janis_core import settings
-from janis_core.types import DataType
+from janis_core.types import DataType, File
 
 from dataclasses import dataclass
 from abc import ABC, abstractmethod, abstractproperty
@@ -20,6 +20,14 @@ class NFWorkflow(ABC):
     main: list[str]   
     take: list[NFWorkflowTake]
     emit: list[NFWorkflowEmit]
+
+    @property
+    def ordered_take(self) -> list[NFWorkflowTake]:
+        return order_workflow_take(self.take)
+    
+    @property
+    def ordered_emit(self) -> list[NFWorkflowEmit]:
+        return order_workflow_emit(self.emit)
 
     @abstractproperty
     def main_block(self) -> str:
@@ -62,7 +70,7 @@ class NFSubWorkflow(NFWorkflow):
         if len(self.take) == 0:
             return ''
         else:
-            take = "\ntake:\n" + "\n".join(i.get_string() for i in self.take) + '\n'
+            take = "\ntake:\n" + "\n".join(i.get_string() for i in self.ordered_take) + '\n'
             return indent(take, INDENT)
 
     @property
@@ -70,7 +78,7 @@ class NFSubWorkflow(NFWorkflow):
         if len(self.emit) == 0:
             return ''
         else:
-            emit = "emit:\n" + "\n".join(i.get_string() for i in self.emit)  + '\n\n'
+            emit = "emit:\n" + "\n".join(i.get_string() for i in self.ordered_emit)  + '\n\n'
             return indent(emit, INDENT)
     
     def get_string(self) -> str:
@@ -140,36 +148,55 @@ class NFWorkflowEmit:
     
 
 
-from abc import ABC, abstractmethod
-# from janis_core.workflow.workflow import InputNode
-from janis_core.types import File
-from janis_core import TInput
+### ORDERING ###
 
+# ORDERING: TAKE
 
-class WinpStrategy(ABC):
+class TakeSortStrategy(ABC):
     @abstractmethod
-    def order(self, inputs: list[TInput]) -> list[TInput]:
+    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
         ...
 
-class AlphabeticalWinpStrategy(WinpStrategy):
-    def order(self, inputs: list[TInput]) -> list[TInput]:
-        return sorted(inputs, key=lambda x: x.id())
+class AlphabeticalTakeSortStrategy(TakeSortStrategy):
+    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
+        return sorted(take_items, key=lambda x: x.name)
 
-class FileWinpStrategy(WinpStrategy):
-    def order(self, inputs: list[TInput]) -> list[TInput]:
-        return sorted(inputs, key=lambda x: isinstance(x, File), reverse=True)
+class FileTakeSortStrategy(TakeSortStrategy):
+    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
+        return sorted(take_items, key=lambda x: isinstance(x.dtype, File), reverse=True)
 
-class MandatoryWinpStrategy(WinpStrategy):
-    def order(self, inputs: list[TInput]) -> list[TInput]:
-        return sorted(inputs, key=lambda x: x.intype.optional == True)
+class MandatoryTakeSortStrategy(TakeSortStrategy):
+    def order(self, take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
+        return sorted(take_items, key=lambda x: x.dtype.optional == True)
 
-workflow_input_strategies = [
-    AlphabeticalWinpStrategy, 
-    FileWinpStrategy,
-    MandatoryWinpStrategy,
+workflow_take_strategies = [
+    AlphabeticalTakeSortStrategy, 
+    FileTakeSortStrategy,
+    MandatoryTakeSortStrategy,
 ]
 
-def order_workflow_inputs(inputs: list[TInput]) -> list[TInput]:
-    for strategy in workflow_input_strategies:
-        inputs = strategy().order(inputs)
-    return inputs
+def order_workflow_take(take_items: list[NFWorkflowTake]) -> list[NFWorkflowTake]:
+    for strategy in workflow_take_strategies:
+        take_items = strategy().order(take_items)
+    return take_items
+
+
+# ORDERING: EMIT
+
+class EmitSortStrategy(ABC):
+    @abstractmethod
+    def order(self, emit_items: list[NFWorkflowEmit]) -> list[NFWorkflowEmit]:
+        ...
+
+class AlphabeticalEmitSortStrategy(EmitSortStrategy):
+    def order(self, emit_items: list[NFWorkflowEmit]) -> list[NFWorkflowEmit]:
+        return sorted(emit_items, key=lambda x: x.name)
+
+workflow_emit_strategies = [
+    AlphabeticalEmitSortStrategy, 
+]
+
+def order_workflow_emit(emit_items: list[NFWorkflowEmit]) -> list[NFWorkflowEmit]:
+    for strategy in workflow_emit_strategies:
+        emit_items = strategy().order(emit_items)
+    return emit_items

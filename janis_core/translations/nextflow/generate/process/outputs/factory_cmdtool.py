@@ -16,6 +16,7 @@ from janis_core import (
 from janis_core import translation_utils as utils
 
 from .... import task_inputs
+from ....task_inputs import TaskInputType
 from ....trace import trace_entity_counts
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
@@ -119,9 +120,10 @@ def has_n_collectors(out: ToolOutput, n: int) -> bool:
 class FmtType(Enum):
     REFERENCE    = auto()  # reference to process input or param
     WILDCARD     = auto()  # regex based collection
-    FILENAME     = auto()  # filename ToolInput
-    FILENAME_REF = auto()  # filename referencing another ToolInput: process input or param
-    FILENAME_GEN = auto()  # filename referencing another ToolInput: internal input
+    FILENAME     = auto()  # filename TInput
+    FILENAME_REF = auto()  # filename referencing another TInput: process input or param
+    FILENAME_GEN = auto()  # filename referencing another TInput: internal input
+    STATIC       = auto()  # static value for TInput
     COMPLEX      = auto()  # complex use of selectors / operators
 
 
@@ -150,7 +152,7 @@ class CmdtoolProcessOutputFactory:
         }
         
         self.add_braces: bool = False
-        self.add_quotes: bool = False
+        self.quote_strings: bool = False
     
     # public method
     def create(self) -> NFProcessOutput:
@@ -217,7 +219,13 @@ class CmdtoolProcessOutputFactory:
             
             # ToolInput is not Filename type (direct reference)
             else:
-                return FmtType.REFERENCE
+                # TInput with static value for process
+                task_input = task_inputs.get(self.tool.id(), tinput)
+                if task_input.ti_type == TaskInputType.STATIC:
+                    return FmtType.STATIC
+                # TInput which is referenced by variable
+                else:
+                    return FmtType.REFERENCE
         
         # anything else
         else:
@@ -226,12 +234,12 @@ class CmdtoolProcessOutputFactory:
     def unwrap_collection_expression(self, expr: Any) -> str:
         if self.ftype == FmtType.REFERENCE:
             self.add_braces = False
-            self.add_quotes = False
+            self.quote_strings = False
             expr = self.unwrap(expr)  
         
-        elif self.ftype in (FmtType.WILDCARD, FmtType.FILENAME_GEN):
+        elif self.ftype in (FmtType.WILDCARD, FmtType.STATIC, FmtType.FILENAME_GEN):
             self.add_braces = False
-            self.add_quotes = False
+            self.quote_strings = True
             expr = self.unwrap(expr)
             if expr is None:
                 print()
@@ -240,7 +248,7 @@ class CmdtoolProcessOutputFactory:
         
         elif self.ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
             self.add_braces = True
-            self.add_quotes = False
+            self.quote_strings = True
             expr = self.unwrap(expr)
             if expr is None:
                 print()
@@ -259,7 +267,7 @@ class CmdtoolProcessOutputFactory:
             variable_manager=self.variable_manager,
             tool=self.tool,
             in_shell_script=self.add_braces,
-            quote_strings=self.add_quotes,
+            quote_strings=self.quote_strings,
         )
     
     # process output creation methods
