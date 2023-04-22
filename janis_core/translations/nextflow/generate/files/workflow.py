@@ -92,16 +92,35 @@ def _get_task(task_id: str, nf_processes: dict[str, NFProcess], nf_workflows: di
     
 def _get_relpath(task: NFProcess | NFWorkflow, nf_workflow: NFWorkflow) -> str:
     filename = to_case(task.name, settings.translate.nextflow.NF_FILE_CASE)
-    if isinstance(nf_workflow, NFMainWorkflow) and isinstance(task, NFProcess):
-        return f'{settings.translate.nextflow.PROCESS_OUTDIR}/{filename}'
-    elif isinstance(nf_workflow, NFMainWorkflow) and isinstance(task, NFWorkflow):
-        return f'{settings.translate.nextflow.SUBWORKFLOW_OUTDIR}/{filename}'
-    elif isinstance(nf_workflow, NFSubWorkflow) and isinstance(task, NFProcess):
-        return f'../{settings.translate.nextflow.SUBWORKFLOW_OUTDIR}/{filename}'
+
+    # main -> subworkflow
+    if isinstance(nf_workflow, NFMainWorkflow) and isinstance(task, NFSubWorkflow):
+        relpath = f'./{settings.translate.nextflow.SUBWORKFLOW_OUTDIR}/{filename}'
+    
+    # main -> process
+    elif isinstance(nf_workflow, NFMainWorkflow) and isinstance(task, NFProcess):
+        relpath = f'./{settings.translate.nextflow.PROCESS_OUTDIR}/{filename}'
+
+    # subworkflow -> subworkflow
     elif isinstance(nf_workflow, NFSubWorkflow) and isinstance(task, NFSubWorkflow):
-        return f'{filename}'
+        relpath = f'./{filename}'
+    
+    # subworkflow -> process
+    elif isinstance(nf_workflow, NFSubWorkflow) and isinstance(task, NFProcess):
+        relpath = f'../{settings.translate.nextflow.PROCESS_OUTDIR}/{filename}'
+
+    # process -> subworkflow
+    elif isinstance(nf_workflow, NFProcess) and isinstance(task, NFSubWorkflow):
+        relpath = f'../{settings.translate.nextflow.SUBWORKFLOW_OUTDIR}/{filename}'
+    
+    # process -> process
+    elif isinstance(nf_workflow, NFProcess) and isinstance(task, NFProcess):
+        relpath = f'./{filename}'
+
     else:
         raise NotImplementedError
+    
+    return relpath
     
 def gen_functions_for_workflow_file(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFFunctionsBlock]:
     # do we need to generate any groovy functions for this workflow?

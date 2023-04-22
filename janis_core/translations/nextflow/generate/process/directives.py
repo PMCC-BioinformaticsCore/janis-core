@@ -10,6 +10,7 @@ from ... import params
 
 from ...model.process.directives import (
     NFProcessDirective,
+    NFContainerDirective,
     NFPublishDirDirective,
     NFDebugDirective,
     NFCpusDirective,
@@ -24,13 +25,30 @@ from ...model.process.directives import (
 
 
 def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[str, Any]) -> list[NFProcessDirective]:
-    # TODO REFACTOR
     nf_directives: dict[str, NFProcessDirective] = {}
+    
+    # publishDir
     if settings.translate.nextflow.MODE == 'workflow':
         nf_directives['publishDir'] = NFPublishDirDirective(tool.id())
+    
+    # debug
     nf_directives['debug'] = NFDebugDirective(debug='true')
 
-    # Add directives from input resources
+    # container
+    uri = None
+    if settings.translate.WITH_CONTAINER and tool.container():
+        uri = tool.container()
+        # unwrap_expression()? 
+        nf_directives['container'] = NFContainerDirective(uri)
+
+    if uri is None and not settings.translate.ALLOW_EMPTY_CONTAINER:
+        raise Exception(
+            f"The tool '{tool.id()}' did not have a container and no container override was specified. "
+            f"Although not recommended, Janis can export empty docker containers with the parameter "
+            f"'allow_empty_container=True' or --allow-empty-container"
+        )
+
+    # directives from input resources
     for res, val in resources.items():
         if res.endswith("runtime_cpu"):
             param = params.add(tinput_id='cpus', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
@@ -48,7 +66,7 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
             param = params.add(tinput_id='disk', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
             nf_directives['disk'] = NFDiskDirective(param)
     
-    # Add directives from tool resources
+    # directives from tool resources
     if settings.translate.nextflow.MODE == 'workflow':
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
             param = params.add(tinput_id='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int(), subtype='sub_tool')

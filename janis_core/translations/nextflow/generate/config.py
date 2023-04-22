@@ -118,7 +118,7 @@ def value(param: Param) -> str:
 
     # file array optional
     elif isinstance(basetype, File) and dtype.is_array() and dtype.optional:
-        val = "['NO_FILE]"
+        val = "['NO_FILE']"
     
     # file array
     elif isinstance(basetype, File) and dtype.is_array():

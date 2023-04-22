@@ -11,6 +11,7 @@ from janis_core import (
     ToolInput,
     ToolOutput,
     InputSelector,
+    WildcardSelector
 )
 
 class AllInputTypesTestWF(Workflow):
@@ -109,10 +110,10 @@ class FileTestTool(CommandTool):
     
     def outputs(self):
         return [
-            ToolOutput("out_file", File(), selector=InputSelector("file")),
-            ToolOutput("out_file_array", Array(File()), selector=InputSelector("file_array")),
-            ToolOutput("out_file_optional", File(optional=True), selector=InputSelector("file_optional")),
-            ToolOutput("out_file_array_optional", Array(File(), optional=True), selector=InputSelector("file_array_optional"))
+            ToolOutput("out_file", File(), selector=InputSelector("infile")),
+            ToolOutput("out_file_array", Array(File()), selector=InputSelector("infile_array")),
+            ToolOutput("out_file_optional", File(optional=True), selector=InputSelector("infile_optional")),
+            ToolOutput("out_file_array_optional", Array(File(), optional=True), selector=InputSelector("infile_array_optional"))
         ]
 
     def container(self) -> str:
@@ -198,10 +199,10 @@ class FilePairTestTool(CommandTool):
     
     def outputs(self):
         return [
-            ToolOutput("out_filepair", FastqPairedEnd(), selector=InputSelector("filepair")),
-            ToolOutput("out_filepair_array", Array(FastqPairedEnd()), selector=InputSelector("filepair_array")),
-            ToolOutput("out_filepair_optional", FastqPairedEnd(optional=True), selector=InputSelector("filepair_optional")),
-            ToolOutput("out_filepair_array_optional", Array(FastqPairedEnd(), optional=True), selector=InputSelector("filepair_array_optional"))
+            ToolOutput("out_filepair", FastqPairedEnd(), selector=WildcardSelector("filepair")),
+            ToolOutput("out_filepair_array", Array(FastqPairedEnd()), selector=WildcardSelector("filepair_array")),
+            ToolOutput("out_filepair_optional", FastqPairedEnd(optional=True), selector=WildcardSelector("filepair_optional")),
+            ToolOutput("out_filepair_array_optional", Array(FastqPairedEnd(), optional=True), selector=WildcardSelector("filepair_array_optional"))
         ]
 
     def container(self) -> str:

@@ -35,8 +35,9 @@ class OType(Enum):
     STDOUT              = auto()
     NON_FILE            = auto()
     FILE                = auto()
-    FILEPAIR            = auto()
     FILE_ARRAY          = auto()
+    FILEPAIR            = auto()
+    FILEPAIR_ARRAY      = auto()
     SECONDARIES         = auto()
     SECONDARIES_ARRAY   = auto()
 
@@ -45,6 +46,9 @@ def get_otype(out: ToolOutput) -> OType:
     if is_stdout_type(out):
         return OType.STDOUT
 
+    elif is_filepair_type(out) and is_array_type(out):
+        return OType.FILEPAIR_ARRAY
+    
     elif is_filepair_type(out):
         return OType.FILEPAIR
     
@@ -145,8 +149,9 @@ class CmdtoolProcessOutputFactory:
             OType.STDOUT: self.stdout_output,
             OType.NON_FILE: self.non_file_output,
             OType.FILE: self.file_output,
-            OType.FILEPAIR: self.file_pair_output,
             OType.FILE_ARRAY: self.file_array_output,
+            OType.FILEPAIR: self.filepair_output,
+            OType.FILEPAIR_ARRAY: self.filepair_array_output,
             OType.SECONDARIES: self.secondaries_output,
             OType.SECONDARIES_ARRAY: self.secondaries_array_output,
         }
@@ -294,24 +299,19 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def file_pair_output(self) -> NFTupleProcessOutput:
-        assert(len(self.out.selector) == 2)
-        qualifiers: list[str] = ['path', 'path']
-        expressions: list[str] = []
-        
-        for item in self.out.selector:
-            expr = self.unwrap_collection_expression(item)
-            expressions.append(expr)
-        
-        new_output = NFTupleProcessOutput(
-            name=self.out.id(), 
-            janis_tag=self.out.id(),
-            is_optional=self.optional,
-            qualifiers=qualifiers, 
-            expressions=expressions
-        )
-        return new_output
+    def filepair_output(self) -> NFPathProcessOutput:
+        if self.ftype == FmtType.WILDCARD:
+            return self.file_output()
+        else:
+            raise NotImplementedError
     
+    def filepair_array_output(self) -> NFPathProcessOutput:
+        if self.ftype == FmtType.WILDCARD:
+            # TODO raise warning
+            return self.file_output()
+        else:
+            raise NotImplementedError
+        
     def file_array_output(self) -> NFPathProcessOutput:
         return self.file_output()
     

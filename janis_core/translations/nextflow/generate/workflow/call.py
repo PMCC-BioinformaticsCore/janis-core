@@ -171,13 +171,17 @@ class TaskCallArgumentGenerator:
 
         # handle misc edge case (takes priority over datatype mismatches)
         if self.src is not None and satisfies_edge_case(self.src):
-            suffix = handle_edge_case(self.src)
-            arg = f'{arg}{suffix}'
+            # TODO optionality checking should be inside handle_edge_case()
+            if not self.srctype.optional:
+                suffix = handle_edge_case(self.src)
+                arg = f'{arg}{suffix}'
 
         # handle datatype relationship
         elif self.srctype is not None and is_datatype_mismatch(self.srctype, self.desttype, self.dest_scatter):
-            suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter)
-            arg = f'{arg}{suffix}'
+            # TODO optionality checking should be inside gen_datatype_mismatch_plumbing()
+            if not self.srctype.optional:
+                suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter)
+                arg = f'{arg}{suffix}'
         
         return arg
 

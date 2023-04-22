@@ -23,9 +23,9 @@ class NFFile:
     @property
     def path(self) -> str:
         if self.subtype == 'process':
-            directory = 'modules'
+            directory = settings.translate.nextflow.PROCESS_OUTDIR
         elif self.subtype == 'sub_workflow':
-            directory = 'subworkflows'
+            directory = settings.translate.nextflow.SUBWORKFLOW_OUTDIR
         elif self.subtype == 'main_workflow':
             directory = ''
         else:
@@ -67,6 +67,20 @@ class NFImport:
         return f"{self.method} {{ {items} }} from '{self.source}'"
 
 
+class NFImportsBlock:
+    def __init__(self, imports: list[str], declarations: list[str]) -> None:
+        self.imports = imports
+        self.declarations = declarations
+
+    def get_string(self) -> str:
+        imports = [f'{imp}' for imp in self.imports]
+        imports = '\n'.join(imports)
+        declarations = [f'def {dec}' for dec in self.declarations]
+        declarations = '\n'.join(declarations)
+        return f'{imports}\n{declarations}'
+
+
+
 class NFFunction:
     """its actually a groovy function but whatever"""
     def __init__(self, name: str, parameters: list[str], definition: str):
@@ -87,19 +101,3 @@ class NFFunctionsBlock:
 
     def get_string(self) -> str:
         return '\n\n'.join(self.functions)
-
-class NFImportsBlock:
-    def __init__(self, imports: list[str], declarations: list[str]) -> None:
-        # assert(len(methods) == len(imports))
-        # self.methods = methods
-        self.imports = imports
-        self.declarations = declarations
-
-    def get_string(self) -> str:
-        # imports = [f'{meth} {imp}' for meth, imp in zip(self.methods, self.imports)]
-        imports = [f'{imp}' for imp in self.imports]
-        declarations = [f'def {dec}' for dec in self.declarations]
-        imports = '\n'.join(imports)
-        declarations = '\n'.join(declarations)
-        return f'{imports}\n{declarations}'
-

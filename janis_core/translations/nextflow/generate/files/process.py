@@ -42,8 +42,6 @@ def generate_file_process(process: NFProcess, tool: CommandTool | PythonTool) ->
     # item: process
     nf_file.items.append(process)
 
-    # process_item = cls.handle_container(scope, tool, process_item)
-    # cls.item_register.add(scope, process_item)
     return nf_file
 
 
