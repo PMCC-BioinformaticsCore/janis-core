@@ -392,7 +392,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         #return workflow.versioned_id() + ".input.json"
-        return 'config'
+        return 'nextflow.config'
 
     @staticmethod
     def tool_filename(tool: str | Tool) -> str:

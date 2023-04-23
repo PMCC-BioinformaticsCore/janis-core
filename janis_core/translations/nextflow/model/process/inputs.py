@@ -42,12 +42,13 @@ class NFPathProcessInput(NFProcessInput):
     def stage_as(self) -> str:
         if self.presents_as:
             outstr = f", stageAs: '{self.presents_as}'"
-        elif isinstance(self.dtype, (File, Directory)):
-            exts = utils.get_extensions(self.dtype)
-            if exts and exts[0] != 'primary':
-                outstr = f", stageAs: '{self.name}{exts[0]}'"
-            else:
-                outstr = f", stageAs: '{self.name}'"
+        # the below causes errors for tools which need an extension
+        # elif isinstance(self.dtype, (File, Directory)) and not self.dtype.optional:
+        #     exts = utils.get_extensions(self.dtype)
+        #     if exts and exts[0] != 'primary':
+        #         outstr = f", stageAs: '{self.name}{exts[0]}'"
+        #     else:
+        #         outstr = f", stageAs: '{self.name}'"
         else:
             outstr = ''
         return outstr

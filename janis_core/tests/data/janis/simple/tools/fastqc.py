@@ -10,7 +10,7 @@ from janis_core.types.common_data_types import String
 from janis_core.types.common_data_types import File
 from janis_core.types.common_data_types import Int
 from janis_core import CommandToolBuilder
-from janis_core import WildcardSelector
+from janis_core import InputSelector
 from janis_core import ToolMetadata
 from janis_core import ToolOutput
 from janis_core import ToolInput
@@ -186,16 +186,16 @@ inputs = [
 ]
 
 outputs = [
-		ToolOutput(
+    ToolOutput(
 		'outHtmlFile',
 		File,
-		selector=WildcardSelector(r"output.html"),
+		selector=InputSelector('inputFile') + '_fastqc.html',
 		doc="Webpage",
 	),
-		ToolOutput(
+    ToolOutput(
 		'outTextFile',
 		File,
-		selector=WildcardSelector(r"output.txt"),
+		selector=InputSelector('inputFile') + '_fastqc.zip',
 		doc="RawData",
 	),
 
