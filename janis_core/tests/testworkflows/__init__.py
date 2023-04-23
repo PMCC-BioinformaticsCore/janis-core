@@ -36,6 +36,8 @@ from .subworkflow2 import Subworkflow3TestWF
 from .data_sources import DataSourceTestWF
 from .naming import NamingTestWF
 from .filepairs import FilePairsTestWF
+from .filepairs import FilePairsTestWF
+from .files_directories_to_create import FilesDirectoriesToCreateTestWF
 from .process_inputs import ProcessInputsTestWF
 from .ordering import OrderingTestWF
 from .plumbing_edge_cases import PlumbingEdgeCaseTestWF

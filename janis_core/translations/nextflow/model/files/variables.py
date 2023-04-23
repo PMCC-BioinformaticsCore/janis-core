@@ -14,16 +14,13 @@ from janis_core import translation_utils as utils
 @dataclass
 class NFVariableDefinition:
     name: str
-    source: str
+    value: str
     dtype: DataType
 
     @property
     def name_width(self) -> int:
         return len(self.name)
 
-    def get_string(self) -> str:
-        return f'file( {self.source} )'
-    
 
 @dataclass
 class NFVariableDefinitionBlock:
@@ -38,7 +35,7 @@ class NFVariableDefinitionBlock:
         out += '// data which will be passed as optional files\n'
         ordered_variables = order_nf_variables(self.variables)
         for v in ordered_variables:
-            line = f'{v.name:<{self.def_width}} = {v.get_string()}\n'
+            line = f'{v.name:<{self.def_width}} = {v.value}\n'
             out += line
         return out
 

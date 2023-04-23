@@ -1,5 +1,4 @@
 import unittest
-import regex as re
 
 from typing import Any
 
@@ -9,6 +8,9 @@ from janis_core.tests.testtools import (
     FastqcTestTool,
     BwaMemTestTool,
     GridssTestTool,
+    FileOutputPythonTestTool,
+    MultiTypesInputPythonTool,
+    SecondaryInputPythonTestTool,
 )
 
 from janis_core.tests.testworkflows import (
@@ -83,6 +85,7 @@ from janis_core.tests.testworkflows import (
     MinimalTaskInputsTestWF5,
     MinimalTaskInputsTestWF6,
     AllInputTypesTestWF,
+    FilesDirectoriesToCreateTestWF
 ) 
 
 from janis_core import (
@@ -690,6 +693,23 @@ class TestFiles(unittest.TestCase):
         self.maxDiff = None
         reset_globals()
 
+    def test_files_created(self) -> None:
+        wf = SubworkflowTestWF()
+        _, subtask_dict = translator.translate_workflow_internal(wf)
+        
+        # check correct number of subtasks created
+        self.assertEqual(len(subtask_dict), 6)
+        expected_filepaths = set([
+            'modules/file_test_tool',
+            'modules/string_test_tool',
+            'modules/int_test_tool',
+            'modules/string_opt_test_tool',
+            'subworkflows/oranges_workflow',
+            'subworkflows/apples_workflow',
+        ])
+        actual_filepaths = set(subtask_dict.keys())
+        self.assertSetEqual(actual_filepaths, expected_filepaths)
+
     def test_main_workflow_format(self) -> None:
         wf = AssemblyTestWF()
         mainstr, _ = translator.translate_workflow_internal(wf)
@@ -969,56 +989,139 @@ class TestFiles(unittest.TestCase):
     def test_duplicate_tool_usage(self) -> None:
         wf = DuplicateTasksTestWF()
         maintask, subtask_dict = translator.translate_workflow_internal(wf)
-        actual_subtasks = len(subtask_dict)
-        expected_subtasks = 3
-        self.assertEqual(actual_subtasks, expected_subtasks)
 
-        # checking values supplied 
+        # main workflow fmt
         print(maintask)
-        print()
+        actual_lines = simplify_file(maintask)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "include { ECHO_TEST_TOOL as STP1 } from './modules/echo_test_tool'",
+            "include { ECHO_TEST_TOOL as STP2 } from './modules/echo_test_tool'",
+            "include { ECHO_TEST_WORKFLOW1 as STP3 } from './subworkflows/echo_test_workflow1'",
+            "include { ECHO_TEST_WORKFLOW1 as STP4 } from './subworkflows/echo_test_workflow1'",
+            "include { ECHO_TEST_WORKFLOW2 as STP5 } from './subworkflows/echo_test_workflow2'",
+            "// data which will be passed as channels",
+            "ch_in_file  = Channel.fromPath( params.in_file )",
+            "workflow {",
+            "STP1(",
+            "ch_in_file,",
+            "5,",
+            "'hello'",
+            ")",
+            "STP2(",
+            "ch_in_file,",
+            "10,",
+            "'there'",
+            ")",
+            "STP3(",
+            "ch_in_file,",
+            "15,",
+            "'my'",
+            ")",
+            "STP4(",
+            "ch_in_file,",
+            "20,",
+            "'friend'",
+            ")",
+            "STP5(",
+            "ch_in_file",
+            ")",
+            "}",
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
+
+        # echo test tool fmt
         subtask = subtask_dict['modules/echo_test_tool']
         print(subtask)
-        print()
+        actual_lines = simplify_file(subtask)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "process ECHO_TEST_TOOL {",
+            "debug true",
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/echo_test_tool"',
+            "input:",
+            "path in_file, stageAs: 'in_file'",
+            "val in_int",
+            "val in_str",
+            "output:",
+            "stdout, emit: out",
+            "script:",
+            '"""',
+            "echo \\",
+            "${in_file} \\",
+            "${in_str} \\",
+            "${in_int} \\",
+            '"""',
+            "}",
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
+
+        # echo_test_workflow1 fmt
         subtask = subtask_dict['subworkflows/echo_test_workflow1']
         print(subtask)
-        print()
+        actual_lines = simplify_file(subtask)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "include { ECHO_TEST_TOOL as STP1 } from '../modules/echo_test_tool'",
+            "include { ECHO_TEST_TOOL as STP2 } from '../modules/echo_test_tool'",
+            "workflow ECHO_TEST_WORKFLOW1 {",
+            "take:",
+            "ch_in_file",
+            "ch_in_int",
+            "ch_in_str",
+            "main:",
+            "STP1(",
+            "ch_in_file,",
+            "25,",
+            "'good'",
+            ")",
+            "STP2(",
+            "ch_in_file,",
+            "30,",
+            "'night'",
+            ")",
+            "emit:",
+            "out = STP2.out.out",
+            "}",
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
+
+        # echo_test_workflow2 fmt
         subtask = subtask_dict['subworkflows/echo_test_workflow2']
         print(subtask)
-        print()
-        raise NotImplementedError
+        actual_lines = simplify_file(subtask)
+        expected_lines = [
+            "nextflow.enable.dsl=2",
+            "include { ECHO_TEST_WORKFLOW1 as LOL } from './echo_test_workflow1'",
+            "workflow ECHO_TEST_WORKFLOW2 {",
+            "take:",
+            "ch_in_file",
+            "main:",
+            "LOL(",
+            "ch_in_file,",
+            "25,",
+            "'good'",
+            ")",
+            "}",
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
 
     def test_duplicate_subworkflow_usage(self) -> None:
         raise NotImplementedError
     
-    def test_structure(self) -> None:
-        # take main emit
-        mainstr, substr_dict = translator.translate_workflow_internal(self.wf)
-        self.assertNotIn('take:', mainstr)
-        self.assertNotIn('main:', mainstr)
-        self.assertNotIn('emit:', mainstr)
-        subwfstr = substr_dict['subworkflows/oranges_subworkflow']
-        self.assertIn('take:', subwfstr)
-        self.assertIn('main:', subwfstr)
-        self.assertIn('emit:', subwfstr)
-
-    def test_files_created(self) -> None:
-        do_preprocessing_workflow(self.wf)
-        _, substr_dict = translator.translate_workflow_internal(self.wf)
-        expected_filepaths = set([
-            'modules/file_tool',
-            'modules/string_tool',
-            'modules/int_tool',
-            'modules/string_opt_tool',
-            'subworkflows/oranges_subworkflow',
-            'subworkflows/apples_subworkflow',
-        ])
-        actual_filepaths = set(substr_dict.keys())
-        self.assertEqual(actual_filepaths, expected_filepaths)
 
 
 
-
-class TestCmdtoolProcess(unittest.TestCase):
+class TestTranslateInterface(unittest.TestCase):
     """
     Tests janis CommandTool can be parsed to nextflow process (end-to-end).
     """
@@ -1026,21 +1129,25 @@ class TestCmdtoolProcess(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals() 
     
-    def test_fastqc(self) -> None:
+    def test_fastqc_tool(self) -> None:
         tool = FastqcTestTool()
         process = translate(tool, 'nextflow')
         print()
     
-    def test_bwamem(self) -> None:
+    def test_bwamem_tool(self) -> None:
         tool = BwaMemTestTool()
         process = translate(tool, 'nextflow')
         print()
     
-    def test_gridss(self) -> None:
+    def test_gridss_tool(self) -> None:
         tool = GridssTestTool()
         process = translate(tool, 'nextflow')
         print()
  
+    def test_assembly_workflow(self) -> None:
+        wf = AssemblyTestWF()
+        maintask, inputs_dict, subtask_dict = translate(wf, 'nextflow')
+        print()
 
 class TestCmdtoolProcessDirectives(unittest.TestCase):
     """
@@ -1058,7 +1165,6 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         process = nextflow.generate.process.generate_process(step.tool)
-        process = translator.handle_container(step.tool, process)
         actual_directives = {d.get_string() for d in process.directives}
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
@@ -1724,54 +1830,109 @@ process FILENAME_GENERATED_TOOL {
 
 
 
-
-
-class TestWorkflows(unittest.TestCase):
+class TestTranslateWorkflowInternal(unittest.TestCase):
     
     def setUp(self) -> None:
         reset_globals()
 
-    def test_basic(self) -> None:
+    def test_assembly(self) -> None:
         wf = AssemblyTestWF()
-        do_preprocessing_workflow(wf)
-        process_dict = nextflow.generate.process.generate_processes(wf)
-        workflow_dict = nextflow.generate.main.generate_workflows(wf, process_dict)
-        nf_workflow = workflow_dict['UnicyclerAssembly']
-        print(nf_workflow.get_string())
-        actual_lines = split_to_lines(nf_workflow.get_string())
-        expected_lines = [
-            'workflow {',
-            'FASTQC1(',
-            'ch_in_forward_reads,',
-            'fastqc1_adapters,',
-            'fastqc1_contaminants,',
-            'fastqc1_limits',
-            ')',
-            'FASTQC2(',
-            'ch_in_reverse_reads,',
-            'fastqc2_adapters,',
-            'fastqc2_contaminants,',
-            'fastqc2_limits',
-            ')',
-            'FASTQC3(',
-            'ch_test_input,',
-            'null,',
-            'null,',
-            'null',
-            ')',
-            'CAT_TEST_TOOL(',
-            'FASTQC3.out.outTextFile',
-            ')',
-            'UNICYCLER(',
-            'ch_in_forward_reads,',
-            'ch_in_reverse_reads,',
-            'ch_in_long_reads',
-            ')',
-            '}',
+        maintask, _ = translator.translate_workflow_internal(wf)
+
+
+
+
+class TestTranslateToolInternal(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        reset_globals()
+
+    def test_fastqc_tool(self) -> None:
+        tool = FastqcTestTool()
+        toolstr = translator.translate_tool_internal(tool)
+    
+    def test_bwamem_tool(self) -> None:
+        tool = BwaMemTestTool()
+        toolstr = translator.translate_tool_internal(tool)
+    
+    def test_gridss_tool(self) -> None:
+        tool = GridssTestTool()
+        toolstr = translator.translate_tool_internal(tool)
+
+
+
+
+class TestTranslateCodeToolInternal(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        reset_globals()
+
+    def test1(self) -> None:
+        tool = FileOutputPythonTestTool()
+        toolstr = translator.translate_code_tool_internal(tool)
+        print(toolstr)
+        print()
+    
+    def test2(self) -> None:
+        tool = MultiTypesInputPythonTool()
+        toolstr = translator.translate_code_tool_internal(tool)
+        print(toolstr)
+        print()
+    
+    def test3(self) -> None:
+        tool = SecondaryInputPythonTestTool()
+        toolstr = translator.translate_code_tool_internal(tool)
+        print(toolstr)
+        print()
+        
+
+
+
+class TestTranslateHelperFiles(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_globals()
+
+    def test_python_tool_helpers(self) -> None:
+        # first test wf
+        wf = InputsPythonToolTestWF()
+        helper_files = translator.translate_helper_files(wf)
+        actual_paths = list(helper_files.keys())
+        expected_paths = [
+            'templates/MultiTypesInputPythonTool.py',
+            'templates/JoinArrayPythonTestTool.py',
+            'templates/SecondaryInputPythonTestTool.py'
         ]
-        self.assertListEqual(actual_lines, expected_lines)
-
-
+        self.assertEqual(len(actual_paths), len(expected_paths))
+        for path in actual_paths:
+            self.assertIn(path, expected_paths)
+        
+        # second test wf
+        wf = OutputsPythonToolTestWF()
+        helper_files = translator.translate_helper_files(wf)
+        actual_paths = list(helper_files.keys())
+        expected_paths = [
+            'templates/FileOutputPythonTestTool.py',
+            'templates/FileInputPythonTestTool.py',
+            'templates/SplitTextPythonTestTool.py'
+        ]
+        self.assertEqual(len(actual_paths), len(expected_paths))
+        for path in actual_paths:
+            self.assertIn(path, expected_paths)
+ 
+    def test_template_helpers(self) -> None:
+        wf = FilesDirectoriesToCreateTestWF()
+        helper_files = translator.translate_helper_files(wf)
+        actual_paths = list(helper_files.keys())
+        expected_paths = [
+            'templates/myscript.sh',
+            'templates/check_value.js',
+            'templates/MultiTypesInputPythonTool.py'
+        ]
+        self.assertEqual(len(actual_paths), len(expected_paths))
+        for path in actual_paths:
+            self.assertIn(path, expected_paths)
+        
 
 
 
@@ -1878,12 +2039,11 @@ class TestPythontoolProcess(unittest.TestCase):
 
     def test_format(self) -> None:
         task = self.processes['MultiTypesInputPythonTool']
-        actual_lines = task.get_string().split('\n')
-        actual_lines = [x.strip() for x in actual_lines]
-        actual_lines = [x for x in actual_lines if x != '\n' and x != '']
+        actual_lines = simplify_file(task.get_string())
         expected_lines = [
             'process MULTI_TYPES_INPUT_PYTHON_TOOL {',
             'debug true',
+            'container "python:3.8.1"',
             'publishDir "${params.outdir}/multi_types_input_python_tool"',
             'input:',
             'path inp1, stageAs: \'inp1\'',
@@ -1893,7 +2053,7 @@ class TestPythontoolProcess(unittest.TestCase):
             'script:',
             '"""',
             '#!/usr/bin/env python',
-            'from templates.multi_types_input_python_tool import code_block',
+            'from templates.MultiTypesInputPythonTool import code_block',
             'import os',
             'import json',
             'result = code_block(',
@@ -1908,7 +2068,6 @@ class TestPythontoolProcess(unittest.TestCase):
             '"""',
             '}',
         ]
-        expected_lines = [x.strip() for x in expected_lines]
         self.assertEqual(actual_lines, expected_lines)
 
 
@@ -3162,7 +3321,6 @@ class TestOrdering(unittest.TestCase):
         
         step = wf.step_nodes["stp1"]
         process = processes[step.tool.id()]
-        process = translator.handle_container(step.tool, process)
         actual_order = [type(x).__name__ for x in process.ordered_directives]
         expected_order = [
             'NFDebugDirective',

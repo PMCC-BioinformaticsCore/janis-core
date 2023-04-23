@@ -118,7 +118,7 @@ class PythonToolProcessGenerator:
     
     @property
     def code_file_path(self) -> str:
-        return f'templates.{self.name.lower()}'
+        return f'templates.{self.tool.id()}'
     
     @property
     def args(self) -> list[str]:

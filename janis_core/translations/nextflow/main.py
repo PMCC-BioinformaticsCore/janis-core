@@ -181,37 +181,14 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        name = naming.constructs.gen_varname_process(tool.id())
-        alias = None
-        raise NotImplementedError
+        assert(isinstance(tool, PythonTool))
         settings.translate.nextflow.MODE = 'tool'
-        
-        if isinstance(tool, PythonTool):
-            preprocessing.register_data_sources(tool)
-            
-            process = cls.gen_process_from_codetool(tool=tool, sources={}, scope=[])
-            process = cls.handle_container(scope, tool, process)
 
-            #imports = [cls.init_helper_functions_import()]
-            imports = []
+        preprocessing.populate_task_inputs_toolmode(tool)
+        process = generate_process(tool)
+        process_file = generate_file_process(process, tool)
 
-            # (
-            #     out_process_inp,
-            #     out_process_out,
-            # ) = cls.prepare_output_process_params_for_tool(tool, process)
-
-            items = [
-                process,
-                # cls.gen_output_process(
-                #     inputs=out_process_inp, tool_outputs=out_process_out
-                # ),
-                cls.gen_process_workflow(tool, process=process),
-            ]
-            nf_file = NFFile(subtype='', imports=imports, items=items)
-
-            return nf_file.get_string()
-        else:
-            raise Exception("Only PythonTool code tool is supported for the moment.")       
+        return process_file.get_string()
 
     @classmethod
     def translate_helper_files(cls, tool: Tool) -> dict[str, str]:
@@ -260,23 +237,28 @@ class NextflowTranslator(TranslatorBase):
                 for name, contents in tool.files_to_create().items():
                     if not isinstance(name, str):
                         # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
+                        raise NotImplementedError()
                         print()
                     
                     if isinstance(contents, str):
                         assert(not name.startswith('unnamed_'))
                         if '<js>' in contents:
                             # ignore, print error message for user
+                            raise NotImplementedError()
                             pass
                         else:
                             # create file
-                            files[name] = contents
+                            path = f'templates/{name}'
+                            files[path] = contents
                     
                     elif isinstance(contents, InputSelector):
                         tinput_name = contents.input_to_select
                         tinput = tool.inputs_map()[tinput_name]
                         if isinstance(tinput.intype, File | Directory):
+                            raise NotImplementedError()
                             print('ignored staging File into process')
                         else:
+                            raise NotImplementedError()
                             print('ignored staging String into process')
                         # # js evaluates to a file: add referenced file to output directory
                         # if name.startswith('unnamed_'):
@@ -338,7 +320,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        # TODO
+        # TODO?
         return {}
         raise NotImplementedError
         scope: Scope = Scope()

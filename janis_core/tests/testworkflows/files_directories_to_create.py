@@ -134,7 +134,7 @@ class ExpressionToolTestTool(CommandTool):
 
     def inputs(self) -> list[ToolInput]:
         return [
-            ToolInput("script_file", File, presents_as='check_value.js'),
+            # ToolInput("script_file", File, presents_as='check_value.js'),
             ToolInput("inp1", File),
             ToolInput("inp2", String),
             ToolInput("inp3", Int),

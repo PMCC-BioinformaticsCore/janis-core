@@ -9,6 +9,7 @@ from janis_core import translation_utils as utils
 from ... import naming 
 from ... import task_inputs 
 from ...task_inputs import TaskInputType
+from ...task_inputs import TaskInput
 from ...model.files import NFVariableDefinition
 from ...model.files import NFVariableDefinitionBlock
 from ...model.workflow import NFWorkflow
@@ -37,7 +38,7 @@ def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVar
                 if task_input.ti_type in (TaskInputType.PARAM, TaskInputType.TASK_INPUT):
                     # only optional file types get declared as file() variables
                     if tinput.intype.optional and utils.is_file_type(tinput.intype):
-                        generator = VariableDefinitionGenerator(tinput)
+                        generator = VariableDefinitionGenerator(tinput, task_input)
                         var_def = generator.generate()
                         var_definitions.append(var_def)
                         
@@ -58,8 +59,9 @@ class VariableValueType(Enum):
 
 
 class VariableDefinitionGenerator:
-    def __init__(self, tinput: TInput) -> None:
+    def __init__(self, tinput: TInput, task_input: TaskInput) -> None:
         self.tinput = tinput
+        self.task_input = task_input
 
     @property
     def dtype(self) -> DataType:
@@ -68,6 +70,11 @@ class VariableDefinitionGenerator:
     @property
     def varname(self) -> str:
         return naming.constructs.gen_varname_file(self.tinput.id())
+    
+    @property
+    def paramname(self) -> str:
+        assert(isinstance(self.task_input.value, str))
+        return self.task_input.value
     
     @property
     def vartype(self) -> VariableValueType:
@@ -83,24 +90,33 @@ class VariableDefinitionGenerator:
             return VariableValueType.FILE_ARR_OPT
         else:
             return VariableValueType.FILE_OPT
-        
+    
     @property
     def varvalue(self) -> str:
-        task_input = task_inputs.get(wf.id(), tinput)
-        param_name = task_input.value
-        # @secondaryarrays
-        if utils.is_array_secondary_type(tinput.intype):
-            src = f'{param_name}.flatten()'
-        else:
-            src = f'{param_name}'
-        return src
+        if self.vartype == VariableValueType.FILE_OPT:
+            value =  f'file( {self.paramname} )'
+        
+        elif self.vartype == VariableValueType.FILEPAIR_OPT:
+            value = f'{self.paramname}.each {{ value -> file(value) }}'
 
-    # TODO HERE
+        elif self.vartype == VariableValueType.SECONDARY_OPT:
+            value = f'{self.paramname}.each {{ value -> file(value) }}'
+
+        elif self.vartype == VariableValueType.FILE_ARR_OPT:
+            value = f'{self.paramname}.each {{ value -> file(value) }}'
+
+        elif self.vartype == VariableValueType.FILEPAIR_ARR_OPT:
+            value = f'{self.paramname}.each {{ outer -> outer.each {{ inner -> file(inner) }} }}'
+
+        elif self.vartype == VariableValueType.SECONDARY_ARR_OPT:
+            value = f'{self.paramname}.each {{ outer -> outer.each {{ inner -> file(inner) }} }}'
+
+        return value
+
     def generate(self) -> NFVariableDefinition:
-        f_source = _get_source(input_node, wf)
         return NFVariableDefinition(
-            self.varname,
-            f_source, 
-            self.dtype
+            name=self.varname,
+            value=self.varvalue, 
+            dtype=self.dtype
         )
         
