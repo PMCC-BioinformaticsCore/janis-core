@@ -146,9 +146,9 @@ def value(param: Param) -> str:
     elif isinstance(basetype, File):
         val = 'null'
     
-    # array default
-    elif dtype.is_array() and param.default is not None:
-        val = param.groovy_value
+    # array optional
+    elif dtype.is_array() and dtype.optional:
+        val = 'null'
     
     # array
     elif dtype.is_array():

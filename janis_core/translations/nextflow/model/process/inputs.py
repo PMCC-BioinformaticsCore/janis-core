@@ -40,17 +40,17 @@ class NFPathProcessInput(NFProcessInput):
 
     @property
     def stage_as(self) -> str:
+        # presents_as takes precent
         if self.presents_as:
             outstr = f", stageAs: '{self.presents_as}'"
-        # the below causes errors for tools which need an extension
-        # elif isinstance(self.dtype, (File, Directory)) and not self.dtype.optional:
-        #     exts = utils.get_extensions(self.dtype)
-        #     if exts and exts[0] != 'primary':
-        #         outstr = f", stageAs: '{self.name}{exts[0]}'"
-        #     else:
-        #         outstr = f", stageAs: '{self.name}'"
+        
+        # optional files need to be staged in subdir to avoid name clashes
+        elif self.dtype.optional:
+            outstr = f", stageAs: '{self.name}/*'"
+        
+        # files should be staged according to original naming
         else:
-            outstr = ''
+            outstr = f", stageAs: '*'"
         return outstr
     
     def get_string(self) -> str:

@@ -19,12 +19,10 @@ from .ScriptFormatter import ScriptFormatter
 def gen_nf_process_script(
     tool: CommandTool,
     variable_manager: VariableManager,
-    stdout_filename: str,
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
         variable_manager=variable_manager,
-        stdout_filename=stdout_filename,
     ).generate()
 
 
@@ -32,12 +30,10 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        variable_manager: VariableManager,
-        stdout_filename: str,
+        variable_manager: VariableManager
     ):
         self.tool = tool
         self.variable_manager = variable_manager
-        self.stdout_filename = stdout_filename
 
         self.prescript: list[str] = []
         self.script: list[str] = []

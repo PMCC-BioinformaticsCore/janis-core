@@ -25,7 +25,7 @@ PS_FLAG_FALSE                   = 'def {name} = {src} ? "{prefix}" : ""'
 PS_POS_BASIC                    = ''
 PS_POS_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
 PS_POS_OPTIONAL                 = 'def {name} = {src} ? {src} : ""'
-PS_POS_OPTIONAL_FILETYPES       = 'def {name} = {src} != {default} ? {src} : ""'
+PS_POS_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != {default} ? {src} : ""'
 
 PS_POS_BASIC_ARR                = 'def {name} = {arr_join}'
 PS_POS_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
@@ -35,7 +35,7 @@ PS_POS_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src} != {default} ? {arr_join} 
 PS_OPT_BASIC                    = ''
 PS_OPT_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
 PS_OPT_OPTIONAL                 = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
-PS_OPT_OPTIONAL_FILETYPES       = 'def {name} = {src} != {default} ? "{prefix}${{{src}}}" : ""'
+PS_OPT_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != {default} ? "{prefix}${{{src}}}" : ""'
 
 PS_OPT_BASIC_ARR                = 'def {name} = {arr_join}'
 PS_OPT_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'

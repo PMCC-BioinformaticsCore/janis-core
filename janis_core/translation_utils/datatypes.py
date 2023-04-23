@@ -26,12 +26,18 @@ def ensure_single_type(dtype: DataType) -> DataType:
         return dtype.subtypes[0]
     return dtype    
 
-def is_file_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
+def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
+    if recursive:
+        basetype = get_base_type(dtype)
+    else:
+        basetype = dtype
+    
     if isinstance(basetype, (File, Filename, Directory)):
         return True
-    elif is_file_pair_type(dtype):
+    
+    elif is_file_pair_type(basetype, recursive=recursive):
         return True
+    
     return False
 
 

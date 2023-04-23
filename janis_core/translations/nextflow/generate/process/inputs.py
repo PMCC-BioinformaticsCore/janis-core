@@ -10,6 +10,7 @@ from janis_core import (
     DataType
 )
 from janis_core import translation_utils as utils
+from janis_core import settings
 
 from ... import nfgen_utils
 from ... import task_inputs
@@ -48,7 +49,10 @@ class ProcessInputGenerator:
     def generate_code_file(self) -> None:
         # pythontool gets extra code_file input before normal inputs
         if isinstance(self.tool, PythonTool):
-            new_input = NFPythonToolProcessInput(name='code_file', tinput_id='code_file', dtype=File())
+            new_input = NFPythonToolProcessInput(
+                name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+                dtype=File())
             self.process_inputs.append(new_input)
 
     def generate(self) -> list[NFProcessInput]:
@@ -66,19 +70,22 @@ class ProcessInputGenerator:
     def create_input(self) -> NFProcessInput:
         # @secondariesarray
         # secondaries array
+        # if self.dtype.optional:
+        #     return self.create_val_input(self.tinput)
+
         if utils.is_array_secondary_type(self.dtype):
             return self.create_path_input_secondaries_array(self.tinput)
         
         # secondaries
-        if utils.is_secondary_type(self.dtype):
+        elif utils.is_secondary_type(self.dtype):
             return self.create_tuple_input_secondaries(self.tinput)
         
         # filepair array
-        elif self.dtype.name() == 'Array' and self.is_filepair_type(self.dtype):
+        elif utils.is_array_file_pair_type(self.dtype):
             return self.create_path_input(self.tinput)
         
         # filepair
-        elif self.is_filepair_type(self.dtype):
+        elif utils.is_file_pair_type(self.dtype):
             return self.create_path_input(self.tinput)
         
         # file array
@@ -96,13 +103,6 @@ class ProcessInputGenerator:
         # nonfile 
         else:
             return self.create_val_input(self.tinput)
-
-    def is_filepair_type(self, dtype: DataType) -> bool:
-        basetype = utils.get_base_type(dtype)
-        basetype = utils.ensure_single_type(basetype)
-        if basetype.name() in ['FastqPair', 'FastqGzPair']:
-            return True
-        return False
 
     def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFProcessInput:
         # TODO ignoring secondaries_presents_as for now!
@@ -139,6 +139,10 @@ class ProcessInputGenerator:
         return new_input 
 
     def create_val_input(self, inp: ToolInput | TInput) -> NFValProcessInput:
+        if isinstance(self.dtype, File) and isinstance(inp, ToolInput):
+            if inp.presents_as:
+                raise NotImplementedError
+                presents_as = inp.presents_as
         ti = task_inputs.get(self.tool.id(), inp)
         name = ti.value
         assert(isinstance(name, str))

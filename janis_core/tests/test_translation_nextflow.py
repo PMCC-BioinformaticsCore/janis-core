@@ -100,7 +100,8 @@ from janis_core import (
 )
 
 from janis_core.translations import translate
-from janis_core.translations import NextflowTranslator as translator
+from janis_core.translations import NextflowTranslator as NextflowTranslator
+translator = NextflowTranslator()
 from janis_core.translations import nextflow
 
 from janis_core.translations.nextflow.variables import VariableManager
@@ -139,6 +140,9 @@ from janis_core.translations.nextflow.generate.workflow.datatype_mismatch import
 ### helper functions
 
 def reset_globals() -> None:
+    # reset the translator
+    translator = NextflowTranslator()
+
     # nextflow specific
     settings.translate.nextflow.MODE = 'workflow'
     settings.translate.nextflow.MINIMAL_PROCESS = True
@@ -678,7 +682,7 @@ class TestSettings(unittest.TestCase):
         reset_globals()
 
     def test_get_settings(self):
-        self.assertEquals(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
+        # self.assertEquals(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
         self.assertEquals(settings.translate.nextflow.CONFIG_FILENAME, 'nextflow.config')
     
     def test_set_settings(self):

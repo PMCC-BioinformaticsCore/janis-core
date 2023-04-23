@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from janis_core import translation_utils as utils
 from janis_core import Workflow, TInput, Tool, PythonTool
 from janis_core.types import DataType, File
+from janis_core import settings
 
 from ... import params
 from ... import naming
@@ -31,17 +32,23 @@ class TaskInputsPopulator(ABC):
     def populate_code_file(self) -> None:
         # pythontool gets extra code_file input before normal inputs
         if isinstance(self.tool, PythonTool):
-            path = f'{os.getcwd()}/templates/{self.tool.id()}.py'
+            path = f'{settings.translate.nextflow.BASE_OUTDIR}/{settings.translate.nextflow.TEMPLATES_OUTDIR}/{self.tool.id()}.py'
+            # path = f'{os.getcwd()}/templates/{self.tool.id()}.py'
             # create param for nextflow.config & so we can get the param for process calls
             param = params.add(
                 task_id=self.tool.id(),
-                tinput_id='code_file',
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL,
                 subtype='sub_tool',
                 # name_override=self.tool.id(),
                 janis_dtype=File(),
                 default=path
             )
-            task_inputs.update(self.tool.id(), 'task_input', 'code_file', 'code_file')
+            task_inputs.update(
+                tool_id=self.tool.id(), 
+                dstype_str='task_input', 
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+                value=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL
+            )
 
     @abstractmethod
     def populate(self) -> None:

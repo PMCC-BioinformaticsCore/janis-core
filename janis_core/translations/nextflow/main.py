@@ -26,7 +26,6 @@ from .generate.files import generate_file_process
 
 from . import params
 from . import generate
-from . import naming
 from . import preprocessing
 
 from .scope import Scope
@@ -125,7 +124,7 @@ class NextflowTranslator(TranslatorBase):
     SUBDIRS_TO_CREATE: list[str] = [
         settings.translate.nextflow.PROCESS_OUTDIR,
         settings.translate.nextflow.SUBWORKFLOW_OUTDIR,
-        settings.translate.nextflow.CODE_FILES_OUTDIR,
+        settings.translate.nextflow.TEMPLATES_OUTDIR,
     ]
 
     file_register: NFFileRegister = NFFileRegister()
@@ -134,10 +133,9 @@ class NextflowTranslator(TranslatorBase):
     def __init__(self):
         super().__init__(name="nextflow")
 
-    @classmethod
-    def translate_workflow_internal(cls, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
+    def translate_workflow_internal(self, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
         # set class variables to avoid passing junk params
-        settings.translate.nextflow.BASE_OUTDIR = cls.basedir
+        settings.translate.nextflow.BASE_OUTDIR = self.basedir
 
         preprocessing.populate_task_inputs_workflowmode(wf, wf)
         processes = generate_processes(wf)
@@ -215,7 +213,7 @@ class NextflowTranslator(TranslatorBase):
         if isinstance(tool, PythonTool):
             # helpers["__init__.py"] = ""
             #helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
-            subdir = settings.translate.nextflow.CODE_FILES_OUTDIR
+            subdir = settings.translate.nextflow.TEMPLATES_OUTDIR
             filename = f'{tool.id()}.py'
             filepath = os.path.join(subdir, filename)
             files[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
@@ -248,7 +246,7 @@ class NextflowTranslator(TranslatorBase):
                             pass
                         else:
                             # create file
-                            path = f'templates/{name}'
+                            path = f'{settings.translate.nextflow.TEMPLATES_OUTDIR}/{name}'
                             files[path] = contents
                     
                     elif isinstance(contents, InputSelector):
@@ -379,7 +377,7 @@ class NextflowTranslator(TranslatorBase):
         """
         #return workflow.versioned_id() + ".nf"
         # return workflow.id() + ".nf"
-        return 'main.nf'
+        return settings.translate.nextflow.MAIN_WORKFLOW_NAME
 
     @staticmethod
     def inputs_filename(workflow: Workflow) -> str:
@@ -392,7 +390,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         #return workflow.versioned_id() + ".input.json"
-        return 'nextflow.config'
+        return settings.translate.nextflow.CONFIG_FILENAME
 
     @staticmethod
     def tool_filename(tool: str | Tool) -> str:

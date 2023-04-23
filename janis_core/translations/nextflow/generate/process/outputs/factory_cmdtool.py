@@ -46,22 +46,22 @@ def get_otype(out: ToolOutput) -> OType:
     if is_stdout_type(out):
         return OType.STDOUT
 
-    elif is_filepair_type(out) and is_array_type(out):
+    elif utils.is_array_file_pair_type(out.output_type):
         return OType.FILEPAIR_ARRAY
     
-    elif is_filepair_type(out):
+    elif utils.is_file_pair_type(out.output_type):
         return OType.FILEPAIR
     
-    elif is_secondary_type(out) and is_array_type(out):
+    elif utils.is_array_secondary_type(out.output_type):
         return OType.SECONDARIES_ARRAY
     
-    elif is_secondary_type(out):
+    elif utils.is_secondary_type(out.output_type):
         return OType.SECONDARIES
     
-    elif is_file_type(out) and is_array_type(out) and has_n_collectors(out, n=1):
+    elif utils.is_file_type(out.output_type) and out.output_type.is_array() and has_n_collectors(out, n=1):
         return OType.FILE_ARRAY
     
-    elif is_file_type(out):
+    elif utils.is_file_type(out.output_type):
         return OType.FILE
     
     elif is_non_file_type(out) and has_n_collectors(out, n=1):
@@ -74,28 +74,6 @@ def get_otype(out: ToolOutput) -> OType:
 
 def is_stdout_type(out: ToolOutput) -> bool:
     if isinstance(out.output_type, Stdout):
-        return True
-    return False
-
-def is_file_type(out: ToolOutput) -> bool:
-    basetype = utils.get_base_type(out.output_type)
-    basetype = utils.ensure_single_type(basetype)
-    if isinstance(basetype, (File, Directory)):
-        return True
-    return False
-
-def is_filepair_type(out: ToolOutput) -> bool:
-    basetype = utils.get_base_type(out.output_type)
-    basetype = utils.ensure_single_type(basetype)
-    if basetype.name() in ['FastqPair', 'FastqGzPair']:
-        return True
-    return False
-
-def is_secondary_type(out: ToolOutput) -> bool:
-    return utils.is_secondary_type(out.output_type)
-
-def is_array_type(out: ToolOutput) -> bool:
-    if out.output_type.is_array():
         return True
     return False
 
@@ -295,9 +273,20 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def filepair_output(self) -> NFPathProcessOutput:
+    def filepair_output(self) -> NFPathProcessOutput | NFTupleProcessOutput:
         if self.ftype == FmtType.WILDCARD:
             return self.file_output()
+        elif has_n_collectors(self.out, n=2):
+            expr1 = self.unwrap_collection_expression(self.out.selector[0])
+            expr2 = self.unwrap_collection_expression(self.out.selector[1])
+            new_output = NFTupleProcessOutput(
+                name=self.out.id(), 
+                janis_tag=self.out.id(),
+                is_optional=self.optional,
+                qualifiers=['path', 'path'], 
+                expressions=[expr1, expr2]
+            )
+            return new_output
         else:
             raise NotImplementedError
     

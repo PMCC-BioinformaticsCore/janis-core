@@ -20,7 +20,6 @@ from ...model.workflow import NFWorkflowTake
 
 from ...unwrap import unwrap_expression
 from ...variables import VariableManager
-from ...casefmt import to_case
 
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import gen_datatype_mismatch_plumbing
@@ -171,7 +170,10 @@ class TaskCallArgumentGenerator:
             return self.generate_normal()
 
     def generate_code_file(self) -> str:
-        param = params.get('code_file', self.tool.id())
+        param = params.get(
+            tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+            task_id=self.tool.id()
+        )
         return f'params.{param.name}'
 
     def generate_normal(self) -> str:

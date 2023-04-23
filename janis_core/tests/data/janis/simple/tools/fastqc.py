@@ -189,13 +189,13 @@ outputs = [
     ToolOutput(
 		'outHtmlFile',
 		File,
-		selector=InputSelector('inputFile') + '_fastqc.html',
+		selector=InputSelector('inputFile', remove_file_extension=True) + '_fastqc.html',
 		doc="Webpage",
 	),
     ToolOutput(
 		'outTextFile',
 		File,
-		selector=InputSelector('inputFile') + '_fastqc.zip',
+		selector=InputSelector('inputFile', remove_file_extension=True) + '_fastqc.zip',
 		doc="RawData",
 	),
 
