@@ -1,7 +1,5 @@
 
 
-from abc import ABC, abstractmethod
-
 from janis_core import (
     ToolInput, 
     TInput,
@@ -18,6 +16,7 @@ from ... import task_inputs
 
 from ...model.process.inputs import (
     NFProcessInput, 
+    NFPythonToolProcessInput,
     NFPathProcessInput,
     NFValProcessInput,
     NFTupleProcessInput
@@ -32,6 +31,8 @@ def gen_nf_process_inputs(tool: CommandTool | PythonTool) -> list[NFProcessInput
 class ProcessInputGenerator:
     def __init__(self, tool: CommandTool | PythonTool):
         self.tool = tool
+        self.process_inputs: list[NFProcessInput] = []
+        self.generate_code_file()
 
     @property
     def dtype(self) -> DataType:
@@ -43,17 +44,24 @@ class ProcessInputGenerator:
         basetype = utils.ensure_single_type(basetype)
         assert(basetype)
         return basetype
+    
+    def generate_code_file(self) -> None:
+        # pythontool gets extra code_file input before normal inputs
+        if isinstance(self.tool, PythonTool):
+            new_input = NFPythonToolProcessInput(name='code_file', tinput_id='code_file', dtype=File())
+            self.process_inputs.append(new_input)
 
     def generate(self) -> list[NFProcessInput]:
-        process_inputs: list[NFProcessInput] = []
-
+        # normal inputs
         tinput_ids = task_inputs.task_inputs(self.tool.id())
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
         
         for inp in tinputs:
             self.tinput = inp
-            process_inputs.append(self.create_input())
-        return process_inputs
+            new_input = self.create_input()
+            self.process_inputs.append(new_input)
+        
+        return self.process_inputs
 
     def create_input(self) -> NFProcessInput:
         # @secondariesarray

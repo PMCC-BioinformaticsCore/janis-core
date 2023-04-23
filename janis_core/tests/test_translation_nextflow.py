@@ -164,6 +164,7 @@ def reset_globals() -> None:
     settings.translate.MAX_MEM = None
 
     nextflow.task_inputs.clear()
+    nextflow.params.clear()
 
 def do_preprocessing_workflow(wf: Workflow) -> None:
     reset_globals()
@@ -834,28 +835,32 @@ class TestFiles(unittest.TestCase):
         config = translator.stringify_translated_inputs({})
         actual_lines = simplify_file(config)
         expected_lines = [
-            'docker.enabled = true', 
-            'params {', 
-            '// OUTPUT DIRECTORY', "outdir  = './outputs'   // (directory)", '// INPUTS (MANDATORY)', 
-            'in_file  = null   // (generic file)', 
-            'in_int   = null   // (integer)', 
-            'in_str   = null   // (string)', 
-            '// INPUTS (OPTIONAL)', 
-            'in_str_opt  = null   // (string)', 
-            '// PROCESS: INT_TEST_TOOL', 
-            'int_test_tool.inp  = null   // (integer)', 
-            '// PROCESS: STRING_OPT_TEST_TOOL', 
-            'string_opt_test_tool.inp  = null   // (string)',
-            '// PROCESS: STRING_TEST_TOOL',
-            'string_test_tool.inp  = null   // (string)',
-            '// SUBWORKFLOW: APPLES_WORKFLOW',
-            'apples_workflow.in_int      = null   // (integer)',
-            'apples_workflow.in_str      = null   // (string)',
-            'apples_workflow.in_str_opt  = null   // (string)',
-            '// SUBWORKFLOW: ORANGES_WORKFLOW',
-            'oranges_workflow.in_int  = null   // (integer)',
-            '}'
+            "docker.enabled = true",
+            "params {",
+            "// OUTPUT DIRECTORY",
+            "outdir  = './outputs'",
+            "// INPUTS (MANDATORY)",
+            "in_file  = null  // (generic file)",
+            "in_int   = null  // (integer)",
+            "in_str   = null  // (string)",
+            "// INPUTS (OPTIONAL)",
+            "in_str_opt  = null  // (optional string)",
+            "// PROCESS: INT_TEST_TOOL",
+            "int_test_tool.inp  = null  // (integer)",
+            "// PROCESS: STRING_OPT_TEST_TOOL",
+            "string_opt_test_tool.inp  = null  // (optional string)",
+            "// PROCESS: STRING_TEST_TOOL",
+            "string_test_tool.inp  = null  // (string)",
+            "// SUBWORKFLOW: APPLES_WORKFLOW",
+            "apples_workflow.in_int      = null  // (integer)",
+            "apples_workflow.in_str      = null  // (string)",
+            "apples_workflow.in_str_opt  = null  // (optional string)",
+            "// SUBWORKFLOW: ORANGES_WORKFLOW",
+            "oranges_workflow.in_int  = null  // (integer)",
+            "}",
         ]
+        for ln in actual_lines:
+            print(ln)
         self.assertEqual(len(actual_lines), len(expected_lines))
         for ln in actual_lines:
             self.assertIn(ln, expected_lines)
@@ -871,30 +876,65 @@ class TestFiles(unittest.TestCase):
             "docker.enabled = true",
             "params {",
             "// OUTPUT DIRECTORY",
-            "outdir  = './outputs'   // (directory)",
+            "outdir  = './outputs'",
             "// INPUTS (MANDATORY)",
-            "in_file               = null   // (generic file)",
-            "in_file_array         = []     // (array)         eg. [file1, ...]",
-            "in_secondaries        = []     // (indexedbam)    eg. [bam, bai]",
-            "in_secondaries_array  = [[]]   // (array)         eg. [[bam, bai]]",
-            "in_filepair           = []     // (fastqpair)     eg. [pair1, pair2]",
-            "in_filepair_array     = [[]]   // (array)         eg. [[pair1, pair2]]",
-            "in_nonfile            = null   // (integer)",
-            "in_nonfile_array      = []     // (array)         eg. [integer1, ...]",
+            "in_file               = null  // (generic file)",
+            "in_file_array         = []    // (array)         eg. [file1, ...]",
+            "in_secondaries        = []    // (indexedbam)    eg. [bam, bai]",
+            "in_secondaries_array  = [[]]  // (array)         eg. [[bam, bai]]",
+            "in_filepair           = []    // (fastqpair)     eg. [pair1, pair2]",
+            "in_filepair_array     = [[]]  // (array)         eg. [[pair1, pair2]]",
+            "in_nonfile            = null  // (integer)",
+            "in_nonfile_array      = []    // (array)         eg. [integer1, ...]",
             "// INPUTS (OPTIONAL)",
-            "in_file_array_optional         = ['NO_FILE']                // (array)         eg. [file1, ...]",
-            "in_file_optional               = 'NO_FILE'                  // (generic file)",
-            "in_secondaries_array_optional  = [['NO_FILE', 'NO_FILE']]   // (array)         eg. [[bam, bai]]",
-            "in_secondaries_optional        = ['NO_FILE', 'NO_FILE']     // (indexedbam)    eg. [bam, bai]",
-            "in_filepair_array_optional     = [['NO_FILE', 'NO_FILE']]   // (array)         eg. [[pair1, pair2]]",
-            "in_filepair_optional           = ['NO_FILE', 'NO_FILE']     // (fastqpair)     eg. [pair1, pair2]",
-            "in_nonfile_array_optional      = []                         // (array)         eg. [integer1, ...]",
-            "in_nonfile_optional            = null                       // (integer)",
+            "in_file_array_optional         = ['NO_FILE']",
+            "in_file_optional               = 'NO_FILE'",
+            "in_secondaries_array_optional  = [['NO_FILE', 'NO_FILE']]",
+            "in_secondaries_optional        = ['NO_FILE', 'NO_FILE']",
+            "in_filepair_array_optional     = [['NO_FILE', 'NO_FILE']]",
+            "in_filepair_optional           = ['NO_FILE', 'NO_FILE']",
+            "in_nonfile_array_optional      = []    // (optional array)    eg. [integer1, ...]",
+            "in_nonfile_optional            = null  // (optional integer)",
             "// PROCESS: NON_FILE_TEST_TOOL",
-            "non_file_test_tool.nonfile                 = null   // (integer)",
-            "non_file_test_tool.nonfile_array           = []     // (array)    eg. [integer1, ...]",
-            "non_file_test_tool.nonfile_array_optional  = []     // (array)    eg. [integer1, ...]",
-            "non_file_test_tool.nonfile_optional        = null   // (integer)",
+            "non_file_test_tool.nonfile                 = null  // (integer)",
+            "non_file_test_tool.nonfile_array           = []    // (array)             eg. [integer1, ...]",
+            "non_file_test_tool.nonfile_array_optional  = []    // (optional array)    eg. [integer1, ...]",
+            "non_file_test_tool.nonfile_optional        = null  // (optional integer)",
+            "}",
+        ]
+        for ln in actual_lines:
+            print(ln)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for ln in actual_lines:
+            self.assertIn(ln, expected_lines)
+    
+    def test_config_params_pythontool(self) -> None:
+        # test_nonfile
+        # string, int, bool
+        wf = InputsPythonToolTestWF()
+        do_preprocessing_workflow(wf)
+        config = translator.stringify_translated_inputs({})
+        actual_lines = simplify_file(config)
+        expected_lines = [
+            "docker.enabled = true",
+            "params {",
+            "// OUTPUT DIRECTORY",
+            "outdir  = './outputs'",
+            "// INPUTS (MANDATORY)",
+            "in_file            = null  // (generic file)",
+            "in_secondary_type  = []    // (generic file)  eg. [txt, txt]",
+            "in_int             = null  // (integer)",
+            "in_str             = null  // (string)",
+            "in_str_arr         = []    // (array)         eg. [string1, ...]",
+            "// PROCESS: JOIN_ARRAY_PYTHON_TEST_TOOL",
+            "join_array_python_test_tool.code_file  = '/home/grace/work/pp/translation/janis-core/templates/JoinArrayPythonTestTool.py'",
+            "join_array_python_test_tool.inp        = []  // (array)  eg. [string1, ...]",
+            "// PROCESS: MULTI_TYPES_INPUT_PYTHON_TOOL",
+            "multi_types_input_python_tool.code_file  = '/home/grace/work/pp/translation/janis-core/templates/MultiTypesInputPythonTool.py'",
+            "multi_types_input_python_tool.inp2       = null  // (string)",
+            "multi_types_input_python_tool.inp3       = null  // (integer)",
+            "// PROCESS: SECONDARY_INPUT_PYTHON_TEST_TOOL",
+            "secondary_input_python_test_tool.code_file  = '/home/grace/work/pp/translation/janis-core/templates/SecondaryInputPythonTestTool.py'",
             "}",
         ]
         self.assertEqual(len(actual_lines), len(expected_lines))
@@ -1903,6 +1943,9 @@ class TestTranslateHelperFiles(unittest.TestCase):
             'templates/JoinArrayPythonTestTool.py',
             'templates/SecondaryInputPythonTestTool.py'
         ]
+        for filepath, filecontents in helper_files.items():
+            print(f'\n--- {filepath} ---')
+            print(filecontents)
         self.assertEqual(len(actual_paths), len(expected_paths))
         for path in actual_paths:
             self.assertIn(path, expected_paths)
@@ -1963,22 +2006,31 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         task = self.processes['MultiTypesInputPythonTool']
         actual_inputs = [inp.get_string() for inp in task.ordered_inputs]
         expected_inputs = {
+            "path code_file",
             "path inp1, stageAs: 'inp1'"
         }
+        self.assertEqual(len(actual_inputs), len(expected_inputs))
         for ln in expected_inputs:
             self.assertIn(ln, actual_inputs)
         
         # Array(String) input type
         task = self.processes['JoinArrayPythonTestTool']
         actual_inputs = [inp.get_string() for inp in task.ordered_inputs]
-        self.assertEqual(len(actual_inputs), 0)
+        expected_inputs = {
+            "path code_file",
+        }
+        self.assertEqual(len(actual_inputs), len(expected_inputs))
+        for ln in expected_inputs:
+            self.assertIn(ln, actual_inputs)
         
         # File (secondaries) input type
         task = self.processes['SecondaryInputPythonTestTool']
         actual_inputs = {inp.get_string() for inp in task.ordered_inputs}
         expected_inputs = {
+            "path code_file",
             'tuple path(bam), path(bai)',
         }
+        self.assertEqual(len(actual_inputs), len(expected_inputs))
         for ln in expected_inputs:
             self.assertIn(ln, actual_inputs)
 
@@ -2046,6 +2098,7 @@ class TestPythontoolProcess(unittest.TestCase):
             'container "python:3.8.1"',
             'publishDir "${params.outdir}/multi_types_input_python_tool"',
             'input:',
+            'path code_file',
             'path inp1, stageAs: \'inp1\'',
             'output:',
             'val "${file("${task.workDir}/" + file("${task.workDir}/out_out").text.replace(\'"\', \'\'))}", emit: out',
@@ -2053,7 +2106,7 @@ class TestPythontoolProcess(unittest.TestCase):
             'script:',
             '"""',
             '#!/usr/bin/env python',
-            'from templates.MultiTypesInputPythonTool import code_block',
+            'from ${code_file} import code_block',
             'import os',
             'import json',
             'result = code_block(',
@@ -2588,6 +2641,15 @@ class TestPlumbingBasic(unittest.TestCase):
         reset_globals()
 
     # workflow input step inputs
+    def test_python_tool_inputs(self):
+        wf = InputsPythonToolTestWF()
+        actual = _gen_call_lines_local(wf, step=wf.step_nodes['stp0'])
+        expected = [
+            "params.multi_types_input_python_tool.code_file",
+            "ch_in_file",
+        ]
+        self.assertListEqual(expected, actual)
+
     def test_workflow_inputs(self):
         wf = StepInputsWFInputTestWF()
         actual = _gen_call_lines_local(wf, step=wf.step_nodes['stp1'])

@@ -754,6 +754,7 @@ class WorkflowBase(Tool):
                 if settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
                     msg = f"This task is supposed to run in parallel across {fields}, but some of these are not task inputs."
                     log_warning(self.uuid, msg)
+                    raise Exception("should this be checked?")
                 else:
                     # if there is a field not in the input map, we have a problem
                     extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))

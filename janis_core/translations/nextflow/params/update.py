@@ -41,6 +41,9 @@ class ParamRegistrationManager:
         # secondaries
         elif utils.is_secondary_type(self.tinput.intype):
             return 'secondary'
+        # file_pair array
+        elif utils.is_array_file_pair_type(self.tinput.intype):
+            return 'file_pair_array'
         # file_pair
         elif utils.is_file_pair_type(self.tinput.intype):
             return 'file_pair'
@@ -73,6 +76,9 @@ class ParamRegistrationManager:
             elif self.tformat == 'secondary':
                 return self.get_file_default_secondary()
             
+            elif self.tformat == 'file_pair_array':
+                return self.get_file_default_file_pair_array()
+            
             elif self.tformat == 'file_pair':
                 return self.get_file_default_file_pair()
             
@@ -90,23 +96,29 @@ class ParamRegistrationManager:
     def get_file_default_secondary_array(self) -> list[list[str]]:
         basetype = utils.get_base_type(self.tinput.intype)
         num_files = len(utils.get_extensions(basetype))
-        internal_structure = "'NO_FILE', " * num_files
-        internal_structure = internal_structure.strip(', ')
-        return [[internal_structure]]
+        internal_structure = ['NO_FILE'] * num_files
+        default = [internal_structure]
+        return default
     
     def get_file_default_secondary(self) -> list[str]:
         basetype = utils.get_base_type(self.tinput.intype)
         num_files = len(utils.get_extensions(basetype))
-        internal_structure = "'NO_FILE', " * num_files
-        internal_structure = internal_structure.strip(', ')
-        return [internal_structure]
+        default = ['NO_FILE'] * num_files
+        return default
+    
+    def get_file_default_file_pair_array(self) -> list[list[str]]:
+        default = [['NO_FILE', 'NO_FILE']]
+        return default
     
     def get_file_default_file_pair(self) -> list[str]:
-        return ['NO_FILE', 'NO_FILE']
+        default = ['NO_FILE', 'NO_FILE']
+        return default
     
     def get_file_default_generic_array(self) -> list[str]:
-        return ['NO_FILE']
+        default = ['NO_FILE']
+        return default
     
     def get_file_default_generic(self) -> str:
-        return 'NO_FILE'
+        default = 'NO_FILE'
+        return default
             

@@ -2,12 +2,13 @@
 
 
 
+import os
 from typing import Any
 from abc import ABC, abstractmethod
 
 from janis_core import translation_utils as utils
-from janis_core import Workflow, TInput, Tool
-from janis_core.types import DataType
+from janis_core import Workflow, TInput, Tool, PythonTool
+from janis_core.types import DataType, File
 
 from ... import params
 from ... import naming
@@ -25,6 +26,22 @@ class TaskInputsPopulator(ABC):
         self.param_inputs: set[str] = set()
         self.static_inputs: set[str] = set()
         self.ignored_inputs: set[str] = set()
+        self.populate_code_file()
+
+    def populate_code_file(self) -> None:
+        # pythontool gets extra code_file input before normal inputs
+        if isinstance(self.tool, PythonTool):
+            path = f'{os.getcwd()}/templates/{self.tool.id()}.py'
+            # create param for nextflow.config & so we can get the param for process calls
+            param = params.add(
+                task_id=self.tool.id(),
+                tinput_id='code_file',
+                subtype='sub_tool',
+                # name_override=self.tool.id(),
+                janis_dtype=File(),
+                default=path
+            )
+            task_inputs.update(self.tool.id(), 'task_input', 'code_file', 'code_file')
 
     @abstractmethod
     def populate(self) -> None:
@@ -73,6 +90,7 @@ class TaskInputsPopulator(ABC):
         return value
 
 
+
 class TaskInputsPopulatorToolMode(TaskInputsPopulator):
 
     def __init__(self, tool: Tool) -> None:
@@ -97,6 +115,7 @@ class TaskInputsPopulatorToolMode(TaskInputsPopulator):
         task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
 
 
+
 class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
 
     def __init__(self, tool: Tool, sources: dict[str, Any], main_wf: Workflow) -> None:
@@ -106,6 +125,7 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
     
     def populate(self) -> None:
         self.update_categories()
+
         for tinput_id in self.task_inputs: 
             self.update_as_task_input(tinput_id)
         for tinput_id in self.param_inputs: 

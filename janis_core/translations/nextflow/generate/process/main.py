@@ -117,10 +117,6 @@ class PythonToolProcessGenerator:
         return naming.constructs.gen_varname_process(self.tool.id())
     
     @property
-    def code_file_path(self) -> str:
-        return f'templates.{self.tool.id()}'
-    
-    @property
     def args(self) -> list[str]:
         # TODO: handle args of type list of string (need to quote them)
         args: list[str] = []
@@ -201,7 +197,7 @@ class PythonToolProcessGenerator:
         script = f"""\
 {settings.translate.nextflow.PYTHON_SHEBANG}
 
-from {self.code_file_path} import code_block
+from ${{code_file}} import code_block
 import os
 import json
 

@@ -22,8 +22,9 @@ from .directives import (
 
 from .inputs import (
     NFProcessInput, 
+    NFPythonToolProcessInput,
     NFPathProcessInput, 
-    NFTupleProcessInput
+    NFTupleProcessInput,
 )
 
 from .outputs import NFProcessOutput
@@ -206,11 +207,17 @@ class TuplePriorityInputStrategy(InputOrderingStrategy):
         out = sorted(inputs, key=lambda x: isinstance(x, NFTupleProcessInput), reverse=True)
         return out
 
+class PythonToolPriorityInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        out = sorted(inputs, key=lambda x: isinstance(x, NFPythonToolProcessInput), reverse=True)
+        return out
+
 process_input_strategies = [
     AlphabeticalInputStrategy,
     MandatoryPriorityInputStrategy,
     PathPriorityInputStrategy,
     TuplePriorityInputStrategy,
+    PythonToolPriorityInputStrategy,
 ]
 
 def order_nf_process_inputs(inputs: list[NFProcessInput]) -> list[NFProcessInput]:

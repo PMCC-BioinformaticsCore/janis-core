@@ -10,12 +10,17 @@ from janis_core.types import DataType, Stdout
 from janis_core import settings
 
 from ... import trace
+from ... import params
 
 from ...model.process import NFProcess
+from ...model.process import NFProcessInput
+from ...model.process import NFPythonToolProcessInput
 from ...model.workflow import NFWorkflow
+from ...model.workflow import NFWorkflowTake
 
 from ...unwrap import unwrap_expression
 from ...variables import VariableManager
+from ...casefmt import to_case
 
 from .datatype_mismatch import is_datatype_mismatch
 from .datatype_mismatch import gen_datatype_mismatch_plumbing
@@ -47,11 +52,11 @@ class TaskCallGenerator:
         self.call: list[str] = []
 
     @property
-    def ordered_task_input_ids(self) -> list[str]:
+    def ordered_task_inputs(self) -> list[NFProcessInput | NFWorkflowTake]:
         if isinstance(self.task, NFProcess):
-            return [x.tinput_id for x in self.task.ordered_inputs]
+            return [x for x in self.task.ordered_inputs]
         elif isinstance(self.task, NFWorkflow): # type: ignore
-            return [x.tinput_id for x in self.task.ordered_take]
+            return [x for x in self.task.ordered_take]
         else:
             raise RuntimeError
 
@@ -63,8 +68,8 @@ class TaskCallGenerator:
     def get_call_arguments(self) -> list[str]:
         call_args: list[str] = []
 
-        for tinput_id in self.ordered_task_input_ids:
-            arg = self.get_call_arg(tinput_id)
+        for task_input in self.ordered_task_inputs:
+            arg = self.get_call_arg(task_input)
             call_args.append(arg)
         
         # TODO check
@@ -76,9 +81,9 @@ class TaskCallGenerator:
         
         return call_args
     
-    def get_call_arg(self, tinput_id: str) -> str:
+    def get_call_arg(self, task_input: NFProcessInput | NFWorkflowTake) -> str:
         generator = TaskCallArgumentGenerator(
-            tinput_id=tinput_id,
+            task_input=task_input,
             vmanager=self.vmanager,
             # calling_scope=self.calling_scope,
             step=self.step
@@ -109,8 +114,8 @@ class TaskCallGenerator:
  
 
 class TaskCallArgumentGenerator:
-    def __init__(self, tinput_id: str, vmanager: VariableManager, step: StepNode) -> None:
-        self.tinput_id = tinput_id
+    def __init__(self, task_input: NFProcessInput | NFWorkflowTake, vmanager: VariableManager, step: StepNode) -> None:
+        self.task_input = task_input
         self.vmanager = vmanager
 
         self.tool: CommandTool | PythonTool | Workflow  = step.tool     
@@ -120,6 +125,10 @@ class TaskCallArgumentGenerator:
         # update if has source
         if self.tinput_id in step.sources:
             self.src = step.sources[self.tinput_id]
+
+    @property
+    def tinput_id(self) -> str:
+        return self.task_input.tinput_id
 
     @property
     def tinput(self) -> TInput:
@@ -156,6 +165,16 @@ class TaskCallArgumentGenerator:
 
     def generate(self) -> str:
         """calculate the arg which will feed this task input"""
+        if isinstance(self.task_input, NFPythonToolProcessInput):
+            return self.generate_code_file()
+        else:
+            return self.generate_normal()
+
+    def generate_code_file(self) -> str:
+        param = params.get('code_file', self.tool.id())
+        return f'params.{param.name}'
+
+    def generate_normal(self) -> str:
         arg = unwrap_expression(
             val=self.src,
             context='workflow',

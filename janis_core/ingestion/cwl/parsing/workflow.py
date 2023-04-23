@@ -191,6 +191,7 @@ class WorkflowStepInputsParser(WorkflowEntityParser):
             if source is not None:
                 inputs_dict[inp_identifier] = source
             else:
+                raise Exception("should this be checked?")
                 print()
             # collect error messages from step inputs, log them as errors parsing this step instead
             self.error_msgs += parser.error_msgs  

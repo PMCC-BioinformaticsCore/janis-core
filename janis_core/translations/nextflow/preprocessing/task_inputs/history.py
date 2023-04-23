@@ -60,13 +60,13 @@ class TaskInputCollector:
         else:
             return self.init_inputs_dict_workflow()
 
-    def trace_to_node(self, entity: Any, tool: Tool) -> Optional[TInput | TOutput]:
-        referenced_vars = trace.trace_referenced_variables(entity, tool)
-        for var in referenced_vars:
-            if var in tool.all_input_keys():
-                return tool.inputs_map()[var]
-            else:
-                print()
+    # def trace_to_node(self, entity: Any, tool: Tool) -> Optional[TInput | TOutput]:
+    #     referenced_vars = trace.trace_referenced_variables(entity, tool)
+    #     for var in referenced_vars:
+    #         if var in tool.all_input_keys():
+    #             return tool.inputs_map()[var]
+    #         else:
+    #             print()
             
     def init_inputs_dict_tool(self) -> dict[str, Any]:
         return {tinput_id: None for tinput_id in self.tool.inputs_map().keys()}

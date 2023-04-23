@@ -246,8 +246,6 @@ class CmdtoolProcessOutputFactory:
             self.add_braces = False
             self.quote_strings = True
             expr = self.unwrap(expr)
-            if expr is None:
-                print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         
@@ -255,8 +253,6 @@ class CmdtoolProcessOutputFactory:
             self.add_braces = True
             self.quote_strings = True
             expr = self.unwrap(expr)
-            if expr is None:
-                print()
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         

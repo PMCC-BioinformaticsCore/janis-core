@@ -21,6 +21,13 @@ class NFProcessInput(ABC):
 
 
 @dataclass
+class NFPythonToolProcessInput(NFProcessInput):
+
+    def get_string(self) -> str:
+        return f'path {self.name}'
+
+
+@dataclass
 class NFValProcessInput(NFProcessInput):
 
     def get_string(self) -> str:

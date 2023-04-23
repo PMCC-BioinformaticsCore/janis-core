@@ -52,11 +52,21 @@ class ParamGroup:
     
     @property
     def value_width(self) -> int:
-        return max([len(value(p)) for p in self.params]) + 1
+        non_default_widths = [len(value(p)) for p in self.params if p.default is None]
+        default_widths = [len(value(p)) for p in self.params if p.default is not None]
+        if non_default_widths:
+            return max(non_default_widths) + 1
+        else:
+            return max(default_widths) + 1
     
     @property
     def dtype_width(self) -> int:
-        return max([len(dtype_label(p)) for p in self.params]) + 1
+        non_default_widths = [len(dtype_label(p)) for p in self.params if p.default is None]
+        default_widths = [len(dtype_label(p)) for p in self.params if p.default is not None]
+        if non_default_widths:
+            return max(non_default_widths) + 1
+        else:
+            return max(default_widths) + 1
 
     def to_string(self) -> str:
         heading = f'{INDENT}// {self.heading}\n'
@@ -78,8 +88,12 @@ def value(param: Param) -> str:
     dtype = param.dtype
     basetype = utils.get_base_type(dtype)
     
+    # has default
+    if param.default is not None:
+        val = param.groovy_value
+
     # secondary array optional
-    if utils.is_array_secondary_type(dtype) and dtype.optional:
+    elif utils.is_array_secondary_type(dtype) and dtype.optional:
         exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
         val = ["'NO_FILE'"] * len(exts)
         val = ', '.join(val)
@@ -139,10 +153,6 @@ def value(param: Param) -> str:
     # array
     elif dtype.is_array():
         val = '[]'
-    
-    # default
-    elif param.default is not None:
-        val = param.groovy_value
 
     # generic
     else:
@@ -198,10 +208,18 @@ def format_label(param: Param) -> str:
     return f'eg. {label}'
 
 def dtype_label(param: Param) -> str:
+    # get datatype name
     name = param.dtype.name().lower()
     if name == 'file':
-        name = 'generic file'
-    return f'({name})'
+        dtype_str = 'generic file'
+    else:
+        dtype_str = param.dtype.name().lower()
+
+    # return label formatted with optionality
+    if param.dtype.optional:
+        return f'(optional {dtype_str})'
+    else:
+        return f'({dtype_str})'
 
 
 
@@ -229,11 +247,20 @@ class ParamFormatterClosedForm:
         return dtype_label(self.param)
 
     def to_string(self) -> str:
+        if self.param.default is not None:
+            return self.to_string_without_labels()
+        else:
+            return self.to_string_with_labels()
+
+    def to_string_without_labels(self) -> str:
+        return f'{INDENT}{self.name:<{self.name_width}} = {self.value:<{self.value_width}}'
+
+    def to_string_with_labels(self) -> str:
         return f"""\
 {INDENT}\
 {self.name:<{self.name_width}} \
 = \
-{self.value:<{self.value_width}}  \
+{self.value:<{self.value_width}} \
 // \
 {self.dtype_label:<{self.dtype_width}} \
 {self.format_label}\
