@@ -21,9 +21,6 @@ CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
 
-
-
-
 def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVariableDefinitionBlock]:
     # for each param
     # if it qualifies to create a file, create file variable declaration
@@ -49,15 +46,6 @@ def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVar
 
 
 
-class VariableValueType(Enum):
-    FILE_OPT            = auto()
-    FILEPAIR_OPT        = auto()
-    SECONDARY_OPT       = auto()
-    FILE_ARR_OPT        = auto()
-    FILEPAIR_ARR_OPT    = auto()
-    SECONDARY_ARR_OPT   = auto()
-
-
 class VariableDefinitionGenerator:
     def __init__(self, tinput: TInput, task_input: TaskInput) -> None:
         self.tinput = tinput
@@ -68,55 +56,43 @@ class VariableDefinitionGenerator:
         return self.tinput.intype  # type: ignore
     
     @property
-    def varname(self) -> str:
+    def var_name(self) -> str:
         return naming.constructs.gen_varname_file(self.tinput.id())
     
     @property
-    def paramname(self) -> str:
+    def param_name(self) -> str:
         assert(isinstance(self.task_input.value, str))
         return self.task_input.value
     
     @property
-    def vartype(self) -> VariableValueType:
-        if utils.is_array_secondary_type(self.dtype):
-            return VariableValueType.SECONDARY_ARR_OPT
-        elif utils.is_secondary_type(self.dtype):
-            return VariableValueType.SECONDARY_OPT
-        elif utils.is_array_file_pair_type(self.dtype):
-            return VariableValueType.FILEPAIR_ARR_OPT
-        elif utils.is_file_pair_type(self.dtype):
-            return VariableValueType.FILEPAIR_OPT
-        elif self.dtype.is_array():
-            return VariableValueType.FILE_ARR_OPT
-        else:
-            return VariableValueType.FILE_OPT
-    
-    @property
-    def varvalue(self) -> str:
-        if self.vartype == VariableValueType.FILE_OPT:
-            value =  f'file( {self.paramname} )'
+    def value(self) -> str:
+        if utils.is_secondary_array_type(self.dtype):
+            value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
         
-        elif self.vartype == VariableValueType.FILEPAIR_OPT:
-            value = f'{self.paramname}.each {{ value -> file(value) }}'
-
-        elif self.vartype == VariableValueType.SECONDARY_OPT:
-            value = f'{self.paramname}.each {{ value -> file(value) }}'
-
-        elif self.vartype == VariableValueType.FILE_ARR_OPT:
-            value = f'{self.paramname}.each {{ value -> file(value) }}'
-
-        elif self.vartype == VariableValueType.FILEPAIR_ARR_OPT:
-            value = f'{self.paramname}.each {{ outer -> outer.each {{ inner -> file(inner) }} }}'
-
-        elif self.vartype == VariableValueType.SECONDARY_ARR_OPT:
-            value = f'{self.paramname}.each {{ outer -> outer.each {{ inner -> file(inner) }} }}'
+        elif utils.is_secondary_type(self.dtype):
+            value = f'{self.param_name}.collect{{ file(it) }}'
+        
+        elif utils.is_file_pair_array_type(self.dtype):
+            value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
+        
+        elif utils.is_file_pair_type(self.dtype):
+            value = f'{self.param_name}.collect{{ file(it) }}'
+        
+        elif utils.is_file_array_type(self.dtype):
+            value = f'{self.param_name}.collect{{ file(it) }}'
+        
+        elif utils.is_file_type(self.dtype):
+            value = f'file ( {self.param_name} )'
+        
+        else:
+            raise RuntimeError(f'Unsupported file type: {self.dtype}')
 
         return value
 
     def generate(self) -> NFVariableDefinition:
         return NFVariableDefinition(
-            name=self.varname,
-            value=self.varvalue, 
+            name=self.var_name,
+            value=self.value, 
             dtype=self.dtype
         )
         

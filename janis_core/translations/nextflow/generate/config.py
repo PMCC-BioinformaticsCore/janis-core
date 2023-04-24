@@ -10,23 +10,31 @@ from janis_core import translation_utils as utils
 
 from ..params import Param, getall
 from ..casefmt import to_case
+from .. import nulls
 
 USE_CLOSED_FORM = True
-BOILERPLATE_LINES = ['docker.enabled = true']
 INDENT = settings.translate.nextflow.NF_INDENT
 MAX_LINE_WIDTH = 80
+
 TEMPLATE = """\
-{boilerplate}
+
+nextflow.enable.dsl=2
+docker.enabled = true
 
 params {{
+    
+    // Macro to all optional task inputs 
+    // (do not alter unless you know what you are doing)
+    NULL = 'NULL'
+
+    // WORKFLOW OUTPUT DIRECTORY
+    outdir  = './outputs'
 
 {param_block}
 }}
 """
 
 def generate_config() -> str:
-    # boilerplate 
-    boilerplate_str = '\n'.join(BOILERPLATE_LINES)
 
     # params    
     param_block_str = ''
@@ -36,7 +44,7 @@ def generate_config() -> str:
         param_block_str += f'{g.to_string()}\n'
 
     # final config text formatting
-    config = TEMPLATE.format(boilerplate=boilerplate_str, param_block=param_block_str)
+    config = TEMPLATE.format(param_block=param_block_str)
     return config
 
 
@@ -85,87 +93,21 @@ def name(param: Param) -> str:
     return param.name
 
 def value(param: Param) -> str:
-    dtype = param.dtype
-    basetype = utils.get_base_type(dtype)
-    
-    # has default
-    if param.default is not None:
-        val = param.groovy_value
-
-    # secondary array optional
-    elif utils.is_array_secondary_type(dtype) and dtype.optional:
-        exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
-        val = ["'NO_FILE'"] * len(exts)
-        val = ', '.join(val)
-        val = f'[[{val}]]'
-    
-    # secondary array
-    elif utils.is_array_secondary_type(dtype):
-        val = '[[]]'
-    
-    # secondary optional
-    elif utils.is_secondary_type(dtype) and dtype.optional:
-        exts = utils.get_extensions(dtype, remove_prefix_symbols=True)
-        val = ["'NO_FILE'"] * len(exts)
-        val = ', '.join(val)
-        val = f'[{val}]'
-    
-    # secondary
-    elif utils.is_secondary_type(basetype):
-        val = '[]'
-    
-    # file pair array optional
-    elif utils.is_array_file_pair_type(dtype) and dtype.optional:
-        val = "[['NO_FILE', 'NO_FILE']]"
-    
-    # file pair array
-    elif utils.is_array_file_pair_type(dtype):
-        val = '[[]]'
-
-    # file pair optional
-    elif utils.is_file_pair_type(basetype) and dtype.optional:
-        val = "['NO_FILE', 'NO_FILE']"
-
-    # file pair
-    elif utils.is_file_pair_type(basetype):
-        val = '[]'
-
-    # file array optional
-    elif isinstance(basetype, File) and dtype.is_array() and dtype.optional:
-        val = "['NO_FILE']"
-    
-    # file array
-    elif isinstance(basetype, File) and dtype.is_array():
-        val = '[]'
-    
-    # file optional
-    elif isinstance(basetype, File) and dtype.optional:
-        val = "'NO_FILE'"
-    
-    # file 
-    elif isinstance(basetype, File):
-        val = 'null'
-    
-    # array optional
-    elif dtype.is_array() and dtype.optional:
-        val = 'null'
-    
-    # array
-    elif dtype.is_array():
-        val = '[]'
-
-    # generic
-    else:
-        val = 'null'
-        
-    return val
+    return param.groovy_value
+    # dtype = param.dtype
+    # # has default
+    # if param.default is not None:
+    #     val = param.groovy_value
+    # else:
+    #     val = nulls.get_null_value(dtype)
+    # return val
 
 def format_label(param: Param) -> str:
     dtype = param.dtype
     basetype = utils.get_base_type(dtype)
     
     # secondary array
-    if utils.is_array_secondary_type(dtype):
+    if utils.is_secondary_array_type(dtype):
         exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
         exts_str = ', '.join(exts)
         label = f'[[{exts_str}]]'
@@ -177,7 +119,7 @@ def format_label(param: Param) -> str:
         label = f'[{exts_str}]'
     
     # file pair array
-    elif utils.is_array_file_pair_type(dtype):
+    elif utils.is_file_pair_array_type(dtype):
         label = "[[pair1, pair2]]"
     
     # file pair
@@ -274,16 +216,13 @@ class ParamGrouper:
 
     def group(self) -> list[ParamGroup]:
         # awful code but no time. 
-        outdir: list[Param] = []
         mandatory_inputs: list[Param] = []
         optional_inputs: list[Param] = []
         subtools: dict[str, list[Param]] = defaultdict(list)
         subworkflows: dict[str, list[Param]] = defaultdict(list)
         for param in self.params:
             heading = self.get_group_heading(param)
-            if heading == 'OUTPUT DIRECTORY':
-                outdir.append(param)
-            elif heading == 'INPUTS (MANDATORY)':
+            if heading == 'INPUTS (MANDATORY)':
                 mandatory_inputs.append(param)
             elif heading == 'INPUTS (OPTIONAL)':
                 optional_inputs.append(param)
@@ -294,8 +233,6 @@ class ParamGrouper:
 
         # sorting
         out: list[ParamGroup] = []
-        if outdir:
-            out.append(ParamGroup('OUTPUT DIRECTORY', outdir))
         if mandatory_inputs:
             out.append(ParamGroup('INPUTS (MANDATORY)', mandatory_inputs))
         if optional_inputs:
@@ -326,191 +263,4 @@ class ParamGrouper:
             print()
         return name
 
-        
-
-
-
-    # def param_to_string(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     basetype = utils.get_base_type(dtype)
-    #     basetype = utils.ensure_single_type(basetype)
-
-    #     if utils.is_array_secondary_type(dtype):
-    #         return self.format_param_array_secondary(param)
-        
-    #     elif utils.is_secondary_type(basetype):
-    #         return self.format_param_secondary(param)
-        
-    #     elif utils.is_array_file_pair_type(dtype):
-    #         return self.format_param_array_file_pair(param)
-
-    #     elif utils.is_file_pair_type(basetype):
-    #         return self.format_param_file_pair(param)
-
-    #     elif isinstance(basetype, File) and dtype.is_array():
-    #         return self.format_param_file_array(param)
-        
-    #     elif isinstance(basetype, File):
-    #         return self.format_param_file(param)
-        
-    #     elif dtype.is_array():
-    #         return self.format_param_val_array(param)
-        
-    #     else:
-    #         return self.format_param_val(param)
-        
-    # def get_dtype_label(self, param: Param) -> str:
-    #     if param.dtype.name() == 'File':
-    #         return 'generic file'
-    #     else:
-    #         return param.dtype.name().lower()
-
-    # def format_param_array_secondary(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     basetype = utils.get_base_type(dtype)
-    #     exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
-    #     exts = [x.replace("\'", "") for x in exts]
-    #     dtype_label = self.get_dtype_label(param)
-    #     format_label = self.get_format_label(param)
-
-    #     text: str = ''
-    #     # type heading
-    #     # text += f'{INDENT}// array of {basetype.name()}\n'
-
-    #     if USE_CLOSED_FORM:
-    #         if dtype.optional:
-    #             val = ["'NO_FILE'"] * len(exts)
-    #             val = ', '.join(val)
-    #             val = f'[[{val}]]'
-    #         else:
-    #             exts_str = ', '.join(exts)
-    #             val = f'[[]]  // format: [[{exts_str}]]'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = {val} ({dtype_label})'
-
-    #     else:
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         text += f'{INDENT}{INDENT}[\n'
-    #         for ext in exts:
-    #             val = "'NO_FILE'," if dtype.optional else ext
-    #             text += f'{INDENT}{INDENT}{INDENT}// {val}\n'
-    #         text += f'{INDENT}{INDENT}],\n'
-    #         text += f'{INDENT}]'
-
-    #     return text
-
-    # def format_param_secondary(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     basetype = utils.get_base_type(dtype)
-    #     exts = utils.get_extensions(basetype, remove_prefix_symbols=True)
-    #     exts = [x.replace("\'", "") for x in exts]
-        
-    #     text: str = ''
-    #     # type heading
-    #     # text += f'{INDENT}// {basetype.name()}\n'
-    #     if USE_CLOSED_FORM:
-    #         if dtype.optional:
-    #             val = ["'NO_FILE'"] * len(exts)
-    #             val = ', '.join(val)
-    #             val = f'[{val}]'
-    #             print()
-    #         else:
-    #             exts_str = ', '.join(exts)
-    #             val = f'[]  // format: [{exts_str}]'
-    #             print()
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = {val}'
-        
-    #     else:
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         for ext in exts:
-    #             val = "'NO_FILE'," if dtype.optional else ext
-    #             text += f'{INDENT}{INDENT}{INDENT}// {val}\n'
-    #         text += f'{INDENT}]'
-        
-    #     return text
-
-    # def format_param_array_file_pair(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     text: str = ''
-
-    #     if USE_CLOSED_FORM:
-    #         val = "[['NO_FILE', 'NO_FILE']]" if dtype.optional else '[[]]  // format: [pair1, pair2]'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = {val}'
-        
-    #     else:
-    #         val1 = "'NO_FILE'," if dtype.optional else '// read1'
-    #         val2 = "'NO_FILE'" if dtype.optional else '// read2'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         text += f'{INDENT}{INDENT}[\n'
-    #         text += f'{INDENT}{INDENT}{INDENT}{val1},\n'
-    #         text += f'{INDENT}{INDENT}{INDENT}{val2}\n'
-    #         text += f'{INDENT}{INDENT}],\n'
-    #         text += f'{INDENT}]'
-        
-    #     return text
-
-    # def format_param_file_pair(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     text: str = ''
-
-        
-    #     if USE_CLOSED_FORM:
-    #         val = "['NO_FILE', 'NO_FILE']" if dtype.optional else '[]  // format: [pair1, pair2]'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = {val}'
-         
-    #     else:
-    #         val1 = "'NO_FILE'," if dtype.optional else '// read1'
-    #         val2 = "'NO_FILE'" if dtype.optional else '// read2'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         text += f'{INDENT}{INDENT}{val1},\n'
-    #         text += f'{INDENT}{INDENT}{val2}\n'
-    #         text += f'{INDENT}]'
-        
-    #     return text
-    
-    # def format_param_file_array(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     text: str = ''
-    #     basetype = utils.get_base_type(dtype)
-    #     assert(isinstance(basetype, File))
-    #     if basetype.name() == 'File':
-    #         example = 'example.ext'
-    #     else:
-    #         example = f'example.{basetype.extension}'
-
-    #     if USE_CLOSED_FORM:
-    #         val = "['NO_FILE']" if dtype.optional else f'[]  // format: [{example}]'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = {val}'
-         
-    #     else:
-    #         val = "'NO_FILE'" if dtype.optional else f'// format: [{example}]'
-    #         text += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         text += f'{INDENT}{INDENT}{val},\n'
-    #         text += f'{INDENT}]'
-
-    #     return text
-    
-    # def format_param_file(self, param: Param) -> str:
-    #     dtype = param.dtype
-    #     val = "'NO_FILE'" if dtype.optional else 'null'
-    #     return f'{INDENT}{param.name:<{self.linewidth}} = {val}'
-    
-    # def format_param_val_array(self, param: Param) -> str:
-    #     if param.default is not None:
-    #         single_line = f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
-            
-    #         multi_line = ''
-    #         multi_line += f'{INDENT}{param.name:<{self.linewidth}} = [\n'
-    #         for val in param.groovy_value.strip('[]').split(', '):
-    #             multi_line += f'{INDENT}{INDENT}{val},\n'
-    #         multi_line += f'{INDENT}]\n'
-    #         print(multi_line)
-            
-    #         return single_line if len(single_line) <= MAX_LINE_WIDTH else multi_line
-
-    #     else:
-    #         return f'{INDENT}{param.name:<{self.linewidth}} = []  // list values here'
-
-    # def format_param_val(self, param: Param) -> str:
-    #     return f'{INDENT}{param.name:<{self.linewidth}} = {param.groovy_value}'
-
-
+ 

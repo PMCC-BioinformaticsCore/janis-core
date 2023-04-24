@@ -74,7 +74,7 @@ class ChannelDefinitionGenerator:
         task_input = task_inputs.get(self.wf.id(), self.tinput)
         param_name = task_input.value
         # @secondaryarrays
-        if utils.is_array_secondary_type(self.tinput.intype):
+        if utils.is_secondary_array_type(self.tinput.intype):
             src = f'{param_name}.flatten()'
         else:
             src = f'{param_name}'
@@ -91,7 +91,7 @@ class ChannelDefinitionGenerator:
     
     def get_operations(self) -> str:
         # secondary array
-        if utils.is_array_secondary_type(self.tinput.intype):
+        if utils.is_secondary_array_type(self.tinput.intype):
             ops = self.get_operations_secondary_array()
         
         # secondary

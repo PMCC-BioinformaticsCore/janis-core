@@ -7,7 +7,10 @@
 # PARAM_VAR = "%PARAM%"
 # LIST_OF_FILES_PARAM = "%LIST_OF_FILES_PARAM%"
 # LIST_OF_FILE_PAIRS_PARAM = "%LIST_OF_FILE_PAIRS_PARAM%"
-PYTHON_CODE_FILE_SYMBOL = "code_file"
+
+# symbols
+PYTHON_CODE_FILE = 'code_file'
+NULL = 'NULL'
 
 # filenames
 CONFIG_FILENAME = 'nextflow.config'

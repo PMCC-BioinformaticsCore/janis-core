@@ -19,8 +19,8 @@ from ...model.workflow import NFMainWorkflow
 from ...model.workflow import NFSubWorkflow
 from ...model.process import NFProcess
 
-from .channels import gen_channels_block
-from .variables import gen_variables_block
+from .channel_declarations import gen_channels_block
+from .variable_declarations import gen_variables_block
 
 
 def generate_file_workflow(

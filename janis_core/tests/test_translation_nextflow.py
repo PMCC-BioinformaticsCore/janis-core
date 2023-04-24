@@ -76,7 +76,8 @@ from janis_core.tests.testworkflows import (
     ProcessInputsTestWF,
     OrderingTestWF,
     PlumbingEdgeCaseTestWF,
-    OptionalTestWF,
+    MandatoryInputTypesTestWF,
+    OptionalInputTypesTestWF,
     DuplicateTasksTestWF,
     MinimalTaskInputsTestWF1,
     MinimalTaskInputsTestWF2,
@@ -191,6 +192,19 @@ def simplify_call(textlines: list[str]) -> list[str]:
     lines = [ln for ln in lines if not ln == '']    # remove empty lines
     return lines
 
+def simplify_prescript(text: str) -> list[str]:
+    lines = text.split('\n')                        # split into lines
+    lines = [ln.strip(' ') for ln in lines]         # strip indents
+    lines = [ln for ln in lines if not ln == '']    # remove empty lines
+    return lines
+
+def simplify_script(text: str) -> list[str]:
+    lines = text.split('\n')                        # split into lines
+    lines = [ln.strip(' ') for ln in lines]         # strip indents
+    lines = [ln.rstrip(' \\') for ln in lines]      # remove escape characters
+    lines = [ln for ln in lines if not ln == '']    # remove empty lines
+    return lines
+
 def simplify_file(text: str) -> list[str]:
     lines = text.split('\n')                    # split into lines
     lines = [ln.strip() for ln in lines]        # strip indents
@@ -242,8 +256,6 @@ class DataTypeNoSecondary(File):
 
 
 
-
-### test classes
 
 class TestTaskInputs(unittest.TestCase):
 
@@ -1567,20 +1579,25 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
 
+    @unittest.skip('not implemented')
     def test_multiple_statements(self) -> None:
-        pass
-    
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_directories_to_create(self) -> None:
-        pass
-    
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_files_to_create_cmdtool(self) -> None:
-        pass
-    
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_files_to_create_codetool(self) -> None:
-        pass
-    
+        raise NotImplementedError
+
+    @unittest.skip('not implemented')
     def test_files_to_create_cmdtool_exprtool(self) -> None:
-        pass
+        raise NotImplementedError
 
     def test_variables_defined(self) -> None:
         wf = EntityTraceTestWF()
@@ -1592,7 +1609,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_prescript = process.pre_script
+        actual_prescript = simplify_prescript(process.pre_script)
         assert(actual_prescript)
         expected_lines = {
             'def java_options = null',
@@ -1607,7 +1624,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         
-        actual_prescript = process.pre_script
+        actual_prescript = simplify_prescript(process.pre_script)
         assert(actual_prescript)
         expected_lines = {
             'def compression_level = null',
@@ -1623,7 +1640,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         
-        actual_prescript = process.pre_script
+        actual_prescript = simplify_prescript(process.pre_script)
         assert(actual_prescript)
         expected_lines = {
             'def java_options = null',
@@ -1631,7 +1648,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
 
-    def test_components_prescript(self) -> None:
+    def test_prescript_singles(self) -> None:
         wf = StepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp1']
@@ -1639,19 +1656,20 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_prescript = process.pre_script
-        expected_lines = {
-            'def pos_default = pos_default ? pos_default : 95',
-            'def pos_optional = pos_optional ? pos_optional : ""',
+        actual_prescript = simplify_prescript(process.pre_script)
+        expected_prescript = {
+            'def pos_default = pos_default != params.NULL ? pos_default : 95',
+            'def pos_optional = pos_optional != params.NULL ? pos_optional : ""',
             'def flag_true = flag_true == false ? "" : "--flag-true"',
             'def flag_false = flag_false ? "--flag-false" : ""',
-            'def opt_default = opt_default ? opt_default : 5',
-            'def opt_optional = opt_optional ? "--opt-optional ${opt_optional}" : ""',
+            'def opt_default = opt_default != params.NULL ? opt_default : 5',
+            'def opt_optional = opt_optional != params.NULL ? "--opt-optional ${opt_optional}" : ""',
         }
-        for ln in expected_lines:
-            self.assertIn(ln, actual_prescript)
+        self.assertEqual(len(actual_prescript), len(expected_prescript))
+        for ln in actual_prescript:
+            self.assertIn(ln, expected_prescript)
     
-    def test_components_script(self) -> None:
+    def test_script_singles(self) -> None:
         wf = StepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1659,8 +1677,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_script = process.script
-        expected_lines = [
+        actual_script = simplify_script(process.script)
+        expected_script = [
             'echo',
             '${pos_basic}',
             '${pos_default}',
@@ -1671,10 +1689,11 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '--opt-default ${opt_default}',
             '${opt_optional}',
         ]
-        for ln in expected_lines:
-            self.assertIn(ln, actual_script)
+        self.assertEqual(len(actual_script), len(expected_script))
+        for ln in actual_script:
+            self.assertIn(ln, expected_script)
 
-    def test_components_array_prescript(self) -> None:
+    def test_prescript_arrays(self) -> None:
         wf = ArrayStepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1682,29 +1701,30 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_prescript = set(process.pre_script.split('\n'))
-        expected_prescript = set([
+        actual_prescript = simplify_prescript(process.pre_script)
+        expected_prescript = [
             'def pos_basic_joined = pos_basic.join(\' \')',
-            'def pos_basic2_joined = pos_basic2 != [\'NO_FILE\'] ? pos_basic2.join(\' \') : ""',
-            'def pos_default_joined = pos_default ? pos_default.join(\' \') : "1 2 3"',
-            'def pos_optional_joined = pos_optional ? pos_optional.join(\' \') : ""',
+            'def pos_basic2_joined = pos_basic2[0].simpleName != params.NULL ? pos_basic2.join(\' \') : ""',
+            'def pos_default_joined = pos_default != params.NULL ? pos_default.join(\' \') : "1 2 3"',
+            'def pos_optional_joined = pos_optional != params.NULL ? pos_optional.join(\' \') : ""',
             'def opt_basic_joined = opt_basic.join(\' \')',
-            'def opt_default_items = opt_default ? opt_default.collect{ "--opt-default " + it }.join(\' \') : "--opt-default 1 --opt-default 2 --opt-default 3"',
-            'def opt_optional_joined = opt_optional ? "--opt-optional " + opt_optional.join(\',\') : ""',
-        ])
+            'def opt_default_items = opt_default != params.NULL ? opt_default.collect{ "--opt-default " + it }.join(\' \') : "--opt-default 1 --opt-default 2 --opt-default 3"',
+            'def opt_optional_joined = opt_optional != params.NULL ? "--opt-optional " + opt_optional.join(\',\') : ""',
+        ]
         actual_prescript = sorted(actual_prescript)
         expected_prescript = sorted(expected_prescript)
+        self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
     
-    def test_components_array_script(self) -> None:
+    def test_script_arrays(self) -> None:
         wf = ArrayStepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
-        actual_script = process.script
+        actual_script = simplify_script(process.script)
         expected_lines = [
             'echo',
             '${pos_basic_joined}',
@@ -1735,7 +1755,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             self.assertIn(ln, actual_pre_script)
         
         # script
-        actual_script = process.script
+        actual_script = simplify_script(process.script)
         print(actual_script)
         expected_script = {
             'echo',
@@ -1756,16 +1776,16 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         process = nextflow.generate.process.generate_process(step.tool)
         
         # pre-script
-        actual_pre_script = process.pre_script
-        expected_pre_script = {
+        actual_prescript = simplify_prescript(process.pre_script)
+        expected_prescript = {
             "def inp = get_primary_files(indexed_bam_flat)",
             "def inp_joined = inp.join(' ')"
         }
-        for ln in expected_pre_script:
-            self.assertIn(ln, actual_pre_script)
+        for ln in expected_prescript:
+            self.assertIn(ln, actual_prescript)
         
         # script
-        actual_script = process.script
+        actual_script = simplify_script(process.script)
         expected_script = {
             'echo',
             '${inp_joined}',
@@ -1784,32 +1804,30 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
-        print(f'actual: \n{process.get_string()}')
-        expected = """\
-process FILENAME_GENERATED_TOOL {
-    debug true
-    publishDir "${params.outdir}/filename_generated_tool"
-
-    input:
-    path file_inp, stageAs: 'file_inp.txt'
-    path file_inp_optional, stageAs: 'file_inp_optional.txt'
-
-    output:
-    val "*", emit: out
-
-    script:
-    \"\"\"
-    echo \\
-    ${params.filename_generated_tool.inp} \\
-    ${params.filename_generated_tool.inp_optional} \\
-    ${file_inp.simpleName}.transformed.fnp \\
-    ${file_inp_optional.simpleName}.optional.txt \\
-    \"\"\"
-
-}
-"""     
-        print(f'expected: \n{expected}')
-        self.assertEqual(expected, process.get_string())
+        actual_process = simplify_file(process.get_string())
+        print(process.get_string())
+        expected_process = [
+            'process FILENAME_GENERATED_TOOL {',
+            'debug true',
+            'publishDir "${params.outdir}/filename_generated_tool"',
+            'input:',
+            'path file_inp',
+            'path file_inp_optional, stageAs: \'file_inp_optional/*\'',
+            'output:',
+            'val "*", emit: out',
+            'script:',
+            '\"\"\"',
+            'echo \\',
+            '${params.filename_generated_tool.inp} \\',
+            '${params.filename_generated_tool.inp_optional} \\',
+            '${file_inp.simpleName}.transformed.fnp \\',
+            '${file_inp_optional.simpleName}.optional.txt \\',
+            '\"\"\"',
+            '}'
+        ]
+        self.assertEqual(len(expected_process), len(actual_process))
+        for ln in actual_process:
+            self.assertIn(ln, expected_process)
    
     def test_filename_types(self) -> None:
         wf = FilenameTestWF1()
@@ -1820,7 +1838,7 @@ process FILENAME_GENERATED_TOOL {
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_script = process.script
+        actual_script = simplify_script(process.script)
         expected_lines = {
             'echo',
             '${inp1}',
@@ -1834,7 +1852,7 @@ process FILENAME_GENERATED_TOOL {
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_script = process.script
+        actual_script = simplify_script(process.script)
         expected_lines = {
             'echo',
             '${inp1}',
@@ -1843,25 +1861,76 @@ process FILENAME_GENERATED_TOOL {
         for ln in expected_lines:
             self.assertIn(ln, actual_script)
 
-    def test_optional_types(self) -> None:
-        wf = OptionalTestWF()
+    def test_all_mandatory_types(self) -> None:
+        wf = MandatoryInputTypesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         scope = nextflow.Scope()
         scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
-        actual_prescript = process.pre_script
-        expected_lines = {
-            "def in_secondary_array_opt = get_primary_files(indexed_bam_flat)", 
-            "def in_secondary_array_opt_joined = in_secondary_array_opt != ['NO_FILE'] ? in_secondary_array_opt.join(' ') : \"\"", 
-            "def in_secondary_opt = bam != 'NO_FILE' ? bam : \"\"", 
-            "def in_file_pair_opt_joined = in_file_pair_opt != ['NO_FILE', 'NO_FILE'] ? in_file_pair_opt.join(' ') : \"\"", 
-            "def in_file_array_opt_joined = in_file_array_opt != ['NO_FILE'] ? in_file_array_opt.join(' ') : \"\"", 
-            "def in_file_opt = in_file_opt != 'NO_FILE' ? in_file_opt : \"\"", 
-        }
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'process MANDATORY_TYPES_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/mandatory_types_test_tool"',
+            'input:',
+            'path indexed_bam_flat',
+            'tuple path(bam), path(bai)',
+            'path in_file_pair_array',
+            'path in_file_pair',
+            'path in_file_array',
+            'path in_file',
+            'output:',
+            'stdout, emit: out',
+            'script:',
+            'def in_secondary_array = get_primary_files(indexed_bam_flat)',
+            'def in_secondary_array_joined = in_secondary_array.join(\' \')',
+            'def in_file_pair_array_joined = in_file_pair_array.join(\' \')',
+            'def in_file_pair_joined = in_file_pair.join(\' \')',
+            'def in_file_array_joined = in_file_array.join(\' \')',
+            'def in_int_array_joined = params.mandatory_types_test_tool.in_int_array.join(\' \')',
+            'def in_str_array_joined = params.mandatory_types_test_tool.in_str_array.join(\' \')',
+            '"""',
+            'echo \\',
+            '${in_secondary_array_joined} \\',
+            '${bam} \\',
+            '${in_file_pair_array_joined} \\',
+            '${in_file_pair_joined} \\',
+            '${in_file_array_joined} \\',
+            '${in_file} \\',
+            '${in_int_array_joined} \\',
+            '${params.mandatory_types_test_tool.in_int} \\',
+            '${in_str_array_joined} \\',
+            '${params.mandatory_types_test_tool.in_str} \\',
+            '"""',
+            '}',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
         for ln in expected_lines:
-            self.assertIn(ln, actual_prescript)
+            self.assertIn(ln, actual_lines)
+    
+    def test_all_optional_types(self) -> None:
+        wf = OptionalInputTypesTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        scope = nextflow.Scope()
+        scope.update(step)
+        process = nextflow.generate.process.generate_process(step.tool)
+        print(process.get_string())
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'def in_secondary_array_opt = get_primary_files(indexed_bam_flat)',
+            'def in_secondary_array_opt_joined = in_secondary_array_opt[0].simpleName != params.NULL ? in_secondary_array_opt.join(\' \') : ""',
+            'def in_secondary_opt = bam.simpleName != params.NULL ? bam : ""',
+            'def in_file_pair_opt_joined = in_file_pair_opt[0].simpleName != params.NULL ? in_file_pair_opt.join(\' \') : ""',
+            'def in_file_array_opt_joined = in_file_array_opt[0].simpleName != params.NULL ? in_file_array_opt.join(\' \') : ""',
+            'def in_file_opt = in_file_opt.simpleName != params.NULL ? in_file_opt : ""',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
+        for ln in expected_lines:
+            self.assertIn(ln, actual_lines)
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:

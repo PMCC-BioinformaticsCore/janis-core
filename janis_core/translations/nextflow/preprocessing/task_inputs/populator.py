@@ -37,7 +37,7 @@ class TaskInputsPopulator(ABC):
             # create param for nextflow.config & so we can get the param for process calls
             param = params.add(
                 task_id=self.tool.id(),
-                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL,
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE,
                 subtype='sub_tool',
                 # name_override=self.tool.id(),
                 janis_dtype=File(),
@@ -46,8 +46,8 @@ class TaskInputsPopulator(ABC):
             task_inputs.update(
                 tool_id=self.tool.id(), 
                 dstype_str='task_input', 
-                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
-                value=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
+                value=settings.translate.nextflow.PYTHON_CODE_FILE
             )
 
     @abstractmethod
@@ -73,7 +73,7 @@ class TaskInputsPopulator(ABC):
                 qtype = tinput.intype  # type: ignore
                 qbasetype = utils.get_base_type(qtype)  # type: ignore
 
-                if utils.is_array_secondary_type(rtype) and utils.is_array_secondary_type(qtype):  # type: ignore
+                if utils.is_secondary_array_type(rtype) and utils.is_secondary_array_type(qtype):  # type: ignore
                     if type(rbasetype) == type(qbasetype):
                         return True
                 
@@ -87,7 +87,7 @@ class TaskInputsPopulator(ABC):
         dtype: DataType = tinput.intype  # type: ignore
         is_duplicate = self.duplicate_datatype_exists(tinput)
         
-        if utils.is_array_secondary_type(dtype):
+        if utils.is_secondary_array_type(dtype):
             value = naming.process.secondaries_array(tinput, duplicate_datatype_exists=is_duplicate)
         elif utils.is_secondary_type(dtype):
             value = naming.process.secondaries(tinput, duplicate_datatype_exists=is_duplicate)
@@ -132,7 +132,6 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
     
     def populate(self) -> None:
         self.update_categories()
-
         for tinput_id in self.task_inputs: 
             self.update_as_task_input(tinput_id)
         for tinput_id in self.param_inputs: 

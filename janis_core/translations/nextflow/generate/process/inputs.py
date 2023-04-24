@@ -50,8 +50,8 @@ class ProcessInputGenerator:
         # pythontool gets extra code_file input before normal inputs
         if isinstance(self.tool, PythonTool):
             new_input = NFPythonToolProcessInput(
-                name=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
-                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+                name=settings.translate.nextflow.PYTHON_CODE_FILE, 
+                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
                 dtype=File())
             self.process_inputs.append(new_input)
 
@@ -73,7 +73,7 @@ class ProcessInputGenerator:
         # if self.dtype.optional:
         #     return self.create_val_input(self.tinput)
 
-        if utils.is_array_secondary_type(self.dtype):
+        if utils.is_secondary_array_type(self.dtype):
             return self.create_path_input_secondaries_array(self.tinput)
         
         # secondaries
@@ -81,7 +81,7 @@ class ProcessInputGenerator:
             return self.create_tuple_input_secondaries(self.tinput)
         
         # filepair array
-        elif utils.is_array_file_pair_type(self.dtype):
+        elif utils.is_file_pair_array_type(self.dtype):
             return self.create_path_input(self.tinput)
         
         # filepair
@@ -117,13 +117,11 @@ class ProcessInputGenerator:
         ti = task_inputs.get(self.tool.id(), inp)
         subnames = ti.value
         assert(isinstance(subnames, list))
-        qualifiers = ['path'] * len(subnames)
         
         new_input = NFTupleProcessInput(
             name=inp.id(), 
             tinput_id=inp.id(),
             dtype=self.dtype,
-            qualifiers=qualifiers, 
             subnames=subnames
         )
         return new_input

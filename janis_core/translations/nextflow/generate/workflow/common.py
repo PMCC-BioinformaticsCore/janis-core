@@ -27,7 +27,7 @@ def secondary_type(dtype: DataType) -> bool:
     return False
 
 def secondary_array_type(dtype: DataType) -> bool:
-    if utils.is_array_secondary_type(dtype) or utils.is_array_file_pair_type(dtype):
+    if utils.is_secondary_array_type(dtype) or utils.is_file_pair_array_type(dtype):
         return True
     return False
 

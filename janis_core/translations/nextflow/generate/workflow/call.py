@@ -26,6 +26,7 @@ from .datatype_mismatch import gen_datatype_mismatch_plumbing
 
 from .edge_cases import satisfies_edge_case
 from .edge_cases import handle_edge_case
+from ... import nulls
 
 NF_INDENT = settings.translate.nextflow.NF_INDENT
 
@@ -70,13 +71,6 @@ class TaskCallGenerator:
         for task_input in self.ordered_task_inputs:
             arg = self.get_call_arg(task_input)
             call_args.append(arg)
-        
-        # TODO check
-        # add extra arg in case of python tool - the code file.
-        # a param with the same name will have already been created. 
-        # if isinstance(self.tool, PythonTool):
-        #     scope_joined = self.task_scope.to_string(ignore_base_item=True)
-        #     call_args = [f'params.{scope_joined}.code_file'] + call_args
         
         return call_args
     
@@ -171,7 +165,7 @@ class TaskCallArgumentGenerator:
 
     def generate_code_file(self) -> str:
         param = params.get(
-            tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL, 
+            tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
             task_id=self.tool.id()
         )
         return f'params.{param.name}'
@@ -183,28 +177,33 @@ class TaskCallArgumentGenerator:
             variable_manager=self.vmanager,
             quote_strings=True
         )
-        if arg is None:
-            arg = 'null'
             
         if isinstance(arg, list):
             raise NotImplementedError
             call_args += arg
 
-        # handle misc edge case (takes priority over datatype mismatches)
-        if self.src is not None and satisfies_edge_case(self.src):
-            # TODO optionality checking should be inside handle_edge_case()
-            if not self.srctype.optional:
+        if arg is not None:
+            # handle misc edge case (takes priority over datatype mismatches)
+            if satisfies_edge_case(self.src):
+                # TODO optionality checking should be inside handle_edge_case()
+                # if not self.srctype.optional:
                 suffix = handle_edge_case(self.src)
                 arg = f'{arg}{suffix}'
 
-        # handle datatype relationship
-        elif self.srctype is not None and is_datatype_mismatch(self.srctype, self.desttype, self.dest_scatter):
-            # TODO optionality checking should be inside gen_datatype_mismatch_plumbing()
-            if not self.srctype.optional:
+            # handle datatype relationship
+            elif self.srctype is not None and is_datatype_mismatch(self.srctype, self.desttype, self.dest_scatter):
+                # TODO optionality checking should be inside gen_datatype_mismatch_plumbing()
+                # if not self.srctype.optional:
                 suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter)
                 arg = f'{arg}{suffix}'
         
+        if arg is None:
+            arg = nulls.get_null_value(self.desttype, as_param=True)
+            print()
+        
         return arg
+    
+    
 
     
 

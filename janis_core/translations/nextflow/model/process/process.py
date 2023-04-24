@@ -7,7 +7,10 @@ from textwrap import indent
 from typing import Optional, Type
 from dataclasses import dataclass, field
 
+from janis_core.types import DataType
 from janis_core import settings
+from janis_core import translation_utils as utils
+
 
 from .directives import (
     NFProcessDirective,
@@ -23,7 +26,6 @@ from .directives import (
 from .inputs import (
     NFProcessInput, 
     NFPythonToolProcessInput,
-    NFPathProcessInput, 
     NFTupleProcessInput,
 )
 
@@ -194,18 +196,32 @@ class AlphabeticalInputStrategy(InputOrderingStrategy):
 
 class MandatoryPriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
-        out = sorted(inputs, key=lambda x: x.dtype.optional, reverse=False)
+        out = sorted(inputs, key=lambda x: x.dtype.optional)
         return out
 
-class PathPriorityInputStrategy(InputOrderingStrategy):
-    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
-        out = sorted(inputs, key=lambda x: isinstance(x, NFPathProcessInput), reverse=True)
-        return out
+class TypePriorityInputStrategy(InputOrderingStrategy):
 
-class TuplePriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
-        out = sorted(inputs, key=lambda x: isinstance(x, NFTupleProcessInput), reverse=True)
+        out = sorted(inputs, key=lambda x: self.get_priority(x.dtype))
         return out
+    
+    def get_priority(self, dtype: DataType) -> int:
+        if utils.is_secondary_array_type(dtype):
+            return 0
+        elif utils.is_secondary_type(dtype):
+            return 1
+        elif utils.is_file_pair_array_type(dtype):
+            return 2
+        elif utils.is_file_pair_type(dtype):
+            return 3
+        elif utils.is_file_array_type(dtype):
+            return 4
+        elif utils.is_file_type(dtype):
+            return 5
+        elif utils.is_array_type(dtype):
+            return 6
+        else:
+            return 7
 
 class PythonToolPriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
@@ -215,8 +231,7 @@ class PythonToolPriorityInputStrategy(InputOrderingStrategy):
 process_input_strategies = [
     AlphabeticalInputStrategy,
     MandatoryPriorityInputStrategy,
-    PathPriorityInputStrategy,
-    TuplePriorityInputStrategy,
+    TypePriorityInputStrategy,
     PythonToolPriorityInputStrategy,
 ]
 

@@ -196,7 +196,7 @@ class PythonToolProcessGenerator:
         script = f"""\
 {settings.translate.nextflow.PYTHON_SHEBANG}
 
-from ${{{settings.translate.nextflow.PYTHON_CODE_FILE_SYMBOL}}} import code_block
+from ${{{settings.translate.nextflow.PYTHON_CODE_FILE}}} import code_block
 import os
 import json
 

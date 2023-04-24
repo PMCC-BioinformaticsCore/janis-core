@@ -834,7 +834,7 @@ class Unwrapper:
 
         # arrays of secondaries
         # @secondariesarray
-        if utils.is_array_secondary_type(conn_out.outtype):
+        if utils.is_secondary_array_type(conn_out.outtype):
             raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')
 
         # everything else

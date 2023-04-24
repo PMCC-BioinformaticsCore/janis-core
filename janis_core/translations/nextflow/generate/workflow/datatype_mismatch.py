@@ -56,55 +56,6 @@ def get_array_depth(dtype: DataType) -> int:
     return depth
 
 
-
-# # DEPRECATED
-# def is_datatype_mismatch_deprecated(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
-#     if secondary_array_type(desttype):
-#         # Array(Secondary()) types are always considered datatype mismatch
-#         # because they get flattened before being fed to a process. 
-#         return True
-#     elif is_array_depth_mismatch(srctype, desttype, destscatter):
-#         return True
-#     elif is_base_type_mismatch(srctype, desttype):
-#         return True
-#     return False
-
-# def is_array_depth_mismatch_deprecated(srctype: DataType, desttype: DataType, destscatter: bool) -> bool:
-#     """
-#     identify whether the datatypes have array differences. could be due to:
-    
-#     - The datatypes genuinely have type mismatch involving arrays
-#       eg Array(String()) -> String() 
-    
-#     - The scatter relationship. 
-#       eg Array(String()) -> Array(String()) is still a mismatch if either the source / dest is scattered 
-#     """
-#     srctype_depth = get_array_depth(srctype)
-#     desttype_depth = get_array_depth(desttype)
-
-#     # if srctype array depth equals desttype,
-#     # if we are scattering, mismatch
-#     # else no mismatch
-#     if abs(srctype_depth - desttype_depth) == 0:
-#         if destscatter:
-#             return True
-#         return False
-    
-#     # if srctype array depth is one greater than desttype
-#     # if we are scattering on dest, no mismatch.
-#     # else mismatch
-#     elif abs(srctype_depth - desttype_depth) == 1:
-#         if srctype_depth - desttype_depth == 1 and destscatter:
-#             return False
-#         return True
-    
-#     # any array depth >= 2 is always mismatch, even in the case of dest scatter. 
-#     elif abs(srctype_depth - desttype_depth) >= 2:
-#         return True
-#     return False
-
-
-
 # public
 def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destscatter: bool) -> str:
     """

@@ -10,7 +10,8 @@ from janis_core.types import (
     File, 
     Directory,
     UnionType,
-    Filename
+    Filename,
+    Array
 )
 
 
@@ -26,6 +27,16 @@ def ensure_single_type(dtype: DataType) -> DataType:
         return dtype.subtypes[0]
     return dtype    
 
+
+# NON-FILES
+
+def is_array_type(dtype: DataType) -> bool:
+    if isinstance(dtype, Array) and dtype.name() == 'Array':
+        return True
+    return False
+
+# FILES
+
 def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
     if recursive:
         basetype = get_base_type(dtype)
@@ -34,13 +45,17 @@ def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
     
     if isinstance(basetype, (File, Filename, Directory)):
         return True
-    
     elif is_file_pair_type(basetype, recursive=recursive):
         return True
     
     return False
 
-
+def is_file_array_type(dtype: DataType) -> bool:
+    if is_array_type(dtype):
+        if is_file_type(dtype.subtype()):
+            return True
+    return False
+    
 
 # FILE PAIRS
 
@@ -56,24 +71,22 @@ def is_file_pair_type(dtype: DataType, recursive: bool=True) -> bool:
         return True
     return False
 
-def is_array_file_pair_type(dtype: DataType) -> bool:
+def is_file_pair_array_type(dtype: DataType) -> bool:
     if dtype.name() == 'Array':
         if is_file_pair_type(dtype):
             return True
     return False
 
-
-
 ### SECONDARIES 
 
 def is_secondary_type(dtype: DataType) -> bool:
-    if not is_array_secondary_type(dtype):
+    if not is_secondary_array_type(dtype):
         basetype = get_base_type(dtype)
         if isinstance(basetype, File) and basetype.has_secondary_files():
             return True
     return False
 
-def is_array_secondary_type(dtype: DataType) -> bool:
+def is_secondary_array_type(dtype: DataType) -> bool:
     basetype = get_base_type(dtype)
     if dtype.is_array() and isinstance(basetype, File) and basetype.has_secondary_files():
         return True

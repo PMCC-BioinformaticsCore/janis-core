@@ -1,7 +1,6 @@
 
 
 from typing import Any
-from copy import deepcopy
 
 from janis_core import Workflow, CommandTool, PythonTool, Tool
 

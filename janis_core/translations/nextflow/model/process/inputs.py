@@ -5,7 +5,7 @@ from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from janis_core import DataType, File, Directory
+from janis_core import DataType
 from janis_core import translation_utils as utils
 
 
@@ -40,18 +40,32 @@ class NFPathProcessInput(NFProcessInput):
 
     @property
     def stage_as(self) -> str:
-        # presents_as takes precent
+        # presents_as takes precedent? this might be really bad.
         if self.presents_as:
-            outstr = f", stageAs: '{self.presents_as}'"
+            raise RuntimeError('CHECK ME: NFPathProcessInput')
+            expr = f", stageAs: '{self.presents_as}'"
+
+        # optional secondary arrays
+        elif utils.is_secondary_array_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}??/*'"
+
+        # optional file pair arrays
+        elif utils.is_file_pair_array_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}??/*'"
+
+        # optional file arrays
+        elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}/*'"
         
-        # optional files need to be staged in subdir to avoid name clashes
-        elif self.dtype.optional:
-            outstr = f", stageAs: '{self.name}/*'"
+        # optional files
+        elif utils.is_file_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}/*'"
         
-        # files should be staged according to original naming
         else:
-            outstr = f", stageAs: '*'"
-        return outstr
+            expr = ''
+            # raise RuntimeError('CHECK ME: NFPathProcessInput')
+
+        return expr
     
     def get_string(self) -> str:
         return f'path {self.name}{self.stage_as}'
@@ -59,16 +73,29 @@ class NFPathProcessInput(NFProcessInput):
 
 @dataclass
 class NFTupleProcessInput(NFProcessInput):
-    qualifiers: list[str]
     subnames: list[str]
 
     @property
     def fields(self) -> str:
         out: str = ''
-        for qual, subname in zip(self.qualifiers, self.subnames):
-            out += f'{qual}({subname}), '
+        for subname in self.subnames:
+            out += f'path({subname}{self.stage_as(subname)}), '
         out = out.rstrip(', ') # strip off the last comma & space
         return out
+    
+    def stage_as(self, subname: str) -> str:
+        # optional secondary arrays
+        if utils.is_secondary_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{subname}/*'"
+
+        # optional file pair arrays
+        elif utils.is_file_pair_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{subname}/*'"
+
+        else:
+            expr = ''
+
+        return expr
 
     def get_string(self) -> str:
         return f'tuple {self.fields}'

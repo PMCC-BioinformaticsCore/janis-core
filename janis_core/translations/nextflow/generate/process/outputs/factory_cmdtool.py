@@ -46,13 +46,13 @@ def get_otype(out: ToolOutput) -> OType:
     if is_stdout_type(out):
         return OType.STDOUT
 
-    elif utils.is_array_file_pair_type(out.output_type):
+    elif utils.is_file_pair_array_type(out.output_type):
         return OType.FILEPAIR_ARRAY
     
     elif utils.is_file_pair_type(out.output_type):
         return OType.FILEPAIR
     
-    elif utils.is_array_secondary_type(out.output_type):
+    elif utils.is_secondary_array_type(out.output_type):
         return OType.SECONDARIES_ARRAY
     
     elif utils.is_secondary_type(out.output_type):

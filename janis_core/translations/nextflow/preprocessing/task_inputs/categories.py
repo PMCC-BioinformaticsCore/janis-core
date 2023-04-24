@@ -20,11 +20,16 @@ class TaskInputsCategoriser:
         self.ignored_inputs: set[str] = set()
 
     def categorise(self) -> None:
+        if self.tool.id() == 'strelkaGermlineVariantCaller':
+            print()
         for tinput_id, history in self.histories.items():
-            # file types
+            ### file types
+            # RULE 0: anything passed via step output must be a task input
+            if history.supplied_value_via_connection:
+                self.task_inputs.add(tinput_id)
 
             # RULE 1: files (mandatory) are always task inputs
-            if history.is_file and not history.is_optional:  
+            elif history.is_file and not history.is_optional:  
                 self.task_inputs.add(tinput_id)
             
             elif history.is_file:
@@ -51,7 +56,7 @@ class TaskInputsCategoriser:
                 else:
                     raise RuntimeError
 
-            # non-file types
+            ### non-file types
             else:
                 # RULE 6: non-files will be task inputs if 2+ values supplied
                 if len(history.non_null_unique_values) >= 2:
@@ -59,6 +64,7 @@ class TaskInputsCategoriser:
                 
                 elif len(history.unique_values) == 1 and len(history.non_null_unique_values) == 1:
                     # RULE 7: non-files with single invariant InputNode value can be hardcoded param in task
+                    # TODO this is a weak check
                     if list(history.non_null_unique_values)[0].startswith('Input:'):
                         self.param_inputs.add(tinput_id)
                     
@@ -66,7 +72,7 @@ class TaskInputsCategoriser:
                     else:
                         self.static_inputs.add(tinput_id)
 
-                # RULE 9: non-files with null and single InputNode value must be task inputs
+                # RULE 9: non-files with single null value and single InputNode value must be task inputs
                 elif len(history.unique_values) == 2 and len(history.non_null_unique_values) == 1:
                     self.task_inputs.add(tinput_id)
 

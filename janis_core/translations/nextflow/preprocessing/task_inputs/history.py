@@ -29,6 +29,14 @@ class TaskInputHistory:
         return False
     
     @property
+    def supplied_value_via_connection(self) -> bool:
+        for val in self.values:
+            # TODO this is a weak check
+            if isinstance(val, str) and val.startswith('Task: '):
+                return True
+        return False
+    
+    @property
     def unique_values(self) -> set[Optional[str]]:
         return set([x for x in self.values])
     
@@ -41,6 +49,26 @@ class TaskInputHistory:
             val = str(val)
         self.values.append(val)
 
+
+@dataclass 
+class InputNodeReference:
+    step_id: str 
+    tinput_id: str
+
+@dataclass 
+class InputNodeReferenceStore:
+    node_id: str
+    references: list[InputNodeReference] = field(default_factory=list)
+
+    @property 
+    def seems_like_dummy(self) -> bool:
+        # only 1 reference 
+        if len(self.references) == 1:
+            # the 1 reference implies dummy format
+            ref = self.references[0]
+            if self.node_id == f'{ref.step_id}_{ref.tinput_id}':
+                return True
+        return False
 
 
 class TaskInputCollector:
@@ -60,37 +88,58 @@ class TaskInputCollector:
         else:
             return self.init_inputs_dict_workflow()
 
-    # def trace_to_node(self, entity: Any, tool: Tool) -> Optional[TInput | TOutput]:
-    #     referenced_vars = trace.trace_referenced_variables(entity, tool)
-    #     for var in referenced_vars:
-    #         if var in tool.all_input_keys():
-    #             return tool.inputs_map()[var]
-    #         else:
-    #             print()
+    def get_input_node_references(self, entity: Any, tool: Tool) -> list[str]:
+        referenced_vars = trace.trace_referenced_variables(entity, tool)
+        all_input_keys = tool.inputs_map().keys()
+        input_vars = [x for x in referenced_vars if x in all_input_keys]
+        return input_vars
             
     def init_inputs_dict_tool(self) -> dict[str, Any]:
-        return {tinput_id: None for tinput_id in self.tool.inputs_map().keys()}
+        return {tinput.id(): None for tinput in self.tool.tool_inputs()}
 
     def init_inputs_dict_workflow(self) -> dict[str, Any]:
-        assert(isinstance(self.tool, Workflow))
-        inputs_dict: dict[str, Any] = {}
-        
-        for node in self.tool.input_nodes.values():
-            is_valid_wf_input = True
-            
-            for step in self.tool.step_nodes.values():
-                for tinput_id, src in step.sources.items():
-                    src_node = utils.resolve_node(src)
-                    # src_node = self.trace_to_node(src, self.tool)
-                    if isinstance(src_node, InputNode) and src_node.id() == node.id():
-                        derived_fmt = f'{step.id()}_{tinput_id}'
-                        if node.id() == derived_fmt:
-                            is_valid_wf_input = False
+        """
+        we assume all workflow inputs are valid, except those which are not files 
+        and look like they are dummy inputs derived when a task has a static input value. 
 
-            if is_valid_wf_input:
-                inputs_dict[node.id()] = None
+        a dummy input has the name formatted as <step_id>_<tinput_id>,
+        where tinput id is the id of the input in the tool being called.
+
+        to find these, for each workflow input, we assume it is valid. 
+        we then search through the step inputs of each step in the workflow for that input.
+
+        if we find only 1 reference and it has the format of a dummy input, we conclude it 
+        is likely to be one of these and remove it from the inputs dict.
+        """
+        assert(isinstance(self.tool, Workflow))
+        valid_inputs: set[str] = set()
+
+        for node in self.tool.input_nodes.values():
+            
+            # for non files check if it is a dummy input
+            if not utils.is_file_type(node.datatype):
+                reference_store = self.gen_reference_store(node)
+                if reference_store.seems_like_dummy:
+                    continue
+            
+            valid_inputs.add(node.id())
         
-        return inputs_dict
+        return {x: None for x in valid_inputs}
+
+    def gen_reference_store(self, node: InputNode) -> InputNodeReferenceStore:
+        assert(isinstance(self.tool, Workflow))
+        reference_store = InputNodeReferenceStore(node.id())
+
+        # iterate through each step_input for each step in workflow
+        for step in self.tool.step_nodes.values():
+            for tinput_id, src in step.sources.items():
+                node_names = self.get_input_node_references(src, self.tool)
+                for name in node_names:
+                    if name == node.id():
+                        new_ref = InputNodeReference(step.id(), tinput_id)
+                        reference_store.references.append(new_ref)
+        
+        return reference_store
 
     def collect(self, wf: Workflow) -> None:
         for step in wf.step_nodes.values():

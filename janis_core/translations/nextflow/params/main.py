@@ -7,14 +7,13 @@ from typing import Any, Optional
 
 from janis_core.types import (
     DataType,
-    Directory,
-    Array, 
     File
 )
 
 from janis_core import translation_utils as utils
 from .. import nfgen_utils
 from .. import naming
+from .. import nulls
 
 
 ### ORDERING
@@ -112,11 +111,11 @@ class Param:
 
     @property
     def groovy_value(self) -> str:
-        # get the default value as groovy code string
-        if isinstance(self.dtype, Array) and self.default is None:
-            val: list[str] = []
-        else:
+        # gets the value of this param formatted for groovy
+        if self.default is not None:
             val = self.default
+        else:
+            val = nulls.get_null_value(self.dtype)
         return nfgen_utils.to_groovy(val, self.dtype)
     
     @property
@@ -173,32 +172,36 @@ def serialize() -> dict[str, Any]:
 def clear() -> None:
     global param_register 
     param_register = ParamRegister()
-    add_default_params()
 
+
+param_register = ParamRegister()
+
+
+
+# DEPRECATED 
 
 ### instantiation of param register & default params
 
-default_params = [
-    {
-        'task_id': '__DEFAULTS__',
-        'tinput_id': '__DEFAULTS__',
-        'name_override': 'outdir',
-        'janis_dtype': Directory(),
-        'default': './outputs',
-        'subtype': 'defaults',
-    }
-]    
+# default_params = [
+#     {
+#         'task_id': '__DEFAULTS__',
+#         'tinput_id': '__DEFAULTS__',
+#         'name_override': 'outdir',
+#         'janis_dtype': Directory(),
+#         'default': './outputs',
+#         'subtype': 'defaults',
+#     }
+# ]    
 
-def add_default_params():
-    for p in default_params:
-        add(
-            task_id=p['task_id'], 
-            tinput_id=p['tinput_id'], 
-            default=p['default'],
-            name_override=p['name_override'],
-            janis_dtype=p['janis_dtype'],
-            subtype=p['subtype'],
-        )
+# def add_default_params():
+#     for p in default_params:
+#         add(
+#             task_id=p['task_id'], 
+#             tinput_id=p['tinput_id'], 
+#             default=p['default'],
+#             name_override=p['name_override'],
+#             janis_dtype=p['janis_dtype'],
+#             subtype=p['subtype'],
+#         )
 
-param_register = ParamRegister()
-add_default_params()
+

@@ -82,6 +82,6 @@ def gen_functions_for_process_file(tool: CommandTool | PythonTool) -> Optional[N
     
 def _should_add_get_primary_files(tool: CommandTool | PythonTool) -> bool:
     for tinput in tool.tool_inputs():
-        if utils.is_array_secondary_type(tinput.intype):
+        if utils.is_secondary_array_type(tinput.intype):
             return True
     return False

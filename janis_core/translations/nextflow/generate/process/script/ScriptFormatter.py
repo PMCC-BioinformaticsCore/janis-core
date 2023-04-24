@@ -15,6 +15,7 @@ from .... import naming
 from .... import nfgen_utils
 from ....unwrap import unwrap_expression
 
+from .... import nulls
 from .itype import IType, get_itype
 
 
@@ -23,29 +24,29 @@ PS_FLAG_TRUE                    = 'def {name} = {src} == false ? "" : "{prefix}"
 PS_FLAG_FALSE                   = 'def {name} = {src} ? "{prefix}" : ""'
 
 PS_POS_BASIC                    = ''
-PS_POS_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
-PS_POS_OPTIONAL                 = 'def {name} = {src} ? {src} : ""'
-PS_POS_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != {default} ? {src} : ""'
+PS_POS_DEFAULT                  = 'def {name} = {src} != params.NULL ? {src} : {default}'
+PS_POS_OPTIONAL                 = 'def {name} = {src} != params.NULL ? {src} : ""'
+PS_POS_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != params.NULL ? {src} : ""'
 
 PS_POS_BASIC_ARR                = 'def {name} = {arr_join}'
-PS_POS_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_POS_OPTIONAL_ARR             = 'def {name} = {src} ? {arr_join} : ""'
-PS_POS_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src} != {default} ? {arr_join} : ""'
+PS_POS_DEFAULT_ARR              = 'def {name} = {src} != params.NULL ? {arr_join} : "{default}"'
+PS_POS_OPTIONAL_ARR             = 'def {name} = {src} != params.NULL ? {arr_join} : ""'
+PS_POS_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src}[0].simpleName != params.NULL ? {arr_join} : ""'
 
 PS_OPT_BASIC                    = ''
-PS_OPT_DEFAULT                  = 'def {name} = {src} ? {src} : {default}'
-PS_OPT_OPTIONAL                 = 'def {name} = {src} ? "{prefix}${{{src}}}" : ""'
-PS_OPT_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != {default} ? "{prefix}${{{src}}}" : ""'
+PS_OPT_DEFAULT                  = 'def {name} = {src} != params.NULL ? {src} : {default}'
+PS_OPT_OPTIONAL                 = 'def {name} = {src} != params.NULL ? "{prefix}${{{src}}}" : ""'
+PS_OPT_OPTIONAL_FILETYPES       = 'def {name} = {src}.simpleName != params.NULL ? "{prefix}${{{src}}}" : ""'
 
 PS_OPT_BASIC_ARR                = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR              = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR             = 'def {name} = {src} ? "{prefix}" + {arr_join} : ""'
-PS_OPT_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src} != {default} ? "{prefix}" + {arr_join} : ""'
+PS_OPT_DEFAULT_ARR              = 'def {name} = {src} != params.NULL ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR             = 'def {name} = {src} != params.NULL ? "{prefix}" + {arr_join} : ""'
+PS_OPT_OPTIONAL_ARR_FILETYPES   = 'def {name} = {src}[0].simpleName != params.NULL ? "{prefix}" + {arr_join} : ""'
 
 PS_OPT_BASIC_ARR_PREFIXEACH              = 'def {name} = {arr_join}'
-PS_OPT_DEFAULT_ARR_PREFIXEACH            = 'def {name} = {src} ? {arr_join} : "{default}"'
-PS_OPT_OPTIONAL_ARR_PREFIXEACH           = 'def {name} = {src} ? {arr_join} : ""'
-PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES = 'def {name} = {src} != {default} ? {arr_join} : ""'
+PS_OPT_DEFAULT_ARR_PREFIXEACH            = 'def {name} = {src} != params.NULL ? {arr_join} : "{default}"'
+PS_OPT_OPTIONAL_ARR_PREFIXEACH           = 'def {name} = {src} != params.NULL ? {arr_join} : ""'
+PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES = 'def {name} = {src}[0].simpleName != params.NULL ? {arr_join} : ""'
 
 # script (SC) formatting
 SC_FLAG_TRUE                    = '${{{var}}}'
@@ -117,7 +118,8 @@ class ScriptFormatter:
         script: list[str] = []
         
         # preprocessing step for array secondaries
-        if utils.is_array_secondary_type(self.dtype):
+        # if utils.is_secondary_array_type(self.dtype) or utils.is_file_pair_array_type(self.dtype):
+        if utils.is_secondary_array_type(self.dtype):
             func_call = self.gen_function_call('get_primary_files')
             prescript.append(func_call)
         
@@ -235,17 +237,23 @@ class ScriptFormatter:
     
     @property
     def optional_default(self) -> Optional[str]:
-        OPTIONAL_FILE_DEFAULT = "'NO_FILE'"
-        OPTIONAL_FILE_ARR_DEFAULT = "['NO_FILE']"
-        OPTIONAL_FILE_PAIR_DEFAULT = "['NO_FILE', 'NO_FILE']"
         if self.is_optional_filetype:
-            if utils.is_file_pair_type(self.dtype):
-                return OPTIONAL_FILE_PAIR_DEFAULT
-            elif self.dtype.is_array():
-                return OPTIONAL_FILE_ARR_DEFAULT
-            else:
-                return OPTIONAL_FILE_DEFAULT
+            return nulls.get_null_value(self.dtype)
         return None
+
+    # @property
+    # def optional_default(self) -> Optional[str]:
+    #     OPTIONAL_FILE_DEFAULT = "'NO_FILE'"
+    #     OPTIONAL_FILE_ARR_DEFAULT = "['NO_FILE']"
+    #     OPTIONAL_FILE_PAIR_DEFAULT = "['NO_FILE', 'NO_FILE']"
+    #     if self.is_optional_filetype:
+    #         if utils.is_file_pair_type(self.dtype):
+    #             return OPTIONAL_FILE_PAIR_DEFAULT
+    #         elif self.dtype.is_array():
+    #             return OPTIONAL_FILE_ARR_DEFAULT
+    #         else:
+    #             return OPTIONAL_FILE_DEFAULT
+    #     return None
 
     @property
     def unwrapped_tinput_default(self) -> Any:

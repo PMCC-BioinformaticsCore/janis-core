@@ -46,8 +46,6 @@ class IType(Enum):
 
 # public function
 def get_itype(tinput: ToolInput) -> IType:
-    if tinput.prefix == '--forcedGT=':
-        print()
     # flags
     if is_flag_true(tinput):
         return IType.FLAG_TRUE
@@ -55,25 +53,25 @@ def get_itype(tinput: ToolInput) -> IType:
         return IType.FLAG_FALSE
 
     # positional arrays
-    elif is_array(tinput) and is_positional(tinput) and is_basic(tinput):
+    elif is_array_type(tinput) and is_positional(tinput) and is_basic(tinput):
         return IType.POS_BASIC_ARR
-    elif is_array(tinput) and is_positional(tinput) and has_default(tinput):
+    elif is_array_type(tinput) and is_positional(tinput) and has_default(tinput):
         return IType.POS_DEFAULT_ARR
-    elif is_array(tinput) and is_positional(tinput) and is_optional(tinput):
+    elif is_array_type(tinput) and is_positional(tinput) and is_optional(tinput):
         return IType.POS_OPTIONAL_ARR
     
     # option arrays
-    elif is_array(tinput) and is_option(tinput) and is_basic(tinput) and tinput.prefix_applies_to_all_elements:
+    elif is_array_type(tinput) and is_option(tinput) and is_basic(tinput) and tinput.prefix_applies_to_all_elements:
         return IType.OPT_BASIC_ARR_PREFIXEACH
-    elif is_array(tinput) and is_option(tinput) and has_default(tinput) and tinput.prefix_applies_to_all_elements:
+    elif is_array_type(tinput) and is_option(tinput) and has_default(tinput) and tinput.prefix_applies_to_all_elements:
         return IType.OPT_DEFAULT_ARR_PREFIXEACH
-    elif is_array(tinput) and is_option(tinput) and is_optional(tinput) and tinput.prefix_applies_to_all_elements:
+    elif is_array_type(tinput) and is_option(tinput) and is_optional(tinput) and tinput.prefix_applies_to_all_elements:
         return IType.OPT_OPTIONAL_ARR_PREFIXEACH
-    elif is_array(tinput) and is_option(tinput) and is_basic(tinput):
+    elif is_array_type(tinput) and is_option(tinput) and is_basic(tinput):
         return IType.OPT_BASIC_ARR
-    elif is_array(tinput) and is_option(tinput) and has_default(tinput):
+    elif is_array_type(tinput) and is_option(tinput) and has_default(tinput):
         return IType.OPT_DEFAULT_ARR
-    elif is_array(tinput) and is_option(tinput) and is_optional(tinput):
+    elif is_array_type(tinput) and is_option(tinput) and is_optional(tinput):
         return IType.OPT_OPTIONAL_ARR
     
     # positionals
@@ -144,7 +142,7 @@ def is_flag_false(tinput: ToolInput) -> bool:
         return True
     return False
 
-def is_array(tinput: ToolInput) -> bool:
+def is_array_type(tinput: ToolInput) -> bool:
     if tinput.input_type.is_array():
         return True
     return False

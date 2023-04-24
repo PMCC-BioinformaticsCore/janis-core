@@ -43,7 +43,8 @@ from .ordering import OrderingTestWF
 from .plumbing_edge_cases import PlumbingEdgeCaseTestWF
 from .plumbing_type_mismatch import PlumbingTypeMismatchTestWF
 from .trace import EntityTraceTestWF
-from .optional import OptionalTestWF
+from .optional_types import OptionalInputTypesTestWF
+from .mandatory_types import MandatoryInputTypesTestWF
 from .duplicate_tasks import DuplicateTasksTestWF
 from .minimal_task_inputs import MinimalTaskInputsTestWF1
 from .minimal_task_inputs import MinimalTaskInputsTestWF2
