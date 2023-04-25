@@ -36,8 +36,8 @@ class OType(Enum):
     NON_FILE            = auto()
     FILE                = auto()
     FILE_ARRAY          = auto()
-    FILEPAIR            = auto()
-    FILEPAIR_ARRAY      = auto()
+    FILE_PAIR           = auto()
+    FILE_PAIR_ARRAY     = auto()
     SECONDARIES         = auto()
     SECONDARIES_ARRAY   = auto()
 
@@ -45,20 +45,20 @@ class OType(Enum):
 def get_otype(out: ToolOutput) -> OType:
     if is_stdout_type(out):
         return OType.STDOUT
-
-    elif utils.is_file_pair_array_type(out.output_type):
-        return OType.FILEPAIR_ARRAY
-    
-    elif utils.is_file_pair_type(out.output_type):
-        return OType.FILEPAIR
     
     elif utils.is_secondary_array_type(out.output_type):
         return OType.SECONDARIES_ARRAY
     
     elif utils.is_secondary_type(out.output_type):
         return OType.SECONDARIES
+
+    elif utils.is_file_pair_array_type(out.output_type):
+        return OType.FILE_PAIR_ARRAY
     
-    elif utils.is_file_type(out.output_type) and out.output_type.is_array() and has_n_collectors(out, n=1):
+    elif utils.is_file_pair_type(out.output_type):
+        return OType.FILE_PAIR
+    
+    elif utils.is_file_array_type(out.output_type) and has_n_collectors(out, n=1):
         return OType.FILE_ARRAY
     
     elif utils.is_file_type(out.output_type):
@@ -128,8 +128,8 @@ class CmdtoolProcessOutputFactory:
             OType.NON_FILE: self.non_file_output,
             OType.FILE: self.file_output,
             OType.FILE_ARRAY: self.file_array_output,
-            OType.FILEPAIR: self.filepair_output,
-            OType.FILEPAIR_ARRAY: self.filepair_array_output,
+            OType.FILE_PAIR: self.file_pair_output,
+            OType.FILE_PAIR_ARRAY: self.file_pair_array_output,
             OType.SECONDARIES: self.secondaries_output,
             OType.SECONDARIES_ARRAY: self.secondaries_array_output,
         }
@@ -273,7 +273,7 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def filepair_output(self) -> NFPathProcessOutput | NFTupleProcessOutput:
+    def file_pair_output(self) -> NFPathProcessOutput | NFTupleProcessOutput:
         if self.ftype == FmtType.WILDCARD:
             return self.file_output()
         elif has_n_collectors(self.out, n=2):
@@ -290,7 +290,7 @@ class CmdtoolProcessOutputFactory:
         else:
             raise NotImplementedError
     
-    def filepair_array_output(self) -> NFPathProcessOutput:
+    def file_pair_array_output(self) -> NFPathProcessOutput:
         if self.ftype == FmtType.WILDCARD:
             # TODO raise warning
             return self.file_output()

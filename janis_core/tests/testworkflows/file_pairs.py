@@ -13,8 +13,6 @@ from janis_core import (
 )
 
 
-
-
 class FilePairsTestWF(Workflow):
     def id(self) -> str:
         return "FilePairsTestWF"
@@ -24,27 +22,14 @@ class FilePairsTestWF(Workflow):
 
     def constructor(self):
         self.input('inReads', FastqGzPairedEnd())
+        self.input('inReadsOpt', FastqGzPairedEnd(optional=True))
         self.input('inReadsArray', Array(FastqGzPairedEnd()))
+        self.input('inReadsArrayOpt', Array(FastqGzPairedEnd(), optional=True))
 
-        self.step(
-            "stp1", 
-            FilePairTestTool(
-                reads=self.inReads
-            ), 
-        )
-        self.step(
-            "stp2", 
-            FilePairTestTool(
-                reads=self.inReadsArray
-            ), 
-            scatter='reads',
-        )
-        self.step(
-            "stp3", 
-            FilePairArrayTestTool(
-                reads=self.inReadsArray
-            ), 
-        )
+        self.step("stp1", FilePairTestTool(reads=self.inReads))
+        self.step("stp2", FilePairOptionalTestTool(reads=self.inReadsOpt))
+        self.step("stp3", FilePairArrayTestTool(read_pairs=self.inReadsArray))
+        self.step("stp4", FilePairArrayOptionalTestTool(read_pairs=self.inReadsArrayOpt))
 
 
 # TOOLS
@@ -57,37 +42,75 @@ class FilePairTestTool(CommandTool):
 
     def inputs(self) -> list[ToolInput]:
         return [
-            ToolInput("reads", FastqGzPairedEnd()),
+            ToolInput("reads", FastqGzPairedEnd(), position=1),
             ToolInput(
                 "read1",
                 FastqGz(optional=True),
+                prefix='--reads-index-0',
                 default=IndexOperator(InputSelector("reads"), 0),
-                position=5,
+                position=2,
             ),
             ToolInput(
                 "read2",
                 FastqGz(optional=True),
+                prefix='--reads-index-1',
                 default=IndexOperator(InputSelector("reads"), 1),
-                position=6,
+                position=3,
             ),
         ]
     
     def outputs(self):
         return [
+            ToolOutput('stdout', Stdout()),
             ToolOutput(
                 "out_R1",
                 ZipFile(),
                 selector=InputSelector("read1", remove_file_extension=True)
-                + "_fastqc.zip",
+                + "_out.zip",
             ),
             ToolOutput(
                 "out_R2",
                 ZipFile(),
                 selector=InputSelector("read2", remove_file_extension=True)
-                + "_fastqc.zip",
-            ),
-
+                + "_out.zip",
+            )
         ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class FilePairOptionalTestTool(CommandTool):
+    def tool(self) -> str:
+        return "FilePairOptionalTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput("reads", FastqGzPairedEnd(optional=True), position=1),
+            ToolInput(
+                "read1",
+                FastqGz(optional=True),
+                prefix='--reads-index-0',
+                default=IndexOperator(InputSelector("reads"), 0),
+                position=2,
+            ),
+            ToolInput(
+                "read2",
+                FastqGz(optional=True),
+                prefix='--reads-index-1',
+                default=IndexOperator(InputSelector("reads"), 1),
+                position=3,
+            ),
+        ]
+    
+    def outputs(self):
+        return [ToolOutput('stdout', Stdout())]
 
     def container(self) -> str:
         return "ubuntu:latest"
@@ -98,23 +121,68 @@ class FilePairTestTool(CommandTool):
 
 class FilePairArrayTestTool(CommandTool):
     def tool(self) -> str:
-        return "FilePairTestTool"
+        return "FilePairArrayTestTool"
 
     def base_command(self) -> Optional[str | list[str]]:
         return ['echo']
 
     def inputs(self) -> list[ToolInput]:
         return [
-            ToolInput("reads", Array(FastqGzPairedEnd())),
+            ToolInput("read_pairs", Array(FastqGzPairedEnd()), position=1),
+            ToolInput(
+                "read_pairs0",
+                FastqGz(optional=True),
+                prefix='--read-pairs-0',
+                default=IndexOperator(InputSelector("read_pairs"), 0),
+                position=2,
+            ),
+            ToolInput(
+                "read_pairs1",
+                FastqGz(optional=True),
+                prefix='--read-pairs-1',
+                default=IndexOperator(InputSelector("read_pairs"), 1),
+                position=3,
+            ),
         ]
     
     def outputs(self):
+        return [ToolOutput('stdout', Stdout())]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class FilePairArrayOptionalTestTool(CommandTool):
+    def tool(self) -> str:
+        return "FilePairArrayOptionalTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+
+    def inputs(self) -> list[ToolInput]:
         return [
-            ToolOutput(
-                "out",
-                Stdout(),
-            )
+            ToolInput("read_pairs", Array(FastqGzPairedEnd(), optional=True), position=1),
+            ToolInput(
+                "read_pairs0",
+                FastqGz(optional=True),
+                prefix='--read-pairs-0',
+                default=IndexOperator(InputSelector("read_pairs"), 0),
+                position=2,
+            ),
+            ToolInput(
+                "read_pairs1",
+                FastqGz(optional=True),
+                prefix='--read-pairs-1',
+                default=IndexOperator(InputSelector("read_pairs"), 1),
+                position=3,
+            ),
         ]
+    
+    def outputs(self):
+        return [ToolOutput('stdout', Stdout())]
 
     def container(self) -> str:
         return "ubuntu:latest"

@@ -26,33 +26,6 @@ def init_variable_manager_for_task(tool: Tool) -> VariableManager:
     return initialiser.initialise()
 
 
-
-    # # process & workflow
-    # all_tinputs = set(tool.tool_inputs())
-    # all_task_inputs = set([x.tinput_id for x in task_inputs.getall(tool.id())])
-    
-    # for tinput in all_tinputs:
-    #     # if the tinput is a task_input (ie constant per instance), add it to the variable manager
-    #     if tinput.id() in all_task_inputs:
-    #         task_input = task_inputs.get(tool.id(), tinput)
-    #         vtype_str = types_map[task_input.ti_type]
-    #         vmanager.update(task_input.tinput_id, vtype_str=vtype_str, value=task_input.value)
-        
-    #     # process instance
-    #     elif isinstance(tool, CommandTool | PythonTool):
-    #         # i dont think this path is ever taken
-    #         vmanager.update(tinput.id(), vtype_str='ignored', value=None)
-
-    #     # workflow instance
-    #     else:
-    #         if tinput.default is not None:
-    #             vmanager.update(tinput.id(), vtype_str='static', value=tinput.default)
-    #         else:
-    #             pass
-        
-    # return vmanager
-
-
 class VariableManagerInitialiser(ABC):
     types_map = {
         TaskInputType.TASK_INPUT: 'task_input',
@@ -111,55 +84,6 @@ class WorkflowVariableManagerInitialiser(VariableManagerInitialiser):
             vtype_str = 'ignored'
             vmanager.update(tinput.id(), vtype_str=vtype_str, value=None)
 
-
-    
-
-    # param_tinput_ids = get_true_workflow_inputs(wf)
-    # static_tinput_ids = get_static_workflow_inputs(all_tinput_ids, param_tinput_ids, wf)
-    # ignored_tinput_ids = get_ignored_workflow_inputs(all_tinput_ids, param_tinput_ids, static_tinput_ids)
-    
-    # # param inputs
-    # for tinput_id in param_tinput_ids:
-    #     ti_type = 'param'
-    #     tinput = [x for x in wf.tool_inputs() if x.id() == tinput_id][0]
-    #     param = params.register(tinput, task_id=wf.id())
-    #     value = f'params.{param.name}'
-    #     task_inputs.update(wf.id(), ti_type, tinput_id, value)
-    #     print()
-    
-    # # static inputs
-    # for tinput_id in static_tinput_ids:
-    #     ti_type = 'static'
-    #     tinput = [x for x in wf.tool_inputs() if x.id() == tinput_id][0]
-    #     value = tinput.default
-    #     task_inputs.update(wf.id(), ti_type, tinput_id, value)
-    #     print()
-    
-    # # ignored inputs
-    # for tinput_id in ignored_tinput_ids:
-    #     ti_type = 'ignored'
-    #     value = None
-    #     task_inputs.update(wf.id(), ti_type, tinput_id, value)
-    #     print()
-
-
-
-
-# def get_static_workflow_inputs(all_tinput_ids: set[str], param_tinput_ids: set[str], wf: Workflow) -> set[str]:
-#     out: set[str] = set()
-#     for tinput_id in all_tinput_ids:
-#         if tinput_id not in param_tinput_ids:
-#             tinput = [x for x in wf.tool_inputs() if x.id() == tinput_id][0]
-#             if tinput.default is not None:
-#                 out.add(tinput_id)
-#     return out
-
-# def get_ignored_workflow_inputs(all_tinput_ids: set[str], param_tinput_ids: set[str], static_tinput_ids: set[str]) -> set[str]:
-#     surviving_ids = deepcopy(all_tinput_ids)
-#     surviving_ids -= param_tinput_ids
-#     surviving_ids -= static_tinput_ids
-#     return surviving_ids
-    
 
 
 class VariableType(Enum): 

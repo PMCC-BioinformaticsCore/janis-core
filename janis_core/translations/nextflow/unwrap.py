@@ -441,7 +441,7 @@ class Unwrapper:
         if isinstance(obj, InputSelector):
             sel = obj
             inp = self.get_input_by_id(sel.input_to_select)
-            if utils.is_secondary_type(inp.input_type):
+            if utils.is_secondary_type(inp.input_type) or utils.is_file_pair_type(inp.input_type):
                 expr = self.unwrap_input_selector(sel, index=index)
                 return expr
 
@@ -703,17 +703,19 @@ class Unwrapper:
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
 
-        # get the ToolInput 
+        ### defining required variables ###
         inp = self.get_input_by_id(sel.input_to_select)
-
-        # get the ToolInput datatype
         dtype: DataType = inp.input_type # type: ignore
         basetype = utils.get_base_type(dtype)
         basetype = utils.ensure_single_type(basetype)
 
-        # get the current variable for this tinput
-        # making a copy so it can be modified locally without altering original
-        if self.context == 'process_script':
+        ### getting the current variable for this tinput ###
+        # (copy is made so can be modified locally without altering original)
+        
+        if self.context == 'process_script' and utils.is_file_pair_type(dtype):
+            real_var = self.vmanager.get(inp.id()).original
+            var = deepcopy(real_var)
+        elif self.context == 'process_script':
             real_var = self.vmanager.get(inp.id()).current
             var = deepcopy(real_var)
         elif self.context == 'process_output':
@@ -723,14 +725,18 @@ class Unwrapper:
             raise RuntimeError
         assert(var)
 
+        ### adjusting var.value given certain special cases ###
+
+        # special case: var.value is list (secondary type & file pair type)
         if isinstance(var.value, list):
             if index is not None:
                 var.value = var.value[index]
             else:
                 var.value = var.value[0]
-            print()
 
-        # Special case: Filename
+        ### resolving the tool input expression ###
+
+        # special case: filename
         if isinstance(basetype, Filename):
             # super edge case - filename type referencing another input to generate name
             if var.value:
@@ -740,29 +746,32 @@ class Unwrapper:
             else:
                 expr = self.unwrap(basetype)
 
-        # Special case: File type & remove extension
-        elif isinstance(basetype, File) and sel.remove_file_extension:
-            expr = f'{var.value}.simpleName'
-
-        # normal case: simple variable reference
+        # tinputs which had var available in the current scope
         elif var.vtype in [VariableType.TASK_INPUT, VariableType.PARAM, VariableType.LOCAL]:
             expr = var.value
 
-        # static value for TInput in this process
+        # tinputs which have static value
         elif var.vtype == VariableType.STATIC:
             expr = self.unwrap(var.value)
             print()
 
-        # TInput not given value in this process, but has default
+        # tinputs which are ignored in process but have default value
         elif var.vtype == VariableType.IGNORED and inp.default is not None:
             expr = self.unwrap(inp.default)
             print()
         
-        # TInput not given value in this process, and has no default
+        # tinputs which are ignored in process and have no default value
         else:
             print('\nVARIABLES')
             print(self.vmanager.to_string())
             expr = None
+            print()
+
+        ### applying modifiers ###
+        # special case: remove file extension
+        if isinstance(basetype, File) and sel.remove_file_extension:
+            expr = f'{expr}.simpleName'
+            print()
         
         return expr
         

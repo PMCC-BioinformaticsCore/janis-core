@@ -91,6 +91,10 @@ class TaskInputsPopulator(ABC):
             value = naming.process.secondaries_array(tinput, duplicate_datatype_exists=is_duplicate)
         elif utils.is_secondary_type(dtype):
             value = naming.process.secondaries(tinput, duplicate_datatype_exists=is_duplicate)
+        if utils.is_file_pair_array_type(dtype):
+            value = naming.process.file_pair_array(tinput)
+        elif utils.is_file_pair_type(dtype):
+            value = naming.process.file_pair(tinput)
         else:
             value = naming.process.generic(tinput)
         
@@ -196,5 +200,6 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
     
     def update_as_ignored_input(self, tinput_id: str) -> None:
         ti_type = 'ignored'
-        value = None
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
+        ti_value = None
+        # ti_value = self.gen_task_input_value(tinput_id)
+        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)

@@ -82,11 +82,11 @@ class ProcessInputGenerator:
         
         # filepair array
         elif utils.is_file_pair_array_type(self.dtype):
-            return self.create_path_input(self.tinput)
+            return self.create_path_input_file_pair_array(self.tinput)
         
         # filepair
         elif utils.is_file_pair_type(self.dtype):
-            return self.create_path_input(self.tinput)
+            return self.create_tuple_input_file_pair(self.tinput)
         
         # file array
         elif self.dtype.is_array() and isinstance(self.basetype, (File, Directory)):
@@ -104,7 +104,7 @@ class ProcessInputGenerator:
         else:
             return self.create_val_input(self.tinput)
 
-    def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFProcessInput:
+    def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFPathProcessInput:
         # TODO ignoring secondaries_presents_as for now!
         ti = task_inputs.get(self.tool.id(), inp)
         name = ti.value
@@ -123,6 +123,27 @@ class ProcessInputGenerator:
             tinput_id=inp.id(),
             dtype=self.dtype,
             subnames=subnames
+        )
+        return new_input
+    
+    def create_path_input_file_pair_array(self, inp: ToolInput | TInput) -> NFPathProcessInput:
+        ti = task_inputs.get(self.tool.id(), inp)
+        name = ti.value
+        assert(isinstance(name, str))
+        new_input = NFPathProcessInput(name=name, tinput_id=inp.id(), dtype=self.dtype)
+        return new_input
+    
+    def create_tuple_input_file_pair(self, inp: ToolInput | TInput) -> NFTupleProcessInput:
+        # tuple sub-element for each file
+        ti = task_inputs.get(self.tool.id(), inp)
+        assert(ti.value)
+        assert(len(ti.value) == 2)
+        
+        new_input = NFTupleProcessInput(
+            name=inp.id(), 
+            tinput_id=inp.id(),
+            dtype=self.dtype,
+            subnames=[ti.value[0], ti.value[1]]
         )
         return new_input
 

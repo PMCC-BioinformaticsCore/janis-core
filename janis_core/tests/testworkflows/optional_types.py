@@ -45,6 +45,21 @@ class OptionalInputTypesTestWF(Workflow):
                 inStr=self.inStr
             )
         )
+        self.step(
+            "stp2", 
+            OptionalInputTypesTestTool(
+                inSecondaryArray=None,
+                inSecondary=None,
+                inFilePairArray=None,
+                inFilePair=None,
+                inFileArray=None,
+                inFile=None,
+                inIntArray=None,
+                inInt=None,
+                inStrArray=None,
+                inStr=None,
+            )
+        )
 
     def friendly_name(self):
         return "TEST: OptionalInputTypesTestWF"

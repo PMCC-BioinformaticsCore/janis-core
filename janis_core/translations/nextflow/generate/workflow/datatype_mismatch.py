@@ -50,7 +50,7 @@ def is_array_depth_mismatch(srctype: DataType, desttype: DataType, destscatter: 
 
 def get_array_depth(dtype: DataType) -> int:
     depth = 0
-    while dtype.is_array() and dtype.subtype() and not utils.is_file_pair_type(dtype, recursive=False):
+    while dtype.is_array() and dtype.subtype() and not utils.is_file_pair_type(dtype):
         depth += 1
         dtype = dtype.subtype()
     return depth

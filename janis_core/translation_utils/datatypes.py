@@ -45,7 +45,7 @@ def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
     
     if isinstance(basetype, (File, Filename, Directory)):
         return True
-    elif is_file_pair_type(basetype, recursive=recursive):
+    elif is_file_pair_type(basetype):
         return True
     
     return False
@@ -64,16 +64,15 @@ known_file_pair_types = set([
     'FastqGzPair',
 ])
 
-def is_file_pair_type(dtype: DataType, recursive: bool=True) -> bool:
-    if recursive:
-        dtype = get_base_type(dtype)
+def is_file_pair_type(dtype: DataType) -> bool:
     if dtype.name() in known_file_pair_types:
         return True
     return False
 
 def is_file_pair_array_type(dtype: DataType) -> bool:
     if dtype.name() == 'Array':
-        if is_file_pair_type(dtype):
+        basetype = get_base_type(dtype)
+        if is_file_pair_type(basetype):
             return True
     return False
 

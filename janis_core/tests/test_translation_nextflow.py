@@ -1005,6 +1005,7 @@ class TestFiles(unittest.TestCase):
         Every Optional(File) type wf input should have a channel. 
         '.ifEmpty(null)' should appear in the channel string definition.
         """
+        raise RuntimeError("revise this test")
         wf = AllInputTypesTestWF()
         mainstr, _ = translator.translate_workflow_internal(wf)
         actual_lines = simplify_file(mainstr)
@@ -1648,14 +1649,14 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_lines:
             self.assertIn(ln, actual_prescript)
 
-    def test_prescript_singles(self) -> None:
+    def test_component_formatting_singles(self) -> None:
         wf = StepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes['stp1']
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
+        
+        # prescript
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = {
             'def pos_default = pos_default != params.NULL ? pos_default : 95',
@@ -1669,14 +1670,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
     
-    def test_script_singles(self) -> None:
-        wf = StepInputsTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
+        # script
         actual_script = simplify_script(process.script)
         expected_script = [
             'echo',
@@ -1693,14 +1687,14 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in actual_script:
             self.assertIn(ln, expected_script)
 
-    def test_prescript_arrays(self) -> None:
+    def test_component_formatting_arrays(self) -> None:
         wf = ArrayStepInputsTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
+        
+        # prescript
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def pos_basic_joined = pos_basic.join(\' \')',
@@ -1717,13 +1711,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
     
-    def test_script_arrays(self) -> None:
-        wf = ArrayStepInputsTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
-        process = nextflow.generate.process.generate_process(step.tool)
+        # script
         actual_script = simplify_script(process.script)
         expected_lines = [
             'echo',
@@ -1744,8 +1732,6 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         
         # pre-script
@@ -1771,8 +1757,6 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = SecondariesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp4"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         
         # pre-script
@@ -1797,12 +1781,143 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_script:
             self.assertIn(ln, actual_script)
 
+    def test_file_pair(self) -> None:
+        wf = FilePairsTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp1"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        
+        print(process.get_string())
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'process FILE_PAIR_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/file_pair_test_tool"',
+            'input:',
+            'tuple path(reads1), path(reads2)',
+            'output:',
+            'path "${reads1.simpleName + "_out.zip"}", emit: out_R1',
+            'path "${reads2.simpleName + "_out.zip"}", emit: out_R2',
+            'stdout, emit: stdout',
+            'script:',
+            'def reads_joined = reads1 + \' \' + reads2',
+            '"""',
+            'echo \\',
+            '${reads_joined} \\',
+            '--reads-index-0 ${reads1} \\',
+            '--reads-index-1 ${reads2} \\',
+            '"""',
+            '}',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
+        for ln in expected_lines:
+            self.assertIn(ln, actual_lines)
+
+    def test_file_pair_optional(self) -> None:
+        # name accession should be different?
+        wf = FilePairsTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp2"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        
+        print(process.get_string())
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'process FILE_PAIR_OPTIONAL_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/file_pair_optional_test_tool"',
+            'input:',
+            'tuple path(reads1, stageAs: \'reads1/*\'), path(reads2, stageAs: \'reads2/*\')',
+            'output:',
+            'stdout, emit: out',
+            'script:',
+            'def reads_joined = reads1.simpleName != params.NULL ? reads1 + \' \' + reads2 : ""',
+            'def reads1 = reads1.simpleName != params.NULL ? "-1 " + reads1 : ""',
+            'def reads2 = reads2.simpleName != params.NULL ? "-2 " + reads2 : "" ',
+            '"""',
+            'echo \\',
+            '${reads_joined} \\',
+            '--reads-index-0 ${reads1} \\',
+            '--reads-index-1 ${reads2} \\',
+            '"""',
+            '}',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
+        for ln in expected_lines:
+            self.assertIn(ln, actual_lines)
+
+    def test_file_pair_array(self) -> None:
+        wf = FilePairsTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp3"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        
+        print(process.get_string())
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'process FILE_PAIR_ARRAY_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/file_pair_array_test_tool"',
+            'input:',
+            'path reads_flat',
+            'output:',
+            'stdout, emit: out',
+            'script:',
+            'def read_pairs = reads_flat.collate(2, 1)',
+            'def all_reads_joined = reads_flat.join(\' \')',
+            '"""',
+            'echo \\',
+            '${all_reads_joined} \\',
+            '--read-pairs-0 ${read_pairs[0]} \\',
+            '--read-pairs-1 ${read_pairs[1]} \\',
+            '"""',
+            '}',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
+        for ln in expected_lines:
+            self.assertIn(ln, actual_lines)
+
+    def test_file_pair_array_optional(self) -> None:
+        wf = FilePairsTestWF()
+        do_preprocessing_workflow(wf)
+        step = wf.step_nodes["stp4"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        
+        print(process.get_string())
+        actual_lines = simplify_file(process.get_string())
+        expected_lines = [
+            'process FILE_PAIR_ARRAY_OPTIONAL_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/file_pair_array_optional_test_tool"',
+            'input:',
+            'path reads_flat',
+            'output:',
+            'stdout, emit: out',
+            'script:',
+            'def read_pairs = reads_flat.collate(2, 1)',
+            'def all_reads_joined = reads_flat.simpleName[0] != params.NULL ? reads_flat.join(\' \') : ""',
+            'def read_pair1 = read_pairs[0][0].simpleName != params.NULL ? "--read-pairs-0 " + read_pairs[0].join(\' \') : ""',
+            'def read_pair2 = read_pairs[1][0].simpleName != params.NULL ? "--read-pairs-1 " + read_pairs[1].join(\' \') : ""',
+            '"""',
+            'echo \\',
+            '${all_reads_joined} \\',
+            '${read_pair1} \\',
+            '${read_pair2} \\',
+            '"""',
+            '}',
+        ]
+        self.assertEqual(len(expected_lines), len(actual_lines))
+        for ln in expected_lines:
+            self.assertIn(ln, actual_lines)
+
     def test_filename_generated_tool(self):
         wf = FilenameTestWF1()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp3"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
         actual_process = simplify_file(process.get_string())
         print(process.get_string())
@@ -1865,16 +1980,15 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         wf = MandatoryInputTypesTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        scope = nextflow.Scope()
-        scope.update(step)
         process = nextflow.generate.process.generate_process(step.tool)
+        
         print(process.get_string())
         actual_lines = simplify_file(process.get_string())
         expected_lines = [
-            'process MANDATORY_TYPES_TEST_TOOL {',
+            'process MANDATORY_INPUT_TYPES_TEST_TOOL {',
             'debug true',
             'container "ubuntu:latest"',
-            'publishDir "${params.outdir}/mandatory_types_test_tool"',
+            'publishDir "${params.outdir}/mandatory_input_types_test_tool"',
             'input:',
             'path indexed_bam_flat',
             'tuple path(bam), path(bai)',
@@ -1882,6 +1996,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'path in_file_pair',
             'path in_file_array',
             'path in_file',
+            'val in_int_array',
+            'val in_str_array',
+            'val in_int',
+            'val in_str',
             'output:',
             'stdout, emit: out',
             'script:',
@@ -1890,8 +2008,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'def in_file_pair_array_joined = in_file_pair_array.join(\' \')',
             'def in_file_pair_joined = in_file_pair.join(\' \')',
             'def in_file_array_joined = in_file_array.join(\' \')',
-            'def in_int_array_joined = params.mandatory_types_test_tool.in_int_array.join(\' \')',
-            'def in_str_array_joined = params.mandatory_types_test_tool.in_str_array.join(\' \')',
+            'def in_int_array_joined = in_int_array.join(\' \')',
+            'def in_str_array_joined = in_str_array.join(\' \')',
             '"""',
             'echo \\',
             '${in_secondary_array_joined} \\',
@@ -1901,9 +2019,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${in_file_array_joined} \\',
             '${in_file} \\',
             '${in_int_array_joined} \\',
-            '${params.mandatory_types_test_tool.in_int} \\',
+            '${in_int} \\',
             '${in_str_array_joined} \\',
-            '${params.mandatory_types_test_tool.in_str} \\',
+            '${in_str} \\',
             '"""',
             '}',
         ]
@@ -1921,12 +2039,49 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_lines = simplify_file(process.get_string())
         expected_lines = [
-            'def in_secondary_array_opt = get_primary_files(indexed_bam_flat)',
-            'def in_secondary_array_opt_joined = in_secondary_array_opt[0].simpleName != params.NULL ? in_secondary_array_opt.join(\' \') : ""',
-            'def in_secondary_opt = bam.simpleName != params.NULL ? bam : ""',
-            'def in_file_pair_opt_joined = in_file_pair_opt[0].simpleName != params.NULL ? in_file_pair_opt.join(\' \') : ""',
-            'def in_file_array_opt_joined = in_file_array_opt[0].simpleName != params.NULL ? in_file_array_opt.join(\' \') : ""',
-            'def in_file_opt = in_file_opt.simpleName != params.NULL ? in_file_opt : ""',
+            'process OPTIONAL_INPUT_TYPES_TEST_TOOL {',
+            'debug true',
+            'container "ubuntu:latest"',
+            'publishDir "${params.outdir}/optional_input_types_test_tool"',
+            'input:',
+            'path indexed_bam_flat, stageAs: \'indexed_bam_flat??/*\'',
+            'tuple path(bam, stageAs: \'bam/*\'), path(bai, stageAs: \'bai/*\')',
+            'path in_file_pair_array, stageAs: \'in_file_pair_array??/*\'',
+            'path in_file_pair, stageAs: \'in_file_pair/*\'',
+            'path in_file_array, stageAs: \'in_file_array/*\'',
+            'path in_file, stageAs: \'in_file/*\'',
+            'val in_int_array',
+            'val in_str_array',
+            'val in_int',
+            'val in_str',
+            'output:',
+            'stdout, emit: out',
+            'script:',
+            'def in_secondary_array = get_primary_files(indexed_bam_flat)',
+            'def in_secondary_array_joined = in_secondary_array[0].simpleName != params.NULL ? in_secondary_array.join(\' \') : ""',
+            'def in_secondary = bam.simpleName != params.NULL ? bam : ""',
+            'def in_file_pair_array_joined = in_file_pair_array[0].simpleName != params.NULL ? in_file_pair_array.join(\' \') : ""',
+            'def in_file_pair_joined = in_file_pair[0].simpleName != params.NULL ? in_file_pair.join(\' \') : ""',
+            'def in_file_array_joined = in_file_array[0].simpleName != params.NULL ? in_file_array.join(\' \') : ""',
+            'def in_file = in_file.simpleName != params.NULL ? in_file : ""',
+            'def in_int_array_joined = in_int_array != params.NULL ? in_int_array.join(\' \') : ""',
+            'def in_int = in_int != params.NULL ? in_int : ""',
+            'def in_str_array_joined = in_str_array != params.NULL ? in_str_array.join(\' \') : ""',
+            'def in_str = in_str != params.NULL ? in_str : ""',
+            '"""',
+            'echo \\',
+            '${in_secondary_array_joined} \\',
+            '${in_secondary} \\',
+            '${in_file_pair_array_joined} \\',
+            '${in_file_pair_joined} \\',
+            '${in_file_array_joined} \\',
+            '${in_file} \\',
+            '${in_int_array_joined} \\',
+            '${in_int} \\',
+            '${in_str_array_joined} \\',
+            '${in_str} \\',
+            '"""',
+            '}',
         ]
         self.assertEqual(len(expected_lines), len(actual_lines))
         for ln in expected_lines:

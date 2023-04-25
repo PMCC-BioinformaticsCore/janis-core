@@ -117,11 +117,17 @@ class ScriptFormatter:
         prescript: list[str] = []
         script: list[str] = []
         
-        # preprocessing step for array secondaries
+        # additional preprocessing step for array secondaries
         # if utils.is_secondary_array_type(self.dtype) or utils.is_file_pair_array_type(self.dtype):
         if utils.is_secondary_array_type(self.dtype):
-            func_call = self.gen_function_call('get_primary_files')
-            prescript.append(func_call)
+            line = self.gen_secondary_array_gather()
+            prescript.append(line)
+        
+        # additional preprocessing step for file pair secondaries
+        # if utils.is_secondary_array_type(self.dtype) or utils.is_file_pair_array_type(self.dtype):
+        if utils.is_file_pair_array_type(self.dtype):
+            line = self.gen_file_pair_array_gather()
+            prescript.append(line)
         
         # handling this ToolInput
         # if ignored, no prescript lines, no script lines
@@ -144,11 +150,17 @@ class ScriptFormatter:
 
         return prescript, script
 
-    def gen_function_call(self, func_name: str) -> str:
+    def gen_secondary_array_gather(self) -> str:
         new_varname = self.generic_variable_name
-        func_call = f'def {new_varname} = {func_name}({self.current_var_value})'
+        line = f'def {new_varname} = get_primary_files({self.current_var_value})'
         self.update_variable(new_varname)
-        return f'{func_call}'
+        return f'{line}'
+    
+    def gen_file_pair_array_gather(self) -> str:
+        new_varname = self.generic_variable_name
+        line = f'def {new_varname} = {self.current_var_value}.collate(2, 1)'
+        self.update_variable(new_varname)
+        return f'{line}'
 
 
     # HELPER PROPERTIES / METHODS
@@ -278,19 +290,33 @@ class ScriptFormatter:
     @property
     def arr_join(self) -> Optional[str]:
         ARR_JOIN_BASIC      = "{src}.join('{delim}')"
-        # ARR_JOIN_PREFIX     = "\"{prefix}\" + {src}.join('{delim}')"
+        ARR_JOIN_FILE_PAIR  = "{pair1} + '{delim}' + {pair2}"
         ARR_JOIN_PREFIXEACH = "{src}.collect{{ \"{prefix}\" + it }}" + ".join('{delim}')"
+        # ARR_JOIN_FILE_PAIR_PREFIXEACH  = "{pair1} + ' ' + {pair2}"????
 
         arr_join = None
 
         if self.itype.name.endswith('ARR') or self.itype.name.endswith('ARR_PREFIXEACH'):
+            
+            # generic prefix each format
             if self.itype in [IType.OPT_BASIC_ARR_PREFIXEACH, IType.OPT_DEFAULT_ARR_PREFIXEACH, IType.OPT_OPTIONAL_ARR_PREFIXEACH]:
                 arr_join = ARR_JOIN_PREFIXEACH.format(src=self.current_var_value, prefix=self.prefix, delim=self.delim)
+            
+            # file pair format
+            elif utils.is_file_pair_type(self.dtype):
+                input_var = self.varhistory.original
+                assert(input_var.value)
+                assert(len(input_var.value) == 2)
+                pair1 = input_var.value[0]
+                pair2 = input_var.value[1]
+                arr_join = ARR_JOIN_FILE_PAIR.format(pair1=pair1, delim=self.delim, pair2=pair2)
+            
+            # generic format
             else:
                 arr_join = ARR_JOIN_BASIC.format(src=self.current_var_value, delim=self.delim)
         
         return arr_join
-
+    
     ### AUTOFILL METHODS BY IType
     def autofill_script_expr(self) -> Optional[str]: 
         # when autofill is possible, returns the str expression
