@@ -43,7 +43,12 @@ shoud should be included.
 def items_with_id(the_list: list[Any], ids: set[str]) -> list[Any]:
     return [x for x in the_list if x.id() in ids]
 
-def to_groovy(val: Any, dtype: Optional[DataType]=None, quote_override: Optional[bool]=None) -> Any:
+def to_groovy(
+        val: Any, 
+        dtype: Optional[DataType]=None, 
+        quote_override: Optional[bool]=None,
+        delim: Optional[str]=None,
+    ) -> Any:
     # must work with str version. 
     if dtype is not None:
         dtype = utils.get_base_type(dtype)

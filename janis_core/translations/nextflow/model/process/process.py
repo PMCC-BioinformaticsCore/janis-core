@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from janis_core.types import DataType
 from janis_core import settings
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 
 from .directives import (
@@ -206,22 +207,20 @@ class TypePriorityInputStrategy(InputOrderingStrategy):
         return out
     
     def get_priority(self, dtype: DataType) -> int:
-        if utils.is_secondary_array_type(dtype):
-            return 0
-        elif utils.is_secondary_type(dtype):
-            return 1
-        elif utils.is_file_pair_array_type(dtype):
-            return 2
-        elif utils.is_file_pair_type(dtype):
-            return 3
-        elif utils.is_file_array_type(dtype):
-            return 4
-        elif utils.is_file_type(dtype):
-            return 5
-        elif utils.is_array_type(dtype):
-            return 6
-        else:
-            return 7
+        dtt = utils.get_dtt(dtype)
+        priorities = {
+            DTypeType.SECONDARY_ARRAY: 0,
+            DTypeType.SECONDARY: 1,
+            DTypeType.FILE_PAIR_ARRAY: 2,
+            DTypeType.FILE_PAIR: 3,
+            DTypeType.FILE_ARRAY: 4,
+            DTypeType.FILE: 5,
+            DTypeType.FLAG_ARRAY: 6,
+            DTypeType.FLAG: 7,
+            DTypeType.GENERIC_ARRAY: 8,
+            DTypeType.GENERIC: 9,
+        }
+        return priorities[dtt]
 
 class PythonToolPriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:

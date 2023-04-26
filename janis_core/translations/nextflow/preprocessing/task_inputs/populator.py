@@ -1,12 +1,11 @@
 
 
 
-
-import os
 from typing import Any
 from abc import ABC, abstractmethod
 
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 from janis_core import Workflow, TInput, Tool, PythonTool
 from janis_core.types import DataType, File
 from janis_core import settings
@@ -84,16 +83,16 @@ class TaskInputsPopulator(ABC):
                
     def gen_task_input_value_process(self, tinput_id: str) -> Any:
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
-        dtype: DataType = tinput.intype  # type: ignore
         is_duplicate = self.duplicate_datatype_exists(tinput)
-        
-        if utils.is_secondary_array_type(dtype):
+        dtt = utils.get_dtt(tinput.intype)
+
+        if dtt == DTypeType.SECONDARY_ARRAY:
             value = naming.process.secondaries_array(tinput, duplicate_datatype_exists=is_duplicate)
-        elif utils.is_secondary_type(dtype):
+        elif dtt == DTypeType.SECONDARY:
             value = naming.process.secondaries(tinput, duplicate_datatype_exists=is_duplicate)
-        if utils.is_file_pair_array_type(dtype):
+        elif dtt == DTypeType.FILE_PAIR_ARRAY:
             value = naming.process.file_pair_array(tinput)
-        elif utils.is_file_pair_type(dtype):
+        elif dtt == DTypeType.FILE_PAIR:
             value = naming.process.file_pair(tinput)
         else:
             value = naming.process.generic(tinput)

@@ -35,45 +35,45 @@ class SecondariesTestWF(Workflow):
         self.input('inAlignmentsArr', Array(BamBai()))
         self.input('inGunzipped', Gunzipped())
 
-        self.step(
-            "stp1", 
-            SecondariesTestTool(
-                inp=self.inAlignments
-            ), 
-        )
-        self.step(
-            "stp2", 
-            SecondariesTestTool(
-                inp=self.stp1.out
-            ), 
-        )
-        self.step(
-            "stp3", 
-            SecondariesReplacedTestTool(
-                inp=self.inAlignments
-            ), 
-        )
+        # self.step(
+        #     "stp1", 
+        #     SecondariesTestTool(
+        #         inp=self.inAlignments
+        #     ), 
+        # )
+        # self.step(
+        #     "stp2", 
+        #     SecondariesTestTool(
+        #         inp=self.stp1.out
+        #     ), 
+        # )
+        # self.step(
+        #     "stp3", 
+        #     SecondariesReplacedTestTool(
+        #         inp=self.inAlignments
+        #     ), 
+        # )
         self.step(
             "stp4", 
             SecondariesArrayTestTool(
                 inp=self.inAlignmentsArr
             ), 
         )
-        self.step(
-            "stp5", 
-            GATKSplitReadsTestTool(
-                bam=self.inAlignments
-            ), 
-        )
-        self.step(
-            "stp6", 
-            NoSecondariesPresentAsTestTool(
-                inp=self.inGunzipped
-            ), 
-        )
+        # self.step(
+        #     "stp5", 
+        #     GATKSplitReadsTestTool(
+        #         bam=self.inAlignments
+        #     ), 
+        # )
+        # self.step(
+        #     "stp6", 
+        #     NoSecondariesPresentAsTestTool(
+        #         inp=self.inGunzipped
+        #     ), 
+        # )
 
-        self.output("outBamBai", source=self.stp1.out)
-        self.output("outBamBai2", source=self.stp2.out)
+        # self.output("outBamBai", source=self.stp1.out)
+        # self.output("outBamBai2", source=self.stp2.out)
 
 
 

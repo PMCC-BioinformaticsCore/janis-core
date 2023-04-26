@@ -13,7 +13,10 @@ from ....unwrap import unwrap_expression
 from ....variables import VariableManager
 from ....variables import VariableType
 
-from .ScriptFormatter import ScriptFormatter
+# from .ScriptFormatter import ScriptFormatter
+
+from .prescript import gen_prescript_lines
+from .script import gen_script_lines
 
 
 def gen_nf_process_script(
@@ -49,17 +52,18 @@ class ProcessScriptGenerator:
         return prescript, script
     
     def handle_cmdtool_inputs(self) -> None:
-        tool_input_formatter = ScriptFormatter(
-            tool=self.tool, 
-            variable_manager=self.variable_manager,
-        )
+        # prescript for ToolInputs first
         for inp in order_cmdtool_inputs_arguments(self.tool):
             if isinstance(inp, ToolInput):
-                prescript, script = tool_input_formatter.format(inp)
-                self.prescript += prescript
-                self.script += script
+                self.prescript = gen_prescript_lines(inp, self.tool, self.variable_manager)
+        
+        # script for ToolInputs and ToolArguments
+        for inp in order_cmdtool_inputs_arguments(self.tool):
+            if isinstance(inp, ToolInput):
+                self.script += gen_script_lines(inp, self.tool, self.variable_manager)
             else:
                 self.handle_tool_argument(inp)
+                
 
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         prefix = ''

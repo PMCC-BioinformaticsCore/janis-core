@@ -2,6 +2,8 @@
 
 
 from __future__ import annotations
+from enum import Enum, auto 
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from janis_core.types import DataType
@@ -13,6 +15,66 @@ from janis_core.types import (
     Filename,
     Array
 )
+
+
+class DTypeType(Enum):
+    SECONDARY_ARRAY = auto()
+    SECONDARY       = auto()
+    FILE_PAIR_ARRAY = auto()
+    FILE_PAIR       = auto()
+    FILE_ARRAY      = auto()
+    FILE            = auto()
+    FLAG_ARRAY      = auto()
+    FLAG            = auto()
+    GENERIC_ARRAY   = auto()
+    GENERIC         = auto()
+
+def get_dtt(dtype: DataType) -> DTypeType:
+    
+    if is_secondary_array_type(dtype):
+        return DTypeType.SECONDARY_ARRAY
+    
+    elif is_secondary_type(dtype):
+        return DTypeType.SECONDARY
+
+    elif is_file_pair_array_type(dtype):
+        return DTypeType.FILE_PAIR_ARRAY
+
+    elif is_file_pair_type(dtype):
+        return DTypeType.FILE_PAIR
+
+    elif is_file_array_type(dtype):
+        return DTypeType.FILE_ARRAY
+
+    elif is_file_type(dtype):
+        return DTypeType.FILE
+    
+    elif is_flag_array_type(dtype):
+        return DTypeType.FLAG_ARRAY
+
+    elif is_flag_type(dtype):
+        return DTypeType.FLAG
+
+    elif is_array_type(dtype):
+        return DTypeType.GENERIC_ARRAY
+
+    else:
+        return DTypeType.GENERIC
+
+
+# FLAGS 
+
+def is_flag_array_type(dtype: DataType) -> bool:
+    if dtype.name() == 'Array':
+        basetype = get_base_type(dtype)
+        if is_flag_type(basetype):
+            return True
+    return False
+
+def is_flag_type(dtype: DataType) -> bool:
+    if dtype.name() == 'Boolean':
+        return True
+    return False
 
 
 # GENERAL
@@ -86,9 +148,10 @@ def is_secondary_type(dtype: DataType) -> bool:
     return False
 
 def is_secondary_array_type(dtype: DataType) -> bool:
-    basetype = get_base_type(dtype)
-    if dtype.is_array() and isinstance(basetype, File) and basetype.has_secondary_files():
-        return True
+    if dtype.name() == 'Array':
+        basetype = get_base_type(dtype)
+        if isinstance(basetype, File) and basetype.has_secondary_files():
+            return True
     return False
 
 def get_extensions(dtype: File, remove_prefix_symbols: bool=False) -> list[str]:

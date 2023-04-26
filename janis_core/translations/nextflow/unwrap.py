@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from .variables import VariableManager
 from .variables import VariableType
+from .variables import Variable
 
 from copy import deepcopy
 from typing import Any, Optional, Type
@@ -73,6 +74,7 @@ from janis_core.operators.selectors import (
 )
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from . import naming
 from . import nfgen_utils
@@ -698,8 +700,6 @@ class Unwrapper:
         Translate Janis InputSelector data type into Nextflow expression
         I hate this function, and I am sorry. 
         """
-        assert(self.vmanager)
-        
         if not sel.input_to_select:
             raise Exception("No input was selected for input selector: " + str(sel))
 
@@ -711,13 +711,23 @@ class Unwrapper:
 
         ### getting the current variable for this tinput ###
         # (copy is made so can be modified locally without altering original)
+        var = self.unwrap_input_selector_get_var(inp, index)
+
+        ### resolving the tool input expression ###
+        expr = self.unwrap_input_selector_get_expr(sel, inp, var)
+        return expr
+    
+    def unwrap_input_selector_get_var(self, inp: ToolInput, index: Optional[int]=None) -> Variable:
+        assert(self.vmanager)
+        dtt = utils.get_dtt(inp.input_type)
         
-        if self.context == 'process_script' and utils.is_file_pair_type(dtype):
-            real_var = self.vmanager.get(inp.id()).original
-            var = deepcopy(real_var)
-        elif self.context == 'process_script':
-            real_var = self.vmanager.get(inp.id()).current
-            var = deepcopy(real_var)
+        if self.context == 'process_script':
+            if dtt in [DTypeType.SECONDARY_ARRAY, DTypeType.FILE_PAIR_ARRAY]:
+                real_var = self.vmanager.get(inp.id()).previous
+                var = deepcopy(real_var)
+            else:
+                real_var = self.vmanager.get(inp.id()).current
+                var = deepcopy(real_var)
         elif self.context == 'process_output':
             real_var = self.vmanager.get(inp.id()).original
             var = deepcopy(real_var)
@@ -726,15 +736,18 @@ class Unwrapper:
         assert(var)
 
         ### adjusting var.value given certain special cases ###
-
-        # special case: var.value is list (secondary type & file pair type)
         if isinstance(var.value, list):
             if index is not None:
                 var.value = var.value[index]
             else:
                 var.value = var.value[0]
+        
+        return var
 
-        ### resolving the tool input expression ###
+    def unwrap_input_selector_get_expr(self, sel: InputSelector, inp: ToolInput, var: Variable) -> Any:
+        dtype: DataType = inp.input_type # type: ignore
+        basetype = utils.get_base_type(dtype)
+        basetype = utils.ensure_single_type(basetype)
 
         # special case: filename
         if isinstance(basetype, Filename):
@@ -762,8 +775,6 @@ class Unwrapper:
         
         # tinputs which are ignored in process and have no default value
         else:
-            print('\nVARIABLES')
-            print(self.vmanager.to_string())
             expr = None
             print()
 

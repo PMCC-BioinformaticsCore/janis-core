@@ -127,6 +127,7 @@ from janis_bioinformatics.data_types.cram import Cram
 
 from janis_core.translations.nextflow.nfgen_utils import to_groovy
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 from janis_core import settings
 
 from janis_core.translations.nextflow.generate.workflow.common import get_common_type
@@ -253,6 +254,77 @@ class DataTypeNoSecondary(File):
     @staticmethod
     def name() -> str:
         return "test_no_secondary"
+
+
+
+
+class TestDatatypeUtils(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_globals()
+
+    def test_secondary_array_type(self) -> None:
+        dtype1 = Array(BamBai())
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.SECONDARY_ARRAY)
+
+    def test_secondary_type(self) -> None:
+        dtype1 = BamBai()
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.SECONDARY)
+
+    def test_file_pair_array_type(self) -> None:
+        dtype1 = Array(FastqGzPair())
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.FILE_PAIR_ARRAY)
+
+    def test_file_pair_type(self) -> None:
+        dtype1 = FastqGzPair()
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.FILE_PAIR)
+
+    def test_file_array_type(self) -> None:
+        dtype1 = Array(File())
+        dtype2 = Array(Fasta())
+        dtt1 = utils.get_dtt(dtype1)
+        dtt2 = utils.get_dtt(dtype2)
+        self.assertEqual(dtt1, DTypeType.FILE_ARRAY)
+        self.assertEqual(dtt2, DTypeType.FILE_ARRAY)
+
+    def test_file_type(self) -> None:
+        dtype1 = File()
+        dtype2 = Fasta()
+        dtt1 = utils.get_dtt(dtype1)
+        dtt2 = utils.get_dtt(dtype2)
+        self.assertEqual(dtt1, DTypeType.FILE)
+        self.assertEqual(dtt2, DTypeType.FILE)
+
+    def test_flag_array_type(self) -> None:
+        dtype1 = Array(Boolean())
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.FLAG_ARRAY)
+
+    def test_flag_type(self) -> None:
+        dtype1 = Boolean()
+        dtt1 = utils.get_dtt(dtype1)
+        self.assertEqual(dtt1, DTypeType.FLAG)
+
+    def test_generic_array_type(self) -> None:
+        dtype1 = Array(String())
+        dtype2 = Array(Int())
+        dtt1 = utils.get_dtt(dtype1)
+        dtt2 = utils.get_dtt(dtype2)
+        self.assertEqual(dtt1, DTypeType.GENERIC_ARRAY)
+        self.assertEqual(dtt2, DTypeType.GENERIC_ARRAY)
+
+    def test_generic_type(self) -> None:
+        dtype1 = String()
+        dtype2 = Int()
+        dtt1 = utils.get_dtt(dtype1)
+        dtt2 = utils.get_dtt(dtype2)
+        self.assertEqual(dtt1, DTypeType.GENERIC)
+        self.assertEqual(dtt2, DTypeType.GENERIC)
+
 
 
 
@@ -1774,8 +1846,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'echo',
             '${inp_joined}',
             '--inp ${inp_joined}',
-            '--inp-index-0 ${inp_joined[0]}',
-            '--inp-index-1 ${inp_joined[1]}',
+            '--inp-index-0 ${inp[0]}',
+            '--inp-index-1 ${inp[1]}',
         }
         print(process.get_string())
         for ln in expected_script:
@@ -1839,8 +1911,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '"""',
             'echo \\',
             '${reads_joined} \\',
-            '--reads-index-0 ${reads1} \\',
-            '--reads-index-1 ${reads2} \\',
+            '${reads1} \\',
+            '${reads2} \\',
             '"""',
             '}',
         ]

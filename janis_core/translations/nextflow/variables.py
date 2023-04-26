@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
@@ -97,7 +97,7 @@ class VariableType(Enum):
 @dataclass
 class Variable:
     vtype: VariableType
-    value: Optional[str | list[str]]
+    value: Any
 
 @dataclass
 class VariableHistory:
@@ -109,12 +109,13 @@ class VariableHistory:
         return self.items[0]
     
     @property
+    def previous(self) -> Variable:
+        return self.items[-2]
+    
+    @property
     def current(self) -> Variable:
         return self.items[-1]
     
-    @property
-    def all(self) -> list[Variable]:
-        return self.items
 
 
 class VariableManager:
