@@ -1,6 +1,6 @@
 
 
-from typing import Optional
+from typing import Optional, Any
 from abc import ABC, abstractmethod
 
 from janis_core import ToolInput, CommandTool, DataType
@@ -16,7 +16,7 @@ from .... import naming
 # from .composer import ArrJoinComposer
 # from .composer import ConditionComposer
 
-# from .ctype import CType, get_ctype
+from .ctype import CType, get_ctype
 from .attributes import Attributes, get_attributes
 
 from . import common
@@ -56,8 +56,7 @@ def _should_ignore(tinput: ToolInput, vmanager: VariableManager) -> bool:
     # tinput not supplied value in any process call, no default.
     # no prescript, no script
     if varhistory.original.vtype == VariableType.IGNORED:
-        if tinput.default is None:
-            return True
+        return True
     
     # tinput has consistent static value for each process call
     # no prescript, script autofilled
@@ -68,33 +67,10 @@ def _should_ignore(tinput: ToolInput, vmanager: VariableManager) -> bool:
 
 
 
-SECONDARY_ARRAY_GATHER = 'def {dest} = get_primary_files({src})'
-FILE_PAIR_ARRAY_GATHER = 'def {dest} = {src}.collate(2, 2)'
-
-FLAG_FALSE_FMT = 'def {dest} = {src} ? "{prefix}" : ""'
-FLAG_TRUE_FMT  = 'def {dest} = {src} == false ? "" : "{prefix}"'
-
-ARR_JOIN_BASIC                = "{src}.join('{delim}')"
-ARR_JOIN_PREFIXEACH           = "{src}.collect{{ \"{prefix}\" + it }}" + ".join('{delim}')"
-ARR_JOIN_FILE_PAIR            = "{pair1} + '{delim}' + {pair2}"
-ARR_JOIN_FILE_PAIR_PREFIXEACH = '"{prefix}{spacer}${{{pair1}}} {prefix}{spacer}${{{pair2}}}"'
-
-DECLARATION_FMT = 'def {dest} = {value}'
-DECLARATION_NAME_FMT1 = '{name}'
-DECLARATION_NAME_FMT2 = '{name}_joined'
-DECLARATION_VALUE_FMT = '{value}'
-
-CONDITION_FMT = '{cond_check} ? {cond_true} : {cond_false}'
-
-COND_CHECK_FMT1 = '{src} != params.NULL'
-COND_CHECK_FMT2 = '{src}.simpleName != params.NULL'
-COND_CHECK_FMT3 = '{src}[0].simpleName != params.NULL'
-COND_TRUE_FMT1 = '{src}'
-COND_TRUE_FMT2 = '"{prefix}{spacer}" + {src}'
-COND_FALSE_FMT = '{default}'
-
-
 class PreScriptFormatter(ABC):
+
+    DECLARATION_FMT = 'def {dest} = {value}'
+    CONDITION_FMT = '{cond_check} ? {cond_true} : {cond_false}'
     
     def __init__(
         self, 
@@ -105,8 +81,9 @@ class PreScriptFormatter(ABC):
         self.tool = tool
         self.tinput = tinput
         self.vmanager = vmanager
-        # self.ctype = get_ctype(tinput)
+        self.ctype = get_ctype(tinput)
         self.attributes = get_attributes(tinput)
+        self.dtt = utils.get_dtt(tinput.input_type)
         self.prescript: list[str] = []
 
     @abstractmethod
@@ -139,22 +116,29 @@ class PreScriptFormatter(ABC):
     def delim_str(self) -> str:
         return common.delim_str(self.tinput)
     
-    @property
-    def default_str(self) -> str:
-        default = self.tinput.default
+    def default_str(self, apply_prefix: bool=False) -> str:
+        default = None
+        
+        if self.varhistory.original.vtype == VariableType.STATIC:
+            default = self.varhistory.original.value
+        elif self.attributes.default:
+            default = self.tinput.default
+        
         if default is not None:
             # eval_cmdline uses value (parameter), self.prefix, self.spacer, self.delim etc
-            default = common.eval_default_cmdline(
+            expr = common.eval_default_cmdline(
                 default=default,
                 tinput=self.tinput,
                 tool=self.tool,
                 vmanager=self.vmanager,
+                apply_prefix=apply_prefix
             ) 
-        else:
-            default = ""
-        return default
+            return expr
+        
+        return '""'
 
-    def update_variable(self, new_value: Optional[str]) -> None:
+
+    def update_variable(self, new_value: Any) -> None:
         self.vmanager.update(
             tinput_id=self.tinput.id(),
             vtype_str='local',
@@ -163,480 +147,449 @@ class PreScriptFormatter(ABC):
 
 
 
-class SecondaryArrayFormatter(PreScriptFormatter):
-    
+### ARRAYS ### 
+
+class GenericArrayFormatter(PreScriptFormatter):
+
+    COND_CHECK_FMT = '{src}[0] != params.NULL'
+    COND_TRUE_FMT1 = '{src}'
+    COND_TRUE_FMT2 = '"{prefix}{spacer}" + {src}'
+    # COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}}}"'
+    COND_FALSE_FMT = '{default}'
+
+    ARR_JOIN_BASIC = '{src}.join(\'{delim}\')'
+    ARR_JOIN_PREFIX = '"{prefix}{spacer}${{{src}.join(\'{delim}\')}}"'
+    ARR_JOIN_PREFIXEACH = '{src}.collect{{ \"{prefix}{spacer}${{it}}\" }}.join(\'{delim}\')'
 
     def format(self) -> None:
-        line1 = self.gather_declaration()
-        line2 = self.redefine_declaration()
-        self.prescript.append(line1)
-        self.prescript.append(line2)
+        line = self.join_declaration()
+        self.prescript.append(line)
 
-    def gather_declaration(self) -> str:
-        new_varname = naming.process.generic(self.tinput)
+    def join_declaration(self) -> str:
+        new_varname = f'{self.varhistory.original.value}_joined' # references the process input
         self.update_variable(new_varname)
-        dest = self.varhistory.current.value 
-        src = self.varhistory.previous.value 
-        return SECONDARY_ARRAY_GATHER.format(dest=dest, src=src)
+        if self.attributes.optional or self.attributes.default:
+            return self.join_declaration_optional()
+        return self.join_declaration_mandatory()
     
-    def redefine_declaration(self) -> str:
-        new_varname = f'{self.varhistory.current.value}_joined'
-        self.update_variable(new_varname)
-        if self.attributes.optional:
-            return self.redefine_declaration_optional()
-        return self.redefine_declaration_mandatory()
-    
-    ### HELPERS ###
-    def redefine_declaration_mandatory(self) -> str:
-        dest = self.varhistory.current.value
+    def join_declaration_mandatory(self) -> str:
+        # eg: def adapters = "--adapters ${adapters.join(' ')}"
+        dest = self.varhistory.items[1].value  # references the new local varname (eg adapters)
         value = self.arr_join()
-        return DECLARATION_FMT.format(dest=dest, value=value)
+        return self.DECLARATION_FMT.format(dest=dest, value=value)
     
-    def redefine_declaration_optional(self) -> str:
-        dest = self.varhistory.current.value
+    def join_declaration_optional(self) -> str:
+        dest = self.varhistory.items[1].value  # references the second local varname (eg bams_joined)
         value = self.condition()
-        return DECLARATION_FMT.format(dest=dest, value=value)
-
+        return self.DECLARATION_FMT.format(dest=dest, value=value)
+    
     def arr_join(self) -> str:
+        prefix = self.prefix_str
+        spacer = self.spacer_str
+        src = self.varhistory.previous.value
+        delim = self.delim_str
 
-        if self.attributes.prefixeach:
-            src = self.varhistory.previous.value
-            prefix = self.prefix_str
-            delim = self.delim_str
-            return ARR_JOIN_PREFIXEACH.format(src=src, prefix=prefix, delim=delim)
+        if self.ctype in [
+            CType.OPT_BASIC_ARR_PREFIXEACH,
+            CType.OPT_DEFAULT_ARR_PREFIXEACH,
+            CType.OPT_OPTIONAL_ARR_PREFIXEACH
+        ]:
+            # eg: adapters.collect{ "--adapters ${it}" }.join(' ')
+            return self.ARR_JOIN_PREFIXEACH.format(src=src, prefix=prefix, spacer=spacer, delim=delim)
         
         else:
-            src = self.varhistory.previous.value
-            delim = self.delim_str
-            return ARR_JOIN_BASIC.format(src=src, delim=delim)
-    
+            # eg: "adapters.join(' ')"
+            return self.ARR_JOIN_BASIC.format(src=src, delim=delim)
+
     def condition(self) -> str:
-        return CONDITION_FMT.format(
+        # '{cond_check} ? {cond_true} : {cond_false}'
+        # eg: adapters[0] != params.NULL ? "--adapters ${adapters.join(' ')}" : ""
+        return self.CONDITION_FMT.format(
             cond_check=self.cond_check(),
             cond_true=self.cond_true(),
             cond_false=self.cond_false(),
         )
 
     def cond_check(self) -> str:
+        # eg: adapters[0] != params.NULL
         src = self.varhistory.previous.value
-        return COND_CHECK_FMT3.format(src=src) 
+        return self.COND_CHECK_FMT.format(src=src) 
     
     def cond_true(self) -> str:
-        if self.attributes.prefix and not self.attributes.prefixeach:
-            src = self.arr_join()
-            prefix = self.prefix_str
-            spacer = self.spacer_str
-            return COND_TRUE_FMT2.format(src=src, prefix=prefix, spacer=spacer)
+        # eg: "--adapters ${adapters.join(' ')}"
+        src = self.arr_join()
+
+        if self.ctype == CType.OPT_OPTIONAL_ARR:
+            return self.COND_TRUE_FMT2.format(prefix=self.prefix_str, spacer=self.spacer_str, src=src)
         else:
-            src = self.arr_join()
-            return COND_TRUE_FMT1.format(src=src)
-    
+            return self.COND_TRUE_FMT1.format(src=src)
+
     def cond_false(self) -> str:
-        default = self.default_str
-        return COND_FALSE_FMT.format(default=default)
+        if self.ctype == CType.OPT_OPTIONAL_ARR:
+            expr = self.default_str(apply_prefix=True)
+        else:
+            expr = self.default_str(apply_prefix=False)
+        
+        return self.COND_FALSE_FMT.format(default=expr)
+    
 
 
-
-class SecondaryFormatter(PreScriptFormatter):
-
+class SecondaryArrayFormatter(GenericArrayFormatter):
+    
+    SECONDARY_ARRAY_GATHER = 'def {dest} = get_primary_files({src}, {collate_size})'
+    COND_CHECK_FMT = '{src}[0].simpleName != params.NULL'
+    
     def format(self) -> None:
-        # prescript only needed when optional
-        pass
+        line1 = self.gather_declaration()
+        line2 = self.join_declaration()
+        self.prescript.append(line1)
+        self.prescript.append(line2)
+
+    def gather_declaration(self) -> str:
+        new_varname = naming.process.generic(self.tinput)
+        self.update_variable(new_varname)
+        src = self.varhistory.original.value   # references the process input varname
+        dest = self.varhistory.items[1].value  # references the first local varname
+        basetype = utils.get_base_type(self.dtype)
+        collate_size = len(utils.get_extensions(basetype))
+        return self.SECONDARY_ARRAY_GATHER.format(dest=dest, src=src, collate_size=collate_size)
+    
+    def join_declaration(self) -> str:
+        new_varname = f'{self.varhistory.items[1].value}_joined' # references the first local varname
+        self.update_variable(new_varname)
+        if self.attributes.optional or self.attributes.default:
+            return self.join_declaration_optional()
+        return self.join_declaration_mandatory()
+    
+    def join_declaration_mandatory(self) -> str:
+        # eg: def bams_joined = "--bams ${bams.join(' ')}"
+        dest = self.varhistory.items[2].value  # references the second local varname (eg bams_joined)
+        value = self.arr_join()
+        return self.DECLARATION_FMT.format(dest=dest, value=value)
+    
+    def join_declaration_optional(self) -> str:
+        # eg: def bams_joined = bams[0].simpleName != params.NULL ? "--bams ${bams.join(' ')}" : ""
+        dest = self.varhistory.items[2].value  # references the second local varname (eg bams_joined)
+        value = self.condition()
+        return self.DECLARATION_FMT.format(dest=dest, value=value)
 
 
 class FilePairArrayFormatter(PreScriptFormatter):
 
-    def format(self) -> None:
-        # prescript only needed when optional
-        pass
-
-
-class FilePairFormatter(PreScriptFormatter):
-
-    def format(self) -> None:
-        pass
-
-
-class FileArrayFormatter(PreScriptFormatter):
+    FILE_PAIR_ARRAY_GATHER    = "def {dest} = {src}.collate(2, 2)"
+    COND_CHECK_FMT            = '{src}[0].simpleName != params.NULL'
+    ARR_JOIN_MANDATORY        = "{src}.collect{{ it.join('{delim}') }}"
+    ARR_JOIN_MANDATORY_PREFIX = "{src}.collect{{ \"{prefix}{spacer}${{it.join('{delim}')}}\" }"
+    ARR_JOIN_OPTIONAL         = "{src}.collect{{ it[0].simpleName != params.NULL ? it.join('{delim}') : \"\" }}"
+    ARR_JOIN_OPTIONAL_PREFIX  = "{src}.collect{{ it[0].simpleName != params.NULL ? \"{prefix}{spacer}${it.join('{delim}')}\" : \"\" }}"
 
     def format(self) -> None:
-        pass
+        line1 = self.gather_declaration()
+        line2 = self.join_declaration()
+        self.prescript.append(line1)
+        self.prescript.append(line2)
+
+    def gather_declaration(self) -> str:
+        new_varname = naming.process.generic(self.tinput)
+        self.update_variable(new_varname)
+        src = self.varhistory.original.value   # references the process input varname
+        dest = self.varhistory.items[1].value  # references the first local varname
+        return self.FILE_PAIR_ARRAY_GATHER.format(dest=dest, src=src)
+    
+    def join_declaration(self) -> str:
+        new_varname = f'{self.varhistory.items[1].value}_joined' # references the first local varname
+        self.update_variable(new_varname)
+        if self.attributes.prefix and (self.attributes.optional or self.attributes.default):
+            return self.join_declaration_optional_prefix()
+        elif self.attributes.optional or self.attributes.default:
+            return self.join_declaration_optional_basic()
+        elif self.attributes.prefix:
+            return self.join_declaration_madatory_prefix()
+        else:
+            return self.join_declaration_mandatory_basic()
+    
+    def join_declaration_optional_prefix(self) -> str:
+        # eg: def read_pairs_joined = read_pairs.collect{ it[0].simpleName != params.NULL ? "--reads ${it.join(' ')}" : "" }
+        dest = self.varhistory.items[2].value  # references the second local varname (eg reads_joined)
+
+        arr_join = self.ARR_JOIN_OPTIONAL_PREFIX.format(
+            src=self.varhistory.items[1].value,
+            prefix=self.prefix_str,
+            spacer=self.spacer_str,
+            delim=self.delim_str
+        )
+
+        return self.DECLARATION_FMT.format(dest=dest, value=arr_join)
+    
+    def join_declaration_optional_basic(self) -> str:
+        dest = self.varhistory.items[2].value  # references the second local varname (eg reads_joined)
+
+        arr_join = self.ARR_JOIN_OPTIONAL.format(
+            src=self.varhistory.items[1].value,
+            delim=self.delim_str
+        )
+        return self.DECLARATION_FMT.format(dest=dest, value=arr_join)
+    
+    def join_declaration_madatory_prefix(self) -> str:
+        dest = self.varhistory.items[2].value  # references the second local varname (eg reads_joined)
+
+        arr_join = self.ARR_JOIN_MANDATORY_PREFIX.format(
+            src=self.varhistory.items[1].value,
+            prefix=self.prefix_str,
+            spacer=self.spacer_str,
+            delim=self.delim_str
+        )
+
+        return self.DECLARATION_FMT.format(dest=dest, value=arr_join)
+    
+    def join_declaration_mandatory_basic(self) -> str:
+        dest = self.varhistory.items[2].value  # references the second local varname (eg reads_joined)
+
+        arr_join = self.ARR_JOIN_MANDATORY.format(
+            src=self.varhistory.items[1].value,
+            delim=self.delim_str
+        )
+        return self.DECLARATION_FMT.format(dest=dest, value=arr_join)
+    
 
 
-class FileFormatter(PreScriptFormatter):
+class FileArrayFormatter(GenericArrayFormatter):
 
-    def format(self) -> None:
-        pass
+    COND_CHECK_FMT = '{src}[0].simpleName != params.NULL'
+
 
 
 class FlagArrayFormatter(PreScriptFormatter):
 
     def format(self) -> None:
-        # prescript mandatory: array join, possibly with optional check
-        pass
+        # prescript only needed when optional
+        raise NotImplementedError
+
+
+
+
+    
+    
+### SINGLES ###
+
+class GenericFormatter(PreScriptFormatter):
+
+    COND_CHECK_FMT = '{src} != params.NULL'
+    COND_TRUE_FMT1 = '{src}'
+    COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}}}"'
+    COND_FALSE_FMT = '{default}'
+
+    def format(self) -> None:
+        # prescript only needed when optional
+        if self.attributes.optional or self.attributes.default:
+            line = self.optional_declaration()
+            self.prescript.append(line)
+
+    def optional_declaration(self) -> str:
+        dest = naming.process.generic(self.tinput)
+        self.update_variable(dest)
+        condition = self.condition()
+        return self.DECLARATION_FMT.format(dest=dest, value=condition)
+
+    def condition(self) -> str:
+        # '{cond_check} ? {cond_true} : {cond_false}'
+        return self.CONDITION_FMT.format(
+            cond_check=self.cond_check(),
+            cond_true=self.cond_true(),
+            cond_false=self.cond_false(),
+        )
+
+    def pvar(self) -> str:
+        return self.varhistory.previous.value
+    
+    def cond_check(self) -> str:
+        return self.COND_CHECK_FMT.format(src=self.pvar()) 
+    
+    def cond_true(self) -> str:
+        src = self.pvar()
+
+        if self.ctype == CType.OPT_OPTIONAL:
+            return self.COND_TRUE_FMT2.format(prefix=self.prefix_str, spacer=self.spacer_str, src=src)
+        
+        elif self.ctype in [
+            CType.POS_BASIC,
+            CType.POS_DEFAULT,
+            CType.POS_OPTIONAL,
+            CType.OPT_BASIC,
+            CType.OPT_DEFAULT,
+        ]:
+            return self.COND_TRUE_FMT1.format(src=src)
+        
+        else:
+            raise RuntimeError(f'Component type {self.ctype} not allowed for this Formatter')
+
+    def cond_false(self) -> str:
+        if self.ctype == CType.OPT_OPTIONAL:
+            expr = self.default_str(apply_prefix=True)
+            return self.COND_FALSE_FMT.format(default=expr)
+
+        elif self.ctype in [
+            CType.POS_BASIC,
+            CType.POS_DEFAULT,
+            CType.POS_OPTIONAL,
+            CType.OPT_BASIC,
+            CType.OPT_DEFAULT,
+        ]:
+            expr = self.default_str(apply_prefix=False)
+            return self.COND_FALSE_FMT.format(default=expr)
+        
+        else:
+            raise RuntimeError(f'Component type {self.ctype} not allowed for this Formatter')
+    
+
+class FileFormatter(GenericFormatter):
+    
+    COND_CHECK_FMT = '{src}.simpleName != params.NULL'
+
+
+class SecondaryFormatter(GenericFormatter):
+
+    COND_CHECK_FMT = '{src}.simpleName != params.NULL'
+
+    def pvar(self) -> str:
+        return self.varhistory.previous.value[0]
+
+
+
+class FilePairFormatter(PreScriptFormatter):
+
+    ARR_JOIN_BASIC      = "{pair1} + '{delim}' + {pair2}"
+    ARR_JOIN_PREFIX     = '"{prefix}{spacer}${{{pair1}}}{delim}${{{pair2}}}"'
+    ARR_JOIN_PREFIXEACH  = '"{prefix}{spacer}${{{pair1}}}{delim}{prefix}{spacer}${{{pair2}}}"'
+    
+    COND_CHECK_FMT  = '{src}.simpleName != params.NULL'
+    COND_TRUE_POS   = '{src}'
+    COND_TRUE_OPT   = '"{prefix}{spacer}" + {src}'
+    COND_FALSE_POS = '{default}'
+    COND_FALSE_OPT = '{default}'
+    
+    def format(self) -> None:
+        # join declaration
+        self.join_declaration()
+        
+        # optional declaration for each file in pair if optional
+        if self.attributes.optional:
+            self.optional_declarations()
+
+    def join_declaration(self) -> None:
+        dest = f'{naming.process.generic(self.tinput)}_joined'
+        self.update_variable(dest)
+        
+        if self.attributes.optional:
+            line = self.join_declaration_optional()
+        else:
+            line = self.join_declaration_mandatory()
+        
+        self.prescript.append(line)
+
+    def join_declaration_optional(self) -> str:
+        dest = self.varhistory.current.value
+        pair1 = self.varhistory.original.value[0]
+
+        cond_check = self.COND_CHECK_FMT.format(src=pair1)
+        cond_true = self.arr_join()
+        cond_false = '""'
+        condition = self.CONDITION_FMT.format(cond_check=cond_check, cond_true=cond_true, cond_false=cond_false)
+        declaration = self.DECLARATION_FMT.format(dest=dest, value=condition)
+        
+        return declaration
+    
+    def join_declaration_mandatory(self) -> str:
+        dest = self.varhistory.current.value
+        value = self.arr_join() 
+        return self.DECLARATION_FMT.format(dest=dest, value=value)
+    
+    def arr_join(self) -> str:
+        pair1 = self.varhistory.original.value[0]
+        pair2 = self.varhistory.original.value[1]
+
+        if self.attributes.prefixeach:
+            return self.ARR_JOIN_PREFIXEACH.format(
+                prefix=self.prefix_str,
+                spacer=self.spacer_str,
+                pair1=pair1,
+                delim=self.delim_str,
+                pair2=pair2
+            )
+
+        elif self.attributes.prefix:
+            return self.ARR_JOIN_PREFIX.format(
+                prefix=self.prefix_str,
+                spacer=self.spacer_str,
+                pair1=pair1,
+                delim=self.delim_str,
+                pair2=pair2
+            )
+        
+        else:
+            return self.ARR_JOIN_BASIC.format(
+                pair1=pair1,
+                delim=self.delim_str,
+                pair2=pair2
+            )
+    
+    def optional_declarations(self) -> None:
+        dest = [
+            self.varhistory.original.value[0],
+            self.varhistory.original.value[1],
+        ]
+        self.update_variable(dest)
+        line1 = self.optional_declaration_pair(pair=0)
+        line2 = self.optional_declaration_pair(pair=1)
+        self.prescript.append(line1)
+        self.prescript.append(line2)
+
+    def optional_declaration_pair(self, pair: int) -> str:
+        src = self.varhistory.original.value[pair]
+        dest = self.varhistory.original.value[pair]
+
+        ### CONDITION CHECK
+        cond_check = self.COND_CHECK_FMT.format(src=src)
+        
+        ### CONDITION TRUE
+        if self.attributes.prefix:
+            cond_true = self.COND_TRUE_OPT.format(prefix=self.prefix_str, spacer=self.spacer_str, src=src)
+        else:
+            cond_true = self.COND_TRUE_POS.format(src=src)
+        
+        ### CONDITION FALSE
+        if self.attributes.prefix:
+            cond_false = self.COND_FALSE_OPT.format(prefix=self.prefix_str, spacer=self.spacer_str, default=self.default_str())
+        else:
+            cond_false = self.COND_FALSE_POS.format(default=self.default_str())
+
+        condition = self.CONDITION_FMT.format(cond_check=cond_check, cond_true=cond_true, cond_false=cond_false)
+        declaration = self.DECLARATION_FMT.format(dest=dest, value=condition)
+
+        return declaration
+
 
 
 class FlagFormatter(PreScriptFormatter):
 
-    def format(self) -> None:
-        # prescript only needed when optional
-        pass
-
-
-class GenericArrayFormatter(PreScriptFormatter):
-
-    def format(self) -> None:
-        # prescript mandatory: array join, possibly with optional check
-        pass
-
-
-class GenericFormatter(PreScriptFormatter):
+    FLAG_FALSE_FMT = 'def {dest} = {src} ? "{prefix}" : ""'
+    FLAG_TRUE_FMT  = 'def {dest} = {src} == false ? "" : "{prefix}"'
 
     def format(self) -> None:
         # prescript only needed when optional
-        pass
+        if self.attributes.optional or self.attributes.default:
+            line = self.optional_declaration()
+            self.prescript.append(line)
+
+    def optional_declaration(self) -> str:
+        dest = naming.process.generic(self.tinput)
+        self.update_variable(dest)
+        src = self.varhistory.previous.value
+        prefix = self.prefix_str
+        if str(self.tinput.default) == 'False':
+            return self.FLAG_FALSE_FMT.format(dest=dest, src=src, prefix=prefix)
+        return self.FLAG_TRUE_FMT.format(dest=dest, src=src, prefix=prefix)
 
 
-# ### MAIN FORMATTING CLASS ###
 
-# class PreScriptFormatterOld:
-#     def __init__(
-#         self, 
-#         tinput: ToolInput,
-#         tool: CommandTool,
-#         vmanager: VariableManager,
-#     ) -> None:
-#         self.tool = tool
-#         self.tinput = tinput
-#         self.vmanager = vmanager
-#         self.ctype = get_ctype(tinput)
-#         self.attributes = get_attributes(tinput)
-#         self.prescript: list[str] = []
 
-#         self.func_map = {
-#             DTypeType.SECONDARY_ARRAY: self.secondary_array,
-#             DTypeType.SECONDARY: self.secondary,
-#             DTypeType.FILE_PAIR_ARRAY: self.file_pair_array,
-#             DTypeType.FILE_PAIR: self.file_pair,
-#             DTypeType.FILE_ARRAY: self.file_array,
-#             DTypeType.FILE: self.file,
-#             DTypeType.GENERIC_ARRAY: self.generic_array,
-#             DTypeType.GENERIC: self.generic,
-#         }
-
-#     ### MAIN FORMATTING METHODS ###
-
-#     def format(self) -> list[str]:
-#         self.add_preprocessing_line()
-#         formatting_func = self.func_map[self.dtt]
-#         formatting_func()
-#         return self.prescript
-    
-#     def secondary_array(self) -> None:
-#         # declaration to gather the primary files
-#         self.do_secondary_array_gather()
-#         self.do_secondary_array_redefine()
-    
-#     def do_secondary_array_gather(self) -> None:
-#         pass
-    
-#     def do_secondary_array_redefine(self) -> None:
-#         pass
-
-#     def get_secondary_array_join(self) -> str:
-#         # arr join
-#         composer = ArrJoinComposer(
-#             flavour='prefixeach' if self.attributes.prefixeach else 'basic',
-#             src=self.varhistory.current.value,  # type: ignore
-#             prefix=self.prefix_str,
-#             delim=self.delim_str
-#         )
-#         arr_join = composer.compose()
-
-#         if self.optional:
-
-#         # redefine
-#         new_varname = f'{self.varhistory.current.value}_joined'
-#         self.update_variable(new_varname)
-
-#         composer = DeclarationComposer(
-#             flavour='secondary_array_gather',
-#             dest=self.varhistory.current.value,
-#             src=self.varhistory.previous.value
-#         )
-#         line = composer.compose()
-#         self.prescript.append(line)
-
-#     def secondary(self) -> None:
-#         pass
-    
-#     def file_pair_array(self) -> None:
-#         pass
-    
-#     def file_pair(self) -> None:
-#         # arr join
-#         if self.attributes.prefixeach:
-            
-            
-#         pass
-    
-#     def file_array(self) -> None:
-#         pass
-    
-#     def file(self) -> None:
-#         pass
-    
-#     def generic_array(self) -> None:
-#         pass
-    
-#     def generic(self) -> None:
-#         pass
-    
-#     @property 
-#     def arr_join(self) -> Optional[str]:
-#         pass
-
-#     @property 
-#     def arr_join_basic(self) -> Optional[str]:
-#         pass
-    
-#     @property 
-#     def arr_join_prefixeach(self) -> Optional[str]:
-#         pass
-    
-#     @property 
-#     def arr_join_file_pair(self) -> Optional[str]:
-#         pass
-    
-#     @property 
-#     def arr_join_file_pair_prefixeach(self) -> Optional[str]:
-#         pass
-
-#     def add_preprocessing_line(self) -> None:
-#         # preprocessing step for array secondaries.
-#         # need to add prescript line to gather primary files from flattened process input
-#         if self.dtt == DTypeType.SECONDARY_ARRAY:
-#             line = self.secondary_array_gather
-#             self.prescript.append(line)
-        
-#         # preprocessing step for file pair secondaries.
-#         # need to add prescript line to collect file pairs from flattened process input
-#         if self.dtt == DTypeType.FILE_PAIR_ARRAY:
-#             line = self.file_pair_array_gather
-#             self.prescript.append(line)
-
-#     def flag_false(self) -> None:
-#         new_varname = naming.process.generic(self.tinput)
-#         self.update_variable(new_varname)
-#         declaration = FLAG_FALSE_FMT.format(
-#             name=self.varhistory.previous.value, 
-#             src=self.varhistory.current.value, 
-#             prefix=self.prefix_str
-#         )
-#         self.prescript.append(declaration)
-    
-#     def flag_true(self) -> None:
-#         new_varname = naming.process.generic(self.tinput)
-#         self.update_variable(new_varname)
-#         declaration = FLAG_TRUE_FMT.format(
-#             name=self.varhistory.previous.value, 
-#             src=self.varhistory.current.value, 
-#             prefix=self.prefix_str
-#         )
-#         self.prescript.append(declaration)
-
-    
-
-#     ### HELPER PROPERTIES ###
-    
-
-    
-#     @property
-#     def prefixeach(self) -> bool:
-#         if self.tinput.prefix_applies_to_all_elements:
-#             return True
-#         return False
-    
-#     def arr_join_str(self) -> str:
-#         if self.attributes.prefixeach and self.dtt == DTypeType.FILE_PAIR:
-#             return ARR_JOIN_FILE_PAIR_PREFIXEACH(
-#                 prefix=self.prefix_str,
-#                 spacer=self.spacer_str,
-#                 pair1=
-#             )
-
-#         if self.attributes.prefixeach:
-#             return ARR_JOIN_FMT3.format(
-#                 src=self.varhistory.current.value, 
-#                 prefix=self.prefix_str, 
-#                 delim=self.delim_str
-#             )
-        
-#         # file pair format
-#         elif utils.is_file_pair_type(self.dtype):
-#             input_var = self.varhistory.original
-#             assert(input_var.value)
-#             assert(len(input_var.value) == 2)
-#             pair1 = input_var.value[0]
-#             pair2 = input_var.value[1]
-#             return ARR_JOIN_FMT2.format(
-#                 pair1=pair1, 
-#                 delim=self.delim_str, 
-#                 pair2=pair2
-#             )
-        
-#         # generic format
-#         else:
-#             return ARR_JOIN_FMT1.format(
-#                 src=self.varhistory.current.value,
-#                 delim=self.delim_str
-#             )
-    
-#     def declaration_str(self) -> str:
-#         new_varname = naming.process.generic(self.tinput)
-#         self.update_variable(new_varname)
-#         return DECLARATION_FMT.format(
-#             name=self.declaration_name_str, 
-#             value=self.declaration_value_str
-#         )
-    
-#     def declaration_name_str(self) -> str:
-#         if self.doing_join_operation:
-#             return DECLARATION_NAME_FMT2.format(
-#                 src=self.varhistory.current.value
-#             )
-#         else:
-#             return DECLARATION_NAME_FMT1.format(
-#                 src=self.varhistory.current.value
-#             )
-    
-#     def declaration_value_str(self) -> str:
-#         if self.doing_join_operation:
-#             value = self.arr_join_str
-#         else:
-#             value = self.condition_str
-#         return DECLARATION_VALUE_FMT.format(value=value)
-
-#     def condition_str(self) -> str:
-#         return CONDITION_FMT.format(
-#             cond_check=self.cond_check_str, 
-#             cond_true=self.cond_true_str, 
-#             cond_false=self.cond_false_str
-#         )
-    
-#     @property
-#     def cond_check_str(self) -> str:
-#         """
-#         cond_check  | <src> != params.NULL
-#                     | <src>.simpleName != params.NULL
-#                     | <src>[0].simpleName != params.NULL
-#         """
-#         src = self.varhistory.current.value
-
-#         if self.dtt in [DTypeType.SECONDARY_ARRAY, DTypeType.FILE_PAIR_ARRAY, DTypeType.FILE_ARRAY]:
-#             # eg path secondary_array_flat
-#             # eg path file_pair_array_flat
-#             return COND_CHECK_FMT3.format(src=src)
-
-#         elif self.dtt in [DTypeType.SECONDARY, DTypeType.FILE_PAIR, DTypeType.FILE]:
-#             # eg file pair: Tuple path(pair1), path(pair2) (src=pair1)
-#             # eg file:      path fastq (src=fastq)
-#             return COND_CHECK_FMT2.format(src=src)
-
-#         elif self.dtt in [DTypeType.GENERIC_ARRAY, DTypeType.GENERIC]:
-#             # eg int:           val kmer_size (src=kmer_size)
-#             # eg string:        val adapter (src=adapter)
-#             # eg string_array:  val adapters (src=adapters) 
-#             # (ignored optional array passed as params.NULL, not [params.NULL])
-#             return COND_CHECK_FMT1.format(src=src)
-        
-#         else:
-#             raise RuntimeError
-           
-#     @property
-#     def cond_true_str(self) -> str:
-#         """
-#         cond_true   | <src>
-#                     | <arr_join>
-#                     | "<prefix><spacer>" + <src>
-        
-#         using "<prefix><spacer>" + <src>:
-#         - PS_OPT_OPTIONAL
-#         - PS_OPT_OPTIONAL_FILETYPES
-#         - PS_OPT_OPTIONAL_ARR
-#         - PS_OPT_OPTIONAL_ARR_FILETYPES
-        
-#         - prefix | optional | array? | !prefixeach
-
-#         using <arr_join>:
-#         - PS_POS_DEFAULT_ARR
-#         - PS_POS_OPTIONAL_ARR
-#         - PS_POS_OPTIONAL_ARR_FILETYPES
-#         - PS_OPT_DEFAULT_ARR
-#         - PS_OPT_DEFAULT_ARR_PREFIXEACH
-#         - PS_OPT_OPTIONAL_ARR_PREFIXEACH
-#         - PS_OPT_OPTIONAL_ARR_PREFIXEACH_FILETYPES
-        
-#         - prefix?  | optional | array | prefixeach?
-
-#         using <src>:
-#         - PS_POS_DEFAULT
-#         - PS_POS_OPTIONAL
-#         - PS_POS_OPTIONAL_FILETYPES
-#         - PS_OPT_DEFAULT*
-        
-#         - prefix?  | optional | !array | !prefixeach
-#         """
-
-#         # using "<prefix><spacer>" + <src>:
-#         # prefix | optional | array? | !prefixeach
-#         if self.prefix_str and self.dtype.optional and not self.prefixeach:
-#             return COND_TRUE_FMT2.format(
-#                 prefix=self.prefix_str, 
-#                 spacer=self.spacer_str, 
-#                 src=self.varhistory.current.value
-#             )
-        
-#         # using <arr_join>:
-#         # prefix?  | optional | array | prefixeach?
-#         elif self.dtype.optional and utils.is_array_type(self.dtype):
-#             return COND_TRUE_FMT1.format(src=self.arr_join_str)
-
-#         # using <src>:
-#         # prefix?  | optional | !array | !prefixeach
-#         elif self.dtype.optional and not utils.is_array_type(self.dtype) and not self.prefixeach:
-#             return COND_TRUE_FMT1.format(src=self.varhistory.current.value)
-        
-#         else:
-#             raise RuntimeError
-        
-#     @property
-#     def cond_false_str(self) -> str:
-#         return COND_FALSE_FMT.format(default=self.default_str)
-    
-#     @property
-#     def secondary_array_gather(self) -> str:
-#         new_varname = naming.process.generic(self.tinput)
-#         self.update_variable(new_varname)
-#         return SECONDARY_ARRAY_GATHER.format(
-#             name=self.varhistory.previous.value,
-#             src=self.varhistory.current.value
-#         )
-    
-#     @property
-#     def file_pair_array_gather(self) -> str:
-#         new_varname = naming.process.generic(self.tinput)
-#         self.update_variable(new_varname)
-#         return FILE_PAIR_ARRAY_GATHER.format(
-#             name=self.varhistory.previous.value,
-#             src=self.varhistory.current.value
-#         )
-    
-#     ### HELPER METHODS ###
-    
-#     def update_variable(self, new_value: Optional[str]) -> None:
-#         self.vmanager.update(
-#             tinput_id=self.tinput.id(),
-#             vtype_str='local',
-#             value=new_value
-#         )

@@ -20,7 +20,7 @@ from janis_core.tests.testtools import (
     FileTestTool,
     StringTestTool,
     IntTestTool,
-    ComponentsTestTool,
+    ComponentsMandatoryTestTool,
     ArrayFileTestTool,
 )
 
@@ -129,7 +129,7 @@ class ScatterDotTestWF(Workflow):
 
         self.step(
             "stp1", 
-            ComponentsTestTool(
+            ComponentsMandatoryTestTool(
                 pos_basic=self.inFileArray,
                 opt_basic=self.inStrArray
             ),
@@ -164,7 +164,7 @@ class ScatterCrossTestWF(Workflow):
 
         self.step(
             "stp1", 
-            ComponentsTestTool(
+            ComponentsMandatoryTestTool(
                 pos_basic=self.inFileArray,
                 opt_basic=self.inStrArray
             ),

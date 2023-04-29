@@ -6,6 +6,19 @@ from janis_core import ToolInput
 from janis_core.types import Boolean, Filename, Array
 
 
+"""
+This file is so we can classify tool inputs based on their characteristics. 
+for example:
+    - FLAG_BASIC:       a flag cmdline arg like '--quiet' which is Boolean type, has a prefix, but no default & is mandatory
+    - FLAG_OPTIONAL:    a flag cmdline arg like '--quiet' which is Boolean type, has a prefix, but no default & is optional
+    - POS_BASIC:        a positional cmdline arg which has no prefix & no default & is mandatory
+    - POS_DEFAULT:      a positional cmdline arg which has no prefix but has a default & is mandatory
+    - POS_OPTIONAL:     a positional cmdline arg which has no prefix & no default but is optional
+    - OPT_BASIC:        a option cmdline arg (--prefix value) which has a prefix & no default & is mandatory
+    etc
+
+"""
+
 # public enum
 class CType(Enum):
 
@@ -24,10 +37,6 @@ class CType(Enum):
     POS_BASIC_ARR       = auto()
     POS_DEFAULT_ARR     = auto()
     POS_OPTIONAL_ARR    = auto()
-
-    POS_BASIC_ARR_PREFIXEACH    = auto()
-    POS_DEFAULT_ARR_PREFIXEACH  = auto()
-    POS_OPTIONAL_ARR_PREFIXEACH = auto()
 
     OPT_BASIC           = auto()
     OPT_DEFAULT         = auto()

@@ -1,123 +1,174 @@
 
 
 
-# from typing import Tuple, Any
+from typing import Any
+from abc import ABC, abstractmethod
 
-# from janis_core import ToolInput, CommandTool
+from janis_core import ToolInput, CommandTool
+from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
-# from ....variables import VariableHistory
-# from ....variables import VariableManager
-# from ....variables import VariableType
+from ....variables import VariableHistory
+from ....variables import VariableManager
+from ....variables import VariableType
 
-# from .ctype import get_ctype
-# from .ctype import CType
-# from .dtypetype import get_dtype_type
-
-# from . import common
-
-
-# SCRIPT_FMT1 = '{src}' 
-# SCRIPT_FMT2 = '{prefix}{spacer}{src}' 
+from .ctype import CType, get_ctype
+from .attributes import get_attributes
+from . import common
 
 
-
-# def autofill_script(tinput: ToolInput, tool: CommandTool, vmanager: VariableManager) -> list[str]:
-#     # when autofill is possible, returns the str expression
-#     # which can be injected directly into the nf script block.
-#     # has no pre-script lines. 
-
-#     formatter = AutoFiller(tool, tinput, vmanager)
-#     return formatter.format()
+SCRIPT_FMT1 = '{src}' 
+SCRIPT_FMT2 = '{prefix}{spacer}{src}' 
 
 
-# class AutoFiller:
-#     def __init__(self, tool: CommandTool, tinput: ToolInput, vmanager: VariableManager) -> None:
-#         self.tool = tool
-#         self.tinput = tinput
-#         self.vmanager = vmanager
-#         self.itype = get_ctype(tinput)
-#         self.dtt = get_dtype_type(tinput)
 
-#     @property 
-#     def varhistory(self) -> VariableHistory:
-#         return self.vmanager.get(self.tinput.id())
+def autofill_script(tinput: ToolInput, tool: CommandTool, vmanager: VariableManager) -> list[str]:
+    # when autofill is possible, returns the str expression
+    # which can be injected directly into the nf script block.
+    # has no pre-script lines. 
+
+    dtt = utils.get_dtt(tinput.input_type)
+    autofill_map = {
+        DTypeType.SECONDARY_ARRAY: GenericAutoFiller,
+        DTypeType.SECONDARY: GenericAutoFiller,
+        DTypeType.FILE_PAIR_ARRAY: GenericAutoFiller,
+        DTypeType.FILE_PAIR: GenericAutoFiller,
+        DTypeType.FILE_ARRAY: GenericAutoFiller,
+        DTypeType.FILE: GenericAutoFiller,
+        DTypeType.FLAG_ARRAY: FlagArrayAutoFiller,
+        DTypeType.FLAG: FlagAutoFiller,
+        DTypeType.GENERIC_ARRAY: GenericAutoFiller,
+        DTypeType.GENERIC: GenericAutoFiller,
+    }
+
+    autofiller = autofill_map[dtt](tool, tinput, vmanager)
+    return autofiller.autofill()
+
+
+class AutoFiller(ABC):
+    def __init__(self, tool: CommandTool, tinput: ToolInput, vmanager: VariableManager) -> None:
+        self.tool = tool
+        self.tinput = tinput
+        self.vmanager = vmanager
+        self.itype = get_ctype(tinput)
+        self.dtt = utils.get_dtt(tinput.input_type)
+        self.attributes = get_attributes(tinput)
+        self.script: list[str] = []
+
+    @abstractmethod
+    def autofill(self) -> list[str]:
+        ...
     
-#     @property
-#     def value(self) -> Any:
-#         # ignored input but has default
-#         if self.varhistory.original.vtype == VariableType.IGNORED:
-#             return self.tinput.default
-#         # static value supplied to input
-#         elif self.varhistory.original.vtype == VariableType.STATIC:
-#             return self.varhistory.original.value
-#         else:
-#             raise RuntimeError
-
-#     def format(self) -> list[str]:
-
-#         if self.itype == CType.FLAG_TRUE:
-#             return self.format_flag_true()
-        
-#         elif self.itype == CType.FLAG_FALSE:
-#             return self.format_flag_false()
-
-#         elif self.itype in [
-#             CType.POS_BASIC,
-#             CType.POS_BASIC_ARR,
-#             CType.POS_DEFAULT,
-#             CType.POS_OPTIONAL,
-#             CType.POS_DEFAULT_ARR,
-#             CType.POS_OPTIONAL_ARR,
-#             CType.OPT_BASIC_ARR_PREFIXEACH,
-#             CType.OPT_DEFAULT_ARR_PREFIXEACH,
-#             CType.OPT_OPTIONAL_ARR_PREFIXEACH
-#         ]:
-#             return self.format_basic()
-        
-#         elif self.itype in [
-#             CType.OPT_BASIC,
-#             CType.OPT_BASIC_ARR,
-#             CType.OPT_DEFAULT,
-#             CType.OPT_OPTIONAL,
-#             CType.OPT_DEFAULT_ARR,
-#             CType.OPT_OPTIONAL_ARR
-#         ]:
-#             return self.format_prefix()
-
-#         else:
-#             raise NotImplementedError(f'cannot autofill a {self.itype}')
-
-#     def format_flag_true(self) -> Tuple[list[str], list[str]]:
-#         prescript: list[str] = []
-#         script: list[str] = []
-#         raise NotImplementedError
+    @property 
+    def varhistory(self) -> VariableHistory:
+        return self.vmanager.get(self.tinput.id())
     
-#     def format_flag_false(self) -> Tuple[list[str], list[str]]:
-#         prescript: list[str] = []
-#         script: list[str] = []
-#         raise NotImplementedError
+    @property
+    def value(self) -> Any:
+        # ignored input but has default
+        if self.varhistory.original.vtype == VariableType.IGNORED:
+            value = self.tinput.default
+        # static value supplied to input
+        elif self.varhistory.original.vtype == VariableType.STATIC:
+            value = self.varhistory.original.value
+        else:
+            raise RuntimeError
         
-#     def format_basic(self) -> Tuple[list[str], list[str]]:
-#         prescript: list[str] = []
-#         script: list[str] = []
+        return common.eval_default_cmdline(
+            default=value,
+            tinput=self.tinput,
+            tool=self.tool,
+            vmanager=self.vmanager,
+            apply_prefix=True
+        )
+    
+
+
+### ARRAY TYPES ###
+
+class SecondaryArrayAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FilePairArrayAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FileArrayAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FlagArrayAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class GenericArrayAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        cmdline = self.value
+        return [cmdline]
+    
+
+### SINGLE TYPES ###
+
+class SecondaryAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FilePairAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FileAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        raise NotImplementedError
+
+
+class FlagAutoFiller(AutoFiller):
+
+    @property
+    def value(self) -> Any:
+        # ignored input but has default
+        if self.varhistory.original.vtype == VariableType.IGNORED:
+            value = self.tinput.default
+        # static value supplied to input
+        elif self.varhistory.original.vtype == VariableType.STATIC:
+            value = self.varhistory.original.value
+        else:
+            raise RuntimeError
         
-#         src = common.eval_default_cmdline(self.value)
-#         sc_line = SCRIPT_FMT1.format(src=src)
-#         script.append(sc_line)
-        
-#         return (prescript, script)
-            
-#     def format_prefix(self) -> Tuple[list[str], list[str]]:
-#         prescript: list[str] = []
-#         script: list[str] = []
-        
-#         src = common.eval_default_cmdline(self.value)
-#         sc_line = SCRIPT_FMT2.format(
-#             prefix=common.prefix_str(self.tinput), 
-#             spacer=common.spacer_str(self.tinput), 
-#             src=src
-#         )
-#         script.append(sc_line)
-        
-#         return (prescript, script)
-        
+        value = str(value)
+        if value == 'False':
+            return None
+        else:
+            return self.tinput.prefix
+
+    def autofill(self) -> list[str]:
+        if self.value is not None:
+            cmdline = self.value
+            return [cmdline]
+        else:
+            return []
+
+
+class GenericAutoFiller(AutoFiller):
+
+    def autofill(self) -> list[str]:
+        cmdline = self.value
+        return [cmdline]
+
+
+

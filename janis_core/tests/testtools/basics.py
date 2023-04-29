@@ -151,7 +151,7 @@ class StringInputSelectorTestTool(EchoBase):
         return [ToolOutput("out", String, selector=InputSelector('inp'))]
 
 
-class ComponentsTestTool(CommandTool):
+class ComponentsMandatoryTestTool(CommandTool):
     def tool(self) -> str:
         return "ComponentsTestTool"
 

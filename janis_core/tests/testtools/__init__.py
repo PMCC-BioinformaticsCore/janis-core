@@ -16,7 +16,7 @@ from .basics import (
     WildcardSelectorTestTool,
     FileInputSelectorTestTool,
     StringInputSelectorTestTool,
-    ComponentsTestTool,
+    ComponentsMandatoryTestTool,
     ResourcesTestTool
 )
 

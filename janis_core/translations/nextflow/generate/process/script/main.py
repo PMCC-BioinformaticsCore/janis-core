@@ -55,7 +55,7 @@ class ProcessScriptGenerator:
         # prescript for ToolInputs first
         for inp in order_cmdtool_inputs_arguments(self.tool):
             if isinstance(inp, ToolInput):
-                self.prescript = gen_prescript_lines(inp, self.tool, self.variable_manager)
+                self.prescript += gen_prescript_lines(inp, self.tool, self.variable_manager)
         
         # script for ToolInputs and ToolArguments
         for inp in order_cmdtool_inputs_arguments(self.tool):

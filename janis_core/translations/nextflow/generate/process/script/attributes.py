@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from janis_core import ToolInput
+from janis_core.types import Filename
 
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
@@ -29,7 +30,9 @@ def is_prefix(tinput: ToolInput) -> bool:
     return False
 
 def is_optional(tinput: ToolInput) -> bool:
-    if tinput.input_type.optional == True: 
+    if isinstance(tinput.input_type, Filename):
+        return False
+    elif tinput.input_type.optional == True:  # type: ignore
         return True
     return False
 

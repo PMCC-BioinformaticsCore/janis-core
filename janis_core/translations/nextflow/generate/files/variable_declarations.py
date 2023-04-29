@@ -5,6 +5,7 @@ from enum import Enum, auto
 from janis_core import settings
 from janis_core import Workflow, TInput, DataType
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from ... import naming 
 from ... import task_inputs 
@@ -66,23 +67,24 @@ class VariableDefinitionGenerator:
     
     @property
     def value(self) -> str:
-        if utils.is_secondary_array_type(self.dtype):
+        dtt = utils.get_dtt(self.dtype)
+        if dtt == DTypeType.SECONDARY_ARRAY:
             value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
         
-        elif utils.is_secondary_type(self.dtype):
+        elif dtt == DTypeType.SECONDARY:
             value = f'{self.param_name}.collect{{ file(it) }}'
         
-        elif utils.is_file_pair_array_type(self.dtype):
+        elif dtt == DTypeType.FILE_PAIR_ARRAY:
             value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
         
-        elif utils.is_file_pair_type(self.dtype):
+        elif dtt == DTypeType.FILE_PAIR:
             value = f'{self.param_name}.collect{{ file(it) }}'
         
-        elif utils.is_file_array_type(self.dtype):
+        elif dtt == DTypeType.FILE_ARRAY:
             value = f'{self.param_name}.collect{{ file(it) }}'
         
-        elif utils.is_file_type(self.dtype):
-            value = f'file ( {self.param_name} )'
+        elif dtt == DTypeType.FILE:
+            value = f'file( {self.param_name} )'
         
         else:
             raise RuntimeError(f'Unsupported file type: {self.dtype}')

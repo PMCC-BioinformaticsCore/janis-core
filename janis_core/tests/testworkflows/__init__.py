@@ -7,14 +7,18 @@ from .basics import DirectivesTestWF
 from .basics import ArrayIOTestWF
 from .basics import ArrayIOExtrasTestWF
 
-from .steps import StepInputsTestWF
-from .steps import StepInputsWFInputTestWF
-from .steps import StepInputsStaticTestWF
-from .steps import StepInputsPartialStaticTestWF
-from .steps import StepInputsMinimalTestWF
-from .steps import StepConnectionsTestWF
-from .steps import ArrayStepInputsTestWF
-from .steps import ArrayStepConnectionsTestWF
+from .components import ComponentsMandatoryTestWF
+from .components import ComponentsOptionalTestWF
+from .components import ComponentsMandatoryArrayTestWF
+from .components import ComponentsOptionalArrayTestWF
+
+from .components import StepInputsWFInputTestWF
+from .components import StepInputsStaticTestWF
+from .components import StepInputsPartialStaticTestWF
+from .components import StepInputsMinimalTestWF
+from .components import StepConnectionsTestWF
+from .components import ArrayStepInputsTestWF
+from .components import ArrayStepConnectionsTestWF
 
 from .scatter import BasicScatterTestWF
 from .scatter import ChainedScatterTestWF
@@ -35,8 +39,19 @@ from .subworkflow2 import Subworkflow2TestWF
 from .subworkflow2 import Subworkflow3TestWF
 from .data_sources import DataSourceTestWF
 from .naming import NamingTestWF
-from .file_pairs import FilePairsTestWF
-from .file_pairs import FilePairsTestWF
+
+from .file_pairs import AllFilePairsTestWF
+from .file_pairs import FilePairsTestWF0
+from .file_pairs import FilePairsTestWF1
+from .file_pairs import FilePairsTestWF2
+from .file_pairs import FilePairsTestWF3
+from .file_pairs import FilePairsOptionalTestWF0
+from .file_pairs import FilePairsOptionalTestWF1
+from .file_pairs import FilePairsOptionalTestWF2
+from .file_pairs import FilePairsOptionalTestWF3
+from .file_pairs import FilePairsArrayTestWF
+from .file_pairs import FilePairsArrayOptionalTestWF
+
 from .files_directories_to_create import FilesDirectoriesToCreateTestWF
 from .process_inputs import ProcessInputsTestWF
 from .ordering import OrderingTestWF

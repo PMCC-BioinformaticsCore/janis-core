@@ -66,13 +66,13 @@ def get_dtt(dtype: DataType) -> DTypeType:
 
 def is_flag_array_type(dtype: DataType) -> bool:
     if dtype.name() == 'Array':
-        basetype = get_base_type(dtype)
-        if is_flag_type(basetype):
+        if is_flag_type(dtype):
             return True
     return False
 
 def is_flag_type(dtype: DataType) -> bool:
-    if dtype.name() == 'Boolean':
+    basetype = get_base_type(dtype)
+    if basetype.name() == 'Boolean':
         return True
     return False
 
@@ -93,17 +93,14 @@ def ensure_single_type(dtype: DataType) -> DataType:
 # NON-FILES
 
 def is_array_type(dtype: DataType) -> bool:
-    if isinstance(dtype, Array) and dtype.name() == 'Array':
+    if dtype.name() == 'Array':
         return True
     return False
 
 # FILES
 
-def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
-    if recursive:
-        basetype = get_base_type(dtype)
-    else:
-        basetype = dtype
+def is_file_type(dtype: DataType) -> bool:
+    basetype = get_base_type(dtype)
     
     if isinstance(basetype, (File, Filename, Directory)):
         return True
@@ -114,8 +111,8 @@ def is_file_type(dtype: DataType, recursive: bool=True) -> bool:
 
 def is_file_array_type(dtype: DataType) -> bool:
     if is_array_type(dtype):
-        if is_file_type(dtype.subtype()):
-            return True
+            if is_file_type(dtype):
+                return True
     return False
     
 
@@ -127,30 +124,28 @@ known_file_pair_types = set([
 ])
 
 def is_file_pair_type(dtype: DataType) -> bool:
-    if dtype.name() in known_file_pair_types:
+    basetype = get_base_type(dtype)
+    if basetype.name() in known_file_pair_types:
         return True
     return False
 
 def is_file_pair_array_type(dtype: DataType) -> bool:
     if dtype.name() == 'Array':
-        basetype = get_base_type(dtype)
-        if is_file_pair_type(basetype):
+        if is_file_pair_type(dtype):
             return True
     return False
 
 ### SECONDARIES 
 
 def is_secondary_type(dtype: DataType) -> bool:
-    if not is_secondary_array_type(dtype):
-        basetype = get_base_type(dtype)
-        if isinstance(basetype, File) and basetype.has_secondary_files():
-            return True
+    basetype = get_base_type(dtype)
+    if isinstance(basetype, File) and basetype.has_secondary_files():
+        return True
     return False
 
 def is_secondary_array_type(dtype: DataType) -> bool:
     if dtype.name() == 'Array':
-        basetype = get_base_type(dtype)
-        if isinstance(basetype, File) and basetype.has_secondary_files():
+        if is_secondary_type(dtype):
             return True
     return False
 

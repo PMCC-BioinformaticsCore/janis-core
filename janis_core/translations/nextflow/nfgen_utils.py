@@ -49,35 +49,20 @@ def to_groovy(
         quote_override: Optional[bool]=None,
         delim: Optional[str]=None,
     ) -> Any:
-    # must work with str version. 
-    if dtype is not None:
-        dtype = utils.get_base_type(dtype)
-    val = str(val)
     
-    # # secondary files
-    # if val != 'None' and isinstance(dtype, File) and dtype.has_secondary_files():
-    #     primary_file = wrap(val)
-    #     secondary_files: list[str] = []
-    #     for suffix in dtype.secondary_files():
-    #         sec_file = apply_secondary_file_format_to_filename(primary_file, suffix)
-    #         sec_file = wrap(sec_file)
-    #         secondary_files.append(sec_file)
-    #     # Note: we want primary file to always be the first item in the array
-    #     val = [primary_file] + secondary_files
+    # must work with str version. 
+    val = str(val)
 
     # wrap in quotes if necessary (for actual string values, file paths etc)
     if _should_wrap(val, dtype, quote_override):
         val = _wrap(val)
-
-    # remove dollar variable references (unsure if needed)
-    if '$' in val:
-        val = val.replace('$', '')
 
     # 'None' -> 'null' etc
     val = _cast_keywords(val)
     return val
 
 def _should_wrap(val: str, dtype: Optional[DataType], quote_override: Optional[bool]) -> bool:
+
     if quote_override is not None:
         return True if quote_override else False
     
@@ -95,7 +80,8 @@ def _should_wrap(val: str, dtype: Optional[DataType], quote_override: Optional[b
 
     # don't quote outer array, boolean, numeric types
     no_quote_types: list[type[DataType]] = [Boolean, Int, Float]
-    if dtype:
+    if dtype is not None:
+        dtype = utils.get_base_type(dtype)
         if type(dtype) in no_quote_types:
             return False
 
@@ -111,7 +97,7 @@ def _should_wrap(val: str, dtype: Optional[DataType], quote_override: Optional[b
     return True
 
 def _wrap(val: Any) -> Any:
-    return f"'{val}'"
+    return f'"{val}"'
 
 def _cast_keywords(val: str) -> str:
     # this is done in string world - need a better way of handling lists!

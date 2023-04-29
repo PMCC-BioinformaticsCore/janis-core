@@ -437,14 +437,25 @@ class Unwrapper:
     # operator operators
     def unwrap_index_operator(self, op: IndexOperator) -> str:
         obj = op.args[0]
-        index = op.args[1]
+        index: int = op.args[1]  # type: ignore
 
         # edge case: IndexOperator(InputSelector(SecondaryType), index))
         if isinstance(obj, InputSelector):
-            sel = obj
-            inp = self.get_input_by_id(sel.input_to_select)
-            if utils.is_secondary_type(inp.input_type) or utils.is_file_pair_type(inp.input_type):
-                expr = self.unwrap_input_selector(sel, index=index)
+            assert(self.tool)
+            inp = self.tool.inputs_map()[obj.input_to_select]
+            dtt = utils.get_dtt(inp.intype)
+            if dtt in [ 
+                DTypeType.SECONDARY_ARRAY,
+                DTypeType.FILE_PAIR_ARRAY,
+            ]:
+                expr = self.unwrap_input_selector(obj, index=index)
+                return f"{expr}[{index}]"
+            
+            elif dtt in [ 
+                DTypeType.SECONDARY,
+                DTypeType.FILE_PAIR
+            ]:
+                expr = self.unwrap_input_selector(obj, index=index)
                 return expr
 
         # normal case
@@ -718,31 +729,56 @@ class Unwrapper:
         return expr
     
     def unwrap_input_selector_get_var(self, inp: ToolInput, index: Optional[int]=None) -> Variable:
+        # returns a Variable which is the local nextflow variable for this input. 
+        # depends on the type of TInput. 
+        # this is because certain types (secondaries, file pairs) get reassigned as tuple process inputs
+        # additionally, they may have extra prescript processing (get_primary_files, collate etc) to put them in proper format
+        # finally, sometimes we might want to refer to the original process input variable, or an array joined local var 
+        # depending on how the tinput is being accessed. 
+
         assert(self.vmanager)
         dtt = utils.get_dtt(inp.input_type)
         
         if self.context == 'process_script':
-            if dtt in [DTypeType.SECONDARY_ARRAY, DTypeType.FILE_PAIR_ARRAY]:
-                real_var = self.vmanager.get(inp.id()).previous
-                var = deepcopy(real_var)
+            if dtt == DTypeType.SECONDARY_ARRAY:
+                if index is None:
+                    var = self.vmanager.get(inp.id()).items[2]  # bams_joined
+                    var_copy = deepcopy(var)
+                else:
+                    var = self.vmanager.get(inp.id()).items[1]  # bams
+                    var_copy = deepcopy(var)
+
+            elif dtt == DTypeType.SECONDARY:
+                var = self.vmanager.get(inp.id()).items[0]
+                var_copy = deepcopy(var)
+                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+            
+            elif dtt == DTypeType.FILE_PAIR_ARRAY:
+                var = self.vmanager.get(inp.id()).items[2]  # always read_pairs_joined
+                var_copy = deepcopy(var)
+            
+            elif dtt == DTypeType.FILE_PAIR:
+                if index is None:
+                    var = self.vmanager.get(inp.id()).items[1]   # reads_joined
+                    var_copy = deepcopy(var)
+                else:
+                    var = self.vmanager.get(inp.id()).items[0]   # ['reads1', 'reads2']
+                    var_copy = deepcopy(var)
+                    var_copy.value = var_copy.value[index]   # reads1 or reads2
+            
             else:
-                real_var = self.vmanager.get(inp.id()).current
-                var = deepcopy(real_var)
+                var = self.vmanager.get(inp.id()).current
+                var_copy = deepcopy(var)
+        
         elif self.context == 'process_output':
-            real_var = self.vmanager.get(inp.id()).original
-            var = deepcopy(real_var)
+            var = self.vmanager.get(inp.id()).original
+            var_copy = deepcopy(var)
+        
         else:
             raise RuntimeError
-        assert(var)
-
-        ### adjusting var.value given certain special cases ###
-        if isinstance(var.value, list):
-            if index is not None:
-                var.value = var.value[index]
-            else:
-                var.value = var.value[0]
         
-        return var
+        assert(var_copy)
+        return var_copy
 
     def unwrap_input_selector_get_expr(self, sel: InputSelector, inp: ToolInput, var: Variable) -> Any:
         dtype: DataType = inp.input_type # type: ignore

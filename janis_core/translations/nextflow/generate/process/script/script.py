@@ -5,11 +5,15 @@ from janis_core import ToolInput, CommandTool
 from ....variables import VariableManager
 from ....variables import VariableHistory
 from ....variables import VariableType
+from ....variables import Variable
 
 from .ctype import CType, get_ctype
 from . import common
 from . import autofill
 from . import attributes
+
+from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 
 
@@ -78,34 +82,49 @@ class ScriptFormatter:
         self.vmanager = vmanager
         self.attributes = attributes.get_attributes(tinput)
         self.ctype = get_ctype(tinput)
+        self.dtt = utils.get_dtt(tinput.input_type)
 
     def format(self) -> list[str]:
         """
         generates a script line for this ToolInput. 
         format is decided by self.itype.
         """
-        if self.ctype in [
-            CType.OPT_BASIC,
-            CType.OPT_BASIC_ARR,
-            CType.OPT_DEFAULT,
+        if self.dtt == DTypeType.FILE_PAIR:
+            cmdline = SCRIPT_FMT1.format(src=self.cvar)
+
+        elif self.ctype in [
+            CType.OPT_BASIC, 
+            CType.OPT_BASIC_ARR, 
+            CType.OPT_DEFAULT, 
             CType.OPT_DEFAULT_ARR,
         ]:
             cmdline = SCRIPT_FMT2.format(
                 prefix=self.prefix_str,
                 spacer=self.spacer_str,
-                src=self.varhistory.current.value,
+                src=self.cvar,
             )
-        
         else:
-            cmdline = SCRIPT_FMT1.format(
-                src=self.varhistory.current.value
-            )
+            cmdline = SCRIPT_FMT1.format(src=self.cvar)
         
         return [cmdline]
     
     @property
     def varhistory(self) -> VariableHistory:
         return self.vmanager.get(self.tinput.id())
+    
+    @property
+    def cvar(self) -> Variable:
+        if self.dtt == DTypeType.FILE_PAIR:
+            return self.varhistory.items[1].value
+        
+        elif self.dtt == DTypeType.SECONDARY:
+            if self.attributes.optional:
+                return self.varhistory.items[1].value
+            else:
+                return self.varhistory.items[0].value[0]
+        
+        else:
+            return self.varhistory.current.value
 
     @property
     def prefix_str(self) -> str:

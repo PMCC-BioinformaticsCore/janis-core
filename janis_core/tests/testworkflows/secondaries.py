@@ -35,12 +35,34 @@ class SecondariesTestWF(Workflow):
         self.input('inAlignmentsArr', Array(BamBai()))
         self.input('inGunzipped', Gunzipped())
 
-        # self.step(
-        #     "stp1", 
-        #     SecondariesTestTool(
-        #         inp=self.inAlignments
-        #     ), 
-        # )
+        self.step(
+            "stp1", 
+            SecondariesTestTool(
+                bam1=self.inAlignments,
+                bam2=self.inAlignments,
+                bam3=self.inAlignments,
+            ), 
+        )
+        self.step(
+            "stp2", 
+            SecondariesOptionalTestTool(
+                bam1=self.inAlignments,
+            ), 
+        )
+        self.step(
+            "stp3", 
+            SecondariesArrayTestTool(
+                bams1=self.inAlignmentsArr,
+                bams2=self.inAlignmentsArr,
+                bams3=self.inAlignmentsArr,
+            ), 
+        )
+        self.step(
+            "stp4", 
+            SecondariesArrayOptionalTestTool(
+                bams1=self.inAlignmentsArr,
+            ), 
+        )
         # self.step(
         #     "stp2", 
         #     SecondariesTestTool(
@@ -53,12 +75,6 @@ class SecondariesTestWF(Workflow):
         #         inp=self.inAlignments
         #     ), 
         # )
-        self.step(
-            "stp4", 
-            SecondariesArrayTestTool(
-                inp=self.inAlignmentsArr
-            ), 
-        )
         # self.step(
         #     "stp5", 
         #     GATKSplitReadsTestTool(
@@ -90,30 +106,74 @@ class SecondariesTestTool(CommandTool):
     def inputs(self) -> list[ToolInput]:
         return [
             ToolInput(
-                "inp", 
+                "bam1", 
                 BamBai, 
-                position=1),
+                position=1
+            ),
+            ToolInput(
+                "bam2", 
+                BamBai, 
+                position=2
+            ),
+            ToolInput(
+                "bam3", 
+                BamBai, 
+                position=3
+            ),
         ]
     
     def arguments(self) -> list[ToolArgument]:
         return [
             ToolArgument(
-                InputSelector("inp"), 
-                prefix='--inp', 
-                position=2
-            ),
-            ToolArgument(
-                IndexOperator(InputSelector("inp"), 0), 
-                prefix='--inp-index-0', 
-                position=3
-            ),
-            ToolArgument(
-                IndexOperator(InputSelector("inp"), 1), 
-                prefix='--inp-index-1', 
+                InputSelector("bam1"), 
+                prefix='--arg1', 
                 position=4
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("bam1"), 0), 
+                prefix='--arg2', 
+                position=5
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("bam1"), 1), 
+                prefix='--arg3', 
+                position=6
             ),
         ]
 
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out", 
+                BamBai,
+                selector=WildcardSelector("*.bam"),
+                secondaries_present_as={".bai": ".bai"},
+            )
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class SecondariesOptionalTestTool(CommandTool):
+    def tool(self) -> str:
+        return "SecondariesOptionalTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput(
+                "bam1", 
+                BamBai(optional=True), 
+                position=1
+            )
+        ]
+    
     def outputs(self):
         return [
             ToolOutput(
@@ -176,30 +236,75 @@ class SecondariesArrayTestTool(CommandTool):
     def inputs(self) -> list[ToolInput]:
         return [
             ToolInput(
-                "inp", 
+                "bams1", 
                 Array(BamBai), 
-                position=1),
+                position=1
+            ),
+            ToolInput(
+                "bams2", 
+                Array(BamBai), 
+                prefix='--bams2',
+                position=2
+            ),
+            ToolInput(
+                "bams3", 
+                Array(BamBai), 
+                prefix='--bams3',
+                prefix_applies_to_all_elements=True,
+                position=3
+            ),
         ]
     
     def arguments(self) -> list[ToolArgument]:
         return [
             ToolArgument(
-                InputSelector("inp"), 
-                prefix='--inp', 
-                position=2
-            ),
-            ToolArgument(
-                IndexOperator(InputSelector("inp"), 0), 
-                prefix='--inp-index-0', 
-                position=3
-            ),
-            ToolArgument(
-                IndexOperator(InputSelector("inp"), 1), 
-                prefix='--inp-index-1', 
+                InputSelector("bams1"), 
+                prefix='--bams-arg1', 
                 position=4
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("bams1"), 0), 
+                prefix='--bams-arg2', 
+                position=5
+            ),
+            ToolArgument(
+                IndexOperator(InputSelector("bams1"), 1), 
+                prefix='--bams-arg3', 
+                position=6
             ),
         ]
 
+    def outputs(self):
+        return [
+            ToolOutput(
+                'out',
+                Stdout()
+            )
+        ]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+
+
+class SecondariesArrayOptionalTestTool(CommandTool):
+    def tool(self) -> str:
+        return "SecondariesArrayOptionalTestTool"
+
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['echo']
+
+    def inputs(self) -> list[ToolInput]:
+        return [
+            ToolInput(
+                "bams1", 
+                Array(BamBai, optional=True), 
+                position=1
+            )
+        ]
+    
     def outputs(self):
         return [
             ToolOutput(

@@ -1,6 +1,7 @@
 
 
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 from janis_core.types import DataType, File
 from janis_core import settings
 
@@ -8,40 +9,42 @@ NULL = settings.translate.nextflow.NULL
 
 
 def get_null_value(dtype: DataType, as_param: bool=False) -> str:
-    if utils.is_secondary_array_type(dtype) and dtype.optional:
+    dtt = utils.get_dtt(dtype)
+
+    if dtt == DTypeType.SECONDARY_ARRAY and dtype.optional:
         expr = secondary_array_optional_null(dtype)
     
-    elif utils.is_secondary_array_type(dtype):
+    elif dtt == DTypeType.SECONDARY_ARRAY:
         expr = secondary_array_null()
     
-    elif utils.is_secondary_type(dtype) and dtype.optional:
+    elif dtt == DTypeType.SECONDARY and dtype.optional:
         expr = secondary_optional_null(dtype)
     
-    elif utils.is_secondary_type(dtype):
+    elif dtt == DTypeType.SECONDARY:
         expr = secondary_null()
 
-    elif utils.is_file_pair_array_type(dtype) and dtype.optional:
+    elif dtt == DTypeType.FILE_PAIR_ARRAY and dtype.optional:
         expr = file_pair_array_optional_null()
 
-    elif utils.is_file_pair_array_type(dtype):
+    elif dtt == DTypeType.FILE_PAIR_ARRAY:
         expr = file_pair_array_null()
 
-    elif utils.is_file_pair_type(dtype) and dtype.optional:
+    elif dtt == DTypeType.FILE_PAIR and dtype.optional:
         expr = file_pair_optional_null()
 
-    elif utils.is_file_pair_type(dtype):
+    elif dtt == DTypeType.FILE_PAIR:
         expr = file_pair_null()
 
-    elif utils.is_file_array_type(dtype) and dtype.optional:
+    elif dtt == DTypeType.FILE_ARRAY and dtype.optional:
         expr = file_array_optional_null()
 
-    elif utils.is_file_array_type(dtype):
+    elif dtt == DTypeType.FILE_ARRAY:
         expr = file_array_null()
 
-    elif utils.is_file_type(dtype) and dtype.optional:
+    elif dtt == DTypeType.FILE and dtype.optional:
         expr = file_optional_null()
 
-    elif utils.is_file_type(dtype):
+    elif dtt == DTypeType.FILE:
         expr = file_null()
 
     elif utils.is_array_type(dtype):
@@ -111,5 +114,5 @@ def file_array_optional_null() -> str:
     return f"[{NULL}]"
 
 def file_optional_null() -> str:
-    return f"'{NULL}'"
+    return NULL
 
