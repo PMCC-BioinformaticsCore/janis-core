@@ -13,7 +13,8 @@ from janis_core.types import (
     Directory,
     UnionType,
     Filename,
-    Array
+    Stdout,
+    Boolean
 )
 
 
@@ -28,10 +29,13 @@ class DTypeType(Enum):
     FLAG            = auto()
     GENERIC_ARRAY   = auto()
     GENERIC         = auto()
+    STDOUT          = auto()
 
 def get_dtt(dtype: DataType) -> DTypeType:
+    if is_stdout_type(dtype):
+        return DTypeType.STDOUT
     
-    if is_secondary_array_type(dtype):
+    elif is_secondary_array_type(dtype):
         return DTypeType.SECONDARY_ARRAY
     
     elif is_secondary_type(dtype):
@@ -57,10 +61,17 @@ def get_dtt(dtype: DataType) -> DTypeType:
 
     elif is_array_type(dtype):
         return DTypeType.GENERIC_ARRAY
-
+    
     else:
         return DTypeType.GENERIC
 
+
+
+# STDOUT
+def is_stdout_type(dtype: DataType) -> bool:
+    if isinstance(dtype, Stdout):
+        return True
+    return False
 
 # FLAGS 
 
@@ -82,6 +93,7 @@ def is_flag_type(dtype: DataType) -> bool:
 def get_base_type(dtype: DataType) -> DataType:
     while dtype.name() == 'Array' and dtype.subtype():
         dtype = dtype.subtype()
+    dtype = ensure_single_type(dtype)
     return dtype
 
 def ensure_single_type(dtype: DataType) -> DataType:
@@ -111,8 +123,8 @@ def is_file_type(dtype: DataType) -> bool:
 
 def is_file_array_type(dtype: DataType) -> bool:
     if is_array_type(dtype):
-            if is_file_type(dtype):
-                return True
+        if is_file_type(dtype):
+            return True
     return False
     
 

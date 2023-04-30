@@ -55,6 +55,13 @@ from .misc_commandtools import (
     InputQualityTestTool,
 )
 
+from .components import (
+    ComponentsMandatoryTestTool,
+    ComponentsOptionalTestTool,
+    ComponentsMandatoryArrayTestTool,
+    ComponentsOptionalArrayTestTool
+)
+
 from .unicycler import UnicyclerTestTool
 from .fastqc import FastqcTestTool
 from .bwamem import BwaMemTestTool

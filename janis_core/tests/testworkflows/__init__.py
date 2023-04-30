@@ -7,18 +7,19 @@ from .basics import DirectivesTestWF
 from .basics import ArrayIOTestWF
 from .basics import ArrayIOExtrasTestWF
 
+from .call import CallWFInputTestWF
+from .call import CallDuplicateUseageWFInputTestWF
+from .call import CallStaticTestWF
+from .call import CallPartialStaticTestWF
+from .call import CallMinimalTestWF
+from .call import CallConnectionsTestWF
+from .call import CallArrayInputsTestWF
+from .call import CallArrayConnectionsTestWF
+
 from .components import ComponentsMandatoryTestWF
 from .components import ComponentsOptionalTestWF
 from .components import ComponentsMandatoryArrayTestWF
 from .components import ComponentsOptionalArrayTestWF
-
-from .components import StepInputsWFInputTestWF
-from .components import StepInputsStaticTestWF
-from .components import StepInputsPartialStaticTestWF
-from .components import StepInputsMinimalTestWF
-from .components import StepConnectionsTestWF
-from .components import ArrayStepInputsTestWF
-from .components import ArrayStepConnectionsTestWF
 
 from .scatter import BasicScatterTestWF
 from .scatter import ChainedScatterTestWF

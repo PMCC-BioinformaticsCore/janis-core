@@ -20,9 +20,8 @@ class TaskInputsCategoriser:
         self.ignored_inputs: set[str] = set()
 
     def categorise(self) -> None:
-        if self.tool.id() == 'strelkaGermlineVariantCaller':
-            print()
         for tinput_id, history in self.histories.items():
+
             ### file types
             # RULE 0: anything passed via step output must be a task input
             if history.supplied_value_via_connection:

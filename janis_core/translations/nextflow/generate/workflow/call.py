@@ -199,7 +199,6 @@ class TaskCallArgumentGenerator:
         
         if arg is None:
             arg = nulls.get_null_value(self.desttype, as_param=True)
-            print()
         
         return arg
     

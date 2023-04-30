@@ -151,7 +151,7 @@ class PreScriptFormatter(ABC):
 
 class GenericArrayFormatter(PreScriptFormatter):
 
-    COND_CHECK_FMT = '{src}[0] != params.NULL'
+    COND_CHECK_FMT = '{src} != params.NULL'
     COND_TRUE_FMT1 = '{src}'
     COND_TRUE_FMT2 = '"{prefix}{spacer}" + {src}'
     # COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}}}"'
@@ -166,7 +166,7 @@ class GenericArrayFormatter(PreScriptFormatter):
         self.prescript.append(line)
 
     def join_declaration(self) -> str:
-        new_varname = f'{self.varhistory.original.value}_joined' # references the process input
+        new_varname = f'{naming.process.generic(self.tinput)}_joined'
         self.update_variable(new_varname)
         if self.attributes.optional or self.attributes.default:
             return self.join_declaration_optional()
@@ -279,9 +279,9 @@ class FilePairArrayFormatter(PreScriptFormatter):
     FILE_PAIR_ARRAY_GATHER    = "def {dest} = {src}.collate(2, 2)"
     COND_CHECK_FMT            = '{src}[0].simpleName != params.NULL'
     ARR_JOIN_MANDATORY        = "{src}.collect{{ it.join('{delim}') }}"
-    ARR_JOIN_MANDATORY_PREFIX = "{src}.collect{{ \"{prefix}{spacer}${{it.join('{delim}')}}\" }"
+    ARR_JOIN_MANDATORY_PREFIX = "{src}.collect{{ \"{prefix}{spacer}${{it.join('{delim}')}}\" }}"
     ARR_JOIN_OPTIONAL         = "{src}.collect{{ it[0].simpleName != params.NULL ? it.join('{delim}') : \"\" }}"
-    ARR_JOIN_OPTIONAL_PREFIX  = "{src}.collect{{ it[0].simpleName != params.NULL ? \"{prefix}{spacer}${it.join('{delim}')}\" : \"\" }}"
+    ARR_JOIN_OPTIONAL_PREFIX  = "{src}.collect{{ it[0].simpleName != params.NULL ? \"{prefix}{spacer}${{it.join('{delim}')}}\" : \"\" }}"
 
     def format(self) -> None:
         line1 = self.gather_declaration()

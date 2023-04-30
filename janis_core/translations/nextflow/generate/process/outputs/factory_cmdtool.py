@@ -3,7 +3,7 @@
 from typing import Any
 from enum import Enum, auto
 
-from janis_core.types import File, DataType, Stdout, Directory
+from janis_core.types import DataType
 from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core import (
     ToolOutput, 
@@ -14,6 +14,7 @@ from janis_core import (
     Filename
 )
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from .... import task_inputs
 from ....task_inputs import TaskInputType
@@ -29,60 +30,6 @@ from ....model.process.outputs import (
     NFStdoutProcessOutput,
     NFSecondariesArrayProcessOutput
 )
-
-
-class OType(Enum):
-    STDOUT              = auto()
-    NON_FILE            = auto()
-    FILE                = auto()
-    FILE_ARRAY          = auto()
-    FILE_PAIR           = auto()
-    FILE_PAIR_ARRAY     = auto()
-    SECONDARIES         = auto()
-    SECONDARIES_ARRAY   = auto()
-
-
-def get_otype(out: ToolOutput) -> OType:
-    if is_stdout_type(out):
-        return OType.STDOUT
-    
-    elif utils.is_secondary_array_type(out.output_type):
-        return OType.SECONDARIES_ARRAY
-    
-    elif utils.is_secondary_type(out.output_type):
-        return OType.SECONDARIES
-
-    elif utils.is_file_pair_array_type(out.output_type):
-        return OType.FILE_PAIR_ARRAY
-    
-    elif utils.is_file_pair_type(out.output_type):
-        return OType.FILE_PAIR
-    
-    elif utils.is_file_array_type(out.output_type) and has_n_collectors(out, n=1):
-        return OType.FILE_ARRAY
-    
-    elif utils.is_file_type(out.output_type):
-        return OType.FILE
-    
-    elif is_non_file_type(out) and has_n_collectors(out, n=1):
-        return OType.NON_FILE
-
-    else:
-        # some future OType
-        raise NotImplementedError
-
-
-def is_stdout_type(out: ToolOutput) -> bool:
-    if isinstance(out.output_type, Stdout):
-        return True
-    return False
-
-def is_non_file_type(out: ToolOutput) -> bool:
-    basetype = utils.get_base_type(out.output_type)
-    basetype = utils.ensure_single_type(basetype)
-    if not isinstance(basetype, (File, Directory)):
-        return True
-    return False
 
 def has_n_collectors(out: ToolOutput, n: int) -> bool:
     sel = out.selector
@@ -121,17 +68,18 @@ class CmdtoolProcessOutputFactory:
         self.out = out
         self.tool = tool
         self.variable_manager = variable_manager
-        self.otype = get_otype(self.out)
+        self.dtt = utils.get_dtt(self.out.output_type)
         self.ftype = self.get_fmttype()
         self.strategy_map = {
-            OType.STDOUT: self.stdout_output,
-            OType.NON_FILE: self.non_file_output,
-            OType.FILE: self.file_output,
-            OType.FILE_ARRAY: self.file_array_output,
-            OType.FILE_PAIR: self.file_pair_output,
-            OType.FILE_PAIR_ARRAY: self.file_pair_array_output,
-            OType.SECONDARIES: self.secondaries_output,
-            OType.SECONDARIES_ARRAY: self.secondaries_array_output,
+            DTypeType.STDOUT: self.stdout_output,
+            DTypeType.SECONDARY_ARRAY: self.secondaries_array_output,
+            DTypeType.SECONDARY: self.secondaries_output,
+            DTypeType.FILE_PAIR_ARRAY: self.file_pair_array_output,
+            DTypeType.FILE_PAIR: self.file_pair_output,
+            DTypeType.FILE_ARRAY: self.file_array_output,
+            DTypeType.FILE: self.file_output,
+            DTypeType.GENERIC_ARRAY: self.non_file_output,
+            DTypeType.GENERIC: self.non_file_output,
         }
         
         self.add_braces: bool = False
@@ -139,18 +87,12 @@ class CmdtoolProcessOutputFactory:
     
     # public method
     def create(self) -> NFProcessOutput:
-        strategy = self.strategy_map[self.otype]
+        strategy = self.strategy_map[self.dtt]
         process_output = strategy()
         return process_output
     
     # private below
     # helper properties
-    @property
-    def basetype(self) -> DataType:
-        basetype = utils.get_base_type(self.out.output_type)
-        basetype = utils.ensure_single_type(basetype)
-        return basetype
-    
     @property
     def dtype(self) -> DataType:
         return self.out.output_type

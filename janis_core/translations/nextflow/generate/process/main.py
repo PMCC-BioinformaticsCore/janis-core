@@ -81,7 +81,7 @@ class CmdToolProcessGenerator:
         # script
         pre_script, main_script = gen_nf_process_script(
             tool=self.tool,
-            variable_manager=self.vmanager,
+            vmanager=self.vmanager,
         )
         
         # outputs
@@ -196,7 +196,7 @@ class PythonToolProcessGenerator:
         script = f"""\
 {settings.translate.nextflow.PYTHON_SHEBANG}
 
-from ${{{settings.translate.nextflow.PYTHON_CODE_FILE}}} import code_block
+from ${{{settings.translate.nextflow.PYTHON_CODE_FILE}.simpleName}} import code_block
 import os
 import json
 

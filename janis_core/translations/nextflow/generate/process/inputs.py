@@ -10,6 +10,7 @@ from janis_core import (
     DataType
 )
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 from janis_core import settings
 
 from ... import nfgen_utils
@@ -34,6 +35,8 @@ class ProcessInputGenerator:
         self.tool = tool
         self.process_inputs: list[NFProcessInput] = []
         self.generate_code_file()
+        if self.tool.id() == 'SamToolsView':
+            print()
 
     @property
     def dtype(self) -> DataType:
@@ -68,41 +71,48 @@ class ProcessInputGenerator:
         return self.process_inputs
 
     def create_input(self) -> NFProcessInput:
-        # @secondariesarray
-        # secondaries array
-        # if self.dtype.optional:
-        #     return self.create_val_input(self.tinput)
+        """create the correct NFProcessInput for the given input"""
+        dtt = utils.get_dtt(self.dtype)
 
-        if utils.is_secondary_array_type(self.dtype):
+        if dtt == DTypeType.SECONDARY_ARRAY:
             return self.create_path_input_secondaries_array(self.tinput)
         
         # secondaries
-        elif utils.is_secondary_type(self.dtype):
+        elif dtt == DTypeType.SECONDARY:
             return self.create_tuple_input_secondaries(self.tinput)
         
         # filepair array
-        elif utils.is_file_pair_array_type(self.dtype):
+        elif dtt == DTypeType.FILE_PAIR_ARRAY:
             return self.create_path_input_file_pair_array(self.tinput)
         
         # filepair
-        elif utils.is_file_pair_type(self.dtype):
+        elif dtt == DTypeType.FILE_PAIR:
             return self.create_tuple_input_file_pair(self.tinput)
         
         # file array
-        elif self.dtype.is_array() and isinstance(self.basetype, (File, Directory)):
+        elif dtt == DTypeType.FILE_ARRAY:
             return self.create_path_input(self.tinput)
         
         # file
-        elif isinstance(self.basetype, (File, Directory)):
+        elif dtt == DTypeType.FILE:
             return self.create_path_input(self.tinput)
         
         # nonfile array
-        elif self.dtype.is_array(): 
+        elif dtt == DTypeType.GENERIC_ARRAY:
             return self.create_val_input(self.tinput)
 
         # nonfile 
-        else:
+        elif dtt == DTypeType.GENERIC:
             return self.create_val_input(self.tinput)
+        
+        elif dtt == DTypeType.FLAG_ARRAY:
+            return self.create_val_input(self.tinput)
+        
+        elif dtt == DTypeType.FLAG:
+            return self.create_val_input(self.tinput)
+        
+        else:
+            raise NotImplementedError(f"Unknown input type: {dtt}")
 
     def create_path_input_secondaries_array(self, inp: ToolInput | TInput) -> NFPathProcessInput:
         # TODO ignoring secondaries_presents_as for now!

@@ -231,9 +231,9 @@ class SecondariesTestTool(CommandTool):
     def outputs(self):
         return [
             ToolOutput("out_secondaries", BamBai(), selector=InputSelector("secondaries")),
-            ToolOutput("out_secondaries_array", Array(BamBai()), selector=InputSelector("secondaries_array")),
+            # ToolOutput("out_secondaries_array", Array(BamBai()), selector=InputSelector("secondaries_array")),
             ToolOutput("out_secondaries_optional", BamBai(optional=True), selector=InputSelector("secondaries_optional")),
-            ToolOutput("out_secondaries_array_optional", Array(BamBai(), optional=True), selector=InputSelector("secondaries_array_optional"))
+            # ToolOutput("out_secondaries_array_optional", Array(BamBai(), optional=True), selector=InputSelector("secondaries_array_optional"))
         ]
 
     def container(self) -> str:

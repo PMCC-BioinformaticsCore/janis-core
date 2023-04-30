@@ -21,11 +21,11 @@ from .script import gen_script_lines
 
 def gen_nf_process_script(
     tool: CommandTool,
-    variable_manager: VariableManager,
+    vmanager: VariableManager,
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
         tool=tool,
-        variable_manager=variable_manager,
+        vmanager=vmanager,
     ).generate()
 
 
@@ -33,10 +33,10 @@ class ProcessScriptGenerator:
     def __init__(
         self,
         tool: CommandTool, 
-        variable_manager: VariableManager
+        vmanager: VariableManager
     ):
         self.tool = tool
-        self.variable_manager = variable_manager
+        self.vmanager = vmanager
 
         self.prescript: list[str] = []
         self.script: list[str] = []
@@ -53,18 +53,19 @@ class ProcessScriptGenerator:
     
     def handle_cmdtool_inputs(self) -> None:
         # prescript for ToolInputs first
-        for inp in order_cmdtool_inputs_arguments(self.tool):
+        for inp in order_cmdtool_inputs_arguments(self.tool, self.vmanager):
+            if self.tool.id() == 'cutadapt':
+                print()
             if isinstance(inp, ToolInput):
-                self.prescript += gen_prescript_lines(inp, self.tool, self.variable_manager)
+                self.prescript += gen_prescript_lines(inp, self.tool, self.vmanager)
         
         # script for ToolInputs and ToolArguments
-        for inp in order_cmdtool_inputs_arguments(self.tool):
+        for inp in order_cmdtool_inputs_arguments(self.tool, self.vmanager):
             if isinstance(inp, ToolInput):
-                self.script += gen_script_lines(inp, self.tool, self.variable_manager)
+                self.script += gen_script_lines(inp, self.tool, self.vmanager)
             else:
                 self.handle_tool_argument(inp)
                 
-
     def handle_tool_argument(self, arg: ToolArgument) -> None:
         prefix = ''
         space = ''
@@ -77,7 +78,7 @@ class ProcessScriptGenerator:
         expr = unwrap_expression(
             val=arg.value,
             context='process_script',
-            variable_manager=self.variable_manager,
+            variable_manager=self.vmanager,
             tool=self.tool,
             in_shell_script=True,
             quote_strings=arg.shell_quote
@@ -118,13 +119,13 @@ class ProcessScriptGenerator:
             
             # check if any are internal inputs with no default value
             for ref in referenced_ids:
-                var = self.variable_manager.get(ref).original
+                var = self.vmanager.get(ref).original
                 if var.vtype == VariableType.IGNORED:
                     tinput = [x for x in self.tool.inputs() if x.id() == ref][0]
                     if tinput.default is None:
                         varname = naming.process.generic(tinput)
                         undef_variables.add(varname)
-                        self.variable_manager.update(
+                        self.vmanager.update(
                             tinput_id=tinput.id(), 
                             vtype_str='local',
                             value=varname
@@ -252,14 +253,23 @@ ins_args_strategies = [
     PositionStrategy
 ]
 
-def order_cmdtool_inputs_arguments(tool: CommandTool) -> list[ToolInput | ToolArgument]:
+def order_cmdtool_inputs_arguments(tool: CommandTool, vmanager: VariableManager) -> list[ToolInput | ToolArgument]:
     ins_args: list[ToolInput | ToolArgument] = []
 
     if tool.arguments():
         ins_args += [a for a in tool.arguments() if a.position is not None or a.prefix is not None]
     
     if tool.inputs():
-        ins_args += [a for a in tool.inputs() if a.position is not None or a.prefix is not None]
+        valid_inputs: list[ToolInput] = []
+        for inp in tool.inputs():
+            if inp.position is not None or inp.prefix is not None:
+                valid_inputs.append(inp)
+            
+            elif vmanager.get(inp.id()).original.vtype == VariableType.TASK_INPUT:
+                valid_inputs.append(inp)
+
+        ins_args += valid_inputs
+        # ins_args += [a for a in tool.inputs() if a.position is not None or a.prefix is not None]
     
     for strategy in ins_args_strategies:
         ins_args = strategy().order(ins_args, tool)

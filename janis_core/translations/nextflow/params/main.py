@@ -63,9 +63,9 @@ class FileTypePriority(OrderingMethod):
 
 orderers: list[OrderingMethod] = [
     #NotNullPriority(),
-    #MandatoryPriority(),
     Alphabetical(),
     FileTypePriority(),
+    MandatoryPriority(),
     # WfInputPriority(),
 ]
 
@@ -114,9 +114,9 @@ class Param:
         # gets the value of this param formatted for groovy
         if self.default is not None:
             val = self.default
+            return nfgen_utils.to_groovy(val, self.dtype)
         else:
-            val = nulls.get_null_value(self.dtype)
-        return nfgen_utils.to_groovy(val, self.dtype)
+            return nulls.get_null_value(self.dtype)
     
     @property
     def width(self) -> int:

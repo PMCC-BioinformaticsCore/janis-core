@@ -18,34 +18,26 @@ def generate_files(main_wf: Workflow, nf_processes: dict[str, NFProcess], nf_wor
     
     for tool_id, process in nf_processes.items():
         tool = _get_tool(tool_id, main_wf)
-        if isinstance(tool, CommandTool | PythonTool):
-            nffile = generate_file_process(process, tool)
-        else:
-            raise Exception(f"Tool '{tool_id}' is not a CommandTool or PythonTool")
+        nffile = generate_file_process(process, tool)
         nf_files[tool_id] = nffile
     
-    for tool_id, workflow in nf_workflows.items():
-        is_subworkflow = True if tool_id != main_wf.id() else False
-        tool = _get_tool(tool_id, main_wf)
-        assert(isinstance(tool, Workflow))
-        nffile = generate_file_workflow(workflow, nf_processes, nf_workflows, tool, is_subworkflow)
-        nf_files[tool_id] = nffile
+    for wf_id, workflow in nf_workflows.items():
+        is_subworkflow = True if wf_id != main_wf.id() else False
+        wf = _get_workflow(wf_id, main_wf)
+        nffile = generate_file_workflow(workflow, nf_processes, nf_workflows, wf, is_subworkflow)
+        nf_files[wf_id] = nffile
 
     return nf_files
 
 
-def _get_tool(tool_id: str, wf: Workflow) -> CommandTool | PythonTool | Workflow:
+def _get_tool(tool_id: str, wf: Workflow) -> CommandTool | PythonTool:
     """finds & returns workflow tool using tool_id"""
-    if wf.id() == tool_id:
-        return wf
-    
     tool = _do_get_tool(tool_id, wf)
     if not tool:
         raise Exception(f"Tool '{tool_id}' not found in workflow")
-    
     return tool
 
-def _do_get_tool(tool_id: str, wf: Workflow) -> Optional[CommandTool | PythonTool | Workflow]:
+def _do_get_tool(tool_id: str, wf: Workflow) -> Optional[CommandTool | PythonTool]:
     """finds & returns workflow tool using tool_id"""
     for step in wf.step_nodes.values():
         if step.tool.id() == tool_id:
@@ -57,4 +49,26 @@ def _do_get_tool(tool_id: str, wf: Workflow) -> Optional[CommandTool | PythonToo
                 return tool
     
     return None
+
+def _get_workflow(workflow_id: str, main_wf: Workflow) -> Workflow:
+    if main_wf.id() == workflow_id:
+        return main_wf
+    workflow = _do_get_workflow(workflow_id, main_wf)
+    if not workflow:
+        raise Exception(f"Workflow '{workflow_id}' not found in workflow")
+    return workflow
+
+def _do_get_workflow(workflow_id: str, wf: Workflow) -> Optional[Workflow]:
+    """finds & returns workflow using workflow_id"""
+    for step in wf.step_nodes.values():
+        if step.tool.id() == workflow_id:
+            return step.tool
+
+        if isinstance(step.tool, Workflow):
+            workflow = _do_get_workflow(workflow_id, step.tool)
+            if workflow:
+                return workflow
+    
+    return None
+
 

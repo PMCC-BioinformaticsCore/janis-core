@@ -124,6 +124,11 @@ class UnwrapTestTool(CommandTool):
                 position=4,
             ),
             ToolArgument(
+                InputSelector("inFileArr"),
+                prefix="--InputSelectorArray",
+                position=8,
+            ),
+            ToolArgument(
                 [1,2,3,4,5],
                 prefix="--list",
                 position=5,
@@ -140,7 +145,7 @@ class UnwrapTestTool(CommandTool):
             ),
             ToolArgument(
                 IndexOperator(InputSelector("inFileArr"), 0),
-                prefix="--IndexOperator",
+                prefix="--IndexOperatorArray",
                 position=8,
             ),
             ToolArgument(

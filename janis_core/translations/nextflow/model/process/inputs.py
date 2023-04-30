@@ -55,7 +55,8 @@ class NFPathProcessInput(NFProcessInput):
 
         # optional file arrays
         elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{self.name}/*'"
+            # expr = f", stageAs: '{self.name}??/*'"
+            expr = ''
         
         # optional files
         elif utils.is_file_type(self.dtype) and self.dtype.optional:

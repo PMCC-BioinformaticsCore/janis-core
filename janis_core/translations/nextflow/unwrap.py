@@ -447,6 +447,7 @@ class Unwrapper:
             if dtt in [ 
                 DTypeType.SECONDARY_ARRAY,
                 DTypeType.FILE_PAIR_ARRAY,
+                DTypeType.FILE_ARRAY,
             ]:
                 expr = self.unwrap_input_selector(obj, index=index)
                 return f"{expr}[{index}]"
@@ -766,13 +767,32 @@ class Unwrapper:
                     var_copy = deepcopy(var)
                     var_copy.value = var_copy.value[index]   # reads1 or reads2
             
+            elif dtt == DTypeType.FILE_ARRAY:
+                if index is None:
+                    var = self.vmanager.get(inp.id()).items[1]   # file_array_joined
+                    var_copy = deepcopy(var)
+                else:
+                    var = self.vmanager.get(inp.id()).items[0]   # file_array
+                    var_copy = deepcopy(var)
+            
             else:
                 var = self.vmanager.get(inp.id()).current
                 var_copy = deepcopy(var)
         
         elif self.context == 'process_output':
-            var = self.vmanager.get(inp.id()).original
-            var_copy = deepcopy(var)
+            if dtt == DTypeType.SECONDARY:
+                var = self.vmanager.get(inp.id()).original
+                var_copy = deepcopy(var)
+                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+            
+            elif dtt == DTypeType.FILE_PAIR:
+                var = self.vmanager.get(inp.id()).original
+                var_copy = deepcopy(var)
+                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+            
+            else:
+                var = self.vmanager.get(inp.id()).original
+                var_copy = deepcopy(var)
         
         else:
             raise RuntimeError

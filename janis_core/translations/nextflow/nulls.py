@@ -15,43 +15,64 @@ def get_null_value(dtype: DataType, as_param: bool=False) -> str:
         expr = secondary_array_optional_null(dtype)
     
     elif dtt == DTypeType.SECONDARY_ARRAY:
-        expr = secondary_array_null()
+        expr = secondary_array_mandatory_null()
     
     elif dtt == DTypeType.SECONDARY and dtype.optional:
         expr = secondary_optional_null(dtype)
     
     elif dtt == DTypeType.SECONDARY:
-        expr = secondary_null()
+        expr = secondary_mandatory_null()
 
     elif dtt == DTypeType.FILE_PAIR_ARRAY and dtype.optional:
         expr = file_pair_array_optional_null()
 
     elif dtt == DTypeType.FILE_PAIR_ARRAY:
-        expr = file_pair_array_null()
+        expr = file_pair_array_mandatory_null()
 
     elif dtt == DTypeType.FILE_PAIR and dtype.optional:
         expr = file_pair_optional_null()
 
     elif dtt == DTypeType.FILE_PAIR:
-        expr = file_pair_null()
+        expr = file_pair_mandatory_null()
 
     elif dtt == DTypeType.FILE_ARRAY and dtype.optional:
         expr = file_array_optional_null()
 
     elif dtt == DTypeType.FILE_ARRAY:
-        expr = file_array_null()
+        expr = file_array_mandatory_null()
 
     elif dtt == DTypeType.FILE and dtype.optional:
         expr = file_optional_null()
 
     elif dtt == DTypeType.FILE:
-        expr = file_null()
+        expr = file_mandatory_null()
 
-    elif utils.is_array_type(dtype):
-        expr = array_null()
+    elif dtt == DTypeType.GENERIC_ARRAY and dtype.optional:
+        expr = generic_array_optional_null()
+
+    elif dtt == DTypeType.GENERIC_ARRAY:
+        expr = generic_array_mandatory_null()
+    
+    elif dtt == DTypeType.GENERIC and dtype.optional:
+        expr = generic_optional_null()
+
+    elif dtt == DTypeType.GENERIC:
+        expr = generic_mandatory_null()
+    
+    elif dtt == DTypeType.FLAG_ARRAY and dtype.optional:
+        expr = generic_optional_null()
+
+    elif dtt == DTypeType.FLAG_ARRAY:
+        expr = generic_optional_null()
+    
+    elif dtt == DTypeType.FLAG and dtype.optional:
+        expr = generic_optional_null()
+
+    elif dtt == DTypeType.FLAG:
+        expr = generic_optional_null()
 
     else:
-        expr = nonfile_null()
+        raise RuntimeError(f"Unknown datatype: {dtt}")
     
     # present as reference to NULL param if requested
     if as_param:
@@ -61,28 +82,28 @@ def get_null_value(dtype: DataType, as_param: bool=False) -> str:
 
 
 # NON-OPTIONAL
-def secondary_array_null() -> str:
+def secondary_array_mandatory_null() -> str:
     return '[[]]'
 
-def secondary_null() -> str:
+def secondary_mandatory_null() -> str:
     return '[]'
 
-def file_pair_array_null() -> str:
+def file_pair_array_mandatory_null() -> str:
     return '[[]]'
 
-def file_pair_null() -> str:
+def file_pair_mandatory_null() -> str:
     return '[]'
 
-def file_array_null() -> str:
+def file_array_mandatory_null() -> str:
     return '[]'
 
-def file_null() -> str:
+def file_mandatory_null() -> str:
     return NULL
 
-def array_null() -> str:
+def generic_array_mandatory_null() -> str:
     return '[]'
 
-def nonfile_null() -> str:
+def generic_mandatory_null() -> str:
     return NULL
 
 
@@ -114,5 +135,11 @@ def file_array_optional_null() -> str:
     return f"[{NULL}]"
 
 def file_optional_null() -> str:
+    return NULL
+
+def generic_array_optional_null() -> str:
+    return NULL
+
+def generic_optional_null() -> str:
     return NULL
 

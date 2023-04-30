@@ -161,7 +161,7 @@ def dtype_label(param: Param) -> str:
     if param.dtype.optional:
         return f'(optional {dtype_str})'
     else:
-        return f'({dtype_str})'
+        return f'(MANDATORY {dtype_str})'
 
 
 
@@ -231,7 +231,7 @@ class ParamGrouper:
             else:
                 subworkflows[heading].append(param)
 
-        # sorting
+        # ordering
         out: list[ParamGroup] = []
         if mandatory_inputs:
             out.append(ParamGroup('INPUTS (MANDATORY)', mandatory_inputs))
