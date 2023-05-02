@@ -1,6 +1,11 @@
 
 
-from janis_core import ToolInput, CommandTool
+from abc import ABC, abstractmethod
+from typing import Optional
+
+from janis_core import ToolInput, ToolArgument, CommandTool
+from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from ....variables import VariableManager
 from ....variables import VariableHistory
@@ -9,74 +14,94 @@ from ....variables import Variable
 
 from .ctype import CType, get_ctype
 from . import common
-from . import autofill
+from . import selection
+from . import ordering
 from . import attributes
 
-from janis_core import translation_utils as utils
-from janis_core.translation_utils import DTypeType
+from janis_core import settings
+
+def gen_script_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
+    cmdlines: list[str] = []
+    # cmdlines += gen_preprocessing_lines(tool, vmanager)
+    cmdlines += gen_tool_execution_lines(tool, vmanager)
+    return cmdlines
+
+# def gen_preprocessing_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
+#     cmdlines: list[str] = []
+#     pp_inputs = selection.preprocessing_inputs(tool, vmanager)
+#     pp_inputs = ordering.script_inputs_arguments(pp_inputs)
+
+#     for tinput in pp_inputs:
+#         dtt = utils.get_dtt(tinput.input_type)
+        
+#         if dtt == DTypeType.SECONDARY_ARRAY:
+#             cmdlines += gen_secondary_array_preprocessing(tinput, vmanager)
+#         elif dtt == DTypeType.SECONDARY:
+#             cmdlines += gen_secondary_preprocessing(tinput, vmanager)
+#         else:
+#             raise RuntimeError
+#     return cmdlines
 
 
+### BASH PREPROCESSING ###
+INDENT = settings.translate.nextflow.NF_INDENT 
 
-def gen_script_lines(
-    tinput: ToolInput,
-    tool: CommandTool,
-    vmanager: VariableManager,
-) -> list[str]:
+# def gen_secondary_array_preprocessing(tinput: ToolInput, vmanager: VariableManager) -> list[str]:
+#     header = f'###  ###'
+
+# def gen_secondary_preprocessing(tinput: ToolInput, vmanager: VariableManager) -> list[str]:
+#     names = vmanager.get(tinput.id()).original.value
+#     primary = names[0]
+#     pp: list[str] = []
+#     pp.append(f'### preprocessing: grouping secondary files for optional input (workaround) ###\n')
+#     pp.append(f'\n')
+#     pp.append(f'if [ ${{bam.last()}} != NULL ]\n')
+#     pp.append(f'then\n')
+#     for name in names:
+#         pp.append(f'{INDENT}ln -s ${{{name}}} {primary}/${{{name}.last()}}\n')
+#     pp.append('fi\n')
+#     pp.append('\n')
+#     return pp 
+
+### TOOL EXECUTION ###
     
-    if _should_ignore(tinput, vmanager):
-        return []
+def gen_tool_execution_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
+    cmdlines: list[str] = []
     
-    elif _should_autofill(tinput, vmanager):
-        return autofill.autofill_script(tinput, tool, vmanager)
+    all_ins_args = selection.all_script_inputs_arguments(tool, vmanager)
+    ordered_ins_args = ordering.script_inputs_arguments(all_ins_args)
+
+    for item in ordered_ins_args:
+        
+        if selection.is_script_reference_input(item, vmanager):
+            formatter = InputReferenceFormatter(item, tool, vmanager) # type: ignore
+        elif selection.is_script_value_input(item, vmanager):
+            formatter = InputValueFormatter(item, tool, vmanager)     # type: ignore
+        elif selection.is_script_argument(item):
+            formatter = ArgumentFormatter(item, tool, vmanager)
+        else:
+            raise RuntimeError
+            
+        cmdlines += formatter.format()
     
-    else:
-        formatter = ScriptFormatter(tinput, tool, vmanager)
-        return formatter.format()
+    return cmdlines
 
 
-### HELPER METHODS ###
+### CMDLINE FORMATTING CLASSES ###
 
-def _should_ignore(tinput: ToolInput, vmanager: VariableManager) -> bool:
-    # tinput not supplied value in any process call, no default
-    # no prescript, no script
-    varhistory = vmanager.get(tinput.id())
-    if varhistory.original.vtype == VariableType.IGNORED:
-        if tinput.default is None:
-            return True
-    return False
+class ScriptFormatter(ABC):
 
-def _should_autofill(tinput: ToolInput, vmanager: VariableManager) -> bool:
-    """
-    For ToolInputs which are not fed via a process input or a param,
-    should a static value be evaluated? 
-    """
-    varhistory = vmanager.get(tinput.id())
+    @abstractmethod
+    def format(self) -> list[str]:
+        ...
 
-    # tinput not supplied value in any process call, but has default
-    # no prescript, no script
-    if varhistory.original.vtype == VariableType.IGNORED:
-        if tinput.default is not None:
-            return True
-    
-    # tinput has consistent static value for each process call
-    # no prescript, script autofilled
-    elif varhistory.original.vtype == VariableType.STATIC:
-        return True
-    return False
+### CMDLINE INPUT REFERENCE ###
 
+class InputReferenceFormatter:
+    SCRIPT_FMT1 = '${{{src}}}' 
+    SCRIPT_FMT2 = '{prefix}{spacer}${{{src}}}'
 
-### MAIN FORMATTING CLASS ###
-
-SCRIPT_FMT1 = '${{{src}}}' 
-SCRIPT_FMT2 = '{prefix}{spacer}${{{src}}}'
-
-class ScriptFormatter:
-    def __init__(
-        self, 
-        tinput: ToolInput,
-        tool: CommandTool,
-        vmanager: VariableManager,
-    ) -> None:
+    def __init__(self, tinput: ToolInput, tool: CommandTool, vmanager: VariableManager) -> None:
         self.tool = tool
         self.tinput = tinput
         self.vmanager = vmanager
@@ -84,13 +109,16 @@ class ScriptFormatter:
         self.ctype = get_ctype(tinput)
         self.dtt = utils.get_dtt(tinput.input_type)
 
+        if self.tool.id() == 'cutadapt' and self.tinput.id() == 'outputPrefix':
+            print()
+
     def format(self) -> list[str]:
         """
         generates a script line for this ToolInput. 
         format is decided by self.itype.
         """
         if self.dtt == DTypeType.FILE_PAIR:
-            cmdline = SCRIPT_FMT1.format(src=self.cvar)
+            cmdline = self.SCRIPT_FMT1.format(src=self.cvar)
 
         elif self.ctype in [
             CType.OPT_BASIC, 
@@ -98,13 +126,13 @@ class ScriptFormatter:
             CType.OPT_DEFAULT, 
             CType.OPT_DEFAULT_ARR,
         ]:
-            cmdline = SCRIPT_FMT2.format(
-                prefix=self.prefix_str,
-                spacer=self.spacer_str,
+            cmdline = self.SCRIPT_FMT2.format(
+                prefix=common.prefix_str(self.tinput),
+                spacer=common.spacer_str(self.tinput),
                 src=self.cvar,
             )
         else:
-            cmdline = SCRIPT_FMT1.format(src=self.cvar)
+            cmdline = self.SCRIPT_FMT1.format(src=self.cvar)
         
         return [cmdline]
     
@@ -126,21 +154,95 @@ class ScriptFormatter:
         else:
             return self.varhistory.current.value
 
-    @property
-    def prefix_str(self) -> str:
-        return common.prefix_str(self.tinput)
+
+
+### CMDLINE INPUT VALUE ###
     
-    @property
-    def spacer_str(self) -> str:
-        return common.spacer_str(self.tinput)
-    
-    @property
-    def delim_str(self) -> str:
-        return common.delim_str(self.tinput)
+class InputValueFormatter(ABC):
+    def __init__(self, tinput: ToolInput, tool: CommandTool, vmanager: VariableManager) -> None:
+        self.tool = tool
+        self.tinput = tinput
+        self.vmanager = vmanager
+        self.attributes = attributes.get_attributes(tinput)
+        self.ctype = get_ctype(tinput)
+        self.dtt = utils.get_dtt(tinput.input_type)
 
+        if self.dtt in [DTypeType.SECONDARY_ARRAY, DTypeType.SECONDARY]:
+            raise RuntimeError
 
+    def format(self) -> list[str]:
+        if self.dtt == DTypeType.FLAG:
+            cmdline = self.get_cmdline_flag()
+        else:
+            cmdline = self.get_cmdline_generic()
 
+        lines = [] if cmdline is None else [cmdline]
+        return lines
+
+    @property 
+    def varhistory(self) -> VariableHistory:
+        return self.vmanager.get(self.tinput.id())
         
+    def get_cmdline_flag(self) -> Optional[str]:
+        assert(self.tinput.prefix)
 
+        if self.varhistory.original.vtype == VariableType.IGNORED:
+            value = self.tinput.default
+        # static value supplied to input
+        elif self.varhistory.original.vtype == VariableType.STATIC:
+            value = self.varhistory.original.value
+        else:
+            raise RuntimeError
+        
+        value = str(value)
+        if value == 'False':
+            return None
+        else:
+            return self.tinput.prefix
     
+    def get_cmdline_generic(self) -> str:
+        # tinput not supplied value in any process call, but has default
+        if self.varhistory.original.vtype == VariableType.IGNORED and self.tinput.default is not None:
+            value = self.tinput.default
+        
+        # tinput not supplied value in any process call, but is Filename type
+        elif self.varhistory.original.vtype == VariableType.IGNORED and utils.is_filename_type(self.tinput.input_type):
+            value = self.tinput.input_type
+            
+        # tinput has consistent static value for each process call
+        elif self.varhistory.original.vtype == VariableType.STATIC:
+            value = self.varhistory.original.value
+        
+        else:
+            raise RuntimeError
+
+        cmdline = common.eval_cmdline_tinput(
+            default=value,
+            tinput=self.tinput,
+            tool=self.tool,
+            vmanager=self.vmanager,
+            apply_prefix=True
+        )
+        return cmdline
+    
+
+
+### CMDLINE ARGUMENT ###
+
+class ArgumentFormatter(ABC):
+    def __init__(self, arg: ToolArgument, tool: CommandTool, vmanager: VariableManager) -> None:
+        self.tool = tool
+        self.arg = arg
+        self.vmanager = vmanager
+
+    def format(self) -> list[str]:
+        cmdline = common.eval_cmdline_targ(
+            arg=self.arg,
+            tool=self.tool,
+            vmanager=self.vmanager,
+            shell_quote=self.arg.shell_quote
+        )
+        return [cmdline]
+
+
     

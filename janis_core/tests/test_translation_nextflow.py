@@ -1057,9 +1057,9 @@ class TestFiles(unittest.TestCase):
             ")",
             "FASTQC3(",
             "ch_test_input,",
-            "params.NULL,",
-            "params.NULL,",
-            "params.NULL",
+            "file( params.NULL ),",
+            "file( params.NULL ),",
+            "file( params.NULL )",
             ")",
             "CAT_TEST_TOOL(",
             "FASTQC3.out.outTextFile",
@@ -1153,23 +1153,23 @@ class TestFiles(unittest.TestCase):
             "// WORKFLOW OUTPUT DIRECTORY",
             "outdir  = './outputs'",
             "// INPUTS (MANDATORY)",
-            "in_file  = NULL  // (generic file)",
-            "in_int   = NULL  // (integer)",
-            "in_str   = NULL  // (string)",
+            "in_file  = NULL  // (MANDATORY generic file)",
+            "in_int   = NULL  // (MANDATORY integer)",
+            "in_str   = NULL  // (MANDATORY string)",
             "// INPUTS (OPTIONAL)",
             "in_str_opt  = NULL  // (optional string)",
             "// PROCESS: INT_TEST_TOOL",
-            "int_test_tool.inp  = NULL  // (integer)",
+            "int_test_tool.inp  = NULL  // (MANDATORY integer)",
             "// PROCESS: STRING_OPT_TEST_TOOL",
             "string_opt_test_tool.inp  = NULL  // (optional string)",
             "// PROCESS: STRING_TEST_TOOL",
-            "string_test_tool.inp  = NULL  // (string)",
+            "string_test_tool.inp  = NULL  // (MANDATORY string)",
             "// SUBWORKFLOW: APPLES_WORKFLOW",
-            "apples_workflow.in_int      = NULL  // (integer)",
-            "apples_workflow.in_str      = NULL  // (string)",
+            "apples_workflow.in_int      = NULL  // (MANDATORY integer)",
+            "apples_workflow.in_str      = NULL  // (MANDATORY string)",
             "apples_workflow.in_str_opt  = NULL  // (optional string)",
             "// SUBWORKFLOW: ORANGES_WORKFLOW",
-            "oranges_workflow.in_int  = NULL  // (integer)",
+            "oranges_workflow.in_int  = NULL  // (MANDATORY integer)",
             "}",
         ]
         for ln in actual_lines:
@@ -1186,38 +1186,38 @@ class TestFiles(unittest.TestCase):
         config = translator.stringify_translated_inputs({})
         actual_lines = simplify_file(config)
         expected_lines = [
-            "nextflow.enable.dsl=2",
-            "docker.enabled = true",
-            "params {",
-            "// Macro to all optional task inputs",
-            "// (do not alter unless you know what you are doing)",
-            "NULL = 'NULL'",
-            "// WORKFLOW OUTPUT DIRECTORY",
-            "outdir  = './outputs'",
-            "// INPUTS (MANDATORY)",
-            "in_file               = NULL  // (generic file)",
-            "in_file_array         = []    // (array)         eg. [file1, ...]",
-            "in_secondaries        = []    // (indexedbam)    eg. [bam, bai]",
-            "in_secondaries_array  = [[]]  // (array)         eg. [[bam, bai]]",
-            "in_filepair           = []    // (fastqpair)     eg. [pair1, pair2]",
-            "in_filepair_array     = [[]]  // (array)         eg. [[pair1, pair2]]",
-            "in_nonfile            = NULL  // (integer)",
-            "in_nonfile_array      = []    // (array)         eg. [integer1, ...]",
-            "// INPUTS (OPTIONAL)",
-            "in_file_array_optional         = [NULL]          // (optional array)         eg. [file1, ...]",
-            "in_file_optional               = NULL            // (optional generic file)",
-            "in_secondaries_array_optional  = [[NULL, NULL]]  // (optional array)         eg. [[bam, bai]]",
-            "in_secondaries_optional        = [NULL, NULL]    // (optional indexedbam)    eg. [bam, bai]",
-            "in_filepair_array_optional     = [[NULL, NULL]]  // (optional array)         eg. [[pair1, pair2]]",
-            "in_filepair_optional           = [NULL, NULL]    // (optional fastqpair)     eg. [pair1, pair2]",
-            "in_nonfile_array_optional      = []              // (optional array)         eg. [integer1, ...]",
-            "in_nonfile_optional            = NULL            // (optional integer)",
-            "// PROCESS: NON_FILE_TEST_TOOL",
-            "non_file_test_tool.nonfile                 = NULL  // (integer)",
-            "non_file_test_tool.nonfile_array           = []    // (array)             eg. [integer1, ...]",
-            "non_file_test_tool.nonfile_array_optional  = []    // (optional array)    eg. [integer1, ...]",
-            "non_file_test_tool.nonfile_optional        = NULL  // (optional integer)",
-            "}",
+            'nextflow.enable.dsl=2',
+            'docker.enabled = true',
+            'params {',
+            '// Macro to all optional task inputs',
+            '// (do not alter unless you know what you are doing)',
+            'NULL = \'NULL\'',
+            '// WORKFLOW OUTPUT DIRECTORY',
+            'outdir  = \'./outputs\'',
+            '// INPUTS (MANDATORY)',
+            'in_file               = NULL  // (MANDATORY generic file)',
+            'in_file_array         = []    // (MANDATORY array)         eg. [file1, ...]',
+            'in_secondaries        = []    // (MANDATORY indexedbam)    eg. [bam, bai]',
+            'in_secondaries_array  = [[]]  // (MANDATORY array)         eg. [[bam, bai]]',
+            'in_filepair           = []    // (MANDATORY fastqpair)     eg. [pair1, pair2]',
+            'in_filepair_array     = [[]]  // (MANDATORY array)         eg. [[pair1, pair2]]',
+            'in_nonfile            = NULL  // (MANDATORY integer)',
+            'in_nonfile_array      = []    // (MANDATORY array)         eg. [integer1, ...]',
+            '// INPUTS (OPTIONAL)',
+            'in_file_array_optional         = [NULL]          // (optional array)         eg. [file1, ...]',
+            'in_file_optional               = NULL            // (optional generic file)',
+            'in_secondaries_array_optional  = [[NULL, NULL]]  // (optional array)         eg. [[bam, bai]]',
+            'in_secondaries_optional        = [NULL, NULL]    // (optional indexedbam)    eg. [bam, bai]',
+            'in_filepair_array_optional     = [[NULL, NULL]]  // (optional array)         eg. [[pair1, pair2]]',
+            'in_filepair_optional           = [NULL, NULL]    // (optional fastqpair)     eg. [pair1, pair2]',
+            'in_nonfile_array_optional      = NULL            // (optional array)         eg. [integer1, ...]',
+            'in_nonfile_optional            = NULL            // (optional integer)',
+            '// PROCESS: NON_FILE_TEST_TOOL',
+            'non_file_test_tool.nonfile                 = NULL  // (MANDATORY integer)',
+            'non_file_test_tool.nonfile_array           = []    // (MANDATORY array)    eg. [integer1, ...]',
+            'non_file_test_tool.nonfile_array_optional  = NULL  // (optional array)     eg. [integer1, ...]',
+            'non_file_test_tool.nonfile_optional        = NULL  // (optional integer)',
+            '}',
         ]
         for ln in actual_lines:
             print(ln)
@@ -1233,30 +1233,30 @@ class TestFiles(unittest.TestCase):
         config = translator.stringify_translated_inputs({})
         actual_lines = simplify_file(config)
         expected_lines = [
-            "nextflow.enable.dsl=2",
-            "docker.enabled = true",
-            "params {",
-            "// Macro to all optional task inputs",
-            "// (do not alter unless you know what you are doing)",
-            "NULL = 'NULL'",
-            "// WORKFLOW OUTPUT DIRECTORY",
-            "outdir  = './outputs'",
-            "// INPUTS (MANDATORY)",
-            "in_file            = NULL  // (generic file)",
-            "in_secondary_type  = []    // (generic file)  eg. [txt, txt]",
-            "in_int             = NULL  // (integer)",
-            "in_str             = NULL  // (string)",
-            "in_str_arr         = []    // (array)         eg. [string1, ...]",
-            "// PROCESS: JOIN_ARRAY_PYTHON_TEST_TOOL",
+            'nextflow.enable.dsl=2',
+            'docker.enabled = true',
+            'params {',
+            '// Macro to all optional task inputs',
+            '// (do not alter unless you know what you are doing)',
+            'NULL = \'NULL\'',
+            '// WORKFLOW OUTPUT DIRECTORY',
+            'outdir  = \'./outputs\'',
+            '// INPUTS (MANDATORY)',
+            'in_file            = NULL  // (MANDATORY generic file)',
+            'in_secondary_type  = []    // (MANDATORY generic file)  eg. [txt, txt]',
+            'in_int             = NULL  // (MANDATORY integer)',
+            'in_str             = NULL  // (MANDATORY string)',
+            'in_str_arr         = []    // (MANDATORY array)         eg. [string1, ...]',
+            '// PROCESS: JOIN_ARRAY_PYTHON_TEST_TOOL',
             'join_array_python_test_tool.code_file  = "/home/grace/work/pp/translation/janis-core/templates/JoinArrayPythonTestTool.py"',
-            "join_array_python_test_tool.inp        = []  // (array)  eg. [string1, ...]",
-            "// PROCESS: MULTI_TYPES_INPUT_PYTHON_TOOL",
+            'join_array_python_test_tool.inp        = []  // (MANDATORY array)  eg. [string1, ...]',
+            '// PROCESS: MULTI_TYPES_INPUT_PYTHON_TOOL',
             'multi_types_input_python_tool.code_file  = "/home/grace/work/pp/translation/janis-core/templates/MultiTypesInputPythonTool.py"',
-            "multi_types_input_python_tool.inp2       = NULL  // (string)",
-            "multi_types_input_python_tool.inp3       = NULL  // (integer)",
-            "// PROCESS: SECONDARY_INPUT_PYTHON_TEST_TOOL",
+            'multi_types_input_python_tool.inp2       = NULL  // (MANDATORY string)',
+            'multi_types_input_python_tool.inp3       = NULL  // (MANDATORY integer)',
+            '// PROCESS: SECONDARY_INPUT_PYTHON_TEST_TOOL',
             'secondary_input_python_test_tool.code_file  = "/home/grace/work/pp/translation/janis-core/templates/SecondaryInputPythonTestTool.py"',
-            "}",
+            '}',
         ]
         for ln in actual_lines:
             print(ln)
@@ -1932,6 +1932,18 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
 
+    def test_get_ordered_inputs_arguments(self) -> None:
+        raise NotImplementedError
+    
+    def test_prescript_presence(self) -> None:
+        raise NotImplementedError
+    
+    def test_script_presence(self) -> None:
+        raise NotImplementedError
+    
+    def test_autofill(self) -> None:
+        raise NotImplementedError
+    
     @unittest.skip('not implemented')
     def test_multiple_statements(self) -> None:
         raise NotImplementedError
@@ -2078,11 +2090,11 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def pos_basic_arr_joined = pos_basic_arr.join(\' \')',
-            'def pos_default_arr_joined = pos_default_arr[0] != params.NULL ? pos_default_arr.join(\' \') : "1 2"',
             'def opt_basic_arr_joined = opt_basic_arr.join(\' \')',
-            'def opt_default_arr_joined = opt_default_arr[0] != params.NULL ? opt_default_arr.join(\' \') : "100 200 300"',
             'def opt_basic_arr_prefixeach_joined = opt_basic_arr_prefixeach.collect{ "--opt-basic-prefixeach ${it}" }.join(\' \')',
-            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach[0] != params.NULL ? opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \') : "--opt-default-prefixeach "hi" --opt-default-prefixeach "there""',
+            'def opt_default_arr_joined = opt_default_arr != params.NULL ? opt_default_arr.join(\' \') : "100 200 300"',
+            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach != params.NULL ? opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \') : "--opt-default-prefixeach "hi" --opt-default-prefixeach "there""',
+            'def pos_default_arr_joined = pos_default_arr != params.NULL ? pos_default_arr.join(\' \') : "1 2"',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2114,8 +2126,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def pos_optional_arr_joined = pos_optional_arr[0].simpleName != params.NULL ? pos_optional_arr.join(\' \') : ""',
-            'def opt_optional_arr_joined = opt_optional_arr[0] != params.NULL ? "--opt-optional-arr " + opt_optional_arr.join(\' \') : ""',
-            'def opt_optional_arr_prefixeach_joined = opt_optional_arr_prefixeach[0] != params.NULL ? opt_optional_arr_prefixeach.collect{ "--opt-optional-arr-prefixeach ${it}" }.join(\' \') : ""',
+            'def opt_optional_arr_joined = opt_optional_arr != params.NULL ? "--opt-optional-arr " + opt_optional_arr.join(\' \') : ""',
+            'def opt_optional_arr_prefixeach_joined = opt_optional_arr_prefixeach != params.NULL ? opt_optional_arr_prefixeach.collect{ "--opt-optional-arr-prefixeach ${it}" }.join(\' \') : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2848,7 +2860,7 @@ class TestPythontoolProcess(unittest.TestCase):
             'script:',
             '"""',
             '#!/usr/bin/env python',
-            'from ${code_file} import code_block',
+            'from ${code_file.simpleName} import code_block',
             'import os',
             'import json',
             'result = code_block(',
@@ -3797,7 +3809,7 @@ class TestUnwrapProcess(unittest.TestCase):
         self.assertIn("--InputSelectorArray ${in_file_arr_joined}", self.script)
        
     def test_list(self) -> None:
-        self.assertIn("--list [1, 2, 3, 4, 5]", self.script) # this is correct
+        self.assertIn('--list "1 2 3 4 5"', self.script) # this is correct
        
     def test_two_value_operator(self) -> None:
         self.assertIn("--TwoValueOperator ${in_file + \".gz\"}", self.script)
@@ -3946,7 +3958,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
     
-    def test_string_formatter(self):
+    def test_basic(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
@@ -3959,9 +3971,9 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=tool, 
             in_shell_script=True
         )
-        self.assertEqual('"no format"', actual)
+        self.assertEqual("no format", actual)
 
-    def test_string_formatter_string(self):
+    def test_string(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
@@ -3974,9 +3986,9 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=tool, 
             in_shell_script=True
         )
-        self.assertEqual('"there\'s a string arg"', actual)
+        self.assertEqual("there\'s a string arg", actual)
     
-    def test_string_formatter_inputselector_process_input(self):
+    def test_input_selector_process_input(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
@@ -3987,11 +3999,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=True
+            in_shell_script=True,
         )
-        self.assertEqual('"an input ${testtool}"', actual)
+        self.assertEqual("an input ${testtool}", actual)
     
-    def test_string_formatter_inputselector_param_input(self):
+    def test_input_selector_param_input(self):
         wf = StringFormatterTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -4004,10 +4016,10 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=step.tool,
             in_shell_script=True
         )
-        expected = '"an input ${compression_level}"'
+        expected = "an input ${compression_level}"
         self.assertEqual(actual, expected)
 
-    def test_string_formatter_two_param(self):
+    def test_two_params(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = InputQualityTestTool()
         do_preprocessing_tool(tool)
@@ -4024,7 +4036,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=tool, 
             in_shell_script=True
         )
-        self.assertEqual('"${user}:${static}"', actual)
+        self.assertEqual("${user}:${static}", actual)
 
     def test_escaped_characters(self):
         settings.translate.nextflow.MODE = 'tool'
@@ -4050,10 +4062,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=tool, 
             in_shell_script=True
         )
-        self.assertEqual('"user\\tstatic"', actual_scripting)
-        self.assertEqual('"${user}\\\\t${static}"', actual_shell)
+        print(actual_shell)
+        self.assertEqual("user\\tstatic", actual_scripting)
+        self.assertEqual("${user}\\\\t${static}", actual_shell)
 
-    def test_expression_arg(self):
+    def test_expression(self):
         settings.translate.nextflow.MODE = 'tool'
         tool = BasicTestTool()
         do_preprocessing_tool(tool)
@@ -4070,24 +4083,22 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             tool=tool, 
             in_shell_script=True
         )
-        self.assertEqual('"${testtool}:${array_inp.join(\";\")}"', res)
+        self.assertEqual("${testtool}:${array_inp.join(\";\")}", res)
     
-    def test_string_formatter_advanced(self) -> None:
+    def test_argument(self) -> None:
         wf = StringFormatterTestWF()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
-        variable_manager = init_variable_manager_for_task(step.tool)
+        vmanager = init_variable_manager_for_task(step.tool)
         arg = step.tool.arguments()[0]
-        actual = nextflow.unwrap_expression(
-            val=arg.value, 
-            context='process_script',
-            variable_manager=variable_manager,
+        actual = nextflow.generate.process.script.common.eval_cmdline_targ(
+            arg=arg,
             tool=step.tool,
-            in_shell_script=True
+            vmanager=vmanager,
+            shell_quote=True
         )
-        expected = '"-Xmx${8 * 3 / 4}G ${compression_level ? "-Dsamjdk.compress_level=" + compression_level : ""} ${[java_options, []].find{ it != null }.join(" ")}"'
+        expected = '--java-options "-Xmx${8 * 3 / 4}G ${compression_level ? "-Dsamjdk.compress_level=" + compression_level : ""} ${[java_options, []].find{ it != null }.join(" ")}"'
         self.assertEqual(actual, expected)
-
 
 
 class TestOrdering(unittest.TestCase):

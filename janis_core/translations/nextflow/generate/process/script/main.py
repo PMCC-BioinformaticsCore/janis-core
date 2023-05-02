@@ -1,19 +1,14 @@
 
-from abc import ABC, abstractmethod
 from typing import Tuple, Optional
 
-from janis_core import CommandTool, ToolArgument, ToolInput
-from janis_core.types import Boolean, File
+from janis_core import CommandTool, ToolArgument
 
 from .... import naming
 from .... import trace
-from .... import nfgen_utils as utils
 
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
 from ....variables import VariableType
-
-# from .ScriptFormatter import ScriptFormatter
 
 from .prescript import gen_prescript_lines
 from .script import gen_script_lines
@@ -46,46 +41,15 @@ class ProcessScriptGenerator:
         self.handle_undefined_variable_references()
         self.handle_cmdtool_directories()
         self.handle_cmdtool_base_command()
-        self.handle_cmdtool_inputs()
+        self.handle_cmdtool_inputs_arguments()
         prescript = self.finalise_prescript()
         script = self.finalise_script()
         return prescript, script
     
-    def handle_cmdtool_inputs(self) -> None:
-        # prescript for ToolInputs first
-        for inp in order_cmdtool_inputs_arguments(self.tool, self.vmanager):
-            if self.tool.id() == 'cutadapt':
-                print()
-            if isinstance(inp, ToolInput):
-                self.prescript += gen_prescript_lines(inp, self.tool, self.vmanager)
+    def handle_cmdtool_inputs_arguments(self) -> None:
+        self.prescript += gen_prescript_lines(self.tool, self.vmanager)
+        self.script += gen_script_lines(self.tool, self.vmanager)
         
-        # script for ToolInputs and ToolArguments
-        for inp in order_cmdtool_inputs_arguments(self.tool, self.vmanager):
-            if isinstance(inp, ToolInput):
-                self.script += gen_script_lines(inp, self.tool, self.vmanager)
-            else:
-                self.handle_tool_argument(inp)
-                
-    def handle_tool_argument(self, arg: ToolArgument) -> None:
-        prefix = ''
-        space = ''
-        if arg.prefix:
-            prefix = arg.prefix
-            if arg.separate_value_from_prefix != False:
-                space = ' '
-
-        # unwrap toolargument value
-        expr = unwrap_expression(
-            val=arg.value,
-            context='process_script',
-            variable_manager=self.vmanager,
-            tool=self.tool,
-            in_shell_script=True,
-            quote_strings=arg.shell_quote
-        )
-        line = f'{prefix}{space}{expr}'
-        self.script.append(line)
-
     def handle_undefined_variable_references(self) -> None:
         """
         create definitions for referenced tool inputs in pre-script section
@@ -156,122 +120,7 @@ class ProcessScriptGenerator:
         return None
 
     def finalise_script(self) -> str:
-        # if settings.JANIS_ASSISTANT:
-        #     script = script + [f'| tee {self.stdout_filename}_{self.process_name}']
-        
         script = self.script
         script = [f'{ln} \\' for ln in script]
         return '\n'.join(script)
 
-
-
-
-class CmdtoolInsArgsStrategy(ABC):
-    @abstractmethod
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        ...
-        
-class AlphabeticalStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda x: x.prefix or 'zzz')
-
-class ComponentTypeStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        positionals: list[ToolInput | ToolArgument] = []
-        flags: list[ToolInput | ToolArgument] = []
-        options: list[ToolInput | ToolArgument] = []
-
-        for x in ins_args:
-            # positionals
-            if not x.prefix:
-                positionals.append(x)
-            
-            # flag or opt tool inputs
-            elif isinstance(x, ToolInput):
-                if isinstance(x.input_type, Boolean):
-                    flags.append(x)
-                else:
-                    options.append(x)
-            
-            # flag or opt tool arguments
-            elif isinstance(x, ToolArgument):
-                if x.value is None:
-                    flags.append(x)
-                else:
-                    options.append(x)
-
-        return positionals + options + flags
-
-class InsPriorityStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda x: isinstance(x, ToolInput), reverse=True)
-
-class FilePriorityStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        top: list[ToolInput | ToolArgument] = []
-        bottom: list[ToolInput | ToolArgument] = []
-        for elem in ins_args:
-            if isinstance(elem, ToolInput):
-                dtype = utils.get_base_type_task_input(elem)
-                if isinstance(dtype, File):
-                    top.append(elem)
-                else:
-                    bottom.append(elem)
-            else:
-                bottom.append(elem)
-        return top + bottom
-
-# class ExposedPriorityStrategy(CmdtoolInsArgsStrategy):
-#     def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-#         top: list[ToolInput | ToolArgument] = []
-#         bottom: list[ToolInput | ToolArgument] = []
-#         for x in ins_args:
-#             if isinstance(x, ToolInput) and x.id() in tool.connections:
-#                 top.append(x)
-#             else:
-#                 bottom.append(x)
-#         return top + bottom
-
-
-class PositionStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda a: (a.position or 0))
-
-class NoPrefixPriorityStrategy(CmdtoolInsArgsStrategy):
-    def order(self, ins_args: list[ToolInput | ToolArgument], tool: CommandTool) -> list[ToolInput | ToolArgument]:
-        return sorted(ins_args, key=lambda a: (a.prefix is None))
-
-
-ins_args_strategies = [
-    # aesthetic
-    AlphabeticalStrategy,
-    FilePriorityStrategy,
-    ComponentTypeStrategy,
-    InsPriorityStrategy,
-    # correctness
-    NoPrefixPriorityStrategy,
-    PositionStrategy
-]
-
-def order_cmdtool_inputs_arguments(tool: CommandTool, vmanager: VariableManager) -> list[ToolInput | ToolArgument]:
-    ins_args: list[ToolInput | ToolArgument] = []
-
-    if tool.arguments():
-        ins_args += [a for a in tool.arguments() if a.position is not None or a.prefix is not None]
-    
-    if tool.inputs():
-        valid_inputs: list[ToolInput] = []
-        for inp in tool.inputs():
-            if inp.position is not None or inp.prefix is not None:
-                valid_inputs.append(inp)
-            
-            elif vmanager.get(inp.id()).original.vtype == VariableType.TASK_INPUT:
-                valid_inputs.append(inp)
-
-        ins_args += valid_inputs
-        # ins_args += [a for a in tool.inputs() if a.position is not None or a.prefix is not None]
-    
-    for strategy in ins_args_strategies:
-        ins_args = strategy().order(ins_args, tool)
-    
-    return ins_args

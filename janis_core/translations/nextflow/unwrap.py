@@ -571,10 +571,6 @@ class Unwrapper:
             expr = self.unwrap_string_formatter_workflow(selector)
         else:
             raise RuntimeError
-        qs_temp = deepcopy(self.quote_strings)
-        self.quote_strings = True
-        expr = self.unwrap(expr)
-        self.quote_strings = qs_temp
         return expr
         
     def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
@@ -592,7 +588,7 @@ class Unwrapper:
             arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
 
         if self.in_shell_script:
-            arg_val = arg_val.replace("\\", "\\\\")
+            arg_val = arg_val.replace('\\', '\\\\')
 
         return self.unwrap(arg_val)
         
@@ -837,7 +833,8 @@ class Unwrapper:
         ### applying modifiers ###
         # special case: remove file extension
         if isinstance(basetype, File) and sel.remove_file_extension:
-            expr = f'{expr}.simpleName'
+            # expr = f'{expr}.simpleName'
+            expr = f'{expr}.baseName'
             print()
         
         return expr

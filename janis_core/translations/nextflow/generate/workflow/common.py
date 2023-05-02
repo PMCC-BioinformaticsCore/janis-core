@@ -43,23 +43,23 @@ def get_collate_size(dtype: DataType) -> int:
 
 
 # UnionType stuff
-def union_type(dtype: DataType) -> bool:
-    basetype = utils.get_base_type(dtype)
+def is_union_type(dtype: DataType) -> bool:
+    basetype = utils.get_base_type(dtype, ensure_single=False)
     if isinstance(basetype, UnionType):
         return True
     return False
 
 def get_common_type(srctype: DataType, desttype: DataType) -> Optional[DataType]:
-    srctype_base = utils.get_base_type(srctype)
-    desttype_base = utils.get_base_type(desttype)
+    srctype_base = utils.get_base_type(srctype, ensure_single=False)
+    desttype_base = utils.get_base_type(desttype, ensure_single=False)
 
     # both are non-union types, & types match
-    if not union_type(srctype_base) and not union_type(desttype_base):
+    if not is_union_type(srctype_base) and not is_union_type(desttype_base):
         if srctype_base.name() == desttype_base.name():
             return srctype_base
 
     # at least one is union type, & common type exists
-    elif union_type(srctype_base) or union_type(desttype_base):
+    elif is_union_type(srctype_base) or is_union_type(desttype_base):
         common_types = _get_type_intersection(srctype_base, desttype_base)
         if common_types:
             return common_types[0]

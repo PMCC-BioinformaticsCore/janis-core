@@ -1,6 +1,5 @@
 
 from typing import Optional
-from enum import Enum, auto
 
 from janis_core import settings
 from janis_core import Workflow, TInput, DataType
@@ -15,7 +14,7 @@ from ...model.files import NFVariableDefinition
 from ...model.files import NFVariableDefinitionBlock
 from ...model.workflow import NFWorkflow
 from ...model.workflow import NFMainWorkflow
-
+from ...nulls import add_file_cast
 
 INDENT = settings.translate.nextflow.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
@@ -68,27 +67,18 @@ class VariableDefinitionGenerator:
     @property
     def value(self) -> str:
         dtt = utils.get_dtt(self.dtype)
-        if dtt == DTypeType.SECONDARY_ARRAY:
-            value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
-        
-        elif dtt == DTypeType.SECONDARY:
-            value = f'{self.param_name}.collect{{ file(it) }}'
-        
-        elif dtt == DTypeType.FILE_PAIR_ARRAY:
-            value = f'{self.param_name}.collect{{ it.collect{{ file(it) }} }}'
-        
-        elif dtt == DTypeType.FILE_PAIR:
-            value = f'{self.param_name}.collect{{ file(it) }}'
-        
-        elif dtt == DTypeType.FILE_ARRAY:
-            value = f'{self.param_name}.collect{{ file(it) }}'
-        
-        elif dtt == DTypeType.FILE:
-            value = f'file( {self.param_name} )'
-        
-        else:
+        if dtt not in [
+            DTypeType.SECONDARY_ARRAY,
+            DTypeType.SECONDARY,
+            DTypeType.FILE_PAIR_ARRAY,
+            DTypeType.FILE_PAIR,
+            DTypeType.FILE_ARRAY,
+            DTypeType.FILE,
+        ]:
             raise RuntimeError(f'Unsupported file type: {self.dtype}')
 
+        value = self.param_name
+        value = add_file_cast(self.dtype, value)
         return value
 
     def generate(self) -> NFVariableDefinition:

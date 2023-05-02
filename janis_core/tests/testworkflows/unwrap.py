@@ -132,6 +132,7 @@ class UnwrapTestTool(CommandTool):
                 [1,2,3,4,5],
                 prefix="--list",
                 position=5,
+                shell_quote=True
             ),
             ToolArgument(
                 InputSelector("inFile") + '.gz',

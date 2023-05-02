@@ -131,11 +131,12 @@ class NFProcess:
         ]
         final_items = [x for x in possible_items if x is not None]
         tool_definition = "\n\n".join(final_items)
-        return f"""\
+        text = f"""\
 process {self.name} {{
 {tool_definition}
 }}
 """
+        return text
 
 
 

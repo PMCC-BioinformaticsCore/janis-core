@@ -8,7 +8,7 @@ from janis_core import settings
 NULL = settings.translate.nextflow.NULL
 
 
-def get_null_value(dtype: DataType, as_param: bool=False) -> str:
+def get_null_value(dtype: DataType, as_param: bool=False, should_add_file_cast: bool=False) -> str:
     dtt = utils.get_dtt(dtype)
 
     if dtt == DTypeType.SECONDARY_ARRAY and dtype.optional:
@@ -77,6 +77,32 @@ def get_null_value(dtype: DataType, as_param: bool=False) -> str:
     # present as reference to NULL param if requested
     if as_param:
         expr = expr.replace(NULL, f'params.{NULL}')
+
+    if should_add_file_cast:
+        expr = add_file_cast(dtype, expr)
+    
+    return expr
+
+
+def add_file_cast(dtype: DataType, expr: str) -> str:
+    dtt = utils.get_dtt(dtype)
+    if dtt == DTypeType.SECONDARY_ARRAY:
+        expr = f'{expr}.collect{{ it.collect{{ file(it) }} }}'
+    
+    elif dtt == DTypeType.SECONDARY:
+        expr = f'{expr}.collect{{ file(it) }}'
+    
+    elif dtt == DTypeType.FILE_PAIR_ARRAY:
+        expr = f'{expr}.collect{{ it.collect{{ file(it) }} }}'
+    
+    elif dtt == DTypeType.FILE_PAIR:
+        expr = f'{expr}.collect{{ file(it) }}'
+    
+    elif dtt == DTypeType.FILE_ARRAY:
+        expr = f'{expr}.collect{{ file(it) }}'
+    
+    elif dtt == DTypeType.FILE:
+        expr = f'file( {expr} )'
     
     return expr
 

@@ -14,7 +14,7 @@ from janis_core.types import (
     UnionType,
     Filename,
     Stdout,
-    Boolean
+    Filename
 )
 
 
@@ -90,10 +90,11 @@ def is_flag_type(dtype: DataType) -> bool:
 
 # GENERAL
 
-def get_base_type(dtype: DataType) -> DataType:
+def get_base_type(dtype: DataType, ensure_single: bool=True) -> DataType:
     while dtype.name() == 'Array' and dtype.subtype():
         dtype = dtype.subtype()
-    dtype = ensure_single_type(dtype)
+    if ensure_single:
+        dtype = ensure_single_type(dtype)
     return dtype
 
 def ensure_single_type(dtype: DataType) -> DataType:
@@ -146,6 +147,16 @@ def is_file_pair_array_type(dtype: DataType) -> bool:
         if is_file_pair_type(dtype):
             return True
     return False
+
+
+### FILENAMES
+
+def is_filename_type(dtype: DataType) -> bool:
+    basetype = get_base_type(dtype)
+    if isinstance(basetype, Filename):
+        return True
+    return False
+
 
 ### SECONDARIES 
 

@@ -198,7 +198,7 @@ class TaskCallArgumentGenerator:
                 arg = f'{arg}{suffix}'
         
         if arg is None:
-            arg = nulls.get_null_value(self.desttype, as_param=True)
+            arg = nulls.get_null_value(self.desttype, as_param=True, should_add_file_cast=True)
         
         return arg
     

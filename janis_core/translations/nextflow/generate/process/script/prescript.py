@@ -1,6 +1,6 @@
 
 
-from typing import Optional, Any
+from typing import Any
 from abc import ABC, abstractmethod
 
 from janis_core import ToolInput, CommandTool, DataType
@@ -12,17 +12,26 @@ from ....variables import VariableHistory
 from ....variables import VariableType
 from .... import naming
 
-# from .composer import DeclarationComposer
-# from .composer import ArrJoinComposer
-# from .composer import ConditionComposer
-
 from .ctype import CType, get_ctype
-from .attributes import Attributes, get_attributes
+from .attributes import get_attributes
 
 from . import common
+from . import selection
+from . import ordering
+ 
 
+def gen_prescript_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
+    lines: list[str] = []
 
-def gen_prescript_lines(
+    tinputs = selection.prescript_inputs(tool, vmanager)
+    tinputs = ordering.prescript_inputs(tinputs)
+    for tinput in tinputs:
+        lines += gen_prescript_lines_for_input(tinput, tool, vmanager)
+    
+    return lines
+        
+
+def gen_prescript_lines_for_input(
     tinput: ToolInput,
     tool: CommandTool,
     vmanager: VariableManager,
@@ -126,7 +135,7 @@ class PreScriptFormatter(ABC):
         
         if default is not None:
             # eval_cmdline uses value (parameter), self.prefix, self.spacer, self.delim etc
-            expr = common.eval_default_cmdline(
+            expr = common.eval_cmdline_tinput(
                 default=default,
                 tinput=self.tinput,
                 tool=self.tool,
