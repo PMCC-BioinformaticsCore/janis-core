@@ -1,6 +1,5 @@
 
 import os 
-from typing import Optional
 
 from janis_core import Tool
 from janis_core.messages import configure_logging

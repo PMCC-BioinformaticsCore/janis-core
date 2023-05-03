@@ -62,18 +62,26 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
 
 
 def to_janis_selector(component: OutputComponent) -> Optional[InputSelector | WildcardSelector]:
-    match component: 
-        case InputOutput():
-            input_comp_tag = tags.get(component.input_component.uuid)
-            return InputSelector(input_comp_tag)
+    # wildcard specified 
+    if component.gxparam:
+        if hasattr(component.gxparam, 'from_work_dir') and component.gxparam.from_work_dir: # type: ignore
+            wildcard = component.gxparam.from_work_dir      # type: ignore
+        elif component.gxparam.discover_pattern:            # type: ignore
+            wildcard = component.gxparam.discover_pattern   # type: ignore
+        else:
+            wildcard = None
 
-        case WildcardOutput():
-            wildcard: str = 'unknown'
-            if hasattr(component.gxparam, 'from_work_dir') and component.gxparam.from_work_dir: # type: ignore
-                wildcard = component.gxparam.from_work_dir      # type: ignore
-            elif component.gxparam.discover_pattern:            # type: ignore
-                wildcard = component.gxparam.discover_pattern   # type: ignore
+        if wildcard is not None:  
             return WildcardSelector(wildcard)
+    
+    if isinstance(component, InputOutput):
+        input_comp_tag = tags.get(component.input_component.uuid)
+        return InputSelector(input_comp_tag)
+
+    return WildcardSelector('unknown')
+    
         
-        case _:
-            return None
+    
+    
+
+

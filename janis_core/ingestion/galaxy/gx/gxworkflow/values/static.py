@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
     from janis_core.ingestion.galaxy.model.workflow import Workflow
-    from janis_core.ingestion.galaxy.model.workflow import WorkflowInput
+from janis_core.ingestion.galaxy.model.workflow import WorkflowInput
 
 from janis_core.ingestion.galaxy.logs import logging
 

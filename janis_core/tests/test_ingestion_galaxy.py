@@ -1,5 +1,5 @@
 
-from typing import Any
+from typing import Any, Optional
 import unittest
 import os 
 import json
@@ -75,7 +75,13 @@ QUERY2_EXPECTED_RESULT = 'quay.io/biocontainers/samtools:1.15--h1170115_1'
 QUERY3 = CondaRequirement(_name='cutadapt', _version='3.5')
 QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 
+from janis_core.ingestion import ingest
+from janis_core.translations import translate
 
+
+def run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
+    wf = ingest(filepath, srcfmt)
+    return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
 
 
 class TestJanisGeneralMapping(unittest.TestCase):
@@ -407,19 +413,39 @@ class TestAliases(unittest.TestCase):
 
 
 
-
 class TestFromGalaxy(unittest.TestCase):
-    TOOL_PATH = os.path.abspath('./janis_core/tests/data/galaxy/abricate/abricate.xml')
-    WORKFLOW_PATH = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
 
-    def test_ingest_tool(self) -> None:
-        jtool = ingest_galaxy(self.TOOL_PATH)
+    def test_ingest_abricate_tool(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/abricate/abricate.xml')
+        jtool = ingest_galaxy(filepath)
+        assert(isinstance(jtool, CommandTool))
+        
         self.assertEquals(len(jtool.inputs()), 5)
         self.assertEquals(len(jtool.outputs()), 1)
         self.assertEquals(jtool.base_command(), ['abricate'])
 
-    def test_ingest_workflow(self) -> None:
-        jworkflow = ingest_galaxy(self.WORKFLOW_PATH)
+    def test_ingest_cutadapt_wf(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        jworkflow = ingest_galaxy(filepath)
+        assert(isinstance(jworkflow, WorkflowBuilder))
+
+        self.assertEquals(len(jworkflow.step_nodes), 6)
+        self.assertEquals(len(jworkflow.output_nodes), 19)
+        self.assertIn('inForwardReads', jworkflow.input_nodes)
+        self.assertIn('inReverseReads', jworkflow.input_nodes)
+        self.assertIn('inLongReads', jworkflow.input_nodes)
+    
+    def test_translate_cutadapt_wf_nextflow(self) -> None:
+        srcfmt = 'galaxy'
+        destfmt = 'nextflow'
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        run(filepath, srcfmt, destfmt)
+    
+    def test_ingest_unicycler_assembly(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
+        jworkflow = ingest_galaxy(filepath)
+        assert(isinstance(jworkflow, WorkflowBuilder))
+
         self.assertEquals(len(jworkflow.step_nodes), 6)
         self.assertEquals(len(jworkflow.output_nodes), 19)
         self.assertIn('inForwardReads', jworkflow.input_nodes)

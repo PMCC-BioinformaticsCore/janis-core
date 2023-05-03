@@ -22,12 +22,27 @@ class OutputExtractor:
 
     def extract(self) -> list[CommandComponent]:
         outputs: list[CommandComponent] = []
+        outputs += self.get_wildcard_outputs()
         outputs += self.get_redirect_outputs()
         outputs += self.get_input_outputs()
-        outputs += self.get_wildcard_outputs()
         outputs += self.get_uncertain_outputs(outputs)
         return outputs
         
+    def get_wildcard_outputs(self) -> list[CommandComponent]:
+        # verified vs unverified:
+        # only if no post-processing! otherwise, wildcard outputs may 
+        # have come from post-processing.
+        
+        # outputs which were not identified in the command
+        # usually just because they have a file collection strategy
+        # like from_work_dir or a <discover_datatsets> tag as a child
+        out: list[CommandComponent] = []
+        for gxparam in self.xmltool.outputs.list():
+            if self.should_create_wildcard_output(gxparam):
+                output = factory.wildcard_output(gxparam)
+                out.append(output)
+        return out
+    
     def get_redirect_outputs(self) -> list[CommandComponent]:
         # redirect outputs (stdout) already identified when creating Command()
         # need to ensure they're linked to a gxparam
@@ -47,7 +62,7 @@ class OutputExtractor:
                 if query_param.discover_pattern is not None:
                     if query_param.discover_pattern == r.values.most_common_value:
                         r.gxparam = query_param
-
+    
     def get_input_outputs(self) -> list[CommandComponent]:
         # can be identified by looking at the input components which
         # have attached gxparams which are outputs. 
@@ -61,21 +76,6 @@ class OutputExtractor:
                 out.append(output)
         return out
     
-    def get_wildcard_outputs(self) -> list[CommandComponent]:
-        # verified vs unverified:
-        # only if no post-processing! otherwise, wildcard outputs may 
-        # have come from post-processing.
-        
-        # outputs which were not identified in the command
-        # usually just because they have a file collection strategy
-        # like from_work_dir or a <discover_datatsets> tag as a child
-        out: list[CommandComponent] = []
-        for gxparam in self.xmltool.outputs.list():
-            if self.should_create_wildcard_output(gxparam):
-                output = factory.wildcard_output(gxparam)
-                out.append(output)
-        return out
-
     def get_uncertain_outputs(self, existing_outputs: list[CommandComponent]) -> list[CommandComponent]:
         out: list[CommandComponent] = []
         for gxparam in self.xmltool.outputs.list():
@@ -94,11 +94,10 @@ class OutputExtractor:
 
     def should_create_wildcard_output(self, gxparam: Param) -> bool:
         """test to see if this *galaxy output param* should spawn WildcardOutput"""
-        if not self.command.gxparam_is_attached(gxparam):
-            if hasattr(gxparam, 'from_work_dir') and gxparam.from_work_dir is not None: # type: ignore
-                return True
-            elif hasattr(gxparam, 'discover_pattern') and gxparam.discover_pattern is not None: # type: ignore
-                return True
+        if hasattr(gxparam, 'from_work_dir') and gxparam.from_work_dir is not None: # type: ignore
+            return True
+        elif hasattr(gxparam, 'discover_pattern') and gxparam.discover_pattern is not None: # type: ignore
+            return True
         return False
 
     def should_create_uncertain_output(self, gxparam: Param, existing_outputs: list[CommandComponent]) -> bool:

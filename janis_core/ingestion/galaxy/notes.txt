@@ -6,3 +6,6 @@ tools/scripts/myfile.R
 
 TODO
 - ensure scripts are being copied across in janis-assistant
+- output selection: awareness of optional outputs based on <filter>
+- tool_state needs to not be flat for cheetah templating
+- dont remove pre / post command
