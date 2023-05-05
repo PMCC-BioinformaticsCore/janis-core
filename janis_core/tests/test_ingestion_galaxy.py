@@ -499,12 +499,6 @@ class TestFromGalaxy(unittest.TestCase):
         self.assertIn('inReverseReads', jworkflow.input_nodes)
         self.assertIn('inLongReads', jworkflow.input_nodes)
     
-    def test_translate_cutadapt_wf_nextflow(self) -> None:
-        srcfmt = 'galaxy'
-        destfmt = 'nextflow'
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        run(filepath, srcfmt, destfmt)
-    
     def test_ingest_unicycler_assembly(self) -> None:
         filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
         jworkflow = ingest_galaxy(filepath)
@@ -515,4 +509,16 @@ class TestFromGalaxy(unittest.TestCase):
         self.assertIn('inForwardReads', jworkflow.input_nodes)
         self.assertIn('inReverseReads', jworkflow.input_nodes)
         self.assertIn('inLongReads', jworkflow.input_nodes)
+    
+    def test_translate_cutadapt_wf_nextflow(self) -> None:
+        srcfmt = 'galaxy'
+        destfmt = 'nextflow'
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        run(filepath, srcfmt, destfmt)
+    
+    def test_translate_unicycler_wf_nextflow(self) -> None:
+        srcfmt = 'galaxy'
+        destfmt = 'nextflow'
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
+        run(filepath, srcfmt, destfmt)
 

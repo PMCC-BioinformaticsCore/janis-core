@@ -3,7 +3,7 @@
 from janis_core.ingestion.galaxy.logs import logging
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
 from janis_core.ingestion.galaxy.gx.command import Command
-from typing import Optional
+from typing import Optional, Any
 
 # this module imports
 from .Tool import Tool
@@ -11,10 +11,18 @@ from .outputs import extract_outputs
 
 
 class ToolFactory:
-    def __init__(self, xmltool: XMLToolDefinition, command: Command, container: Optional[str]) -> None:
+    def __init__(
+        self, 
+        xmltool: XMLToolDefinition, 
+        command: Command, 
+        container: Optional[str],
+        gxstep: Optional[dict[str, Any]]=None
+        ) -> None:
+    
         self.xmltool = xmltool
         self.command = command
         self.container = container
+        self.gxstep = gxstep
 
     def create(self) -> Tool:
         tool = Tool(
@@ -38,7 +46,7 @@ class ToolFactory:
             tool.add_input(inp)
 
     def supply_outputs(self, tool: Tool) -> None:
-        outputs = extract_outputs(self.xmltool, self.command)
+        outputs = extract_outputs(self.xmltool, self.command, self.gxstep)
         if not outputs:
             pass
             # logging.no_outputs()

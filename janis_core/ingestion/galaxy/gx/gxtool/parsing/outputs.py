@@ -91,7 +91,6 @@ def is_defined_collection(gxout: GxOutput) -> bool:
         return True
     return False
 
-
 def fetch_format(gxout: GxOutput, inputs: ParamRegister) -> list[str]:
     strategy: FetchStrategy = select_fetcher(gxout)
     return strategy.fetch(gxout, inputs)

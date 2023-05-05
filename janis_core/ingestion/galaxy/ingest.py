@@ -1,7 +1,7 @@
 
 
 import json
-from typing import Any
+from typing import Any, Optional
 from janis_core.ingestion.galaxy import settings
 from janis_core.ingestion.galaxy import mapping
 
@@ -40,7 +40,7 @@ from janis_core.ingestion.galaxy.startup import setup_data_folder
 # from janis_core.ingestion.galaxy.gx.xmltool.tests import write_tests
 
 
-def ingest_tool(path: str) -> Tool:
+def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> Tool:
     """
     ingests a galaxy tool xml file into a Tool (internal representation).
     'galaxy' is the galaxy tool representation, and
@@ -52,7 +52,7 @@ def ingest_tool(path: str) -> Tool:
     galaxy = load_xmltool(path)
     command = gen_command(galaxy)
     container = fetch_container(galaxy.metadata.get_main_requirement())
-    internal = gen_tool(galaxy, command, container)
+    internal = gen_tool(galaxy, command, container, gxstep)
     return internal
 
 def ingest_workflow(path: str) -> Workflow:
@@ -91,18 +91,19 @@ def ingest_workflow_tools(janis: Workflow, galaxy: dict[str, Any]) -> None:
     for g_step in galaxy['steps'].values():
         if g_step['type'] == 'tool':
             j_step = mapping.step(g_step['id'], janis, galaxy)
-            tool = _parse_step_tool(j_step.metadata)
+            tool = _parse_step_tool(j_step.metadata, g_step)
             j_step.set_tool(tool)
-            g_step['tool_state'] = load_tool_state(g_step)  # TODO should this happen first?
 
 def _load_galaxy_workflow(path: str) -> dict[str, Any]:
     with open(path, 'r') as fp:
         return json.load(fp)
 
-def _parse_step_tool(metadata: StepMetadata) -> Tool:
+def _parse_step_tool(metadata: StepMetadata, gxstep: dict[str, Any]) -> Tool:
     args = _create_tool_settings_for_step(metadata)
     tool_setup(args)
-    return ingest_tool(settings.tool.tool_path)
+    gxstep['tool_state'] = load_tool_state(gxstep)
+    tool = ingest_tool(settings.tool.tool_path, gxstep)
+    return tool
 
 def _create_tool_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:
     tool_id = metadata.wrapper.tool_id

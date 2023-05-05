@@ -184,6 +184,8 @@ class InputValueFormatter(ABC):
         return self.vmanager.get(self.tinput.id())
         
     def get_cmdline_flag(self) -> Optional[str]:
+        if not self.tinput.prefix:
+            print()
         assert(self.tinput.prefix)
 
         if self.varhistory.original.vtype == VariableType.IGNORED:
