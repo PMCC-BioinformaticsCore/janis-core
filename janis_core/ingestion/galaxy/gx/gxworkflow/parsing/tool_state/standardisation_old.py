@@ -8,7 +8,7 @@ value_translations = {
     }
 
 
-def standardise_tool_state(gxstep: dict[str, Any]) -> dict[str, Any]:
+def standardise_tool_state_old(gxstep: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, val in gxstep['tool_state'].items():
         out[key] = standardise_tool_state_value(val)

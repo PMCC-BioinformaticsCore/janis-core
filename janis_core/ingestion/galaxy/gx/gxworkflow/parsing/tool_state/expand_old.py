@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 
-def expand_tool_state(step: dict[str, Any]) -> dict[str, Any]:
+def expand_tool_state_old(step: dict[str, Any]) -> dict[str, Any]:
     expander = ToolStateExpander(step)
     return expander.load()
 

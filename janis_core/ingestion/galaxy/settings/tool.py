@@ -30,11 +30,11 @@ def set(from_args: Optional[dict[str, Any]]=None, from_wrapper: Optional[Wrapper
     if not from_args and not from_wrapper:
         raise RuntimeError('supply either args or wrapper to update')
     if from_args:
-        update_args(from_args)
+        update_via_args(from_args)
     elif from_wrapper:
-        update_wrapper(from_wrapper)
+        update_via_wrapper(from_wrapper)
 
-def update_args(args: dict[str, Any]) -> None:
+def update_via_args(args: dict[str, Any]) -> None:
     global tool_path
     global tool_id
     global owner
@@ -58,7 +58,7 @@ def update_args(args: dict[str, Any]) -> None:
         rel_path = fetch_wrapper(owner, repo, revision, tool_id)
         tool_path = os.path.relpath(rel_path)
 
-def update_wrapper(wrapper: Wrapper) -> None:
+def update_via_wrapper(wrapper: Wrapper) -> None:
     global tool_path
     global tool_id
     global owner

@@ -8,9 +8,12 @@ import xml.etree.ElementTree as et
 from janis_core.ingestion.main import ingest_galaxy
 from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
 
+from janis_core.ingestion.galaxy import settings
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
+from janis_core.ingestion.galaxy.gx.gxtool.load import load_xmltool
 
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy import containers
 from janis_core.ingestion.galaxy.gx.gxtool.requirements import CondaRequirement
 
@@ -82,6 +85,67 @@ from janis_core.translations import translate
 def run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
     wf = ingest(filepath, srcfmt)
     return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
+
+
+def _load_galaxy_workflow(filepath: str) -> dict[str, Any]:
+    with open(filepath, 'r') as fp:
+        return json.load(fp)
+    
+# def _load_tool_command_and_state(step: dict[str, Any], flat: bool=False) -> Tuple[str, dict[str, Any]]:
+#     metadata = parse_step_metadata(step)
+#     settings.tool.update_via_wrapper(metadata.wrapper)
+#     xmltool = load_xmltool(settings.tool.tool_path)
+#     tool_state = load_tool_state(step, flat=flat)
+#     cmdstr = simplify_xmltool_command(
+#         xmltool=xmltool, 
+#         inputs_dict=tool_state,
+#         # additional_filters=['remove_dataset_attributes', 'remove_dataset_methods']
+#     )
+#     return cmdstr, tool_state
+
+def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
+    metadata = parse_step_metadata(step)
+    settings.tool.update_via_wrapper(metadata.wrapper)
+    return load_tool_state(step, additional_filters=additional_filters)
+
+
+class TestLoadToolState(unittest.TestCase):
+    """
+    tests ability to map or generate janis datatypes / selectors etc
+    from internal tool objects.
+    """
+    def setUp(self) -> None:
+        datatypes.populate()
+        self.tool = MOCK_TOOL_ABRICATE
+
+    def test_default_filters(self) -> None:
+        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_step = gx_workflow['steps']['2']
+        tool_state = _load_tool_state(gx_step)
+        self.assertEqual(tool_state['output_selector'], None)
+        self.assertEqual(tool_state['adapter_options']['action'], 'trim')
+        self.assertEqual(tool_state['library']['r1']['cut'], '0')
+    
+    def test_null_varname_filter(self) -> None:
+        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_step = gx_workflow['steps']['2']
+        tool_state = _load_tool_state(gx_step, additional_filters=['ReplaceNullWithVarname'])
+        self.assertEqual(tool_state['output_selector'], '$output_selector')
+        self.assertEqual(tool_state['adapter_options']['action'], 'trim')
+        self.assertEqual(tool_state['library']['r1']['cut'], '0')
+
+    def test_flat_filter(self) -> None:
+        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_step = gx_workflow['steps']['2']
+        tool_state = _load_tool_state(gx_step, additional_filters=['Flatten'])
+        self.assertEqual(tool_state['output_selector'], None)
+        self.assertEqual(tool_state['adapter_options.action'], 'trim')
+        self.assertEqual(tool_state['library.r1.cut'], '0')
+
+
 
 
 class TestJanisGeneralMapping(unittest.TestCase):
