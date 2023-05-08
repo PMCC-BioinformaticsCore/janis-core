@@ -1,6 +1,6 @@
 
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import ContainerRequirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import ContainerRequirement
 
 from ..Container import Container
 from .Fetcher import Fetcher

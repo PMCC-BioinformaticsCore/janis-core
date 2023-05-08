@@ -5,7 +5,7 @@ from typing import Any
 from datetime import datetime
 from bioblend.toolshed import ToolShedInstance
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import CondaRequirement, ContainerRequirement, Requirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement, ContainerRequirement, Requirement
 from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
 from janis_core.ingestion.galaxy.runtime.dates import TOOLSHED_DATE_FMT

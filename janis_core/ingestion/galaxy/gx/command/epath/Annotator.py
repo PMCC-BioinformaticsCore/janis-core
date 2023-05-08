@@ -64,6 +64,8 @@ class OptionAnnotator(Annotator):
         self.stop_ptr: int = 0
 
     def passes_check(self) -> bool:
+        # if self.ctoken.text == '--make_plots':
+        #     print()
         if component_utils.is_option(self.ctoken, self.ntoken):
             if not component_utils.has_compound_structure(self.ctoken):
                 return True

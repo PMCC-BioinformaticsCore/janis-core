@@ -6,9 +6,6 @@ from ..configfiles.Configfile import Configfile
 from .metadata import ToolXMLMetadata
 from .param.ParamRegister import ParamRegister
 from .TestRegister import TestRegister
-from .requirements import ContainerRequirement, CondaRequirement
-
-Requirement = ContainerRequirement | CondaRequirement
 
 
 @dataclass

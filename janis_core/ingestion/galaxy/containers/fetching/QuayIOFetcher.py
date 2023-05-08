@@ -2,7 +2,7 @@
 
 
 from typing import Any
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
 
 from ..Container import Container
 from ..fetching.Fetcher import Fetcher

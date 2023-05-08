@@ -32,6 +32,12 @@ class ExecutionPath:
         ordering_strategy = SimplifiedComponentOrderingStrategy()
         return ordering_strategy.order(components)
     
+    def _init_positions(self, tokens: list[Token]) -> list[EPathPosition]:
+        positions = [EPathPosition(i, token) for i, token in enumerate(tokens)]
+        end_sentinel = spawn_end_sentinel()
+        positions.append(EPathPosition(len(positions), end_sentinel))
+        return positions
+    
     def _get_component_list(self) -> list[CommandComponent]:
         """
         gets the CommandComponents in this EPath (unique)
@@ -43,12 +49,6 @@ class ExecutionPath:
             if position.component and type(position.component) not in ignore and position.component not in out:
                 out.append(position.component)
         return out
-    
-    def _init_positions(self, tokens: list[Token]) -> list[EPathPosition]:
-        positions = [EPathPosition(i, token) for i, token in enumerate(tokens)]
-        end_sentinel = spawn_end_sentinel()
-        positions.append(EPathPosition(len(positions), end_sentinel))
-        return positions
 
     def __str__(self) -> str:
         out: str = '\n'

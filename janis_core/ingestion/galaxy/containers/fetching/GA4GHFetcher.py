@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
 from janis_core.ingestion.galaxy.utils.general import global_align
 
 from .Fetcher import Fetcher

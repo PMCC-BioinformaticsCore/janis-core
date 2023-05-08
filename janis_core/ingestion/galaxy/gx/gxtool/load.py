@@ -20,7 +20,7 @@ from .citations import Citation
 from .parsing.ParamFlattener import ParamFlattener
 from .param.ParamRegister import ParamRegister
 from .TestRegister import TestRegister
-from .requirements import CondaRequirement, ContainerRequirement
+from .requirements.model import CondaRequirement, ContainerRequirement
 from .parsing.outputs import parse_output_param
 from .parsing.inputs import parse_input_param
 
@@ -69,7 +69,7 @@ class GalaxyToolFactory:
             self.inputs,
             self.outputs,
             self.parse_tests()
-        )
+        ) 
     
     def parse_inputs(self) -> ParamRegister:
         """returns a an InputRegister by reformatting the galaxy tool representation's params."""
@@ -119,7 +119,7 @@ class GalaxyToolFactory:
     def get_conda_requirements(self) -> list[CondaRequirement]:
         packages: list[dict[str, str]] = self.gxtool.requirements.to_list() # type: ignore
         return [CondaRequirement(p['name'], p['version']) for p in packages]
-
+    
     def get_container_requirements(self) -> list[ContainerRequirement]:
         containers: list[ContainerDescription] = self.gxtool.containers # type: ignore
         return [ContainerRequirement(c.identifier) for c in containers] # type: ignore

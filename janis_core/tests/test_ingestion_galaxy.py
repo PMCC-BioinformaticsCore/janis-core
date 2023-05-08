@@ -1,21 +1,34 @@
 
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 import unittest
 import os 
 import json
 import xml.etree.ElementTree as et
 
+# dependency resolution
+from galaxy.tool_util.deps.resolvers.conda import CondaDependencyResolver
+import shutil
+from tempfile import mkdtemp
+from galaxy.tool_util.deps import (
+    conda_util,
+    DependencyManager
+)
+from galaxy.tool_util.deps.requirements import ToolRequirement
+
+
 from janis_core.ingestion.main import ingest_galaxy
 from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
 
+from janis_core.ingestion.galaxy.gx.gxtool.tool import XMLToolDefinition
 from janis_core.ingestion.galaxy import settings
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
 from janis_core.ingestion.galaxy.gx.gxtool.load import load_xmltool
+from janis_core.ingestion.galaxy.gx.command.generate import gen_command
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy import containers
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import CondaRequirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement
 
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.datatypes.core import file_t, string_t, bool_t
@@ -46,6 +59,7 @@ from janis_core import (
 )
 
 from janis_core.ingestion.galaxy import datatypes
+from janis_core.ingestion.galaxy.containers import fetch_container
 
 from janis_core.ingestion.galaxy.janis_mapping.workflow import to_janis_workflow
 from janis_core.ingestion.galaxy.janis_mapping.workflow import to_janis_inputs_dict
@@ -82,18 +96,21 @@ from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
 
-def run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
+### helper functions ###
+
+def _run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
     wf = ingest(filepath, srcfmt)
     return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
-
 
 def _load_galaxy_workflow(filepath: str) -> dict[str, Any]:
     with open(filepath, 'r') as fp:
         return json.load(fp)
-    
+
+def _configure_tool_settings(step: dict[str, Any]) -> None:
+    metadata = parse_step_metadata(step)
+    settings.tool.update_via_wrapper(metadata.wrapper)
+
 # def _load_tool_command_and_state(step: dict[str, Any], flat: bool=False) -> Tuple[str, dict[str, Any]]:
-#     metadata = parse_step_metadata(step)
-#     settings.tool.update_via_wrapper(metadata.wrapper)
 #     xmltool = load_xmltool(settings.tool.tool_path)
 #     tool_state = load_tool_state(step, flat=flat)
 #     cmdstr = simplify_xmltool_command(
@@ -109,6 +126,46 @@ def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> 
     return load_tool_state(step, additional_filters=additional_filters)
 
 
+### test classes ###
+
+
+class TestExtractRequirements(unittest.TestCase):
+
+    def setUp(self) -> None:
+        datatypes.populate()
+
+    def test_basic(self) -> None:
+        pass
+
+       
+        
+    def test_limma_voom(self) -> None:
+        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_step = gx_workflow['steps']['3']
+        _configure_tool_settings(gx_step)
+        xmltool = load_xmltool(settings.tool.tool_path)
+        containers = [fetch_container(req) for req in xmltool.metadata.requirements]
+        print()
+
+
+
+class TestComponentExtraction(unittest.TestCase):
+
+    def setUp(self) -> None:
+        datatypes.populate()
+
+    def test_goseq(self) -> None:
+        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/goseq_wf.ga')
+        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_step = gx_workflow['steps']['2']
+        _configure_tool_settings(gx_step)
+        xmltool = load_xmltool(settings.tool.tool_path)
+        command = gen_command(xmltool)
+        print()
+        pass
+
+
 class TestLoadToolState(unittest.TestCase):
     """
     tests ability to map or generate janis datatypes / selectors etc
@@ -116,7 +173,7 @@ class TestLoadToolState(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
-        self.tool = MOCK_TOOL_ABRICATE
+        
 
     def test_default_filters(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
@@ -155,7 +212,7 @@ class TestJanisGeneralMapping(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
-        self.tool = MOCK_TOOL_ABRICATE
+        
 
     def test_to_janis_datatype(self) -> None:
         """
@@ -514,11 +571,11 @@ class TestFromGalaxy(unittest.TestCase):
         srcfmt = 'galaxy'
         destfmt = 'nextflow'
         filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        run(filepath, srcfmt, destfmt)
+        _run(filepath, srcfmt, destfmt)
     
     def test_translate_unicycler_wf_nextflow(self) -> None:
         srcfmt = 'galaxy'
         destfmt = 'nextflow'
         filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
-        run(filepath, srcfmt, destfmt)
+        _run(filepath, srcfmt, destfmt)
 

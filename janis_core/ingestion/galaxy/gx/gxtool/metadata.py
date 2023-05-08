@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 from janis_core.ingestion.galaxy.utils.general import global_align
 
-from .requirements import ContainerRequirement, CondaRequirement
+from .requirements.model import ContainerRequirement, CondaRequirement
 from .citations import Citation
 
 

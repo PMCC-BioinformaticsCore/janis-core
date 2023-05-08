@@ -4,8 +4,32 @@
 templates / scripts
 tools/scripts/myfile.R
 
+
+Skeleton 
+- only data files
+
+Minimal
+- only step inputs with non-default values 
+
+Full 
+- all cmdline options. 
+- how to deal with cheetah for loops? cheetah conditionals? 
+- for tool components with multiple possible input params, use aliases, apply the param used as step input
+
+
 TODO
-- ensure scripts are being copied across in janis-assistant
-- output selection: awareness of optional outputs based on <filter>
-- tool_state needs to not be flat for cheetah templating
-- dont remove pre / post command
+- --mode skeleton | minimal | full
+- --galaxy-all-commands
+
+- scripts
+    - ensure scripts are being copied across in janis-assistant
+    - if script as <configfile> do mapping of tool params to script args
+    - if script as provided script (limma_voom.R) do nothing
+
+requirements
+    
+
+
+- goseq.xml error:
+    --make_plots '$out.make_plots'
+    being interpreted as bool positional rather than option (--prefix value)

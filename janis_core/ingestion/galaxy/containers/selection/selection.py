@@ -1,7 +1,7 @@
 
 
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
 from ..Container import Container
 
 

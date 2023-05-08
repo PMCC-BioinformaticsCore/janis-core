@@ -3,7 +3,7 @@
 import tempfile
 from typing import Optional
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement, CondaRequirement, ContainerRequirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement, CondaRequirement, ContainerRequirement
 from janis_core.ingestion.galaxy.settings.paths import CONTAINER_CACHE
 
 from .ContainerCache import ContainerCache

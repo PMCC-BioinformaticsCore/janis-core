@@ -11,7 +11,7 @@ from janis_core.ingestion.galaxy import ingest_workflow
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
 from janis_core import settings
-
+ 
 from .SupportedIngestion import SupportedIngestion
 from .cwl import parse as parse_cwl
 from .wdl import WdlParser

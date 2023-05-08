@@ -50,7 +50,8 @@ class NFDebugDirective(NFProcessDirective):
     debug: str
 
     def get_string(self) -> str:
-        return f'debug {self.debug}'
+        return f''
+        # return f'debug {self.debug}'
 
 @dataclass
 class NFCpusDirective(NFProcessDirective):

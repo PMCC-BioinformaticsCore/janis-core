@@ -4,7 +4,7 @@ from typing import Any
 
 
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
-from janis_core.ingestion.galaxy.gx.gxtool.requirements import Requirement
+from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
 
 
 class Wrapper:
