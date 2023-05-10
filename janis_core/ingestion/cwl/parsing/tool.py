@@ -5,6 +5,7 @@ from typing import Any, Optional, Tuple
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
+
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, InputSelector
 from janis_core.types import File, Stdout, Stderr, Directory
 from janis_core import settings
@@ -633,46 +634,73 @@ class CLTInputParser(CLTEntityParser):
         )
 
     def do_parse(self) -> ToolInput:
-        identifier = get_id_entity(self.entity.id)
+        inp = ToolInput(
+            tag=self.parse_tag(),
+            input_type=self.parse_dtype(),
+            position=self.parse_position(),
+            prefix=self.parse_prefix(),
+            separate_value_from_prefix=self.parse_separate(),
+            separator=self.parse_separator(),
+            shell_quote=self.parse_shell_quote(),
+            default=self.parse_default(),
+            value=self.parse_value()
+        )
+        # this must be set for error messages to be associated with this entity
+        self.uuid = inp.uuid
+        return inp
+    
+    def parse_tag(self) -> str:
+        return get_id_entity(self.entity.id)
 
-        value: Optional[str] = None
-        inpBinding = self.entity.inputBinding
-        if inpBinding and inpBinding.valueFrom:
+    def parse_dtype(self) -> Any:
+        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
+        self.error_msgs += error_msgs
+        return dtype
+    
+    def parse_position(self) -> Optional[int]:
+        return self.entity.inputBinding.position if self.entity.inputBinding else None
+    
+    def parse_prefix(self) -> Optional[str]:
+        # import cwl_utils.parser.cwl_v1_2 as cwlutils
+
+        if self.entity.inputBinding.prefix is not None:
+            return self.entity.inputBinding.prefix
+        elif isinstance(self.entity.type, self.cwl_utils.InputArraySchema):
+            if self.entity.type.inputBinding.prefix is not None:
+                return self.entity.type.inputBinding.prefix
+        
+        return None
+    
+    def parse_separate(self) -> Optional[bool]:
+        return self.entity.inputBinding.separate if self.entity.inputBinding else None
+    
+    def parse_separator(self) -> Optional[str]:
+        return self.entity.inputBinding.itemSeparator if self.entity.inputBinding else None
+    
+    def parse_shell_quote(self) -> Optional[bool]:
+        return self.entity.inputBinding.shellQuote if self.entity.inputBinding else None
+    
+    def parse_default(self) -> Any:
+        # edge case - InputParameter.default is File / Directory provided as cwl dict
+        if isinstance(self.entity.default, dict):
+            if 'class' in self.entity.default and 'location' in self.entity.default:
+                return self.entity.default['location']
+        return self.entity.default
+    
+    def parse_value(self) -> Any:
+        value = None
+        if self.entity.inputBinding and self.entity.inputBinding.valueFrom:
             if settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS: # why? 
-                value, success = parse_basic_expression(inpBinding.valueFrom)
+                value, success = parse_basic_expression(self.entity.inputBinding.valueFrom)
                 if not success:
                     msg = f'untranslated javascript expression in inputBinding.valueFrom'
                     self.error_msgs.append(msg)
             else:
                 pass
                 # j.Logger.warn(
-                #     f"Won't translate the expression for input {self.entity.id}: {inpBinding.valueFrom}"
+                #     f"Won't translate the expression for input {self.entity.id}: {self.entity.inputBinding.valueFrom}"
                 # )
-
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
-        self.error_msgs += error_msgs
-
-        # edge case - InputParameter.default is File / Directory provided as cwl dict
-        if isinstance(self.entity.default, dict):
-            if 'class' in self.entity.default and 'location' in self.entity.default:
-                self.entity.default = self.entity.default['location']
-            else:
-                print()
-
-        inp = ToolInput(
-            tag=identifier,
-            input_type=dtype,
-            position=inpBinding.position if inpBinding else None,
-            prefix=inpBinding.prefix if inpBinding else None,
-            separate_value_from_prefix=inpBinding.separate if inpBinding else None,
-            separator=inpBinding.itemSeparator if inpBinding else None,
-            shell_quote=inpBinding.shellQuote if inpBinding else None,
-            default=self.entity.default,
-            value=value
-        )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = inp.uuid
-        return inp
+        return value
 
 
 @dataclass 
