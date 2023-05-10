@@ -29,6 +29,9 @@ class NFStdoutProcessOutput(NFProcessOutput):
 
     def get_string(self) -> str:
         return f'stdout{self.optional_modifier}{self.emit(self.name)}'
+    
+    def emit(self, alias: str) -> str:
+        return f' emit: {alias}'
 
 
 @dataclass

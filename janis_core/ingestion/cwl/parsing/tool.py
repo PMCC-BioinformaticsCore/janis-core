@@ -658,17 +658,24 @@ class CLTInputParser(CLTEntityParser):
         return dtype
     
     def parse_position(self) -> Optional[int]:
-        return self.entity.inputBinding.position if self.entity.inputBinding else None
+        if self.entity.inputBinding is not None:
+            if self.entity.inputBinding.position is not None:
+                return self.entity.inputBinding.position
+        elif self.entity.type is not None:
+            if isinstance(self.entity.type, self.cwl_utils.InputArraySchema):
+                if self.entity.type.inputBinding.position is not None:
+                    return self.entity.type.inputBinding.position
+        return None
     
     def parse_prefix(self) -> Optional[str]:
         # import cwl_utils.parser.cwl_v1_2 as cwlutils
-
-        if self.entity.inputBinding.prefix is not None:
-            return self.entity.inputBinding.prefix
-        elif isinstance(self.entity.type, self.cwl_utils.InputArraySchema):
-            if self.entity.type.inputBinding.prefix is not None:
-                return self.entity.type.inputBinding.prefix
-        
+        if self.entity.inputBinding is not None:
+            if self.entity.inputBinding.prefix is not None:
+                return self.entity.inputBinding.prefix
+        elif self.entity.type is not None:
+            if isinstance(self.entity.type, self.cwl_utils.InputArraySchema):
+                if self.entity.type.inputBinding.prefix is not None:
+                    return self.entity.type.inputBinding.prefix
         return None
     
     def parse_separate(self) -> Optional[bool]:
