@@ -1,7 +1,8 @@
 
 # from janis_core.ingestion.galaxy.logs import logging
-import tempfile
+
 from typing import Optional
+import tempfile
 
 from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement, CondaRequirement, ContainerRequirement
 from janis_core.ingestion.galaxy.settings.paths import CONTAINER_CACHE
@@ -11,13 +12,9 @@ from .Container import Container
 
 from .fetching.Fetcher import Fetcher
 from .fetching.ContainerReqFetcher import ContainerReqFetcher
-#from .fetching.GA4GHFetcher import GA4GHFetcher
 from .fetching.QuayIOFetcher import QuayIOFetcher
 from .fetching.presets import get_images_preset
-
 from .selection.selection import select_best_container_match
-
-
 
 
 DISABLE_CACHE = False
@@ -36,6 +33,7 @@ def fetch_container(requirement: Requirement) -> Optional[str]:
     else:
         container = select_best_container_match(containers, requirement)
         return container.url
+    
     
 def _fetch_cache(requirement: Requirement) -> list[Container]:
     cache = _load_cache()

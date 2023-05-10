@@ -1,8 +1,7 @@
-FROM quay.io/biocontainers/bioconductor-limma:3.50.1--r41h5c21468_0
-FROM quay.io/biocontainers/bioconductor-edger:3.36.0--r41h619a076_1
-FROM quay.io/biocontainers/r-statmod:1.4.29--r3.3.2_0
-FROM quay.io/biocontainers/r-scales:0.4.1--r3.3.2_1
-FROM quay.io/biocontainers/r-rjson:0.2.15--r3.3.2_0
-FROM quay.io/biocontainers/r-getopt:1.20.0--r3.3.2_0
-FROM quay.io/biocontainers/r-gplots:2.17.0--r3.3.2_0
-FROM quay.io/biocontainers/bioconductor-glimma:2.4.0--r41hdfd78af_0
+IMAGE                                                                     CREATED         CREATED BY                                                                                          SIZE      COMMENT
+sha256:7f249fb47e58232224dc070e627186b071abbd40421ab60a2d6373c508b19ff4   14 months ago   /bin/sh                                                                                             764MB     Created with Involucro
+<missing>                                                                 2 years ago     /bin/sh                                                                                             0B        
+<missing>                                                                 2 years ago     /bin/sh -c #(nop) CMD [ "bash" ]                                                                    0B        
+<missing>                                                                 2 years ago     /bin/sh -c #(nop) ENTRYPOINT [ "/usr/local/env-execute" ]                                           0B        
+<missing>                                                                 2 years ago     /bin/sh -c #(nop) ENV LANG=C.UTF-8                                                                  0B        
+<missing>                                                                 2 years ago     /bin/sh -c #(nop) COPY dir:62ea804a2e27c94b13fb26a04aac7a885d4f1cf4a2d2b9b7625543182a85c1cd in /    11MB      

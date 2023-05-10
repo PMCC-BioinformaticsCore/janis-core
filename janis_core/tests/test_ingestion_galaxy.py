@@ -5,21 +5,9 @@ import os
 import json
 import xml.etree.ElementTree as et
 
-# dependency resolution
-from galaxy.tool_util.deps.resolvers.conda import CondaDependencyResolver
-import shutil
-from tempfile import mkdtemp
-from galaxy.tool_util.deps import (
-    conda_util,
-    DependencyManager
-)
-from galaxy.tool_util.deps.requirements import ToolRequirement
-
-
 from janis_core.ingestion.main import ingest_galaxy
 from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
 
-from janis_core.ingestion.galaxy.gx.gxtool.tool import XMLToolDefinition
 from janis_core.ingestion.galaxy import settings
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
@@ -59,7 +47,7 @@ from janis_core import (
 )
 
 from janis_core.ingestion.galaxy import datatypes
-from janis_core.ingestion.galaxy.containers import fetch_container
+from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
 from janis_core.ingestion.galaxy.janis_mapping.workflow import to_janis_workflow
 from janis_core.ingestion.galaxy.janis_mapping.workflow import to_janis_inputs_dict
@@ -134,19 +122,20 @@ class TestExtractRequirements(unittest.TestCase):
     def setUp(self) -> None:
         datatypes.populate()
 
-    def test_basic(self) -> None:
+    def test_no_requirements(self) -> None:
+        pass
+    
+    def test_single_requirement(self) -> None:
         pass
 
-       
-        
-    def test_limma_voom(self) -> None:
+    def test_multiple_requirements(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
         gx_workflow = _load_galaxy_workflow(wf_path)
         gx_step = gx_workflow['steps']['3']
         _configure_tool_settings(gx_step)
         xmltool = load_xmltool(settings.tool.tool_path)
-        containers = [fetch_container(req) for req in xmltool.metadata.requirements]
-        print()
+        image_uri = resolve_dependencies_as_container(xmltool)
+        self.assertEqual(image_uri, 'pppjanistranslate/limma_voom_3.50.1')
 
 
 

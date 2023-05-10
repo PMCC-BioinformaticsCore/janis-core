@@ -8,7 +8,7 @@ from janis_core.ingestion.galaxy import mapping
 from janis_core.ingestion.galaxy.startup import tool_setup
 from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
 from janis_core.ingestion.galaxy.gx.command import gen_command
-from janis_core.ingestion.galaxy.containers import fetch_container
+from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
 from janis_core.ingestion.galaxy.model.tool.generate import gen_tool
 from janis_core.ingestion.galaxy.model.tool import Tool
@@ -51,7 +51,7 @@ def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> Tool:
     settings.tool.tool_path = path
     galaxy = load_xmltool(path)
     command = gen_command(galaxy)
-    container = fetch_container(galaxy.metadata.get_main_requirement())
+    container = resolve_dependencies_as_container(galaxy)
     internal = gen_tool(galaxy, command, container, gxstep)
     return internal
 
