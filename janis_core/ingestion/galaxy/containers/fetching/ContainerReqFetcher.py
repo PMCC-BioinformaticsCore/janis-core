@@ -13,7 +13,7 @@ class ContainerReqFetcher(Fetcher):
             'image_type': requirement.image_type,
             'repo': requirement.name,
             'tag': requirement.version,
-            'url': requirement.url,
+            'uri': requirement.uri,
             '_timestamp': 'Tue, 14 June 1994 23:56:01 -0000', # my bday lol
         }
         return [Container(info)]

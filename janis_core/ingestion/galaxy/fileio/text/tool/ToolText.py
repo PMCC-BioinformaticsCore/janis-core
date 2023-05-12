@@ -40,8 +40,8 @@ metadata = ToolMetadata(
     dateCreated="{datetime.today().strftime(JANIS_DATE_FMT)}",
     dateUpdated="{datetime.today().strftime(JANIS_DATE_FMT)}",
     version="{tool.metadata.version}",
-    doi="{tool.metadata.get_doi_citation()}",
-    citation="{tool.metadata.get_main_citation()}",
+    doi="{tool.metadata.doi_citation}",
+    citation="{tool.metadata.main_citation}",
     documentationUrl=None,
     documentation=\"\"\"{str(tool.metadata.help)}\"\"\"
 )

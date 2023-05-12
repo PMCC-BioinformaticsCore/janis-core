@@ -12,7 +12,7 @@ image_presets = {
             'image_type': 'docker',
             'repo': 'python',
             'tag': '3.10',
-            'url': 'quay.io/biocontainers/python:3.10',
+            'uri': 'quay.io/biocontainers/python:3.10',
             '_timestamp': 'Tue, 1 Mar 2022 18:45:00 -0000',
         }
     ]

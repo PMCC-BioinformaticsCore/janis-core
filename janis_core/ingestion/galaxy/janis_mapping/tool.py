@@ -119,8 +119,8 @@ def to_janis_metadata(internal_meta: ToolXMLMetadata) -> ToolMetadata:
         dateCreated=datetime.today().strftime(JANIS_DATE_FMT),
         dateUpdated=datetime.today().strftime(JANIS_DATE_FMT),
         version=internal_meta.version,  
-        doi=internal_meta.get_doi_citation(),
-        citation=internal_meta.get_main_citation(),
+        doi=internal_meta.doi_citation,
+        citation=internal_meta.main_citation,
         documentationUrl=None,
         documentation=f'"""{internal_meta.help}"""'
     )

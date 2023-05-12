@@ -18,24 +18,27 @@ from .RealisedTokenValues import RealisedTokenFactory
 def gen_command_string(
     source: str, 
     the_string: str, 
-    xmltool: Optional[XMLToolDefinition]=None,
-    requirement: Optional[str]=None
+    xmltool: XMLToolDefinition,
     ) -> CommandString:
-
-    if xmltool and not requirement:
-        requirement = xmltool.metadata.get_main_requirement().name
-    assert(requirement)
-
+    # get all statements in <command>
     statements = _gen_command_statements(the_string, xmltool)
+
+    # split statements into pre-main-post
+    if xmltool.metadata.main_requirement is not None:
+        requirement = xmltool.metadata.main_requirement.name
+    else:
+        requirement = xmltool.metadata.id
     statement_dict = _split_pre_main_post_statements(statements, source, requirement)
+
+    # create command string & return
     return _init_command_string(statement_dict)
 
-def gen_command_statement(statement: str, xmltool: Optional[XMLToolDefinition]=None) -> DynamicCommandStatement:
+def gen_command_statement(statement: str, xmltool: XMLToolDefinition) -> DynamicCommandStatement:
     factory = RealisedTokenFactory(xmltool)
     realised_tokens = factory.try_tokenify(statement)
     return DynamicCommandStatement(statement, realised_tokens)
 
-def _gen_command_statements(the_string: str, xmltool: Optional[XMLToolDefinition]=None) -> list[DynamicCommandStatement]:
+def _gen_command_statements(the_string: str, xmltool: XMLToolDefinition) -> list[DynamicCommandStatement]:
     statements: list[DynamicCommandStatement] = []
     for cmdstmt in _split_text_statements(the_string):
         statements.append(gen_command_statement(cmdstmt, xmltool))

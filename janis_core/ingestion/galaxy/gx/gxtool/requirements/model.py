@@ -57,7 +57,7 @@ class CondaRequirement(Requirement):
 
 @dataclass
 class ContainerRequirement(Requirement):
-    url: str
+    uri: str
     flavour: str
     registry_host: str
     image_type: str
@@ -65,11 +65,11 @@ class ContainerRequirement(Requirement):
 
     @property
     def name(self) -> str:
-        return self.url.rsplit('/', 1)[-1].split(':', 1)[0]
+        return self.uri.rsplit('/', 1)[-1].split(':', 1)[0]
     
     @property
     def version(self) -> str:
-        return self.url.rsplit('/', 1)[-1].split(':', 1)[-1]
+        return self.uri.rsplit('/', 1)[-1].split(':', 1)[-1]
 
     # def to_dict(self) -> dict[str, str]:
     #     return {

@@ -26,7 +26,7 @@ class QuayIOFetcher(Fetcher):
                 'image_type': 'docker',
                 'repo': repo['name'],
                 'tag': details['name'],
-                'url': self.format_url(repo, details),
+                'uri': self.format_url(repo, details),
                 '_timestamp': details['last_modified']
             }
             out.append(Container(info))
