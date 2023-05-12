@@ -203,7 +203,8 @@ def split_to_lines(call: str) -> list[str]:
 
 def simplify_call(textlines: list[str]) -> list[str]:
     lines = textlines[1:-1]     # get rid of task name & closing brace line
-    lines = [ln.strip(' ') for ln in lines]     # strip indents
+    lines = [ln.split('//')[0] for ln in lines]     # get rid of comments
+    lines = [ln.strip(' ') for ln in lines]         # strip indents
     lines = [ln.strip(' ,') for ln in lines]        # strip indents & commas
     lines = [ln for ln in lines if not ln == '']    # remove empty lines
     return lines
@@ -227,6 +228,7 @@ def simplify_script(text: Optional[str]) -> list[str]:
 
 def simplify_file(text: str) -> list[str]:
     lines = text.split('\n')                    # split into lines
+    lines = [ln.split('//')[0] for ln in lines] # get rid of comments
     lines = [ln.strip() for ln in lines]        # strip indents
     lines = [ln for ln in lines if ln != '']    # remove empty lines
     return lines

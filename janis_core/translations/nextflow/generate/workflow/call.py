@@ -61,18 +61,18 @@ class TaskCallGenerator:
             raise RuntimeError
 
     def generate(self) -> list[str]:
-        self.args = self.get_call_arguments()
-        self.call = self.format_task_call()
+        self.gen_call_arguments()
+        self.format_task_call()
         return self.call
     
-    def get_call_arguments(self) -> list[str]:
+    def gen_call_arguments(self) -> None:
         call_args: list[str] = []
 
         for task_input in self.ordered_task_inputs:
             arg = self.get_call_arg(task_input)
             call_args.append(arg)
         
-        return call_args
+        self.args = call_args
     
     def get_call_arg(self, task_input: NFProcessInput | NFWorkflowTake) -> str:
         generator = TaskCallArgumentGenerator(
@@ -84,25 +84,58 @@ class TaskCallGenerator:
         return generator.generate()
 
     # formatting task call text
-    def format_task_call(self, ind: int=0) -> list[str]:
+    def format_task_call(self, ind: int=0) -> None:    
         if len(self.args) == 0:
             call_lines = self.call_fmt0()
         else:
             call_lines = self.call_fmt2()
+
+        # indenting for workflow scope
         call_lines = [indent(ln, ind * NF_INDENT) for ln in call_lines]
-        return call_lines
+        self.call = call_lines
 
     def call_fmt0(self) -> list[str]:
         return [f'{self.alias}()']
 
     def call_fmt2(self) -> list[str]:
+        arg_lines = self.args
+
+        # adding commas for each argument
+        arg_lines = self.add_commas(arg_lines)
+
+        # adding comments for each argument
+        if settings.translate.RENDER_COMMENTS:
+            arg_lines = self.add_comments(arg_lines)
+
+        # indenting each argument
+        arg_lines = self.indent_arg_lines(arg_lines)
+        
+        # formatting call lines
         call_lines: list[str] = []
         call_lines.append(f'{self.alias}(')
-        for i, inp in enumerate(self.args):
-            comma = ',' if i < len(self.args) - 1 else ''
-            call_lines.append(f'{NF_INDENT}{inp}{comma}')
+        call_lines += arg_lines
         call_lines.append(')')
         return call_lines
+    
+    def add_commas(self, arg_lines: list[str]) -> list[str]:
+        out: list[str] = []
+        for i, inp in enumerate(arg_lines):
+            comma = ',' if i < len(arg_lines) - 1 else ''
+            out.append(f'{inp}{comma}')
+        return out
+    
+    def add_comments(self, arg_lines: list[str]) -> list[str]:
+        assert(len(arg_lines) == len(self.ordered_task_inputs))
+        max_width = max([len(x) for x in arg_lines])
+        out: list[str] = []
+        for arg, task_input in zip(arg_lines, self.ordered_task_inputs):
+            arg = f'{arg:<{max_width + 2}}// {task_input.tinput_id}'
+            out.append(arg)
+        return out
+    
+    def indent_arg_lines(self, arg_lines: list[str]) -> list[str]:
+        return [f'{NF_INDENT}{arg}' for arg in arg_lines]
+
 
  
 
