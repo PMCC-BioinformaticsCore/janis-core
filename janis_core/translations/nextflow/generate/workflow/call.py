@@ -136,7 +136,6 @@ class TaskCallGenerator:
     def indent_arg_lines(self, arg_lines: list[str]) -> list[str]:
         return [f'{NF_INDENT}{arg}' for arg in arg_lines]
 
-
  
 
 class TaskCallArgumentGenerator:

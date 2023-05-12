@@ -39,13 +39,11 @@ requirements [WORKING]
     - place all wrappers in folder for user to view 
     - includes inbuilt tools
 
-
 - regex to glob [TODO]
     galaxy ingest collection expressions -> nextflow 
     path "report_data/multiqc_.+\.txt", emit: outStats
     ->
     path "report_data/multiqc_*.txt", emit: outStats
-    
 
 
 - goseq.xml error:
