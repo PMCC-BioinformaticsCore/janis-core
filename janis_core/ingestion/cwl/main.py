@@ -159,7 +159,7 @@ class CWlParser:
         add_step_edges_to_graph(jstep, wf)
 
     def ingest_command_line_tool(self, clt: Any, is_expression_tool: bool=False):
-        parser = CLTParser(cwl_utils=self.cwl_utils, entity=clt, is_expression_tool=is_expression_tool)
+        parser = CLTParser(cwl_utils=self.cwl_utils, clt=clt, entity=clt, is_expression_tool=is_expression_tool)
         return parser.parse()
             
     def ingest_expression_tool(self, etool: Any) -> j.CommandTool:

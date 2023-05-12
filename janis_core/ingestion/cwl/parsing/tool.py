@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, InputSelector
-from janis_core.types import File, Stdout, Stderr, Directory
+from janis_core.types import File, Stdout, Stderr, Directory, DataType
 from janis_core import settings
 from janis_core.messages import log_warning
 from janis_core import translation_utils as utils
@@ -21,6 +21,7 @@ from ..expressions import parse_basic_expression
 @dataclass
 class CLTEntityParser(ABC):
     cwl_utils: Any
+    clt: Any
     entity: Any
     is_expression_tool: bool = False
     success: bool = False
@@ -396,10 +397,6 @@ class InitialWorkDirRequirementParser:
     
     
 
-    
-    
-
-
 @dataclass
 class CLTParser(CLTEntityParser):
     
@@ -412,6 +409,9 @@ class CLTParser(CLTEntityParser):
         inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
         outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
         arguments = [self.ingest_command_tool_argument(arg) for arg in (self.entity.arguments or [])]
+
+        inputs = [inp for inp in inputs if inp is not None]
+        arguments = [arg for arg in arguments if arg is not None]
         
         jtool = CommandToolBuilder(
             tool=identifier,
@@ -429,7 +429,8 @@ class CLTParser(CLTEntityParser):
     
         # requirements
         req_parser = CLTRequirementsParser(
-            cwl_utils=self.cwl_utils, 
+            cwl_utils=self.cwl_utils,
+            clt=self.clt,
             entity=self.entity, 
             uuid=self.uuid, 
             is_expression_tool=self.is_expression_tool
@@ -480,6 +481,7 @@ class CLTParser(CLTEntityParser):
         # requirements
         req_parser = CLTRequirementsParser(
             cwl_utils=self.cwl_utils, 
+            clt=self.clt,
             entity=self.entity, 
             uuid=self.uuid, 
             is_expression_tool=self.is_expression_tool
@@ -495,16 +497,16 @@ class CLTParser(CLTEntityParser):
         jtool._time = requirements['time']
         return jtool
     
-    def ingest_command_tool_argument(self, arg: Any) -> ToolArgument:
-        parser = CLTArgumentParser(cwl_utils=self.cwl_utils, entity=arg)
+    def ingest_command_tool_argument(self, arg: Any) -> Optional[ToolArgument]:
+        parser = CLTArgumentParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=arg)
         return parser.parse()
 
-    def ingest_command_tool_input(self, inp: Any) -> ToolInput:
-        parser = CLTInputParser(cwl_utils=self.cwl_utils, entity=inp)
+    def ingest_command_tool_input(self, inp: Any) -> Optional[ToolInput]:
+        parser = CLTInputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=inp)
         return parser.parse()
         
     def ingest_command_tool_output(self, out: Any, is_expression_tool: bool=False) -> ToolOutput:  
-        parser = CLTOutputParser(cwl_utils=self.cwl_utils, entity=out)
+        parser = CLTOutputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=out)
         return parser.parse()
     
     def ingest_io_streams(self, entity: Any, jtool: CommandTool) -> list[ToolArgument]:
@@ -588,12 +590,14 @@ class CLTArgumentParser(CLTEntityParser):
     def fallback(self) -> ToolArgument:
         return ToolArgument('[error]')
 
-    def do_parse(self) -> ToolArgument: 
+    def do_parse(self) -> Optional[ToolArgument]: 
         # I don't know when a clt argument would be a string
         if isinstance(self.entity, str):
             res, success = parse_basic_expression(self.entity)
             if not success:
                 self.error_msgs.append('untranslated javascript expression')
+            if res is None:
+                return None
             arg = ToolArgument(res)
         
         # normal case
@@ -601,6 +605,8 @@ class CLTArgumentParser(CLTEntityParser):
             res, success = parse_basic_expression(self.entity.valueFrom)
             if not success:
                 self.error_msgs.append('untranslated javascript expression')
+            if res is None:
+                return None
             arg = ToolArgument(
                 value=res,
                 position=self.entity.position,
@@ -731,6 +737,32 @@ class CLTOutputParser(CLTEntityParser):
         dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
         self.error_msgs += error_msgs
 
+        if isinstance(dtype, Stdout):
+            return self.do_parse_stdout(identifier, dtype)
+        else:
+            return self.do_parse_generic(identifier, dtype)
+
+    def do_parse_stdout(self, identifier: str, dtype: DataType) -> ToolOutput:
+        selector = None
+        
+        if self.clt.stdout is not None:
+            expr, success = parse_basic_expression(self.clt.stdout)
+            if success:
+                dtype = File()
+                selector = expr
+            else:
+                self.error_msgs.append('untranslated javascript expression in output collection')
+            
+        out = ToolOutput(
+            tag=identifier, 
+            output_type=dtype, 
+            selector=selector
+        )
+        # this must be set for error messages to be associated with this entity
+        self.uuid = out.uuid
+        return out
+    
+    def do_parse_generic(self, identifier: str, dtype: DataType) -> ToolOutput:
         # selector
         selector = None
         if hasattr(self.entity, 'janis_collection_override'):
@@ -739,7 +771,7 @@ class CLTOutputParser(CLTEntityParser):
         elif self.entity.outputBinding:
             if self.entity.outputBinding.glob:
                 res, success = parse_basic_expression(self.entity.outputBinding.glob)
-                selector = WildcardSelector(res)
+                selector = res
                 if not success:
                     self.error_msgs.append('untranslated javascript expression in output collection')
             

@@ -172,7 +172,7 @@ def is_secondary_array_type(dtype: DataType) -> bool:
             return True
     return False
 
-def get_extensions(dtype: File, remove_prefix_symbols: bool=False) -> list[str]:
+def get_extensions(dtype: File, remove_prefix_symbols: bool=False, ignore_duplicates: bool=False) -> list[str]:
     """returns extension of each file for File types with secondaries"""
     primary_ext: str = ''
     secondary_exts: list[str] = []
@@ -192,9 +192,32 @@ def get_extensions(dtype: File, remove_prefix_symbols: bool=False) -> list[str]:
         secondary_exts = []
 
     exts = _sort_extensions(primary_ext, secondary_exts)
+
+    # filters
+    if ignore_duplicates:
+        exts = _apply_ignore_duplicates_filter(exts)
     if remove_prefix_symbols:
-        exts = [x.lstrip('.^') for x in exts]
+        exts = _apply_remove_prefix_symbols(exts)
+    
     return exts
+
+def _apply_ignore_duplicates_filter(exts: list[str]) -> list[str]:
+    valid_ext_list: list[str] = []
+    
+    for ext in exts:
+        # check if the normal ext is already declared valid
+        if ext in valid_ext_list:
+            continue
+        # check if the base ext is already declared valid
+        elif ext.lstrip('^') in valid_ext_list:
+            continue
+        else:
+            valid_ext_list.append(ext)
+    
+    return valid_ext_list
+
+def _apply_remove_prefix_symbols(exts: list[str]) -> list[str]:
+    return [x.lstrip('.^') for x in exts]
 
 def _sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
     out: list[str] = []

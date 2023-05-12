@@ -1,9 +1,7 @@
 
 
-
 templates / scripts
 tools/scripts/myfile.R
-
 
 Skeleton 
 - only data files
@@ -17,26 +15,36 @@ Full
 - for tool components with multiple possible input params, use aliases, apply the param used as step input
 
 
-TODO
+WORSHOP
+
+janis translate cmdline options
+
+--mode skeleton | minimal | full
+--galaxy-gen-images
+--galaxy-tool-all-commands
+
 requirements [WORKING]
     - build mulled container for tools with multiple requirements
         - command not working for some reason, but works in cmdline
     - set name as quay.io/biocontainers/janis-translate-limma-voom-3.34.9.9 etc
     - add this container to container cache (ContainerCache.add())
 
-- scripts [WORKING]
-    
+- scripts [TODO]
     - ensure scripts are being copied across in janis-assistant
     - if script as <configfile> do mapping of tool params to script args
     - if script as provided script (limma_voom.R) do nothing
     - for galaxy inbuilt tools (join1), also ensure scripts etc 
 
-- wrappers
+- wrappers [TODO]
     - place all wrappers in folder for user to view 
     - includes inbuilt tools
 
-- --mode skeleton | minimal | full
-- --galaxy-full-command
+
+- regex to glob [TODO]
+    galaxy ingest collection expressions -> nextflow 
+    path "report_data/multiqc_.+\.txt", emit: outStats
+    ->
+    path "report_data/multiqc_*.txt", emit: outStats
     
 
 

@@ -12,7 +12,6 @@ from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
 from ..identifiers import remove_output_name_from_output_source
 from ..graph import get_janis_wf_sources
-from ..expressions import parse_basic_expression
 
 from janis_core import settings
 from janis_core.types import File

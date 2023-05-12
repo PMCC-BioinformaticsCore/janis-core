@@ -42,6 +42,8 @@ from janis_core.operators.standard import (
     ReadJsonOperator,
     JoinOperator,
     BasenameOperator,
+    NamerootOperator,
+    NameextOperator,
     TransposeOperator,
     LengthOperator,
     RangeOperator,
@@ -194,6 +196,8 @@ class Unwrapper:
             ReadJsonOperator: self.unwrap_read_json_operator,
             JoinOperator: self.unwrap_join_operator,
             BasenameOperator: self.unwrap_basename_operator,
+            NamerootOperator: self.unwrap_nameroot_operator,
+            NameextOperator: self.unwrap_nameext_operator,
             TransposeOperator: self.unwrap_transpose_operator,
             LengthOperator: self.unwrap_length_operator,
             RangeOperator: self.unwrap_range_operator,
@@ -498,7 +502,15 @@ class Unwrapper:
     
     def unwrap_basename_operator(self, op: BasenameOperator) -> str:
         arg = self.unwrap(op.args[0])
-        return f"{arg}.name"
+        return f"{arg}"
+    
+    def unwrap_nameroot_operator(self, op: NamerootOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.simpleName"
+    
+    def unwrap_nameext_operator(self, op: NameextOperator) -> str:
+        arg = self.unwrap(op.args[0])
+        return f"{arg}.extension"
     
     def unwrap_transpose_operator(self, op: TransposeOperator) -> str:
         raise NotImplementedError

@@ -19,7 +19,7 @@ function_token_matcher = re.compile(r"^\$\{[\s\S]*return[\s\S]*\}$")  # TODO imp
 simple_function_token_matcher = re.compile(r"^\s*\$\{\s*return ([^\s'\";{}]+|['\"][^;{}]*?['\"])[\s;]*?\}$")
 
 # single javascript expression: "$(expr)"
-single_token_matcher = re.compile(r"^\$\((.+)\)$")  
+single_token_matcher = re.compile(r"^\$\(([^)]+)\)$")  
 
 # used for matching multiple expressions in a line: "$(expr1) + $(expr2)"
 # up to 3 levels of recursion
@@ -45,30 +45,36 @@ float_matcher = re.compile(r"^\s*(\d*\.\d+)|(\d+\.\d*)\s*$")
 
 
 
-def parse_basic_expression(expr: Any, context: str='clt', wf: Optional[j.Workflow]=None) -> Tuple[Any, bool]: 
+def parse_basic_expression(expr: Any, context: str='clt', wf: Optional[j.Workflow]=None) -> Tuple[Optional[Any], bool]: 
     parser = ExpressionParser(context, wf)
     return parser.parse(expr)
 
 
 class ExpressionParser:
+    """parses a javascript expression to janis Selectors"""
+    
     def __init__(self, context: str, wf: Optional[j.Workflow]=None) -> None:
         self.context = context
         self.wf = wf
         self.success: bool = True
 
     def parse(self, expr: Any) -> Tuple[Any, bool]:
-        """parses """
-        
         # early exits
         if expr is None:
             return (None, True)
         elif not isinstance(expr, str):
             return (expr, True)
         
+        # some preprocessing for terms which are not needed
+        expr = expr.replace('$(runtime.outdir)/', '')
+        expr = expr.replace('$(runtime.tmpdir)/', '')
+        if expr == '':
+            raise NotImplementedError
+        
         single_token_match = single_token_matcher.match(expr)
         simple_function_match = simple_function_token_matcher.match(expr)
         function_match = function_token_matcher.match(expr)
-        all_token_matches = set(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
+        all_token_matches = list(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
         
         # if only single $(expr) 
         if single_token_match:
@@ -108,18 +114,38 @@ class ExpressionParser:
     
         return (res, self.success)
 
-    def convert_javascript_token(self, token: str) -> Any:
+    def convert_javascript_token(self, token: str) -> Optional[Any]:
         step_output_selector_match = step_output_selector_matcher.match(token)
         input_selector_match = input_selector_matcher.match(token)
-        
+
+        # inputs        
         if input_selector_match:
             tag = input_selector_match.groups()[0]
             return self.convert_input_selector_token(token, tag)
+        
+        # outputs
         elif step_output_selector_match:
             tag = step_output_selector_match.groups()[0]
             return self.convert_input_node_selector_token(token, tag)
-        elif input_selector_match:
-            return j.InputSelector(input_selector_match.groups()[0])
+        
+        # resources
+        elif token == 'runtime.cores':
+            return j.CpuSelector()
+        elif token == 'runtime.ram':
+            return j.MemorySelector()
+        
+        # directories 
+        # we don't need to do anything here
+        elif token == 'runtime.outdir':
+            return '.'
+        elif token == 'runtime.tmpdir':
+            return '.'
+        elif token == 'runtime.outdirSize':
+            return None
+        elif token == 'runtime.tmpdirSize':
+            return None
+        
+        # file type attributes
         elif token.endswith(".size"):
             return j.FileSizeOperator(self.convert_javascript_token(token[:-5]))
         elif token.endswith(".nameroot"):
@@ -131,6 +157,8 @@ class ExpressionParser:
             return self.convert_javascript_token(token[:-5])
         elif token.endswith(".contents"):
             return j.ReadContents(self.convert_javascript_token(token[:-9]))
+        
+        # primitives
         elif string_matcher.match(token):
             return token[1:-1]
         elif int_matcher.search(token):
@@ -138,6 +166,7 @@ class ExpressionParser:
         elif float_matcher.search(token):
             return float(token)
         
+        # can't convert
         else:
             # j.Logger.warn(
             #     f"Couldn't translate javascript token, will use the placeholder '<js>{token}</js>'"

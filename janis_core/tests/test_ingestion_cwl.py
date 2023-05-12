@@ -9,7 +9,8 @@ from janis_core import (
     ReadContents,
     WildcardSelector,
     StringFormatter,
-    InputNodeSelector
+    InputNodeSelector,
+    NamerootOperator
 )
 
 from janis_core.ingestion.cwl.loading import load_cwl_document
@@ -625,3 +626,43 @@ class TestFromCwlExpressions(unittest.TestCase):
         self.assertIsInstance(result, ReadContents)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
+    
+    def test_runtime_outdir(self):
+        expr = "$(runtime.outdir)"
+        result, success = parse_basic_expression(expr)
+        self.assertTrue(success)
+        self.assertEquals(result, '.')
+    
+    def test_composite_1(self):
+        expr = "$(runtime.outdir)/$(inputs.bam.basename)"
+        result, success = parse_basic_expression(expr)
+        self.assertTrue(success)
+        self.assertIsInstance(result, StringFormatter)
+        self.assertEqual(result._format, "{JANIS_CWL_TOKEN_1}/{JANIS_CWL_TOKEN_2}")
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_1'], str) 
+        self.assertEqual(result.kwargs['JANIS_CWL_TOKEN_1'], ".") 
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_2'], BasenameOperator) 
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_2'].args[0], InputSelector) 
+        self.assertEqual(result.kwargs['JANIS_CWL_TOKEN_2'].args[0].input_to_select, "bam") 
+    
+    def test_composite_2(self):
+        expr = "$(inputs.bam.basename).bai"
+        result, success = parse_basic_expression(expr)
+        self.assertTrue(success)
+        self.assertIsInstance(result, StringFormatter)
+        self.assertEqual(result._format, "{JANIS_CWL_TOKEN_1}.bai")
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_1'], BasenameOperator) 
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_1'].args[0], InputSelector) 
+        self.assertEqual(result.kwargs['JANIS_CWL_TOKEN_1'].args[0].input_to_select, "bam") 
+    
+    def test_composite_3(self):
+        expr = "$(runtime.outdir)/$(inputs.bam.nameroot).bai"
+        result, success = parse_basic_expression(expr)
+        self.assertTrue(success)
+        self.assertIsInstance(result, StringFormatter)
+        self.assertEqual(result._format, "{JANIS_CWL_TOKEN_1}/{JANIS_CWL_TOKEN_2}.bai")
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_1'], str) 
+        self.assertEqual(result.kwargs['JANIS_CWL_TOKEN_1'], ".") 
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_2'], NamerootOperator) 
+        self.assertIsInstance(result.kwargs['JANIS_CWL_TOKEN_2'].args[0], InputSelector) 
+        self.assertEqual(result.kwargs['JANIS_CWL_TOKEN_2'].args[0].input_to_select, "bam") 
