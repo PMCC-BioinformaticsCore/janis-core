@@ -12,7 +12,7 @@ from janis_core.ingestion.galaxy.model.workflow import ConnectionInputValue
 from janis_core.ingestion.galaxy.model.workflow import WorkflowInputInputValue
 
 from janis_core.ingestion.galaxy import mapping
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 
 
 def handle_step_connection_inputs(janis: Workflow, galaxy: dict[str, Any]) -> None:
@@ -45,7 +45,7 @@ class ConnectionInputIngestor:
 
         """
         j_step = mapping.step(g_step['id'], self.janis, self.galaxy)
-        settings.tool.set(from_wrapper=j_step.metadata.wrapper)
+        runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
         for g_target, g_emitter in g_step['input_connections'].items():
             g_target = g_target.replace('|', '.')
             j_target = mapping.tool_input(g_target, j_step.tool)

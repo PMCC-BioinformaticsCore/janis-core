@@ -60,6 +60,7 @@ def ingest(
 
     DEV_MODE = True
     if DEV_MODE:
+        settings.ingest.galaxy.GEN_IMAGES = True
         settings.ingest.SAFE_MODE = False
         settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False
@@ -67,6 +68,7 @@ def ingest(
         settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = True
         settings.graph.ALLOW_UNKNOWN_SOURCE = True
     else:
+        settings.ingest.galaxy.GEN_IMAGES = False
         settings.ingest.SAFE_MODE = True
         settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
         settings.ingest.cwl.REQUIRE_CWL_VERSION = False

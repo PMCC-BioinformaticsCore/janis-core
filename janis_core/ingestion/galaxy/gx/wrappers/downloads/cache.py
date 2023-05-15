@@ -4,7 +4,7 @@
 import os
 import tarfile
 from typing import Optional
-from janis_core.ingestion.galaxy.settings.paths import DOWNLOADED_WRAPPERS_DIR
+from janis_core.ingestion.galaxy.runtime.paths import DOWNLOADED_WRAPPERS_DIR
 
 
 class DownloadCache:

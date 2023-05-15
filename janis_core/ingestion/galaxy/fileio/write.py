@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
 
 import shutil
-from janis_core.ingestion.galaxy.settings import paths
+from janis_core.ingestion.galaxy.runtime import paths
 
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
 from janis_core.ingestion.galaxy.gx.wrappers import fetch_wrapper

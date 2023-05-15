@@ -6,8 +6,8 @@
 
 import warnings
 
-# from janis_core.ingestion.galaxy.settings import paths
-from janis_core.ingestion.galaxy import settings
+# from janis_core.ingestion.galaxy.runtime import paths
+from janis_core.ingestion.galaxy import runtime
 
 # -------------
 # configuration
@@ -35,7 +35,7 @@ def msg_parsing_workflow(path: str):
     print(f'\nparsing workflow {path.split("/")[-1]}\n')
 
 def msg_parsing_tool():
-    filename = settings.tool.tool_path.rsplit('/', 1)[-1]
+    filename = runtime.tool.tool_path.rsplit('/', 1)[-1]
     print(f'parsing tool {filename}')
 
 def msg_downloading_tool(url: str):

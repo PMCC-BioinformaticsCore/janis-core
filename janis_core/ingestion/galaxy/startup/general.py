@@ -8,19 +8,19 @@ Keeping here commented out while testing, but will be removed.
 """
 
 import os
-from janis_core.ingestion.galaxy.settings import paths
+from janis_core.ingestion.galaxy.runtime import paths
 
 # import shutil
 
 # from typing import Any, Optional
 # from janis_core.ingestion.galaxy.logs import logging
-# from janis_core.ingestion.galaxy import settings
+# from janis_core.ingestion.galaxy import runtime
 # from janis_core.ingestion.galaxy import fileio
 
 
 def setup_data_folder() -> None:
     # # create user data folder if not exists
-    # if not os.path.exists(paths.USER_DATA_DIR):
+    # if not os.path.exists(paths.USER_DATA_DIR): 
     #     os.mkdir(paths.USER_DATA_DIR)
 
     # create user wrapper download folder if not exists

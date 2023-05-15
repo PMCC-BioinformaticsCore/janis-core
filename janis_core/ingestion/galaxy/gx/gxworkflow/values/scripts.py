@@ -1,7 +1,7 @@
 
 
-from janis_core.ingestion.galaxy import settings
-# from janis_core.ingestion.galaxy.settings import paths
+from janis_core.ingestion.galaxy import runtime
+# from janis_core.ingestion.galaxy.runtime import paths
 import shutil
 from janis_core.ingestion.galaxy import expressions
 
@@ -21,7 +21,7 @@ def handle_step_script_inputs(janis: Workflow) -> None:
     # sets tool input values as default
     # tool components which accepts scripts from the galaxy wrapper $__tool_directory
     for i_step in janis.steps:
-        settings.tool.set(from_wrapper=i_step.metadata.wrapper)
+        runtime.tool.set(from_wrapper=i_step.metadata.wrapper)
         handle_step(janis, i_step)
 
 def handle_step(janis: Workflow, i_step: WorkflowStep) -> None:

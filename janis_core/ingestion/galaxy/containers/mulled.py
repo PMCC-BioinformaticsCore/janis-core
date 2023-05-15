@@ -62,24 +62,33 @@ class MulledContainerGenerator:
 
     def run_tasks(self) -> None:
         print(f'building container for {self.xmltool.metadata.id}_{self.xmltool.metadata.version}')
+        print('(this may take some time)')
         print('the following conda packages will be mulled together:')
         for req in self.xmltool.metadata.requirements:
             print(f'  - {req.name}')
-        print('(this may take some time)')
         self.do_build()
         print(f'built container {self.mulled_uri}')
     
     def do_build(self) -> None:
-        os.environ["DEST_BASE_IMAGE"] = f"'{self.base_container_uri}'"
+        # create command
         command: list[str] = []
         command.append('mulled-build')
         command.append('--name-override')
-        command.append(f"'{self.mulled_uri}'")
+        command.append(f'"{self.mulled_uri}"')
         command.append('--verbose')
         command.append('build-and-test')
         reqs_joined = ','.join([req.name for req in self.other_reqs])
         command.append(f"'{reqs_joined}'")
-        result = subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout)
+        
+        # create env
+        os.environ["DEST_BASE_IMAGE"] = f"'{self.base_container_uri}'"
+        my_env = os.environ.copy()
+        
+        # debug 
+        print(command)
+        
+        # run subprocess
+        result = subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout, env=my_env)
         print(result)
     
 

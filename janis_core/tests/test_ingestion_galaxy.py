@@ -1,5 +1,5 @@
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 import unittest
 import os 
 import json
@@ -8,14 +8,13 @@ import xml.etree.ElementTree as et
 from janis_core.ingestion.main import ingest_galaxy
 from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
 
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
 from janis_core.ingestion.galaxy.gx.gxtool.load import load_xmltool
 from janis_core.ingestion.galaxy.gx.command.generate import gen_command
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
-from janis_core.ingestion.galaxy import containers
 from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement
 
 from janis_core.ingestion.galaxy import datatypes
@@ -46,6 +45,7 @@ from janis_core import (
     String
 )
 
+from janis_core import settings
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
@@ -86,6 +86,16 @@ from janis_core.translations import translate
 
 ### helper functions ###
 
+def _reset_global_settings() -> None:
+    settings.ingest.galaxy.GEN_IMAGES = False
+    settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
+    settings.ingest.SAFE_MODE = True
+    settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
+    settings.ingest.cwl.REQUIRE_CWL_VERSION = False
+    settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
+    settings.graph.ALLOW_UNKNOWN_SOURCE = False
+    settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
+
 def _run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
     wf = ingest(filepath, srcfmt)
     return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
@@ -96,10 +106,22 @@ def _load_galaxy_workflow(filepath: str) -> dict[str, Any]:
 
 def _configure_tool_settings(step: dict[str, Any]) -> None:
     metadata = parse_step_metadata(step)
-    settings.tool.update_via_wrapper(metadata.wrapper)
+    runtime.tool.update_via_wrapper(metadata.wrapper)
+
+def _read_cmd(path: str) -> str:
+    tree = et.parse(path)
+    root = tree.getroot()
+    assert(root.text)
+    return root.text
+
+def _read_step_inputs(path: str) -> dict[str, Any]:
+    with open(path, 'r') as fp:
+        step = json.load(fp)
+    step['tool_state'] = load_tool_state(step)
+    return step['tool_state']
 
 # def _load_tool_command_and_state(step: dict[str, Any], flat: bool=False) -> Tuple[str, dict[str, Any]]:
-#     xmltool = load_xmltool(settings.tool.tool_path)
+#     xmltool = load_xmltool(runtime.tool.tool_path)
 #     tool_state = load_tool_state(step, flat=flat)
 #     cmdstr = simplify_xmltool_command(
 #         xmltool=xmltool, 
@@ -110,17 +132,38 @@ def _configure_tool_settings(step: dict[str, Any]) -> None:
 
 def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
     metadata = parse_step_metadata(step)
-    settings.tool.update_via_wrapper(metadata.wrapper)
+    runtime.tool.update_via_wrapper(metadata.wrapper)
     return load_tool_state(step, additional_filters=additional_filters)
 
 
 ### test classes ###
+
+class TestAccessoryFiles(unittest.TestCase):
+
+    def setUp(self) -> None:
+        datatypes.populate()
+        _reset_global_settings()
+    
+    def test_scripts_filestocreate(self) -> None:
+        pass
+    
+    def test_tool_wrappers_in_outdir(self) -> None:
+        pass
+
+    def test_configfiles_templated(self) -> None:
+        pass
+
+    def test_configfiles_filestocreate(self) -> None:
+        pass
+
+
 
 
 class TestExtractRequirements(unittest.TestCase):
 
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
 
     def test_no_requirements(self) -> None:
         pass
@@ -129,13 +172,15 @@ class TestExtractRequirements(unittest.TestCase):
         pass
 
     def test_multiple_requirements(self) -> None:
+        settings.ingest.galaxy.GEN_IMAGES = True
+        settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = True
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
         gx_workflow = _load_galaxy_workflow(wf_path)
         gx_step = gx_workflow['steps']['3']
         _configure_tool_settings(gx_step)
-        xmltool = load_xmltool(settings.tool.tool_path)
+        xmltool = load_xmltool(runtime.tool.tool_path)
         image_uri = resolve_dependencies_as_container(xmltool)
-        self.assertEqual(image_uri, 'pppjanistranslate/limma_voom_3.50.1')
+        self.assertEqual(image_uri, 'ppp-janis-translate:limma-voom-3.50.1')
 
 
 
@@ -143,13 +188,14 @@ class TestComponentExtraction(unittest.TestCase):
 
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
 
     def test_goseq(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/goseq_wf.ga')
         gx_workflow = _load_galaxy_workflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         _configure_tool_settings(gx_step)
-        xmltool = load_xmltool(settings.tool.tool_path)
+        xmltool = load_xmltool(runtime.tool.tool_path)
         command = gen_command(xmltool)
         print()
         pass
@@ -162,6 +208,7 @@ class TestLoadToolState(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
         
 
     def test_default_filters(self) -> None:
@@ -201,7 +248,8 @@ class TestJanisGeneralMapping(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
-        
+        _reset_global_settings()
+        self.tool = MOCK_TOOL_ABRICATE
 
     def test_to_janis_datatype(self) -> None:
         """
@@ -248,6 +296,7 @@ class TestJanisToolMapping(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
         self.tool = MOCK_TOOL_ABRICATE
     
     def test_to_janis_tool(self) -> None:
@@ -347,6 +396,7 @@ class TestJanisWorkflowMapping(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
         self.workflow = MOCK_WORKFLOW
         self.jworkflow = to_janis_workflow(self.workflow)
         self.jinputs = to_janis_inputs_dict(self.workflow)
@@ -419,6 +469,7 @@ class TestDatatypeInference(unittest.TestCase):
     """
     def setUp(self) -> None:
         datatypes.populate()
+        _reset_global_settings()
 
     def test_positional(self) -> None:
         self.assertEquals(datatypes.get(MOCK_POSITIONAL1), file_t)
@@ -441,56 +492,13 @@ class TestDatatypeInference(unittest.TestCase):
 
 
 
-class TestContainerFetching(unittest.TestCase):
-    """
-    tests biocontainer fetching given a tool id, tool version, and a Requirement()
-    """
-
-    def setUp(self) -> None:
-        """
-        creates a temp container cache for use. the tearDown() method will remove this after tests have run. 
-        """
-        self.temp_cache_dir = '/tmp/container_cache.json'
-        with open(self.temp_cache_dir, 'w') as fp:
-            fp.write('{}')
-    
-    def test_1(self) -> None:
-        result = containers.fetch_container(QUERY1)
-        self.assertEquals(result, QUERY1_EXPECTED_RESULT)
-    
-    def test_2(self) -> None:
-        result = containers.fetch_container(QUERY2)
-        self.assertEquals(result, QUERY2_EXPECTED_RESULT)
-    
-    def test_3(self) -> None:
-        result = containers.fetch_container(QUERY3)
-        self.assertEquals(result, QUERY3_EXPECTED_RESULT)
-    
-    def tearDown(self) -> None:
-        if os.path.exists(self.temp_cache_dir):
-            os.remove(self.temp_cache_dir)
-
-
-
-
-def read_cmd(path: str) -> str:
-    tree = et.parse(path)
-    root = tree.getroot()
-    assert(root.text)
-    return root.text
-
-def read_step_inputs(path: str) -> dict[str, Any]:
-    with open(path, 'r') as fp:
-        step = json.load(fp)
-    step['tool_state'] = load_tool_state(step)
-    return step['tool_state']
 
 class TestSectionalCheetah(unittest.TestCase):
 
     def test_unicycler(self):
-        vanilla = read_cmd(UNICYCLER_VANILLA_PATH)
-        reference = read_cmd(UNICYCLER_TEMPLATED_PATH)
-        inputs = read_step_inputs(UNICYCLER_INPUTS_PATH)
+        vanilla = _read_cmd(UNICYCLER_VANILLA_PATH)
+        reference = _read_cmd(UNICYCLER_TEMPLATED_PATH)
+        inputs = _read_step_inputs(UNICYCLER_INPUTS_PATH)
         templated = sectional_evaluate(vanilla, inputs)
         self.assertEquals(reference, templated)
 

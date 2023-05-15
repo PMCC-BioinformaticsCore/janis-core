@@ -64,10 +64,10 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
 def to_janis_selector(component: OutputComponent) -> Optional[InputSelector | WildcardSelector]:
     # wildcard specified 
     if component.gxparam:
-        if hasattr(component.gxparam, 'from_work_dir') and component.gxparam.from_work_dir: # type: ignore
-            wildcard = component.gxparam.from_work_dir      # type: ignore
-        elif component.gxparam.discover_pattern:            # type: ignore
-            wildcard = component.gxparam.discover_pattern   # type: ignore
+        if hasattr(component.gxparam, 'from_work_dir') and component.gxparam.from_work_dir:
+            wildcard = component.gxparam.from_work_dir
+        elif hasattr(component.gxparam, 'from_work_dir') and component.gxparam.discover_pattern:
+            wildcard = component.gxparam.discover_pattern
         else:
             wildcard = None
 

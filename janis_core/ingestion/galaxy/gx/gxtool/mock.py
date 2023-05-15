@@ -5,8 +5,8 @@ import tempfile
 import yaml
 from typing import Any
 
-from janis_core.ingestion.galaxy import settings
-from janis_core.ingestion.galaxy.settings.paths import GALAXY_CONFIG
+from janis_core.ingestion.galaxy import runtime
+from janis_core.ingestion.galaxy.runtime.paths import GALAXY_CONFIG
 
 from sqlalchemy.orm.scoping import scoped_session
 
@@ -209,8 +209,8 @@ class MockAppConfig(Bunch):
         self.config_file = None
 
     def set_tool_data_attrs(self) -> None:
-        tool_data = f'{settings.tool.xml_dir()}/tool-data'
-        tool_data_table_conf = f'{settings.tool.xml_dir()}/tool_data_table_conf.xml.sample'
+        tool_data = f'{runtime.tool.xml_dir()}/tool-data'
+        tool_data_table_conf = f'{runtime.tool.xml_dir()}/tool_data_table_conf.xml.sample'
         if os.path.exists(tool_data):
             self.tool_data_path = tool_data
         if os.path.exists(tool_data_table_conf):

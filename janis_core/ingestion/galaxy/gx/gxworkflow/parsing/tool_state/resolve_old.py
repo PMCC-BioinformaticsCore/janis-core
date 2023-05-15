@@ -6,11 +6,11 @@ from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
 from janis_core.ingestion.galaxy.gx.gxtool.param import BoolParam
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
 
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 
 
 def resolve_values_old(gxstep: dict[str, Any]) -> dict[str, Any]:
-    xmltool = load_xmltool(settings.tool.tool_path)
+    xmltool = load_xmltool(runtime.tool.tool_path)
     resolver = StepValueResolver(gxstep, xmltool)
     return resolver.resolve()
 

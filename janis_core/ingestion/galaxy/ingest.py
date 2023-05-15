@@ -2,7 +2,7 @@
 
 import json
 from typing import Any, Optional
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy import mapping
 
 from janis_core.ingestion.galaxy.startup import tool_setup
@@ -48,7 +48,7 @@ def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> Tool:
     """
     setup_data_folder()
     datatypes.populate()
-    settings.tool.tool_path = path
+    runtime.tool.tool_path = path
     galaxy = load_xmltool(path)
     command = gen_command(galaxy)
     container = resolve_dependencies_as_container(galaxy)
@@ -102,7 +102,7 @@ def _parse_step_tool(metadata: StepMetadata, gxstep: dict[str, Any]) -> Tool:
     args = _create_tool_settings_for_step(metadata)
     tool_setup(args)
     gxstep['tool_state'] = load_tool_state(gxstep)
-    tool = ingest_tool(settings.tool.tool_path, gxstep)
+    tool = ingest_tool(runtime.tool.tool_path, gxstep)
     return tool
 
 def _create_tool_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:

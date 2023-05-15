@@ -11,13 +11,13 @@ if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.model.workflow import Workflow
 
 from . import factory
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 
 
 def handle_step_default_inputs(janis: Workflow) -> None:
     # sets tool input values as default
     for j_step in janis.steps:
-        settings.tool.set(from_wrapper=j_step.metadata.wrapper)
+        runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
         ingest_values_defaults(j_step)
 
 def ingest_values_defaults(j_step: WorkflowStep) -> None:

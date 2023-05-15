@@ -22,7 +22,7 @@ from janis_core.ingestion.galaxy.model.workflow import InputValue
 
 from janis_core.ingestion.galaxy import mapping
 from janis_core.ingestion.galaxy import datatypes
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy import expressions
 
 
@@ -31,7 +31,7 @@ def handle_step_static_inputs(janis: Workflow, galaxy: dict[str, Any]) -> None:
     for g_step in galaxy['steps'].values():
         if g_step['type'] == 'tool':
             j_step = mapping.step(g_step['id'], janis, galaxy)
-            settings.tool.set(from_wrapper=j_step.metadata.wrapper)
+            runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
             ingest_values_cheetah(g_step, j_step, janis)
             ingest_values_inputs(g_step, j_step, janis)
 
@@ -62,7 +62,7 @@ class CheetahInputIngestor:
                     pass
 
     def prepare_command(self) -> str:
-        xmltool = load_xmltool(settings.tool.tool_path)
+        xmltool = load_xmltool(runtime.tool.tool_path)
         command = load_partial_cheetah_command(inputs_dict=self.g_step['tool_state'])
         cmdstr = gen_command_string(source='xml', the_string=command, xmltool=xmltool)
         stmtstr = cmdstr.main.cmdline

@@ -16,7 +16,7 @@ from janis_core.ingestion.galaxy.gx.command.components import InputComponent
 
 from janis_core.ingestion.galaxy import mapping
 from janis_core.ingestion.galaxy import datatypes
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 
 
 def handle_step_runtime_inputs(janis: Workflow, galaxy: dict[str, Any]) -> None:
@@ -37,7 +37,7 @@ class RuntimeInputIngestor:
 
     def ingest_runtime(self, g_step: dict[str, Any]) -> None:
         j_step = mapping.step(g_step['id'], self.janis, self.galaxy)
-        settings.tool.set(from_wrapper=j_step.metadata.wrapper)
+        runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
         g_targets = [name for name, val in g_step['tool_state'].items() if val == '__RuntimeValue__']
 
         for g_target in g_targets:

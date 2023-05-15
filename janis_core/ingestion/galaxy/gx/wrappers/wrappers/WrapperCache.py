@@ -4,7 +4,7 @@ import json
 import os
 from typing import Optional
 from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
-from janis_core.ingestion.galaxy.settings.paths import WRAPPER_CACHE
+from janis_core.ingestion.galaxy.runtime.paths import WRAPPER_CACHE
 
 """
 WrapperCache flat file structure:

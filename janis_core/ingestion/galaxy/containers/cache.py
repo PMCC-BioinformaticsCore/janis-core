@@ -1,23 +1,26 @@
 
 
 from __future__ import annotations
+import os
 import json
 import filelock
 import tempfile
 from typing import Any, Optional
 
-from .. import settings
+from janis_core import settings
+from .. import runtime
 from .Container import Container
-
-DISABLE_CACHE = False
 
 
 def init_cache() -> ContainerCache:
-    if DISABLE_CACHE:
+    if settings.ingest.galaxy.DISABLE_CONTAINER_CACHE:
         temp = tempfile.TemporaryFile()
         cache_path = f'{tempfile.gettempdir()}/{temp.name}'
+        os.remove(cache_path)
+        with open(cache_path, 'w') as fp:
+            fp.write('{}')
     else:
-        cache_path = settings.paths.CONTAINER_CACHE
+        cache_path = runtime.paths.CONTAINER_CACHE
     return ContainerCache(cache_path)
 
 

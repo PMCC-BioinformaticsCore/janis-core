@@ -7,7 +7,7 @@ from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
 from janis_core.ingestion.galaxy.model.workflow import Workflow
 
 from janis_core.ingestion.galaxy import mapping
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 
 
 def ingest_workflow_steps_outputs(janis: Workflow, galaxy: dict[str, Any]) -> None:
@@ -27,7 +27,7 @@ class OutputParser:
 
     def parse_step_outputs(self, galaxy_step: dict[str, Any]) -> None:
         janis_step = mapping.step(galaxy_step['id'], self.janis, self.galaxy)
-        settings.tool.set(from_wrapper=janis_step.metadata.wrapper)
+        runtime.tool.set(from_wrapper=janis_step.metadata.wrapper)
         for galaxy_out in galaxy_step['outputs']:
             janis_out = init_tool_step_output(janis_step, galaxy_step, galaxy_out)
             galaxy_out['janis_uuid'] = janis_out.uuid # entity linking

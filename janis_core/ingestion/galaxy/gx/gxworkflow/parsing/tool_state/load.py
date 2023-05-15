@@ -7,7 +7,7 @@ import json
 
 from copy import deepcopy
 from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
-from janis_core.ingestion.galaxy import settings
+from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
 
 # old
@@ -40,7 +40,7 @@ def load_tool_state(
     """
     local_filters = get_local_filters_to_apply(additional_filters)
     global_filters = get_global_filters_to_apply(additional_filters)
-    xmltool = load_xmltool(settings.tool.tool_path)
+    xmltool = load_xmltool(runtime.tool.tool_path)
     tool_state = json.loads(step['tool_state'])
     tool_state = apply_local_filters(local_filters, tool_state, xmltool)
     tool_state = apply_global_filters(global_filters, tool_state, xmltool)
