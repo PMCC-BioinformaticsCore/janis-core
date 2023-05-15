@@ -6,6 +6,8 @@ successful build:
     ->
     janis-translate-limma-voom-3.34.9.9
 
+# Run image [continuumio/miniconda3:latest] with command [[/bin/sh -c conda install  -c 'conda-forge' -c 'bioconda'  'bioconductor-edger' 'r-statmod' 'r-scales' 'r-rjson' 'r-getopt' 'r-gplots' 'bioconductor-glimma' --strict-channel-priority -p /usr/local --copy --yes --quiet]]
+
 FGSEA
     DEST_BASE_IMAGE='quay.io/biocontainers/bioconductor-fgsea:1.24.0--r42hc247a5b_0' mulled-build --name-override 'janis-translate-fgsea-1.24.0' --verbose build-and-test 'r-optparse'
     ->

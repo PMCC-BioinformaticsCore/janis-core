@@ -58,7 +58,7 @@ class MulledContainerGenerator:
         name = self.xmltool.metadata.id
         name = name.lower()
         name = name.replace('_', '-')
-        return f'ppp-janis-translate:{name}-{self.xmltool.metadata.version}'
+        return f'ppp-janis-translate-{name}-{self.xmltool.metadata.version}'
 
     def run_tasks(self) -> None:
         print(f'building container for {self.xmltool.metadata.id}_{self.xmltool.metadata.version}')
@@ -74,11 +74,11 @@ class MulledContainerGenerator:
         command: list[str] = []
         command.append('mulled-build')
         command.append('--name-override')
-        command.append(f'"{self.mulled_uri}"')
+        command.append(f'{self.mulled_uri}')
         command.append('--verbose')
         command.append('build-and-test')
         reqs_joined = ','.join([req.name for req in self.other_reqs])
-        command.append(f"'{reqs_joined}'")
+        command.append(f'{reqs_joined}')
         
         # create env
         os.environ["DEST_BASE_IMAGE"] = f"'{self.base_container_uri}'"
