@@ -20,7 +20,7 @@ from .text.tool.ConfigfileText import ConfigfileText
 from .text.tool.UnstranslatedText import UntranslatedText
 from .text.tool.ToolText import ToolText
 
-from .initialisation import init_folder
+from .initialisation import _init_folder
 
 
 def write_tool(tool: Tool, path: str) -> None:
@@ -68,8 +68,8 @@ def write_scripts(janis: Workflow) -> None:
 def write_wrappers(janis: Workflow) -> None:
     for step in janis.steps:
         src_files = get_wrapper_files_src(step)
-        dest = get_wrapper_files_dest(step)
-        init_folder(dest)
+        dest = get_dest_dir(step)
+        _init_folder(dest)
         for src in src_files:
             shutil.copy2(src, dest)
 
@@ -85,7 +85,7 @@ def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
     macro_xmls = galaxy_utils.get_macros(wrapper_dir)
     return [wrapper_path] + macro_xmls
 
-def get_wrapper_files_dest(step: WorkflowStep) -> str:
+def get_dest_dir(step: WorkflowStep) -> str:
     tool_id = step.metadata.wrapper.tool_id
     revision = step.metadata.wrapper.revision
     return paths.wrapper(tool_id, revision)

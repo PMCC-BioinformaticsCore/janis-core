@@ -1,6 +1,7 @@
 
 
 from typing import Optional, Any
+from inspect import isclass
 
 from janis_core import CodeTool, CommandTool, WorkflowBase
 from janis_core import settings
@@ -21,6 +22,7 @@ def translate(
     tool_to_console: Optional[bool] = None,
     should_validate: Optional[bool] = None,
     write_inputs_file: Optional[bool] = None,
+    source_files: Optional[list[str]] = None,
     
     # inputs
     additional_inputs: Optional[dict[str, str]] = None,
@@ -65,6 +67,8 @@ def translate(
         settings.translate.WITH_RESOURCE_OVERRIDES = with_resource_overrides
     if write_inputs_file is not None:
         settings.translate.WRITE_INPUTS_FILE = write_inputs_file
+    if source_files is not None:
+        settings.translate.SOURCE_FILES = source_files
     if additional_inputs is not None:
         settings.translate.ADDITIONAL_INPUTS = additional_inputs
     if container_override is not None:

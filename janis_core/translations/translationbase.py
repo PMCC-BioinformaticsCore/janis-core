@@ -2,9 +2,9 @@ import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Any, Optional
 import functools
+import shutil
 
 from path import Path
-
 from janis_core import CommandTool, CodeTool, WorkflowBase, Tool
 from janis_core.code.codetool import CodeTool
 from janis_core.tool.commandtool import ToolInput
@@ -22,6 +22,7 @@ class TranslationError(Exception):
 
 
 kwargstoignore = {"container_override"}
+
 
 
 def try_catch_translate(type):
@@ -65,9 +66,6 @@ class TranslatorMeta(type(ABC)):
 
 
 class TranslatorBase(ABC):
-    """
-    
-    """
 
     __metaclass__ = TranslatorMeta
     basedir: str = ''
@@ -135,6 +133,8 @@ class TranslatorBase(ABC):
         if settings.translate.TO_DISK:
             # setting filepaths
             basedir = self.basedir
+            if os.path.isdir(basedir):
+                shutil.rmtree(basedir)
             fn_workflow = self.workflow_filename(wf)
             fn_inputs = self.inputs_filename(wf)
             fn_resources = self.resources_filename(wf)
@@ -186,6 +186,20 @@ class TranslatorBase(ABC):
                     toolfp.write(disk_str_tool)
                     Logger.log(f"Written {fn_tool} to disk")
             
+            # copying source files 
+            if settings.general.SOURCE_FILES is not None:
+                # create source folder in basedir
+                source_dir = os.path.join(basedir, 'source')
+                if not os.path.isdir(source_dir):
+                    os.mkdir(source_dir)
+                
+                # copy files
+                for src, dest in settings.general.SOURCE_FILES:
+                    dest = os.path.join(basedir, 'source', dest)
+                    if not os.path.isdir(os.path.dirname(dest)):
+                        os.mkdir(os.path.dirname(dest))
+                    shutil.copy2(src, dest)
+
             # writing helper files 
             for (fn_helper, disk_str_helper) in str_helpers:
                 with open(os.path.join(basedir, fn_helper), "w+") as helperfp:

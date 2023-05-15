@@ -1,10 +1,11 @@
 
 
 import json
-from typing import Any, Optional
+import os
+from typing import Any, Optional, Tuple
+from janis_core import settings
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy import mapping
-
 from janis_core.ingestion.galaxy.startup import tool_setup
 from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
 from janis_core.ingestion.galaxy.gx.command import gen_command
@@ -13,7 +14,9 @@ from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_conta
 from janis_core.ingestion.galaxy.model.tool.generate import gen_tool
 from janis_core.ingestion.galaxy.model.tool import Tool
 from janis_core.ingestion.galaxy.model.workflow import Workflow
+from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
 from janis_core.ingestion.galaxy.model.workflow import StepMetadata
+from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.metadata import ingest_metadata
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.inputs import ingest_workflow_inputs
@@ -32,6 +35,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.connections import handle_scatter
 from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_inputs
 
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
+from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_wrapper
 
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.startup import setup_data_folder
@@ -85,6 +89,7 @@ def ingest_workflow(path: str) -> Workflow:
     # post ingestion tasks
     update_component_knowledge(internal)
     handle_scattering(internal)
+    handle_source_files(internal)
     return internal
 
 def ingest_workflow_tools(janis: Workflow, galaxy: dict[str, Any]) -> None:
@@ -126,3 +131,35 @@ def _create_tool_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:
             'outdir': None
             #'outdir': f'{paths.wrapper(tool_id, revision)}'
         }
+
+def handle_source_files(janis: Workflow) -> None:
+    settings.general.SOURCE_FILES: list[Tuple[str, str]] = []  # type: ignore
+    for step in janis.steps:
+        dest_dir = get_dest_dir(step)
+        src_files = get_wrapper_files_src(step)
+        dest_files = get_wrapper_files_dest(src_files, dest_dir)
+        for src, dest in zip(src_files, dest_files):
+            settings.general.SOURCE_FILES.append((src, dest))
+
+def get_dest_dir(step: WorkflowStep) -> str:
+    return f'{step.metadata.wrapper.tool_id}-{step.metadata.wrapper.revision}'
+
+def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
+    wrapper = step.metadata.wrapper
+    wrapper_path = fetch_wrapper(
+        owner= wrapper.owner,
+        repo= wrapper.repo,
+        revision= wrapper.revision,
+        tool_id= wrapper.tool_id
+    )
+    wrapper_dir = wrapper_path.rsplit('/', 1)[0]
+    macro_xmls = galaxy_utils.get_macros(wrapper_dir)
+    xmls = [wrapper_path] + macro_xmls
+    return sorted(xmls)
+
+def get_wrapper_files_dest(src_files: list[str], dest_dir: str) -> list[str]:
+    out: list[str] = []
+    for src in src_files:
+        xmlpath = src.rsplit('/', 1)[-1]
+        out.append(os.path.join(dest_dir, xmlpath))
+    return sorted(out)

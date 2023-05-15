@@ -10,7 +10,6 @@ from janis_core.ingestion.galaxy import ingest_tool
 from janis_core.ingestion.galaxy import ingest_workflow
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
-from janis_core import settings
  
 from .SupportedIngestion import SupportedIngestion
 from .cwl import parse as parse_cwl
@@ -48,34 +47,9 @@ ingestor_map = {
 
 def ingest(
     path: str, 
-    format: str, 
+    format: str,
 ) -> Tool:
     
-    # settings
-    settings.validation.STRICT_IDENTIFIERS = False
-    settings.validation.VALIDATE_STRINGFORMATTERS = False
-    settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES = True
-    settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT = True
-    settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
-
-    DEV_MODE = True
-    if DEV_MODE:
-        settings.ingest.galaxy.GEN_IMAGES = True
-        settings.ingest.SAFE_MODE = False
-        settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
-        settings.ingest.cwl.REQUIRE_CWL_VERSION = False
-        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
-        settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = True
-        settings.graph.ALLOW_UNKNOWN_SOURCE = True
-    else:
-        settings.ingest.galaxy.GEN_IMAGES = False
-        settings.ingest.SAFE_MODE = True
-        settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
-        settings.ingest.cwl.REQUIRE_CWL_VERSION = False
-        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
-        settings.graph.ALLOW_UNKNOWN_SOURCE = False
-        settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
-        
     # setup
     configure_logging()
     

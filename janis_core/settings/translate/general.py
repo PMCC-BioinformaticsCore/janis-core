@@ -1,8 +1,7 @@
 
 
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 from janis_core.translation_deps.exportpath import ExportPathKeywords
-
 
 
 EXPORT_PATH:                str = ExportPathKeywords.default # base output directory
@@ -21,7 +20,8 @@ WITH_RESOURCE_OVERRIDES:    bool = False # whether to add computational resource
                                          # uses resources specified in ingested workflow, else default values.
 WRITE_INPUTS_FILE:          bool = True  # whether to write the inputs file to disk
 
-CONTAINER_OVERRIDE:         Optional[str | dict[str, Any]] = None # val, or key, val map where keys are tool ids, vals are containers to use
+CONTAINER_OVERRIDE:         Optional[str | dict[str, Any]] = None   # val, or key, val map where keys are tool ids, vals are containers to use
+SOURCE_FILES:               Optional[list[Tuple[str, str]]] = None  # list of files/directories to copy into export_path/source (src, dest) 
 ADDITIONAL_INPUTS:          Optional[dict[str, Any]] = None # key, val map for additional tool / workflow inputs supplied by user
 HINTS:                      Optional[dict[str, Any]] = None # key, val map for cwl type hints
 MAX_CORES:                  Optional[int] = None            # ceiling value for cores resource

@@ -23,6 +23,9 @@ janis translate cmdline options
 --galaxy-gen-images
 --galaxy-tool-all-commands
 
+allow toolshed paths for tool ingest
+
+
 requirements [WORKING]
     - build mulled container for tools with multiple requirements
 

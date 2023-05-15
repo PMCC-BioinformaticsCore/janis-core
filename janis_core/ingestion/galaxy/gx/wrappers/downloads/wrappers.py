@@ -1,5 +1,4 @@
 
-from janis_core.ingestion.galaxy.logs import logging
 import requests
 import tarfile
 import os

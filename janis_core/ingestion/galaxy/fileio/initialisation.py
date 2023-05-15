@@ -9,7 +9,7 @@ def init_file(path: str, override: bool=False, contents: str='') -> None:
     else:
         _safe_init_file(path, contents)
 
-def init_folder(path: str, override: bool=False) -> None:
+def _init_folder(path: str, override: bool=False) -> None:
     _make_parent_folders(path)
     if override:
         _unsafe_init_folder(path)
