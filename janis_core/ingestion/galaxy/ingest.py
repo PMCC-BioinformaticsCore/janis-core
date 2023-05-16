@@ -142,7 +142,9 @@ def handle_source_files(janis: Workflow) -> None:
             settings.general.SOURCE_FILES.append((src, dest))
 
 def get_dest_dir(step: WorkflowStep) -> str:
-    return f'{step.metadata.wrapper.tool_id}-{step.metadata.wrapper.revision}'
+    if step.metadata.wrapper.revision != 'None':
+        return f'{step.metadata.wrapper.tool_id}-{step.metadata.wrapper.revision}'
+    return f'{step.metadata.wrapper.tool_id}'
 
 def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
     wrapper = step.metadata.wrapper

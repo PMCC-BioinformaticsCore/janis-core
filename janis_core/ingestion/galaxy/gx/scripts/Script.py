@@ -4,6 +4,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class Configfile:
+class Script:
     name: str
     contents: str

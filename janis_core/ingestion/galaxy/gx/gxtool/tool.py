@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from ..configfiles.Configfile import Configfile
+from ..scripts import Script
 from .metadata import ToolXMLMetadata
 from .param.ParamRegister import ParamRegister
 from .TestRegister import TestRegister
@@ -18,6 +19,7 @@ class XMLToolDefinition:
     metadata: ToolXMLMetadata
     raw_command: str
     configfiles: list[Configfile]
+    scripts: list[Script]
     inputs: ParamRegister
     outputs: ParamRegister
     tests: TestRegister

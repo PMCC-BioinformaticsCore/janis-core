@@ -35,9 +35,10 @@ VARIABLES_FMT2 = r'\$\{\w[\w._]+\}'
 FUNCTION_CALL_FMT1 = r'\$\{[^(].+?(\(.*\))[^(]*\}'
 FUNCTION_CALL_FMT2 = r'\$[^(){} \n\'"]+(\(.*\))[^(){} \n\'"]*'
 
-SCRIPT = r'(\$__tool_directory__\/)([^\s\$]+)'
+SCRIPT = r'(\$__tool_directory__\/)([^\s\$]+)'  # TODO duplication of GX_TOOL_SCRIPT should unify
 GX_DYNAMIC_KEYWORDS = r'\\?\${[\w\d]+\:\-(\d+)}'
 GX_STATIC_KEYWORDS = r'\$__new_file_path__|\$__tool_data_path__|\$__root_dir__|\$__datatypes_config__|\$__user_id__|\$__user_email__|\$__app__|\$__target_datatype__'
+GX_TOOL_SCRIPT = r'(\$__tool_directory__\/)([^\'"\s]+)'
 
 WILDCARD_GROUP = r'\((\?P<.+?>)(.*?)\)'
 

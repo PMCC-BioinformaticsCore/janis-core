@@ -56,15 +56,3 @@ def find_unquoted(the_string: str, pattern: str) -> Tuple[int, int]:
                 # return position of first unquoted match
                 return start, end
     return -1, -1
-
-# def get_unpaired_quotes_start(the_string: str) -> int:
-#     # find all quotes
-#     matches = re.finditer(QUOTES, the_string)
-#     quote_locations = [m.start() for m in matches]
-#     # find paired quotes sections
-#     quotes_mask = get_quoted_sections(the_string)
-#     # check each quote is part of quoted section
-#     for loc in quote_locations:
-#         if quotes_mask[loc] != 1:
-#             return loc
-#     return -1

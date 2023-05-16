@@ -50,11 +50,19 @@ def to_janis_tool(internal: Tool) -> CommandToolBuilder:
         container=internal.container,                   # TODO check None type is ok
         version=internal.metadata.version,
         metadata=to_janis_metadata(internal.metadata),
+        files_to_create=to_janis_files_to_create(internal),  # type: ignore
         doc=internal.metadata.help
     )
 
-
-### HELPER METHODS ###
+def to_janis_files_to_create(internal: Tool) -> dict[str, str]:
+    files_to_create: dict[str, str] = {}
+    if internal.configfiles:
+        for configfile in internal.configfiles:
+            files_to_create[configfile.name] = configfile.contents
+    if internal.scripts:
+        for script in internal.scripts:
+            files_to_create[script.name] = script.contents
+    return files_to_create
 
 def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
     """ 

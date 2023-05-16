@@ -33,16 +33,16 @@ class Positional(InputComponent):
     @property
     def default_value(self) -> Any:
         """gets the default value for this component"""
-        if self.forced_default is not None:
+        if self.values.script:
+            default = self.values.script
+        elif self.forced_default is not None:
             default = self.forced_default
         elif self.gxparam:
             default = self.gxparam.default
         elif len(self.values.unique) == 1:
             default = self.values.unique[0]
         elif len(self.values.unique) > 1:
-            if self.values.script:
-                default = self.values.script
-            elif self.values.env_var:
+            if self.values.env_var:
                 default = self.values.env_var
             else:
                 default = self.values.most_common_value

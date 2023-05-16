@@ -30,7 +30,8 @@ class ToolFactory:
             container=self.container,
             base_command=self.get_base_command(),
             gxparam_register=self.xmltool.inputs,
-            configfiles=self.xmltool.configfiles
+            configfiles=self.xmltool.configfiles,
+            scripts=self.xmltool.scripts,
         )
         self.supply_inputs(tool)
         self.supply_outputs(tool)

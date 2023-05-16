@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from janis_core.ingestion.galaxy import tags
 from janis_core.ingestion.galaxy.gx.configfiles.Configfile import Configfile
+from janis_core.ingestion.galaxy.gx.scripts import Script
 from janis_core.ingestion.galaxy.gx.gxtool import ToolXMLMetadata
 from janis_core.ingestion.galaxy.gx.gxtool.param import ParamRegister
 from janis_core.ingestion.galaxy.gx.gxtool.param import Param
@@ -26,6 +27,7 @@ class Tool:
     metadata: ToolXMLMetadata
     gxparam_register: ParamRegister
     configfiles: list[Configfile]
+    scripts: list[Script]
     container: Optional[str]
     base_command: list[str]
 

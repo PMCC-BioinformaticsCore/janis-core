@@ -1,5 +1,4 @@
 
-from janis_core.ingestion.galaxy.logs import logging
 import os
 import tempfile
 
@@ -11,8 +10,12 @@ from galaxy.model import History
 from galaxy.tools import Tool as GxTool
 from galaxy.tools.parameters.basic import ToolParameter
 from galaxy.tool_util.parser.output_objects import ToolOutput
+from ..wrappers.downloads.wrappers import fetch_wrapper
 
+from ...expressions.patterns import GX_TOOL_SCRIPT
+from ...expressions.matches import get_matches
 from ..configfiles.Configfile import Configfile
+from ..scripts import Script
 from .mock import MockApp, MockObjectStore
 from .tool import XMLToolDefinition
 from .metadata import ToolXMLMetadata
@@ -30,7 +33,7 @@ Requirement = ContainerRequirement | CondaRequirement
 
 def load_xmltool(path: str) -> XMLToolDefinition:
     gxtool = _load_galaxy_tool(path)
-    factory = GalaxyToolFactory(gxtool)
+    factory = GalaxyToolFactory(gxtool, path)
     return factory.create()
 
 def _load_galaxy_tool(path: str) -> GxTool:
@@ -56,19 +59,21 @@ def _get_app() -> MockApp:
     return app
 
 class GalaxyToolFactory:
-    def __init__(self, gxtool: GxTool):
+    def __init__(self, gxtool: GxTool, xmlpath: str):
         self.gxtool = gxtool
+        self.xmlpath = xmlpath
         self.inputs = self.parse_inputs()
         self.outputs = self.parse_outputs()
 
     def create(self) -> XMLToolDefinition:
         return XMLToolDefinition(
-            self.parse_metadata(),
-            self.parse_command(),
-            self.parse_configfiles(),
-            self.inputs,
-            self.outputs,
-            self.parse_tests()
+            metadata=self.parse_metadata(),
+            raw_command=self.parse_command(),
+            configfiles=self.parse_configfiles(),
+            scripts=self.parse_scripts(),
+            inputs=self.inputs,
+            outputs=self.outputs,
+            tests=self.parse_tests()
         ) 
     
     def parse_inputs(self) -> ParamRegister:
@@ -191,6 +196,21 @@ class GalaxyToolFactory:
         if out:
             pass
             # logging.has_configfile()
+        return out
+    
+    def parse_scripts(self) -> list[Script]:
+        """returns the tools script it calls in the command"""
+        out: list[Script] = []
+        script_matches = get_matches(self.gxtool.command, GX_TOOL_SCRIPT)
+
+        for match in script_matches:
+            script_name = match.group(2)
+            xmldir = os.path.dirname(self.xmlpath)
+            script_path = os.path.join(xmldir, script_name)
+            with open(script_path, 'r') as f:
+                script_contents = f.read()
+            new_script = Script(script_name, script_contents)  
+            out.append(new_script)
         return out
     
     def parse_tests(self) -> TestRegister:

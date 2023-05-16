@@ -25,26 +25,18 @@ janis translate cmdline options
 
 allow toolshed paths for tool ingest
 
-
-requirements [WORKING]
-    - build mulled container for tools with multiple requirements
-
 - scripts [TODO]
-    - ensure scripts are being copied across in janis-assistant
-    - if script as <configfile> do mapping of tool params to script args
-    - if script as provided script (limma_voom.R) do nothing
-    - for galaxy inbuilt tools (join1), also ensure scripts etc 
+    - check galaxy inbuilt tools (join1)
+    - set script defaults in nextflow.config
 
-- wrappers [TODO]
-    - place all wrappers in folder for user to view 
-    - includes inbuilt tools
+requirements [CHECK]
+    - build mulled container for tools with multiple requirements
 
 - regex to glob [TODO]
     galaxy ingest collection expressions -> nextflow 
     path "report_data/multiqc_.+\.txt", emit: outStats
     ->
     path "report_data/multiqc_*.txt", emit: outStats
-
 
 - goseq.xml error:
     --make_plots '$out.make_plots'

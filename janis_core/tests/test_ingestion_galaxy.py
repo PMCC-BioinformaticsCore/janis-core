@@ -138,6 +138,22 @@ def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> 
 
 ### test classes ###
 
+class TestRegexToGlob(unittest.TestCase):
+
+    def setUp(self) -> None:
+        datatypes.populate()
+        _reset_global_settings()
+    
+    def test_easy(self) -> None:
+        pass
+    
+    def test_medium(self) -> None:
+        pass
+    
+    def test_hard(self) -> None:
+        pass
+
+
 class TestAccessoryFiles(unittest.TestCase):
 
     def setUp(self) -> None:
