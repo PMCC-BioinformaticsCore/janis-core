@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from galaxy.tool_util.parser.output_objects import ToolOutput as GxOutput
 
+from .... import regex_to_glob
 from ..param.ParamRegister import ParamRegister
 from ..param.OutputParam import (
     OutputParam,
@@ -42,16 +43,32 @@ class CollectionOutputFactory(Factory):
 
 
 def get_from_workdir_pattern(gxout: GxOutput) -> Optional[str]:
+    # from_work_dir is a glob pattern
     if has_from_workdir(gxout):
         return gxout.from_work_dir
     return None
 
 def get_discover_pattern(gxout: GxOutput) -> Optional[str]:
-    if has_dataset_collector(gxout):
-        collector = gxout.dataset_collector_descriptions[0]
+    # dataset_collectors are regex patterns
+    if not has_dataset_collector(gxout):
+        return None
+    
+    # get collector & format directory
+    collector = gxout.dataset_collector_descriptions[0]
+    if collector.directory and collector.directory.endswith('/'): # type: ignore
+        pattern = f'{collector.directory}{collector.pattern}' # type: ignore
+    elif collector.directory and not collector.directory.endswith('/'): # type: ignore
         pattern = f'{collector.directory}/{collector.pattern}' # type: ignore
-        return remove_pattern_capture_groups(pattern)
-    return None
+    else:
+        pattern = f'./{collector.pattern}' # type: ignore
+    
+    # remove galaxy capture groups: ie '(?P<designation>.+).tsv' ->  '.+.tsv'
+    pattern = remove_pattern_capture_groups(pattern)
+    
+    # convert regex to glob if required: ie '.+\.tsv' -> '*.tsv'
+    pattern = regex_to_glob.convert(pattern)
+    
+    return pattern
 
 def remove_pattern_capture_groups(pattern: str) -> str:
     matches = expressions.get_matches(pattern, WILDCARD_GROUP)

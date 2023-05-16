@@ -17,6 +17,7 @@ from janis_core.ingestion.galaxy.gx.command.generate import gen_command
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement
 
+from janis_core.ingestion.galaxy import regex_to_glob
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.datatypes.core import file_t, string_t, bool_t
 
@@ -144,14 +145,42 @@ class TestRegexToGlob(unittest.TestCase):
         datatypes.populate()
         _reset_global_settings()
     
-    def test_easy(self) -> None:
-        pass
+    def test_convert_wildcards(self) -> None:
+        self.assertEqual(regex_to_glob.convert('hello .*?'), 'hello *')
+        self.assertEqual(regex_to_glob.convert('my [^_]+ string'), 'my * string')
+        self.assertEqual(regex_to_glob.convert('(0|1)+asd'), '*asd')
+        self.assertEqual(regex_to_glob.convert(' \S+ \w+? single'), ' * * single')
     
-    def test_medium(self) -> None:
-        pass
+    def test_convert_logical_or(self) -> None:
+        self.assertEqual(regex_to_glob.convert('(.*\.tar|.*\.gz)'), '{*.tar,*.gz}')
+        self.assertEqual(regex_to_glob.convert(' (cat|dog|bat) '), ' {cat,dog,bat} ')
     
-    def test_hard(self) -> None:
-        pass
+    def test_convert_char_set(self) -> None:
+        self.assertEqual(regex_to_glob.convert('[123]'), '[1,2,3]')
+        self.assertEqual(regex_to_glob.convert('[a-z123]'), '[a-z,1,2,3]')
+        self.assertEqual(regex_to_glob.convert('[^a-m]'), '[!a-m]')
+        self.assertEqual(regex_to_glob.convert('[a-z]'), '[a-z]')
+    
+    def test_convert_special_chars(self) -> None:
+        self.assertEqual(regex_to_glob.convert('hello \S there \w '), 'hello ? there ? ')
+        self.assertEqual(regex_to_glob.convert('hello . there'), 'hello ? there')
+
+    def test_convert_easy(self) -> None:
+        self.assertEqual(regex_to_glob.convert('report_data/multiqc_.+\.txt'), 'report_data/multiqc_*.txt')
+        self.assertEqual(regex_to_glob.convert('.+\.png'), '*.png')
+        self.assertEqual(regex_to_glob.convert('mqc_.+\.txt'), 'mqc_*.txt')
+    
+    def test_convert_medium(self) -> None:
+        self.assertEqual(regex_to_glob.convert(".+vs_.+)"), "*vs_*)") 
+        self.assertEqual(regex_to_glob.convert(".+_ss\.ps"), "*_ss.ps") 
+        self.assertEqual(regex_to_glob.convert(".*?\..*\.cons\.tax\.summary"), "*.*.cons.tax.summary") 
+        self.assertEqual(regex_to_glob.convert(".+\.sdf$"), "*.sdf?")
+    
+    def test_convert_hard(self) -> None:
+        self.assertEqual(regex_to_glob.convert("[^_]+_[^_]+\.fq"), "*_*.fq")
+        self.assertEqual(regex_to_glob.convert("\S+\ \S+\ single 1\..*"), "* * single 1.*")
+        self.assertEqual(regex_to_glob.convert(".*? index (0|1)\..*"), "* index {0,1}.*")
+        self.assertEqual(regex_to_glob.convert("\S+ \S+ (single (0|1)|(forward|reverse) 0)\..*"), "* * {single {0,1},{forward,reverse} 0}.*")
 
 
 class TestAccessoryFiles(unittest.TestCase):
