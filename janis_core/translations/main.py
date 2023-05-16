@@ -3,17 +3,19 @@
 from typing import Optional, Any
 from inspect import isclass
 
-from janis_core import CodeTool, CommandTool, WorkflowBase
 from janis_core import settings
-
+from janis_core import CodeTool, CommandTool, WorkflowBase
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
+
+from .preprocessing import prune_unused_inputs
 from .translationbase import TranslatorBase
 
 
 def translate(
     entity: CodeTool | CommandTool | WorkflowBase,
     translation: str,
+    mode: Optional[str] = None,
 
     # file io
     export_path: Optional[str] = None,
@@ -43,7 +45,10 @@ def translate(
     # misc
     render_comments: Optional[bool] = None,
 ) -> Any:  
+    
     # settings 
+    if mode is not None:
+        settings.translate.MODE = mode
     if export_path is not None:
         settings.translate.EXPORT_PATH = export_path
         settings.translate.TO_DISK = True
@@ -83,6 +88,10 @@ def translate(
         settings.translate.MAX_DURATION = max_duration
     if max_mem is not None:
         settings.translate.MAX_MEM = max_mem
+
+    # preprocessing
+    if settings.translate.MODE in ['skeleton', 'minimal'] and isinstance(entity, WorkflowBase):
+        entity = prune_unused_inputs(entity)
 
     # select the translation unit 
     translator = get_translator(translation)
