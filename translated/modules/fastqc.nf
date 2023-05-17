@@ -2,7 +2,7 @@ nextflow.enable.dsl=2
 
 process FASTQC {
     
-    container "quay.io/biocontainers/fastqc:0.11.8--2"
+    container "quay.io/biocontainers/fastqc:0.11.9--hdfd78af_1"
     publishDir "${params.outdir}/fastqc"
 
     input:

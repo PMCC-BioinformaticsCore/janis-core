@@ -9,10 +9,7 @@ process QUAST {
     path unknown1
 
     output:
-    path "outputdir/quast.log", emit: outLog
-    path "outputdir/report.tsv", emit: outQuastTabular
     path "outputdir/report.html", emit: outReportHtml
-    path "outputdir/report.pdf", emit: outReportPdf
 
     script:
     """
