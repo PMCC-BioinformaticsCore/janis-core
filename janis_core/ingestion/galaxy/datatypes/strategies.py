@@ -30,7 +30,7 @@ def types_from_param(entity: Any) -> list[str]:
 
 def types_from_values(values: list[Any]) -> list[str]:
     if all([expressions.is_script(v) for v in values]):
-        return ['file']
+        raise RuntimeError
     elif all([expressions.is_int(v) for v in values]):
         return ['integer']
     elif all([expressions.is_float(v) for v in values]):

@@ -100,6 +100,28 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
 
 
+# ---- MODES ------------------------------
+
+class TestModes(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        self.src = 'cwl'
+        self.dest = 'nextflow'
+        _reset_global_settings()
+    
+    def test_skeleton(self) -> None:
+        settings.translate.MODE = 'skeleton'
+        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/super_enhancer_wf.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_minimal(self) -> None:
+        pass
+    
+    def test_full(self) -> None:
+        pass
+
+
 
 # ---- FROM CWL ---------------------------
 

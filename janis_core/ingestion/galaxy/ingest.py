@@ -32,7 +32,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_default
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.updates import update_component_knowledge
 from janis_core.ingestion.galaxy.gx.gxworkflow.connections import handle_scattering
-from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_inputs
+from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_configfile_inputs
 
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_wrapper
@@ -82,7 +82,7 @@ def ingest_workflow(path: str) -> Workflow:
     # assigning step input values
     handle_step_connection_inputs(internal, galaxy)
     handle_step_runtime_inputs(internal, galaxy)
-    handle_step_script_inputs(internal)
+    handle_step_script_configfile_inputs(internal)
     handle_step_static_inputs(internal, galaxy)
     handle_step_default_inputs(internal)
 

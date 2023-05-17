@@ -9,8 +9,8 @@ from janis_core.ingestion.galaxy.gx.command.components import RedirectOutput
 from janis_core.ingestion.galaxy.gx.command.components import Flag
 from janis_core.ingestion.galaxy.gx.command.components import factory
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
-from janis_core.ingestion.galaxy.gx.gxtool.param import Param
-
+from janis_core.ingestion.galaxy.gx.gxtool.param import Param, OutputParam, InputParam
+from janis_core import settings
 
 def extract_outputs(
     xmltool: XMLToolDefinition, 
@@ -72,7 +72,7 @@ class OutputExtractor:
         return prioritised
         
     def define_whitelisted_outputs(self) -> None:
-        if self.gxstep:
+        if settings.translate.MODE in ['skeleton', 'minimal'] and self.gxstep:
             for out in self.gxstep['outputs']:
                 param = self.xmltool.outputs.get(out['name']) 
                 if param:
@@ -130,7 +130,9 @@ class OutputExtractor:
     # CHECKS
     def should_create_input_output(self, component: CommandComponent) -> bool:
         if not isinstance(component, Flag):
-            if component.gxparam:
+            if isinstance(component.gxparam, InputParam):
+                return True
+            elif isinstance(component.gxparam, OutputParam):
                 if component.gxparam.name in [x.name for x in self.whitelisted_outputs]:
                     return True
         return False
@@ -142,22 +144,3 @@ class OutputExtractor:
         elif hasattr(gxparam, 'discover_pattern') and gxparam.discover_pattern is not None: # type: ignore
             return True
         return False
-
-    # def should_create_uncertain_output(self, gxparam: Param, existing_outputs: list[CommandComponent]) -> bool:
-    #     """
-    #     test to see if this *galaxy output param* should spawn uncertain WildcardOutput
-    #     all galaxy outputs which are not yet accounted for must become uncertain WildcardOutputs
-    #     """
-    #     has_output_component = False
-    #     for output in existing_outputs:
-    #         if output.gxparam and output.gxparam.name == gxparam.name:
-    #             has_output_component = True
-    #             break
-    #     if not has_output_component:
-    #         return True
-    #     return False
-
-    # def verify_outputs(self, outputs: list[CommandComponent]) -> None:
-    #     # just checks we have the same number of outputs identified as CommandComponents
-    #     # as there are in the xmltool's listed output params
-    #     assert(len(self.xmltool.outputs.list()) == len(outputs))

@@ -19,7 +19,6 @@ from .main import NextflowTranslator
 from . import nfgen_utils
 from .scope import Scope
 from . import task_inputs
-from . import trace
 from .unwrap import unwrap_expression
 
 

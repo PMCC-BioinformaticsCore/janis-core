@@ -1,6 +1,7 @@
 
 import os
 import tempfile
+import regex as re
 
 from galaxy.tools import Tool as GxTool
 from galaxy.tool_util.parser import get_tool_source
@@ -10,7 +11,7 @@ from galaxy.model import History
 from galaxy.tools import Tool as GxTool
 from galaxy.tools.parameters.basic import ToolParameter
 from galaxy.tool_util.parser.output_objects import ToolOutput
-from ..wrappers.downloads.wrappers import fetch_wrapper
+from .param import DataParam
 
 from ...expressions.patterns import GX_TOOL_SCRIPT
 from ...expressions.matches import get_matches
@@ -62,15 +63,23 @@ class GalaxyToolFactory:
     def __init__(self, gxtool: GxTool, xmlpath: str):
         self.gxtool = gxtool
         self.xmlpath = xmlpath
+        self.scripts: list[Script] = []
+        self.configfiles: list[Configfile] = []
         self.inputs = self.parse_inputs()
+        self.parse_scripts()
+        self.parse_configfiles()
         self.outputs = self.parse_outputs()
+
+    # TODO remove script references in command parsing etc
+    # scripts / configfiles treated as gxparam InputParams. 
+    # still need way to set default value? 
 
     def create(self) -> XMLToolDefinition:
         return XMLToolDefinition(
             metadata=self.parse_metadata(),
             raw_command=self.parse_command(),
-            configfiles=self.parse_configfiles(),
-            scripts=self.parse_scripts(),
+            configfiles=self.configfiles,
+            scripts=self.scripts,
             inputs=self.inputs,
             outputs=self.outputs,
             tests=self.parse_tests()
@@ -187,6 +196,7 @@ class GalaxyToolFactory:
         return str(self.gxtool.command) # type: ignore
     
     def parse_configfiles(self) -> list[Configfile]:
+        # TODO HERE SAME AS SCRIPT
         """returns the tool configfiles"""
         out: list[Configfile] = []
         for name, _, contents in self.gxtool.config_files:  # type: ignore
@@ -198,20 +208,48 @@ class GalaxyToolFactory:
             # logging.has_configfile()
         return out
     
-    def parse_scripts(self) -> list[Script]:
+    def parse_scripts(self) -> None:
         """returns the tools script it calls in the command"""
-        out: list[Script] = []
-        script_matches = get_matches(self.gxtool.command, GX_TOOL_SCRIPT)
+        while get_matches(self.gxtool.command, GX_TOOL_SCRIPT):
+            # get the match
+            match = get_matches(self.gxtool.command, GX_TOOL_SCRIPT)[0]
+            
+            # parse match into script
+            script = self.parse_script(match)
+            
+            # add script to list of scripts
+            self.scripts.append(script)
 
-        for match in script_matches:
-            script_name = match.group(2)
-            xmldir = os.path.dirname(self.xmlpath)
-            script_path = os.path.join(xmldir, script_name)
-            with open(script_path, 'r') as f:
-                script_contents = f.read()
-            new_script = Script(script_name, script_contents)  
-            out.append(new_script)
-        return out
+            # add param for script
+            param = DataParam(name=script.varname)
+            param.formats = ['file']
+            param.helptext = 'galaxy script needed to run tool'
+
+            # add param to input register
+            self.inputs.add(param)
+            
+            # modify command to replace script with param
+            self.replace_script_in_command(match, param)
+            print(self.gxtool.command)
+            print()
+
+    def parse_script(self, match: re.Match[str]) -> Script:
+        filename = match.group(2)
+        varname = filename.rsplit('.', 1)[0]
+        if not varname.endswith('_script'):
+            varname = f'{varname}_script'
+        script_contents = self.read_script_contents(filename)
+        return Script(varname, filename, script_contents)  
+    
+    def read_script_contents(self, filename: str) -> str:
+        xmldir = os.path.dirname(self.xmlpath)
+        filepath = os.path.join(xmldir, filename)
+        with open(filepath, 'r') as f:
+            script_contents = f.read()
+        return script_contents
+
+    def replace_script_in_command(self, match: re.Match[str], param: DataParam) -> None:
+        self.gxtool.command = self.gxtool.command.replace(match.group(0), f'${param.name}')
     
     def parse_tests(self) -> TestRegister:
         """

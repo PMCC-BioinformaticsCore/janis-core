@@ -6,8 +6,6 @@ from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 
 
-
-
 class TestExportPath(unittest.TestCase):
     """
     These tests are for components that apply to every single translation.

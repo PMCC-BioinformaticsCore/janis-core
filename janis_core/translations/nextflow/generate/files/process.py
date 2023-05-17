@@ -9,7 +9,7 @@ from ...model.files import NFImportsBlock
 from ...model.files import NFFunctionsBlock
 from ...model.process import NFProcess
 
-from ...trace import trace_entity_counts
+from ....common import trace
 
 
 get_primary_files_code = """\
@@ -64,7 +64,7 @@ def gen_imports_for_process_file(tool: CommandTool | PythonTool) -> Optional[NFI
 def _should_add_json_slurper(tool: CommandTool | PythonTool) -> bool:
     if isinstance(tool, CommandTool):
         for toutput in tool.outputs():
-            entity_counts = trace_entity_counts(toutput.selector, tool)
+            entity_counts = trace.trace_entity_counts(toutput.selector, tool)
             if 'ReadJsonOperator' in entity_counts:
                 return True
     return False

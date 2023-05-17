@@ -5,5 +5,6 @@ from dataclasses import dataclass
 
 @dataclass
 class Script:
-    name: str
+    varname: str
+    filename: str
     contents: str

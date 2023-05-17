@@ -19,24 +19,26 @@ WORSHOP
 
 janis translate cmdline options
 
---mode skeleton | minimal | full
+--mode  skeleton | regular | expanded
 --galaxy-gen-images
---galaxy-tool-all-commands
+--galaxy-tool-all-commands (low prio)
+
 
 allow toolshed paths for tool ingest
 
 - scripts [TODO]
+    - each tool script should be listed in files_to_create
+    - each tool script should have name f'{script.name / configfile.name}_script'
+    - each tool script should have an associated ToolInput with position etc 
+    - each tool script should be supplied from params, and its default should be './templates/script'
+    - scripts are file workflow inputs but have a default
+
     - check galaxy inbuilt tools (join1)
     - set script defaults in nextflow.config
+    - def script = script.simpleName != params.NULL ? script : "column_maker.py" NO
 
 requirements [CHECK]
     - build mulled container for tools with multiple requirements
-
-- regex to glob [TODO]
-    galaxy ingest collection expressions -> nextflow 
-    path "report_data/multiqc_.+\.txt", emit: outStats
-    ->
-    path "report_data/multiqc_*.txt", emit: outStats
 
 - goseq.xml error:
     --make_plots '$out.make_plots'

@@ -30,9 +30,9 @@ class Option(InputComponent):
         elif len(self.values.unique) == 1:
             default = self.values.unique[0]
         elif len(self.values.unique) > 1:
-            if self.values.script:
-                default = self.values.script
-            elif self.values.env_var:
+            # if self.values.script:
+            #     default = self.values.script
+            if self.values.env_var:
                 default = self.values.env_var
             else:
                 default = self.values.most_common_value

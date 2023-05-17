@@ -1,45 +1,46 @@
 nextflow.enable.dsl=2
 
-include { FASTQC as FASTQC1 } from './modules/fastqc'
-include { FASTQC as FASTQC2 } from './modules/fastqc'
-include { UNICYCLER } from './modules/unicycler'
-include { NANOPLOT } from './modules/nanoplot'
-include { QUAST } from './modules/quast'
-include { BUSCO } from './modules/busco'
+include { TP_CUT_TOOL as TP_CUT_TOOL1 } from './modules/tp_cut_tool'
+include { MERGE_COLS1 } from './modules/merge_cols1'
+include { TP_REPLACE_IN_LINE } from './modules/tp_replace_in_line'
+include { TP_CUT_TOOL as TP_CUT_TOOL2 } from './modules/tp_cut_tool'
+include { ANNOTATEMYIDS } from './modules/annotatemyids'
+include { LIMMA_VOOM } from './modules/limma_voom'
 
 
 // data which will be passed as channels
-ch_in_long      = Channel.fromPath( params.in_long )
-ch_in_short_r1  = Channel.fromPath( params.in_short_r1 )
-ch_in_short_r2  = Channel.fromPath( params.in_short_r2 )
+ch_in_sampleinfo                 = Channel.fromPath( params.in_sampleinfo )
+ch_in_seqdata                    = Channel.fromPath( params.in_seqdata )
+ch_limma_voom_limma_voom_script  = Channel.fromPath( params.limma_voom_limma_voom_script )
 
 
 workflow {
 
-    FASTQC1(
-        ch_in_short_r1  // inputFile
+    TP_CUT_TOOL1(
+        ch_in_seqdata  // inputFile
     )
 
-    FASTQC2(
-        ch_in_short_r2  // inputFile
+    MERGE_COLS1(
+        ch_in_sampleinfo  // input1
     )
 
-    UNICYCLER(
-        ch_in_short_r1,  // option11
-        ch_in_short_r2,  // option12
-        ch_in_long       // optionL
+    TP_REPLACE_IN_LINE(
+        TP_CUT_TOOL1.out.outputFile  // infile
     )
 
-    NANOPLOT(
-        ch_in_long  // unknown1
+    TP_CUT_TOOL2(
+        MERGE_COLS1.out.out_file12  // inputFile
     )
 
-    QUAST(
-        UNICYCLER.out.outAssembly  // unknown1
+    ANNOTATEMYIDS(
+        TP_REPLACE_IN_LINE.out.outfile  // unknown1
     )
 
-    BUSCO(
-        UNICYCLER.out.outAssembly  // inFile
+    LIMMA_VOOM(
+        ch_limma_voom_limma_voom_script,  // limma_voom_script
+        ANNOTATEMYIDS.out.out_tab,        // option_a
+        TP_CUT_TOOL2.out.outputFile,      // option_f
+        TP_REPLACE_IN_LINE.out.outfile    // option_m
     )
 
 

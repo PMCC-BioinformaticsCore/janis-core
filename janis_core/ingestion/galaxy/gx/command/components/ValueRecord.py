@@ -44,13 +44,13 @@ class ValueRecord:
                 return text
         return None
     
-    @property
-    def script(self) -> Optional[str]:
-        for text in self.record:
-            if expressions.is_script(text):
-                matches = expressions.get_matches(text, expressions.patterns.SCRIPT)
-                return matches[0].group(2)
-        return None
+    # @property
+    # def script(self) -> Optional[str]:
+    #     for text in self.record:
+    #         if expressions.is_script(text):
+    #             matches = expressions.get_matches(text, expressions.patterns.SCRIPT)
+    #             return matches[0].group(2)
+    #     return None
 
     
 

@@ -52,9 +52,7 @@ from janis_core.operators.selectors import (
 )
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core.workflow.workflow import InputNode
-
 from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool
-
 from janis_core import translation_utils as utils
 
 
@@ -417,18 +415,23 @@ class ReferencedVariableTracer(Tracer):
         return None
     
     def trace(self, entity: Any) -> None:
+        should_continue = True
         # reached a leaf node (variable reference to tool input)
         if isinstance(entity, (ToolInput, TInput, InputNode)):
             # we need to check whether the TInput is a deadend.
             # in the case of a Filename type, can always guarantee a value? I hope?
             dtype = self.get_datatype(entity)
             if isinstance(dtype, Filename):
-                pass
+                referenced_ids = trace_referenced_variables(entity, self.tool)
+                if not referenced_ids:
+                    should_continue = False
+                    self.variables.add(entity.id())
             else:
+                should_continue = False
                 self.variables.add(entity.id())
         
         # other nodes: continue tracing
-        else:
+        if should_continue:
             etype = type(entity)
             if etype in self.custom_trace_funcs:
                 func = self.custom_trace_funcs[etype]

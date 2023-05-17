@@ -233,8 +233,7 @@ class Command:
             if not p.gxparam:
                 if len(p.values.unique) == 1:
                     if not expressions.is_var(p.values.unique[0]):
-                        if not expressions.is_script(p.values.unique[0]):
-                            return True
+                        return True
         return False
 
     def get_non_base_positionals(self) -> list[Positional]:
