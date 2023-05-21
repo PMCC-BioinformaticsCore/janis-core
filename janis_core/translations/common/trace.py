@@ -52,7 +52,7 @@ from janis_core.operators.selectors import (
 )
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core.workflow.workflow import InputNode
-from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool
+from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool, CommandTool, CodeTool
 from janis_core import translation_utils as utils
 
 
@@ -202,8 +202,8 @@ class Tracer(ABC):
 
     def input_selector(self, entity: InputSelector) -> None:
         # a tool input
-        assert(self.tool)
-        tinput = self.tool.inputs_map()[entity.input_to_select]
+        assert(isinstance(self.tool, CommandTool | CodeTool))
+        tinput = [x for x in self.tool.inputs() if x.id() == entity.input_to_select][0]
         self.trace(tinput)
         
     def tool_input(self, entity: ToolInput | TInput) -> None:

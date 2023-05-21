@@ -10,7 +10,7 @@
 
 # symbols
 PYTHON_CODE_FILE = 'code_file'
-NULL = 'NULL'
+NULL_VALUE = 'NULL_VALUE'
 
 # filenames
 CONFIG_FILENAME = 'nextflow.config'

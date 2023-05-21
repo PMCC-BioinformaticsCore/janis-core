@@ -109,9 +109,6 @@ class InputReferenceFormatter:
         self.ctype = get_ctype(tinput)
         self.dtt = utils.get_dtt(tinput.input_type)
 
-        if self.tool.id() == 'cutadapt' and self.tinput.id() == 'outputPrefix':
-            print()
-
     def format(self) -> list[str]:
         """
         generates a script line for this ToolInput. 
@@ -146,10 +143,7 @@ class InputReferenceFormatter:
             return self.varhistory.items[1].value
         
         elif self.dtt == DTypeType.SECONDARY:
-            if self.attributes.optional:
-                return self.varhistory.items[1].value
-            else:
-                return self.varhistory.items[0].value[0]
+            return self.varhistory.items[1].value
         
         else:
             return self.varhistory.current.value

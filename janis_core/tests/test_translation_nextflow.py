@@ -160,6 +160,7 @@ def reset_globals() -> None:
     translator = NextflowTranslator()
 
     # nextflow specific
+    settings.translate.MODE = 'full'
     settings.translate.nextflow.MODE = 'workflow'
     settings.translate.nextflow.MINIMAL_PROCESS = True
 
@@ -547,9 +548,6 @@ class TestDatatypeUtils(unittest.TestCase):
         
         
 
-
-
-
 class TestTaskInputs(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -557,6 +555,7 @@ class TestTaskInputs(unittest.TestCase):
 
     # no subworkflows
     def test_one_call(self) -> None:
+        settings.translate.MODE = 'minimal'
         wf = MinimalTaskInputsTestWF1()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1059,9 +1058,9 @@ class TestFiles(unittest.TestCase):
             ")",
             "FASTQC3(",
             "ch_test_input,",
-            "file( params.NULL ),",
-            "file( params.NULL ),",
-            "file( params.NULL )",
+            "file( params.NULL_VALUE ),",
+            "file( params.NULL_VALUE ),",
+            "file( params.NULL_VALUE )",
             ")",
             "CAT_TEST_TOOL(",
             "FASTQC3.out.outTextFile",
@@ -1097,9 +1096,9 @@ class TestFiles(unittest.TestCase):
             'path "output.html", emit: outHtmlFile',
             'path "output.txt", emit: outTextFile',
             'script:',
-            'def adapters = adapters.simpleName != params.NULL ? "--adapters ${adapters}" : ""',
-            'def contaminants = contaminants.simpleName != params.NULL ? "--contaminants ${contaminants}" : ""',
-            'def limits = limits.simpleName != params.NULL ? "--limits ${limits}" : ""',
+            'def adapters = adapters.simpleName != params.NULL_VALUE ? "--adapters ${adapters}" : ""',
+            'def contaminants = contaminants.simpleName != params.NULL_VALUE ? "--contaminants ${contaminants}" : ""',
+            'def limits = limits.simpleName != params.NULL_VALUE ? "--limits ${limits}" : ""',
             '"""',
             'fastqc \\',
             '${adapters} \\',
@@ -1535,7 +1534,6 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
             'publishDir "${params.outdir}/resources_test_tool"',
-            'debug true',
             'disk "${params.resources_test_tool.disk}"',
             'memory "${params.resources_test_tool.memory}"',
             'time "${params.resources_test_tool.time}"'
@@ -1572,9 +1570,9 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
         actual_inputs = [i.get_string() for i in process.inputs]
         expected_inputs = [
-            'tuple path(bam1_bam), path(bam1_bai)',
-            'tuple path(bam2_bam), path(bam2_bai)',
-            'tuple path(bam3_bam), path(bam3_bai)',
+            'path bam1',
+            'path bam2',
+            'path bam3',
         ]
         self.assertEqual(len(actual_inputs), len(expected_inputs))
         for inp in expected_inputs:
@@ -1589,7 +1587,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
         actual_inputs = [i.get_string() for i in process.inputs]
         expected_inputs = [
-            'tuple path(bam, stageAs: \'bam/*\'), path(bai, stageAs: \'bai/*\')',
+            'path bam1'
         ]
         self.assertEqual(len(actual_inputs), len(expected_inputs))
         for inp in expected_inputs:
@@ -1621,7 +1619,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
         actual_inputs = [i.get_string() for i in process.inputs]
         expected_inputs = [
-            "path indexed_bam_flat, stageAs: 'indexed_bam_flat??/*'",
+            "path bams1_flat",
         ]
         self.assertEqual(len(actual_inputs), len(expected_inputs))
         for inp in expected_inputs:
@@ -1651,7 +1649,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
         actual_inputs = [i.get_string() for i in process.inputs]
         expected_inputs = [
-            'tuple path(reads1, stageAs: \'reads1/*\'), path(reads2, stageAs: \'reads2/*\')',
+            'tuple path(reads1), path(reads2)',
         ]
         self.assertEqual(len(actual_inputs), len(expected_inputs))
         for inp in expected_inputs:
@@ -1681,7 +1679,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
         actual_inputs = [i.get_string() for i in process.inputs]
         expected_inputs = [
-            'path read_pairs_flat, stageAs: \'read_pairs_flat??/*\'',
+            'path read_pairs_flat',
         ]
         self.assertEqual(len(actual_inputs), len(expected_inputs))
         for inp in expected_inputs:
@@ -1760,7 +1758,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'stdout, emit: out'}
+        expected_outputs = {'stdout emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)  
 
     def test_wildcard(self) -> None:
@@ -1793,7 +1791,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "myfile.txt", emit: out'}
+        expected_outputs = {'path output_filename, emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
         
     def test_input_selector_array(self) -> None:
@@ -1807,6 +1805,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_filenames_generated(self) -> None:
+        settings.translate.MODE = 'minimal'
         wf = FilenameTestWF2()
         do_preprocessing_workflow(wf)
         
@@ -2025,10 +2024,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def pos_default = pos_default != params.NULL ? pos_default : 95',
+            'def pos_default = pos_default != params.NULL_VALUE ? pos_default : 95',
             'def flag_true = flag_true == false ? "" : "--flag-true"',
             'def flag_false = flag_false ? "--flag-false" : ""',
-            'def opt_default = opt_default != params.NULL ? opt_default : 5',
+            'def opt_default = opt_default != params.NULL_VALUE ? opt_default : 5',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2059,10 +2058,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def pos_optional = pos_optional != params.NULL ? pos_optional : ""',
+            'def pos_optional = pos_optional != params.NULL_VALUE ? pos_optional : ""',
             'def flag_true = flag_true == false ? "" : "--flag-true"',
             'def flag_false = flag_false ? "--flag-false" : ""',
-            'def opt_optional = opt_optional != params.NULL ? "--opt-optional ${opt_optional}" : ""',
+            'def opt_optional = opt_optional != params.NULL_VALUE ? "--opt-optional ${opt_optional}" : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2094,9 +2093,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'def pos_basic_arr_joined = pos_basic_arr.join(\' \')',
             'def opt_basic_arr_joined = opt_basic_arr.join(\' \')',
             'def opt_basic_arr_prefixeach_joined = opt_basic_arr_prefixeach.collect{ "--opt-basic-prefixeach ${it}" }.join(\' \')',
-            'def opt_default_arr_joined = opt_default_arr != params.NULL ? opt_default_arr.join(\' \') : "100 200 300"',
-            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach != params.NULL ? opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \') : "--opt-default-prefixeach "hi" --opt-default-prefixeach "there""',
-            'def pos_default_arr_joined = pos_default_arr != params.NULL ? pos_default_arr.join(\' \') : "1 2"',
+            'def opt_default_arr_joined = opt_default_arr != params.NULL_VALUE ? opt_default_arr.join(\' \') : "100 200 300"',
+            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach != params.NULL_VALUE ? opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \') : "--opt-default-prefixeach "hi" --opt-default-prefixeach "there""',
+            'def pos_default_arr_joined = pos_default_arr != params.NULL_VALUE ? pos_default_arr.join(\' \') : "1 2"',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2127,9 +2126,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def pos_optional_arr_joined = pos_optional_arr[0].simpleName != params.NULL ? pos_optional_arr.join(\' \') : ""',
-            'def opt_optional_arr_joined = opt_optional_arr != params.NULL ? "--opt-optional-arr " + opt_optional_arr.join(\' \') : ""',
-            'def opt_optional_arr_prefixeach_joined = opt_optional_arr_prefixeach != params.NULL ? opt_optional_arr_prefixeach.collect{ "--opt-optional-arr-prefixeach ${it}" }.join(\' \') : ""',
+            'def pos_optional_arr_joined = pos_optional_arr[0] != null ? pos_optional_arr.join(\' \') : ""',
+            'def opt_optional_arr_joined = opt_optional_arr != params.NULL_VALUE ? "--opt-optional-arr " + opt_optional_arr.join(\' \') : ""',
+            'def opt_optional_arr_prefixeach_joined = opt_optional_arr_prefixeach != params.NULL_VALUE ? opt_optional_arr_prefixeach.collect{ "--opt-optional-arr-prefixeach ${it}" }.join(\' \') : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2186,7 +2185,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def bam1 = bam.simpleName != params.NULL ? bam : ""',
+            'def bam1 = bam.simpleName != params.NULL_VALUE ? bam : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2249,7 +2248,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = {
             'def bams1 = get_primary_files(indexed_bam_flat, 2)',
-            'def bams1_joined = bams1[0].simpleName != params.NULL ? bams1.join(\' \') : ""',
+            'def bams1_joined = bams1[0].simpleName != params.NULL_VALUE ? bams1.join(\' \') : ""',
         }
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2351,8 +2350,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def reads_joined = reads1 + \' \' + reads2',
-            'def read1 = read1.simpleName != params.NULL ? read1 : ${reads1}',
-            'def read2 = read2.simpleName != params.NULL ? read2 : ${reads2}',
+            'def read1 = read1.simpleName != params.NULL_VALUE ? read1 : ${reads1}',
+            'def read2 = read2.simpleName != params.NULL_VALUE ? read2 : ${reads2}',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2379,9 +2378,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def reads_joined = reads1.simpleName != params.NULL ? reads1 + \' \' + reads2 : ""',
-            'def reads1 = reads1.simpleName != params.NULL ? reads1 : ""',
-            'def reads2 = reads2.simpleName != params.NULL ? reads2 : ""',
+            'def reads_joined = reads1.simpleName != params.NULL_VALUE ? reads1 + \' \' + reads2 : ""',
+            'def reads1 = reads1.simpleName != params.NULL_VALUE ? reads1 : ""',
+            'def reads2 = reads2.simpleName != params.NULL_VALUE ? reads2 : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2406,12 +2405,12 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def reads_a_joined = reads_a1.simpleName != params.NULL ? "--prefix ${reads_a1} ${reads_a2}" : ""',
-            'def reads_a1 = reads_a1.simpleName != params.NULL ? "--prefix " + reads_a1 : ""',
-            'def reads_a2 = reads_a2.simpleName != params.NULL ? "--prefix " + reads_a2 : ""',
-            'def reads_b_joined = reads_b1.simpleName != params.NULL ? "--prefixeach ${reads_b1} --prefixeach ${reads_b2}" : ""',
-            'def reads_b1 = reads_b1.simpleName != params.NULL ? "--prefixeach " + reads_b1 : ""',
-            'def reads_b2 = reads_b2.simpleName != params.NULL ? "--prefixeach " + reads_b2 : ""',
+            'def reads_a_joined = reads_a1.simpleName != params.NULL_VALUE ? "--prefix ${reads_a1} ${reads_a2}" : ""',
+            'def reads_a1 = reads_a1.simpleName != params.NULL_VALUE ? "--prefix " + reads_a1 : ""',
+            'def reads_a2 = reads_a2.simpleName != params.NULL_VALUE ? "--prefix " + reads_a2 : ""',
+            'def reads_b_joined = reads_b1.simpleName != params.NULL_VALUE ? "--prefixeach ${reads_b1} --prefixeach ${reads_b2}" : ""',
+            'def reads_b1 = reads_b1.simpleName != params.NULL_VALUE ? "--prefixeach " + reads_b1 : ""',
+            'def reads_b2 = reads_b2.simpleName != params.NULL_VALUE ? "--prefixeach " + reads_b2 : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2438,9 +2437,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def reads_joined = reads1.simpleName != params.NULL ? reads1 + \' \' + reads2 : ""',
-            'def reads1 = reads1.simpleName != params.NULL ? reads1 : ""',
-            'def reads2 = reads2.simpleName != params.NULL ? reads2 : ""',
+            'def reads_joined = reads1.simpleName != params.NULL_VALUE ? reads1 + \' \' + reads2 : ""',
+            'def reads1 = reads1.simpleName != params.NULL_VALUE ? reads1 : ""',
+            'def reads2 = reads2.simpleName != params.NULL_VALUE ? reads2 : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2466,11 +2465,11 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def reads_joined = reads1.simpleName != params.NULL ? reads1 + \' \' + reads2 : ""',
-            'def reads1 = reads1.simpleName != params.NULL ? reads1 : ""',
-            'def reads2 = reads2.simpleName != params.NULL ? reads2 : ""',
-            'def read1 = read1.simpleName != params.NULL ? read1 : ${reads1}',
-            'def read2 = read2.simpleName != params.NULL ? read2 : ${reads2}',
+            'def reads_joined = reads1.simpleName != params.NULL_VALUE ? reads1 + \' \' + reads2 : ""',
+            'def reads1 = reads1.simpleName != params.NULL_VALUE ? reads1 : ""',
+            'def reads2 = reads2.simpleName != params.NULL_VALUE ? reads2 : ""',
+            'def read1 = read1.simpleName != params.NULL_VALUE ? read1 : ${reads1}',
+            'def read2 = read2.simpleName != params.NULL_VALUE ? read2 : ${reads2}',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2522,7 +2521,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def read_pairs = read_pairs_flat.collate(2, 2)',
-            'def read_pairs_joined = read_pairs.collect{ it[0].simpleName != params.NULL ? it.join(\' \') : "" }',
+            'def read_pairs_joined = read_pairs.collect{ it[0].simpleName != params.NULL_VALUE ? it.join(\' \') : "" }',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -3460,10 +3459,10 @@ class TestPlumbingBasic(unittest.TestCase):
         actual = _gen_call_lines_local(wf, step=wf.step_nodes['stp2_supp'])
         # this commented out section is a TODO. 
         # expected = [
-        #     'params.NULL',
-        #     'params.NULL',
-        #     'params.NULL',
-        #     'params.NULL',
+        #     'params.NULL_VALUE',
+        #     'params.NULL_VALUE',
+        #     'params.NULL_VALUE',
+        #     'params.NULL_VALUE',
         # ]
         expected = [
             'params.stp2_supp_flag_false',
@@ -3585,9 +3584,9 @@ class TestPlumbingBasic(unittest.TestCase):
         actual = _gen_call_lines_local(wf, step=wf.step_nodes['stp3'])
         expected = [
             "ch_in_file1",
-            "params.NULL",
+            "params.NULL_VALUE",
             '"hello"',
-            "params.NULL",
+            "params.NULL_VALUE",
         ]
         self.assertEqual(len(actual), len(expected))
         for arg in expected:
@@ -3624,9 +3623,9 @@ class TestPlumbingBasic(unittest.TestCase):
         actual = _gen_call_lines_local(wf, step=wf.step_nodes['stp6'])
         expected = [
             "ch_in_file1",
-            "params.NULL",
+            "params.NULL_VALUE",
             '"hello"',
-            "params.NULL",
+            "params.NULL_VALUE",
         ]
         self.assertEqual(len(actual), len(expected))
         for arg in expected:
@@ -3823,8 +3822,8 @@ class TestUnwrapProcess(unittest.TestCase):
         self.assertIn("--IndexOperatorArray ${in_file_arr[0]}", self.script)
     
     def test_index_operator_secondaries(self) -> None:
-        self.assertIn("--IndexOperatorSecondariesBam ${bam}", self.script)
-        self.assertIn("--IndexOperatorSecondariesBai ${bai}", self.script)
+        self.assertIn("--IndexOperatorSecondariesBam ${in_bam_bai}", self.script)
+        self.assertIn("--IndexOperatorSecondariesBai ${in_bam_bai[1]}", self.script)
     
     def test_index_operator_secondaries_array(self) -> None:
         print(self.script)

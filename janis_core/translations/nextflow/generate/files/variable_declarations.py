@@ -20,30 +20,50 @@ INDENT = settings.translate.nextflow.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
-
 def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVariableDefinitionBlock]:
     # for each param
     # if it qualifies to create a file, create file variable declaration
     # return block if 1+ variable declarations 
     var_definitions: list[NFVariableDefinition] = []
     var_block: Optional[NFVariableDefinitionBlock] = None
-    
+
     if isinstance(nf_workflow, NFMainWorkflow):
         for tinput in wf.tool_inputs():
-            if task_inputs.exists(wf.id(), tinput):
+            if should_create_channel_definition(tinput, wf):
                 task_input = task_inputs.get(wf.id(), tinput)
-                if task_input.ti_type in (TaskInputType.PARAM, TaskInputType.TASK_INPUT):
-                    # only optional file types get declared as file() variables
-                    if tinput.intype.optional and utils.is_file_type(tinput.intype):
-                        generator = VariableDefinitionGenerator(tinput, task_input)
-                        var_def = generator.generate()
-                        var_definitions.append(var_def)
+                generator = VariableDefinitionGenerator(tinput, task_input)
+                var_def = generator.generate()
+                var_definitions.append(var_def)
                         
     if var_definitions:
         var_block = NFVariableDefinitionBlock(var_definitions)
     
     return var_block
 
+
+def should_create_channel_definition(tinput: TInput, wf: Workflow) -> bool:
+    if not task_inputs.exists(wf.id(), tinput):
+        return False
+    
+    task_input = task_inputs.get(wf.id(), tinput)
+    if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
+        return False
+    
+    dtt = utils.get_dtt(tinput.intype)
+    if dtt not in [
+        DTypeType.SECONDARY_ARRAY,
+        DTypeType.SECONDARY,
+        DTypeType.FILE_PAIR_ARRAY,
+        DTypeType.FILE_PAIR,
+        DTypeType.FILE_ARRAY,
+        DTypeType.FILE,
+    ]:
+        return False
+
+    if not tinput.intype.optional:
+        return False
+    
+    return True
 
 
 class VariableDefinitionGenerator:

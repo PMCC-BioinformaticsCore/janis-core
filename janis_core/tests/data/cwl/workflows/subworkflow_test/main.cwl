@@ -11,17 +11,27 @@ requirements:
 inputs:
     inFile:
         type: File
+    inFileOptional:
+        type: File?
     inFileArr:
         type: File[]
+    inFileArrOptional:
+        type: File[]?
     inSecondary:
         type: File
         secondaryFiles: [.fai, ^.dict, .amb, .ann, .bwt, .pac, .sa]
     inString:
         type: string
+    inStringOptional:
+        type: string?
     inStringArr:
         type: string[]
+    inStringArrOptional:
+        type: string[]?
     inInt:
         type: int
+    inIntOptional:
+        type: int?
 
 outputs:
     outFile:
@@ -35,7 +45,7 @@ steps:
             inFile: inFile
             inString: inString
             inSecondary: inSecondary
-            inFileOptional: inFile
+            inFileOptional: inFileOptional
         out:
             [out_stdout]
     mandatory:
@@ -52,16 +62,16 @@ steps:
     optional1:
         run: optional_input_types.cwl
         in:
-            inFile: inFile
-            inFileArr: inFileArr
+            inFile: inFileOptional
+            inFileArr: inFileArrOptional
         out:
             [out_stdout]
     optional2:
         run: optional_input_types.cwl
         in:
-            inString: inString
-            inStringArr: inStringArr
-            inInt: inInt
+            inString: inStringOptional
+            inStringArr: inStringArrOptional
+            inInt: inIntOptional
         out:
             [out_stdout]
     sub:

@@ -15,10 +15,8 @@ from .mock_components import (
     MOCK_INPUT_OUTPUT
 )
 
-
 MOCK_TOOL_ABRICATE = Tool(
     metadata=MOCK_TOOL_METADATA,
-    gxparam_register=MOCK_PARAM_REGISTER,
     configfiles=[],
     scripts=[],
     container='quay.io/biocontainers/abricate:1.0.1--ha8f3691_1',

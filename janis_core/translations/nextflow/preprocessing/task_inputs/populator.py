@@ -54,43 +54,43 @@ class TaskInputsPopulator(ABC):
     def populate(self) -> None:
         ...
         
-    def duplicate_datatype_exists(self, inp: TInput) -> bool:
-        """
-        check if another TInput has the same dtype as this TInput.
-        only checking for secondary and array secondary datatype duplicates.
-        """
-        rtype = inp.intype  # type: ignore
-        rbasetype = utils.get_base_type(rtype)  # type: ignore
+    # def duplicate_datatype_exists(self, inp: TInput) -> bool:
+    #     """
+    #     check if another TInput has the same dtype as this TInput.
+    #     only checking for secondary and array secondary datatype duplicates.
+    #     """
+    #     rtype = inp.intype  # type: ignore
+    #     rbasetype = utils.get_base_type(rtype)  # type: ignore
         
-        for tinput in self.tool.tool_inputs():
-            # dont check tinput against itself
-            if tinput.id() == inp.id():
-                continue 
+    #     for tinput in self.tool.tool_inputs():
+    #         # dont check tinput against itself
+    #         if tinput.id() == inp.id():
+    #             continue 
             
-            # only check against other task inputs
-            if tinput.id() in self.task_inputs:
-                # check if types match
-                qtype = tinput.intype  # type: ignore
-                qbasetype = utils.get_base_type(qtype)  # type: ignore
+    #         # only check against other task inputs
+    #         if tinput.id() in self.task_inputs:
+    #             # check if types match
+    #             qtype = tinput.intype  # type: ignore
+    #             qbasetype = utils.get_base_type(qtype)  # type: ignore
 
-                if utils.is_secondary_array_type(rtype) and utils.is_secondary_array_type(qtype):  # type: ignore
-                    if type(rbasetype) == type(qbasetype):
-                        return True
+    #             if utils.is_secondary_array_type(rtype) and utils.is_secondary_array_type(qtype):  # type: ignore
+    #                 if type(rbasetype) == type(qbasetype):
+    #                     return True
                 
-                elif utils.is_secondary_type(rtype) and utils.is_secondary_type(qtype):  # type: ignore
-                    if type(rtype) == type(qtype):  # type: ignore
-                        return True
-        return False
+    #             elif utils.is_secondary_type(rtype) and utils.is_secondary_type(qtype):  # type: ignore
+    #                 if type(rtype) == type(qtype):  # type: ignore
+    #                     return True
+    #     return False
                
     def gen_task_input_value_process(self, tinput_id: str) -> Any:
         tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
-        is_duplicate = self.duplicate_datatype_exists(tinput)
+        # is_duplicate = self.duplicate_datatype_exists(tinput)
         dtt = utils.get_dtt(tinput.intype)
 
         if dtt == DTypeType.SECONDARY_ARRAY:
-            value = naming.process.secondaries_array(tinput, duplicate_datatype_exists=is_duplicate)
+            value = naming.process.secondaries_array(tinput)
         elif dtt == DTypeType.SECONDARY:
-            value = naming.process.secondaries(tinput, duplicate_datatype_exists=is_duplicate)
+            value = naming.process.generic(tinput)
         elif dtt == DTypeType.FILE_PAIR_ARRAY:
             value = naming.process.file_pair_array(tinput)
         elif dtt == DTypeType.FILE_PAIR:

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from janis_core import DataType
-from janis_core import translation_utils as utils
+# from janis_core import translation_utils as utils
 
 
 @dataclass
@@ -42,25 +42,24 @@ class NFPathProcessInput(NFProcessInput):
     def stage_as(self) -> str:
         # presents_as takes precedent? this might be really bad.
         if self.presents_as:
-            raise RuntimeError('CHECK ME: NFPathProcessInput')
             expr = f", stageAs: '{self.presents_as}'"
 
-        # optional secondary arrays
-        elif utils.is_secondary_array_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{self.name}??/*'"
+        # # optional secondary arrays
+        # elif utils.is_secondary_array_type(self.dtype) and self.dtype.optional:
+        #     expr = f", stageAs: '{self.name}??/*'"
 
-        # optional file pair arrays
-        elif utils.is_file_pair_array_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{self.name}??/*'"
+        # # optional file pair arrays
+        # elif utils.is_file_pair_array_type(self.dtype) and self.dtype.optional:
+        #     expr = f", stageAs: '{self.name}??/*'"
 
-        # optional file arrays
-        elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
-            # expr = f", stageAs: '{self.name}??/*'"
-            expr = ''
+        # # optional file arrays
+        # elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
+        #     # expr = f", stageAs: '{self.name}??/*'"
+        #     expr = ''
         
-        # optional files
-        elif utils.is_file_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{self.name}/*'"
+        # # optional files
+        # elif utils.is_file_type(self.dtype) and self.dtype.optional:
+        #     expr = f", stageAs: '{self.name}/*'"
         
         else:
             expr = ''
@@ -86,15 +85,13 @@ class NFTupleProcessInput(NFProcessInput):
     
     def stage_as(self, subname: str) -> str:
         # optional secondary arrays
-        if utils.is_secondary_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{subname}/*'"
+        expr = ''
+        # if utils.is_secondary_type(self.dtype) and self.dtype.optional:
+        #     expr = f", stageAs: '{subname}/*'"
 
-        # optional file pair arrays
-        elif utils.is_file_pair_type(self.dtype) and self.dtype.optional:
-            expr = f", stageAs: '{subname}/*'"
-
-        else:
-            expr = ''
+        # # optional file pair arrays
+        # elif utils.is_file_pair_type(self.dtype) and self.dtype.optional:
+        #     expr = f", stageAs: '{subname}/*'"
 
         return expr
 

@@ -19,6 +19,12 @@ from . import common
 from . import selection
 from . import ordering
  
+from janis_core import settings
+
+NULL_VALUE = settings.translate.nextflow.NULL_VALUE
+NULL_PATH = 'null'
+
+
 
 def gen_prescript_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
     lines: list[str] = []
@@ -146,7 +152,6 @@ class PreScriptFormatter(ABC):
         
         return '""'
 
-
     def update_variable(self, new_value: Any) -> None:
         self.vmanager.update(
             tinput_id=self.tinput.id(),
@@ -160,10 +165,9 @@ class PreScriptFormatter(ABC):
 
 class GenericArrayFormatter(PreScriptFormatter):
 
-    COND_CHECK_FMT = '{src} != params.NULL'
+    COND_CHECK_FMT = '{src} != {null}'
     COND_TRUE_FMT1 = '{src}'
     COND_TRUE_FMT2 = '"{prefix}{spacer}" + {src}'
-    # COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}}}"'
     COND_FALSE_FMT = '{default}'
 
     ARR_JOIN_BASIC = '{src}.join(\'{delim}\')'
@@ -212,7 +216,7 @@ class GenericArrayFormatter(PreScriptFormatter):
 
     def condition(self) -> str:
         # '{cond_check} ? {cond_true} : {cond_false}'
-        # eg: adapters[0] != params.NULL ? "--adapters ${adapters.join(' ')}" : ""
+        # eg: adapters[0] != {null} ? "--adapters ${adapters.join(' ')}" : ""
         return self.CONDITION_FMT.format(
             cond_check=self.cond_check(),
             cond_true=self.cond_true(),
@@ -220,9 +224,9 @@ class GenericArrayFormatter(PreScriptFormatter):
         )
 
     def cond_check(self) -> str:
-        # eg: adapters[0] != params.NULL
+        # eg: adapters[0] != {null}
         src = self.varhistory.previous.value
-        return self.COND_CHECK_FMT.format(src=src) 
+        return self.COND_CHECK_FMT.format(src=src, null=f'params.{NULL_VALUE}')
     
     def cond_true(self) -> str:
         # eg: "--adapters ${adapters.join(' ')}"
@@ -246,7 +250,7 @@ class GenericArrayFormatter(PreScriptFormatter):
 class SecondaryArrayFormatter(GenericArrayFormatter):
     
     SECONDARY_ARRAY_GATHER = 'def {dest} = get_primary_files({src}, {collate_size})'
-    COND_CHECK_FMT = '{src}[0].simpleName != params.NULL'
+    COND_CHECK_FMT = '{src}[0] != {null}'
     
     def format(self) -> None:
         line1 = self.gather_declaration()
@@ -277,20 +281,24 @@ class SecondaryArrayFormatter(GenericArrayFormatter):
         return self.DECLARATION_FMT.format(dest=dest, value=value)
     
     def join_declaration_optional(self) -> str:
-        # eg: def bams_joined = bams[0].simpleName != params.NULL ? "--bams ${bams.join(' ')}" : ""
+        # eg: def bams_joined = bams[0].simpleName != {null} ? "--bams ${bams.join(' ')}" : ""
         dest = self.varhistory.items[2].value  # references the second local varname (eg bams_joined)
         value = self.condition()
         return self.DECLARATION_FMT.format(dest=dest, value=value)
+    
+    def cond_check(self) -> str:
+        # eg: adapters[0] != null
+        src = self.varhistory.previous.value
+        return self.COND_CHECK_FMT.format(src=src, null=NULL_PATH)
 
 
 class FilePairArrayFormatter(PreScriptFormatter):
 
     FILE_PAIR_ARRAY_GATHER    = "def {dest} = {src}.collate(2, 2)"
-    COND_CHECK_FMT            = '{src}[0].simpleName != params.NULL'
     ARR_JOIN_MANDATORY        = "{src}.collect{{ it.join('{delim}') }}"
     ARR_JOIN_MANDATORY_PREFIX = "{src}.collect{{ \"{prefix}{spacer}${{it.join('{delim}')}}\" }}"
-    ARR_JOIN_OPTIONAL         = "{src}.collect{{ it[0].simpleName != params.NULL ? it.join('{delim}') : \"\" }}"
-    ARR_JOIN_OPTIONAL_PREFIX  = "{src}.collect{{ it[0].simpleName != params.NULL ? \"{prefix}{spacer}${{it.join('{delim}')}}\" : \"\" }}"
+    ARR_JOIN_OPTIONAL         = "{src}.collect{{ it[0] != {null} ? it.join('{delim}') : \"\" }}"
+    ARR_JOIN_OPTIONAL_PREFIX  = "{src}.collect{{ it[0] != {null} ? \"{prefix}{spacer}${{it.join('{delim}')}}\" : \"\" }}"
 
     def format(self) -> None:
         line1 = self.gather_declaration()
@@ -318,11 +326,12 @@ class FilePairArrayFormatter(PreScriptFormatter):
             return self.join_declaration_mandatory_basic()
     
     def join_declaration_optional_prefix(self) -> str:
-        # eg: def read_pairs_joined = read_pairs.collect{ it[0].simpleName != params.NULL ? "--reads ${it.join(' ')}" : "" }
+        # eg: def read_pairs_joined = read_pairs.collect{ it[0].simpleName != {null} ? "--reads ${it.join(' ')}" : "" }
         dest = self.varhistory.items[2].value  # references the second local varname (eg reads_joined)
 
         arr_join = self.ARR_JOIN_OPTIONAL_PREFIX.format(
             src=self.varhistory.items[1].value,
+            null=NULL_PATH,
             prefix=self.prefix_str,
             spacer=self.spacer_str,
             delim=self.delim_str
@@ -335,6 +344,7 @@ class FilePairArrayFormatter(PreScriptFormatter):
 
         arr_join = self.ARR_JOIN_OPTIONAL.format(
             src=self.varhistory.items[1].value,
+            null=NULL_PATH,
             delim=self.delim_str
         )
         return self.DECLARATION_FMT.format(dest=dest, value=arr_join)
@@ -364,7 +374,12 @@ class FilePairArrayFormatter(PreScriptFormatter):
 
 class FileArrayFormatter(GenericArrayFormatter):
 
-    COND_CHECK_FMT = '{src}[0].simpleName != params.NULL'
+    COND_CHECK_FMT = '{src}[0] != {null}'
+
+    def cond_check(self) -> str:
+        # eg: adapters[0] != null
+        src = self.varhistory.previous.value
+        return self.COND_CHECK_FMT.format(src=src, null=NULL_PATH)
 
 
 
@@ -383,7 +398,7 @@ class FlagArrayFormatter(PreScriptFormatter):
 
 class GenericFormatter(PreScriptFormatter):
 
-    COND_CHECK_FMT = '{src} != params.NULL'
+    COND_CHECK_FMT = '{src} != {null}'
     COND_TRUE_FMT1 = '{src}'
     COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}}}"'
     COND_FALSE_FMT = '{default}'
@@ -412,7 +427,7 @@ class GenericFormatter(PreScriptFormatter):
         return self.varhistory.previous.value
     
     def cond_check(self) -> str:
-        return self.COND_CHECK_FMT.format(src=self.pvar()) 
+        return self.COND_CHECK_FMT.format(src=self.pvar(), null=f'params.{NULL_VALUE}')
     
     def cond_true(self) -> str:
         src = self.pvar()
@@ -453,15 +468,35 @@ class GenericFormatter(PreScriptFormatter):
 
 class FileFormatter(GenericFormatter):
     
-    COND_CHECK_FMT = '{src}.simpleName != params.NULL'
+    COND_CHECK_FMT = '{src}.simpleName != {null}'
 
 
 class SecondaryFormatter(GenericFormatter):
 
-    COND_CHECK_FMT = '{src}.simpleName != params.NULL'
+    COND_CHECK_FMT = '{src}[0] != {null}'
+    COND_TRUE_FMT1 = '{src}[0]'
+    COND_TRUE_FMT2 = '"{prefix}{spacer}${{{src}[0]}}"'
+    REDEFINE_FMT = 'def {dest} = {src}[0]'
+
+    def format(self) -> None:
+        # prescript only needed when optional
+        if self.attributes.optional or self.attributes.default:
+            line = self.optional_declaration()
+            self.prescript.append(line)
+        else:
+            line = self.redefine_declaration()
+            self.prescript.append(line)
+
+    def redefine_declaration(self) -> str:
+        dest = naming.process.generic(self.tinput)
+        self.update_variable(dest)
+        return self.REDEFINE_FMT.format(dest=dest, src=self.pvar())
+
+    def cond_check(self) -> str:
+        return self.COND_CHECK_FMT.format(src=self.pvar(), null=NULL_PATH)
 
     def pvar(self) -> str:
-        return self.varhistory.previous.value[0]
+        return self.varhistory.previous.value
 
 
 
@@ -471,7 +506,7 @@ class FilePairFormatter(PreScriptFormatter):
     ARR_JOIN_PREFIX     = '"{prefix}{spacer}${{{pair1}}}{delim}${{{pair2}}}"'
     ARR_JOIN_PREFIXEACH  = '"{prefix}{spacer}${{{pair1}}}{delim}{prefix}{spacer}${{{pair2}}}"'
     
-    COND_CHECK_FMT  = '{src}.simpleName != params.NULL'
+    COND_CHECK_FMT  = '{src}[0] != {null}'
     COND_TRUE_POS   = '{src}'
     COND_TRUE_OPT   = '"{prefix}{spacer}" + {src}'
     COND_FALSE_POS = '{default}'
@@ -500,7 +535,7 @@ class FilePairFormatter(PreScriptFormatter):
         dest = self.varhistory.current.value
         pair1 = self.varhistory.original.value[0]
 
-        cond_check = self.COND_CHECK_FMT.format(src=pair1)
+        cond_check = self.COND_CHECK_FMT.format(src=pair1, null=NULL_VALUE)
         cond_true = self.arr_join()
         cond_false = '""'
         condition = self.CONDITION_FMT.format(cond_check=cond_check, cond_true=cond_true, cond_false=cond_false)
@@ -558,7 +593,7 @@ class FilePairFormatter(PreScriptFormatter):
         dest = self.varhistory.original.value[pair]
 
         ### CONDITION CHECK
-        cond_check = self.COND_CHECK_FMT.format(src=src)
+        cond_check = self.COND_CHECK_FMT.format(src=src, null=NULL_VALUE)
         
         ### CONDITION TRUE
         if self.attributes.prefix:

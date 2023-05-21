@@ -10,7 +10,7 @@ from janis_core import translation_utils as utils
 
 from ..params import Param, getall
 from ..casefmt import to_case
-from .. import nulls
+# from .. import nulls
 
 USE_CLOSED_FORM = True
 INDENT = settings.translate.nextflow.NF_INDENT
@@ -25,7 +25,7 @@ params {{
     
     // Macro to all optional task inputs 
     // (do not alter unless you know what you are doing)
-    NULL = 'NULL'
+    NULL_VALUE = 'NULL'
 
     // WORKFLOW OUTPUT DIRECTORY
     outdir  = './outputs'

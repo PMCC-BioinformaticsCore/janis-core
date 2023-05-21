@@ -29,14 +29,9 @@ def secondaries(inp: TInput, duplicate_datatype_exists: bool=False) -> list[str]
 
 def secondaries_array(inp: TInput, duplicate_datatype_exists: bool=False) -> str:
     """returns variable name for secondary array input"""
-    if duplicate_datatype_exists:
-        identifier = generic(inp)
-        return f'{identifier}_flat'
-    else:
-        dtype: DataType = inp.intype  # type: ignore
-        basetype: DataType = utils.get_base_type(dtype)  # type: ignore
-        basetype_name = to_case(basetype.name(), case=settings.translate.nextflow.NF_PROCESS_INPUT_CASE)
-        return f'{basetype_name}_flat'
+    basename = generic(inp)
+    name = f'{basename}_flat'
+    return name
 
 def file_pair(inp: TInput) -> list[str]:
     """returns variable names for each pair for file pair type"""

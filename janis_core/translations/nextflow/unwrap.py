@@ -758,9 +758,9 @@ class Unwrapper:
                     var_copy = deepcopy(var)
 
             elif dtt == DTypeType.SECONDARY:
-                var = self.vmanager.get(inp.id()).items[0]
+                var = self.vmanager.get(inp.id()).items[1]
                 var_copy = deepcopy(var)
-                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+                # var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
             
             elif dtt == DTypeType.FILE_PAIR_ARRAY:
                 var = self.vmanager.get(inp.id()).items[2]  # always read_pairs_joined
@@ -789,9 +789,9 @@ class Unwrapper:
         
         elif self.context == 'process_output':
             if dtt == DTypeType.SECONDARY:
-                var = self.vmanager.get(inp.id()).original
+                var = self.vmanager.get(inp.id()).items[0]
                 var_copy = deepcopy(var)
-                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+                # var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
             
             elif dtt == DTypeType.FILE_PAIR:
                 var = self.vmanager.get(inp.id()).original

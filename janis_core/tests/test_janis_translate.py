@@ -218,8 +218,8 @@ class TestModes(unittest.TestCase):
         filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 3,
-            'modules/mandatory_input_types.nf': 3,
+            'modules/basic.nf': 4,
+            'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
@@ -292,8 +292,8 @@ class TestModes(unittest.TestCase):
         filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 3,
-            'modules/mandatory_input_types.nf': 3,
+            'modules/basic.nf': 4,
+            'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
