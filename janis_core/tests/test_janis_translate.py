@@ -206,7 +206,7 @@ class TestModes(unittest.TestCase):
     
     def test_skeleton_wdl(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         for filepath, filecontents in sub_tasks:
             if _is_wdl_task(filecontents):
@@ -256,7 +256,7 @@ class TestModes(unittest.TestCase):
     
     def test_minimal_wdl(self) -> None:
         settings.translate.MODE = 'minimal'
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         expected_num_clt_inputs = {
             'align_and_tag_v0_1_0': 3,

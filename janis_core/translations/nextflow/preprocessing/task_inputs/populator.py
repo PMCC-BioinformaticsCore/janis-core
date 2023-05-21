@@ -7,14 +7,15 @@ from abc import ABC, abstractmethod
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 from janis_core import Workflow, TInput, Tool, PythonTool
-from janis_core.types import DataType, File
+from janis_core.types import File
 from janis_core import settings
 
 from ... import params
 from ... import naming
 from ... import task_inputs
 
-from .categories import TaskInputsCategoriser
+# from janis_core.types import DataType
+# from .categories import TaskInputsCategoriser
 
 
 
@@ -23,9 +24,9 @@ class TaskInputsPopulator(ABC):
     def __init__(self, tool: Tool) -> None:
         self.tool = tool
         self.task_inputs: set[str] = set()
-        self.param_inputs: set[str] = set()
-        self.static_inputs: set[str] = set()
-        self.ignored_inputs: set[str] = set()
+        # self.param_inputs: set[str] = set()
+        # self.static_inputs: set[str] = set()
+        # self.ignored_inputs: set[str] = set()
         self.populate_code_file()
 
     def populate_code_file(self) -> None:
@@ -134,26 +135,26 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
         self.main_wf = main_wf
     
     def populate(self) -> None:
-        self.update_categories()
+        self.task_inputs = set([x.id() for x in self.tool.tool_inputs()])
         for tinput_id in self.task_inputs: 
             self.update_as_task_input(tinput_id)
-        for tinput_id in self.param_inputs: 
-            self.update_as_param_input(tinput_id)
-        for tinput_id in self.static_inputs:
-            try:
-                self.update_as_static_input(tinput_id)
-            except Exception:
-                self.update_as_task_input(tinput_id)
-        for tinput_id in self.ignored_inputs: 
-            self.update_as_ignored_input(tinput_id)
+        # for tinput_id in self.param_inputs: 
+        #     self.update_as_param_input(tinput_id)
+        # for tinput_id in self.static_inputs:
+        #     try:
+        #         self.update_as_static_input(tinput_id)
+        #     except Exception:
+        #         self.update_as_task_input(tinput_id)
+        # for tinput_id in self.ignored_inputs: 
+        #     self.update_as_ignored_input(tinput_id)
 
-    def update_categories(self) -> None:
-        categoriser = TaskInputsCategoriser(self.tool, self.main_wf)
-        categoriser.categorise()
-        self.task_inputs = categoriser.task_inputs
-        self.param_inputs = categoriser.param_inputs
-        self.static_inputs = categoriser.static_inputs
-        self.ignored_inputs = categoriser.ignored_inputs
+    # def update_categories(self) -> None:
+    #     categoriser = TaskInputsCategoriser(self.tool, self.main_wf)
+    #     categoriser.categorise()
+    #     self.task_inputs = categoriser.task_inputs
+    #     self.param_inputs = categoriser.param_inputs
+    #     self.static_inputs = categoriser.static_inputs
+    #     self.ignored_inputs = categoriser.ignored_inputs
 
     ### helper methods
     def update_as_task_input(self, tinput_id: str) -> None:
@@ -173,32 +174,32 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
         value = f'ch_{value}'
         return value
 
-    def update_as_param_input(self, tinput_id: str) -> None:
-        ti_type = 'param'
-        tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
+    # def update_as_param_input(self, tinput_id: str) -> None:
+    #     ti_type = 'param'
+    #     tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
         
-        # task subtype
-        if self.tool.id() == self.main_wf.id():
-            subtype = 'main_workflow'
-        elif isinstance(self.tool, Workflow):
-            subtype = 'sub_workflow'
-        else:
-            subtype = 'sub_tool'
+    #     # task subtype
+    #     if self.tool.id() == self.main_wf.id():
+    #         subtype = 'main_workflow'
+    #     elif isinstance(self.tool, Workflow):
+    #         subtype = 'sub_workflow'
+    #     else:
+    #         subtype = 'sub_tool'
         
-        param = params.register(tinput, self.tool.id(), subtype)
-        value = f'params.{param.name}'
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
+    #     param = params.register(tinput, self.tool.id(), subtype)
+    #     value = f'params.{param.name}'
+    #     task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
     
-    def update_as_static_input(self, tinput_id: str) -> None:
-        ti_type = 'static'
-        tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
-        src = self.sources[tinput.id()]
-        node = utils.resolve_node(src)
-        value = node.default
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
+    # def update_as_static_input(self, tinput_id: str) -> None:
+    #     ti_type = 'static'
+    #     tinput = [x for x in self.tool.tool_inputs() if x.id() == tinput_id][0]
+    #     src = self.sources[tinput.id()]
+    #     node = utils.resolve_node(src)
+    #     value = node.default
+    #     task_inputs.update(self.tool.id(), ti_type, tinput_id, value)
     
-    def update_as_ignored_input(self, tinput_id: str) -> None:
-        ti_type = 'ignored'
-        ti_value = None
-        # ti_value = self.gen_task_input_value(tinput_id)
-        task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)
+    # def update_as_ignored_input(self, tinput_id: str) -> None:
+    #     ti_type = 'ignored'
+    #     ti_value = None
+    #     # ti_value = self.gen_task_input_value(tinput_id)
+    #     task_inputs.update(self.tool.id(), ti_type, tinput_id, ti_value)

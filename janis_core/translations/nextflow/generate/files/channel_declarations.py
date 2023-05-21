@@ -8,6 +8,7 @@ from janis_core.types import File, Filename, Directory, DataType
 
 from janis_core import settings
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from ...model.files.channels import NFChannelDefinition
 from ...model.files.channels import NFChannelDefinitionBlock
@@ -32,20 +33,40 @@ def gen_channels_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChan
     
     if isinstance(nf_workflow, NFMainWorkflow):
         for input_node in wf.tool_inputs():
-            if task_inputs.exists(wf.id(), input_node):
-                task_input = task_inputs.get(wf.id(), input_node)
-                if task_input.ti_type in (TaskInputType.PARAM, TaskInputType.TASK_INPUT):
-                    if not input_node.intype.optional:
-                        generator = ChannelDefinitionGenerator(input_node, wf)
-                        ch_def = generator.register()
-                        channel_definitions.append(ch_def)
+            if should_create_channel_definition(input_node, wf):
+                generator = ChannelDefinitionGenerator(input_node, wf)
+                ch_def = generator.register()
+                channel_definitions.append(ch_def)
 
     if channel_definitions:
         channel_block = NFChannelDefinitionBlock(channel_definitions)
     
     return channel_block
 
+def should_create_channel_definition(input_node: TInput, wf: Workflow) -> bool:
+    if not task_inputs.exists(wf.id(), input_node):
+        return False
     
+    task_input = task_inputs.get(wf.id(), input_node)
+    if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
+        return False
+    
+    dtt = utils.get_dtt(input_node.intype)
+    if dtt not in [
+        DTypeType.SECONDARY_ARRAY,
+        DTypeType.SECONDARY,
+        DTypeType.FILE_PAIR_ARRAY,
+        DTypeType.FILE_PAIR,
+        DTypeType.FILE_ARRAY,
+        DTypeType.FILE,
+    ]:
+        return False
+
+    if input_node.intype.optional:
+        return False
+    
+    return True
+
 
 class ChannelDefinitionGenerator:
     def __init__(self, tinput: TInput, wf: Workflow) -> None:
