@@ -1175,6 +1175,10 @@ def translate_tool_input(
             non_optional_dt_component.inputBinding = nested_binding
 
     doc = toolinput.doc.doc if toolinput.doc else None
+
+    if settings.translate.MODE == 'skeleton':
+        input_binding = None
+
     return cwlgen.CommandInputParameter(
         id=toolinput.tag,
         label=toolinput.tag,

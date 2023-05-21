@@ -21,7 +21,7 @@ from janis_core.ingestion.galaxy import regex_to_glob
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.datatypes.core import file_t, string_t, bool_t
 
-from janis_core import WorkflowBuilder
+from janis_core import WorkflowBuilder, Workflow
 from janis_core import WorkflowMetadata
 from janis_core.workflow.workflow import InputNode
 from janis_core.workflow.workflow import OutputNode
@@ -188,23 +188,90 @@ class TestAccessoryFiles(unittest.TestCase):
     def setUp(self) -> None:
         datatypes.populate()
         _reset_global_settings()
+        self.srcfmt = 'galaxy'
     
-    def test_scripts_filestocreate(self) -> None:
-        pass
+    def test_scripts_files_to_create(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+        tool = wf.step_nodes['limma_voom'].tool
+        assert(isinstance(tool, CommandTool))
+        
+        # checking files_to_create entry for script
+        self.assertEqual(len(tool.files_to_create()), 1)
+        self.assertIn('limma_voom.R', tool.files_to_create())
     
-    def test_tool_wrappers_in_outdir(self) -> None:
-        pass
+    def test_configfiles_files_to_create(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+        tool = wf.step_nodes['annotatemyids'].tool
+        assert(isinstance(tool, CommandTool))
 
-    def test_configfiles_templated(self) -> None:
-        pass
+        # checking files_to_create entry for configfile
+        self.assertEqual(len(tool.files_to_create()), 1)
+        self.assertIn('annotatemyids_script', tool.files_to_create())
+    
+    def test_scripts_as_params(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+        tool = wf.step_nodes['limma_voom'].tool
+        assert(isinstance(tool, CommandTool))
 
-    def test_configfiles_filestocreate(self) -> None:
-        pass
+        # checking ToolInput for script
+        self.assertIn('limma_voom_script', tool.inputs_map())
+        tinput = [x for x in tool.inputs() if x.id() == 'limma_voom_script'][0]
+        self.assertIsInstance(tinput.input_type, File)
+        self.assertEqual(tinput.position, 1)
+        self.assertIsNone(tinput.prefix)
+    
+    def test_configfiles_as_params(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+        tool = wf.step_nodes['annotatemyids'].tool
+        assert(isinstance(tool, CommandTool))
+
+        # checking ToolInput for configfile
+        self.assertIn('annotatemyids_script', tool.inputs_map())
+        tinput = [x for x in tool.inputs() if x.id() == 'annotatemyids_script'][0]
+        self.assertIsInstance(tinput.input_type, File)
+        self.assertEqual(tinput.position, 1)
+        self.assertIsNone(tinput.prefix)
+    
+    def test_scripts_workflow_components(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+
+        # checking Workflow InputNode for script
+        self.assertIn('limma_voom_script', wf.input_nodes)
+        
+        # checking Workflow InputNode source for script when calling tool
+        step = wf.step_nodes['limma_voom']
+        self.assertIn('limma_voom_script', step.sources)
+        source = step.sources['limma_voom_script'].source_map[0].source
+        self.assertEqual(source.id(), 'limma_voom_script')
+        
+    def test_configfiles_workflow_components(self) -> None:
+        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        wf = ingest(filepath, self.srcfmt)
+        assert(isinstance(wf, Workflow))
+        
+        # checking Workflow InputNode for configfile
+        self.assertIn('annotatemyids_script', wf.input_nodes)
+        
+        # checking Workflow InputNode source for configfile when calling tool
+        step = wf.step_nodes['annotatemyids']
+        self.assertIn('annotatemyids_script', step.sources)
+        source = step.sources['annotatemyids_script'].source_map[0].source
+        self.assertEqual(source.id(), 'annotatemyids_script')
+    
 
 
 
-
-class TestExtractRequirements(unittest.TestCase):
+class TestResolveDependencies(unittest.TestCase):
 
     def setUp(self) -> None:
         datatypes.populate()

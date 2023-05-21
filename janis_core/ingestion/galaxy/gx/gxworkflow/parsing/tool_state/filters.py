@@ -55,6 +55,15 @@ class ReplaceConnectedWithVarname(Filter):
         return self.the_dict
 
 
+class DeNestClass(Filter):
+    
+    def apply(self) -> dict[str, Any]:
+        for key, value in self.the_dict.items():
+            if value == {"__class__": "ConnectedValue"} or value == {"__class__": "RuntimeValue"}:
+                self.the_dict[key] = value["__class__"]
+        return self.the_dict
+
+
 class ReplaceRuntimeWithVarname(Filter):
     
     def apply(self) -> dict[str, Any]:

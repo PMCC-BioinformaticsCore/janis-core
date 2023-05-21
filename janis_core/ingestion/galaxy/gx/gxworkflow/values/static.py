@@ -9,6 +9,7 @@ from janis_core.ingestion.galaxy.model.workflow import WorkflowInput
 
 from janis_core.ingestion.galaxy.logs import logging
 
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.command.cmdstr import gen_command_string
 from janis_core.ingestion.galaxy.gx.command.components import Flag
 from janis_core.ingestion.galaxy.gx.command.components import InputComponent
@@ -63,7 +64,15 @@ class CheetahInputIngestor:
 
     def prepare_command(self) -> str:
         xmltool = load_xmltool(runtime.tool.tool_path)
-        command = load_partial_cheetah_command(inputs_dict=self.g_step['tool_state'])
+        tool_state = load_tool_state(
+            self.g_step, 
+            additional_filters=[
+                'ReplaceNullWithVarname'
+                'ReplaceConnectedWithVarname',
+                'ReplaceRuntimeWithVarname',
+            ]
+        )
+        command = load_partial_cheetah_command(inputs_dict=tool_state)
         cmdstr = gen_command_string(source='xml', the_string=command, xmltool=xmltool)
         stmtstr = cmdstr.main.cmdline
         # logging.runtime_data(command)
@@ -183,7 +192,8 @@ class StaticInputIngestor:
         """
         if component.gxparam:
             query = component.gxparam.name 
-            if query in self.g_step['tool_state']:
+            tool_state = load_tool_state(self.g_step, additional_filters=['Flatten'])
+            if query in tool_state:
                 return True
         return False
 
@@ -202,7 +212,7 @@ class StaticInputIngestor:
         # pull value from 'tool_state'
         # should only be static values left
         # this should be really ez?
-        
-        g_value = self.g_step['tool_state'][component.gxparam.name] # type: ignore
+        tool_state = load_tool_state(self.g_step, additional_filters=['Flatten'])
+        g_value = tool_state[component.gxparam.name] # type: ignore
         is_default = True if component.default_value == g_value else False
         return factory.static(component, value=g_value, default=is_default)

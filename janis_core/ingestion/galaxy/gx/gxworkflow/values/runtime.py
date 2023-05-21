@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from janis_core.ingestion.galaxy.model.workflow import WorkflowInput
 from janis_core.ingestion.galaxy.model.workflow import InputValue
 from janis_core.ingestion.galaxy.model.workflow import WorkflowInputInputValue
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 
 from janis_core.ingestion.galaxy.gx.command.components import InputComponent
 
@@ -38,7 +39,8 @@ class RuntimeInputIngestor:
     def ingest_runtime(self, g_step: dict[str, Any]) -> None:
         j_step = mapping.step(g_step['id'], self.janis, self.galaxy)
         runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
-        g_targets = [name for name, val in g_step['tool_state'].items() if val == '__RuntimeValue__']
+        tool_state = load_tool_state(g_step, additional_filters=['Flatten'])
+        g_targets = [key for key, val in tool_state.items() if val == '__RuntimeValue__']
 
         for g_target in g_targets:
             g_target = g_target.replace('|', '.')

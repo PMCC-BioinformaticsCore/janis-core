@@ -195,37 +195,57 @@ class GalaxyToolFactory:
         """returns the tool xml command"""
         return str(self.gxtool.command) # type: ignore
     
-    def parse_configfiles(self) -> list[Configfile]:
-        # TODO HERE SAME AS SCRIPT
-        """returns the tool configfiles"""
-        out: list[Configfile] = []
+    def parse_configfiles(self) -> None:
+        """
+        parses tool configfiles & adds to XMLToolDefinition.configfiles. 
+        Additionally:
+            Adds a DataParam for the configfile. 
+            Do not need to replace the configfile in the command, as is already a reference. 
+            This way, configfile will be treated as ToolInputs which is desired behaviour. 
+            
+            Need to add a Workflow InputNode for the configfile. 
+            Need to link this InputNode to the extracted ToolInput in the step call. 
+            These happen later, in ingestion.galaxy.gx.gxworkflow.values.scripts 
+            (called from ingestion.galaxy.ingest)
+        """
         for name, _, contents in self.gxtool.config_files:  # type: ignore
             if isinstance(contents, str):
-                new_config = Configfile(name, contents)  # type: ignore
-                out.append(new_config)
-        if out:
-            pass
-            # logging.has_configfile()
-        return out
-    
+                # parse into Configfile & add to XMLToolDefinition
+                configfile = Configfile(name, contents)  # type: ignore
+                self.configfiles.append(configfile)
+
+                # add param for Configfile
+                param = DataParam(name=configfile.varname)
+                param.formats = ['file']
+                param.helptext = 'galaxy script needed to run tool'
+                self.inputs.add(param)
+
     def parse_scripts(self) -> None:
-        """returns the tools script it calls in the command"""
+        """
+        parses local tool scripts & adds to XMLToolDefinition.scripts.  
+        (ie $__tool_directory__/my_script.py)
+        Additionally:
+            Adds a DataParam for the script. 
+            Replaces the script in the command with a reference to the param.
+            This way, scripts will be treated as ToolInputs which is desired behaviour. 
+            
+            Need to add a Workflow InputNode for the script file. 
+            Need to link this InputNode to the extracted ToolInput in the step call. 
+            These happen later, in ingestion.galaxy.gx.gxworkflow.values.scripts 
+        (called from ingestion.galaxy.ingest)
+        """
         while get_matches(self.gxtool.command, GX_TOOL_SCRIPT):
             # get the match
             match = get_matches(self.gxtool.command, GX_TOOL_SCRIPT)[0]
             
-            # parse match into script
+            # parse match into script & add to XMLToolDefinition
             script = self.parse_script(match)
-            
-            # add script to list of scripts
             self.scripts.append(script)
 
             # add param for script
             param = DataParam(name=script.varname)
             param.formats = ['file']
             param.helptext = 'galaxy script needed to run tool'
-
-            # add param to input register
             self.inputs.add(param)
             
             # modify command to replace script with param

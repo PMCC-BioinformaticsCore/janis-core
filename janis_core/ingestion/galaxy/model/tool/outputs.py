@@ -12,6 +12,7 @@ from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
 from janis_core.ingestion.galaxy.gx.gxtool.param import Param, OutputParam, InputParam
 from janis_core import settings
 
+
 def extract_outputs(
     xmltool: XMLToolDefinition, 
     command: Command, 

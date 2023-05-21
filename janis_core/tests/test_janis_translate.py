@@ -4,7 +4,7 @@
 
 
 import unittest
-from typing import Optional
+from typing import Optional, Any, Tuple
 
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
@@ -12,14 +12,91 @@ from janis_core.translations import translate
 from janis_core import settings
 # PATHS MUST BE ABSOLUTE
 
-
+import regex as re
+import yaml
 
 
 # ------- HELPER FUNCS ------- #
 
-def _run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
+def _run(filepath: str, srcfmt: str, destfmt: str) -> Any:
     internal = ingest(filepath, srcfmt)
     return translate(internal, destfmt, allow_empty_container=True, export_path='./translated')
+
+def _is_nf_process(filecontents: str) -> bool:
+    pattern = r'process.*?\{'
+    if re.findall(pattern, filecontents):
+        return True
+    return False
+
+def _is_cwl_clt(filecontents: str) -> bool:
+    if 'class: CommandLineTool' in filecontents:
+        return True
+    return False
+
+def _is_wdl_task(filecontents: str) -> bool:
+    pattern = r'task.*?\{'
+    if re.findall(pattern, filecontents):
+        return True
+    return False
+
+def _get_cwl_clt_inputs(clt_text: str) -> list[str]:
+    spec = yaml.safe_load(clt_text)
+    return spec['inputs']
+
+def _get_wdl_task_command_lines(task_text: str) -> list[str]:
+    """Returns the lines of the process script"""
+    out: list[str] = []
+    lines = task_text.split('\n')
+    within_script: bool = False
+    
+    for i in range(len(lines)):
+        if lines[i].strip() == 'command <<<':
+            within_script = True
+            continue
+        if lines[i].strip() == '>>>' and within_script:
+            within_script = False
+            continue
+        if within_script:
+            out.append(lines[i])
+    
+    return out
+
+def _get_nf_process_input_lines(process_text: str) -> list[str]:
+    """Returns the lines of the process script"""
+    out: list[str] = []
+    lines = process_text.split('\n')
+    within_inputs: bool = False
+    
+    for i in range(len(lines)):
+        if lines[i].strip() == 'input:':
+            within_inputs = True
+            continue
+        if lines[i].strip() == 'output:' and within_inputs:
+            within_inputs = False
+            continue
+        if within_inputs and lines[i].strip() != '':
+            out.append(lines[i])
+    
+    return out
+
+def _get_nf_process_script_lines(process_text: str) -> list[str]:
+    """Returns the lines of the process script"""
+    out: list[str] = []
+    lines = process_text.split('\n')
+    within_script: bool = False
+    
+    for i in range(len(lines)):
+        if lines[i].strip() == '"""' and not within_script:
+            within_script = True
+            continue
+        if lines[i].strip() == '"""' and within_script:
+            within_script = False
+            continue
+        if within_script:
+            out.append(lines[i])
+    
+    return out
+
 
 def _reset_global_settings() -> None:
     settings.ingest.SAFE_MODE = False
@@ -47,22 +124,22 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     def test_tool_samtools_flagstat(self):
-        filepath = '/home/grace/work/pp/translation/examples/analysis-workflows/definitions/tools/samtools_flagstat.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_tool_gatk_haplotype_caller(self):
-        filepath = '/home/grace/work/pp/translation/examples/analysis-workflows/definitions/tools/gatk_haplotype_caller.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
-        filepath = '/home/grace/work/pp/translation/examples/analysis-workflows/definitions/subworkflows/align_sort_markdup.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_wf_alignment_exome(self):
-        filepath = '/home/grace/work/pp/translation/examples/analysis-workflows/definitions/pipelines/alignment_exome.cwl'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/pipelines/alignment_exome.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -105,21 +182,172 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
 class TestModes(unittest.TestCase):
     
     def setUp(self) -> None:
-        self.src = 'cwl'
-        self.dest = 'nextflow'
         _reset_global_settings()
     
-    def test_skeleton(self) -> None:
+    def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/super_enhancer_wf.cwl'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        expected_num_clt_inputs = {
+            'tools/basic_v0_1_0.cwl': 4,
+            'tools/mandatory_input_types_v0_1_0.cwl': 6,
+            'tools/optional_input_types_v0_1_0.cwl': 5,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_cwl_clt(filecontents):
+                clt_inputs = _get_cwl_clt_inputs(filecontents)
+                
+                # checking expected number of clt inputs
+                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[filepath])
+
+                # checking clt inputs have inputBindings
+                for inp in clt_inputs:
+                    self.assertNotIn('inputBinding', inp)
     
-    def test_minimal(self) -> None:
-        pass
+    def test_skeleton_wdl(self) -> None:
+        settings.translate.MODE = 'skeleton'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        for filepath, filecontents in sub_tasks:
+            if _is_wdl_task(filecontents):
+                command_lines = _get_wdl_task_command_lines(filecontents)
+                self.assertEqual(len(command_lines), 2)
     
-    def test_full(self) -> None:
-        pass
+    def test_skeleton_nextflow(self) -> None:
+        settings.translate.MODE = 'skeleton'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_inputs_count = {
+            'modules/basic.nf': 3,
+            'modules/mandatory_input_types.nf': 3,
+            'modules/optional_input_types.nf': 5,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 1,
+            'modules/mandatory_input_types.nf': 1,
+            'modules/optional_input_types.nf': 1,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+    
+    def test_minimal_cwl(self) -> None:
+        settings.translate.MODE = 'minimal'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        expected_num_clt_inputs = {
+            'tools/basic_v0_1_0.cwl': 4,
+            'tools/mandatory_input_types_v0_1_0.cwl': 6,
+            'tools/optional_input_types_v0_1_0.cwl': 5,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_cwl_clt(filecontents):
+                clt_inputs = _get_cwl_clt_inputs(filecontents)
+                
+                # checking expected number of clt inputs
+                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[filepath])
+
+                # checking clt inputs have inputBindings
+                for inp in clt_inputs:
+                    self.assertIn('inputBinding', inp)
+    
+    def test_minimal_wdl(self) -> None:
+        settings.translate.MODE = 'minimal'
+        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        expected_num_clt_inputs = {
+            'align_and_tag_v0_1_0': 3,
+            'index_bam_v0_1_0': 1,
+            'mark_duplicates_and_sort_v0_1_0': 3,
+            'merge_bams_samtools_v0_1_0': 2,
+            'name_sort_v0_1_0': 1,
+        }
+        expected_input_binding_absence = {
+            'align_and_tag_v0_1_0': [],
+            'index_bam_v0_1_0': ['bam'],
+            'mark_duplicates_and_sort_v0_1_0': [],
+            'merge_bams_samtools_v0_1_0': ['name'],
+            'name_sort_v0_1_0': [],
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_cwl_clt(filecontents):
+                command_lines = _get_wdl_task_command_lines(filecontents)
+                
+                # checking expected number of clt inputs
+                toolname = filepath.split('/')[-1].split('.')[0]
+                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[toolname])
+
+                # checking clt inputs have inputBindings
+                for inp in clt_inputs:
+                    if inp['id'] in expected_input_binding_absence[toolname]:
+                        continue
+                    else:
+                        self.assertIn('inputBinding', inp)
+    
+    def test_minimal_nextflow(self) -> None:
+        settings.translate.MODE = 'minimal'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_inputs_count = {
+            'modules/basic.nf': 3,
+            'modules/mandatory_input_types.nf': 3,
+            'modules/optional_input_types.nf': 5,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 6,
+            'modules/mandatory_input_types.nf': 7,
+            'modules/optional_input_types.nf': 6,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+
+    def test_full_cwl(self) -> None:
+        settings.translate.MODE = 'full'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        expected_num_clt_inputs = {
+            'tools/basic_v0_1_0.cwl': 6,
+            'tools/mandatory_input_types_v0_1_0.cwl': 6,
+            'tools/optional_input_types_v0_1_0.cwl': 6,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_cwl_clt(filecontents):
+                clt_inputs = _get_cwl_clt_inputs(filecontents)
+                
+                # checking expected number of clt inputs
+                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[filepath])
+
+                # checking clt inputs have inputBindings
+                for inp in clt_inputs:
+                    self.assertIn('inputBinding', inp)
+
+    def test_full_nextflow(self) -> None:
+        settings.translate.MODE = 'full'
+        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_inputs_count = {
+            'modules/basic.nf': 6,
+            'modules/mandatory_input_types.nf': 6,
+            'modules/optional_input_types.nf': 6,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 8,
+            'modules/mandatory_input_types.nf': 7,
+            'modules/optional_input_types.nf': 7,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
 
 
 

@@ -43,7 +43,7 @@ def get_script_component(i_step: WorkflowStep, script: Script | Configfile) -> I
 
 def create_workflow_input(i_step: WorkflowStep, script: Script | Configfile) -> WorkflowInput:
     return WorkflowInput(
-        _name=f'{i_step.tag}_{script.varname}',
+        _name=script.varname,
         array=False,
         is_runtime=True,
         datatype=file_t,

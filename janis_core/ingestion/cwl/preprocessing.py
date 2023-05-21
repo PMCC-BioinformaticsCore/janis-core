@@ -97,19 +97,17 @@ class CWLTypeConverter:
 
     def _convert_types_workflow_step(self, step: Any) -> None:
         # step 
-        if step.scatter:
-            print()
         step.doc = cast_cwl_type_to_python(step.doc)
         step.scatter = cast_cwl_type_to_python(step.scatter)
         step.scatterMethod = cast_cwl_type_to_python(step.scatterMethod)
-        # run?
-        # entity.run = cast_cwl_type_to_python(entity.run)
+        if not isinstance(step.run, str):
+            step.run = self._convert_types_clt(step.run)
 
         # step inputs
         for inp in step.in_:
             inp.default = cast_cwl_type_to_python(inp.default)
             inp.valueFrom = cast_cwl_type_to_python(inp.valueFrom)
-
+        
     def _convert_types_workflow_output(self, out: Any) -> None:
         out.doc = cast_cwl_type_to_python(out.doc)
         out.format = cast_cwl_type_to_python(out.format)

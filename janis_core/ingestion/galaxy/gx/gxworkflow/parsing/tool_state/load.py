@@ -6,18 +6,9 @@ from typing import Any, Type
 import json
 
 from copy import deepcopy
-from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
 from janis_core.ingestion.galaxy import runtime
+from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
-
-# old
-from .expand_old import expand_tool_state_old
-from .flatten_old import get_flattened_tool_state_old
-from .resolve_old import resolve_values_old
-from .standardisation_old import standardise_tool_state_old
-
-# from .resolve import resolve_values
-# from .flatten import flatten
 
 from .filters import (
     ReplaceNullWithVarname,
@@ -26,6 +17,7 @@ from .filters import (
     ReplaceBoolWithValue,
     IgnoreCurrentCase,
     Flatten,
+    DeNestClass,
     Filter
 )
 
@@ -79,11 +71,10 @@ def get_local_filters_to_apply(additional_filters: list[str]) -> list[Type[Filte
         ReplaceConnectedWithVarname,
         ReplaceRuntimeWithVarname,
         ReplaceBoolWithValue,
+        DeNestClass,
         IgnoreCurrentCase,
     ]
     default_filters = [
-        'ReplaceConnectedWithVarname',
-        'ReplaceRuntimeWithVarname',
         'ReplaceBoolWithValue',
         'IgnoreCurrentCase',
     ]
@@ -101,13 +92,3 @@ def get_global_filters_to_apply(additional_filters: list[str]) -> list[Type[Filt
     return filters_to_apply  # type: ignore
 
     
-
-
-# MODULE ENTRY
-def load_tool_state_dep(step: dict[str, Any]) -> dict[str, Any]:
-    step['tool_state'] = expand_tool_state_old(step)  # string -> json object
-    step['tool_state'] = get_flattened_tool_state_old(step)
-    step['tool_state'] = resolve_values_old(step)
-    step['tool_state'] = standardise_tool_state_old(step)
-    return step['tool_state']
-

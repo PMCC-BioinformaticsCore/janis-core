@@ -173,8 +173,8 @@ class Command:
                 return True
         return False
 
-    def list_inputs(self, include_base_cmd: bool=True) -> list[CommandComponent]:
-        components: list[CommandComponent] = []
+    def list_inputs(self, include_base_cmd: bool=True) -> list[InputComponent]:
+        components: list[InputComponent] = []
         if include_base_cmd:
             components += self.get_positionals()
         else:

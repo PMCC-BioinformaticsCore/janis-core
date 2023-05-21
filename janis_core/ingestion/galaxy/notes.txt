@@ -17,25 +17,50 @@ Full
 
 WORSHOP
 
+
 janis translate cmdline options
 
 --mode  skeleton | regular | expanded
+    - cwl       [DONE]
+    - wdl       [TODO]
+    - nextflow  [TODO]
+
 --galaxy-gen-images
 --galaxy-tool-all-commands (low prio)
 
 
 allow toolshed paths for tool ingest
 
-- scripts [TODO]
-    - each tool script should be listed in files_to_create
-    - each tool script should have name f'{script.name / configfile.name}_script'
-    - each tool script should have an associated ToolInput with position etc 
-    - each tool script should be supplied from params, and its default should be './templates/script'
-    - scripts are file workflow inputs but have a default
+unknown inputs
+    
+    input:
+    path in_reads_todo
 
-    - check galaxy inbuilt tools (join1)
-    - set script defaults in nextflow.config
-    - def script = script.simpleName != params.NULL ? script : "column_maker.py" NO
+    output: 
+    stdout
+
+    script:
+    """
+    fastqc
+    --reads ${reads}
+    """
+    - identify all __RuntimeValue__ and __ConnectedValue__ and tool inputs supplied values but not linked to InputComponent
+    - add these as extra ToolInputs, but don't give them position, prefix etc. 
+    - wont appear in the CWL / WDL / Nextflow script 
+    - things where we see --mode ${mode} but mode is local var (ie not linked to tool_state inputs)
+      are different, and instead should be InputSelector('unknown')?
+    - in nextflow script preprocessing want these to appear as 
+      script:
+      def mode = "__UNKNOWN__"
+      """
+      base_command \
+      --mode ${mode}
+      """
+
+- scripts [TODO]
+    - needs ingest to be aware of export_path etc
+    - each tool script should be supplied from workflow inputs
+    - script defaults in nextflow.config ('./templates/script')
 
 requirements [CHECK]
     - build mulled container for tools with multiple requirements
