@@ -2,9 +2,10 @@
 from typing import Tuple, Optional
 
 from janis_core import CommandTool, ToolArgument
+from janis_core import settings
 
 from .... import naming
-from .... import trace
+from .....common import trace
 
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
@@ -41,7 +42,8 @@ class ProcessScriptGenerator:
         self.handle_undefined_variable_references()
         self.handle_cmdtool_directories()
         self.handle_cmdtool_base_command()
-        self.handle_cmdtool_inputs_arguments()
+        if settings.translate.MODE != 'skeleton':
+            self.handle_cmdtool_inputs_arguments()
         prescript = self.finalise_prescript()
         script = self.finalise_script()
         return prescript, script

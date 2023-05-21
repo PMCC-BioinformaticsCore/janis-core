@@ -32,7 +32,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_default
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.updates import update_component_knowledge
 from janis_core.ingestion.galaxy.gx.gxworkflow.connections import handle_scattering
-from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_inputs
+from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_configfile_inputs
 
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_wrapper
@@ -61,10 +61,15 @@ def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> Tool:
 
 def ingest_workflow(path: str) -> Workflow:
     """
-    ingests a galaxy workflow file into a Workflow (internal representation).
-    'galaxy' is the galaxy workflow representation, and
-    'internal' is the internal workflow representation we will build. 
-    order seems weird but trust me there is reason for this ordering.
+    Ingests a galaxy workflow file into an *internal* representation. 
+    'galaxy' is the actual .ga galaxy workflow, and '*internal*' is a ingestion.galaxy internal representation.
+    
+    The galaxy workflow doesn't actually map 1-to-1 to the eventual janis_core workflow because of the way tools work in galaxy.
+    For this reason, the *internal* representation is kind of a middle-man which we build up over multiple passes of the galaxy workflow. 
+    Order seems weird but there is reason for this ordering. 
+    Eg: we can't read in the workflow step inputs / outputs until we have parsed the step tool. 
+    
+    Overall process for galaxy ingest is: galaxy -> *internal* -> janis_core model.
     """
     setup_data_folder()
     datatypes.populate()
@@ -74,15 +79,15 @@ def ingest_workflow(path: str) -> Workflow:
     # ingesting workflow entities to internal
     ingest_metadata(internal, galaxy)
     ingest_workflow_inputs(internal, galaxy)
-    ingest_workflow_steps(internal, galaxy)
-    ingest_workflow_tools(internal, galaxy)
+    ingest_workflow_steps(internal, galaxy)         # creates steps, but only the metadata
+    ingest_workflow_tools(internal, galaxy)         # has to happen after ingesting step metadata, but before step inputs / outputs
     ingest_workflow_steps_prepost(internal, galaxy)
     ingest_workflow_steps_outputs(internal, galaxy) 
 
     # assigning step input values
-    handle_step_connection_inputs(internal, galaxy)
+    handle_step_connection_inputs(internal, galaxy)   # all these have to happen after step outputs are parsed
     handle_step_runtime_inputs(internal, galaxy)
-    handle_step_script_inputs(internal)
+    handle_step_script_configfile_inputs(internal)
     handle_step_static_inputs(internal, galaxy)
     handle_step_default_inputs(internal)
 
@@ -106,7 +111,14 @@ def _load_galaxy_workflow(path: str) -> dict[str, Any]:
 def _parse_step_tool(metadata: StepMetadata, gxstep: dict[str, Any]) -> Tool:
     args = _create_tool_settings_for_step(metadata)
     tool_setup(args)
-    gxstep['tool_state'] = load_tool_state(gxstep)
+    # gxstep['tool_state'] = load_tool_state(
+    #     gxstep, 
+    #     additional_filters=[
+    #         'ReplaceNullWithVarname'
+    #         'ReplaceConnectedWithVarname',
+    #         'ReplaceRuntimeWithVarname',
+    #     ]
+    # )
     tool = ingest_tool(runtime.tool.tool_path, gxstep)
     return tool
 

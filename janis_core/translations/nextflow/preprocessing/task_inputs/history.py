@@ -9,7 +9,7 @@ from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import DataType
 
-from ... import trace
+from ....common import trace
 
 
 @dataclass

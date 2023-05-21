@@ -13,22 +13,19 @@ from janis_core.ingestion.galaxy import expressions
 
 @dataclass
 class InputValue(ABC):
-    component: Optional[InputComponent]
+    component: InputComponent
 
     def __post_init__(self):
         self.scatter: bool = False
 
     @property
-    def comptype(self) -> Optional[str]:
+    def comptype(self) -> str:
         return type(self.component).__name__.lower() 
 
     @property
     def input_tag(self) -> str:
         """get the str tag for this tool input"""
-        if self.component:
-            return self.component.tag
-        else:
-            return 'unknown'
+        return self.component.tag
     
     @property
     @abstractmethod

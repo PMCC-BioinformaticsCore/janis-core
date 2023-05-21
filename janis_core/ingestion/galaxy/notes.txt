@@ -17,26 +17,53 @@ Full
 
 WORSHOP
 
+
 janis translate cmdline options
 
---mode skeleton | minimal | full
+--mode  skeleton | regular | expanded
+    - cwl       [DONE]
+    - wdl       [TODO]
+    - nextflow  [TODO]
+
 --galaxy-gen-images
---galaxy-tool-all-commands
+--galaxy-tool-all-commands (low prio)
+
 
 allow toolshed paths for tool ingest
 
+unknown inputs
+    
+    input:
+    path in_reads_todo
+
+    output: 
+    stdout
+
+    script:
+    """
+    fastqc
+    --reads ${reads}
+    """
+    - identify all __RuntimeValue__ and __ConnectedValue__ and tool inputs supplied values but not linked to InputComponent
+    - add these as extra ToolInputs, but don't give them position, prefix etc. 
+    - wont appear in the CWL / WDL / Nextflow script 
+    - things where we see --mode ${mode} but mode is local var (ie not linked to tool_state inputs)
+      are different, and instead should be InputSelector('unknown')?
+    - in nextflow script preprocessing want these to appear as 
+      script:
+      def mode = "__UNKNOWN__"
+      """
+      base_command \
+      --mode ${mode}
+      """
+
 - scripts [TODO]
-    - check galaxy inbuilt tools (join1)
-    - set script defaults in nextflow.config
+    - needs ingest to be aware of export_path etc
+    - each tool script should be supplied from workflow inputs
+    - script defaults in nextflow.config ('./templates/script')
 
 requirements [CHECK]
     - build mulled container for tools with multiple requirements
-
-- regex to glob [TODO]
-    galaxy ingest collection expressions -> nextflow 
-    path "report_data/multiqc_.+\.txt", emit: outStats
-    ->
-    path "report_data/multiqc_*.txt", emit: outStats
 
 - goseq.xml error:
     --make_plots '$out.make_plots'

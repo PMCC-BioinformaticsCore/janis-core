@@ -19,7 +19,7 @@ from janis_core.translation_utils import DTypeType
 
 from .... import task_inputs
 from ....task_inputs import TaskInputType
-from ....trace import trace_entity_counts
+from .....common import trace
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
 
@@ -119,7 +119,7 @@ class CmdtoolProcessOutputFactory:
             
             # ToolInput is Filename type
             if isinstance(tinput.intype, Filename):
-                entity_counts = trace_entity_counts(tinput.intype, tool=self.tool)
+                entity_counts = trace.trace_entity_counts(tinput.intype, tool=self.tool)
                 entities = set(entity_counts.keys())
                 filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
                 filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])

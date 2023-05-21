@@ -75,8 +75,10 @@ from janis_core.utils.secondary import (
     apply_secondary_file_format_to_filename,
 )
 # from janis_core.utils.validators import Validators
+from janis_core import Workflow
 from janis_core.workflow.workflow import StepNode
 
+from .ordering import get_workflow_input_positions
 from .ordering import get_tool_input_positions
 
 ## PRIMARY TRANSLATION METHODS
@@ -342,7 +344,12 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         rbc = tool.base_command()
         bc = " ".join(rbc) if isinstance(rbc, list) else rbc
 
-        commands.append(wdl.Task.Command(bc, command_ins, command_args))
+        # run mode skeleton: only base command in command
+        if settings.translate.MODE == 'skeleton':
+            commands.append(wdl.Task.Command(bc))
+        # run mode minimal | full: base command + inputs + args in command
+        else:
+            commands.append(wdl.Task.Command(bc, command_ins, command_args))
 
         namedwdlouts = {t.name: t for t in outs}
         for to in toolouts:
@@ -1363,6 +1370,7 @@ def translate_step_node(
     invalid_identifiers: Set[str],
     inputsdict: Dict[str, Any],
 ) -> wdl.WorkflowCallBase:
+    # TODO differentiate between a step calling a task & one calling a sub workflow
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step step. If there are multiple scatters, the scatters will be ordered
@@ -1434,7 +1442,10 @@ def translate_step_node(
     #       fieldName: sourceCall.Output
 
     inputs_details: dict[str, dict[str, Any]] = {}
-    input_positions = get_tool_input_positions(step.tool.inputs())
+    if isinstance(step.tool, Workflow):
+        input_positions = get_workflow_input_positions(list(step.tool.input_nodes.values()))
+    else:
+        input_positions = get_tool_input_positions(step.tool.inputs())
     last_position = 999
     
     for k, inp in step.inputs().items():

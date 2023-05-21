@@ -173,8 +173,8 @@ class Command:
                 return True
         return False
 
-    def list_inputs(self, include_base_cmd: bool=True) -> list[CommandComponent]:
-        components: list[CommandComponent] = []
+    def list_inputs(self, include_base_cmd: bool=True) -> list[InputComponent]:
+        components: list[InputComponent] = []
         if include_base_cmd:
             components += self.get_positionals()
         else:
@@ -233,8 +233,7 @@ class Command:
             if not p.gxparam:
                 if len(p.values.unique) == 1:
                     if not expressions.is_var(p.values.unique[0]):
-                        if not expressions.is_script(p.values.unique[0]):
-                            return True
+                        return True
         return False
 
     def get_non_base_positionals(self) -> list[Positional]:

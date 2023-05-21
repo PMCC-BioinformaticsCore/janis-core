@@ -88,6 +88,11 @@ dist/
 build/
 docs/
 
+translated/
+
+# test data 
+janis_core/tests/data/
+
 TODO.txt
 .vscode
 \.mypy_cache/

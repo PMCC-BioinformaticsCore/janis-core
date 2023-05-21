@@ -36,7 +36,7 @@ class Workflow:
     @property
     def steps(self) -> list[WorkflowStep]:
         the_list = self._steps
-        the_list.sort(key=lambda x: x.metadata.step_id)
+        the_list = sorted(the_list, key=lambda x: x.metadata.step_id)
         return the_list
 
     @property
@@ -67,7 +67,7 @@ class Workflow:
     def add_step(self, step: WorkflowStep) -> None:
         tags.switch_group(self.uuid)
         tags.register(step)
-        self.steps.append(step)
+        self._steps.append(step)
 
     def get_input(self, query_uuid: str) -> WorkflowInput:
         for winp in self.inputs:

@@ -41,7 +41,6 @@ class CollectionOutputFactory(Factory):
         param.discover_pattern = get_discover_pattern(gxout)
         return param
 
-
 def get_from_workdir_pattern(gxout: GxOutput) -> Optional[str]:
     # from_work_dir is a glob pattern
     if has_from_workdir(gxout):
@@ -92,6 +91,7 @@ def parse_output_param(gxout: GxOutput, inputs: ParamRegister) -> list[OutputPar
     if is_defined_collection(gxout):
         for g_param in gxout.outputs.values(): # type: ignore
             galaxy_params.append(g_param)
+    
     # parse the output as usual
     else:
         galaxy_params.append(gxout)

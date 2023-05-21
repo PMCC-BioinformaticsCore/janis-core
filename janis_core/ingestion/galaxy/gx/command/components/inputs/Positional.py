@@ -19,8 +19,11 @@ class Positional(InputComponent):
     @property
     def name(self) -> str:
         # just return script if its a script
-        if self.values.script:
-            return 'script'
+        # if self.values.script:
+        #     basename = self.values.script.rsplit('.', 1)[0]
+        #     if basename.endswith('script'):
+        #         return basename
+        #     return f'{basename}_script'
         # get name from galaxy param if available
         if self.gxparam:
             return self.gxparam.name  # what about adv.reference?
@@ -33,9 +36,9 @@ class Positional(InputComponent):
     @property
     def default_value(self) -> Any:
         """gets the default value for this component"""
-        if self.values.script:
-            default = self.values.script
-        elif self.forced_default is not None:
+        # if self.values.script:
+        #     default = self.values.script
+        if self.forced_default is not None:
             default = self.forced_default
         elif self.gxparam:
             default = self.gxparam.default

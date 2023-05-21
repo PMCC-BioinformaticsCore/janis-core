@@ -7,9 +7,10 @@ from janis_core import Workflow, CommandTool, PythonTool, Tool
 from ... import params
 from ... import task_inputs
 
-from .populator import TaskInputsPopulatorWorkflowMode, TaskInputsPopulatorToolMode
+from .populator import TaskInputsPopulatorToolMode
+from .populator import TaskInputsPopulatorWorkflowMode
 from .common import get_true_workflow_inputs
-
+from ... import naming
 
 # main module funcs
 
@@ -59,14 +60,12 @@ def _populate_task_inputs_mainwf(wf: Workflow) -> None:
         param = params.register(tinput, task_id=wf.id(), subtype=subtype)
         value = f'params.{param.name}'
         task_inputs.update(wf.id(), ti_type, tinput_id, value)
-        print()
     
     # ignored inputs
     for tinput_id in ignored_tinput_ids:
         ti_type = 'ignored'
         value = None
         task_inputs.update(wf.id(), ti_type, tinput_id, value)
-        print()
 
 
 

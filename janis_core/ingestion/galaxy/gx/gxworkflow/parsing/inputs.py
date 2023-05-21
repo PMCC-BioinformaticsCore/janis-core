@@ -31,7 +31,7 @@ def format_input_step_name(step: dict[str, Any]) -> str:
     elif step['inputs']:
         return step['inputs'][0]['name']
     else:
-        raise RuntimeError()
+        return step['name']
     
 def format_input_step_array(step: dict[str, Any]) -> bool:
     if step['type'] and step['type'] == 'data_collection_input':

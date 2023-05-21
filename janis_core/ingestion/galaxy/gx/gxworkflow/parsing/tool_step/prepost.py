@@ -6,6 +6,7 @@ from janis_core.ingestion.galaxy.gx.command.cmdstr.DynamicCommandStatement impor
 from janis_core.ingestion.galaxy.gx.command.cmdstr.generate import gen_command_string
 from janis_core.ingestion.galaxy.model.workflow.workflow import Workflow
 from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
+from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
 from janis_core.ingestion.galaxy.gx.gxtool.text import load_partial_cheetah_command
 
 from janis_core.ingestion.galaxy import mapping
@@ -23,7 +24,15 @@ def ingest_prepost(g_step: dict[str, Any], janis: Workflow, galaxy: dict[str, An
     runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
 
     xmltool = load_xmltool(runtime.tool.tool_path)
-    command = load_partial_cheetah_command(inputs_dict=g_step['tool_state'])
+    tool_state = load_tool_state(
+        g_step, 
+        additional_filters=[
+            'ReplaceNullWithVarname'
+            'ReplaceConnectedWithVarname',
+            'ReplaceRuntimeWithVarname',
+        ]
+    )
+    command = load_partial_cheetah_command(inputs_dict=tool_state)
     cmdstr = gen_command_string(source='xml', the_string=command, xmltool=xmltool)
     j_step.preprocessing = extract_cmdline(cmdstr.preprocessing)
     j_step.postprocessing = extract_cmdline(cmdstr.postprocessing)

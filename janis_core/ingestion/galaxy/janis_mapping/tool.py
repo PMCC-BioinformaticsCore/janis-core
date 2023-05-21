@@ -58,10 +58,10 @@ def to_janis_files_to_create(internal: Tool) -> dict[str, str]:
     files_to_create: dict[str, str] = {}
     if internal.configfiles:
         for configfile in internal.configfiles:
-            files_to_create[configfile.name] = configfile.contents
+            files_to_create[configfile.varname] = configfile.contents
     if internal.scripts:
         for script in internal.scripts:
-            files_to_create[script.name] = script.contents
+            files_to_create[script.filename] = script.contents
     return files_to_create
 
 def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
