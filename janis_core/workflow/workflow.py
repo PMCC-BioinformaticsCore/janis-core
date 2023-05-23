@@ -98,9 +98,9 @@ class InputNode(Node):
         wf,
         identifier: str,
         datatype: DataType,
-        default: any,
-        value: any,
-        doc: InputDocumentation = None,
+        default: Any,
+        value: Any,
+        doc: Optional[InputDocumentation] = None,
     ):
         super().__init__(wf, NodeType.INPUT, identifier)
         self.uuid: str = str(uuid4())
@@ -124,11 +124,11 @@ class StepNode(Node):
     def __init__(
         self,
         wf,
-        identifier,
+        identifier: str,
         tool: Tool,
-        doc: DocumentationMeta = None,
-        scatter: ScatterDescription = None,
-        when: Operator = None,
+        doc: Optional[DocumentationMeta] = None,
+        scatter: Optional[ScatterDescription] = None,
+        when: Optional[Operator] = None,
         _foreach=None,
     ):
         super().__init__(wf, NodeType.STEP, identifier)

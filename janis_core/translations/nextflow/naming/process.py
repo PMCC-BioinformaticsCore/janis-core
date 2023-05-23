@@ -12,7 +12,12 @@ from ..casefmt import to_case
 
 def generic(inp: ToolInput | TInput) -> str:
     return to_case(inp.id(), case=settings.translate.nextflow.NF_PROCESS_INPUT_CASE)
-    
+
+def files_to_create_script(filename: str) -> str:
+    name = to_case(filename.split('.')[0], settings.translate.nextflow.NF_PROCESS_INPUT_CASE)
+    name = f'{name}_script'
+    return name
+
 def secondaries(inp: TInput, duplicate_datatype_exists: bool=False) -> list[str]:
     """returns variable names for each file of secondary array type"""
     basename = generic(inp)

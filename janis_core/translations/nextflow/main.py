@@ -199,7 +199,6 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        # TODO HERE
         code_files = cls.gen_python_code_files(tool)
         template_files = cls.gen_template_files(tool)
         helpers = template_files | code_files

@@ -15,6 +15,7 @@ from ...model.files.channels import NFChannelDefinitionBlock
 from ...model.workflow import NFWorkflow
 from ...model.workflow import NFMainWorkflow
 
+from ....common import trace
 from ... import naming 
 from ... import task_inputs
 from ...task_inputs import TaskInputType
@@ -35,7 +36,7 @@ def gen_channels_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChan
         for input_node in wf.tool_inputs():
             if should_create_channel_definition(input_node, wf):
                 generator = ChannelDefinitionGenerator(input_node, wf)
-                ch_def = generator.register()
+                ch_def = generator.generate()
                 channel_definitions.append(ch_def)
 
     if channel_definitions:
@@ -44,14 +45,22 @@ def gen_channels_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChan
     return channel_block
 
 def should_create_channel_definition(input_node: TInput, wf: Workflow) -> bool:
+    # no real workflow input for this input node
     if not task_inputs.exists(wf.id(), input_node):
         return False
     
+    # only TASK_INPUT and PARAM TaskInputTypes can be channels
     task_input = task_inputs.get(wf.id(), input_node)
     if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
         return False
     
+    # if the input node is scattered on, should be a channel
     dtt = utils.get_dtt(input_node.intype)
+    if dtt == DTypeType.GENERIC_ARRAY:
+        if is_scattered_on(input_node, wf):
+            return True
+
+    # only files should be channels (disregarding scatter, handled above)
     if dtt not in [
         DTypeType.SECONDARY_ARRAY,
         DTypeType.SECONDARY,
@@ -62,10 +71,25 @@ def should_create_channel_definition(input_node: TInput, wf: Workflow) -> bool:
     ]:
         return False
 
+    # optional types will be defined as variables instead
     if input_node.intype.optional:
         return False
     
     return True
+
+
+def is_scattered_on(input_node: TInput, wf: Workflow) -> bool:
+    for step in wf.step_nodes.values():
+        if step.scatter is None:
+            return False
+        
+        fields = step.scatter.fields
+        for tinput_id, src in step.sources.items():
+            if tinput_id in fields:
+                if src.source_map[0].source.input_node.id() == input_node.id():
+                    return True
+
+    return False
 
 
 class ChannelDefinitionGenerator:
@@ -101,7 +125,7 @@ class ChannelDefinitionGenerator:
             src = f'{param_name}'
         return src
 
-    def register(self) -> NFChannelDefinition:
+    def generate(self) -> NFChannelDefinition:
         operations = self.get_operations()
         return NFChannelDefinition(
             name=self.name,

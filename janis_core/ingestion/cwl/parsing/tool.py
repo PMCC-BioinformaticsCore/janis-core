@@ -609,7 +609,7 @@ class CLTArgumentParser(CLTEntityParser):
                 return None
             arg = ToolArgument(
                 value=res,
-                position=self.entity.position,
+                position=self.entity.position if self.entity.position else 0,
                 prefix=self.entity.prefix,
                 separate_value_from_prefix=self.entity.separate,
                 shell_quote=self.entity.shellQuote,

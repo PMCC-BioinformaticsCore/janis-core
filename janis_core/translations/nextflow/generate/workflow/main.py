@@ -3,9 +3,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from janis_core import settings
-from janis_core import TInput
 from janis_core.workflow.workflow import StepNode, Workflow
-from janis_core.types import File
 
 from ... import naming
 from ... import unwrap
@@ -21,7 +19,10 @@ from ...model.workflow import NFSubWorkflow
 from ...model.workflow import NFWorkflowTake
 from ...model.workflow import NFWorkflowEmit
 
-from janis_core import translation_utils as utils
+from ..files import should_create_channel_definition
+from ..files import should_create_variable_definition
+
+
 
 from .call import gen_task_call
 
@@ -165,28 +166,28 @@ class MainWFGenerator(WFGenerator):
     #             out.add(tinput.id())
     #     return out
     
-    @property
-    def param_inputs(self) -> list[TInput]:
-        out: list[TInput] = []
-        for tinput in self.wf.tool_inputs():
-            var = self.vmanager.get(tinput.id()).current
-            if var.vtype == VariableType.PARAM:
-                out.append(tinput)
-        return out
+    # @property
+    # def param_inputs(self) -> list[TInput]:
+    #     out: list[TInput] = []
+    #     for tinput in self.wf.tool_inputs():
+    #         var = self.vmanager.get(tinput.id()).current
+    #         if var.vtype == VariableType.PARAM:
+    #             out.append(tinput)
+    #     return out
     
-    def update_variables(self) -> None:
-        for tinput in self.param_inputs:
-            if utils.is_file_type(tinput.intype):
-                if tinput.intype.optional:
-                    f_name = naming.constructs.gen_varname_file(tinput.id(), dtype=tinput.intype)
-                    self.vmanager.update(tinput.id(), 'local', f_name)
-                else:
-                    ch_name = naming.constructs.gen_varname_channel(tinput.id(), dtype=tinput.intype)
-                    self.vmanager.update(tinput.id(), 'channel', ch_name)
-
     def generate(self) -> NFMainWorkflow:
         self.update_variables()
         return NFMainWorkflow(self.name, self.main_block, self.take_block, self.emit_block)
+    
+    def update_variables(self) -> None:
+        for tinput in self.wf.tool_inputs():
+            if should_create_channel_definition(tinput, self.wf):
+                ch_name = naming.constructs.gen_varname_channel(tinput.id(), dtype=tinput.intype)
+                self.vmanager.update(tinput.id(), 'channel', ch_name)
+            elif should_create_variable_definition(tinput, self.wf):
+                f_name = naming.constructs.gen_varname_file(tinput.id(), dtype=tinput.intype)
+                self.vmanager.update(tinput.id(), 'local', f_name)
+
 
 
 @dataclass 

@@ -32,23 +32,17 @@ inputs:
             prefix: "-ERC"
             position: 3
     gvcf_gq_bands:
-        type:
-            type: array
-            items: string
-            inputBinding:
-                prefix: "-GQB"
+        type: string[]?
         inputBinding:
+            prefix: "-GQB"
             position: 4
-    intervals:
-        type:
-            type: array
-            items: string
-            inputBinding:
-                prefix: "-L"
+    intervals:   
+        type: string[]
         inputBinding:
+            prefix: "-L"
             position: 5
     dbsnp_vcf:
-        type: File?
+        type: File?             # error
         inputBinding:
             prefix: "--dbsnp"
             position: 6
@@ -76,7 +70,7 @@ inputs:
         inputBinding:
             prefix: '--read_filter'
             position: 10
-    output_file_name:
+    output_file_name:           
         type: string
         default: "output.g.vcf.gz"
         inputBinding:
@@ -86,5 +80,5 @@ outputs:
     gvcf:
         type: File
         outputBinding:
-            glob: $(inputs.output_file_name)
-        secondaryFiles: [.tbi]
+            glob: $(inputs.output_file_name)    # error -> "output.g.vcf.gz"
+        secondaryFiles: [.tbi]                  # error -> "output.g.vcf.gz.tbi"

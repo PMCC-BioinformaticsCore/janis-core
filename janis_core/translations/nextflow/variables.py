@@ -12,8 +12,6 @@ from . import task_inputs
 from .task_inputs import TaskInputType
 
 
-
-
 def init_variable_manager_for_task(tool: Tool) -> VariableManager:
     """
     initialise a variable manager for a tool, covering all tool inputs. 

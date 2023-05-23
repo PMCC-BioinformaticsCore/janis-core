@@ -20,12 +20,6 @@ class NFProcessInput(ABC):
         ...
 
 
-@dataclass
-class NFPythonToolProcessInput(NFProcessInput):
-
-    def get_string(self) -> str:
-        return f'path {self.name}'
-
 
 @dataclass
 class NFValProcessInput(NFProcessInput):
@@ -70,6 +64,20 @@ class NFPathProcessInput(NFProcessInput):
     def get_string(self) -> str:
         return f'path {self.name}{self.stage_as}'
 
+
+@dataclass
+class NFScriptProcessInput(NFProcessInput):
+    presents_as: str
+
+    def get_string(self) -> str:
+        return f"path {self.name}, stageAs: '{self.presents_as}'"
+
+@dataclass
+class NFPythonToolProcessInput(NFProcessInput):
+
+    def get_string(self) -> str:
+        return f'path {self.name}'
+    
 
 @dataclass
 class NFTupleProcessInput(NFProcessInput):

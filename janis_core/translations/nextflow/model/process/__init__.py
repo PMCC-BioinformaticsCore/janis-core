@@ -16,6 +16,7 @@ from .directives import (
 from .inputs import (
     NFProcessInput,
     NFPythonToolProcessInput,
+    NFScriptProcessInput,
     NFValProcessInput,
     NFPathProcessInput,
     NFTupleProcessInput

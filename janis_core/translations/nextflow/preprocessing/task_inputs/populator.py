@@ -1,18 +1,18 @@
 
 
-
+import os
 from typing import Any
 from abc import ABC, abstractmethod
 
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
-from janis_core import Workflow, TInput, Tool, PythonTool
+from janis_core import Workflow, Tool, PythonTool, CommandTool
 from janis_core.types import File
 from janis_core import settings
 
 from ... import params
 from ... import naming
-from ... import task_inputs
+from ... import task_inputs 
 
 # from janis_core.types import DataType
 # from .categories import TaskInputsCategoriser
@@ -28,6 +28,7 @@ class TaskInputsPopulator(ABC):
         # self.static_inputs: set[str] = set()
         # self.ignored_inputs: set[str] = set()
         self.populate_code_file()
+        self.populate_scripts()
 
     def populate_code_file(self) -> None:
         # pythontool gets extra code_file input before normal inputs
@@ -35,7 +36,7 @@ class TaskInputsPopulator(ABC):
             path = f'{settings.translate.nextflow.BASE_OUTDIR}/{settings.translate.nextflow.TEMPLATES_OUTDIR}/{self.tool.id()}.py'
             # path = f'{os.getcwd()}/templates/{self.tool.id()}.py'
             # create param for nextflow.config & so we can get the param for process calls
-            param = params.add(
+            params.add(
                 task_id=self.tool.id(),
                 tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE,
                 subtype='sub_tool',
@@ -43,12 +44,48 @@ class TaskInputsPopulator(ABC):
                 janis_dtype=File(),
                 default=path
             )
+
+            # update task inputs
             task_inputs.update(
                 tool_id=self.tool.id(), 
                 dstype_str='task_input', 
                 tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
                 value=settings.translate.nextflow.PYTHON_CODE_FILE
             )
+    
+    def populate_scripts(self) -> None:
+        # pythontool gets extra code_file input before normal inputs
+        if isinstance(self.tool, CommandTool):
+            if self.tool._files_to_create:
+                for filename in self.tool._files_to_create.keys():
+                    
+                    # get the file path to where the script will appear in the translation
+                    assert(isinstance(filename, str))
+                    path = os.path.join(settings.translate.nextflow.BASE_OUTDIR, settings.translate.nextflow.TEMPLATES_OUTDIR, filename)
+                    
+                    # generate a name for this input
+                    if len(self.tool._files_to_create) == 1:
+                        name = 'script'
+                    else:
+                        name = naming.process.files_to_create_script(filename)
+
+                    # create param for nextflow.config & so we can get the param for process calls
+                    params.add(
+                        task_id=self.tool.id(),
+                        tinput_id=name,
+                        subtype='sub_tool',
+                        janis_dtype=File(),
+                        default=path
+                    )
+
+                    # update task inputs
+                    task_inputs.update(
+                        tool_id=self.tool.id(), 
+                        dstype_str='task_input', 
+                        tinput_id=name, 
+                        value=name
+                    )
+            
 
     @abstractmethod
     def populate(self) -> None:

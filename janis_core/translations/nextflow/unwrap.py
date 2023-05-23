@@ -791,7 +791,7 @@ class Unwrapper:
             if dtt == DTypeType.SECONDARY:
                 var = self.vmanager.get(inp.id()).items[0]
                 var_copy = deepcopy(var)
-                # var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+                var_copy.value = f'{var_copy.value}[0]' if index is None else f'{var_copy.value}[{index}]'
             
             elif dtt == DTypeType.FILE_PAIR:
                 var = self.vmanager.get(inp.id()).original

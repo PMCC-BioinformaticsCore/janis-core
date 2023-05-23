@@ -29,7 +29,7 @@ def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVar
 
     if isinstance(nf_workflow, NFMainWorkflow):
         for tinput in wf.tool_inputs():
-            if should_create_channel_definition(tinput, wf):
+            if should_create_variable_definition(tinput, wf):
                 task_input = task_inputs.get(wf.id(), tinput)
                 generator = VariableDefinitionGenerator(tinput, task_input)
                 var_def = generator.generate()
@@ -41,7 +41,7 @@ def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVar
     return var_block
 
 
-def should_create_channel_definition(tinput: TInput, wf: Workflow) -> bool:
+def should_create_variable_definition(tinput: TInput, wf: Workflow) -> bool:
     if not task_inputs.exists(wf.id(), tinput):
         return False
     

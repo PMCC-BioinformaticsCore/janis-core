@@ -118,7 +118,9 @@ def script_arguments(tool: CommandTool) -> list[ToolArgument]:
     return []
 
 def is_script_argument(inp: ToolInput | ToolArgument) -> bool:
-    if not isinstance(inp, ToolInput): 
+    # following line seems weird, but ToolInput is actually child class of ToolArgument
+    # so have to do it in the negative sense
+    if not isinstance(inp, ToolInput):  
         if inp.position is not None or inp.prefix is not None:
             return True
     return False

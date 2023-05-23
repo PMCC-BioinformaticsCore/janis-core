@@ -4,7 +4,7 @@ from typing import Optional, Any, Tuple
 from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 
-MODE:                       str = 'skeleton'    # one of 'skeleton' 'minimal' 'full' 
+MODE:                       str = 'minimal'    # one of 'skeleton' 'minimal' 'full' 
                                                 # dictates the tool inputs & tool command which should be translated
 
 EXPORT_PATH:                str = ExportPathKeywords.default # base output directory

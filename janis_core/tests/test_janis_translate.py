@@ -99,6 +99,7 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
 
 
 def _reset_global_settings() -> None:
+    settings.translate.MODE = 'minimal'
     settings.ingest.SAFE_MODE = False
     settings.ingest.galaxy.GEN_IMAGES = False
     settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
@@ -134,6 +135,7 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
+        settings.translate.MODE = 'full'
         filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)

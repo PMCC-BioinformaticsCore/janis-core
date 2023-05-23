@@ -12,15 +12,17 @@ from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 from janis_core import settings
 
+from ... import naming
 from ... import nfgen_utils
 from ... import task_inputs
 
 from ...model.process.inputs import (
     NFProcessInput, 
     NFPythonToolProcessInput,
+    NFScriptProcessInput,
     NFPathProcessInput,
     NFValProcessInput,
-    NFTupleProcessInput
+    NFTupleProcessInput,
 )
 
 
@@ -33,7 +35,6 @@ class ProcessInputGenerator:
     def __init__(self, tool: CommandTool | PythonTool):
         self.tool = tool
         self.process_inputs: list[NFProcessInput] = []
-        self.generate_code_file()
 
     @property
     def dtype(self) -> DataType:
@@ -46,17 +47,47 @@ class ProcessInputGenerator:
         assert(basetype)
         return basetype
     
-    def generate_code_file(self) -> None:
-        # pythontool gets extra code_file input before normal inputs
-        if isinstance(self.tool, PythonTool):
-            new_input = NFPythonToolProcessInput(
-                name=settings.translate.nextflow.PYTHON_CODE_FILE, 
-                tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
-                dtype=File())
-            self.process_inputs.append(new_input)
-
     def generate(self) -> list[NFProcessInput]:
-        # normal inputs
+        # CodeTools get additional 'code_file' input
+        if isinstance(self.tool, PythonTool):
+            self.generate_code_file_input()
+        
+        # files_to_create inputs
+        if isinstance(self.tool, CommandTool):
+            self.generate_files_to_create_inputs()
+
+        # regular inputs
+        self.generate_regular_inputs()
+        
+        return self.process_inputs
+
+    def generate_code_file_input(self) -> None:
+        # pythontool gets extra code_file input before normal inputs
+        new_input = NFPythonToolProcessInput(
+            name=settings.translate.nextflow.PYTHON_CODE_FILE, 
+            tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
+            dtype=File())
+        self.process_inputs.append(new_input)
+
+    def generate_files_to_create_inputs(self) -> None:
+        if self.tool._files_to_create:
+            for filename, filecontents in self.tool._files_to_create.items():
+                # generate a name for this input
+                if len(self.tool._files_to_create) == 1:
+                    name = 'script'
+                else:
+                    name = naming.process.files_to_create_script(filename)
+                
+                # create the nf process input 
+                new_input = NFScriptProcessInput(
+                    name=name,
+                    tinput_id=name,
+                    dtype=File(), 
+                    presents_as=filename
+                )
+                self.process_inputs.append(new_input)
+        
+    def generate_regular_inputs(self) -> None:
         tinput_ids = task_inputs.task_inputs(self.tool.id())
         tinputs = nfgen_utils.items_with_id(self.tool.inputs(), tinput_ids)
         
@@ -64,8 +95,6 @@ class ProcessInputGenerator:
             self.tinput = inp
             new_input = self.create_input()
             self.process_inputs.append(new_input)
-        
-        return self.process_inputs
 
     def create_input(self) -> NFProcessInput:
         """create the correct NFProcessInput for the given input"""

@@ -27,6 +27,7 @@ from .directives import (
 from .inputs import (
     NFProcessInput, 
     NFPythonToolProcessInput,
+    NFScriptProcessInput,
     NFTupleProcessInput,
 )
 
@@ -223,15 +224,22 @@ class TypePriorityInputStrategy(InputOrderingStrategy):
         }
         return priorities[dtt]
 
+class ScriptPriorityInputStrategy(InputOrderingStrategy):
+    def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
+        out = sorted(inputs, key=lambda x: isinstance(x, NFScriptProcessInput), reverse=True)
+        return out
+
 class PythonToolPriorityInputStrategy(InputOrderingStrategy):
     def order(self, inputs: list[NFProcessInput]) -> list[NFProcessInput]:
         out = sorted(inputs, key=lambda x: isinstance(x, NFPythonToolProcessInput), reverse=True)
         return out
 
+
 process_input_strategies = [
     AlphabeticalInputStrategy,
     MandatoryPriorityInputStrategy,
     TypePriorityInputStrategy,
+    ScriptPriorityInputStrategy,
     PythonToolPriorityInputStrategy,
 ]
 

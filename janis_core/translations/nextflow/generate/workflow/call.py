@@ -15,6 +15,7 @@ from ... import params
 from ...model.process import NFProcess
 from ...model.process import NFProcessInput
 from ...model.process import NFPythonToolProcessInput
+from ...model.process import NFScriptProcessInput
 from ...model.workflow import NFWorkflow
 from ...model.workflow import NFWorkflowTake
 
@@ -192,17 +193,26 @@ class TaskCallArgumentGenerator:
         """calculate the arg which will feed this task input"""
         if isinstance(self.task_input, NFPythonToolProcessInput):
             return self.generate_code_file()
+        elif isinstance(self.task_input, NFScriptProcessInput):
+            return self.generate_script()
         else:
-            return self.generate_normal()
+            return self.generate_regular()
 
+    def generate_script(self) -> str:
+        param = params.get(
+            tinput_id=self.task_input.tinput_id,
+            task_id=self.tool.id()
+        )
+        return f'params.{param.name}'
+    
     def generate_code_file(self) -> str:
         param = params.get(
-            tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE, 
+            tinput_id=self.task_input.tinput_id, 
             task_id=self.tool.id()
         )
         return f'params.{param.name}'
 
-    def generate_normal(self) -> str:
+    def generate_regular(self) -> str:
         arg = unwrap_expression(
             val=self.src,
             context='workflow',

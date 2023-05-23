@@ -142,7 +142,7 @@ class CWlParser:
         step_identifier = get_id_entity(cwlstp.id)
         jstep = wf.step_nodes[step_identifier]
 
-        parser = WorkflowStepScatterParser(cwl_utils=self.cwl_utils, entity=jstep, wf=wf, uuid=jstep.uuid)
+        parser = WorkflowStepScatterParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, uuid=jstep.uuid)
         scatter = parser.parse()
 
         if scatter is not None:
