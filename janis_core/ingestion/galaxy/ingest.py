@@ -4,6 +4,7 @@ import json
 import os
 from typing import Any, Optional, Tuple
 from janis_core import settings
+from janis_core import Tool
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy import mapping
 from janis_core.ingestion.galaxy.startup import tool_setup
@@ -12,7 +13,7 @@ from janis_core.ingestion.galaxy.gx.command import gen_command
 from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
 from janis_core.ingestion.galaxy.model.tool.generate import gen_tool
-from janis_core.ingestion.galaxy.model.tool import Tool
+from janis_core.ingestion.galaxy.model.tool import Tool as InternalTool
 from janis_core.ingestion.galaxy.model.workflow import Workflow
 from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
 from janis_core.ingestion.galaxy.model.workflow import StepMetadata
@@ -23,7 +24,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.inputs import ingest_work
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.step import ingest_workflow_steps
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.prepost import ingest_workflow_steps_prepost
 from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.outputs import ingest_workflow_steps_outputs
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
+from janis_core.ingestion.galaxy.gx.wrappers.requests.versions import request_single_wrapper
 
 from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_connection_inputs
 from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_runtime_inputs
@@ -34,17 +35,79 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.updates import update_component_k
 from janis_core.ingestion.galaxy.gx.gxworkflow.connections import handle_scattering
 from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_configfile_inputs
 
+from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
+from janis_core.ingestion.galaxy.gx.wrappers import WrapperCache
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_wrapper
 
 from janis_core.ingestion.galaxy import datatypes
 from janis_core.ingestion.galaxy.startup import setup_data_folder
+from janis_core.messages import info_ingesting_tool
+from janis_core.messages import info_ingesting_workflow
+from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
+from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
 
-# TODO future 
-# from janis_core.ingestion.galaxy.gx.xmltool.tests import write_tests
 
+def parse_galaxy(uri: str) -> Tool:
+    if _is_galaxy_local_tool(uri):
+        name = os.path.splitext(uri)[0]
+        info_ingesting_tool('galaxy', name)
+        tool = ingest_tool(uri)
+        return to_janis_tool(tool)
+    
+    elif _is_galaxy_toolshed_tool(uri):
+        wrapper = _request_wrapper_info(uri)
+        wrapper_path = fetch_wrapper(
+            owner= wrapper.owner,
+            repo= wrapper.repo,
+            revision= wrapper.revision,
+            tool_id= wrapper.tool_id
+        )
+        info_ingesting_tool('galaxy', wrapper.tool_id)
+        tool = ingest_tool(wrapper_path)
+        return to_janis_tool(tool)
+    
+    elif _is_galaxy_workflow(uri):
+        name = os.path.splitext(uri)[0]
+        info_ingesting_workflow('galaxy', name)
+        workflow = ingest_workflow(uri)
+        return to_janis_workflow(workflow)
+    
+    else:
+        raise ValueError("file uri for galaxy ingestion must be either:\n- a tool id (starting with toolshed.g2.bx.psu.edu/)\n- a path ending in '.xml' (local tool)\n - a path ending in '.ga' (local workflow)")
+    
+def _is_galaxy_local_tool(uri: str) -> bool:
+    _, ext = os.path.splitext(uri)
+    if ext == '.xml':
+        return True
+    return False
+    
+def _is_galaxy_toolshed_tool(uri: str) -> bool:
+    if uri.startswith('toolshed.g2.bx.psu.edu/'):
+        return True
+    return False
+    
+def _is_galaxy_workflow(uri: str) -> bool:
+    _, ext = os.path.splitext(uri)
+    if ext == '.ga':
+        return True
+    return False
 
-def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> Tool:
+def _request_wrapper_info(uri: str) -> Wrapper:
+    # scrape toolshed for wrappers and update cache
+    shed, _, owner, repo, tool_id, tool_build = uri.split('/')
+    wrapper = request_single_wrapper(
+        tool_shed=shed,
+        owner=owner,
+        repo=repo,
+        tool_id=tool_id,
+        tool_build=tool_build
+    )
+    cache = WrapperCache()
+    cache.add(wrapper)
+    return wrapper
+
+def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> InternalTool:
     """
     ingests a galaxy tool xml file into a Tool (internal representation).
     'galaxy' is the galaxy tool representation, and

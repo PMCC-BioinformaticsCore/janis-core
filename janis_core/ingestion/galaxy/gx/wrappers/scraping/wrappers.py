@@ -22,7 +22,6 @@ def scrape_wrappers() -> None:
     scraper = WrapperScraper()
     scraper.scrape()
 
-
 class ScrapeStrategy(ABC):
     def __init__(self, owner: str, repo: str, revision: str):
         self.owner = owner

@@ -99,5 +99,6 @@ TODO.txt
 *.egg-info
 *.dist-info
 test.py
+temp.txt
 
 translated/

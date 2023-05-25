@@ -4,7 +4,7 @@ from typing import Any
 from janis_core.ingestion.galaxy.model.workflow import StepMetadata
 from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
 from janis_core.ingestion.galaxy.gx.wrappers import WrapperCache
-from janis_core.ingestion.galaxy.gx.wrappers.requests.versions import request_installable_revision
+from janis_core.ingestion.galaxy.gx.wrappers.requests.versions import request_single_wrapper
 
 
 """
@@ -79,14 +79,21 @@ def get_local(gxstep: dict[str, Any]) -> list[Wrapper]:
 
 def get_toolshed(gxstep: dict[str, Any]) -> list[Wrapper]:
     # scrape toolshed for wrappers and update cache
+    wrapper = request_single_wrapper(
+        tool_shed=gxstep['tool_shed_repository']['tool_shed'],
+        owner=gxstep['tool_shed_repository']['owner'],
+        repo=gxstep['tool_shed_repository']['name'],
+        tool_id=gxstep['tool_id'].rsplit('/', 2)[-2],
+        tool_build=gxstep['tool_version']
+    )
     cache = WrapperCache()
-    wrappers = request_installable_revision(gxstep)
-    for wrapper in wrappers:
-        cache.add(wrapper)
+    cache.add(wrapper)
+    
     # confirm can now load wrapper details from cache
     local_wrappers = get_local(gxstep)
     if not local_wrappers:
         raise RuntimeError()
+    
     return local_wrappers
 
 def most_recent(wrappers: list[Wrapper]) -> Wrapper:

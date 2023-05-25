@@ -31,10 +31,7 @@ inputs:
         secondaryFiles: [.amb, .ann, .bwt, .pac, .sa]
         inputBinding:
             position: 3
-    dummy:
-        type: string?
-        inputBinding:
-            position: 4
+
 outputs:
     aligned_bam:
         type: stdout    # error

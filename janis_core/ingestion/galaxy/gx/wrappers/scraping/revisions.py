@@ -11,11 +11,9 @@ import gx.wrappers.scraping.utils as utils
 NEW_REPOS_ONLY = True
 THREADS = 10
 
-
 def scrape_revisions() -> None:
     scraper = RevisionScraper()
     scraper.scrape()
-
 
 def get_revisions_in_repo(owner: str, repo: str) -> list[dict[str, str]]:
     URL = format_repo_url(owner, repo)
@@ -46,7 +44,6 @@ class RevisionScraper:
     coordinates the scraping process
     handles file loading, updating saving
     """
-
     def __init__(self):
         self.local_data: dict[str, Any] = utils.load_data(utils.REVISION_DATA_PATH)
         self.total_count: int = 0

@@ -1,33 +1,15 @@
 
-import os 
 
 from janis_core import Tool
 from janis_core.messages import configure_logging
-from janis_core.messages import info_ingesting_tool
-from janis_core.messages import info_ingesting_workflow
 
-from janis_core.ingestion.galaxy import ingest_tool
-from janis_core.ingestion.galaxy import ingest_workflow
-from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
-from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
- 
 from .SupportedIngestion import SupportedIngestion
+from .galaxy import parse_galaxy
 from .cwl import parse as parse_cwl
 from .wdl import WdlParser
 
-def ingest_galaxy(path: str) -> Tool:
-    # this function is essentially the same as CWlParser / WdlParser
-    name, ext = os.path.splitext(path)  # is this a tool .xml, or a .ga workflow? 
-    if ext == '.xml':
-        info_ingesting_tool('galaxy', name)
-        tool = ingest_tool(path)
-        return to_janis_tool(tool)
-    elif ext == '.ga':
-        info_ingesting_workflow('galaxy', name)
-        workflow = ingest_workflow(path)
-        return to_janis_workflow(workflow)
-    else:
-        raise ValueError("file must end in '.xml' or '.ga' for galaxy ingestion")
+def ingest_galaxy(uri: str) -> Tool:
+    return parse_galaxy(uri)
 
 def ingest_cwl(path: str) -> Tool:
     return parse_cwl(path)

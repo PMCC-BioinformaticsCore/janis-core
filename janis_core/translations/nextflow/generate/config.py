@@ -23,8 +23,8 @@ docker.enabled = true
 
 params {{
     
-    // Macro to all optional task inputs 
-    // (do not alter unless you know what you are doing)
+    // Placeholder for null values.
+    // Do not alter unless you know what you are doing.
     NULL_VALUE = 'NULL'
 
     // WORKFLOW OUTPUT DIRECTORY

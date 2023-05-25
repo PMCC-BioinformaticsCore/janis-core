@@ -4,7 +4,7 @@ LIMMA VOOM
 successful build:
     DEST_BASE_IMAGE='quay.io/biocontainers/bioconductor-limma:3.50.1--r41h5c21468_0' mulled-build --name-override 'janis-translate-limma-voom-3.34.9.9' --verbose build-and-test 'bioconductor-edger,r-statmod,r-scales,r-rjson,r-getopt,r-gplots,bioconductor-glimma'
     ->
-    janis-translate-limma-voom-3.34.9.9
+    quay.io/biocontainers/janis-translate-limma-voom-3.34.9.9
 
 # Run image [continuumio/miniconda3:latest] with command [[/bin/sh -c conda install  -c 'conda-forge' -c 'bioconda'  'bioconductor-edger' 'r-statmod' 'r-scales' 'r-rjson' 'r-getopt' 'r-gplots' 'bioconductor-glimma' --strict-channel-priority -p /usr/local --copy --yes --quiet]]
 
