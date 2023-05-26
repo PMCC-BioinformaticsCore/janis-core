@@ -48,6 +48,8 @@ from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_workflow
 
 
+### MODULE ENTRY POINTS ###
+
 def parse_galaxy(uri: str) -> Tool:
     if _is_galaxy_local_tool(uri):
         name = os.path.splitext(uri)[0]
@@ -64,49 +66,20 @@ def parse_galaxy(uri: str) -> Tool:
             tool_id= wrapper.tool_id
         )
         info_ingesting_tool('galaxy', wrapper.tool_id)
-        tool = ingest_tool(wrapper_path)
-        return to_janis_tool(tool)
+        internal_tool = ingest_tool(wrapper_path)
+        _set_wrapper_export_paths(wrapper)
+        return to_janis_tool(internal_tool)
     
     elif _is_galaxy_workflow(uri):
         name = os.path.splitext(uri)[0]
         info_ingesting_workflow('galaxy', name)
-        workflow = ingest_workflow(uri)
-        return to_janis_workflow(workflow)
+        internal_workflow = ingest_workflow(uri)
+        _set_wrapper_export_paths(internal_workflow)
+        return to_janis_workflow(internal_workflow)
     
     else:
         raise ValueError("file uri for galaxy ingestion must be either:\n- a tool id (starting with toolshed.g2.bx.psu.edu/)\n- a path ending in '.xml' (local tool)\n - a path ending in '.ga' (local workflow)")
     
-def _is_galaxy_local_tool(uri: str) -> bool:
-    _, ext = os.path.splitext(uri)
-    if ext == '.xml':
-        return True
-    return False
-    
-def _is_galaxy_toolshed_tool(uri: str) -> bool:
-    if uri.startswith('toolshed.g2.bx.psu.edu/'):
-        return True
-    return False
-    
-def _is_galaxy_workflow(uri: str) -> bool:
-    _, ext = os.path.splitext(uri)
-    if ext == '.ga':
-        return True
-    return False
-
-def _request_wrapper_info(uri: str) -> Wrapper:
-    # scrape toolshed for wrappers and update cache
-    shed, _, owner, repo, tool_id, tool_build = uri.split('/')
-    wrapper = request_single_wrapper(
-        tool_shed=shed,
-        owner=owner,
-        repo=repo,
-        tool_id=tool_id,
-        tool_build=tool_build
-    )
-    cache = WrapperCache()
-    cache.add(wrapper)
-    return wrapper
-
 def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> InternalTool:
     """
     ingests a galaxy tool xml file into a Tool (internal representation).
@@ -157,35 +130,57 @@ def ingest_workflow(path: str) -> Workflow:
     # post ingestion tasks
     update_component_knowledge(internal)
     handle_scattering(internal)
-    handle_source_files(internal)
     return internal
 
+
+### HELPER METHODS ###
+
+# (this function should probably be elsewhere)
 def ingest_workflow_tools(janis: Workflow, galaxy: dict[str, Any]) -> None:
-    for g_step in galaxy['steps'].values():
-        if g_step['type'] == 'tool':
-            j_step = mapping.step(g_step['id'], janis, galaxy)
-            tool = _parse_step_tool(j_step.metadata, g_step)
+    for gx_step in galaxy['steps'].values():
+        if gx_step['type'] == 'tool':
+            j_step = mapping.step(gx_step['id'], janis, galaxy)
+            args = _gen_ingest_settings_for_step(j_step.metadata)
+            tool_setup(args)
+            tool = ingest_tool(runtime.tool.tool_path, gx_step)
             j_step.set_tool(tool)
+
+def _is_galaxy_local_tool(uri: str) -> bool:
+    _, ext = os.path.splitext(uri)
+    if ext == '.xml':
+        return True
+    return False
+    
+def _is_galaxy_toolshed_tool(uri: str) -> bool:
+    if uri.startswith('toolshed.g2.bx.psu.edu/'):
+        return True
+    return False
+    
+def _is_galaxy_workflow(uri: str) -> bool:
+    _, ext = os.path.splitext(uri)
+    if ext == '.ga':
+        return True
+    return False
+
+def _request_wrapper_info(uri: str) -> Wrapper:
+    # scrape toolshed for wrappers and update cache
+    shed, _, owner, repo, tool_id, tool_build = uri.split('/')
+    wrapper = request_single_wrapper(
+        tool_shed=shed,
+        owner=owner,
+        repo=repo,
+        tool_id=tool_id,
+        tool_build=tool_build
+    )
+    cache = WrapperCache()
+    cache.add(wrapper)
+    return wrapper
 
 def _load_galaxy_workflow(path: str) -> dict[str, Any]:
     with open(path, 'r') as fp:
         return json.load(fp)
 
-def _parse_step_tool(metadata: StepMetadata, gxstep: dict[str, Any]) -> Tool:
-    args = _create_tool_settings_for_step(metadata)
-    tool_setup(args)
-    # gxstep['tool_state'] = load_tool_state(
-    #     gxstep, 
-    #     additional_filters=[
-    #         'ReplaceNullWithVarname'
-    #         'ReplaceConnectedWithVarname',
-    #         'ReplaceRuntimeWithVarname',
-    #     ]
-    # )
-    tool = ingest_tool(runtime.tool.tool_path, gxstep)
-    return tool
-
-def _create_tool_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:
+def _gen_ingest_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:
     tool_id = metadata.wrapper.tool_id
     if metadata.wrapper.inbuilt:
         xml_path = get_builtin_tool_path(tool_id)
@@ -207,22 +202,30 @@ def _create_tool_settings_for_step(metadata: StepMetadata) -> dict[str, Any]:
             #'outdir': f'{paths.wrapper(tool_id, revision)}'
         }
 
-def handle_source_files(janis: Workflow) -> None:
+def _set_wrapper_export_paths(entity: Workflow | Wrapper) -> None:
     settings.general.SOURCE_FILES: list[Tuple[str, str]] = []  # type: ignore
-    for step in janis.steps:
-        dest_dir = get_dest_dir(step)
-        src_files = get_wrapper_files_src(step)
-        dest_files = get_wrapper_files_dest(src_files, dest_dir)
-        for src, dest in zip(src_files, dest_files):
-            settings.general.SOURCE_FILES.append((src, dest))
 
-def get_dest_dir(step: WorkflowStep) -> str:
-    if step.metadata.wrapper.revision != 'None':
-        return f'{step.metadata.wrapper.tool_id}-{step.metadata.wrapper.revision}'
-    return f'{step.metadata.wrapper.tool_id}'
+    if isinstance(entity, Workflow):
+        for step in entity.steps:
+            _set_wrapper_export_path(step.metadata.wrapper)
+    elif isinstance(entity, Wrapper): # type: ignore
+        _set_wrapper_export_path(entity)
+    else:
+        raise RuntimeError
 
-def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
-    wrapper = step.metadata.wrapper
+def _set_wrapper_export_path(wrapper: Wrapper) -> None:
+    dest_dir = _get_dest_dir(wrapper)
+    src_files = _get_wrapper_files_src(wrapper)
+    dest_files = _get_wrapper_files_dest(src_files, dest_dir)
+    for src, dest in zip(src_files, dest_files):
+        settings.general.SOURCE_FILES.append((src, dest))
+
+def _get_dest_dir(wrapper: Wrapper) -> str:
+    if wrapper.revision != 'None':
+        return f'{wrapper.tool_id}-{wrapper.revision}'
+    return f'{wrapper.tool_id}'
+
+def _get_wrapper_files_src(wrapper: Wrapper) -> list[str]:
     wrapper_path = fetch_wrapper(
         owner= wrapper.owner,
         repo= wrapper.repo,
@@ -234,7 +237,7 @@ def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
     xmls = [wrapper_path] + macro_xmls
     return sorted(xmls)
 
-def get_wrapper_files_dest(src_files: list[str], dest_dir: str) -> list[str]:
+def _get_wrapper_files_dest(src_files: list[str], dest_dir: str) -> list[str]:
     out: list[str] = []
     for src in src_files:
         xmlpath = src.rsplit('/', 1)[-1]

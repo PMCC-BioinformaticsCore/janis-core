@@ -252,16 +252,35 @@ class TranslatorBase(ABC):
             print(tool_out)
 
         if settings.translate.TO_DISK:
-            d = ExportPathKeywords.resolve(
+            # set output folder
+            basedir = ExportPathKeywords.resolve(
                 settings.translate.EXPORT_PATH, workflow_spec=self.name, workflow_name=tool.id()
             )
-            if not os.path.exists(d):
-                os.makedirs(d)
+            
+            # create output folder
+            if not os.path.exists(basedir):
+                os.makedirs(basedir)
+
+            # write tool file
             fn_tool = self.tool_filename(tool)
-            with open(os.path.join(d, fn_tool), "w+") as wf:
+            with open(os.path.join(basedir, fn_tool), "w+") as wf:
                 Logger.log(f"Writing {fn_tool} to disk")
                 wf.write(tool_out)
                 Logger.log(f"Wrote {fn_tool}  to disk")
+
+            # copy source files to output folder
+            if settings.general.SOURCE_FILES is not None:
+                # create source folder in basedir
+                source_dir = os.path.join(basedir, 'source')
+                if not os.path.isdir(source_dir):
+                    os.mkdir(source_dir)
+                
+                # copy files
+                for src, dest in settings.general.SOURCE_FILES:
+                    dest = os.path.join(basedir, 'source', dest)
+                    if not os.path.isdir(os.path.dirname(dest)):
+                        os.mkdir(os.path.dirname(dest))
+                    shutil.copy2(src, dest)
 
         return tool_out
 

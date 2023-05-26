@@ -27,18 +27,9 @@ ingestor_map = {
 }
 
 
-def ingest(
-    path: str, 
-    format: str,
-) -> Tool:
-    
-    # setup
-    configure_logging()
-    
-    # validation
+def ingest(path: str, format: str) -> Tool:
+    configure_logging()                         # setup logging
     assert(format in SupportedIngestion.all())  # validate format
-
-    # ingest
     ingest_func = ingestor_map[format]          # select ingestor
     internal = ingest_func(path)                # ingest
     return internal
