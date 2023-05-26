@@ -47,6 +47,8 @@ def translate(
 ) -> Any:  
     
     # settings 
+    settings.translate.DEST = translation             # set translate dest
+    
     if mode is not None:
         settings.translate.MODE = mode
     if export_path is not None:

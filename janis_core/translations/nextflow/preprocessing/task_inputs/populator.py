@@ -54,8 +54,9 @@ class TaskInputsPopulator(ABC):
             )
     
     def populate_scripts(self) -> None:
-        # pythontool gets extra code_file input before normal inputs
-        if isinstance(self.tool, CommandTool):
+        # for CommandTools, need to have a task input for each script in files_to_create.
+        # *unless translation is from Galaxy, where these will already be inputs. 
+        if isinstance(self.tool, CommandTool) and not settings.ingest.SOURCE == 'galaxy':
             if self.tool._files_to_create:
                 for filename in self.tool._files_to_create.keys():
                     

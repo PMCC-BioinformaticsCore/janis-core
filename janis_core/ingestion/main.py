@@ -1,6 +1,7 @@
 
 
 from janis_core import Tool
+from janis_core import settings
 from janis_core.messages import configure_logging
 
 from .SupportedIngestion import SupportedIngestion
@@ -29,6 +30,7 @@ ingestor_map = {
 
 def ingest(path: str, format: str) -> Tool:
     configure_logging()                         # setup logging
+    settings.ingest.SOURCE = format             # set ingest source
     assert(format in SupportedIngestion.all())  # validate format
     ingest_func = ingestor_map[format]          # select ingestor
     internal = ingest_func(path)                # ingest

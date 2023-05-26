@@ -15,7 +15,6 @@ from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_conta
 from janis_core.ingestion.galaxy.model.tool.generate import gen_tool
 from janis_core.ingestion.galaxy.model.tool import Tool as InternalTool
 from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
 from janis_core.ingestion.galaxy.model.workflow import StepMetadata
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
 

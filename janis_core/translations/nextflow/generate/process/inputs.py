@@ -70,22 +70,23 @@ class ProcessInputGenerator:
         self.process_inputs.append(new_input)
 
     def generate_files_to_create_inputs(self) -> None:
-        if self.tool._files_to_create:
-            for filename, filecontents in self.tool._files_to_create.items():
-                # generate a name for this input
-                if len(self.tool._files_to_create) == 1:
-                    name = 'script'
-                else:
-                    name = naming.process.files_to_create_script(filename)
-                
-                # create the nf process input 
-                new_input = NFScriptProcessInput(
-                    name=name,
-                    tinput_id=name,
-                    dtype=File(), 
-                    presents_as=filename
-                )
-                self.process_inputs.append(new_input)
+        if isinstance(self.tool, CommandTool) and not settings.ingest.SOURCE == 'galaxy':
+            if self.tool._files_to_create:
+                for filename, filecontents in self.tool._files_to_create.items():
+                    # generate a name for this input
+                    if len(self.tool._files_to_create) == 1:
+                        name = 'script'
+                    else:
+                        name = naming.process.files_to_create_script(filename)
+                    
+                    # create the nf process input 
+                    new_input = NFScriptProcessInput(
+                        name=name,
+                        tinput_id=name,
+                        dtype=File(), 
+                        presents_as=filename
+                    )
+                    self.process_inputs.append(new_input)
         
     def generate_regular_inputs(self) -> None:
         tinput_ids = task_inputs.task_inputs(self.tool.id())

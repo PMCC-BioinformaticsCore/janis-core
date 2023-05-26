@@ -256,7 +256,6 @@ class TranslatorBase(ABC):
             basedir = ExportPathKeywords.resolve(
                 settings.translate.EXPORT_PATH, workflow_spec=self.name, workflow_name=tool.id()
             )
-            
             # create output folder
             if not os.path.exists(basedir):
                 os.makedirs(basedir)
@@ -268,7 +267,16 @@ class TranslatorBase(ABC):
                 wf.write(tool_out)
                 Logger.log(f"Wrote {fn_tool}  to disk")
 
-            # copy source files to output folder
+            # write helper files (files_to_create scripts)
+            tr_helpers = self.translate_helper_files(tool)
+            tr_helpers = {fn.split('/')[-1]: fc for fn, fc in tr_helpers.items()}
+            for (filename, filecontents) in tr_helpers.items():
+                with open(os.path.join(basedir, filename), "w+") as helperfp:
+                    Logger.log(f"Writing {filename} to disk")
+                    helperfp.write(filecontents)
+                    Logger.log(f"Written {filename} to disk")
+
+            # writing source files to output folder (specifically galaxy tool wrappers)
             if settings.general.SOURCE_FILES is not None:
                 # create source folder in basedir
                 source_dir = os.path.join(basedir, 'source')

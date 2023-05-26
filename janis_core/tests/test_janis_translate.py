@@ -153,7 +153,7 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         self.dest = 'nextflow'
         _reset_global_settings()
 
-    def test_toolshed_tool(self):
+    def test_toolshed_limma_voom_tool(self):
         uri = 'toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0'
         mainstr = _run(uri, self.src, self.dest)
         print(mainstr)

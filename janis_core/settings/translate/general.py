@@ -4,7 +4,8 @@ from typing import Optional, Any, Tuple
 from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 
-MODE:                       str = 'minimal'    # one of 'skeleton' 'minimal' 'full' 
+DEST:                       str = ''            # destination language: one of 'nextflow' | 'cwl' | 'wdl'
+MODE:                       str = 'minimal'     # one of 'skeleton' 'minimal' 'full' 
                                                 # dictates the tool inputs & tool command which should be translated
 
 EXPORT_PATH:                str = ExportPathKeywords.default # base output directory

@@ -67,7 +67,7 @@ def to_janis_files_to_create(internal: Tool) -> dict[str, str]:
 def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
     """ 
     maps internal model tool input to janis model tool input
-    missing the following (unnessesary):
+    missing the following (some are unnessesary, others may need to be implemented):
         prefix_applies_to_all_elements
         presents_as
         secondaries_present_as
