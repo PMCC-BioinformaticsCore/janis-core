@@ -158,6 +158,11 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         mainstr = _run(uri, self.src, self.dest)
         print(mainstr)
     
+    def test_toolshed_samtools_flagstat_tool(self):
+        uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
+        mainstr = _run(uri, self.src, self.dest)
+        print(mainstr)
+    
     def test_abricate_wf(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/wf_abricate.ga'
         mainstr = _run(filepath, self.src, self.dest)

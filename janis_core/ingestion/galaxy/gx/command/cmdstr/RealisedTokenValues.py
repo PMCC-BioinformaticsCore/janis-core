@@ -23,12 +23,15 @@ class RealisedTokens:
     def __init__(self, values: list[list[Token]], original: Token):
         self.tlists = values
         self.original = original
-        self.set_gxparams()
+        self.transfer_attributes()
 
-    def set_gxparams(self) -> None:
+    def transfer_attributes(self) -> None:
         for tlist in self.tlists:
             for token in tlist:
                 token.gxparam = self.original.gxparam
+                token.construct = self.original.construct
+                token.in_conditional = self.original.in_conditional
+                token.in_loop = self.original.in_loop
         
     def get_original_token(self) -> Token:
         return self.original

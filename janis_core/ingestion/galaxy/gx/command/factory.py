@@ -17,6 +17,10 @@ class CommandFactory:
         self.xmlcmdstr = self.gen_cmdstr_from_xml()
         self.command = Command(self.xmlcmdstr)
 
+    def gen_cmdstr_from_xml(self) -> CommandString:
+        text = load_command()
+        return gen_command_string(source='xml', the_string=text, xmltool=self.xmltool)
+
     def create(self) -> Command:
         self.update_command_via_arguments()
         self.update_command_via_cmdstrs()
@@ -41,8 +45,6 @@ class CommandFactory:
         # note ordering: xml then test
         return [self.xmlcmdstr]
 
-    def gen_cmdstr_from_xml(self) -> CommandString:
-        text = load_command()
-        return gen_command_string(source='xml', the_string=text, xmltool=self.xmltool)
+
 
 

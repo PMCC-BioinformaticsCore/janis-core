@@ -64,7 +64,7 @@ class GreedyExecutionPathAnnotator:
 
     def annotate(self) -> ExecutionPath:
         self.mark_ignore_tokens()
-        self.annotate_via_param_args()
+        self.annotate_via_param_arguments()
         self.annotate_linux_constructs()
         self.annotate_tool_arguments()
         self.transfer_gxparams()
@@ -79,7 +79,7 @@ class GreedyExecutionPathAnnotator:
             if position.token.ttype in ignore_tokens:
                 position.ignore = True
         
-    def annotate_via_param_args(self) -> None:
+    def annotate_via_param_arguments(self) -> None:
         arguments: set[str] = set([param.argument for param in self.xmltool.inputs.list() if param.argument]) # type: ignore
         ptr = 0
         while ptr < len(self.epath.positions) - 1:

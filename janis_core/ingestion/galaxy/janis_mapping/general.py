@@ -63,9 +63,13 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
 
 
 def to_janis_selector(component: OutputComponent) -> Optional[InputSelector | WildcardSelector]:
-    # redirect outputs don't get a selector as they are Stdout type
+    # # redirect outputs don't get a selector as they are Stdout type
     if isinstance(component, RedirectOutput):
         return None
+    
+    # if isinstance(component, RedirectOutput):
+    #     input_comp_tag = tags.get(component.input_component.uuid)
+    #     return InputSelector(input_comp_tag)
     
     pattern = get_collection_pattern(component)
     if pattern is not None:

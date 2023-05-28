@@ -29,14 +29,16 @@ def types_from_param(entity: Any) -> list[str]:
         return types
 
 def types_from_values(values: list[Any]) -> list[str]:
-    if all([expressions.is_script(v) for v in values]):
-        raise RuntimeError
+    if len(values) == 0:
+        return ['string']
     elif all([expressions.is_int(v) for v in values]):
         return ['integer']
     elif all([expressions.is_float(v) for v in values]):
         return ['float']
     elif all([expressions.is_var(v) for v in values]):
         return ['string']
+    elif all([expressions.is_script(v) for v in values]):
+        raise RuntimeError
     return ['string']
 
 def types_from_default(entity: Any) -> list[str]:
