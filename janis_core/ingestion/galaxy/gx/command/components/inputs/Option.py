@@ -18,6 +18,12 @@ class Option(InputComponent):
 
     @property
     def name(self) -> str:
+        if self.gxparam:
+            return self.gxparam.name  
+        elif len(self.prefix.strip('--')) > 1:
+            return self.prefix.strip('--')
+        elif self.values.most_common_value is not None:
+            return self.values.most_common_value.strip('${}')
         return self.prefix.strip('--')
 
     @property

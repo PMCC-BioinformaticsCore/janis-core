@@ -1,10 +1,20 @@
 
+successful builds:
 
 LIMMA VOOM
-successful build:
     DEST_BASE_IMAGE='quay.io/biocontainers/bioconductor-limma:3.50.1--r41h5c21468_0' mulled-build --name-override 'janis-translate-limma-voom-3.34.9.9' --verbose build-and-test 'bioconductor-edger,r-statmod,r-scales,r-rjson,r-getopt,r-gplots,bioconductor-glimma'
     ->
     quay.io/biocontainers/janis-translate-limma-voom-3.34.9.9
+
+HISAT2
+    DEST_BASE_IMAGE='quay.io/biocontainers/hisat2:2.2.1--h87f3376_5' mulled-build --name-override 'janis-translate-hisat2-2.2.1' --verbose build-and-test 'samtools,seqtk'
+    ->
+    quay.io/biocontainers/janis-translate-hisat2-2.2.1
+
+FEATURECOUNTS
+    DEST_BASE_IMAGE='quay.io/biocontainers/coreutils:8.31--h14c3975_0' mulled-build --name-override 'janis-translate-featurecounts-2.0.1' --verbose build-and-test 'samtools,subread'
+    ->
+    quay.io/biocontainers/janis-translate-hisat2-2.2.1
 
 # Run image [continuumio/miniconda3:latest] with command [[/bin/sh -c conda install  -c 'conda-forge' -c 'bioconda'  'bioconductor-edger' 'r-statmod' 'r-scales' 'r-rjson' 'r-getopt' 'r-gplots' 'bioconductor-glimma' --strict-channel-priority -p /usr/local --copy --yes --quiet]]
 

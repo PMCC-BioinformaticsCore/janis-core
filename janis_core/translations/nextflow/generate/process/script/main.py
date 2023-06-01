@@ -1,7 +1,7 @@
 
 from typing import Tuple, Optional
 
-from janis_core import CommandTool, ToolArgument
+from janis_core import CommandTool, ToolArgument, Stdout
 from janis_core import settings
 
 from .... import naming
@@ -33,7 +33,6 @@ class ProcessScriptGenerator:
     ):
         self.tool = tool
         self.vmanager = vmanager
-
         self.prescript: list[str] = []
         self.script: list[str] = []
 
@@ -44,13 +43,10 @@ class ProcessScriptGenerator:
         self.handle_cmdtool_base_command()
         if settings.translate.MODE != 'skeleton':
             self.handle_cmdtool_inputs_arguments()
+        self.handle_stdout_redirect()
         prescript = self.finalise_prescript()
         script = self.finalise_script()
         return prescript, script
-    
-    def handle_cmdtool_inputs_arguments(self) -> None:
-        self.prescript += gen_prescript_lines(self.tool, self.vmanager)
-        self.script += gen_script_lines(self.tool, self.vmanager)
         
     def handle_undefined_variable_references(self) -> None:
         """
@@ -115,6 +111,20 @@ class ProcessScriptGenerator:
                 self.script += [' '.join([str(cmd) for cmd in bc])]
             else:
                 self.script += [str(bc)]
+
+    def handle_cmdtool_inputs_arguments(self) -> None:
+        self.prescript += gen_prescript_lines(self.tool, self.vmanager)
+        self.script += gen_script_lines(self.tool, self.vmanager)
+
+    def handle_stdout_redirect(self) -> None:
+        assert(len([out for out in self.tool.outputs() if isinstance(out.output_type, Stdout)]) <= 1)
+        for out in self.tool.outputs():
+            if isinstance(out.output_type, Stdout):
+                if hasattr(out.output_type.subtype, 'extension') and out.output_type.subtype.extension is not None:
+                    suffix = out.output_type.subtype.extension
+                else:
+                    suffix = ''
+                self.script.append(f'> {out.id()}{suffix}')
 
     def finalise_prescript(self) -> Optional[str]:
         if self.prescript:

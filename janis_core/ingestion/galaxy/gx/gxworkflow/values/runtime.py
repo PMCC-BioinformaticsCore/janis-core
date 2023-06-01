@@ -39,20 +39,22 @@ class RuntimeInputIngestor:
     def ingest_runtime(self, g_step: dict[str, Any]) -> None:
         j_step = mapping.step(g_step['id'], self.janis, self.galaxy)
         runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
-        tool_state = load_tool_state(g_step, additional_filters=['Flatten'])
-        g_targets = [key for key, val in tool_state.items() if val == '__RuntimeValue__']
+        tool_state = load_tool_state(g_step, additional_filters=['Flatten', 'DeNestClass'])
+        g_targets = [key for key, val in tool_state.items() if val == 'RuntimeValue']
 
         for g_target in g_targets:
-            g_target = g_target.replace('|', '.')
+            # g_target = g_target.replace('|', '.')
             j_target = mapping.tool_input(g_target, j_step.tool)
 
             if not self.already_ingested(g_target, g_step):
                 if not self.already_assigned(j_target, j_step):
                     if j_target: # only care if can link. is this a TODO?
+                        
                         # create workflow input & add to workflow
                         winp = self.create_workflow_input(j_step, j_target)
                         self.janis.add_input(winp)
-                        # create step value & add to step 
+                        
+                        # create step input value for the workflow input & add to step
                         value = self.create_workflow_value(j_target, winp)
                         j_step.inputs.add(value)
 

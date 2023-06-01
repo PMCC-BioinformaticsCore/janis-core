@@ -121,6 +121,14 @@ class Flatten(ABC):
                 curr_path = deepcopy(path)
                 curr_path.append(key)
                 self.explore_node(value, curr_path)  # type: ignore
+            elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
+                for elem in value:
+                    index = elem["__index__"]
+                    del elem["__index__"]
+                    key = f'{key}_{index}'
+                    curr_path = deepcopy(path)
+                    curr_path.append(key)
+                    self.explore_node(elem, curr_path)
             else:
                 self.add_to_flattened_tool_state(key, value, path)
     

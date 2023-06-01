@@ -1,6 +1,5 @@
 
 from typing import Optional
-from copy import deepcopy
 
 from janis_core import (
     InputSelector,
@@ -27,7 +26,6 @@ from janis_core.ingestion.galaxy.gx.command.components import (
     OutputComponent,
     RedirectOutput,
     InputOutput,
-    WildcardOutput,
 )
 
 datatype_map = {
@@ -39,15 +37,23 @@ datatype_map = {
     'Directory': Directory(),
 }
 
+import importlib
+
+
 DATATYPE_COMPONENT = InputComponent | OutputComponent | WorkflowInput | StepOutput
 
 def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
     if isinstance(component, StepOutput):
         component = component.tool_output
     
-    # the underlying datatype, regardless of stdout / array / optionality
-    dtype = deepcopy(datatype_map[component.datatype.classname])
+    module_name = component.datatype.import_path
+    class_name = component.datatype.classname
     
+    # the underlying datatype, regardless of stdout / array / optionality
+    module = importlib.import_module(module_name)
+    class_ = getattr(module, class_name)
+    dtype = class_()
+
     # modifying dtype in array case
     if component.array:
         dtype = Array(dtype)
@@ -59,6 +65,7 @@ def to_janis_datatype(component: DATATYPE_COMPONENT) -> DataType:
     # modifying dtype in optional case
     if component.optional:
         dtype.optional = True
+
     return dtype
 
 

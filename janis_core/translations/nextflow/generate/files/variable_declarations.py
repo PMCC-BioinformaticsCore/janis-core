@@ -41,29 +41,35 @@ def gen_variables_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFVar
     return var_block
 
 
-def should_create_variable_definition(tinput: TInput, wf: Workflow) -> bool:
-    if not task_inputs.exists(wf.id(), tinput):
+def should_create_variable_definition(input_node: TInput, wf: Workflow) -> bool:
+    # no real workflow input for this input node
+    if not task_inputs.exists(wf.id(), input_node):
         return False
     
-    task_input = task_inputs.get(wf.id(), tinput)
+    # only TASK_INPUT and PARAM TaskInputTypes can be channels
+    task_input = task_inputs.get(wf.id(), input_node)
     if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
         return False
     
-    dtt = utils.get_dtt(tinput.intype)
-    if dtt not in [
+    dtt = utils.get_dtt(input_node.intype)
+
+    # optional file arrays should be variables
+    if dtt in [
         DTypeType.SECONDARY_ARRAY,
-        DTypeType.SECONDARY,
         DTypeType.FILE_PAIR_ARRAY,
-        DTypeType.FILE_PAIR,
         DTypeType.FILE_ARRAY,
+    ] and input_node.intype.optional:
+        return True
+
+    # files should be variables
+    elif dtt in [
+        DTypeType.SECONDARY,
+        DTypeType.FILE_PAIR,
         DTypeType.FILE,
     ]:
-        return False
-
-    if not tinput.intype.optional:
-        return False
+        return True
     
-    return True
+    return False
 
 
 class VariableDefinitionGenerator:

@@ -9,7 +9,14 @@ groups: dict[str, TagGroup] = {}
 def register(entity: Any) -> None:  
     """register a tag in the active TagGroup"""
     group = _get_active()
-    group.register(entity.name, entity) 
+    basename = get_basename(entity)
+    group.register(basename, entity) 
+
+def get_basename(entity: Any) -> str:
+    """get the basename of an entity"""
+    # if hasattr(entity, 'gxparam') and entity.gxparam is not None:
+    #     return entity.gxparam.name
+    return entity.name
 
 def get(uuid: str) -> str:
     """get a tag from any TagGroup"""

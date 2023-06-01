@@ -249,12 +249,13 @@ class GalaxyToolFactory:
             self.inputs.add(param)
             
             # modify command to replace script with param
+            print(self.gxtool.command)
             self.replace_script_in_command(match, param)
             print(self.gxtool.command)
             print()
 
     def parse_script(self, match: re.Match[str]) -> Script:
-        filename = match.group(2)
+        filename = match.group(1)
         varname = filename.rsplit('.', 1)[0]
         if not varname.endswith('_script'):
             varname = f'{varname}_script'

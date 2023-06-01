@@ -10,11 +10,16 @@ from .JanisDatatype import JanisDatatype
 
 class DatatypeRegister:
     def __init__(self):
-        self.dtype_map: dict[str, JanisDatatype] = {}
+        self.format_map: dict[str, JanisDatatype] = {}
+        self.extension_map: dict[str, JanisDatatype] = {}
 
-    def get(self, datatype: str) -> Optional[JanisDatatype]:
-        if datatype in self.dtype_map:
-            return self.dtype_map[datatype]
+    def get_from_extension(self, extension: str) -> Optional[JanisDatatype]:
+        if extension in self.extension_map:
+            return self.extension_map[extension]
+
+    def get_from_format(self, format: str) -> Optional[JanisDatatype]:
+        if format in self.format_map:
+            return self.format_map[format]
 
     def populate(self) -> None:
         """
@@ -27,12 +32,12 @@ class DatatypeRegister:
             datatypes = yaml.safe_load(fp)
         for type_data in datatypes['types']:
             janistype = self._init_type(type_data)
+            
             # multiple keys per datatype
-            self.dtype_map[type_data['format']] = janistype
-            self.dtype_map[type_data['classname']] = janistype 
-            if type_data['extensions']:
-                for ext in type_data['extensions']:
-                    self.dtype_map[ext] = janistype 
+            self.format_map[janistype.format] = janistype
+            if janistype.extensions is not None:
+                for ext in janistype.extensions.split(','):
+                    self.extension_map[ext] = janistype
 
     def _init_type(self, dtype: dict[str, str]) -> JanisDatatype:
         return JanisDatatype(

@@ -27,29 +27,39 @@ from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy import expressions
 
 
-def handle_step_static_inputs(janis: Workflow, galaxy: dict[str, Any]) -> None:
+def handle_step_static_inputs(i_workflow: Workflow, galaxy: dict[str, Any]) -> None:
     """supplied values in step 'tool_state'"""
     for g_step in galaxy['steps'].values():
         if g_step['type'] == 'tool':
-            j_step = mapping.step(g_step['id'], janis, galaxy)
-            runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
-            ingest_values_cheetah(g_step, j_step, janis)
-            ingest_values_inputs(g_step, j_step, janis)
+            i_step = mapping.step(g_step['id'], i_workflow, galaxy)
+            runtime.tool.set(from_wrapper=i_step.metadata.wrapper)
+            ingest_values_cheetah(g_step, i_step, i_workflow)
+            ingest_values_inputs(g_step, i_step, i_workflow)
 
-def ingest_values_cheetah(g_step: dict[str, Any], j_step: WorkflowStep, janis: Workflow) -> None:
-    ingestor = CheetahInputIngestor(g_step, j_step, janis)
+def ingest_values_cheetah(g_step: dict[str, Any], i_step: WorkflowStep, i_workflow: Workflow) -> None:
+    ingestor = CheetahInputIngestor(g_step, i_step, i_workflow)
     ingestor.ingest()
 
-def ingest_values_inputs(g_step: dict[str, Any], j_step: WorkflowStep, janis: Workflow) -> None:
-    ingestor = StaticInputIngestor(g_step, j_step, janis)
+def ingest_values_inputs(g_step: dict[str, Any], i_step: WorkflowStep, i_workflow: Workflow) -> None:
+    ingestor = StaticInputIngestor(g_step, i_step, i_workflow)
     ingestor.ingest()
 
 
 class CheetahInputIngestor:
-    def __init__(self, g_step: dict[str, Any], j_step: WorkflowStep, janis: Workflow):
+    """
+    This is the first method of ingesting workflow step input values. 
+    CheetahInputIngestor exists because we want to identify which tool flags & options don't 
+    appear in the templated <command> section. 
+    For those which don't appear in the <command> section, we can set their value to None.
+    For those which do appear, we check if they have a galaxy param attached.
+    If they have a galaxy param attached, they're handled in StaticInputIngestor.
+    If they dont have a galaxy param attached, we set their value to the following token. 
+    """
+
+    def __init__(self, g_step: dict[str, Any], i_step: WorkflowStep, i_workflow: Workflow):
         self.g_step = g_step
-        self.j_step = j_step
-        self.janis = janis
+        self.i_step = i_step
+        self.i_workflow = i_workflow
 
     def ingest(self) -> None:
         cmdstr = self.prepare_command()
@@ -79,140 +89,140 @@ class CheetahInputIngestor:
         # logging.runtime_data(stmtstr)
         return stmtstr
     
+    def get_linkable_components(self) -> list[InputComponent]:
+        out: list[InputComponent] = []
+        for component in self.i_step.tool.inputs:
+            if not self.i_step.inputs.get(component.uuid):
+                out.append(component)
+        return out
+    
     def link_flag(self, flag: Flag, cmdstr: str) -> None:
         """
         links a flag component value as None if not in cmdstr
         should only detect the flag's absense, nothing else
         """
         if not expressions.is_present(flag.prefix, cmdstr):
-            self.handle_not_present_flag(flag)
+            self.update_tool_values_static(component=flag, value=False)
 
     def link_option(self, option: Option, cmdstr: str) -> None:
         """gets the value for a specific tool argument"""
+        if option.gxparam is not None:
+            return
         value = expressions.get_next_word(option.prefix, option.delim, cmdstr)
         value = None if value == '' else value
         if value is None:
-            self.handle_not_present_opt(option)
-        elif self.is_param(value):
-            self.handle_gxvar_opt(option, value)
+            self.update_tool_values_static(component=option, value=None)
+        # elif self.is_param(value):
+        #     pass
         elif expressions.is_var(value) or expressions.has_var(value):
-            self.handle_envvar_opt(option, value)
+            self.update_tool_values_runtime(component=option)
         else:
-            self.handle_value_opt(option, value)
+            self.update_tool_values_static(component=option, value=value)
 
-    # TODO upgrade for pre/post task section
-    def is_param(self, text: Optional[str]) -> bool:
-        # how does this even work? 
-        # $ can also mean env var? 
-        if text:
-            if text[0] == '$':
-                return True
-            elif len(text) > 1 and text[1] == '$':  # WTF 
-                return True
-        return False
+    # # TODO upgrade for pre/post task section
+    # def is_param(self, text: Optional[str]) -> bool:
+    #     # how does this even work? 
+    #     # $ can also mean env var? 
+    #     if text:
+    #         if text.strip('"\'')[0] == '$':
+    #             return True
+    #         elif len(text) > 1 and text[1] == '$':  # WTF 
+    #             return True
+    #     return False
 
-    def handle_not_present_flag(self, flag: Flag) -> None:
-        self.update_tool_values_static(component=flag, value=False)
-
-    def handle_not_present_opt(self, option: Option) -> None:
-        self.update_tool_values_static(component=option, value=None)
+    # def handle_gxvar_opt(self, option: Option, value: str) -> None:
+    #     # TODO future: attach the identified param if not attached? 
+    #     # should always be attached tho? 
+    #     pass
     
-    def handle_gxvar_opt(self, option: Option, value: str) -> None:
-        # TODO future: attach the identified param if not attached? 
-        # should always be attached tho? 
-        pass
-    
-    def handle_envvar_opt(self, option: Option, value: Any) -> None:
-        self.update_tool_values_runtime(component=option)
-    
-    def handle_value_opt(self, option: Option, value: Any) -> None:
-        self.update_tool_values_static(component=option, value=value)
-
     def update_tool_values_static(self, component: Flag | Option, value: Any) -> None:
         # create & add value 
         is_default = True if component.default_value == value else False
         inputval = factory.static(component, value, default=is_default)
-        self.j_step.inputs.add(inputval)
+        self.i_step.inputs.add(inputval)
     
     def update_tool_values_runtime(self, component: Flag | Option) -> None:
         # create & add new workflow input
         winp = self.create_workflow_input(component)
-        self.janis.add_input(winp)
+        self.i_workflow.add_input(winp)
         # create & add value 
         inputval = factory.workflow_input(component, winp.uuid, is_runtime=True)
-        self.j_step.inputs.add(inputval)
+        self.i_step.inputs.add(inputval)
 
     def create_workflow_input(self, component: Flag | Option) -> WorkflowInput:
         """creates a workflow input for the tool input component"""
         return WorkflowInput(
-            _name=component.tag,
+            _name=f'{self.i_step.tag}_{component.tag}',
             array=component.array,
             is_runtime=True,
             datatype=datatypes.get(component),
             optional=component.optional
         )
 
-    def get_linkable_components(self) -> list[InputComponent]:
-        out: list[InputComponent] = []
-        for component in self.j_step.tool.inputs:
-            if not self.j_step.inputs.get(component.uuid):
-                out.append(component)
-        return out
-
 
 
 class StaticInputIngestor:
-    def __init__(self, g_step: dict[str, Any], j_step: WorkflowStep, janis: Workflow):
+    """
+    This is the fallback method of ingesting workflow step input values. 
+    Sometimes the CheetahInputIngestor method results in the <command> section missing 
+    some tool arguments, so we cant link them. 
+    In this case, we use the full <command> section to link values. 
+    get_linkable_components() checks to see which tool input components are not yet linked,
+    then for each of those tries to link the tool_state value to a tool input component. 
+    If the component already has a value (ie its a runtime value, connected value, or was linked using 
+    CheetahInputIngestor), then we skip it.
+    """
+
+    def __init__(self, g_step: dict[str, Any], i_step: WorkflowStep, i_workflow: Workflow):
         self.g_step = g_step
-        self.j_step = j_step
-        self.janis = janis
+        self.i_step = i_step
+        self.i_workflow = i_workflow
 
     def ingest(self) -> None:
         for component in self.get_linkable_components():
             if self.is_directly_linkable(component):
-                value = self.create_value(component)
-                self.j_step.inputs.add(value)
+                self.update_tool_values_static(component)
     
     def get_linkable_components(self) -> list[InputComponent]:
         out: list[InputComponent] = []
         # tool components which don't yet appear in register
-        tool_inputs = self.j_step.tool.inputs
-        tool_values = self.j_step.inputs
+        tool_inputs = self.i_step.tool.inputs
+        step_inputs = self.i_step.inputs
         for component in tool_inputs:
-            if component.gxparam and not tool_values.get(component.uuid):
+            if component.gxparam and not step_inputs.get(component.uuid):
                 out.append(component)
         return out
 
     def is_directly_linkable(self, component: InputComponent) -> bool:
         """
-        checks whether a janis tool input can actually be linked to a value in the 
+        checks whether a i_workflow tool input can actually be linked to a value in the 
         galaxy workflow step.
         only possible if the component has a gxparam, and that gxparam is referenced as a
         ConnectionStepInput, RuntimeStepInput or StaticStepInput
         """
         if component.gxparam:
             query = component.gxparam.name 
-            tool_state = load_tool_state(self.g_step, additional_filters=['Flatten'])
+            tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
             if query in tool_state:
                 return True
         return False
 
-    def create_value(self, component: InputComponent) -> InputValue:
+    def update_tool_values_static(self, component: InputComponent) -> None:
         """
         create an InputValue for this tool component using supplied step 'tool_state' input values.
         we know that the component has a galaxy param, and that the same galaxy param
         has a supplied value (or connection or runtime value specified) in the step input values. 
         this function grabs that supplied value, then creates a formalised InputValue. 
         it also does other necessary functions - in the case of a galaxy 'runtime value', 
-        this needs to become a WorkflowInput in janis world. a WorkflowInput would be created, 
+        this needs to become a WorkflowInput in i_workflow world. a WorkflowInput would be created, 
         added to the Workflow, and also added to the InputValue (WorkflowInputInputValue). 
         this says 'for step x using tool y, the tool input component z gets its value from 
         our new WorkflowInput'
         """
         # pull value from 'tool_state'
         # should only be static values left
-        # this should be really ez?
-        tool_state = load_tool_state(self.g_step, additional_filters=['Flatten'])
+        tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
         g_value = tool_state[component.gxparam.name] # type: ignore
         is_default = True if component.default_value == g_value else False
-        return factory.static(component, value=g_value, default=is_default)
+        value = factory.static(component, value=g_value, default=is_default)
+        self.i_step.inputs.add(value)

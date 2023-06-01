@@ -20,8 +20,8 @@
             "name": "Input dataset",
             "outputs": [],
             "position": {
-                "left": 3.975423799238797,
-                "top": 453.2787543317363
+                "left": 3.9754087149161705,
+                "top": 453.28884880181624
             },
             "tool_id": null,
             "tool_state": "{\"optional\": false, \"format\": [\"fastqsanger\"], \"tag\": null}",
@@ -46,8 +46,8 @@
             "name": "Input dataset",
             "outputs": [],
             "position": {
-                "left": 1.0246082833484706,
-                "top": 541.4856021956386
+                "left": 1.0348752702617503,
+                "top": 541.5060816266651
             },
             "tool_id": null,
             "tool_state": "{\"optional\": false, \"format\": [\"fastqsanger\"], \"tag\": null}",
@@ -73,7 +73,7 @@
             "outputs": [],
             "position": {
                 "left": 0.0,
-                "top": 628.5347381646166
+                "top": 628.5142913824635
             },
             "tool_id": null,
             "tool_state": "{\"optional\": false, \"format\": [\"fastqsanger\"], \"tag\": null}",
@@ -104,6 +104,10 @@
                 },
                 {
                     "description": "runtime parameter for tool FastQC",
+                    "name": "input_file"
+                },
+                {
+                    "description": "runtime parameter for tool FastQC",
                     "name": "limits"
                 }
             ],
@@ -120,8 +124,8 @@
                 }
             ],
             "position": {
-                "left": 299.97938889401007,
-                "top": 2.4590129299085675
+                "left": 299.96923213247317,
+                "top": 2.4487613134046455
             },
             "post_job_actions": {
                 "HideDatasetActiontext_file": {
@@ -137,7 +141,7 @@
                 "owner": "devteam",
                 "tool_shed": "toolshed.g2.bx.psu.edu"
             },
-            "tool_state": "{\"adapters\": {\"__class__\": \"RuntimeValue\"}, \"contaminants\": {\"__class__\": \"RuntimeValue\"}, \"input_file\": {\"__class__\": \"ConnectedValue\"}, \"kmers\": \"7\", \"limits\": {\"__class__\": \"RuntimeValue\"}, \"min_length\": null, \"nogroup\": \"false\", \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_state": "{\"adapters\": {\"__class__\": \"RuntimeValue\"}, \"contaminants\": {\"__class__\": \"RuntimeValue\"}, \"input_file\": {\"__class__\": \"RuntimeValue\"}, \"kmers\": \"7\", \"limits\": {\"__class__\": \"RuntimeValue\"}, \"min_length\": null, \"nogroup\": \"false\", \"__page__\": null, \"__rerun_remap_job_id__\": null}",
             "tool_version": "0.73+galaxy0",
             "type": "tool",
             "uuid": "1450d138-93ec-47db-960e-78905af995b1",
@@ -145,7 +149,7 @@
                 {
                     "label": "FastQC on input dataset(s): Webpage",
                     "output_name": "html_file",
-                    "uuid": "5fcf7989-6177-40ea-bb4c-3f2b8c3deaae"
+                    "uuid": "25238fe4-0880-4b36-a7fc-74dbc46e0576"
                 }
             ]
         },
@@ -187,7 +191,7 @@
                 }
             ],
             "position": {
-                "left": 520.9219940845974,
+                "left": 520.9118529795632,
                 "top": 0.0
             },
             "post_job_actions": {
@@ -212,7 +216,7 @@
                 {
                     "label": null,
                     "output_name": "html_file",
-                    "uuid": "e054aae0-813b-4ce7-977c-05b9d3d0b8d8"
+                    "uuid": "3d489e1f-ad51-481d-be74-4e9a50bc871c"
                 }
             ]
         },
@@ -238,7 +242,19 @@
             "inputs": [
                 {
                     "description": "runtime parameter for tool Create assemblies with Unicycler",
+                    "name": "long"
+                },
+                {
+                    "description": "runtime parameter for tool Create assemblies with Unicycler",
                     "name": "lr_align"
+                },
+                {
+                    "description": "runtime parameter for tool Create assemblies with Unicycler",
+                    "name": "paired_unpaired"
+                },
+                {
+                    "description": "runtime parameter for tool Create assemblies with Unicycler",
+                    "name": "paired_unpaired"
                 },
                 {
                     "description": "runtime parameter for tool Create assemblies with Unicycler",
@@ -258,8 +274,8 @@
                 }
             ],
             "position": {
-                "left": 503.3606118791024,
-                "top": 381.45491872228683
+                "left": 503.34013809490136,
+                "top": 381.4343956129509
             },
             "post_job_actions": {
                 "HideDatasetActionassembly_graph": {
@@ -275,7 +291,7 @@
                 "owner": "iuc",
                 "tool_shed": "toolshed.g2.bx.psu.edu"
             },
-            "tool_state": "{\"graph_clean\": {\"min_component_size\": \"1000\", \"min_dead_end_size\": \"1000\"}, \"linear_seqs\": \"0\", \"long\": {\"__class__\": \"ConnectedValue\"}, \"lr_align\": {\"contamination\": {\"__class__\": \"RuntimeValue\"}, \"scores\": \"3,-6,-5,-2\", \"low_score\": null}, \"min_anchor_seg_len\": null, \"min_fasta_length\": \"500\", \"mode\": \"normal\", \"paired_unpaired\": {\"fastq_input_selector\": \"paired\", \"__current_case__\": 0, \"fastq_input1\": {\"__class__\": \"ConnectedValue\"}, \"fastq_input2\": {\"__class__\": \"ConnectedValue\"}}, \"pilon\": {\"no_pilon\": \"false\", \"min_polish_size\": \"1000\"}, \"rotation\": {\"no_rotate\": \"false\", \"start_genes\": {\"__class__\": \"RuntimeValue\"}, \"start_gene_id\": \"90.0\", \"start_gene_cov\": \"95.0\"}, \"spades\": {\"no_correct\": \"false\", \"min_kmer_frac\": \"0.2\", \"max_kmer_frac\": \"0.95\", \"kmers\": \"\", \"kmer_count\": \"10\", \"depth_filter\": \"0.25\", \"largest_component\": \"false\"}, \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_state": "{\"graph_clean\": {\"min_component_size\": \"1000\", \"min_dead_end_size\": \"1000\"}, \"linear_seqs\": \"0\", \"long\": {\"__class__\": \"RuntimeValue\"}, \"lr_align\": {\"contamination\": {\"__class__\": \"RuntimeValue\"}, \"scores\": \"3,-6,-5,-2\", \"low_score\": null}, \"min_anchor_seg_len\": null, \"min_fasta_length\": \"500\", \"mode\": \"normal\", \"paired_unpaired\": {\"fastq_input_selector\": \"paired\", \"__current_case__\": 0, \"fastq_input1\": {\"__class__\": \"RuntimeValue\"}, \"fastq_input2\": {\"__class__\": \"RuntimeValue\"}}, \"pilon\": {\"no_pilon\": \"false\", \"min_polish_size\": \"1000\"}, \"rotation\": {\"no_rotate\": \"false\", \"start_genes\": {\"__class__\": \"RuntimeValue\"}, \"start_gene_id\": \"90.0\", \"start_gene_cov\": \"95.0\"}, \"spades\": {\"no_correct\": \"false\", \"min_kmer_frac\": \"0.2\", \"max_kmer_frac\": \"0.95\", \"kmers\": \"\", \"kmer_count\": \"10\", \"depth_filter\": \"0.25\", \"largest_component\": \"false\"}, \"__page__\": null, \"__rerun_remap_job_id__\": null}",
             "tool_version": "0.4.8.0",
             "type": "tool",
             "uuid": "f827fd85-7920-41bb-8342-c9b2051770c2",
@@ -283,7 +299,7 @@
                 {
                     "label": "Create assemblies with Unicycler on input dataset(s): Final Assembly",
                     "output_name": "assembly",
-                    "uuid": "c88e8c02-1537-47b9-a2e6-69fee1aff759"
+                    "uuid": "e6632bf6-1c4a-4093-b517-1c86e160c678"
                 }
             ]
         },
@@ -324,8 +340,8 @@
                 }
             ],
             "position": {
-                "left": 739.1084702881599,
-                "top": 1.0143966306084167
+                "left": 739.0983192541909,
+                "top": 0.9835881726859839
             },
             "post_job_actions": {
                 "HideDatasetActionlog_read_length": {
@@ -364,7 +380,7 @@
                 {
                     "label": "NanoPlot on input dataset(s): HTML report",
                     "output_name": "output_html",
-                    "uuid": "7fd6cd2b-b162-4e95-9aac-ca4b2d8bc0e5"
+                    "uuid": "4b13efe5-0fc6-4db6-9c22-854f321833d3"
                 }
             ]
         },
@@ -389,8 +405,8 @@
                 }
             ],
             "position": {
-                "left": 926.1267913234292,
-                "top": 475.9426763982806
+                "left": 926.0962584174182,
+                "top": 475.95282798944174
             },
             "post_job_actions": {},
             "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/quast/quast/5.0.2+galaxy5",
@@ -408,7 +424,7 @@
                 {
                     "label": "Quast on input dataset(s): HTML report",
                     "output_name": "report_html",
-                    "uuid": "0401c5bd-d7fe-4caa-80ac-ae6fc52fe3cf"
+                    "uuid": "63c115b7-5b97-4291-b280-3a28487d0452"
                 }
             ]
         },
@@ -437,8 +453,8 @@
                 }
             ],
             "position": {
-                "left": 925.9425903230472,
-                "top": 599.9487617608115
+                "left": 925.942572765436,
+                "top": 599.928233191543
             },
             "post_job_actions": {},
             "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/busco/busco/5.3.2+galaxy0",
@@ -456,17 +472,17 @@
                 {
                     "label": "Busco on input dataset(s): short summary",
                     "output_name": "busco_sum",
-                    "uuid": "9b8b0fd4-2e45-43c9-a98a-b89fb03d62c0"
+                    "uuid": "38b54017-0299-4515-93c8-eff788fd1e8c"
                 },
                 {
                     "label": "Busco on input dataset(s): full table",
                     "output_name": "busco_table",
-                    "uuid": "b1e0e099-6975-43ee-a494-f84de0f0cedd"
+                    "uuid": "2b1d658e-9a8d-4131-bb59-ac502af97431"
                 }
             ]
         }
     },
     "tags": [],
-    "uuid": "1dc3f06a-48b8-46a5-8fcd-d0523585c88e",
-    "version": 5
+    "uuid": "26da9aea-1aaf-488d-adf8-b90e1d7a9e61",
+    "version": 6
 }

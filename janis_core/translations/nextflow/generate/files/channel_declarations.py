@@ -24,7 +24,6 @@ INDENT = settings.translate.nextflow.NF_INDENT
 CROSS_CHANNEL_NAME = 'ch_cartesian_cross'
 
 
-
 def gen_channels_block(nf_workflow: NFWorkflow, wf: Workflow) -> Optional[NFChannelDefinitionBlock]:
     # for each param
     # if it qualifies to create a channel, create channel declaration 
@@ -54,29 +53,22 @@ def should_create_channel_definition(input_node: TInput, wf: Workflow) -> bool:
     if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
         return False
     
-    # if the input node is scattered on, should be a channel
+    # will be working with the datatype type 
     dtt = utils.get_dtt(input_node.intype)
-    if dtt == DTypeType.GENERIC_ARRAY:
-        if is_scattered_on(input_node, wf):
-            return True
-
-    # only files should be channels (disregarding scatter, handled above)
-    if dtt not in [
-        DTypeType.SECONDARY_ARRAY,
-        DTypeType.SECONDARY,
-        DTypeType.FILE_PAIR_ARRAY,
-        DTypeType.FILE_PAIR,
-        DTypeType.FILE_ARRAY,
-        DTypeType.FILE,
-    ]:
-        return False
-
-    # optional types will be defined as variables instead
-    if input_node.intype.optional:
-        return False
     
-    return True
-
+    # generic arrays should be channels if scattered on
+    if dtt in [DTypeType.GENERIC_ARRAY, DTypeType.FLAG_ARRAY] and is_scattered_on(input_node, wf):
+        return True
+    
+    # mandatory file arrays should be channels
+    elif dtt in [
+        DTypeType.SECONDARY_ARRAY,
+        DTypeType.FILE_PAIR_ARRAY,
+        DTypeType.FILE_ARRAY,
+    ] and not input_node.intype.optional:
+        return True
+    
+    return False
 
 def is_scattered_on(input_node: TInput, wf: Workflow) -> bool:
     for step in wf.step_nodes.values():

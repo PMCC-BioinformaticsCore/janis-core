@@ -20,11 +20,14 @@ core_type_priorities = {
     file_t.classname: 6, # lowest priority
 }
 
-def galaxy_to_janis(galaxy_types: list[str]) -> list[JanisDatatype]:
+def galaxy_to_internal(expressions: list[str]) -> list[JanisDatatype]:
     out: list[JanisDatatype] = []
-    for gtype in galaxy_types:
-        jtype = register.get(gtype)
-        if jtype is not None:
+    for expr in expressions:
+        if register.get_from_format(expr) is not None:
+            jtype = register.get_from_format(expr)
+            out.append(jtype)
+        elif register.get_from_extension(expr) is not None:
+            jtype = register.get_from_extension(expr)
             out.append(jtype)
     return out
 

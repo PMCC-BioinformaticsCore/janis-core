@@ -9,7 +9,7 @@ import json
 # from janis_core.ingestion.galaxy.gx.command.components.inputs.Option import Option
 
 from .JanisDatatype import JanisDatatype
-from .conversion import galaxy_to_janis
+from .conversion import galaxy_to_internal
 from . import core
 
 
@@ -80,7 +80,7 @@ class PositionalStrategy(DatatypeGetStrategy):
             gxtypes = types_from_default(entity)
         if not gxtypes:
             gxtypes = types_from_values(entity.values.unique)
-        return galaxy_to_janis(gxtypes)
+        return galaxy_to_internal(gxtypes)
 
 class FlagStrategy(DatatypeGetStrategy):
     def get(self, entity: Any) -> list[JanisDatatype]:
@@ -93,7 +93,7 @@ class OptionStrategy(DatatypeGetStrategy):
             gxtypes = types_from_default(entity)
         if not gxtypes:
             gxtypes = types_from_values(entity.values.unique)
-        return galaxy_to_janis(gxtypes)
+        return galaxy_to_internal(gxtypes)
 
 class OutputStrategy(DatatypeGetStrategy):
     def get(self, entity: Any) -> list[JanisDatatype]:
@@ -102,7 +102,7 @@ class OutputStrategy(DatatypeGetStrategy):
             gxtypes = types_from_extension(entity)
         if not gxtypes:
             gxtypes = ['file']
-        return galaxy_to_janis(gxtypes)
+        return galaxy_to_internal(gxtypes)
 
 class WorkflowInputStrategy(DatatypeGetStrategy):
     def get(self, entity: Any) -> list[JanisDatatype]:
@@ -112,7 +112,7 @@ class GalaxyInputStepStrategy(DatatypeGetStrategy):
     def get(self, entity: dict[str, Any]) -> list[JanisDatatype]:
         tool_state = json.loads(entity['tool_state'])
         if 'format' in tool_state:
-            return galaxy_to_janis(tool_state['format'])
+            return galaxy_to_internal(tool_state['format'])
         else:
             return [core.file_t]
 

@@ -117,23 +117,25 @@ class InputExtractor:
         tool_state = load_tool_state(self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
         for param_name, param_value in tool_state.items():
             if self.should_create_uncaptured_input(param_name, param_value): # type: ignore
-                param = self.xmltool.inputs.get(param_name)
+                param = self.xmltool.inputs.get(param_name, strategy="lca")
                 inp = self.create_uncaptured_input(param) # type: ignore
                 self.inputs.append(inp)
 
     def should_create_uncaptured_input(self, param_name: str, param_value: str) -> bool:
-        param = self.xmltool.inputs.get(param_name)
+        param = self.xmltool.inputs.get(param_name, strategy="lca")
         if not param:
             return False
         
         for inp in self.inputs:
             if inp.gxparam and inp.gxparam.name == param.name:
                 return False
+            
+        return True
         
-        if param_value in ['ConnectedValue', 'RuntimeValue']:
-            return True
+        # if param_value in ['ConnectedValue', 'RuntimeValue']:
+        #     return True
         
-        return False
+        # return False
     
     def create_uncaptured_input(self, gxparam: InputParam) -> InputComponent:
         if isinstance(gxparam, BoolParam):

@@ -184,6 +184,7 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_rna_seq_reads_to_counts(self):
+        # settings.translate.MODE = 'full'
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)

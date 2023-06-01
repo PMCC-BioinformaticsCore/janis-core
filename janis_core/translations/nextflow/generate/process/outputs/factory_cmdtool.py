@@ -5,14 +5,14 @@ from typing import Any, Optional
 from enum import Enum, auto
 
 from janis_core.types import DataType
-from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 from janis_core import (
     ToolOutput, 
     CommandTool,
     WildcardSelector,
     InputSelector,
     Selector,
-    Filename
+    Filename,
+    Stdout
 )
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
@@ -192,8 +192,28 @@ class CmdtoolProcessOutputFactory:
         )
     
     # process output creation methods
-    def stdout_output(self) -> NFStdoutProcessOutput:
-        return NFStdoutProcessOutput(name=self.out.id(), janis_tag=self.out.id(), is_optional=self.optional)
+    def stdout_output(self) -> NFProcessOutput:
+        dtt = utils.get_dtt(self.out.output_type.subtype)
+        if dtt in [
+            DTypeType.GENERIC_ARRAY,
+            DTypeType.GENERIC,
+        ]:
+            return NFStdoutProcessOutput(
+                name=self.out.id(), 
+                janis_tag=self.out.id(), 
+                is_optional=self.optional
+            )
+        else:
+            if hasattr(self.out.output_type.subtype, 'extension') and self.out.output_type.subtype.extension is not None:
+                suffix = self.out.output_type.subtype.extension
+            else:
+                suffix = ''
+            return NFPathProcessOutput(
+                name=self.out.id(), 
+                janis_tag=self.out.id(), 
+                is_optional=self.optional,
+                expression=f'"{self.out.id()}{suffix}"'
+            )
     
     def non_file_output(self) -> NFValProcessOutput:
         ftype = self.get_fmttype(self.out.selector)
@@ -346,87 +366,4 @@ class CmdtoolProcessOutputFactory:
 
     def secondaries_array_output(self) -> NFSecondariesArrayProcessOutput:
         raise NotImplementedError('process outputs with format [[file1, file2]] (arrays of secondary files) not supported in nextflow translation')
-
-
-
-
-
-
-
-
-    # def secondaries_output_reference(self) -> NFTupleProcessOutput:
-    #     qualifiers: list[str] = []
-    #     expressions: list[str] = []
-        
-    #     # primary file
-    #     primary_reference = self.unwrap_collection_expression(self.out.selector)
-    #     qualifiers.append('path')
-    #     expressions.append(primary_reference)
-    #     exts = utils.get_extensions(self.dtype, ignore_duplicates=True)
-        
-    #     for ext in exts[1:]:
-    #         # extensions which replace part of filename
-    #         if ext.startswith('^'):
-    #             secondary_ext = ext.lstrip('^')
-    #             qualifiers.append('path')
-    #             expressions.append(f'"${{{primary_reference}.simpleName}}{secondary_ext}"')
-    #         else:
-    #             secondary_ext = ext
-    #             qualifiers.append('path')
-    #             expressions.append(f'"${{{primary_reference}}}{secondary_ext}"')
-
-    #     new_output = NFTupleProcessOutput(
-    #         name=self.out.id(), 
-    #         janis_tag=self.out.id(),
-    #         is_optional=self.optional,
-    #         qualifiers=qualifiers, 
-    #         expressions=expressions
-    #     )
-    #     return new_output
-    
-    # def secondaries_output_complex(self) -> NFTupleProcessOutput:
-    #     qualifiers: list[str] = []
-    #     expressions: list[str] = []
-
-    #     exts = utils.get_extensions(self.dtype, ignore_duplicates=True)
-    #     primary_expr = self.unwrap_collection_expression(self.out.selector)
-    #     primary_expr = primary_expr.strip('"')
-    #     primary_ext = exts[0]
-    #     primary_ext_start = primary_expr.rfind(primary_ext)
-    #     primary_ext_stop = primary_ext_start + len(primary_ext)
-
-    #     # primary file
-    #     qualifiers.append('path')
-    #     expressions.append(f'"{primary_expr}"')
-
-    #     # secondary files
-    #     for ext in exts[1:]:
-    #         # no primary ext found in collection expression (edge case)
-    #         if primary_ext_start == -1:
-    #             # TODO add a user warning message - dodgy output collection in this step
-    #             secondary_ext = ext.lstrip('^')
-    #             qualifiers.append('path')
-    #             expressions.append(f'"*{secondary_ext}"')
-
-    #         # find the last occurance of the primary file format, replace this with secondary file format
-    #         # eg "${alignment}.bam" -> "${alignment}.bai"
-    #         # probably has bugs.
-    #         else:
-    #             if self.out.secondaries_present_as and ext in self.out.secondaries_present_as:
-    #                 secondary_ext_pattern = self.out.secondaries_present_as[ext]
-    #             else:
-    #                 secondary_ext_pattern = ext
-    #             secondary_ext: str = apply_secondary_file_format_to_filename(primary_ext, secondary_ext_pattern)
-    #             secondary_expr = primary_expr[:primary_ext_start] + secondary_ext + primary_expr[primary_ext_stop:]
-    #             qualifiers.append('path')
-    #             expressions.append(f'"{secondary_expr}"')
-
-    #     new_output = NFTupleProcessOutput(
-    #         name=self.out.id(), 
-    #         janis_tag=self.out.id(),
-    #         is_optional=self.optional,
-    #         qualifiers=qualifiers, 
-    #         expressions=expressions
-    #     )
-    #     return new_output
 

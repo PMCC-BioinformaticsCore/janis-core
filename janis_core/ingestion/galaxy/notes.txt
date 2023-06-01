@@ -1,70 +1,19 @@
 
 
-templates / scripts
-tools/scripts/myfile.R
-
-Skeleton 
-- only data files
-
-Minimal
-- only step inputs with non-default values 
-
-Full 
-- all cmdline options. 
-- how to deal with cheetah for loops? cheetah conditionals? 
-- for tool components with multiple possible input params, use aliases, apply the param used as step input
-
 
 WORSHOP
 
-
-janis translate cmdline options
-
---mode  skeleton | regular | expanded
-    - cwl       [DONE]
-    - wdl       [TODO]
-    - nextflow  [TODO]
-
---galaxy-gen-images
---galaxy-tool-all-commands (low prio)
-
-
-allow toolshed paths for tool ingest
-
-unknown inputs
-    
-    input:
-    path in_reads_todo
-
-    output: 
-    stdout
-
-    script:
-    """
-    fastqc
-    --reads ${reads}
-    """
-    - identify all __RuntimeValue__ and __ConnectedValue__ and tool inputs supplied values but not linked to InputComponent
-    - add these as extra ToolInputs, but don't give them position, prefix etc. 
-    - wont appear in the CWL / WDL / Nextflow script 
-    - things where we see --mode ${mode} but mode is local var (ie not linked to tool_state inputs)
-      are different, and instead should be InputSelector('unknown')?
-    - in nextflow script preprocessing want these to appear as 
-      script:
-      def mode = "__UNKNOWN__"
-      """
-      base_command \
-      --mode ${mode}
-      """
-
-- scripts [TODO]
-    - needs ingest to be aware of export_path etc
-    - each tool script should be supplied from workflow inputs
-    - script defaults in nextflow.config ('./templates/script')
-
-requirements [CHECK]
+- requirements
     - build mulled container for tools with multiple requirements
+- check step input values are correct
+- --galaxy-gen-images cmdline option
+- --mode  skeleton | regular | expanded cmdline option
+    - cwl       [DONE]
+    - nextflow  [DONE]
+    - wdl       [DONE ERROR]
+- add support for repeat params (& conditional params?)
+    - cutadapt adapters argument
+    - cutadapt library.type single?
+- revisit parsing <command> section (CommandFactory) since load_partial_cheetah_command isnt being used currently
+- --galaxy-tool-all-commands
 
-- goseq.xml error:
-    --make_plots '$out.make_plots'
-    being interpreted as bool positional rather than option (--prefix value)
