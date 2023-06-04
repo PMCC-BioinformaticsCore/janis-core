@@ -6,13 +6,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from janis_core import DataType
-# from janis_core import translation_utils as utils
+from janis_core import translation_utils as utils
 
 
 @dataclass
 class NFProcessInput(ABC):
-    name: str
-    tinput_id: str
+    name: str           # the 
+    tinput_id: str      # the janis tool input id
     dtype: DataType
     
     @abstractmethod
@@ -46,14 +46,14 @@ class NFPathProcessInput(NFProcessInput):
         # elif utils.is_file_pair_array_type(self.dtype) and self.dtype.optional:
         #     expr = f", stageAs: '{self.name}??/*'"
 
-        # # optional file arrays
-        # elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
-        #     # expr = f", stageAs: '{self.name}??/*'"
-        #     expr = ''
+        # optional file arrays
+        elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}??/*'"
+            # expr = ''
         
-        # # optional files
-        # elif utils.is_file_type(self.dtype) and self.dtype.optional:
-        #     expr = f", stageAs: '{self.name}/*'"
+        # optional files
+        elif utils.is_file_type(self.dtype) and self.dtype.optional:
+            expr = f", stageAs: '{self.name}/*'"
         
         else:
             expr = ''

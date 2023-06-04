@@ -130,7 +130,7 @@ class TaskCallGenerator:
         max_width = max([len(x) for x in arg_lines])
         out: list[str] = []
         for arg, task_input in zip(arg_lines, self.ordered_task_inputs):
-            arg = f'{arg:<{max_width + 2}}// {task_input.tinput_id}'
+            arg = f'{arg:<{max_width + 2}}// {task_input.name}'
             out.append(arg)
         return out
     
