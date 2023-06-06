@@ -51,10 +51,10 @@ setup(
     packages=["janis_core"]
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
     package_data={'janis-pipelines.core': [
-        'janis_core/messages/config.yaml',
-        'janis_core/ingestion/galaxy/data/*.json',
-        'janis_core/ingestion/galaxy/data/*.yaml',
-        'janis_core/ingestion/galaxy/data/*.xml.sample',
+        'messages/*.yaml',
+        'ingestion/galaxy/data/*.json',
+        'ingestion/galaxy/data/*.yaml',
+        'ingestion/galaxy/data/*.xml.sample',
     ]},
     install_requires=[
         "importlib-metadata==4.12.0",
