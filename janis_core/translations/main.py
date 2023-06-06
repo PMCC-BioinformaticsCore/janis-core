@@ -13,7 +13,7 @@ from .translationbase import TranslatorBase
 
 def translate(
     entity: CodeTool | CommandTool | WorkflowBase,
-    translation: str,
+    dest_fmt: str,
     mode: Optional[str] = None,
 
     # file io
@@ -46,7 +46,7 @@ def translate(
 ) -> Any:  
     
     # settings 
-    settings.translate.DEST = translation             # set translate dest
+    settings.translate.DEST = dest_fmt             # set translate dest
     
     if mode is not None:
         settings.translate.MODE = mode
@@ -91,7 +91,7 @@ def translate(
         settings.translate.MAX_MEM = max_mem
 
     # preprocessing
-    if settings.translate.MODE in ['skeleton', 'minimal'] and isinstance(entity, WorkflowBase):
+    if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBase):
         entity = prune_unused_inputs(entity)
 
     # select the translation unit 

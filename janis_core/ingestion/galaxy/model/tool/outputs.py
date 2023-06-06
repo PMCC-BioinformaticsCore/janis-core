@@ -73,7 +73,7 @@ class OutputExtractor:
         return prioritised
         
     def define_whitelisted_outputs(self) -> None:
-        if settings.translate.MODE in ['skeleton', 'minimal'] and self.gxstep:
+        if settings.translate.MODE in ['skeleton', 'regular'] and self.gxstep:
             for out in self.gxstep['outputs']:
                 param = self.xmltool.outputs.get(out['name']) 
                 if param:
