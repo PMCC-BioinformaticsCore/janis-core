@@ -50,7 +50,7 @@ setup(
     keywords=["janis", "workflows", "pipelines", "cwl", "wdl", "bioinformatics"],
     packages=["janis_core"]
     + ["janis_core." + p for p in sorted(find_packages("./janis_core"))],
-    package_data={'janis-pipelines.core': [
+    package_data={'janis_core': [
         'messages/*.yaml',
         'ingestion/galaxy/data/*.json',
         'ingestion/galaxy/data/*.yaml',
