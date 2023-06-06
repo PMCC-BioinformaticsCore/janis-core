@@ -95,7 +95,7 @@ def translate(
         entity = prune_unused_inputs(entity)
 
     # select the translation unit 
-    translator = get_translator(translation)
+    translator = get_translator(dest_fmt)
 
     # do translation 
     if isinstance(entity, WorkflowBase):
