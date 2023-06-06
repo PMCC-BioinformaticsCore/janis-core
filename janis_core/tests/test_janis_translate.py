@@ -1,19 +1,22 @@
 
 
-
-
-
 import unittest
-from typing import Optional, Any, Tuple
+from typing import Any
 
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
-
 from janis_core import settings
-# PATHS MUST BE ABSOLUTE
 
 import regex as re
 import yaml
+
+
+CWL_TESTDATA_PATH = 'janis_core/tests/data/cwl'
+GALAXY_TESTDATA_PATH = 'janis_core/tests/data/galaxy'
+JANIS_TESTDATA_PATH = 'janis_core/tests/data/janis'
+WDL_TESTDATA_PATH = 'janis_core/tests/data/wdl'
+
+
 
 
 # ------- HELPER FUNCS ------- #
@@ -125,23 +128,23 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     def test_tool_samtools_flagstat(self):
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/tools/samtools_flagstat.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_tool_gatk_haplotype_caller(self):
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
         settings.translate.MODE = 'full'
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_wf_alignment_exome(self):
-        filepath = './janis_core/tests/data/cwl/workflows/analysis-workflows/pipelines/alignment_exome.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/pipelines/alignment_exome.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -164,28 +167,28 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_abricate_wf(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/wf_abricate.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_unicycler_assembly(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/unicycler_assembly.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_rna_seq_counts_to_genes(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_counts_to_genes.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_rna_seq_genes_to_pathways(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_genes_to_pathways.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_rna_seq_reads_to_counts(self):
         # settings.translate.MODE = 'full'
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_reads_to_counts.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -199,7 +202,7 @@ class TestModes(unittest.TestCase):
     
     def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
             'tools/basic_v0_1_0.cwl': 4,
@@ -219,7 +222,7 @@ class TestModes(unittest.TestCase):
     
     def test_skeleton_wdl(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         for filepath, filecontents in sub_tasks:
             if _is_wdl_task(filecontents):
@@ -228,7 +231,7 @@ class TestModes(unittest.TestCase):
     
     def test_skeleton_nextflow(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{GALAXY_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
             'modules/basic.nf': 4,
@@ -249,7 +252,7 @@ class TestModes(unittest.TestCase):
     
     def test_minimal_cwl(self) -> None:
         settings.translate.MODE = 'minimal'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
             'tools/basic_v0_1_0.cwl': 4,
@@ -269,7 +272,7 @@ class TestModes(unittest.TestCase):
     
     def test_minimal_wdl(self) -> None:
         settings.translate.MODE = 'minimal'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         expected_num_clt_inputs = {
             'align_and_tag_v0_1_0': 3,
@@ -302,7 +305,7 @@ class TestModes(unittest.TestCase):
     
     def test_minimal_nextflow(self) -> None:
         settings.translate.MODE = 'minimal'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
             'modules/basic.nf': 4,
@@ -323,7 +326,7 @@ class TestModes(unittest.TestCase):
 
     def test_full_cwl(self) -> None:
         settings.translate.MODE = 'full'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
             'tools/basic_v0_1_0.cwl': 6,
@@ -343,7 +346,7 @@ class TestModes(unittest.TestCase):
 
     def test_full_nextflow(self) -> None:
         settings.translate.MODE = 'full'
-        filepath = './janis_core/tests/data/cwl/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
             'modules/basic.nf': 6,

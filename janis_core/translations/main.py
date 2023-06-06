@@ -7,8 +7,7 @@ from janis_core import settings
 from janis_core import CodeTool, CommandTool, WorkflowBase
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
-
-from .preprocessing import prune_unused_inputs
+from janis_core.translations.common import prune_unused_inputs
 from .translationbase import TranslatorBase
 
 

@@ -3,7 +3,9 @@
 from janis_core import Workflow, Tool, ToolInput, CommandToolBuilder
 
 from .history import TaskInputCollector
-from ...common import trace
+from janis_core.translations.common import trace
+
+
 
 def prune_unused_tool_inputs(wf: Workflow, tools: dict[str, Tool]) -> dict[str, Tool]:
     pruned_tools: dict[str, Tool] = {}

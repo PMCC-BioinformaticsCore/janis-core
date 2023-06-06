@@ -1,5 +1,6 @@
 
 
+from . import common
 from .wdl import WdlTranslator
 from .cwl import CwlTranslator
 from .nextflow import NextflowTranslator

@@ -4,7 +4,7 @@ from typing import Any, Optional
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from janis_core import Tool, Workflow, CommandTool, PythonTool, TInput, TOutput
+from janis_core import Tool, Workflow, CommandTool, PythonTool
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import DataType

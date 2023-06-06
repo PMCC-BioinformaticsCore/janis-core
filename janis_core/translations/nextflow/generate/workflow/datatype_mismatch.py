@@ -160,7 +160,10 @@ def generate_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType) -
     # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
     indices: list[int] = []
     for ext in desttype_exts:
-        index = srctype_exts.index(ext)
+        if ext == 'primary':
+            index = 0
+        else:
+            index = srctype_exts.index(ext)
         indices.append(index)
 
     # 4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing

@@ -31,8 +31,6 @@ from . import preprocessing
 from .scope import Scope
 
 
-
-
 # class methods dont make sense. dislike this approach. 
 # whole approach is far too complex. no need for oop. 
 # should have just defined a translation interface (protocol class in python) 
