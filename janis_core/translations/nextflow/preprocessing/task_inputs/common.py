@@ -5,7 +5,7 @@ from janis_core.workflow.workflow import Workflow, InputNode, CommandTool
 from janis_core.types import File, Filename
 from janis_core import translation_utils as utils
 
-from ....common import trace
+from janis_core.translations.common import trace
 
 
 

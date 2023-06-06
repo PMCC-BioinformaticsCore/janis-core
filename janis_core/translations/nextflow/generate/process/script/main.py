@@ -3,10 +3,9 @@ from typing import Tuple, Optional
 
 from janis_core import CommandTool, ToolArgument, Stdout
 from janis_core import settings
+from janis_core.translations.common import trace
 
 from .... import naming
-from .....common import trace
-
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
 from ....variables import VariableType

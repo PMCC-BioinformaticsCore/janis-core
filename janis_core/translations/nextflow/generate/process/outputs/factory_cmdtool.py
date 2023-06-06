@@ -17,9 +17,9 @@ from janis_core import (
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 
+from janis_core.translations.common import trace
 from .... import task_inputs
 from ....task_inputs import TaskInputType
-from .....common import trace
 from ....unwrap import unwrap_expression
 from ....variables import VariableManager
 

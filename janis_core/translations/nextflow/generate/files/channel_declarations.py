@@ -15,7 +15,6 @@ from ...model.files.channels import NFChannelDefinitionBlock
 from ...model.workflow import NFWorkflow
 from ...model.workflow import NFMainWorkflow
 
-from ....common import trace
 from ... import naming 
 from ... import task_inputs
 from ...task_inputs import TaskInputType

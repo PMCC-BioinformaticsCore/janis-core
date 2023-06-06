@@ -9,7 +9,7 @@ from ...model.files import NFImportsBlock
 from ...model.files import NFFunctionsBlock
 from ...model.process import NFProcess
 
-from ....common import trace
+from janis_core.translations.common import trace
 
 
 get_primary_files_code = """\
