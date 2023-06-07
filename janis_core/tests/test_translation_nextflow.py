@@ -1526,7 +1526,11 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         reset_globals()
 
     def test_directives(self) -> None:
+        
+        translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
+        
         wf = DirectivesTestWF()
+
         
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]

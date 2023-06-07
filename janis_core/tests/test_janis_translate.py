@@ -6,6 +6,14 @@ from typing import Any
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 from janis_core import settings
+from janis_core.tests.testtools import FileOutputPythonTestTool
+from janis_core.tests.testtools import GridssTestTool
+from janis_core.tests.testworkflows import AssemblyTestWF
+
+from janis_core import CommandTool, CommandToolBuilder
+from janis_core import Workflow, WorkflowBuilder
+from janis_core import CodeTool
+
 
 import os 
 import regex as re
@@ -99,7 +107,6 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
     
     return out
 
-
 def _reset_global_settings() -> None:
     settings.translate.MODE = 'regular'
     settings.ingest.SAFE_MODE = False
@@ -115,6 +122,72 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
+
+
+
+# ------- TRANSLATION ENDPOINTS ------- #
+
+class TestTranslationEndpoints(unittest.TestCase):
+    """
+    this class tests all translation endpoints. 
+    exists so we know that the endpoints are working.
+    translation is always to nextflow as we're just testing endpoints, 
+    and want the nextflow translation to be the best translation unit so pick this one.
+    """
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    # CWL INGEST -> TRANSLATE
+
+    def test_from_cwl_to_nextflow_commandtool(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
+        _run(filepath, 'cwl', 'nextflow')
+
+    def test_from_cwl_to_nextflow_etool(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/utils/return_directory.cwl'
+        _run(filepath, 'cwl', 'nextflow')
+
+    def test_from_cwl_to_nextflow_workflow(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        _run(filepath, 'cwl', 'nextflow')
+    
+    # GALAXY INGEST -> TRANSLATE
+
+    def test_from_galaxy_to_nextflow_tool(self) -> None:
+        filepath = f'{GALAXY_TESTDATA_PATH}/abricate/abricate.xml'
+        _run(filepath, 'galaxy', 'nextflow')
+    
+    def test_from_galaxy_to_nextflow_tool_toolshed(self) -> None:
+        filepath = f'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
+        _run(filepath, 'galaxy', 'nextflow')
+
+    def test_from_galaxy_to_nextflow_workflow(self) -> None:
+        filepath = f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga'
+        _run(filepath, 'galaxy', 'nextflow')
+    
+    # WDL INGEST -> TRANSLATE
+
+    def test_from_wdl_to_nextflow_tool(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
+        _run(filepath, 'wdl', 'nextflow')
+
+    def test_from_wdl_to_nextflow_workflow(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        _run(filepath, 'wdl', 'nextflow')
+    
+    # JANIS.TRANSLATE()
+
+    def test_commandtool_translate_nextflow(self) -> None:
+        GridssTestTool().translate('nextflow', export_path='./translated')
+
+    def test_codetool_translate_nextflow(self) -> None:
+        FileOutputPythonTestTool().translate('nextflow', export_path='./translated')
+
+    def test_workflow_translate_nextflow(self) -> None:
+        AssemblyTestWF().translate('nextflow', export_path='./translated')
+
+
 
 
 # ------- WORSHOP TESTS ------- #
@@ -192,9 +265,38 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
 
 
+# ---- PREPROCESSING ------------------------------
+
+from janis_core.translations.common import to_builders
+
+class TestPreprocessingToBuilders(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_commandtool_to_builders(self) -> None:
+        entity = GridssTestTool()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, CommandToolBuilder)
+    
+    def test_codetool_to_builders(self) -> None:
+        entity = FileOutputPythonTestTool()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, CodeTool)
+
+    def test_workflow_to_builders(self) -> None:
+        entity = AssemblyTestWF()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, WorkflowBuilder)
+        assert(isinstance(entity, WorkflowBuilder))
+        for step in entity.step_nodes.values():
+            self.assertIsInstance(step.tool, CommandToolBuilder)
+
+
+
 # ---- MODES ------------------------------
 
-class TestModes(unittest.TestCase):
+class TestPreprocessingModes(unittest.TestCase):
     
     def setUp(self) -> None:
         _reset_global_settings()
@@ -288,19 +390,9 @@ class TestModes(unittest.TestCase):
             'name_sort_v0_1_0': [],
         }
         for filepath, filecontents in sub_tasks:
-            if _is_cwl_clt(filecontents):
+            if _is_wdl_task(filecontents):
                 command_lines = _get_wdl_task_command_lines(filecontents)
-                
-                # checking expected number of clt inputs
-                toolname = filepath.split('/')[-1].split('.')[0]
-                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[toolname])
-
-                # checking clt inputs have inputBindings
-                for inp in clt_inputs:
-                    if inp['id'] in expected_input_binding_absence[toolname]:
-                        continue
-                    else:
-                        self.assertIn('inputBinding', inp)
+                raise NotImplementedError
     
     def test_regular_nextflow(self) -> None:
         settings.translate.MODE = 'regular'
@@ -343,6 +435,28 @@ class TestModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
 
+    def test_extended_wdl(self) -> None:
+        settings.translate.MODE = 'extended'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        expected_num_clt_inputs = {
+            'align_and_tag_v0_1_0': 3,
+            'index_bam_v0_1_0': 1,
+            'mark_duplicates_and_sort_v0_1_0': 3,
+            'merge_bams_samtools_v0_1_0': 2,
+            'name_sort_v0_1_0': 1,
+        }
+        expected_input_binding_absence = {
+            'align_and_tag_v0_1_0': [],
+            'index_bam_v0_1_0': ['bam'],
+            'mark_duplicates_and_sort_v0_1_0': [],
+            'merge_bams_samtools_v0_1_0': ['name'],
+            'name_sort_v0_1_0': [],
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_wdl_task(filecontents):
+                raise NotImplementedError
+
     def test_extended_nextflow(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
@@ -363,7 +477,6 @@ class TestModes(unittest.TestCase):
                 actual_script_lines = _get_nf_process_script_lines(filecontents)
                 self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
                 self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
-
 
 
 # ---- FROM CWL ---------------------------

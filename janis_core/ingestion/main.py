@@ -27,7 +27,6 @@ ingestor_map = {
     'wdl': ingest_wdl
 }
 
-
 def ingest(path: str, format: str) -> Tool:
     configure_logging()                         # setup logging
     settings.ingest.SOURCE = format             # set ingest source

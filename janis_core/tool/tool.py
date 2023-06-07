@@ -192,19 +192,73 @@ class Tool(ABC, object):
     def doc(self) -> Optional[str]:
         return None
 
-    @abstractmethod
     def translate(
         self,
-        translation: str,
-        to_console=None,
-        to_disk=None,
-        export_path=None,
-        with_docker=None,
-        with_resource_overrides=None,
-        allow_empty_container=None,
-        container_override=None,
-    ):
-        raise Exception("Subclass must provide implementation for 'translate()' method")
+        dest_fmt: str,
+        mode: Optional[str] = None,
+
+        # file io
+        to_disk: Optional[bool] = None,
+        export_path: Optional[str] = None,
+        should_zip: Optional[bool] = None,   
+        to_console: Optional[bool] = None,
+        tool_to_console: Optional[bool] = None,
+        write_inputs_file: Optional[bool] = None,
+        
+        # inputs
+        additional_inputs: Optional[dict[str, str]] = None,
+        hints: Optional[dict[str, str]] = None,
+        
+        # containers
+        with_container: Optional[bool] = None,
+        allow_empty_container: Optional[bool] = None,
+        container_override: Optional[str | dict[str, Any]] = None,
+        
+        # resouces
+        with_resource_overrides: Optional[bool] = None,
+        merge_resources: Optional[bool] = None,
+        max_cores: Optional[int] = None,
+        max_mem: Optional[int] = None,
+        max_duration: Optional[int] = None,
+        
+        # misc
+        render_comments: Optional[bool] = None,
+        should_validate: Optional[bool] = None,
+        ) -> Any:
+        from janis_core.translations import translate
+        return translate(
+            entity=self,
+            dest_fmt=dest_fmt,
+            mode=mode,
+
+            # file io
+            to_disk=to_disk,
+            export_path=export_path,
+            should_zip=should_zip,
+            to_console=to_console,
+            tool_to_console=tool_to_console,
+            write_inputs_file=write_inputs_file,
+            
+            # inputs
+            additional_inputs=additional_inputs,
+            hints=hints,
+            
+            # containers
+            with_container=with_container,
+            allow_empty_container=allow_empty_container,
+            container_override=container_override,
+            
+            # resouces
+            with_resource_overrides=with_resource_overrides,
+            merge_resources=merge_resources,
+            max_cores=max_cores,
+            max_mem=max_mem,
+            max_duration=max_duration,
+            
+            # misc
+            render_comments=render_comments,
+            should_validate=should_validate,
+        )
 
     def bind_metadata(self):
         """

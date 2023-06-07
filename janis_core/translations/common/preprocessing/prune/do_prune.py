@@ -1,19 +1,19 @@
 
 
-from janis_core import Workflow, Tool, ToolInput, CommandToolBuilder
+from janis_core import WorkflowBase, Tool, ToolInput, CommandToolBuilder
 
 from .history import TaskInputCollector
 from janis_core.translations.common import trace
 
 
 
-def prune_unused_tool_inputs(wf: Workflow, tools: dict[str, Tool]) -> dict[str, Tool]:
+def prune_unused_tool_inputs(wf: WorkflowBase, tools: dict[str, Tool]) -> dict[str, Tool]:
     pruned_tools: dict[str, Tool] = {}
     for tool_id, tool in tools.items():
         pruned_tools[tool_id] = prune(wf, tool)
     return pruned_tools
 
-def prune(wf: Workflow, tool: Tool) -> Tool:
+def prune(wf: WorkflowBase, tool: Tool) -> Tool:
     if not isinstance(tool, CommandToolBuilder):
         return tool
     

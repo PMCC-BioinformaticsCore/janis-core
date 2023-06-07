@@ -5,24 +5,25 @@ from inspect import isclass
 
 from janis_core import settings
 from janis_core import CodeTool, CommandTool, WorkflowBase
+from janis_core import Tool
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
-from janis_core.translations.common import to_builder
+from janis_core.translations.common import to_builders
 from janis_core.translations.common import prune_unused_inputs
 from .translationbase import TranslatorBase
 
 
 def translate(
-    entity: CodeTool | CommandTool | WorkflowBase,
+    entity: Tool,
     dest_fmt: str,
     mode: Optional[str] = None,
 
     # file io
+    to_disk: Optional[bool] = None,
     export_path: Optional[str] = None,
     should_zip: Optional[bool] = None,   
     to_console: Optional[bool] = None,
     tool_to_console: Optional[bool] = None,
-    should_validate: Optional[bool] = None,
     write_inputs_file: Optional[bool] = None,
     source_files: Optional[list[str]] = None,
     
@@ -44,6 +45,8 @@ def translate(
     
     # misc
     render_comments: Optional[bool] = None,
+    should_validate: Optional[bool] = None,
+
 ) -> Any:  
     
     # settings 
@@ -53,8 +56,10 @@ def translate(
     
     if mode is not None:
         settings.translate.MODE = mode
-    if export_path is not None:
+    if export_path:
         settings.translate.EXPORT_PATH = export_path
+        settings.translate.TO_DISK = True
+    if to_disk:
         settings.translate.TO_DISK = True
     if allow_empty_container is not None:
         settings.translate.ALLOW_EMPTY_CONTAINER = allow_empty_container
@@ -94,8 +99,9 @@ def translate(
         settings.translate.MAX_MEM = max_mem
 
     # preprocessing
-    entity = to_builder(entity)
+    entity = to_builders(entity)
     if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBase):
+        assert(isinstance(entity, WorkflowBase))
         entity = prune_unused_inputs(entity)
 
     # select the translation unit 

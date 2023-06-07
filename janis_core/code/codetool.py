@@ -165,31 +165,6 @@ class CodeTool(Tool):
             )
         return d
 
-    def translate(
-        self,
-        translation: str,
-        to_console=None,
-        to_disk=None,
-        export_path=None,
-        with_docker=None,
-        with_resource_overrides=None,
-        allow_empty_container=None,
-        container_override=None,
-        render_comments=None
-    ):
-        from janis_core.translations import translate
-        return translate(
-            self,
-            dest_fmt=translation,
-            to_console=to_console,
-            with_container=with_docker,
-            export_path=export_path,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-            render_comments=render_comments,
-            with_resource_overrides=with_resource_overrides
-        )
-
     def wrapped_in_wf(self):
         from copy import copy
         from janis_core.workflow.workflow import WorkflowBuilder

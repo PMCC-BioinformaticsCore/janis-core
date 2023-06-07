@@ -450,30 +450,6 @@ class CommandTool(Tool, ABC):
     def type(cls):
         return ToolType.CommandTool
 
-    def translate(
-        self,
-        translation: Union[str, SupportedTranslation],
-        to_console=None,
-        export_path=None,
-        with_docker=None,
-        with_resource_overrides=None,
-        allow_empty_container=None,
-        container_override=None,
-        render_comments=None
-    ):
-        from janis_core.translations import translate
-        return translate(
-            self,
-            dest_fmt=translation,
-            to_console=to_console,
-            with_container=with_docker,
-            with_resource_overrides=with_resource_overrides,
-            export_path=export_path,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-            render_comments=render_comments
-        )
-
     def tool_inputs(self) -> List[TInput]:
         return [
             TInput(t.id(), t.input_type, default=t.default, doc=t.doc)

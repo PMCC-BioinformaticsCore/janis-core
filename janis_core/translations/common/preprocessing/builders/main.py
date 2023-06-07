@@ -4,13 +4,14 @@ from janis_core import CommandTool, CommandToolBuilder
 from janis_core import Tool
 
 
-def to_builder(entity: Tool) -> Tool:
+def to_builders(entity: Tool) -> Tool:
     if isinstance(entity, Workflow):
         for step in entity.step_nodes.values():
-            step.tool = to_builder(step.tool)
-        return to_workflow_builder(entity)
-    elif isinstance(entity, CommandTool):
-        return to_commandtool_builder(entity)
+            step.tool = to_builders(step.tool)
+        if not isinstance(entity, WorkflowBuilder):
+            entity = to_workflow_builder(entity)
+    elif isinstance(entity, CommandTool) and not isinstance(entity, CommandToolBuilder):
+        entity = to_commandtool_builder(entity)
     return entity
 
 def to_workflow_builder(workflow: Workflow) -> WorkflowBuilder:

@@ -4,7 +4,7 @@ from typing import Any, Optional
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from janis_core import Tool, Workflow, CommandTool, PythonTool
+from janis_core import Tool, WorkflowBase, CommandTool, PythonTool
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
 from janis_core.types import DataType
@@ -110,7 +110,7 @@ class TaskInputCollector:
         if we find only 1 reference and it has the format of a dummy input, we conclude it 
         is likely to be one of these and remove it from the inputs dict.
         """
-        assert(isinstance(self.tool, Workflow))
+        assert(isinstance(self.tool, WorkflowBase))
         valid_inputs: set[str] = set()
 
         for node in self.tool.input_nodes.values():
@@ -126,7 +126,7 @@ class TaskInputCollector:
         return {x: None for x in valid_inputs}
 
     def gen_reference_store(self, node: InputNode) -> InputNodeReferenceStore:
-        assert(isinstance(self.tool, Workflow))
+        assert(isinstance(self.tool, WorkflowBase))
         reference_store = InputNodeReferenceStore(node.id())
 
         # iterate through each step_input for each step in workflow
@@ -140,7 +140,7 @@ class TaskInputCollector:
         
         return reference_store
 
-    def collect(self, wf: Workflow) -> None:
+    def collect(self, wf: WorkflowBase) -> None:
         for step in wf.step_nodes.values():
             # the uuid is a unique identifier for this Tool. use as key. 
             identifier = step.tool.id()
@@ -160,7 +160,7 @@ class TaskInputCollector:
                 self.update_histories(inputs_dict, step.tool)
 
             # recursive for subworkflows
-            if isinstance(step.tool, Workflow):
+            if isinstance(step.tool, WorkflowBase):
                 self.collect(step.tool)
     
     def replace_sources(self, sources: dict[str, Any], inputs_dict: dict[str, Any]) -> dict[str, Any]:

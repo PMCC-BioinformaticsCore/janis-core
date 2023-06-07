@@ -948,54 +948,6 @@ class WorkflowBase(Tool):
             TOutput(o.id(), o.datatype, doc=o.doc) for o in self.output_nodes.values()
         ]
 
-    def translate(
-        self,
-        translation: Union[str, SupportedTranslation],
-        to_console=None,
-        tool_to_console=None,
-        to_disk=None,
-        write_inputs_file=None,
-        with_docker=None,
-        with_hints=None,
-        with_resource_overrides=None,
-        validate=None,
-        should_zip=None,
-        export_path=None,
-        merge_resources=None,
-        hints=None,
-        allow_null_if_not_optional=None,
-        additional_inputs= None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-        allow_empty_container=None,
-        container_override= None,
-        render_comments= None
-    ):
-        from janis_core.translations import translate
-
-        return translate(
-            self,
-            dest_fmt=translation,
-            to_console=to_console,
-            tool_to_console=tool_to_console,
-            with_container=with_docker,
-            with_resource_overrides=with_resource_overrides,
-            should_zip=should_zip,
-            export_path=export_path,
-            write_inputs_file=write_inputs_file,
-            should_validate=validate,
-            merge_resources=merge_resources,
-            hints=hints,
-            additional_inputs=additional_inputs,
-            max_cores=max_cores,
-            max_mem=max_mem,
-            max_duration=max_duration,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-            render_comments=render_comments
-        )
-
     def generate_inputs_override(
         self,
         additional_inputs=None,
