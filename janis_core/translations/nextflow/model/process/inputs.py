@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from janis_core import DataType
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 
 @dataclass
@@ -35,30 +36,17 @@ class NFPathProcessInput(NFProcessInput):
     @property
     def stage_as(self) -> str:
         # presents_as takes precedent? this might be really bad.
+        dtt = utils.get_dtt(self.dtype)
         if self.presents_as:
             expr = f", stageAs: '{self.presents_as}'"
-
-        # # optional secondary arrays
-        # elif utils.is_secondary_array_type(self.dtype) and self.dtype.optional:
-        #     expr = f", stageAs: '{self.name}??/*'"
-
-        # # optional file pair arrays
-        # elif utils.is_file_pair_array_type(self.dtype) and self.dtype.optional:
-        #     expr = f", stageAs: '{self.name}??/*'"
-
-        # optional file arrays
-        elif utils.is_file_array_type(self.dtype) and self.dtype.optional:
+        elif dtt == DTypeType.FILE_ARRAY and self.dtype.optional:
             expr = f", stageAs: '{self.name}??/*'"
-            # expr = ''
-        
-        # optional files
-        elif utils.is_file_type(self.dtype) and self.dtype.optional:
+        elif dtt == DTypeType.SECONDARY and self.dtype.optional:
             expr = f", stageAs: '{self.name}/*'"
-        
+        elif dtt == DTypeType.FILE and self.dtype.optional:
+            expr = f", stageAs: '{self.name}/*'"
         else:
             expr = ''
-            # raise RuntimeError('CHECK ME: NFPathProcessInput')
-
         return expr
     
     def get_string(self) -> str:

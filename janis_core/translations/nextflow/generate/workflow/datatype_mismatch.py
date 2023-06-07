@@ -159,13 +159,15 @@ def generate_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType) -
 
     # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
     indices: list[int] = []
-    for ext in desttype_exts:
-        if ext not in srctype_exts:
-            print()
+    for i, ext in enumerate(desttype_exts):
         if ext == 'primary':
             index = 0
-        else:
+        elif ext in srctype_exts:
             index = srctype_exts.index(ext)
+        else:
+            print(f"Secondary tuple mapping failed for {ext}. Made a best guess.")
+            index = i
+
         indices.append(index)
 
     # 4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing

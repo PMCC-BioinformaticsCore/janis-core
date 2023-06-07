@@ -229,7 +229,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 if isinstance(o.source, InputNodeSelector):
                     src = [o.source.id()]
                 elif isinstance(o.source, StepOutputSelector):
-                    src = [o.source.node.id(), o.source.id()]
+                    src = [o.source.node.id(), o.source.tag]
                 else:
                     raise Exception(
                         f"Unsupported type for output with secondary files: {type(o.source)}"

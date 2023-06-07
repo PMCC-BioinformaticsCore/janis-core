@@ -1330,7 +1330,6 @@ workflow wf {
     def test_workflow_secondary_outputs(self):
         wf = ArraysOfSecondaryFilesOutputsTestWF()
         wfwdl, _ = WdlTranslator.translate_workflow_internal(wf)
-
         outs = [o.get_string() for o in wfwdl.outputs]
         self.assertEqual("Array[File] out = stp.out", outs[0])
         self.assertEqual("Array[File] out_txt = stp.out_txt", outs[1])

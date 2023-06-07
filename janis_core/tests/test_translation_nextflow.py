@@ -1,5 +1,7 @@
+
 import unittest
 import os
+import regex as re
 from typing import Any, Optional
 
 from janis_core.tests.testtools import (
@@ -233,6 +235,48 @@ def simplify_file(text: str) -> list[str]:
     lines = [ln.strip() for ln in lines]        # strip indents
     lines = [ln for ln in lines if ln != '']    # remove empty lines
     return lines
+
+def _get_process_directive_lines(text: str) -> list[str]:
+    sec_start = r'process.*?{'
+    sec_end = r'input:'
+    return _lines_within_section(text, sec_start, sec_end)
+
+def _get_process_input_lines(text: str) -> list[str]:
+    sec_start = r'input:'
+    sec_end = r'(output:)|(script:)|(exec:)'
+    return _lines_within_section(text, sec_start, sec_end)
+
+def _get_process_output_lines(text: str) -> list[str]:
+    sec_start = r'output:'
+    sec_end = r'(script:)|(exec:)'
+    return _lines_within_section(text, sec_start, sec_end)
+
+def _get_process_prescript_lines(text: str) -> list[str]:
+    sec_start = r'script:'
+    sec_end = r'"""'
+    return _lines_within_section(text, sec_start, sec_end)
+
+def _get_process_script_lines(text: str) -> list[str]:
+    sec_start = r'"""'
+    sec_start = r'"""'
+    return _lines_within_section(text, sec_start, sec_end)
+
+def _lines_within_section(text: str, sec_start: str, sec_end: str) -> list[str]:
+    out: list[str] = []
+    lines = text.split('\n')                        # split into lines
+    lines = [ln.strip(' ') for ln in lines]         # strip indents
+    lines = [ln for ln in lines if not ln == '']    # remove empty lines
+    lines = [ln for ln in lines if not ln == '"""'] # remove script """ start end
+    within_section: bool = False
+    for line in lines:
+        if re.findall(sec_start, line) and not within_section:
+            within_section = True
+            continue
+        elif re.findall(sec_end, line) and within_section:
+            break
+        if within_section:
+            out.append(line)
+    return out
 
 def _gen_call_lines_local(wf: Any, step: Any) -> list[str]:
     reset_globals()
@@ -1523,28 +1567,24 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        self.destfmt = 'nextflow'
         reset_globals()
 
     def test_directives(self) -> None:
-        
-        translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
-        
         wf = DirectivesTestWF()
-
-        
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        actual_directives = {d.get_string() for d in process.directives}
+        _, _, subtasks = translate(wf, dest_fmt=self.destfmt, export_path='./translated')
+        subtasks.sort(key=lambda x: x[0])
+        actual_lines = _get_process_directive_lines(subtasks[1][1])
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
             'publishDir "${params.outdir}/resources_test_tool"',
+            'cpus "${params.resources_test_tool.cpus}"',
             'disk "${params.resources_test_tool.disk}"',
             'memory "${params.resources_test_tool.memory}"',
             'time "${params.resources_test_tool.time}"'
         }
         for direc in expected_directives:
-            self.assertIn(direc, actual_directives)
+            self.assertIn(direc, actual_lines)
     
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -1564,142 +1604,116 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        self.dest = 'nextflow'
         reset_globals()
     
     def test_secondaries(self) -> None:
         wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'path bam1',
             'path bam2',
             'path bam3',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
     def test_secondaries_optional(self) -> None:
         wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp2"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
-            'path bam1'
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_optional_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
+            "path bam1, stageAs: 'bam1/*'"
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
     def test_secondaries_array(self) -> None:
         wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp3"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_array_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'path bams1_flat',
             'path bams2_flat',
             'path bams3_flat',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
 
     def test_secondaries_array_optional(self) -> None:
         wf = SecondariesTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp4"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_array_optional_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             "path bams1_flat",
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
 
     def test_file_pair(self) -> None:
         wf = FilePairsTestWF0()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_test_tool0.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'tuple path(reads1), path(reads2)',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
-    
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
+
     def test_file_pair_optional(self) -> None:
         wf = FilePairsOptionalTestWF0()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_optional_test_tool0.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'tuple path(reads1), path(reads2)',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
     def test_file_pair_array(self) -> None:
         wf = FilePairsArrayTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_array_test_tool1.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'path read_pairs_flat',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
     def test_file_pair_array_optional(self) -> None:
         wf = FilePairsArrayOptionalTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-    
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_array_optional_test_tool1.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'path read_pairs_flat',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
-
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
+        
     # a rather weak test
     def test_generics(self) -> None:
         wf = ComponentsMandatoryTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-
-        actual_inputs = [i.get_string() for i in process.inputs]
-        expected_inputs = [
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/components_mandatory_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
             'path pos_basic',
             'val flag_false',
             'val flag_true',
@@ -1707,29 +1721,35 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
             'val opt_default',
             'val pos_default',
         ]
-        self.assertEqual(len(actual_inputs), len(expected_inputs))
-        for inp in expected_inputs:
-            self.assertIn(inp, actual_inputs)
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
-    @unittest.skip('filenames are scuffed')
+    # @unittest.skip('filenames are scuffed')
     def test_filenames(self) -> None:
+        wf = FilenameTestWF1()
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
         
-        print(process.get_string())
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            "path inp1, stageAs: 'inp1'",
+        # basic
+        process = [x[1] for x in subtasks if x[0] == 'modules/filename_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
+            "path inp1",
             "val inp2",
-        }
-        self.assertEqual(actual_inputs, expected_inputs)  
-
-        step = wf.step_nodes["stp2"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        print(process.get_string())
-        actual_inputs = {inp.get_string() for inp in process.inputs}
-        expected_inputs = {
-            "path inp1, stageAs: 'inp1'",
-        }
-        self.assertEqual(actual_inputs, expected_inputs)  
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
+        
+        # filename using input selector
+        process = [x[1] for x in subtasks if x[0] == 'modules/filename_input_selector_test_tool.nf'][0]
+        actual_lines = _get_process_input_lines(process)
+        expected_lines = [
+            "path inp1",
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
 
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
@@ -1742,7 +1762,6 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
 
 
-
 class TestCmdtoolProcessOutputs(unittest.TestCase):
     """
     Need a process output for each tool output.
@@ -1750,28 +1769,31 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_globals()
-        self.wf = OutputCollectionTestWF()
-        do_preprocessing_workflow(self.wf)
-
-    def test_get_fmttype(self) -> None:
-        pass
-        # get_fmttype
+        self.dest = 'nextflow'
 
     def test_stdout(self):
         wf = BasicIOTestWF()
-        do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'stdout emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)  
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/file_test_tool.nf'][0]
+        actual_lines = _get_process_output_lines(process)
+        expected_lines = [
+            'path "out", emit: out',
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
 
     def test_wildcard(self) -> None:
-        step = self.wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "myfile.txt", emit: out'}
-        self.assertEqual(actual_outputs, expected_outputs)
+        wf = OutputCollectionTestWF()
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/wildcard_selector_test_tool.nf'][0]
+        actual_lines = _get_process_output_lines(process)
+        expected_lines = [
+            'path "myfile.txt", emit: out'
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
     
     def test_wildcard_array(self) -> None:
         wf = WildcardSelectorOutputTestWF()
@@ -1792,6 +1814,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_input_selector_param(self) -> None:
+        wf = OutputCollectionTestWF()
         step = self.wf.step_nodes["stp4"]
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
@@ -1846,6 +1869,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     def test_file_pair(self) -> None:
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
+        wf = OutputCollectionTestWF()
         step = self.wf.step_nodes['stp6']
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
@@ -1904,6 +1928,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     def test_complex_expression(self) -> None:
         # two_value operator etc. uses ${} syntax around whole phrase.
         # strings inside are quoted. 
+        wf = OutputCollectionTestWF()
         step = self.wf.step_nodes['stp5']
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
@@ -1911,6 +1936,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_edge_markduplicates_metrics(self) -> None:
+        wf = OutputCollectionTestWF()
         step = self.wf.step_nodes['stp8']
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}

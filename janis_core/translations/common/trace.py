@@ -93,6 +93,7 @@ def trace_referenced_variables(entity: Any, tool: Optional[Tool]=None) -> set[st
             tracer.trace(item)
     
     elif isinstance(entity, ToolArgument):
+        tracer.trace(entity.prefix)
         tracer.trace(entity.value)
     
     elif isinstance(entity, ToolOutput):
@@ -203,8 +204,10 @@ class Tracer(ABC):
     def input_selector(self, entity: InputSelector) -> None:
         # a tool input
         assert(isinstance(self.tool, CommandTool | CodeTool))
-        tinput = [x for x in self.tool.inputs() if x.id() == entity.input_to_select][0]
-        self.trace(tinput)
+        tinputs = [x for x in self.tool.inputs() if x.id() == entity.input_to_select]
+        if not tinputs:
+            print()
+        self.trace(tinputs[0])
         
     def tool_input(self, entity: ToolInput | TInput) -> None:
         # the toolinput name

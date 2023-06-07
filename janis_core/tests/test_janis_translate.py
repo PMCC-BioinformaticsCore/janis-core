@@ -53,6 +53,10 @@ def _get_cwl_clt_inputs(clt_text: str) -> list[str]:
     spec = yaml.safe_load(clt_text)
     return spec['inputs']
 
+def _get_cwl_clt_args(clt_text: str) -> list[str]:
+    spec = yaml.safe_load(clt_text)
+    return spec['arguments']
+
 def _get_wdl_task_command_lines(task_text: str) -> list[str]:
     """Returns the lines of the process script"""
     out: list[str] = []
@@ -108,6 +112,9 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
     return out
 
 def _reset_global_settings() -> None:
+    from janis_core.translations import nextflow
+    nextflow.task_inputs.clear()
+    nextflow.params.clear()
     settings.translate.MODE = 'regular'
     settings.ingest.SAFE_MODE = False
     settings.ingest.galaxy.GEN_IMAGES = False
@@ -122,6 +129,7 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
+
 
 
 
@@ -351,7 +359,7 @@ class TestPreprocessingModes(unittest.TestCase):
                 self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
                 self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
     
-    def test_regular_cwl(self) -> None:
+    def test_regular_cwl1(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
@@ -370,6 +378,45 @@ class TestPreprocessingModes(unittest.TestCase):
                 # checking clt inputs have inputBindings
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
+    
+    def test_regular_cwl2(self) -> None:
+        settings.translate.MODE = 'regular'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        expected_num_clt_inputs = {
+            'tools/fastqc_v0_1_0.cwl': 1,
+            'tools/files_to_folder_v0_1_0.cwl': 2,
+            'tools/ngtax_v0_1_0.cwl': 9,
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 4,
+        }
+        expected_input_binding_absence = {
+            'tools/fastqc_v0_1_0.cwl': [],
+            'tools/files_to_folder_v0_1_0.cwl': ['files', 'folders', 'destination'],
+            'tools/ngtax_v0_1_0.cwl': ['sample', 'fragment'],
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': ['input', 'metadata', 'identifier', 'fragment'],
+        }
+        expected_num_clt_args = {
+            'tools/fastqc_v0_1_0.cwl': 2,
+            'tools/files_to_folder_v0_1_0.cwl': 1,
+            'tools/ngtax_v0_1_0.cwl': 4,
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 8,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_cwl_clt(filecontents):
+                clt_inputs = _get_cwl_clt_inputs(filecontents)
+                clt_args = _get_cwl_clt_args(filecontents)
+                
+                # checking expected number of clt inputs
+                self.assertEqual(len(clt_inputs), expected_num_clt_inputs[filepath])
+                # checking expected number of clt args
+                self.assertEqual(len(clt_args), expected_num_clt_args[filepath])
+
+                # checking clt inputs have or do not have inputBindings
+                for inp in clt_inputs:
+                    if inp['id'] not in expected_input_binding_absence[filepath]:
+                        self.assertIn('inputBinding', inp)
+                    else:
+                        self.assertNotIn('inputBinding', inp)
     
     def test_regular_wdl(self) -> None:
         settings.translate.MODE = 'regular'

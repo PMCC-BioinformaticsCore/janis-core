@@ -1,10 +1,9 @@
 
 
-from janis_core import WorkflowBase, Tool, ToolInput, CommandToolBuilder
+from janis_core import WorkflowBase, Tool, ToolInput, CommandToolBuilder,ToolArgument
 
 from .history import TaskInputCollector
 from janis_core.translations.common import trace
-
 
 
 def prune_unused_tool_inputs(wf: WorkflowBase, tools: dict[str, Tool]) -> dict[str, Tool]:
@@ -17,20 +16,26 @@ def prune(wf: WorkflowBase, tool: Tool) -> Tool:
     if not isinstance(tool, CommandToolBuilder):
         return tool
     
-    # get the tinputs which are not needed based on step inputs
-    collector = TaskInputCollector(tool)
-    collector.collect(wf)
-    step_input_ids = get_used_step_tinputs(collector)
+    valid_tinput_ids: set[str] = set()
 
+    # get the tinputs which are referenced in step inputs
+    valid_tinput_ids = valid_tinput_ids | get_used_step_tinputs(wf, tool)
+    
     # get the tinputs which are referenced in tool outputs
-    output_referenced_ids = get_output_referenced_tinputs(tool)
+    valid_tinput_ids = valid_tinput_ids | get_output_referenced_tinputs(tool)
+    
+    # get the tinputs which reference previously validified tinputs
+    valid_tinput_ids = valid_tinput_ids | get_tinput_reference_tinputs(tool, valid_tinput_ids)
 
     # remove the tinputs from the tool using this data
-    tool = prune_tool(tool, step_input_ids, output_referenced_ids)
+    tool = prune_tool(tool, valid_tinput_ids)
 
     return tool
 
-def get_used_step_tinputs(collector: TaskInputCollector) -> set[str]:
+def get_used_step_tinputs(wf: WorkflowBase, tool: Tool) -> set[str]:
+    # get the tinputs which are not needed based on step inputs
+    collector = TaskInputCollector(tool)
+    collector.collect(wf)
     tinput_to_keep: set[str] = set()
     
     for tinput_id, history in collector.histories.items():
@@ -45,17 +50,60 @@ def get_used_step_tinputs(collector: TaskInputCollector) -> set[str]:
     
     return tinput_to_keep
 
+def get_tinput_reference_tinputs(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> set[str]:
+    """
+    Gets the tinputs which have a reference to step input tinputs
+    eg: 
+        step_input_ids = {'myfile'}
+        tool inputs = [
+        ToolInput("myfile", File()),
+        ToolInput("myfilename", Filename(prefix=InputSelector("myfile"), extension=""))
+        ]
+    we should keep "myfilename" because it references "myfile"
+    """
+    extra_tinput_ids: set[str] = set()
+    for tinput in tool._inputs:
+        # early exit for previously validated tinputs
+        if tinput.id() in valid_tinput_ids:
+            continue
+        
+        # reference tracing for unvalidated tinputs - do they link to a validated tinput?
+        refs = trace.trace_referenced_variables(tinput, tool)
+        for ref in refs:
+            if ref in valid_tinput_ids:
+                extra_tinput_ids.add(tinput.id())
+                break
+    return extra_tinput_ids
+
 def get_output_referenced_tinputs(tool: CommandToolBuilder) -> set[str]:
-    referenced_tinputs: set[str] = set()
+    extra_tinput_ids: set[str] = set()
     for tout in tool._outputs:
-        referenced_tinputs = referenced_tinputs | trace.trace_referenced_variables(tout, tool)
-    return referenced_tinputs
+        extra_tinput_ids = extra_tinput_ids | trace.trace_referenced_variables(tout, tool)
+    return extra_tinput_ids
 
-def prune_tool(tool: CommandToolBuilder, step_input_ids: set[str], output_referenced_ids: set[str]) -> Tool:
-    new_inputs: list[ToolInput] = []
-    for tinput in tool._inputs:     # type: ignore
-        if tinput.id() in step_input_ids or tinput.id() in output_referenced_ids:
-            new_inputs.append(tinput)
-    tool._inputs = new_inputs       # type: ignore
+def prune_tool(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> Tool:
+    new_inputs = prune_tool_inputs(tool, valid_tinput_ids)       
+    new_arguments = prune_tool_arguments(tool, valid_tinput_ids) 
+    tool._inputs = new_inputs        # type: ignore
+    tool._arguments = new_arguments  # type: ignore
     return tool
+    
+def prune_tool_inputs(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> list[ToolInput]:
+    new_inputs: list[ToolInput] = []
+    if tool._inputs is None:        # type: ignore
+        return new_inputs
+    for tinput in tool._inputs:     # type: ignore
+        if tinput.id() in valid_tinput_ids:
+            new_inputs.append(tinput)
+    return new_inputs
 
+def prune_tool_arguments(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> list[ToolArgument]:
+    new_args: list[ToolArgument] = []
+    if tool._arguments is None:     # type: ignore
+        return new_args
+    for targ in tool._arguments:     # type: ignore
+        refs = trace.trace_referenced_variables(targ, tool)
+        if all([ref in valid_tinput_ids for ref in refs]):
+            new_args.append(targ)
+    return new_args
+    

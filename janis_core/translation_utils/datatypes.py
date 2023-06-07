@@ -25,6 +25,7 @@ class DTypeType(Enum):
     FILE_PAIR       = auto()
     FILE_ARRAY      = auto()
     FILE            = auto()
+    # FILENAME        = auto()
     FLAG_ARRAY      = auto()
     FLAG            = auto()
     GENERIC_ARRAY   = auto()
@@ -115,7 +116,8 @@ def is_array_type(dtype: DataType) -> bool:
 def is_file_type(dtype: DataType) -> bool:
     basetype = get_base_type(dtype)
     
-    if isinstance(basetype, (File, Filename, Directory)):
+    if isinstance(basetype, (File, Directory)):
+    # if isinstance(basetype, (File, Filename, Directory)):
         return True
     elif is_file_pair_type(basetype):
         return True
