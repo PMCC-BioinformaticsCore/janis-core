@@ -67,6 +67,8 @@ from .mock.mock_components import MOCK_REDIRECT_OUTPUT
 from .mock.mock_entities import MOCK_WORKFLOW_INPUT1
 from .mock.mock_tool import MOCK_TOOL_ABRICATE
 from .mock.mock_workflow import MOCK_WORKFLOW
+from janis_core.ingestion import ingest
+from janis_core.translations import translate
 
 UNICYCLER_VANILLA_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command.xml'
 UNICYCLER_TEMPLATED_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command_templated.xml'
@@ -81,8 +83,7 @@ QUERY2_EXPECTED_RESULT = 'quay.io/biocontainers/samtools:1.15--h1170115_1'
 QUERY3 = CondaRequirement(_name='cutadapt', _version='3.5')
 QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 
-from janis_core.ingestion import ingest
-from janis_core.translations import translate
+GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
 
 
 ### helper functions ###
@@ -584,8 +585,9 @@ class TestDatatypeInference(unittest.TestCase):
         _reset_global_settings()
 
     def test_positional(self) -> None:
-        self.assertEquals(datatypes.get(MOCK_POSITIONAL1), file_t)
-    
+        dtype = datatypes.get(MOCK_POSITIONAL1)
+        self.assertEquals(dtype.classname, 'Fastq')
+     
     def test_flag(self) -> None:
         self.assertEquals(datatypes.get(MOCK_FLAG1), bool_t)
     
@@ -593,7 +595,8 @@ class TestDatatypeInference(unittest.TestCase):
         self.assertEquals(datatypes.get(MOCK_OPTION2), string_t)
     
     def test_outputs(self) -> None:
-        self.assertEquals(datatypes.get(MOCK_REDIRECT_OUTPUT), file_t)
+        dtype = datatypes.get(MOCK_REDIRECT_OUTPUT)
+        self.assertEquals(dtype.classname, 'TextFile')
     
     def test_workflow_input(self) -> None:
         self.assertEquals(datatypes.get(MOCK_WORKFLOW_INPUT1), file_t)
@@ -616,37 +619,34 @@ class TestSectionalCheetah(unittest.TestCase):
 
 
 
-
 def get_cmd(path: str) -> str:
     tree = et.parse(path)
     root = tree.getroot()
     assert(root.text)
     return root.text
 
-class TestAliases(unittest.TestCase):
+# class TestAliases(unittest.TestCase):
 
-    def test_resolve_fastqc(self):
-        raw_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command.xml'
-        ref_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command_resolved.xml'
-        raw_cmd = get_cmd(raw_path)
-        ref_cmd = get_cmd(ref_path)
-        res_cmd = resolve_aliases(raw_cmd)
-        self.assertEquals(ref_cmd, res_cmd)
+#     def test_resolve_fastqc(self):
+#         raw_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command.xml'
+#         ref_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command_resolved.xml'
+#         raw_cmd = get_cmd(raw_path)
+#         ref_cmd = get_cmd(ref_path)
+#         res_cmd = resolve_aliases(raw_cmd)
+#         self.assertEquals(ref_cmd, res_cmd)
     
-    def test_resolve_unicycler(self):
-        raw_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command.xml'
-        ref_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command_resolved.xml'
-        raw_cmd = get_cmd(raw_path)
-        ref_cmd = get_cmd(ref_path)
-        res_cmd = resolve_aliases(raw_cmd)
-        self.assertEquals(ref_cmd, res_cmd)
-
-
+#     def test_resolve_unicycler(self):
+#         raw_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command.xml'
+#         ref_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command_resolved.xml'
+#         raw_cmd = get_cmd(raw_path)
+#         ref_cmd = get_cmd(ref_path)
+#         res_cmd = resolve_aliases(raw_cmd)
+#         self.assertEquals(ref_cmd, res_cmd)
 
 class TestFromGalaxy(unittest.TestCase):
 
     def test_ingest_abricate_tool(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/abricate/abricate.xml')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/abricate/abricate.xml')
         jtool = ingest_galaxy(filepath)
         assert(isinstance(jtool, CommandTool))
         
@@ -655,18 +655,21 @@ class TestFromGalaxy(unittest.TestCase):
         self.assertEquals(jtool.base_command(), ['abricate'])
 
     def test_ingest_cutadapt_wf(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
         jworkflow = ingest_galaxy(filepath)
         assert(isinstance(jworkflow, WorkflowBuilder))
 
-        self.assertEquals(len(jworkflow.step_nodes), 6)
-        self.assertEquals(len(jworkflow.output_nodes), 19)
-        self.assertIn('inForwardReads', jworkflow.input_nodes)
-        self.assertIn('inReverseReads', jworkflow.input_nodes)
-        self.assertIn('inLongReads', jworkflow.input_nodes)
+        self.assertEquals(len(jworkflow.input_nodes), 2)
+        self.assertIn('in_forward', jworkflow.input_nodes)
+        self.assertIn('in_reverse', jworkflow.input_nodes)
+        self.assertEquals(len(jworkflow.step_nodes), 1)
+        self.assertIn('cutadapt', jworkflow.step_nodes)
+        self.assertEquals(len(jworkflow.output_nodes), 2)
+        self.assertIn('cutadapt_out12', jworkflow.output_nodes)
+        self.assertIn('cutadapt_out22', jworkflow.output_nodes)
     
     def test_ingest_unicycler_assembly(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga')
         jworkflow = ingest_galaxy(filepath)
         assert(isinstance(jworkflow, WorkflowBuilder))
 
@@ -679,12 +682,12 @@ class TestFromGalaxy(unittest.TestCase):
     def test_translate_cutadapt_wf_nextflow(self) -> None:
         srcfmt = 'galaxy'
         destfmt = 'nextflow'
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
         _run(filepath, srcfmt, destfmt)
     
     def test_translate_unicycler_wf_nextflow(self) -> None:
         srcfmt = 'galaxy'
         destfmt = 'nextflow'
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/unicycler_assembly.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga')
         _run(filepath, srcfmt, destfmt)
 

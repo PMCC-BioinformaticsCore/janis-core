@@ -976,7 +976,7 @@ class WorkflowBase(Tool):
 
         return translate(
             self,
-            translation=translation,
+            dest_fmt=translation,
             to_console=to_console,
             tool_to_console=tool_to_console,
             with_container=with_docker,

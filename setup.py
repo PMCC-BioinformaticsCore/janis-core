@@ -55,6 +55,7 @@ setup(
         'ingestion/galaxy/data/*.json',
         'ingestion/galaxy/data/*.yaml',
         'ingestion/galaxy/data/*.xml.sample',
+        'ingestion/galaxy/data/*.xml.sample',
     ]},
     install_requires=[
         "importlib-metadata==4.12.0",

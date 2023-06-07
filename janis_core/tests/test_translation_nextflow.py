@@ -160,7 +160,7 @@ def reset_globals() -> None:
     translator = NextflowTranslator()
 
     # nextflow specific
-    settings.translate.MODE = 'full'
+    settings.translate.MODE = 'extended'
     settings.translate.nextflow.MODE = 'workflow'
     settings.translate.nextflow.MINIMAL_PROCESS = True
 
@@ -555,7 +555,7 @@ class TestTaskInputs(unittest.TestCase):
 
     # no subworkflows
     def test_one_call(self) -> None:
-        settings.translate.MODE = 'minimal'
+        settings.translate.MODE = 'regular'
         wf = MinimalTaskInputsTestWF1()
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1527,6 +1527,7 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
 
     def test_directives(self) -> None:
         wf = DirectivesTestWF()
+        
         do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         process = nextflow.generate.process.generate_process(step.tool)
@@ -1805,7 +1806,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_filenames_generated(self) -> None:
-        settings.translate.MODE = 'minimal'
+        settings.translate.MODE = 'regular'
         wf = FilenameTestWF2()
         do_preprocessing_workflow(wf)
         

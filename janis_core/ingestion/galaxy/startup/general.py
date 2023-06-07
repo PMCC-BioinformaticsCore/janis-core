@@ -24,8 +24,15 @@ def setup_data_folder() -> None:
     #     os.mkdir(paths.USER_DATA_DIR)
 
     # create user wrapper download folder if not exists
-    if not os.path.exists(paths.DOWNLOADED_WRAPPERS_DIR):
-        os.mkdir(paths.DOWNLOADED_WRAPPERS_DIR)
+    curr_path: list[str] = []
+    path = os.path.normpath(paths.DOWNLOADED_WRAPPERS_DIR)
+    for folder in path.split(os.sep):
+        curr_path.append(folder)
+        if not os.path.exists(os.path.join(*curr_path)):
+            os.mkdir(os.path.join(*curr_path))
+
+    # if not os.path.exists(paths.DOWNLOADED_WRAPPERS_DIR):
+        # os.mkdir(paths.DOWNLOADED_WRAPPERS_DIR)
 
     # # move files from package to user if they don't exist
     # data_files = [

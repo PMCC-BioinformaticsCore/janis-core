@@ -7,19 +7,18 @@ from janis_core.ingestion import ingest
 from janis_core.translations import translate
 from janis_core import settings
 
+import os 
 import regex as re
 import yaml
 
-
-CWL_TESTDATA_PATH = 'janis_core/tests/data/cwl'
-GALAXY_TESTDATA_PATH = 'janis_core/tests/data/galaxy'
-JANIS_TESTDATA_PATH = 'janis_core/tests/data/janis'
-WDL_TESTDATA_PATH = 'janis_core/tests/data/wdl'
-
-
+CWL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/cwl')
+GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
+JANIS_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/janis')
+WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
 
 # ------- HELPER FUNCS ------- #
+
 
 def _run(filepath: str, srcfmt: str, destfmt: str) -> Any:
     internal = ingest(filepath, srcfmt)
@@ -102,7 +101,7 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
 
 
 def _reset_global_settings() -> None:
-    settings.translate.MODE = 'minimal'
+    settings.translate.MODE = 'regular'
     settings.ingest.SAFE_MODE = False
     settings.ingest.galaxy.GEN_IMAGES = False
     settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
@@ -138,7 +137,7 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
-        settings.translate.MODE = 'full'
+        settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
@@ -187,7 +186,7 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_rna_seq_reads_to_counts(self):
-        # settings.translate.MODE = 'full'
+        # settings.translate.MODE = 'extended'
         filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
@@ -231,7 +230,7 @@ class TestModes(unittest.TestCase):
     
     def test_skeleton_nextflow(self) -> None:
         settings.translate.MODE = 'skeleton'
-        filepath = f'{GALAXY_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
             'modules/basic.nf': 4,
@@ -239,9 +238,9 @@ class TestModes(unittest.TestCase):
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 1,
-            'modules/mandatory_input_types.nf': 1,
-            'modules/optional_input_types.nf': 1,
+            'modules/basic.nf': 2,
+            'modules/mandatory_input_types.nf': 2,
+            'modules/optional_input_types.nf': 2,
         }
         for filepath, filecontents in sub_tasks:
             if _is_nf_process(filecontents):
@@ -250,8 +249,8 @@ class TestModes(unittest.TestCase):
                 self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
                 self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
     
-    def test_minimal_cwl(self) -> None:
-        settings.translate.MODE = 'minimal'
+    def test_regular_cwl(self) -> None:
+        settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
@@ -270,8 +269,8 @@ class TestModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
     
-    def test_minimal_wdl(self) -> None:
-        settings.translate.MODE = 'minimal'
+    def test_regular_wdl(self) -> None:
+        settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         expected_num_clt_inputs = {
@@ -303,8 +302,8 @@ class TestModes(unittest.TestCase):
                     else:
                         self.assertIn('inputBinding', inp)
     
-    def test_minimal_nextflow(self) -> None:
-        settings.translate.MODE = 'minimal'
+    def test_regular_nextflow(self) -> None:
+        settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
@@ -313,9 +312,9 @@ class TestModes(unittest.TestCase):
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 6,
-            'modules/mandatory_input_types.nf': 7,
-            'modules/optional_input_types.nf': 6,
+            'modules/basic.nf': 7,
+            'modules/mandatory_input_types.nf': 8,
+            'modules/optional_input_types.nf': 7,
         }
         for filepath, filecontents in sub_tasks:
             if _is_nf_process(filecontents):
@@ -324,8 +323,8 @@ class TestModes(unittest.TestCase):
                 self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
                 self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
 
-    def test_full_cwl(self) -> None:
-        settings.translate.MODE = 'full'
+    def test_extended_cwl(self) -> None:
+        settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
@@ -344,8 +343,8 @@ class TestModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
 
-    def test_full_nextflow(self) -> None:
-        settings.translate.MODE = 'full'
+    def test_extended_nextflow(self) -> None:
+        settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
@@ -354,9 +353,9 @@ class TestModes(unittest.TestCase):
             'modules/optional_input_types.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 8,
-            'modules/mandatory_input_types.nf': 7,
-            'modules/optional_input_types.nf': 7,
+            'modules/basic.nf': 9,
+            'modules/mandatory_input_types.nf': 8,
+            'modules/optional_input_types.nf': 8,
         }
         for filepath, filecontents in sub_tasks:
             if _is_nf_process(filecontents):
@@ -377,78 +376,78 @@ class TestCwlToWdl(unittest.TestCase):
         _reset_global_settings()
     
     def test_super_enhancer(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/super_enhancer_wf.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/super_enhancer_wf.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_fastqc2_tool(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/fastqc2.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
         print(toolstr)
 
     def test_kids_manta(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_ebi_metagenomics_raw_reads(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/raw-reads-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/raw-reads-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_ebi_metagenomics_amplicon(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/amplicon-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/amplicon-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_ebi_metagenomics_assembly(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/assembly-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/assembly-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_demultiplexing(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/demultiplexing.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/demultiplexing.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_mock_ngtax(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/mock_ngtax.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/mock_ngtax.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_pilon_mapping(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/pilon_mapping.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/pilon_mapping.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_sapp_microbes(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/sapp_microbes.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/sapp_microbes.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_toHDT_compression(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/toHDT_compression.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/toHDT_compression.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_ngtax(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/ngtax.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
         
     def test_munlock_metagenomics_GEM(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/metagenomics_GEM.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/metagenomics_GEM.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_ngtax_picrust2(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/ngtax_picrust2.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax_picrust2.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     # hard
     def test_cromast(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/CroMaSt/CroMaSt.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/CroMaSt/CroMaSt.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -461,80 +460,80 @@ class TestCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     def test_super_enhancer(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/super_enhancer_wf.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/super_enhancer_wf.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_fastqc2_tool(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/fastqc2.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
         from janis_core import settings
         settings.translate.nextflow.MODE = 'workflow'
         print(toolstr)
 
     def test_kids_manta(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
      
     def test_ebi_metagenomics_raw_reads(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/raw-reads-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/raw-reads-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_ebi_metagenomics_amplicon(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/amplicon-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/amplicon-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_ebi_metagenomics_assembly(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/ebi-metagenomics/workflows/assembly-wf--v.5-cond.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/assembly-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_demultiplexing(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/demultiplexing.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/demultiplexing.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_mock_ngtax(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/mock_ngtax.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/mock_ngtax.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_pilon_mapping(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/pilon_mapping.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/pilon_mapping.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_sapp_microbes(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/sapp_microbes.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/sapp_microbes.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_toHDT_compression(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/toHDT_compression.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/toHDT_compression.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_munlock_ngtax(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/ngtax.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
         
     def test_munlock_metagenomics_GEM(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/metagenomics_GEM.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/metagenomics_GEM.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_munlock_ngtax_picrust2(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/m-unlock/workflows/ngtax_picrust2.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax_picrust2.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     # hard
     def test_cromast(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/CroMaSt/CroMaSt.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/CroMaSt/CroMaSt.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -550,22 +549,22 @@ class TestWdlToCwl(unittest.TestCase):
         _reset_global_settings()
 
     def test_multisample_jointgt_gatk4(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Multisample_jointgt_GATK4.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_reads2map_preprocessing(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_reads2map_reads2map(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_reads2map_snp_calling(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -580,22 +579,22 @@ class TestWdlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     def test_multisample_jointgt_gatk4(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Multisample_jointgt_GATK4.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_reads2map_preprocessing(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_reads2map_reads2map(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_reads2map_snp_calling(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/wdl/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 

@@ -7,6 +7,7 @@ from janis_core import settings
 from janis_core import CodeTool, CommandTool, WorkflowBase
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
+from janis_core.translations.common import to_builder
 from janis_core.translations.common import prune_unused_inputs
 from .translationbase import TranslatorBase
 
@@ -47,6 +48,8 @@ def translate(
     
     # settings 
     settings.translate.DEST = dest_fmt             # set translate dest
+    settings.validation.STRICT_IDENTIFIERS = False
+    settings.validation.VALIDATE_STRINGFORMATTERS = False
     
     if mode is not None:
         settings.translate.MODE = mode
@@ -91,6 +94,7 @@ def translate(
         settings.translate.MAX_MEM = max_mem
 
     # preprocessing
+    entity = to_builder(entity)
     if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBase):
         entity = prune_unused_inputs(entity)
 

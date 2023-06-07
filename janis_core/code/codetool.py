@@ -180,7 +180,7 @@ class CodeTool(Tool):
         from janis_core.translations import translate
         return translate(
             self,
-            translation=translation,
+            dest_fmt=translation,
             to_console=to_console,
             with_container=with_docker,
             export_path=export_path,

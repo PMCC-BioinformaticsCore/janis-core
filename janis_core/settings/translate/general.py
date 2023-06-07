@@ -16,7 +16,7 @@ RENDER_COMMENTS:            bool = True  # whether to render info comments in th
 SHOULD_VALIDATE:            bool = False # whether to validate translated files
 SHOULD_ZIP:                 bool = False # whether to zip translated tool folder
 TO_DISK:                    bool = False # whether to write translated files to disk
-TO_CONSOLE:                 bool = True  # whether to write main translated file to console
+TO_CONSOLE:                 bool = False  # whether to write main translated file to console
 TOOL_TO_CONSOLE:            bool = False # whether to write translated tool files to console 
                                          # (workflow translation only)
 WITH_CONTAINER:             bool = True  # with_container=True, with_docker=True,

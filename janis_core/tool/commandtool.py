@@ -464,7 +464,7 @@ class CommandTool(Tool, ABC):
         from janis_core.translations import translate
         return translate(
             self,
-            translation=translation,
+            dest_fmt=translation,
             to_console=to_console,
             with_container=with_docker,
             with_resource_overrides=with_resource_overrides,

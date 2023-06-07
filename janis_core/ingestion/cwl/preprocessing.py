@@ -100,8 +100,18 @@ class CWLTypeConverter:
         step.doc = cast_cwl_type_to_python(step.doc)
         step.scatter = cast_cwl_type_to_python(step.scatter)
         step.scatterMethod = cast_cwl_type_to_python(step.scatterMethod)
-        if not isinstance(step.run, str):
+
+        # step tool
+        if isinstance(step.run, self.cwl_utils.Workflow):
+            step.run = self._convert_types_workflow(step.run)
+        elif isinstance(step.run, self.cwl_utils.CommandLineTool):
             step.run = self._convert_types_clt(step.run)
+        elif isinstance(step.run, self.cwl_utils.ExpressionTool):
+            step.run = self._convert_types_etool(step.run)
+        elif isinstance(step.run, str):
+            pass
+        else:
+            raise NotImplementedError(f'Unknown step.run type: {type(step.run)}')
 
         # step inputs
         for inp in step.in_:
@@ -124,6 +134,8 @@ class CWLTypeConverter:
         binding.outputBinding.outputEval = cast_cwl_type_to_python(binding.outputBinding.outputEval)
 
     def _convert_types_clt(self, clt: Any) -> Any:
+        if not hasattr(clt, 'baseCommand'):
+            print()
         clt.baseCommand = cast_cwl_type_to_python(clt.baseCommand)
         clt.stderr = cast_cwl_type_to_python(clt.stderr)
         clt.stdout = cast_cwl_type_to_python(clt.stdout)

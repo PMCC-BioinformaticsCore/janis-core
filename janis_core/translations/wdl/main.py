@@ -229,7 +229,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 if isinstance(o.source, InputNodeSelector):
                     src = [o.source.id()]
                 elif isinstance(o.source, StepOutputSelector):
-                    src = [o.source.node.id(), o.source.tag]
+                    src = [o.source.node.id(), o.source.id()]
                 else:
                     raise Exception(
                         f"Unsupported type for output with secondary files: {type(o.source)}"
@@ -308,7 +308,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
         toolouts = tool.outputs()
-        inmap = {i.tag: i for i in inputs}
+        inmap = {i.id(): i for i in inputs}
 
         if len(inputs) != len(inmap):
             dups = ", ".join(find_duplicates(list(inmap.keys())))
@@ -677,7 +677,7 @@ EOT"""
                 is_single_optional = output.output_type.optional
                 if not expression.select_first:
                     Logger.info(
-                        f"The command tool ({debugkwargs}).{output.tag}' used a star-bind (*) glob to find the output, "
+                        f"The command tool ({debugkwargs}).{output.id()}' used a star-bind (*) glob to find the output, "
                         f"but the return type was not an array. For WDL, the first element will be used, "
                         f"ie: 'glob(\"{expression.wildcard}\")[0]'"
                     )
@@ -1117,7 +1117,7 @@ def resolve_tool_input_value(
     elif isinstance(indefault, InputSelector):
         Logger.critical(
             f"WDL does not support command line level defaults that select a different input, this will remove the "
-            f"value: '{indefault}' for tool_input '{tool_input.tag}'"
+            f"value: '{indefault}' for tool_input '{tool_input.id()}'"
         )
 
     elif indefault is not None:
@@ -1370,7 +1370,6 @@ def translate_step_node(
     invalid_identifiers: Set[str],
     inputsdict: Dict[str, Any],
 ) -> wdl.WorkflowCallBase:
-    # TODO differentiate between a step calling a task & one calling a sub workflow
     """
     Convert a step into a wdl's workflow: call { **input_map }, this handles creating the input map and will
     be able to handle multiple scatters on this step step. If there are multiple scatters, the scatters will be ordered
@@ -1557,7 +1556,11 @@ def translate_step_node(
                 tag = get_secondary_tag_from_original_tag(k, tag)
 
             # get extra info from tool_input. used to render comments
-            tool_input = [x for x in step.tool.inputs() if x.tag == k][0]
+
+            if isinstance(step.tool, Workflow):
+                tool_input = [x for x in step.tool.input_nodes.values() if x.id() == k][0]
+            else:
+                tool_input = [x for x in step.tool.inputs() if x.id() == k][0]
             
             # special label
             special_label = None
@@ -1565,9 +1568,12 @@ def translate_step_node(
                 if isinstance(edge.source, StepOutputSelector):
                     special_label = '*CONNECTION*'
             # prefix
-            prefix = tool_input.prefix
-            if isinstance(prefix, str):
-                prefix = prefix.rstrip('=')
+            if isinstance(step.tool, Workflow):
+                prefix = None
+            else:
+                prefix = tool_input.prefix
+                if isinstance(prefix, str):
+                    prefix = prefix.rstrip('=')
             # position
             # odd grammar here is handle situations where we don't know what position the
             # input should be (eg secondary files). In these cases, just uses the previous position. 
