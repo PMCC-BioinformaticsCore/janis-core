@@ -773,13 +773,19 @@ class CLTOutputParser(CLTEntityParser):
         elif self.entity.outputBinding:
             if self.entity.outputBinding.glob:
                 res, success = parse_basic_expression(self.entity.outputBinding.glob)
-                selector = res
+                if isinstance(res, str):
+                    selector = WildcardSelector(res)
+                else:
+                    selector = res
                 if not success:
                     self.error_msgs.append('untranslated javascript expression in output collection')
             
             elif self.entity.outputBinding.outputEval:
                 res, success = parse_basic_expression(self.entity.outputBinding.outputEval)
-                selector = res
+                if isinstance(res, str):
+                    selector = WildcardSelector(res)
+                else:
+                    selector = res
                 if not success:
                     self.error_msgs.append('untranslated javascript expression in output collection')
               

@@ -248,14 +248,16 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         requirements = parser.parse()
 
         expected_time = '<js>[inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0]</js>'
-        self.assertIsInstance(requirements['time'], StringFormatter)
-        self.assertEqual(requirements['time']._format, "{JANIS_CWL_TOKEN_1}")
-        self.assertEqual(requirements['time'].kwargs["JANIS_CWL_TOKEN_1"], expected_time)
+        self.assertEqual(requirements["time"], expected_time)
+        # self.assertIsInstance(requirements['time'], StringFormatter)
+        # self.assertEqual(requirements['time']._format, "{JANIS_CWL_TOKEN_1}")
+        # self.assertEqual(requirements['time'].kwargs["JANIS_CWL_TOKEN_1"], expected_time)
         
         expected_cpus = '<js>[inputs.runtime_cpu, (2 * inputs.outputFiles), 1].filter(function (inner) { return inner != null })[0]</js>'
-        self.assertIsInstance(requirements['cpus'], StringFormatter)
-        self.assertEqual(requirements['cpus']._format, "{JANIS_CWL_TOKEN_1}")
-        self.assertEqual(requirements['cpus'].kwargs["JANIS_CWL_TOKEN_1"], expected_cpus)
+        self.assertEqual(requirements["cpus"], expected_cpus)
+        # self.assertIsInstance(requirements['cpus'], StringFormatter)
+        # self.assertEqual(requirements['cpus']._format, "{JANIS_CWL_TOKEN_1}")
+        # self.assertEqual(requirements['cpus'].kwargs["JANIS_CWL_TOKEN_1"], expected_cpus)
         
         expected_mem = '<js>Math.round((953.674 * [inputs.runtime_memory, ((inputs.inputFile.size / 1048576) > 1024) ? 4 : 2, 4].filter(function (inner) { return inner != null })[0]))</js>'
         self.assertEqual(requirements["memory"], expected_mem)
@@ -371,6 +373,9 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         arg = parser.parse()
         expected_value = '<js>"/foo/bar/baz".split(\'/\').slice(-1)[0]</js>'
         self.assertEqual(arg.value, expected_value)
+        # self.assertIsInstance(arg.value, StringFormatter)
+        # self.assertEqual(arg.value._format, '{JANIS_CWL_TOKEN_1}')
+        # self.assertEqual(arg.value.kwargs['JANIS_CWL_TOKEN_1'], expected_value)
         
         parser = CLTArgumentParser(cwl_utils, clt=clt, entity=clt.arguments[5])
         arg = parser.parse()
@@ -392,7 +397,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         tinput = parser.parse()
         self.assertIsInstance(tinput.input_type, GenericFileWithSecondaries)
         error_msgs = get_messages(tinput.uuid)
-        expected_msg = "could not parse secondaries format from javascript expression: {<js>self.basename + self.nameext.replace('m','i')</js>}"
+        expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
         self.assertIn(expected_msg, error_msgs)
 
     def test_clt_input_inputbinding_valuefrom(self):
@@ -432,9 +437,9 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
 
         parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[2])
         tout = parser.parse()
-        self.assertIsInstance(tout.selector.wildcard, StringFormatter)
-        self.assertEqual(tout.selector.wildcard._format, '{JANIS_CWL_TOKEN_1}.trimmed.fastq')
-        self.assertEqual(tout.selector.wildcard.kwargs['JANIS_CWL_TOKEN_1'], "<js>inputs.fastq.nameroot.replace(/\\b.fastq\\b/g, '')</js>")
+        self.assertIsInstance(tout.selector, StringFormatter)
+        self.assertEqual(tout.selector._format, '{JANIS_CWL_TOKEN_1}.trimmed.fastq')
+        self.assertEqual(tout.selector.kwargs['JANIS_CWL_TOKEN_1'], "<js>inputs.fastq.nameroot.replace(/\\b.fastq\\b/g, '')</js>")
     
     def test_clt_output_outputbinding_outputEval(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/outputs.cwl'
@@ -506,8 +511,6 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
         self.assertIn(expected_msg, error_msgs)
   
-
-
 
 
 

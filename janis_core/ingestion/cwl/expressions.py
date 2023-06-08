@@ -15,8 +15,9 @@ import janis_core as j
 # functions: "${func}"
 function_token_matcher = re.compile(r"^\$\{[\s\S]*return[\s\S]*\}$")  # TODO imperfect. see test_initial_workdir_requirement_listing test
 
-# simple functions: ${ return "over 80000" },  ${return 16;}
+# simple functions: ${ return "over 80000" }
 simple_function_token_matcher = re.compile(r"^\s*\$\{\s*return ([^\s'\";{}]+|['\"][^;{}]*?['\"])[\s;]*?\}$")
+
 
 # single javascript expression: "$(expr)"
 single_token_matcher = re.compile(r"^\$\(([^)]+)\)$")  
@@ -24,6 +25,9 @@ single_token_matcher = re.compile(r"^\$\(([^)]+)\)$")
 # used for matching multiple expressions in a line: "$(expr1) + $(expr2)"
 # up to 3 levels of recursion
 inline_expression_matcher = re.compile(r"(?<=\$\()(?:[^)(]|\((?:[^)(]|\((?:[^)(]|\([^)(]*\))*\))*\))*(?=\))")  
+
+# complex single expressions: $(Math.round((953.674 * [inputs.runtime_memory, ((inputs.inputFile.size / 1048576) > 1024) ? 4 : 2, 4].filter(function (inner) { return inner != null })[0])))
+single_expression_matcher = re.compile(r"^\$[({](.*?)[)}]$")
 
 # cwl input references to StepOutputSelector: valueFrom: $(steps.combine.result) -> StepOutputSelector()
 step_output_selector_matcher = re.compile(r"^steps\.([A-z0-9_]+)\.([A-z0-9_]+)$")
@@ -74,8 +78,11 @@ class ExpressionParser:
         single_token_match = single_token_matcher.match(expr)
         simple_function_match = simple_function_token_matcher.match(expr)
         function_match = function_token_matcher.match(expr)
-        all_token_matches = list(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
+        single_expression_match = single_expression_matcher.match(expr)
+        inline_expression_matches = list(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
         
+        if '/foo/bar/baz' in expr:
+            print()
         # if only single $(expr) 
         if single_token_match:
             res = self.convert_javascript_token(single_token_match.groups()[0])
@@ -92,12 +99,16 @@ class ExpressionParser:
             if isinstance(res, str):
                 res = res.replace('\n', '')
 
+        elif single_expression_match:
+            if single_expression_match.group(1).count('(') == single_expression_match.group(1).count(')'):
+                res = self.convert_javascript_token(single_expression_match.group(1))
+        
         # if multiple expressions $(expr1) + $(expr2) etc
-        elif all_token_matches:
+        elif inline_expression_matches:
             string_format = f"{expr}"
             token_replacers = {}
 
-            for token, idx in zip(all_token_matches, range(len(all_token_matches))):
+            for token, idx in zip(inline_expression_matches, range(len(inline_expression_matches))):
                 key = f"JANIS_CWL_TOKEN_{idx+1}"
                 string_format = string_format.replace(f"$({token})", f"{{{key}}}")
                 val = self.convert_javascript_token(token)
@@ -107,6 +118,7 @@ class ExpressionParser:
                 res = string_format
             else:
                 res = j.StringFormatter(string_format, **token_replacers)
+        
         
         # no matches
         else:
