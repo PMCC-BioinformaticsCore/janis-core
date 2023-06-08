@@ -89,10 +89,9 @@ def info_ingesting_tool(spec: str, name: str) -> None:
 # -------
 # to file
 # -------
-logfile = LogFile(MESSAGE_LOG_PATH)
 
 def _log_message(level: str, uuid: Optional[str], msg: str) -> None:
-    global logfile
+    logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
     # or you could generate a file in the output folder for the user to show this info. 
@@ -114,7 +113,7 @@ def log_error(uuid: Optional[str], msg: str) -> None:
 
 def get_messages(uuid: str, level: Optional[str]=None) -> list[str]:
     # get messages corresponding to this uuid from logfile
-    global logfile
+    logfile = LogFile(MESSAGE_LOG_PATH)
     loglines = logfile.messages[uuid]
     
     # filter for specific type of log message if 'level' supplied
