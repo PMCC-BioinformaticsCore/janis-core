@@ -227,3 +227,37 @@ def _sort_extensions(primary_ext: str, secondary_exts: list[str]) -> list[str]:
     secondary_exts = sorted(secondary_exts, key=lambda x: x.rsplit('.')[-1])
     out += secondary_exts
     return out
+
+
+### CHANNELS AND VARIABLES 
+
+def datatype_will_be_channel(dtype: DataType) -> bool:
+    dtt = get_dtt(dtype)
+    if dtt in [
+        DTypeType.SECONDARY_ARRAY,
+        DTypeType.FILE_PAIR_ARRAY,
+        DTypeType.FILE_ARRAY,
+    ] and not dtype.optional:
+        return True
+    
+    return False
+
+def datatype_will_be_variable(dtype: DataType) -> bool:
+    dtt = get_dtt(dtype)
+    # optional file arrays should be variables
+    if dtt in [
+        DTypeType.SECONDARY_ARRAY,
+        DTypeType.FILE_PAIR_ARRAY,
+        DTypeType.FILE_ARRAY,
+    ] and dtype.optional:
+        return True
+    
+    # files should be variables
+    elif dtt in [
+        DTypeType.SECONDARY,
+        DTypeType.FILE_PAIR,
+        DTypeType.FILE,
+    ]:
+        return True
+    
+    return False

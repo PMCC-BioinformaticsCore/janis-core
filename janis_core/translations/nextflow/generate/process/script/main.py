@@ -130,8 +130,13 @@ class ProcessScriptGenerator:
             return '\n'.join(self.prescript)
         return None
 
-    def finalise_script(self) -> str:
+    def finalise_script(self) -> str: 
         script = self.script
-        script = [f'{ln} \\' for ln in script]
-        return '\n'.join(script)
+        if len(script) == 0:
+            return ''
+        elif len(script) == 1:
+            return script[0]
+        else:
+            script = [f"{ln} \\" for ln in script[:-1]] + [script[-1]]  # type: ignore
+        return '\n'.join(script) # type: ignore
 

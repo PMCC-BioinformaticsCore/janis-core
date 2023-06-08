@@ -59,14 +59,10 @@ def should_create_channel_definition(input_node: TInput, wf: Workflow) -> bool:
     if dtt in [DTypeType.GENERIC_ARRAY, DTypeType.FLAG_ARRAY] and is_scattered_on(input_node, wf):
         return True
     
-    # mandatory file arrays should be channels
-    elif dtt in [
-        DTypeType.SECONDARY_ARRAY,
-        DTypeType.FILE_PAIR_ARRAY,
-        DTypeType.FILE_ARRAY,
-    ] and not input_node.intype.optional:
+    # check whether the datatype implies it will be a channel (arrays)
+    if utils.datatype_will_be_channel(input_node.intype):
         return True
-    
+
     return False
 
 def is_scattered_on(input_node: TInput, wf: Workflow) -> bool:

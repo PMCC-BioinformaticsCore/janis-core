@@ -3,12 +3,15 @@
 from janis_core.types import DataType
 
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 from .common import array_type
 from .common import single_type
 from .common import secondary_type
 from .common import secondary_array_type
 from .common import get_collate_size
+
+
 
 
 # public
@@ -57,7 +60,7 @@ def get_array_depth(dtype: DataType) -> int:
 
 
 # public
-def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destscatter: bool) -> str:
+def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destscatter: bool, is_connection: bool) -> str:
     """
     handle a mismatch we have encountered.
     returns an expression we can tack onto channel (during process / subworkflow call) 
@@ -65,22 +68,82 @@ def gen_datatype_mismatch_plumbing(srctype: DataType, desttype: DataType, destsc
     """
     operations: str = ''
     if is_datatype_mismatch(srctype, desttype, destscatter):
-        operations += gen_base_datatype_plumbing(srctype, desttype)  # must be first
+        operations += gen_base_datatype_plumbing(srctype, desttype, is_connection)  # must be first
         operations += gen_array_datatype_plumbing(srctype, desttype, destscatter)
     return operations
 
-def gen_base_datatype_plumbing(srctype: DataType, desttype: DataType) -> str:
+def gen_base_datatype_plumbing(srctype: DataType, desttype: DataType, is_connection: bool) -> str:
     """handle base datatype mismatch transformations"""
     base_srctype = utils.get_base_type(srctype)
     base_desttype = utils.get_base_type(desttype)
-    
-    if secondary_secondary_mismatch(base_srctype, base_desttype):
-        return generate_secondary_mismatch_pumbing(srctype, desttype)
-    
-    elif secondary_single_mismatch(base_srctype, base_desttype):
-        return '.map{ tuple -> tuple[0] }'
+
+    src_dtt = utils.get_dtt(base_srctype)
+    dest_dtt = utils.get_dtt(base_desttype)
+
+    # secondary -> single
+    if src_dtt == DTypeType.SECONDARY and dest_dtt == DTypeType.FILE:
+        return generate_secondary_single_plumbing(base_srctype, is_connection)
+
+    # secondary -> secondary
+    elif src_dtt == dest_dtt == DTypeType.SECONDARY:
+        if base_srctype.name() != base_desttype.name():
+            return generate_secondary_secondary_mismatch_pumbing(base_srctype, base_desttype, is_connection)
     
     return ''
+
+def generate_secondary_single_plumbing(srctype: DataType, is_connection: bool) -> str:
+    """
+    generates plumbing for secondary -> single mismatch
+    eg BamBai -> Bam
+    """
+    if utils.datatype_will_be_channel(srctype) or is_connection:
+        return '.map{ tuple -> tuple[0] }'
+    elif utils.datatype_will_be_variable(srctype):
+        return '[0]'
+    else:
+        raise RuntimeError(f"Disallowed datatype for secondary -> single plumbing: {srctype}")
+
+def generate_secondary_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType, is_connection: bool) -> str:
+    """
+    1. get the secondary type for srctype & desttype
+    2. get the secondary file order for srctype & desttype
+    3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
+    4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing
+    """
+    # 1. get the secondary type for srctype & desttype
+    srctype = utils.get_base_type(srctype)
+    desttype = utils.get_base_type(desttype)
+
+    # 2. get the secondary file order for srctype & desttype
+    srctype_exts = utils.get_extensions(srctype, remove_prefix_symbols=True)
+    desttype_exts = utils.get_extensions(desttype, remove_prefix_symbols=True)
+
+    # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
+    indices: list[int] = []
+    for i, ext in enumerate(desttype_exts):
+        if ext == 'primary':
+            index = 0
+        elif ext in srctype_exts:
+            index = srctype_exts.index(ext)
+        else:
+            print(f"Secondary tuple mapping failed for {ext}. Made a best guess.")
+            index = i
+
+        indices.append(index)
+    
+    if utils.datatype_will_be_channel(srctype) or is_connection:
+        # var.map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing
+        tuple_indices = [f'tuple[{index}]' for index in indices]
+        tuple_expr = f"[{', '.join(tuple_indices)}]"
+        return f'.map{{ tuple -> {tuple_expr} }}'
+    
+    elif utils.datatype_will_be_variable(srctype):
+        # var[0, 1, 2] etc format plumbing
+        index_list = ', '.join([str(index) for index in indices])
+        return f'[{index_list}]'
+    
+    else:
+        raise RuntimeError(f"Disallowed datatypes for secondary -> secondary plumbing: {srctype}, {desttype}")
 
 def gen_array_datatype_plumbing(srctype: DataType, desttype: DataType, destscatter: bool) -> str:
     """handle array depth mismatch transformations"""
@@ -123,55 +186,4 @@ def gen_array_datatype_plumbing(srctype: DataType, desttype: DataType, destscatt
 
     return ''
 
-
-
-# private helpers below ----
-def secondary_secondary_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    if secondary_type(srctype) and secondary_type(desttype):
-        if srctype.name() != desttype.name():
-            return True
-    return False
-
-def secondary_single_mismatch(srctype: DataType, desttype: DataType) -> bool:
-    # src is secondary, dest is not
-    if secondary_type(srctype) and not secondary_type(desttype):
-        return True
-    # dest is secondary, src is not
-    elif secondary_type(desttype) and not secondary_type(srctype):
-        return True
-    # both secondary or both single
-    return False
-
-def generate_secondary_mismatch_pumbing(srctype: DataType, desttype: DataType) -> str:
-    """
-    1. get the secondary type for srctype & desttype
-    2. get the secondary file order for srctype & desttype
-    3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
-    4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing
-    """
-    # 1. get the secondary type for srctype & desttype
-    srctype = utils.get_base_type(srctype)
-    desttype = utils.get_base_type(desttype)
-
-    # 2. get the secondary file order for srctype & desttype
-    srctype_exts = utils.get_extensions(srctype, remove_prefix_symbols=True)
-    desttype_exts = utils.get_extensions(desttype, remove_prefix_symbols=True)
-
-    # 3. iterate through desttype secondary file order, for each find its index in srctype secondary file order
-    indices: list[int] = []
-    for i, ext in enumerate(desttype_exts):
-        if ext == 'primary':
-            index = 0
-        elif ext in srctype_exts:
-            index = srctype_exts.index(ext)
-        else:
-            print(f"Secondary tuple mapping failed for {ext}. Made a best guess.")
-            index = i
-
-        indices.append(index)
-
-    # 4. return .map{ tuple -> [tuple[0], tuple[3], tuple[1]] } etc format plumbing
-    tuple_indices = [f'tuple[{index}]' for index in indices]
-    tuple_expr = f"[{', '.join(tuple_indices)}]"
-    return f'.map{{ tuple -> {tuple_expr} }}'
 

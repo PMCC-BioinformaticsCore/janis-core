@@ -51,22 +51,8 @@ def should_create_variable_definition(input_node: TInput, wf: Workflow) -> bool:
     if task_input.ti_type in (TaskInputType.STATIC, TaskInputType.IGNORED, TaskInputType.LOCAL):
         return False
     
-    dtt = utils.get_dtt(input_node.intype)
-
-    # optional file arrays should be variables
-    if dtt in [
-        DTypeType.SECONDARY_ARRAY,
-        DTypeType.FILE_PAIR_ARRAY,
-        DTypeType.FILE_ARRAY,
-    ] and input_node.intype.optional:
-        return True
-
-    # files should be variables
-    elif dtt in [
-        DTypeType.SECONDARY,
-        DTypeType.FILE_PAIR,
-        DTypeType.FILE,
-    ]:
+    # check whether the datatype implies it will be a variable
+    if utils.datatype_will_be_variable(input_node.intype):
         return True
     
     return False

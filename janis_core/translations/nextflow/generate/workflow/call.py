@@ -10,6 +10,7 @@ from janis_core.types import DataType, Stdout
 from janis_core import settings
 
 from janis_core.translations.common import trace
+from janis_core import translation_utils as utils
 from ... import params
 
 from ...model.process import NFProcess
@@ -153,12 +154,12 @@ class TaskCallArgumentGenerator:
             self.src = step.sources[self.tinput_id]
 
     @property
-    def tinput_id(self) -> str:
-        return self.task_input.tinput_id
-
-    @property
     def tinput(self) -> TInput:
         return [x for x in self.tool.tool_inputs() if x.id() == self.tinput_id][0]
+    
+    @property
+    def tinput_id(self) -> str:
+        return self.task_input.tinput_id
 
     @property
     def srctype(self) -> Optional[DataType]:
@@ -179,15 +180,20 @@ class TaskCallArgumentGenerator:
         tinp = [x for x in tinputs if x.id() == self.tinput_id][0]
         return tinp.intype  # type: ignore
     
-    # @property
-    # def src_scatter(self) -> bool:
-    #     return trace.trace_source_scatter(self.src)
-
     @property
     def dest_scatter(self) -> bool:
         if self.scatter and self.tinput_id in self.scatter.fields:
             return True
         return False
+    
+    @property 
+    def is_connection(self) -> bool:
+        if self.src is not None:
+            node = utils.resolve_node(self.src)
+            if isinstance(node, StepNode):
+                return True
+        return False
+            
 
     def generate(self) -> str:
         """calculate the arg which will feed this task input"""
@@ -236,7 +242,7 @@ class TaskCallArgumentGenerator:
             elif self.srctype is not None and is_datatype_mismatch(self.srctype, self.desttype, self.dest_scatter):
                 # TODO optionality checking should be inside gen_datatype_mismatch_plumbing()
                 # if not self.srctype.optional:
-                suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter)
+                suffix = gen_datatype_mismatch_plumbing(self.srctype, self.desttype, self.dest_scatter, self.is_connection)
                 arg = f'{arg}{suffix}'
         
         if arg is None:

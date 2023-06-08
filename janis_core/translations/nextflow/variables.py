@@ -83,7 +83,6 @@ class WorkflowVariableManagerInitialiser(VariableManagerInitialiser):
             vmanager.update(tinput.id(), vtype_str=vtype_str, value=None)
 
 
-
 class VariableType(Enum): 
     TASK_INPUT  = auto()
     PARAM       = auto()
