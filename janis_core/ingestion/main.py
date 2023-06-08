@@ -28,8 +28,12 @@ ingestor_map = {
 }
 
 def ingest(path: str, format: str) -> Tool:
-    configure_logging()                         # setup logging
-    settings.ingest.SOURCE = format             # set ingest source
+    # setup logging
+    configure_logging()                         
+    # set translate settings
+    settings.ingest.SOURCE = format                     
+    settings.validation.STRICT_IDENTIFIERS = False
+    settings.validation.VALIDATE_STRINGFORMATTERS = False
     assert(format in SupportedIngestion.all())  # validate format
     ingest_func = ingestor_map[format]          # select ingestor
     internal = ingest_func(path)                # ingest
