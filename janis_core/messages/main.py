@@ -55,13 +55,18 @@ warnings.filterwarnings("ignore")
 WORK_DIR = (os.getcwd())  # the working directory where janis translate is run from
 PACKAGE_DIR = (os.path.dirname(os.path.realpath(__file__)))  #the directory where this file is located
 CONFIG_FILE_PATH = f'{PACKAGE_DIR}/config.yaml'
-MESSAGE_LOG_PATH = f'{WORK_DIR}/messages.log'
+MESSAGE_LOG_PATH = f'{WORK_DIR}/.janis/messages.log'
 
 def configure_logging() -> None:
+    # ensure we create the folder
+    if not os.path.exists(os.path.dirname(MESSAGE_LOG_PATH)):
+        os.mkdir(os.path.dirname(MESSAGE_LOG_PATH))
+
     # delete previous log
     path = Path(MESSAGE_LOG_PATH)
     if path.exists():
         path.unlink()
+
     # set up logging package conf
     with open(CONFIG_FILE_PATH, "r") as fp:
         the_dict = yaml.safe_load(fp)
