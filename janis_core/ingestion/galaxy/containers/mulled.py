@@ -84,11 +84,7 @@ class MulledContainerGenerator:
         os.environ["DEST_BASE_IMAGE"] = f"'{self.base_container_uri}'"
         my_env = os.environ.copy()
         
-        # debug 
-        print(command)
-        
         # run subprocess
-        result = subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout, env=my_env)
-        print(result)
+        subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout, env=my_env)
     
 
