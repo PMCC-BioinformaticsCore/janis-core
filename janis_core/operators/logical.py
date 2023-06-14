@@ -66,6 +66,10 @@ class IsDefined(Operator, ABC):
         arg = unwrap_operator(self.args[0])
         return f"defined({arg})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"{arg}"
+
 
 class If(Operator, ABC):
     def __init__(self, condition, value_if_true, value_if_false):
@@ -107,6 +111,10 @@ class If(Operator, ABC):
         cond, v1, v2 = [unwrap_operator(a) for a in self.args]
         return f"{cond} ? {v1} : {v2}"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        cond, v1, v2 = [unwrap_operator(a) for a in self.args]
+        return f"{cond} ? {v1} : {v2}"
+
     def to_python(self, unwrap_operator, *args):
         condition, iftrue, iffalse = [unwrap_operator(a) for a in self.args]
         return f"({iftrue} if {condition} else {iffalse})"
@@ -134,6 +142,11 @@ class AssertNotNull(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         return unwrap_operator(self.args[0])
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def returntype(self):
         from copy import copy
@@ -167,6 +180,10 @@ class NotOperator(SingleValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "!"
+
+    @staticmethod
+    def nextflow_symbol():
         return "!"
 
     def argtypes(self):
@@ -204,6 +221,10 @@ class AndOperator(TwoValueOperator):
         return "&&"
 
     @staticmethod
+    def nextflow_symbol():
+        return "&&"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 and arg2
 
@@ -229,6 +250,10 @@ class OrOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "||"
+
+    @staticmethod
+    def nextflow_symbol():
         return "||"
 
     @staticmethod
@@ -260,6 +285,10 @@ class EqualityOperator(TwoValueOperator):
         return "=="
 
     @staticmethod
+    def nextflow_symbol():
+        return "=="
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 == arg2
 
@@ -285,6 +314,10 @@ class InequalityOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "!="
+
+    @staticmethod
+    def nextflow_symbol():
         return "!="
 
     def returntype(self):
@@ -316,6 +349,10 @@ class GtOperator(TwoValueOperator):
         return ">"
 
     @staticmethod
+    def nextflow_symbol():
+        return ">"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 > arg2
 
@@ -341,6 +378,10 @@ class GteOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return ">="
+
+    @staticmethod
+    def nextflow_symbol():
         return ">="
 
     @staticmethod
@@ -372,6 +413,10 @@ class LtOperator(TwoValueOperator):
         return "<"
 
     @staticmethod
+    def nextflow_symbol():
+        return "<"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 < arg2
 
@@ -400,6 +445,10 @@ class LteOperator(TwoValueOperator):
         return "<="
 
     @staticmethod
+    def nextflow_symbol():
+        return "<="
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 <= arg2
 
@@ -425,6 +474,10 @@ class AddOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "+"
+
+    @staticmethod
+    def nextflow_symbol():
         return "+"
 
     @staticmethod
@@ -480,6 +533,10 @@ class SubtractOperator(TwoValueOperator):
         return "-"
 
     @staticmethod
+    def nextflow_symbol():
+        return "-"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 - arg2
 
@@ -512,6 +569,10 @@ class MultiplyOperator(TwoValueOperator):
         return "*"
 
     @staticmethod
+    def nextflow_symbol():
+        return "*"
+
+    @staticmethod
     def apply_to(arg1, arg2):
         return arg1 * arg2
 
@@ -541,6 +602,10 @@ class DivideOperator(TwoValueOperator):
 
     @staticmethod
     def cwl_symbol():
+        return "/"
+
+    @staticmethod
+    def nextflow_symbol():
         return "/"
 
     @staticmethod
@@ -586,6 +651,11 @@ class FloorOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"Math.floor({arg})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
+
     def evaluate(self, inputs):
         from math import floor
 
@@ -623,6 +693,11 @@ class CeilOperator(Operator):
         arg = unwrap_operator(self.args[0])
         return f"Math.ceil({arg})"
 
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
+
     def evaluate(self, inputs):
         from math import ceil
 
@@ -659,6 +734,11 @@ class RoundOperator(Operator):
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
         return f"Math.round({arg})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        raise NotImplementedError(
+            f"There is no Nextflow translation for {self.__class__.__name__}"
+        )
 
     def evaluate(self, inputs):
         result = self.evaluate_arg(self.args[0], inputs)

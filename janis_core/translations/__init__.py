@@ -5,6 +5,7 @@ from janis_core.utils import lowercase_dictkeys
 from janis_core.translationdeps.exportpath import ExportPathKeywords
 from janis_core.translations.wdl import WdlTranslator
 from .cwl import CwlTranslator
+from .nextflow import NextflowTranslator
 from .translationbase import TranslatorBase
 
 from janis_core.translationdeps.supportedtranslations import SupportedTranslation

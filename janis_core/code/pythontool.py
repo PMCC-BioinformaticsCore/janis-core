@@ -150,6 +150,17 @@ class PythonTool:
 
         extra_param_parsing = ""
 
+        if translation == SupportedTranslation.Nextflow:
+            return f"""
+from typing import Optional, List, Dict, Any
+
+{type_annotation_declarations}
+{pt_decl}
+{codeblock_without_static}
+
+
+"""
+
         if translation == SupportedTranslation.CWL:
 
             extra_param_parsing = """
