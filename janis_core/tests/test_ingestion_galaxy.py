@@ -397,7 +397,7 @@ class TestJanisGeneralMapping(unittest.TestCase):
         self.assertIsNone(jsel1)
         # check attributes are correct
         self.assertEquals(jsel2.wildcard, 'report.txt')
-        self.assertEquals(jsel3.input_to_select, 'fileInput')
+        self.assertEquals(jsel3.input_to_select, 'file_input')
 
 
 
