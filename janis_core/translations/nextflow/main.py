@@ -159,7 +159,7 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
 
         preprocessing.populate_task_inputs_toolmode(tool)
         process = generate_process(tool)
@@ -178,7 +178,7 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         assert(isinstance(tool, PythonTool))
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
 
         preprocessing.populate_task_inputs_toolmode(tool)
         process = generate_process(tool)

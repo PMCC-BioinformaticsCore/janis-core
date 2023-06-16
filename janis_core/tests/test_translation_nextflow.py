@@ -4,6 +4,7 @@ import os
 import regex as re
 from typing import Any, Optional
 
+from janis_core.translations.common import trace
 from janis_core.tests.testtools import (
     InputQualityTestTool,
     BasicTestTool,
@@ -162,8 +163,8 @@ def reset_globals() -> None:
     translator = NextflowTranslator()
 
     # nextflow specific
-    settings.translate.MODE = 'extended'
-    settings.translate.nextflow.MODE = 'workflow'
+    settings.translate.MODE = 'regular'
+    settings.translate.nextflow.ENTITY = 'workflow'
     settings.translate.nextflow.MINIMAL_PROCESS = True
 
     # general
@@ -606,7 +607,6 @@ class TestTaskInputs(unittest.TestCase):
 
     # no subworkflows
     def test_one_call(self) -> None:
-        settings.translate.MODE = 'regular'
         wf = MinimalTaskInputsTestWF1()
         wf = do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
@@ -1055,24 +1055,24 @@ class TestFiles(unittest.TestCase):
 
     def test_files_created(self) -> None:
         wf = SubworkflowTestWF()
-        _, subtask_dict = translator.translate_workflow_internal(wf)
+        mainstr, _, subtask_dict = translate(wf, dest_fmt='nextflow')
         
         # check correct number of subtasks created
         self.assertEqual(len(subtask_dict), 6)
         expected_filepaths = set([
-            'modules/file_test_tool',
-            'modules/string_test_tool',
-            'modules/int_test_tool',
-            'modules/string_opt_test_tool',
-            'subworkflows/oranges_workflow',
-            'subworkflows/apples_workflow',
+            'modules/file_test_tool.nf',
+            'modules/string_test_tool.nf',
+            'modules/int_test_tool.nf',
+            'modules/string_opt_test_tool.nf',
+            'subworkflows/oranges_workflow.nf',
+            'subworkflows/apples_workflow.nf',
         ])
-        actual_filepaths = set(subtask_dict.keys())
+        actual_filepaths = set([x[0] for x in subtask_dict])
         self.assertSetEqual(actual_filepaths, expected_filepaths)
 
     def test_main_workflow_format(self) -> None:
         wf = AssemblyTestWF()
-        mainstr, _ = translator.translate_workflow_internal(wf)
+        mainstr, _, _ = translate(wf, dest_fmt='nextflow')
         print(mainstr)
         actual = simplify_file(mainstr)
         expected = [
@@ -1082,44 +1082,61 @@ class TestFiles(unittest.TestCase):
             "include { FASTQC as FASTQC3 } from './modules/fastqc'",
             "include { CAT_TEST_TOOL } from './modules/cat_test_tool'",
             "include { UNICYCLER } from './modules/unicycler'",
-            "// data which will be passed as channels",
-            "ch_in_forward_reads  = Channel.fromPath( params.in_forward_reads )",
-            "ch_in_long_reads     = Channel.fromPath( params.in_long_reads )",
-            "ch_in_reverse_reads  = Channel.fromPath( params.in_reverse_reads )",
-            "ch_test_input        = Channel.fromPath( params.test_input )",
-            "// data which will be passed as optional files",
             "fastqc1_adapters      = file( params.fastqc1_adapters )",
             "fastqc1_contaminants  = file( params.fastqc1_contaminants )",
             "fastqc1_limits        = file( params.fastqc1_limits )",
             "fastqc2_adapters      = file( params.fastqc2_adapters )",
             "fastqc2_contaminants  = file( params.fastqc2_contaminants )",
             "fastqc2_limits        = file( params.fastqc2_limits )",
+            "in_forward_reads      = file( params.in_forward_reads )",
+            "in_long_reads         = file( params.in_long_reads )",
+            "in_reverse_reads      = file( params.in_reverse_reads )",
+            "test_input            = file( params.test_input )",
             "workflow {",
             "FASTQC1(",
-            "ch_in_forward_reads,",
+            "in_forward_reads,",
             "fastqc1_adapters,",
             "fastqc1_contaminants,",
-            "fastqc1_limits",
+            "fastqc1_limits,",
+            "params.NULL_VALUE",
             ")",
             "FASTQC2(",
-            "ch_in_reverse_reads,",
+            "in_reverse_reads,",
             "fastqc2_adapters,",
             "fastqc2_contaminants,",
-            "fastqc2_limits",
+            "fastqc2_limits,",
+            "params.NULL_VALUE",
             ")",
             "FASTQC3(",
-            "ch_test_input,",
+            "test_input,",
             "file( params.NULL_VALUE ),",
             "file( params.NULL_VALUE ),",
-            "file( params.NULL_VALUE )",
+            "file( params.NULL_VALUE ),",
+            "params.NULL_VALUE",
             ")",
             "CAT_TEST_TOOL(",
             "FASTQC3.out.outTextFile",
             ")",
             "UNICYCLER(",
-            "ch_in_forward_reads,",
-            "ch_in_reverse_reads,",
-            "ch_in_long_reads",
+            "in_forward_reads,",
+            "in_reverse_reads,",
+            "in_long_reads,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "params.NULL_VALUE,",
+            "\"\",",
+            "95.0,",
+            "90.0,",
+            "params.NULL_VALUE",
             ")",
             "}",
         ]
@@ -1129,7 +1146,7 @@ class TestFiles(unittest.TestCase):
 
     def test_process_format(self) -> None:
         wf = AssemblyTestWF()
-        _, substr_dict = translator.translate_workflow_internal(wf)
+        mainstr, _, substr_dict = translate(wf, dest_fmt='nextflow')
         print(substr_dict['modules/fastqc'])
         actual_lines = simplify_file(substr_dict['modules/fastqc'])
         expected_lines = [
@@ -1166,6 +1183,8 @@ class TestFiles(unittest.TestCase):
     
     def test_subworkflow_format(self) -> None:
         wf = SubworkflowTestWF()
+        wf = do_preprocessing_workflow(wf)
+        reset_globals()
         _, substr_dict = translator.translate_workflow_internal(wf)
         actual_lines = simplify_file(substr_dict['subworkflows/apples_workflow'])
         expected_lines = [
@@ -1846,7 +1865,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {
-            'path "${inp1.simpleName + ".csv"}", emit: out3',
+            'path "${inp1.baseName + ".csv"}", emit: out3',
             'path "${inp4 + ".csv"}", emit: out4',
             'path "${inp5 + ".csv"}", emit: out5',
             'path "${inp6 + ".merged.csv"}", emit: out6'
@@ -1858,11 +1877,12 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # eg read1.fastq, read2.fastq
         # collection method is list, len(list) == 2.
         wf = OutputCollectionTestWF()
-        step = self.wf.step_nodes['stp6']
+        wf = do_preprocessing_workflow(wf)
+        step = wf.step_nodes['stp6']
         process = nextflow.generate.process.generate_process(step.tool)
         print(process.get_string())
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "[${inp.simpleName + "-R1.fastq"}, ${inp.simpleName + "-R2.fastq"}]", emit: out'}
+        expected_outputs = {'path "[${inp.baseName + "-R1.fastq"}, ${inp.baseName + "-R2.fastq"}]", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
 
     def test_secondaries(self) -> None:
@@ -1917,9 +1937,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         # two_value operator etc. uses ${} syntax around whole phrase.
         # strings inside are quoted. 
         wf = OutputCollectionTestWF()
-
-        
-        step = self.wf.step_nodes['stp5']
+        wf = do_preprocessing_workflow(wf)
+        step = wf.step_nodes['stp5']
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
         expected_outputs = {'path "${inp.simpleName + ".gz"}", emit: out'}
@@ -1927,7 +1946,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_edge_markduplicates_metrics(self) -> None:
         wf = OutputCollectionTestWF()
-        step = self.wf.step_nodes['stp8']
+        wf = do_preprocessing_workflow(wf)
+        step = wf.step_nodes['stp8']
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.get_string())
@@ -1954,15 +1974,19 @@ class TestCmdtoolProcessScript(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
 
+    @unittest.skip('not implemented')
     def test_get_ordered_inputs_arguments(self) -> None:
         raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_prescript_presence(self) -> None:
         raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_script_presence(self) -> None:
         raise NotImplementedError
     
+    @unittest.skip('not implemented')
     def test_autofill(self) -> None:
         raise NotImplementedError
     
@@ -1999,7 +2023,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         assert(actual_prescript)
         expected_lines = {
-            'def java_options = null',
+            'def java_options_joined = java_options != params.NULL_VALUE ? java_options.join(\' \') : ""',
+            'def compression_level = compression_level != params.NULL_VALUE ? compression_level : ""'
         }
 
         for ln in expected_lines:
@@ -2064,6 +2089,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${flag_false}',
             '--opt-basic ${opt_basic}',
             '--opt-default ${opt_default}',
+            '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2096,6 +2122,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${flag_true}',
             '${flag_false}',
             '${opt_optional}',
+            '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2132,6 +2159,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '--opt-default ${opt_default_arr_joined}',
             '${opt_basic_arr_prefixeach_joined}',
             '${opt_default_arr_prefixeach_joined}',
+            '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2162,6 +2190,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${pos_optional_arr_joined}',
             '${opt_optional_arr_joined}',
             '${opt_optional_arr_prefixeach_joined}',
+            '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2176,7 +2205,11 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
-        expected_prescript = []
+        expected_prescript = [
+            'def bam1 = bam1[0]',
+            'def bam2 = bam2[0]',
+            'def bam3 = bam3[0]',
+        ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
             self.assertIn(ln, expected_prescript)
@@ -2185,12 +2218,12 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_script = simplify_script(process.script)
         expected_lines = [
             'echo',
-            '${bam1_bam}',
-            '${bam2_bam}',
-            '${bam3_bam}',
-            '--arg1 ${bam1_bam}',
-            '--arg2 ${bam1_bam}',
-            '--arg3 ${bam1_bai}',
+            '${bam1}',
+            '${bam2}',
+            '${bam3}',
+            '--arg1 ${bam1}',
+            '--arg2 ${bam1}',
+            '--arg3 ${bam1}',
         ]
         print(process.get_string())
         for ln in expected_lines:
@@ -2206,7 +2239,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def bam1 = bam.simpleName != params.NULL_VALUE ? bam : ""',
+            'def bam1 = bam1[0] != null ? bam1[0] : ""',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -2253,6 +2286,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '--bams-arg1 ${bams1_joined}',
             '--bams-arg2 ${bams1[0]}',
             '--bams-arg3 ${bams1[1]}',
+            '> out'
         }
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2268,8 +2302,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = {
-            'def bams1 = get_primary_files(indexed_bam_flat, 2)',
-            'def bams1_joined = bams1[0].simpleName != params.NULL_VALUE ? bams1.join(\' \') : ""',
+            'def bams1 = get_primary_files(bams1_flat, 2)',
+            'def bams1_joined = bams1[0] != null ? bams1.join(\' \') : ""',
         }
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2280,6 +2314,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = {
             'echo',
             '${bams1_joined}',
+            '> out'
         }
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2304,6 +2339,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${reads_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2330,6 +2366,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'echo',
             '${reads_a_joined}',
             '${reads_b_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2344,7 +2381,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def reads_joined = reads1 + \' \' + reads2'
+            'def reads_joined = reads1 + \' \' + reads2',
+            'def read1 = read1.simpleName != params.NULL_VALUE ? read1 : ${reads1}',
+            'def read2 = read2.simpleName != params.NULL_VALUE ? read2 : ${reads2}',
+
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2354,8 +2394,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${reads_joined}',
-            '--reads-index-0 ${reads1}',
-            '--reads-index-1 ${reads2}',
+            '--reads-index-0 ${read1}',
+            '--reads-index-1 ${read2}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2384,6 +2425,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${reads_joined}',
             '--reads-index-0 ${read1}',
             '--reads-index-1 ${read2}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2411,6 +2453,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${reads_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2442,6 +2485,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'echo',
             '${reads_a_joined}',
             '${reads_b_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2527,6 +2571,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${read_pairs_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2542,7 +2587,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
             'def read_pairs = read_pairs_flat.collate(2, 2)',
-            'def read_pairs_joined = read_pairs.collect{ it[0].simpleName != params.NULL_VALUE ? it.join(\' \') : "" }',
+            'def read_pairs_joined = read_pairs.collect{ it[0] != null ? it.join(\' \') : "" }',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -2552,6 +2597,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${read_pairs_joined}',
+            '> stdout'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2606,6 +2652,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'echo',
             '${inp1}',
             '${inp2}',
+            '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2967,7 +3014,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = nextflow.trace.trace_entity_counts(src)
+        actual_counts = trace.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -2986,7 +3033,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_counts = nextflow.trace.trace_entity_counts(src)
+        actual_counts = trace.trace_entity_counts(src)
         print(actual_counts)
         expected_counts = {
             'StepTagInput': 1, 
@@ -3002,7 +3049,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp1'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.trace.trace_source_datatype(src)
+        actual_dtype = trace.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -3010,7 +3057,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp2'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.trace.trace_source_datatype(src)
+        actual_dtype = trace.trace_source_datatype(src)
         expected_dtype = File
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -3018,7 +3065,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp3'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.trace.trace_source_datatype(src)
+        actual_dtype = trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -3026,7 +3073,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp4'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.trace.trace_source_datatype(src)
+        actual_dtype = trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
     
@@ -3034,7 +3081,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp5'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_dtype = nextflow.trace.trace_source_datatype(src)
+        actual_dtype = trace.trace_source_datatype(src)
         expected_dtype = String
         self.assertIsInstance(actual_dtype, expected_dtype)
 
@@ -3042,7 +3089,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp6'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = nextflow.trace.trace_source_scatter(src)
+        actual_scatter = trace.trace_source_scatter(src)
         expected_scatter = False
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -3050,7 +3097,7 @@ class TestEntityTracing(unittest.TestCase):
         step_id = 'stp7'
         step = self.wf.step_nodes[step_id]
         src = step.sources['inp']
-        actual_scatter = nextflow.trace.trace_source_scatter(src)
+        actual_scatter = trace.trace_source_scatter(src)
         expected_scatter = True
         self.assertEqual(actual_scatter, expected_scatter)
 
@@ -3982,7 +4029,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         reset_globals()
     
     def test_basic(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = BasicTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
@@ -3997,7 +4044,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         self.assertEqual("no format", actual)
 
     def test_string(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = BasicTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
@@ -4012,7 +4059,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         self.assertEqual("there\'s a string arg", actual)
     
     def test_input_selector_process_input(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = BasicTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
@@ -4043,7 +4090,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_two_params(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = InputQualityTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
@@ -4062,7 +4109,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         self.assertEqual("${user}:${static}", actual)
 
     def test_escaped_characters(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = InputQualityTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
@@ -4090,7 +4137,7 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         self.assertEqual("${user}\\\\t${static}", actual_shell)
 
     def test_expression(self):
-        settings.translate.nextflow.MODE = 'tool'
+        settings.translate.nextflow.ENTITY = 'tool'
         tool = BasicTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)

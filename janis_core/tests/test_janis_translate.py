@@ -3,15 +3,15 @@
 import unittest
 from typing import Any
 
+from janis_core import settings
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
-from janis_core import settings
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
 from janis_core.tests.testworkflows import AssemblyTestWF
 
-from janis_core import CommandTool, CommandToolBuilder
-from janis_core import Workflow, WorkflowBuilder
+from janis_core import CommandToolBuilder
+from janis_core import WorkflowBuilder
 from janis_core import CodeTool
 
 
@@ -628,7 +628,7 @@ class TestCwlToNextflow(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
         from janis_core import settings
-        settings.translate.nextflow.MODE = 'workflow'
+        settings.translate.nextflow.ENTITY = 'workflow'
         print(toolstr)
 
     def test_kids_manta(self):

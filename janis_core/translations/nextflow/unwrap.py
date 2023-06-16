@@ -760,7 +760,6 @@ class Unwrapper:
             elif dtt == DTypeType.SECONDARY:
                 var = self.vmanager.get(inp.id()).items[1]
                 var_copy = deepcopy(var)
-                # var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
             
             elif dtt == DTypeType.FILE_PAIR_ARRAY:
                 var = self.vmanager.get(inp.id()).items[2]  # always read_pairs_joined
@@ -819,7 +818,6 @@ class Unwrapper:
             if var.value:
                 assert(isinstance(var.value, str))
                 expr = self.unwrap_filename(basetype, varname=var.value)
-                print()
             else:
                 expr = self.unwrap(basetype)
 
@@ -847,7 +845,6 @@ class Unwrapper:
         if isinstance(basetype, File) and sel.remove_file_extension:
             # expr = f'{expr}.simpleName'
             expr = f'{expr}.baseName'
-            print()
         
         return expr
         

@@ -135,7 +135,7 @@ class Mapper:
         """
         unknown_count: int = 0
         invalues = gstep.inputs.all
-        invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+        # invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
         for gvalue in invalues:
             # tool input is known (normal case)
             if gvalue.component:       
@@ -230,7 +230,7 @@ def _get_scatter_targets(gstep: WorkflowStep) -> list[str]:
     targets: list[str] = []
     
     invalues = gstep.inputs.all
-    invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+    # invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
     for v in invalues:
         if v.scatter:
             if v.component:

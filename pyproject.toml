@@ -1,19 +1,95 @@
-[tool.black]
-line-length = 88
-target_version = ['py37']
-include = '\.pyi?$'
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | build
-    | dist
-  )/
-)
-'''
+
+[build-system]
+build-backend   = "setuptools.build_meta"
+requires        = ["setuptools>=67.8.0", "wheel>=0.40.0"]
+
+[project]
+name            = "janis-pipelines.core"
+version         = "v0.13.0"
+description     = "Workflow language + translation utilities to convert workflows from one language to another"
+readme          = "README.md"
+license         = { file = "LICENSE" }
+
+keywords        = [
+    "janis", 
+    "workflows", 
+    "pipelines", 
+    "translation", 
+    "galaxy", 
+    "nextflow", 
+    "cwl", 
+    "wdl", 
+    "bioinformatics",
+]
+authors = [
+    { name = "Michael Franklin", email = "michael.franklin@petermac.org" },
+    { name = "Grace Hall", email = "grace.hall1@unimelb.edu.au" },
+    { name = "Richard Lupat", email = "Richard.Lupat@petermac.org" },
+    { name = "Evan Thomas", email = "thomas.e@wehi.edu.au" },
+    { name = "Mohammad Bhuyan", email = "bhuyan.m@wehi.edu.au" },
+]
+maintainers = [
+    { name = "Grace Hall", email = "grace.hall1@unimelb.edu.au" },
+    { name = "Richard Lupat", email = "Richard.Lupat@petermac.org" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License version 3",
+    "Operating System :: OS Independent",
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "importlib-metadata==4.12.0",
+    "illusional-wdlgen @ git+https://github.com/GraceAHall/python-wdlgen@release-v0.12.0",
+    "ruamel.yaml >= 0.12.4, <= 0.16.5",
+    "regex",
+    "tabulate",
+    "path",
+    "galaxy-app==22.1.1",
+    "galaxy-auth==22.1.1",
+    "galaxy-config==22.1.1",
+    "galaxy-containers==22.1.1",
+    "galaxy-data==22.1.1",
+    "galaxy-files==22.1.1",
+    "galaxy-job-execution==22.1.1",
+    "galaxy-job-metrics==22.1.1",
+    "galaxy-objectstore==22.1.1",
+    "galaxy-sequence-utils==1.1.5",
+    "galaxy-tool-util==22.1.2",
+    "galaxy-util==22.1.1",
+    "galaxy-web-framework==22.1.1",
+    "galaxy-web-stack==22.1.1",
+    "pulsar-galaxy-lib==0.14.13",
+    "packaging==21.3",
+    "miniwdl",
+    "biopython==1.79",
+    "filelock==3.7.0",
+    "cwlformat==2020.5.19",
+    "cwl-utils==0.15",
+    "graphviz",
+    "nose",
+]
+requires-python = ">=3.11"
+
+[project.urls]
+repository      = "https://github.com/PMCC-BioinformaticsCore/janis-core"
+documentation   = "https://janis.readthedocs.io/en/latest/"
+
+[tool.setuptools.packages.find]
+where = ["./janis_core"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+janis_core = [
+    "messages/*.yaml",
+    "ingestion/galaxy/data/*.json",
+    "ingestion/galaxy/data/*.yaml",
+    "ingestion/galaxy/data/*.xml.sample",
+    "ingestion/galaxy/data/*.xml.sample"
+]

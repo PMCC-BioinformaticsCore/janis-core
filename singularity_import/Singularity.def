@@ -1,0 +1,16 @@
+Bootstrap: docker
+From: quay.io/biocontainers/coreutils:8.31--h14c3975_0
+
+%setup
+
+    echo "Copying conda environment"
+    mkdir -p /tmp/conda
+    cp -r /data/dist/* /tmp/conda/
+
+%post
+    rm -R /usr/local || true
+    mkdir -p /usr/local
+    cp -R /tmp/conda/* /usr/local/
+
+%test
+    None

@@ -45,6 +45,6 @@ MINIMAL_PROCESS = True
 # JANIS_ASSISTANT = False
 
 # translation mode
-MODE = 'workflow'
+ENTITY = 'workflow'
 
 

@@ -41,7 +41,7 @@ class TaskInputHistory:
     
     @property
     def non_null_unique_values(self) -> set[str]:
-        return set([x for x in self.values if x is not None])
+        return set([x for x in self.values if x is not None and x is not ''])
     
     def add_value(self, val: Any) -> None:
         if val is not None:

@@ -14,7 +14,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
-from janis_core.deps import cwlgen, wdlgen
+import cwl_utils.parser.cwl_v1_2 as cwlgen
+import wdlgen
 from janis_core.utils.logger import Logger
 
 NativeType = str
@@ -122,7 +123,7 @@ class NativeTypes:
 
     @staticmethod
     def map_to_wdl(t: NativeType):
-        from janis_core.deps import wdlgen as wdl
+        import wdlgen as wdl
 
         if t == NativeTypes.kBool:
             return wdl.PrimitiveType.kBoolean

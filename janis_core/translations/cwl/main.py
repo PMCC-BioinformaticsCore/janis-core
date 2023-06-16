@@ -26,8 +26,7 @@ from typing import Union
 
 
 import ruamel.yaml
-
-from janis_core.deps import cwlgen
+import cwl_utils.parser.cwl_v1_2 as cwlgen
 
 from janis_core import settings
 from janis_core import WorkflowBase

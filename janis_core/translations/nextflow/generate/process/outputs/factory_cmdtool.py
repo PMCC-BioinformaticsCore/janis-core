@@ -273,6 +273,9 @@ class CmdtoolProcessOutputFactory:
         eg BamBai:
             selector=WildcardSelector("*.bam"),
             secondaries_present_as={".bai": ".bai"},
+        eg BamBai replaced:
+            selector=WildcardSelector("*.bam"),
+            secondaries_present_as={".bai": "^.bai"},
         """
         exts = utils.get_extensions(self.dtype, ignore_duplicates=True)
         
@@ -287,6 +290,8 @@ class CmdtoolProcessOutputFactory:
 
     def secondaries_output_single_collector(self) -> NFTupleProcessOutput:
         exts = utils.get_extensions(self.dtype, ignore_duplicates=True)
+        if self.out.secondaries_present_as:
+            exts = [exts[0]] + [self.out.secondaries_present_as[x] for x in exts[1:]]
         
         qualifiers: list[str] = ['path'] * len(exts)
         expressions: list[str] = []
@@ -295,7 +300,7 @@ class CmdtoolProcessOutputFactory:
         expressions.append(base_expr)
         
         for ext in exts[1:]:
-            expr = self.resolve_secondary_collector(self.out.selector, ext)
+            expr = self.resolve_secondary_collector(self.out.selector, primary_ext=exts[0], secondary_ext=ext)
             expressions.append(expr)
 
         new_output = NFTupleProcessOutput(
@@ -324,44 +329,32 @@ class CmdtoolProcessOutputFactory:
         )
         return new_output
     
-    def resolve_secondary_collector(self, entity: Any, ext: Optional[str]=None) -> str:
+    def resolve_secondary_collector(self, entity: Any, primary_ext: Optional[str]=None, secondary_ext: Optional[str]=None) -> str:
         ftype = self.get_fmttype(entity)
         expr = self.unwrap_collection_expression(entity, ftype)
-        if ext is not None:
+        if secondary_ext is not None:
             try:
-                expr = self.replace_extension_in_expression_unsafe(expr, ext)
+                expr = self.replace_extension_in_expression_unsafe(expr, primary_ext, secondary_ext)
             except Exception as e:
-                print(expr)
-                print(e)
-                expr = self.replace_extension_in_expression_safe(expr, ext)
-
+                expr = self.replace_extension_in_expression_safe(expr, primary_ext, secondary_ext)
         return expr
     
-    def replace_extension_in_expression_unsafe(self, expr: str, ext: str) -> str:
-        if not expr.startswith('"') and not expr.endswith('"'):
-            expr = f'"{expr}"'
-        matcher = r"\$\{(.+)\}"
-        matches = list(re.finditer(matcher, expr))
+    def replace_extension_in_expression_unsafe(self, expr: str, primary_ext: str, secondary_ext: str) -> str:
+        primary_ext = primary_ext.replace('.', '\.')
+        primary_ext_matcher = fr"{primary_ext}(?=['\"\s])"
+        matches = list(re.finditer(primary_ext_matcher, expr))
         if len(matches) == 1:
             match = matches[0]
-            if ext.startswith('^') and not match.groups()[0].endswith('.simpleName'):
-                ext = ext.lstrip('^')
-                bracket_contents_start = match.regs[1][0]
-                bracket_contents = match.groups()[0]
-                expr = expr[:bracket_contents_start] + bracket_contents + '.simpleName' + f'}}{ext}' + expr[match.end():]
-                print()
-            elif ext.startswith('^'):
-                ext = ext.lstrip('^')
-                expr = expr[:match.end()] + ext + expr[match.end():]
-                print()
+            if secondary_ext.startswith('^'):
+                expr = expr[:match.start()] + secondary_ext.lstrip('^') + expr[match.end():]
             else:
-                expr = expr[:match.end()] + ext + expr[match.end():]
-            return expr
+                expr = expr[:match.end()] + secondary_ext + expr[match.end():]
         else:
             raise ValueError()
+        return expr
 
-    def replace_extension_in_expression_safe(self, expr: str, ext: str) -> str:
-        ext = ext.lstrip('^')
+    def replace_extension_in_expression_safe(self, expr: str, primary_ext: str, secondary_ext: str) -> str:
+        ext = secondary_ext.lstrip('^')
         return f'"*{ext}"'
 
     def secondaries_array_output(self) -> NFSecondariesArrayProcessOutput:

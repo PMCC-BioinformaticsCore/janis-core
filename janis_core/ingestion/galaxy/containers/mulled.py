@@ -13,6 +13,7 @@ from .fetch import DEFAULT_CONTAINER
 
 
 def gen_mulled_image(xmltool: XMLToolDefinition) -> Optional[Container]:
+    _check_docker_available()
     base_image_uri, other_reqs = get_base_image_uri(xmltool)
     mulled_image = create_mulled_container(xmltool, base_image_uri, other_reqs)
     return mulled_image
@@ -43,6 +44,14 @@ def create_mulled_container(xmltool: XMLToolDefinition, base_container_uri: str,
         '_timestamp': '',
     })
 
+def _check_docker_available() -> None:
+    try:
+        subprocess.run(['docker', 'version'], stderr=sys.stderr, stdout=sys.stdout)
+    except FileNotFoundError:
+        print('you have supplied "--build-galaxy-tool-images", but docker was not found.')
+        print('please install docker / run the app if not on linux.')
+        print('alternatively, re-run janis translate without "--build-galaxy-tool-images"')
+        sys.exit(1)
 
 # quay.io/biocontainers/bioconductor-limma:3.34.9--r3.4.1_0
 

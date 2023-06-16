@@ -1,7 +1,0 @@
-IMAGE                                                                     CREATED         CREATED BY                                                                                          SIZE      COMMENT
-sha256:7f249fb47e58232224dc070e627186b071abbd40421ab60a2d6373c508b19ff4   14 months ago   /bin/sh                                                                                             764MB     Created with Involucro
-<missing>                                                                 2 years ago     /bin/sh                                                                                             0B        
-<missing>                                                                 2 years ago     /bin/sh -c #(nop) CMD [ "bash" ]                                                                    0B        
-<missing>                                                                 2 years ago     /bin/sh -c #(nop) ENTRYPOINT [ "/usr/local/env-execute" ]                                           0B        
-<missing>                                                                 2 years ago     /bin/sh -c #(nop) ENV LANG=C.UTF-8                                                                  0B        
-<missing>                                                                 2 years ago     /bin/sh -c #(nop) COPY dir:62ea804a2e27c94b13fb26a04aac7a885d4f1cf4a2d2b9b7625543182a85c1cd in /    11MB      

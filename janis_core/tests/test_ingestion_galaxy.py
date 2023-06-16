@@ -70,9 +70,7 @@ from .mock.mock_workflow import MOCK_WORKFLOW
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
-UNICYCLER_VANILLA_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command.xml'
-UNICYCLER_TEMPLATED_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command_templated.xml'
-UNICYCLER_INPUTS_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_step.json'
+
  
 QUERY1 = CondaRequirement(_name='abricate', _version='1.0.1')
 QUERY1_EXPECTED_RESULT = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1'
@@ -102,9 +100,14 @@ def _run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
     wf = ingest(filepath, srcfmt)
     return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
 
-def _load_galaxy_workflow(filepath: str) -> dict[str, Any]:
+def _load_gxworkflow(filepath: str) -> dict[str, Any]:
     with open(filepath, 'r') as fp:
         return json.load(fp)
+
+def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
+    metadata = parse_step_metadata(step)
+    runtime.tool.update_via_wrapper(metadata.wrapper)
+    return load_tool_state(step, additional_filters=additional_filters)
 
 def _configure_tool_settings(step: dict[str, Any]) -> None:
     metadata = parse_step_metadata(step)
@@ -116,11 +119,13 @@ def _read_cmd(path: str) -> str:
     assert(root.text)
     return root.text
 
-def _read_step_inputs(path: str) -> dict[str, Any]:
-    with open(path, 'r') as fp:
-        step = json.load(fp)
-    step['tool_state'] = load_tool_state(step)
-    return step['tool_state']
+# def _prepare_tool_state_for_cheetah(path: str, step: int) -> dict[str, Any]:
+#     with open(path, 'r') as fp:
+#         gxworkflow = json.load(fp)
+#     step = gxworkflow['steps'][str(step)]
+#     _configure_tool_settings(step)
+#     tool_state = load_tool_state(step)
+#     return tool_state
 
 # def _load_tool_command_and_state(step: dict[str, Any], flat: bool=False) -> Tuple[str, dict[str, Any]]:
 #     xmltool = load_xmltool(runtime.tool.tool_path)
@@ -132,10 +137,6 @@ def _read_step_inputs(path: str) -> dict[str, Any]:
 #     )
 #     return cmdstr, tool_state
 
-def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
-    metadata = parse_step_metadata(step)
-    runtime.tool.update_via_wrapper(metadata.wrapper)
-    return load_tool_state(step, additional_filters=additional_filters)
 
 
 ### test classes ###
@@ -288,7 +289,7 @@ class TestResolveDependencies(unittest.TestCase):
         settings.ingest.galaxy.GEN_IMAGES = True
         settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = True
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['3']
         _configure_tool_settings(gx_step)
         xmltool = load_xmltool(runtime.tool.tool_path)
@@ -305,7 +306,7 @@ class TestComponentExtraction(unittest.TestCase):
 
     def test_goseq(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/goseq_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         _configure_tool_settings(gx_step)
         xmltool = load_xmltool(runtime.tool.tool_path)
@@ -326,7 +327,7 @@ class TestLoadToolState(unittest.TestCase):
 
     def test_default_filters(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step)
         self.assertEqual(tool_state['output_selector'], None)
@@ -335,7 +336,7 @@ class TestLoadToolState(unittest.TestCase):
     
     def test_null_varname_filter(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step, additional_filters=['ReplaceNullWithVarname'])
         self.assertEqual(tool_state['output_selector'], '$output_selector')
@@ -344,7 +345,7 @@ class TestLoadToolState(unittest.TestCase):
 
     def test_flat_filter(self) -> None:
         wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step, additional_filters=['Flatten'])
         self.assertEqual(tool_state['output_selector'], None)
@@ -435,7 +436,7 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jinp3, ToolInput)
         self.assertIsInstance(jinp4, ToolInput)
         # check attributes are correct
-        self.assertEquals(jinp1.tag, 'fileInput')
+        self.assertEquals(jinp1.tag, 'file_input')
         self.assertEquals(jinp1.prefix, None)
         self.assertEquals(jinp1.separate_value_from_prefix, True)
         self.assertIsInstance(jinp1.input_type, File)
@@ -445,12 +446,12 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jinp2.input_type, Boolean)
         self.assertEquals(jinp2.input_type.optional, True)
 
-        self.assertEquals(jinp3.tag, 'minid')
+        self.assertEquals(jinp3.tag, 'adv_min_dna_id')
         self.assertEquals(jinp3.prefix, '--minid=')
         self.assertEquals(jinp3.separate_value_from_prefix, False)
         self.assertIsInstance(jinp3.input_type, Array)
         
-        self.assertEquals(jinp4.tag, 'db')
+        self.assertEquals(jinp4.tag, 'adv_db')
         self.assertEquals(jinp4.prefix, '--db=')
         self.assertEquals(jinp4.separate_value_from_prefix, False)
         self.assertEquals(jinp4.default, 'resfinder')
@@ -470,18 +471,18 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jout3, ToolOutput)
         # check attributes are correct
         self.assertIsInstance(jout1.output_type, Stdout)
-        self.assertEquals(jout1.tag, 'outReport1')
+        self.assertEquals(jout1.tag, 'out_report1')
         self.assertIsNone(jout1.selector)
         
         self.assertIsInstance(jout2.output_type, File)
-        self.assertEquals(jout2.tag, 'outReport2')
+        self.assertEquals(jout2.tag, 'out_report2')
         self.assertIsInstance(jout2.selector, WildcardSelector)
         self.assertEquals(jout2.selector.wildcard, 'report.txt')
         
         self.assertIsInstance(jout3.output_type, File)
-        self.assertEquals(jout3.tag, 'outFileInput')
+        self.assertEquals(jout3.tag, 'out_file_input')
         self.assertIsInstance(jout3.selector, InputSelector)
-        self.assertEquals(jout3.selector.input_to_select, 'fileInput')
+        self.assertEquals(jout3.selector.input_to_select, 'file_input')
 
     def test_to_janis_metadata(self) -> None:
         """
@@ -500,54 +501,52 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsNotNone(jmeta.version)
 
 
-
-
 class TestJanisWorkflowMapping(unittest.TestCase):
     """
     tests ability to map or generate janis workflow objects 
-    from internal workflow objects
+    from internal galaxy ingest model
     """
     def setUp(self) -> None:
         datatypes.populate()
         _reset_global_settings()
-        self.workflow = MOCK_WORKFLOW
-        self.jworkflow = to_janis_workflow(self.workflow)
-        self.jinputs = to_janis_inputs_dict(self.workflow)
+        self.internal = MOCK_WORKFLOW
+        self.jworkflow = to_janis_workflow(self.internal)
+        self.jinputs = to_janis_inputs_dict(self.internal)
 
     def test_to_janis_workflow(self) -> None:
         self.assertIsInstance(self.jworkflow, WorkflowBuilder)
     
     def test_to_janis_inputs_dict(self) -> None:
         # single input, no value
-        self.assertEquals(self.jinputs['inFasta'], None)
+        self.assertEquals(self.jinputs['in_fasta'], None)
         # single input, provided value
-        self.workflow.inputs[0].value = 'path/to/file.fasta'
-        jinputs = to_janis_inputs_dict(self.workflow)
-        self.assertEquals(jinputs['inFasta'], 'path/to/file.fasta')
+        self.internal.inputs[0].value = 'path/to/file.fasta'
+        jinputs = to_janis_inputs_dict(self.internal)
+        self.assertEquals(jinputs['in_fasta'], 'path/to/file.fasta')
 
     def test_janis_metadata(self) -> None:
         self.assertIsInstance(self.jworkflow.metadata, WorkflowMetadata)
 
     def test_janis_inputs(self) -> None:
         target_inputs = {
-            'inFasta', 
-            'abricate_noheader', 
-            'abricate_minid', 
-            'abricate_db'
+            'in_fasta', 
+            'abricate_adv_db',
+            'abricate_adv_min_dna_id',
+            'abricate_noheader',
         }
         actual_inputs = set(self.jworkflow.input_nodes.keys())
         self.assertEquals(target_inputs, actual_inputs)
 
-        jinp = self.jworkflow.input_nodes['inFasta']
+        jinp = self.jworkflow.input_nodes['in_fasta']
         self.assertIsInstance(jinp, InputNode)
         self.assertIsInstance(jinp.datatype, File)
 
     def test_janis_outputs(self) -> None:
-        target_outputs = {'abricate_outReport1'}
+        target_outputs = {'abricate_out_report1'}
         actual_outputs = set(self.jworkflow.output_nodes.keys())
         self.assertEquals(target_outputs, actual_outputs)
 
-        jout = self.jworkflow.output_nodes['abricate_outReport1']
+        jout = self.jworkflow.output_nodes['abricate_out_report1']
         self.assertIsInstance(jout, OutputNode)
         self.assertIsInstance(jout.datatype, Stdout)
         self.assertIsInstance(jout.datatype.subtype, File)
@@ -564,15 +563,14 @@ class TestJanisWorkflowMapping(unittest.TestCase):
         self.assertIsInstance(jstep.tool, CommandTool)
 
         # sources (tool input values)
-        self.assertIn('fileInput', jstep.sources)
+        self.assertIn('file_input', jstep.sources)
         self.assertIn('noheader', jstep.sources)
-        self.assertIn('minid', jstep.sources)
-        self.assertIn('db', jstep.sources)
+        self.assertIn('adv_min_dna_id', jstep.sources)
+        self.assertIn('adv_db', jstep.sources)
         
         # scatter 
-        self.assertEquals(jstep.scatter.fields, ['minid'])
+        self.assertEquals(jstep.scatter.fields, ['adv_min_dna_id'])
         self.assertEquals(jstep.scatter.method, ScatterMethod.dot)
-
 
 
 
@@ -606,24 +604,26 @@ class TestDatatypeInference(unittest.TestCase):
 
 
 
-
-
 class TestSectionalCheetah(unittest.TestCase):
 
     def test_unicycler(self):
-        vanilla = _read_cmd(UNICYCLER_VANILLA_PATH)
-        reference = _read_cmd(UNICYCLER_TEMPLATED_PATH)
-        inputs = _read_step_inputs(UNICYCLER_INPUTS_PATH)
-        templated = sectional_evaluate(vanilla, inputs)
-        self.assertEquals(reference, templated)
+        original_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_original.txt'
+        expected_filepath = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_templated.txt'
+        inputs_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/inputs.json'
+        
+        # original command
+        with open(original_filepath, 'r') as fp:
+            original = fp.read().strip()
+        # expected command (after cheetah templating)
+        with open(expected_filepath, 'r') as fp:
+            expected = fp.read().strip()
+        # tool state (inputs)
+        with open(inputs_filepath, 'r') as fp:
+            tool_state = json.load(fp)
+        
+        actual = sectional_evaluate(original, tool_state).strip()
+        self.assertEquals(actual, expected)
 
-
-
-def get_cmd(path: str) -> str:
-    tree = et.parse(path)
-    root = tree.getroot()
-    assert(root.text)
-    return root.text
 
 # class TestAliases(unittest.TestCase):
 
@@ -643,7 +643,13 @@ def get_cmd(path: str) -> str:
 #         res_cmd = resolve_aliases(raw_cmd)
 #         self.assertEquals(ref_cmd, res_cmd)
 
+
+
 class TestFromGalaxy(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+        datatypes.populate()
 
     def test_ingest_abricate_tool(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/abricate/abricate.xml')
@@ -674,10 +680,10 @@ class TestFromGalaxy(unittest.TestCase):
         assert(isinstance(jworkflow, WorkflowBuilder))
 
         self.assertEquals(len(jworkflow.step_nodes), 6)
-        self.assertEquals(len(jworkflow.output_nodes), 19)
-        self.assertIn('inForwardReads', jworkflow.input_nodes)
-        self.assertIn('inReverseReads', jworkflow.input_nodes)
-        self.assertIn('inLongReads', jworkflow.input_nodes)
+        self.assertEquals(len(jworkflow.output_nodes), 7)
+        self.assertIn('in_short_R1', jworkflow.input_nodes)
+        self.assertIn('in_short_R2', jworkflow.input_nodes)
+        self.assertIn('in_long', jworkflow.input_nodes)
     
     def test_translate_cutadapt_wf_nextflow(self) -> None:
         srcfmt = 'galaxy'

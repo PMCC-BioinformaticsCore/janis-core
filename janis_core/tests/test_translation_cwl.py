@@ -21,8 +21,7 @@ from janis_core.tests.testworkflows import (
     ForEachTestWF,
 )
 
-from janis_core.deps import cwlgen
-
+import cwl_utils.parser.cwl_v1_2 as cwlgen
 from janis_core.translations.cwl import main as cwltranslate
 from janis_core import (
     WorkflowBuilder,
