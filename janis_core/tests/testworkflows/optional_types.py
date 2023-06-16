@@ -11,9 +11,7 @@ from janis_core.types import (
     Int,
     String
 )
-
-from janis_bioinformatics.data_types.fastq import FastqGzPair
-from janis_bioinformatics.data_types.bam import BamBai
+from janis_core.redefinitions.types import BamBai, FastqGzPair
 
 
 class OptionalInputTypesTestWF(Workflow):

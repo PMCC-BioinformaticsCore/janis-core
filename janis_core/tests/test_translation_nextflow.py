@@ -136,11 +136,17 @@ from janis_core import (
     Array,
 )
 
-from janis_bioinformatics.data_types.fasta import Fasta, FastaDict, FastaWithIndexes
-from janis_bioinformatics.data_types.fastq import Fastq, FastqGzPair
-from janis_bioinformatics.data_types.bam import Bam, BamBai
-from janis_bioinformatics.data_types.sam import Sam
-from janis_bioinformatics.data_types.cram import Cram
+from janis_core.redefinitions.types import (
+    Fasta, 
+    FastaDict, 
+    FastaWithIndexes,
+    Fastq, 
+    FastqGzPair,
+    Bam, 
+    BamBai,
+    Sam,
+    Cram, 
+)
 
 from janis_core.translations.nextflow.nfgen_utils import to_groovy
 from janis_core import translation_utils as utils

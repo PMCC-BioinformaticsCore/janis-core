@@ -27,10 +27,9 @@ WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
 # ------- HELPER FUNCS ------- #
 
-
 def _run(filepath: str, srcfmt: str, destfmt: str) -> Any:
     internal = ingest(filepath, srcfmt)
-    return translate(internal, destfmt, allow_empty_container=True, export_path='./translated')
+    return translate(internal, destfmt, export_path='./translated')
 
 def _is_nf_process(filecontents: str) -> bool:
     pattern = r'process.*?\{'
@@ -115,7 +114,6 @@ def _reset_global_settings() -> None:
     from janis_core.translations import nextflow
     nextflow.task_inputs.clear()
     nextflow.params.clear()
-    settings.translate.MODE = 'regular'
     settings.ingest.SAFE_MODE = False
     settings.ingest.galaxy.GEN_IMAGES = False
     settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
@@ -129,7 +127,8 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
-
+    settings.translate.MODE = 'regular'
+    settings.translate.ALLOW_EMPTY_CONTAINER = True
 
 
 
@@ -218,7 +217,6 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
-        settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
@@ -267,7 +265,6 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_rna_seq_reads_to_counts(self):
-        # settings.translate.MODE = 'extended'
         filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)

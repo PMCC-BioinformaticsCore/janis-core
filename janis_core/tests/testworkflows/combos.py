@@ -9,10 +9,8 @@ from janis_core import (
 from janis_core.types import (
     Array,
 )
-from janis_bioinformatics.data_types.bam import BamBai
-from janis_core.tests.testworkflows import (
-    SecondariesTestTool,
-)
+from janis_core.redefinitions.types import BamBai
+from janis_core.tests.testworkflows import SecondariesTestTool
 
 
 # ------------------- #

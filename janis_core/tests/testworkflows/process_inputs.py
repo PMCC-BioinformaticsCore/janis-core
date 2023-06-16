@@ -1,7 +1,7 @@
 
 from janis_core import Workflow, ToolInput, ToolOutput, CommandTool
 from janis_core.types import Array
-from janis_bioinformatics.data_types.fastq import Fastq
+from janis_core.redefinitions.types import Fastq
 from typing import Optional
 
 

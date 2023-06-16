@@ -4,7 +4,7 @@ from typing import Optional, Any
 from inspect import isclass
 
 from janis_core import settings
-from janis_core import CodeTool, CommandTool, WorkflowBase
+from janis_core import CodeTool, CommandTool, WorkflowBase, WorkflowBuilder
 from janis_core import Tool
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
@@ -100,8 +100,8 @@ def translate(
 
     # preprocessing
     entity = to_builders(entity)
-    if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBase):
-        assert(isinstance(entity, WorkflowBase))
+    if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBuilder):
+        assert(isinstance(entity, WorkflowBuilder))
         entity = prune_unused_inputs(entity)
 
     # select the translation unit 

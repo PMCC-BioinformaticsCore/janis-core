@@ -1,18 +1,18 @@
 
 
-from janis_core import WorkflowBase, Tool, ToolInput, CommandToolBuilder,ToolArgument
+from janis_core import WorkflowBuilder, Tool, ToolInput, CommandToolBuilder,ToolArgument
 
 from .history import TaskInputCollector
 from janis_core.translations.common import trace
 
 
-def prune_unused_tool_inputs(wf: WorkflowBase, tools: dict[str, Tool]) -> dict[str, Tool]:
+def prune_unused_tool_inputs(wf: WorkflowBuilder, tools: dict[str, Tool]) -> dict[str, Tool]:
     pruned_tools: dict[str, Tool] = {}
     for tool_id, tool in tools.items():
         pruned_tools[tool_id] = prune(wf, tool)
     return pruned_tools
 
-def prune(wf: WorkflowBase, tool: Tool) -> Tool:
+def prune(wf: WorkflowBuilder, tool: Tool) -> Tool:
     if not isinstance(tool, CommandToolBuilder):
         return tool
     
@@ -22,7 +22,7 @@ def prune(wf: WorkflowBase, tool: Tool) -> Tool:
     valid_tinput_ids = valid_tinput_ids | get_used_step_tinputs(wf, tool)
     
     # get the tinputs which are referenced in tool outputs
-    valid_tinput_ids = valid_tinput_ids | get_output_referenced_tinputs(tool)
+    valid_tinput_ids = valid_tinput_ids | get_output_referenced_tinputs(wf, tool)
     
     # get the tinputs which reference previously validified tinputs
     valid_tinput_ids = valid_tinput_ids | get_tinput_reference_tinputs(tool, valid_tinput_ids)
@@ -32,7 +32,7 @@ def prune(wf: WorkflowBase, tool: Tool) -> Tool:
 
     return tool
 
-def get_used_step_tinputs(wf: WorkflowBase, tool: Tool) -> set[str]:
+def get_used_step_tinputs(wf: WorkflowBuilder, tool: CommandToolBuilder) -> set[str]:
     # get the tinputs which are not needed based on step inputs
     collector = TaskInputCollector(tool)
     collector.collect(wf)
@@ -42,8 +42,11 @@ def get_used_step_tinputs(wf: WorkflowBase, tool: Tool) -> set[str]:
         # RULE 1: mandatory tool inputs are always kept
         if not history.is_optional:  
             tinput_to_keep.add(tinput_id)
-        # RULE 2: anything which is supplied a non-null value must be kept
-        elif len(history.non_null_unique_values) > 0:
+        # RULE 2: step connections are always kept
+        elif history.connections:
+            tinput_to_keep.add(tinput_id)
+        # RULE 3: anything which is supplied a non-null value must be kept
+        elif len(history.genuine_input_sources) > 0:
             tinput_to_keep.add(tinput_id)
         else:
             continue
@@ -75,7 +78,7 @@ def get_tinput_reference_tinputs(tool: CommandToolBuilder, valid_tinput_ids: set
                 break
     return extra_tinput_ids
 
-def get_output_referenced_tinputs(tool: CommandToolBuilder) -> set[str]:
+def get_output_referenced_tinputs(wf: WorkflowBuilder, tool: CommandToolBuilder) -> set[str]:
     extra_tinput_ids: set[str] = set()
     for tout in tool._outputs:
         extra_tinput_ids = extra_tinput_ids | trace.trace_referenced_variables(tout, tool)

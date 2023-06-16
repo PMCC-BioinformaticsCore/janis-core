@@ -1,8 +1,7 @@
 
 
 from typing import Optional
-from janis_bioinformatics.data_types import BamBai, FileTabix
-from janis_unix import Gunzipped
+from janis_core.redefinitions.types import BamBai, FileTabix, Gunzipped
 from janis_core.types import Array, Stdout
 from janis_core import (
     Workflow,

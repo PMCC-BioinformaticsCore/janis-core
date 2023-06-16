@@ -24,7 +24,7 @@ from janis_core.tests.testtools import (
     ArrayFileTestTool,
 )
 
-from janis_bioinformatics.data_types.bam import BamBai
+from janis_core.redefinitions.types import BamBai
 
 
 # --------- #

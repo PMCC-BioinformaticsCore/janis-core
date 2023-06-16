@@ -1,21 +1,27 @@
 
 
-from typing import Any, Optional
+from typing import Any
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from janis_core import Tool, WorkflowBase, CommandTool, PythonTool
+from janis_core import Tool, WorkflowBase, PythonTool, TInput, CommandToolBuilder
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
+from janis_core.operators.selectors import InputNodeSelector
+from janis_core.operators.selectors import StepOutputSelector
 from janis_core.types import DataType
 from janis_core.translations.common import trace
 
 
+
 @dataclass
 class TaskInputHistory:
-    tinput_id: str
-    dtype: DataType
-    values: list[Optional[str]] = field(default_factory=list)
+    tinput: TInput
+    sources: list[InputNodeSelector | StepOutputSelector] = field(default_factory=list)
+
+    @property
+    def dtype(self) -> DataType:
+        return self.tinput.intype
 
     @property
     def is_file(self) -> bool:
@@ -28,25 +34,45 @@ class TaskInputHistory:
         return False
     
     @property
-    def supplied_value_via_connection(self) -> bool:
-        for val in self.values:
-            # TODO this is a weak check
-            if isinstance(val, str) and val.startswith('Task: '):
+    def connections(self) -> bool:
+        for src in self.sources:
+            if isinstance(src, StepOutputSelector):
                 return True
         return False
     
     @property
-    def unique_values(self) -> set[Optional[str]]:
-        return set([x for x in self.values])
+    def genuine_input_sources(self) -> set[InputNodeSelector]:
+        """
+        exists to weed out tool inputs satisfying the following:
+        - the supplied values are always the same as the default value
+        - the supplied values are always null and the default is null (if the InputNode is optional)
+        """
+        out: set[InputNodeSelector] = set()
+        for src in self.sources:
+            if isinstance(src, InputNodeSelector):
+                src_default = src.input_node.default
+                src_optionality = src.input_node.datatype.optional
+                dest_default = self.tinput.default
+                
+                # getting rid of empty quotes in src and tinput defaults
+                if src_default == '':
+                    src_default = None
+                if dest_default == '':
+                    dest_default = None
+                
+                # checking conditions
+                if src_optionality == False:
+                    out.add(src)
+                elif str(src_default) == 'None':
+                    continue
+                elif str(src_default) == str(dest_default):
+                    continue
+                else:
+                    out.add(src)
+        return out
     
-    @property
-    def non_null_unique_values(self) -> set[str]:
-        return set([x for x in self.values if x is not None and x is not ''])
-    
-    def add_value(self, val: Any) -> None:
-        if val is not None:
-            val = str(val)
-        self.values.append(val)
+    def add_value(self, src: InputNodeSelector | StepOutputSelector) -> None:
+        self.sources.append(src)
 
 
 @dataclass 
@@ -82,7 +108,7 @@ class TaskInputCollector:
 
     @property
     def base_inputs_dict(self) -> dict[str, Any]:
-        if isinstance(self.tool, CommandTool) or isinstance(self.tool, PythonTool):
+        if isinstance(self.tool, CommandToolBuilder) or isinstance(self.tool, PythonTool):
             return self.init_inputs_dict_tool()
         else:
             return self.init_inputs_dict_workflow()
@@ -154,7 +180,7 @@ class TaskInputCollector:
                 # trace each value in task_inputs, if is InputNode with default and is not file type, 
                 # update the step inputs with the default.
                 # this is an example of a static value (eg inStr='hello')
-                inputs_dict = self.replace_static_values(inputs_dict)
+                # inputs_dict = self.replace_static_values(inputs_dict)
                 
                 # update the dict
                 self.update_histories(inputs_dict, step.tool)
@@ -163,31 +189,29 @@ class TaskInputCollector:
             if isinstance(step.tool, WorkflowBase):
                 self.collect(step.tool)
     
-    def replace_sources(self, sources: dict[str, Any], inputs_dict: dict[str, Any]) -> dict[str, Any]:
+    def replace_sources(self, sources: dict[str, Any], inputs_dict: dict[str, Any]) -> dict[str, InputNodeSelector | StepOutputSelector]:
         for tinput_id in inputs_dict.keys():
             if tinput_id in sources:
-                src = sources[tinput_id]
-                node = utils.resolve_node(src)
-                inputs_dict[tinput_id] = node
+                selector = sources[tinput_id].source_map[0].source
+                inputs_dict[tinput_id] = selector
         return inputs_dict
     
-    def replace_static_values(self, inputs_dict: dict[str, Any]) -> dict[str, Any]:
-        for tid, src in inputs_dict.items():
-            node = utils.resolve_node(src)
-            if isinstance(node, InputNode):
-                if node.default is not None:  # type: ignore
-                    inputs_dict[tid] = node.default  # type: ignore
-        return inputs_dict
+    # def replace_static_values(self, inputs_dict: dict[str, Any]) -> dict[str, Any]:
+    #     for tid, node in inputs_dict.items():
+    #         if isinstance(node, InputNode):
+    #             if node.default is not None:  # type: ignore
+    #                 inputs_dict[tid] = node.default  # type: ignore
+    #     return inputs_dict
     
     def update_histories(self, inputs_dict: dict[str, Any], tool: Tool) -> None:
-        for tinput_id, val in inputs_dict.items():
+        for tinput_id, selector in inputs_dict.items():
 
             # add a TaskInputHistory for TInput if not exists
             if tinput_id not in self.histories:
                 tinput = [x for x in tool.tool_inputs() if x.id() == tinput_id][0]
-                history = TaskInputHistory(tinput_id, tinput.intype)
+                history = TaskInputHistory(tinput)
                 self.histories[tinput_id] = history
             
             # add a value to this TInput's TaskInputHistory
-            self.histories[tinput_id].add_value(val)
+            self.histories[tinput_id].add_value(selector)
 

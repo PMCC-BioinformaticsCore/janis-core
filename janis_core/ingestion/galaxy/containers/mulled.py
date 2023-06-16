@@ -6,7 +6,6 @@ from typing import Optional, Tuple
 
 from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
 from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
-
 from .Container import Container
 from .fetch import fetch_online
 from .fetch import DEFAULT_CONTAINER
@@ -79,21 +78,19 @@ class MulledContainerGenerator:
         print(f'built container {self.mulled_uri}')
     
     def do_build(self) -> None:
-        # create command
-        command: list[str] = []
-        command.append('mulled-build')
-        command.append('--name-override')
-        command.append(f'{self.mulled_uri}')
-        command.append('--verbose')
-        command.append('build-and-test')
-        reqs_joined = ','.join([req.name for req in self.other_reqs])
-        command.append(f'{reqs_joined}')
-        
-        # create env
-        os.environ["DEST_BASE_IMAGE"] = f"'{self.base_container_uri}'"
-        my_env = os.environ.copy()
+        # gen command
+        extras = ','.join([req.name for req in self.other_reqs])
+        command: str = f"\
+        DEST_BASE_IMAGE={self.base_container_uri} \
+        mulled-build \
+        -c iuc,conda-forge,bioconda \
+        --namespace 'grace_hall1' \
+        --name-override {self.mulled_uri} \
+        --verbose \
+        build-and-test \
+        {extras}"
         
         # run subprocess
-        subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout, env=my_env)
+        subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout)
     
 

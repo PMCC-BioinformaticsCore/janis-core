@@ -15,8 +15,7 @@ from janis_core.types import (
     Int,
 )
 
-from janis_bioinformatics.data_types.fastq import Fastq
-
+from janis_core.redefinitions.types import Fastq
 
 
 class OrderingTestWF(Workflow):

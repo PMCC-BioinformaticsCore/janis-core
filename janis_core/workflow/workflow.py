@@ -814,10 +814,11 @@ class WorkflowBase(Tool):
                 parsed_type = get_instantiated_type(v)
 
                 if parsed_type and not referencedtype.can_receive_from(parsed_type):
-                    raise TypeError(
-                        f"The type {parsed_type.id()} inferred from the value '{v}' is not "
-                        f"compatible with the '{identifier}.{k}' type: {referencedtype.id()}"
-                    )
+                    if not settings.graph.ALLOW_INCOMPATIBLE_TYPES:
+                        raise TypeError(
+                            f"The type {parsed_type.id()} inferred from the value '{v}' is not "
+                            f"compatible with the '{identifier}.{k}' type: {referencedtype.id()}"
+                        )
 
                 referencedtype.optional = True
 

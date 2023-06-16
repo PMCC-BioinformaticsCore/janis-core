@@ -241,8 +241,8 @@ class CWLTypeParser:
         if not file_datatype_cache:
             FastaGzType = None
             try:
-                from janis_bioinformatics.data_types import FastaGz
-
+                from janis_core.redefinitions.types import FastaGz
+                # from janis_bioinformatics.data_types import FastaGz
                 FastaGzType = FastaGz
             except ImportError:
                 pass

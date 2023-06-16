@@ -17,8 +17,7 @@ from janis_core.types import (
     String,
     Array
 )
-
-from janis_bioinformatics.data_types import BamBai
+from janis_core.redefinitions.types import BamBai
 
 
 # TODO alias selector

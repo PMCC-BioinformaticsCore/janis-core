@@ -10,7 +10,7 @@ HISAT2
     quay.io/grace_hall1/hisat2:hisat2-2.2.1
 
 FEATURECOUNTS
-    DEST_BASE_IMAGE='quay.io/biocontainers/coreutils:8.31--h14c3975_0' mulled-build --name-override 'janis-translate-featurecounts-2.0.1' --verbose build-and-test 'samtools,subread'
+    DEST_BASE_IMAGE='quay.io/biocontainers/coreutils:8.31--h14c3975_0' mulled-build -c iuc,conda-forge,bioconda --namespace 'grace_hall1' --name-override 'featurecounts-2.0.1' --verbose build-and-test 'samtools,subread' --test 'featureCounts && samtools && subread'
     ->
     
 
