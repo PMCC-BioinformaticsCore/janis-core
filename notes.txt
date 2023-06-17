@@ -1,35 +1,5 @@
-"galaxy-app==22.1.1",
-"galaxy-auth==22.1.1",
-"galaxy-config==22.1.1",
-"galaxy-containers==22.1.1",
-"galaxy-data==22.1.1",
-"galaxy-files==22.1.1",
-"galaxy-job-execution==22.1.1",
-"galaxy-job-metrics==22.1.1",
-"galaxy-objectstore==22.1.1",
-"galaxy-sequence-utils==1.1.5",
-"galaxy-tool-util==22.1.2",
-"galaxy-util==22.1.1",
-"galaxy-web-framework==22.1.1",
-"galaxy-web-stack==22.1.1",
-"pulsar-galaxy-lib==0.14.13",
-# janis
-"git+https://github.com/GraceAHall/janis-pipelines",
-"git+https://github.com/GraceAHall/janis-core.git@release-v0.12.0.1",
-"git+https://github.com/GraceAHall/janis-assistant.git@release-v0.12.0",
-"git+https://github.com/GraceAHall/janis-bioinformatics@release-v0.12.0",
-"git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0",
-# misc libraries
-"importlib.metadata==4.12.0",
-"regex",
-"biopython==1.79",
-"filelock==3.7.0",
-"packaging==21.3",
-"miniwdl",
-"cwlformat==2020.5.19",
-"cwl-utils==0.15",
-"graphviz",
-"tabulate"
-"ruamel.yaml >= 0.12.4, <= 0.16.5",
-"path",
-"nose",
+git+https://github.com/GraceAHall/janis-core.git@release-v0.12.1
+git+https://github.com/GraceAHall/janis-assistant.git@release-v0.12.0
+git+https://github.com/GraceAHall/janis-bioinformatics@release-v0.12.0
+git+https://github.com/GraceAHall/janis-pipelines
+git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0

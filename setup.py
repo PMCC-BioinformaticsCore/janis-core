@@ -74,7 +74,7 @@ setup(
         "pulsar-galaxy-lib==0.14.13",
         # misc libraries
         "importlib.metadata==4.12.0",
-        "git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0",
+        "illusional-wdlgen @ git+https://github.com/GraceAHall/python-wdlgen@release-v0.12.0",
         "ruamel.yaml >= 0.12.4, <= 0.16.5",
         "regex",
         "tabulate",
