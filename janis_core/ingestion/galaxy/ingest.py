@@ -37,7 +37,7 @@ from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step
 from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
 from janis_core.ingestion.galaxy.gx.wrappers import WrapperCache
 from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
-from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_wrapper
+from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_xml
 
 from janis_core.ingestion.galaxy import datatypes
 # from janis_core.ingestion.galaxy.startup import setup_data_folder
@@ -58,7 +58,7 @@ def parse_galaxy(uri: str) -> Tool:
     
     elif _is_galaxy_toolshed_tool(uri):
         wrapper = _request_wrapper_info(uri)
-        wrapper_path = fetch_wrapper(
+        wrapper_path = fetch_xml(
             owner= wrapper.owner,
             repo= wrapper.repo,
             revision= wrapper.revision,
@@ -213,10 +213,11 @@ def _set_wrapper_export_paths(entity: Workflow | Wrapper) -> None:
         raise RuntimeError
 
 def _set_wrapper_export_path(wrapper: Wrapper) -> None:
-    dest_dir = _get_dest_dir(wrapper)
+    assert(isinstance(settings.general.SOURCE_FILES, list))
+    dest_dirname = _get_dest_dir(wrapper)
     src_files = _get_wrapper_files_src(wrapper)
-    dest_files = _get_wrapper_files_dest(src_files, dest_dir)
-    for src, dest in zip(src_files, dest_files):
+    for src in src_files:
+        dest = os.path.join(dest_dirname, os.path.basename(src))
         settings.general.SOURCE_FILES.append((src, dest))
 
 def _get_dest_dir(wrapper: Wrapper) -> str:
@@ -225,20 +226,13 @@ def _get_dest_dir(wrapper: Wrapper) -> str:
     return f'{wrapper.tool_id}'
 
 def _get_wrapper_files_src(wrapper: Wrapper) -> list[str]:
-    wrapper_path = fetch_wrapper(
+    tool_xml = fetch_xml(
         owner= wrapper.owner,
         repo= wrapper.repo,
         revision= wrapper.revision,
         tool_id= wrapper.tool_id
     )
-    wrapper_dir = wrapper_path.rsplit('/', 1)[0]
-    macro_xmls = galaxy_utils.get_macros(wrapper_dir)
-    xmls = [wrapper_path] + macro_xmls
+    dirname = os.path.dirname(tool_xml)
+    macro_xmls = galaxy_utils.get_macros(dirname)
+    xmls = [tool_xml] + macro_xmls
     return sorted(xmls)
-
-def _get_wrapper_files_dest(src_files: list[str], dest_dir: str) -> list[str]:
-    out: list[str] = []
-    for src in src_files:
-        xmlpath = src.rsplit('/', 1)[-1]
-        out.append(os.path.join(dest_dir, xmlpath))
-    return sorted(out)

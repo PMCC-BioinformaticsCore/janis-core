@@ -11,7 +11,7 @@ from janis_core.ingestion.galaxy.gx.wrappers.downloads.cache import DownloadCach
 CACHE: DownloadCache = DownloadCache()
 
 
-def fetch_wrapper(owner: str, repo: str, revision: str, tool_id: str) -> str:
+def fetch_xml(owner: str, repo: str, revision: str, tool_id: str) -> str:
     """gets the wrapper locally or from toolshed then returns path to xml"""
     path: Optional[str] = None
     if not path:
@@ -31,7 +31,7 @@ def get_builtin_tool_path(tool_id: str) -> Optional[str]:
     for directory in tool_directories:
         xmlfile = utils.get_xml_by_id(directory, tool_id)
         if xmlfile:
-            return f'{directory}/{xmlfile}'
+            return os.path.join(directory, xmlfile)
     return None
 
 def _get_builtin_tool_directories() -> list[str]:
@@ -63,7 +63,7 @@ def _fetch_cache(repo: str, revision: str, tool_id: str) -> Optional[str]:
     if wrapper:
         xml = utils.get_xml_by_id(wrapper, tool_id)
         if xml:
-            return f'{wrapper}/{xml}'
+            return os.path.join(wrapper, xml)
     return None
 
 def _fetch_toolshed(owner: str, repo: str, revision: str, tool_id: str) -> Optional[str]:

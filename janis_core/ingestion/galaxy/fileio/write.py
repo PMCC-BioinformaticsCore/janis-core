@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from janis_core.ingestion.galaxy.fileio import safe_init_folder
 
 if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.model.tool import Tool
@@ -12,7 +13,7 @@ import shutil
 from janis_core.ingestion.galaxy.runtime import paths
 
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
-from janis_core.ingestion.galaxy.gx.wrappers import fetch_wrapper
+from janis_core.ingestion.galaxy.gx.wrappers import fetch_xml
 
 from .text.workflow.InputsText import InputsText
 from .text.workflow.WorkflowText import WorkflowText
@@ -20,7 +21,7 @@ from .text.tool.ConfigfileText import ConfigfileText
 from .text.tool.UnstranslatedText import UntranslatedText
 from .text.tool.ToolText import ToolText
 
-from .initialisation import init_folder
+
 
 
 def write_tool(tool: Tool, path: str) -> None:
@@ -69,13 +70,13 @@ def write_wrappers(janis: Workflow) -> None:
     for step in janis.steps:
         src_files = get_wrapper_files_src(step)
         dest = get_dest_dir(step)
-        init_folder(dest)
+        safe_init_folder(dest)
         for src in src_files:
             shutil.copy2(src, dest)
 
 def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
     wrapper = step.metadata.wrapper
-    wrapper_path = fetch_wrapper(
+    wrapper_path = fetch_xml(
         owner= wrapper.owner,
         repo= wrapper.repo,
         revision= wrapper.revision,

@@ -1,5 +1,5 @@
 
-
+import os
 from typing import Any
 from .types import cast_cwl_type_to_python
 
@@ -20,9 +20,9 @@ def handle_inline_cltool_identifiers(cwl_workflow: Any, cwl_utils: Any) -> Any:
             step_name = step.id.rsplit('#', 1)[1]
             workdir = step.id.rsplit('#', 1)[0].rsplit('/', 1)[0]
             if isinstance(task, cwl_utils.CommandLineTool) or isinstance(task, cwl_utils.ExpressionTool):
-                new_id = f'{workdir}/{step_name}_tool.cwl'
+                new_id = os.path.join(workdir, f'{step_name}_tool.cwl')
             elif isinstance(task, cwl_utils.Workflow):
-                new_id = f'{workdir}/{step_name}_workflow.cwl'
+                new_id = os.path.join(workdir, f'{step_name}_workflow.cwl')
             else:
                 raise NotImplementedError
             task.id = new_id
