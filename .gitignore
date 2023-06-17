@@ -91,6 +91,7 @@ test.py
 myscript.sh
 translated/
 involucro
+data/
 
 # test data 
 janis_core/tests/data/

@@ -20,7 +20,7 @@ from .text.tool.ConfigfileText import ConfigfileText
 from .text.tool.UnstranslatedText import UntranslatedText
 from .text.tool.ToolText import ToolText
 
-from .initialisation import _init_folder
+from .initialisation import init_folder
 
 
 def write_tool(tool: Tool, path: str) -> None:
@@ -69,7 +69,7 @@ def write_wrappers(janis: Workflow) -> None:
     for step in janis.steps:
         src_files = get_wrapper_files_src(step)
         dest = get_dest_dir(step)
-        _init_folder(dest)
+        init_folder(dest)
         for src in src_files:
             shutil.copy2(src, dest)
 

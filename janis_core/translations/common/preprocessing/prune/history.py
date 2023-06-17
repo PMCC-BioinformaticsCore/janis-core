@@ -4,7 +4,7 @@ from typing import Any
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from janis_core import Tool, WorkflowBase, PythonTool, TInput, CommandToolBuilder
+from janis_core import Tool, WorkflowBuilder, PythonTool, TInput, CommandToolBuilder
 from janis_core import translation_utils as utils
 from janis_core.workflow.workflow import InputNode
 from janis_core.operators.selectors import InputNodeSelector
@@ -41,33 +41,11 @@ class TaskInputHistory:
         return False
     
     @property
-    def genuine_input_sources(self) -> set[InputNodeSelector]:
-        """
-        exists to weed out tool inputs satisfying the following:
-        - the supplied values are always the same as the default value
-        - the supplied values are always null and the default is null (if the InputNode is optional)
-        """
+    def mandatory_input_sources(self) -> set[InputNodeSelector]:
         out: set[InputNodeSelector] = set()
         for src in self.sources:
             if isinstance(src, InputNodeSelector):
-                src_default = src.input_node.default
-                src_optionality = src.input_node.datatype.optional
-                dest_default = self.tinput.default
-                
-                # getting rid of empty quotes in src and tinput defaults
-                if src_default == '':
-                    src_default = None
-                if dest_default == '':
-                    dest_default = None
-                
-                # checking conditions
-                if src_optionality == False:
-                    out.add(src)
-                elif str(src_default) == 'None':
-                    continue
-                elif str(src_default) == str(dest_default):
-                    continue
-                else:
+                if src.input_node.datatype.optional == False:
                     out.add(src)
         return out
     
@@ -105,6 +83,7 @@ class TaskInputCollector:
         self.tool = tool
         self.tool_id = tool.id()
         self.histories: dict[str, TaskInputHistory] = {}
+        self.step_count: int = 0
 
     @property
     def base_inputs_dict(self) -> dict[str, Any]:
@@ -136,7 +115,7 @@ class TaskInputCollector:
         if we find only 1 reference and it has the format of a dummy input, we conclude it 
         is likely to be one of these and remove it from the inputs dict.
         """
-        assert(isinstance(self.tool, WorkflowBase))
+        assert(isinstance(self.tool, WorkflowBuilder))
         valid_inputs: set[str] = set()
 
         for node in self.tool.input_nodes.values():
@@ -152,7 +131,7 @@ class TaskInputCollector:
         return {x: None for x in valid_inputs}
 
     def gen_reference_store(self, node: InputNode) -> InputNodeReferenceStore:
-        assert(isinstance(self.tool, WorkflowBase))
+        assert(isinstance(self.tool, WorkflowBuilder))
         reference_store = InputNodeReferenceStore(node.id())
 
         # iterate through each step_input for each step in workflow
@@ -166,11 +145,12 @@ class TaskInputCollector:
         
         return reference_store
 
-    def collect(self, wf: WorkflowBase) -> None:
+    def collect(self, wf: WorkflowBuilder) -> None:
         for step in wf.step_nodes.values():
             # the uuid is a unique identifier for this Tool. use as key. 
             identifier = step.tool.id()
             if identifier == self.tool_id:
+                self.step_count += 1
                 # initialise inputs dict
                 inputs_dict = deepcopy(self.base_inputs_dict)
                 
@@ -186,7 +166,7 @@ class TaskInputCollector:
                 self.update_histories(inputs_dict, step.tool)
 
             # recursive for subworkflows
-            if isinstance(step.tool, WorkflowBase):
+            if isinstance(step.tool, WorkflowBuilder):
                 self.collect(step.tool)
     
     def replace_sources(self, sources: dict[str, Any], inputs_dict: dict[str, Any]) -> dict[str, InputNodeSelector | StepOutputSelector]:
@@ -204,7 +184,7 @@ class TaskInputCollector:
     #     return inputs_dict
     
     def update_histories(self, inputs_dict: dict[str, Any], tool: Tool) -> None:
-        for tinput_id, selector in inputs_dict.items():
+        for tinput_id, src in inputs_dict.items():
 
             # add a TaskInputHistory for TInput if not exists
             if tinput_id not in self.histories:
@@ -213,5 +193,6 @@ class TaskInputCollector:
                 self.histories[tinput_id] = history
             
             # add a value to this TInput's TaskInputHistory
-            self.histories[tinput_id].add_value(selector)
+            if src is not None:
+                self.histories[tinput_id].add_value(src)
 

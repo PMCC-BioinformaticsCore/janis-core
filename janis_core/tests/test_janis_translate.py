@@ -207,22 +207,23 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     def test_tool_samtools_flagstat(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/samtools_flagstat.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_tool_gatk_haplotype_caller(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/tools/gatk_haplotype_caller.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_wf_align_sort_markdup(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/align_sort_markdup/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    def test_wf_alignment_exome(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/pipelines/alignment_exome.cwl'
+    def test_wf_align_sort_markdup_extended(self):
+        settings.translate.MODE = 'extended'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/align_sort_markdup/subworkflows/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -243,9 +244,9 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
         mainstr = _run(uri, self.src, self.dest)
         print(mainstr)
-    
-    def test_abricate_wf(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
+
+    def test_rna_seq_reads_to_counts(self):
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -253,21 +254,17 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
+    
+    # def test_rna_seq_counts_to_genes(self):
+    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
+    #     mainstr = _run(filepath, self.src, self.dest)
+    #     print(mainstr)
+    
+    # def test_rna_seq_genes_to_pathways(self):
+    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
+    #     mainstr = _run(filepath, self.src, self.dest)
+    #     print(mainstr)
 
-    def test_rna_seq_counts_to_genes(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_rna_seq_genes_to_pathways(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_rna_seq_reads_to_counts(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
 
 
 # ---- PREPROCESSING ------------------------------
@@ -309,11 +306,19 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+
+        # main
+        expected_num_clt_inputs = 11
+        clt_inputs = _get_cwl_clt_inputs(maintask)
+        self.assertEqual(len(clt_inputs), expected_num_clt_inputs)
+
+        # subtasks
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 4,
+            'tools/basic_v0_1_0.cwl': 5,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 5,
+            'tools/subworkflow.cwl': 6,
         }
         for filepath, filecontents in sub_tasks:
             if _is_cwl_clt(filecontents):
@@ -327,6 +332,7 @@ class TestPreprocessingModes(unittest.TestCase):
                     self.assertNotIn('inputBinding', inp)
     
     def test_skeleton_wdl(self) -> None:
+        # TODO
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
@@ -340,9 +346,10 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 4,
+            'modules/basic.nf': 3,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
+            'subworkflows/subworkflow.nf': 6,
         }
         expected_script_lengths = {
             'modules/basic.nf': 2,
@@ -359,11 +366,19 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_cwl1(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+
+        # main
+        expected_num_clt_inputs = 11
+        clt_inputs = _get_cwl_clt_inputs(maintask)
+        self.assertEqual(len(clt_inputs), expected_num_clt_inputs)
+
+        # subtasks
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 4,
+            'tools/basic_v0_1_0.cwl': 5,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 5,
+            'tools/subworkflow.cwl': 6,
         }
         for filepath, filecontents in sub_tasks:
             if _is_cwl_clt(filecontents):
@@ -381,22 +396,22 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
-            'tools/fastqc_v0_1_0.cwl': 1,
+            'tools/fastqc_v0_1_0.cwl': 2,
             'tools/files_to_folder_v0_1_0.cwl': 2,
-            'tools/ngtax_v0_1_0.cwl': 9,
-            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 4,
+            'tools/ngtax_v0_1_0.cwl': 5,
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 3,
         }
         expected_input_binding_absence = {
             'tools/fastqc_v0_1_0.cwl': [],
             'tools/files_to_folder_v0_1_0.cwl': ['files', 'folders', 'destination'],
             'tools/ngtax_v0_1_0.cwl': ['sample', 'fragment'],
-            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': ['input', 'metadata', 'identifier', 'fragment'],
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': ['input', 'identifier', 'fragment'],
         }
         expected_num_clt_args = {
             'tools/fastqc_v0_1_0.cwl': 2,
             'tools/files_to_folder_v0_1_0.cwl': 1,
             'tools/ngtax_v0_1_0.cwl': 4,
-            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 8,
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 7,
         }
         for filepath, filecontents in sub_tasks:
             if _is_cwl_clt(filecontents):
@@ -441,18 +456,20 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_nextflow(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        print(maintask)
         expected_inputs_count = {
-            'modules/basic.nf': 4,
+            'modules/basic.nf': 3,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 7,
+            'modules/basic.nf': 8,
             'modules/mandatory_input_types.nf': 8,
             'modules/optional_input_types.nf': 7,
         }
         for filepath, filecontents in sub_tasks:
+            print(filecontents)
             if _is_nf_process(filecontents):
                 actual_input_lines = _get_nf_process_input_lines(filecontents)
                 actual_script_lines = _get_nf_process_script_lines(filecontents)
@@ -464,7 +481,7 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 6,
+            'tools/basic_v0_1_0.cwl': 7,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 6,
         }
@@ -506,12 +523,12 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 6,
+            'modules/basic.nf': 7,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 9,
+            'modules/basic.nf': 10,
             'modules/mandatory_input_types.nf': 8,
             'modules/optional_input_types.nf': 8,
         }

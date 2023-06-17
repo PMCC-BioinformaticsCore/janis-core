@@ -93,7 +93,7 @@ class CWLTypeParser:
         self.cwl_type = cwl_type
         self.cwl_utils = cwl_utils
         self.error_msgs: list[str] = []
-        self.patterns = self.preprocess_secondary_file_patterns(secondary_files)
+        self.secondary_patterns = self.preprocess_secondary_file_patterns(secondary_files)
     
     def preprocess_secondary_file_patterns(self, secondary_files: Optional[list[str]]) -> Optional[list[str]]:
         # preprocessing to get patterns for secondary files
@@ -112,21 +112,22 @@ class CWLTypeParser:
 
     @property
     def secondary_files(self) -> Optional[list[str]]:
-        if self.patterns:
-            if len(self.patterns) > 0 and not self.patterns[0].startswith('$('):
-                return self.patterns
+        if self.secondary_patterns:
+            if len(self.secondary_patterns) > 0 and not self.secondary_patterns[0].startswith('$('):
+                return self.secondary_patterns
         return None
     
     @property
     def secondary_files_expr(self) -> Optional[str]:
-        if self.patterns:
-            if len(self.patterns) == 1 and self.patterns[0].startswith('$('):
-                return self.patterns[0]
+        if self.secondary_patterns:
+            if len(self.secondary_patterns) == 1 and self.secondary_patterns[0].startswith('$('):
+                return self.secondary_patterns[0]
         return None
     
     def parse(self) -> Tuple[DataType, list[str]]:
         inp_type = self.from_cwl_inner_type(self.cwl_type)
         
+        # secondary files
         if self.secondary_files is not None:
             array_optional_layers: list[bool] = []
             while isinstance(inp_type, Array):
@@ -144,13 +145,13 @@ class CWLTypeParser:
             else:
                 msg = f'could not parse secondaries format from javascript expression: {res}'
                 self.error_msgs.append(msg)
-                inp_type = GenericFileWithSecondaries(secondaries=[])
+                inp_type = GenericFileWithSecondaries(secondaries=[], optional=inp_type.optional)
 
         return (inp_type, self.error_msgs)
     
     def from_cwl_inner_type(self, cwl_type: Any) -> DataType:
         if isinstance(cwl_type, str):
-            optional = "?" in cwl_type
+            is_optional = "?" in cwl_type
             cwl_type = cwl_type.replace("?", "")
             array_count = 0
             while cwl_type.endswith("[]"):
@@ -186,27 +187,31 @@ class CWLTypeParser:
                     inner = File
                 else:
                     raise UnsupportedError(f"Can't detect type {cwl_type}")
-            return inner(optional=optional)
+            return inner(optional=is_optional)
 
         elif isinstance(cwl_type, list):
-            optional = None
+            # optionality
+            is_optional = True if 'null' in cwl_type else False
+            
+            # individual cwl types
+            cwl_types = [x for x in cwl_type if x != 'null']
+            
+            # casting individual cwl types to janis
             dtypes: list[DataType] = []
-            for c in cwl_type:
-                if c == "null":
-                    optional = True
-                else:
-                    dtype, error_messages = ingest_cwl_type(c, self.cwl_utils, [])
-                    self.error_msgs += error_messages
-                    dtypes.append(dtype)
+            for ctype in cwl_types:
+                dtype, error_messages = ingest_cwl_type(ctype, self.cwl_utils, []) # [] may be an mistake?
+                self.error_msgs += error_messages
+                dtypes.append(dtype)
             
-            # mark dtypes as optional if required
+            # annotate janis dtypes as optional
             for dtype in dtypes:
-                if optional is not None:
-                    dtype.optional = optional
+                dtype.optional = is_optional
             
+            # single type
             if len(dtypes) == 1:
                 return dtypes[0]
             
+            # multiple types type
             elif len(dtypes) > 1:
                 dtype_names = [x.name() for x in dtypes]
                 msg = f'entity supports multiple datatypes: {dtype_names}. selected {dtype_names[0]} as fallback. this may affect pipeline execution'
@@ -225,6 +230,7 @@ class CWLTypeParser:
         elif isinstance(cwl_type, self.cwl_utils.OutputArraySchema):
             return Array(self.from_cwl_inner_type(cwl_type.items))
         elif isinstance(cwl_type, self.cwl_utils.InputEnumSchema):
+            # NOTE does this require optionality checking?
             return String()
 
         else:
@@ -235,8 +241,10 @@ class CWLTypeParser:
             else:
                 raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
 
-    def get_data_type_from_secondaries(self, optional: bool) -> DataType:
+    def get_data_type_from_secondaries(self, is_optional: bool) -> DataType:
         global file_datatype_cache
+
+        # TODO needs work here - JanisShed.get_all_datatypes() doesn't return anything
 
         if not file_datatype_cache:
             FastaGzType = None
@@ -258,9 +266,9 @@ class CWLTypeParser:
         secondary_files: list[str] = self.secondary_files # type: ignore
         sec_hash = _calcluate_hash_of_set(secondary_files)
         if sec_hash in file_datatype_cache:
-            return file_datatype_cache[sec_hash](optional=optional)
+            return file_datatype_cache[sec_hash](optional=is_optional)
 
-        return GenericFileWithSecondaries(secondaries=secondary_files)
+        return GenericFileWithSecondaries(secondaries=secondary_files, optional=is_optional)
 
     
             

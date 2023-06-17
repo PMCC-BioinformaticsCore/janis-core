@@ -9,7 +9,7 @@ from janis_core import Tool
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.translations.common import to_builders
-from janis_core.translations.common import prune_unused_inputs
+from janis_core.translations.common import prune_workflow
 from .translationbase import TranslatorBase
 
 
@@ -102,7 +102,7 @@ def translate(
     entity = to_builders(entity)
     if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBuilder):
         assert(isinstance(entity, WorkflowBuilder))
-        entity = prune_unused_inputs(entity)
+        entity = prune_workflow(entity)
 
     # select the translation unit 
     translator = get_translator(dest_fmt)

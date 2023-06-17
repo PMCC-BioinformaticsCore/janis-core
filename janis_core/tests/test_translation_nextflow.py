@@ -197,10 +197,10 @@ def reset_globals() -> None:
     nextflow.params.clear()
 
 def do_preprocessing_workflow(wf: WorkflowBase) -> WorkflowBase:
-    from janis_core.translations.common import prune_unused_inputs
+    from janis_core.translations.common import prune_workflow
     from janis_core.translations.common import to_builders
     reset_globals()
-    wf = prune_unused_inputs(wf)
+    wf = prune_workflow(wf)
     wf = to_builders(wf)
     nextflow.preprocessing.populate_task_inputs_workflowmode(wf, wf)
     return wf

@@ -1,3 +1,3 @@
 
 
-from .main import prune_unused_inputs
+from .main import prune_workflow
