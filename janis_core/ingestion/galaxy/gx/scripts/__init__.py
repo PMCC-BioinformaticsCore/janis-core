@@ -1,3 +1,0 @@
-
-
-from .Script import Script

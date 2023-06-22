@@ -4,10 +4,10 @@
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
-from janis_core.ingestion.galaxy.gx.command.components import Flag
-from janis_core.ingestion.galaxy.gx.command.components import InputComponent
-from janis_core.ingestion.galaxy.gx.command.components import Positional
-from janis_core.ingestion.galaxy.gx.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import Flag
+from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
 
 from ..TextRender import TextRender
 from .. import formatting

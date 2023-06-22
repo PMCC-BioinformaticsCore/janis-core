@@ -1,16 +1,15 @@
 
 
-
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLRequirement
 from ..Container import Container
 
 
-def select_best_container_match(containers: list[Container], requirement: Requirement) -> Container:
+def select_best_container_match(containers: list[Container], requirement: XMLRequirement) -> Container:
     containers = select_version_matches(containers, requirement)
     containers = sort_by_create_date(containers)
     return containers[0]
 
-def select_version_matches(containers: list[Container], requirement: Requirement) -> list[Container]:
+def select_version_matches(containers: list[Container], requirement: XMLRequirement) -> list[Container]:
     matches = [c for c in containers if c.tool_version == requirement.version]
     if matches:
         return matches

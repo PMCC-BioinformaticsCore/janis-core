@@ -5,8 +5,6 @@ import regex as re
 import keyword
 import builtins
 
-#from janis_core.ingestion.galaxy.logs import logging
-
 python_keys = set(keyword.kwlist)
 builtin_keys = set(dir(builtins))
 janis_keys = set([

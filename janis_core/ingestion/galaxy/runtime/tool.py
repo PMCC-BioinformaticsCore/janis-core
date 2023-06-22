@@ -3,8 +3,8 @@
 import os
 from typing import Any, Optional
 
-from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
-from janis_core.ingestion.galaxy.gx.wrappers import fetch_wrapper
+from janis_core.ingestion.galaxy.gxwrappers import Wrapper
+from janis_core.ingestion.galaxy.gxwrappers import fetch_xml
 from janis_core.ingestion.galaxy.utils.galaxy import get_xml_id
 
 tool_path: str
@@ -55,7 +55,7 @@ def update_via_args(args: dict[str, Any]) -> None:
         assert(owner)
         assert(repo)
         assert(revision)
-        rel_path = fetch_wrapper(owner, repo, revision, tool_id)
+        rel_path = fetch_xml(owner, repo, revision, tool_id)
         tool_path = os.path.relpath(rel_path)
 
 def update_via_wrapper(wrapper: Wrapper) -> None:
@@ -69,6 +69,6 @@ def update_via_wrapper(wrapper: Wrapper) -> None:
     owner = wrapper.owner
     repo = wrapper.repo
     revision = wrapper.revision
-    rel_path = fetch_wrapper(wrapper.owner, wrapper.repo, wrapper.revision, wrapper.tool_id)
+    rel_path = fetch_xml(wrapper.owner, wrapper.repo, wrapper.revision, wrapper.tool_id)
     tool_path = os.path.relpath(rel_path)
 

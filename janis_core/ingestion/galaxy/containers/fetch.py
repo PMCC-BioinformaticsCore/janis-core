@@ -1,9 +1,8 @@
 
-# from janis_core.ingestion.galaxy.logs import logging
 
 from typing import Optional
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement, CondaRequirement, ContainerRequirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLRequirement, XMLCondaRequirement, XMLContainerRequirement
 
 from .Container import Container
 
@@ -20,23 +19,23 @@ DEFAULT_CONTAINER = Container({
     '_timestamp': 'Tue, 1 Mar 2022 18:45:00 -0000',
 })
 
-# def _fetch_presets(requirement: Requirement) -> list[Container]:
+# def _fetch_presets(requirement: XMLRequirement) -> list[Container]:
 #     return get_images_preset(requirement)
 
-def fetch_online(requirement: Requirement) -> Optional[Container]:
+def fetch_online(requirement: XMLRequirement) -> Optional[Container]:
     strategy = _select_strategy(requirement)
     containers = strategy.fetch(requirement)
     if containers:
         container = select_best_container_match(containers, requirement)
         return container
     
-def _select_strategy(requirement: Requirement) -> Fetcher:
+def _select_strategy(requirement: XMLRequirement) -> Fetcher:
     match requirement:
-        case CondaRequirement():
+        case XMLCondaRequirement():
             return QuayIOFetcher()
-        #case CondaRequirement():
+        #case XMLCondaRequirement():
         #    return GA4GHFetcher()
-        case ContainerRequirement():
+        case XMLContainerRequirement():
             return ContainerReqFetcher()
         case _:
             raise RuntimeError()

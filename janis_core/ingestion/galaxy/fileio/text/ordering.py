@@ -3,11 +3,11 @@
 
 from abc import ABC, abstractmethod
 from typing import Tuple
-from janis_core.ingestion.galaxy.model.workflow.step.inputs import ConnectionInputValue, InputValue, WorkflowInputInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow.step.inputs import ConnectionInputValue, InputValue, WorkflowInputInputValue
 
-from janis_core.ingestion.galaxy.gx.command.components import Flag
-from janis_core.ingestion.galaxy.gx.command.components import Option
-from janis_core.ingestion.galaxy.gx.command.components import Positional
+from janis_core.ingestion.galaxy.gxtool.command.components import Flag
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
 
 
 

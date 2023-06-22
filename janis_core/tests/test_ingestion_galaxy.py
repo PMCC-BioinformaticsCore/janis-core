@@ -6,16 +6,17 @@ import json
 import xml.etree.ElementTree as et
 
 from janis_core.ingestion.main import ingest_galaxy
-from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
+
+from janis_core.ingestion.galaxy.gxtool.text.simplification.aliases import resolve_aliases
 
 from janis_core.ingestion.galaxy import runtime
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
-from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
-from janis_core.ingestion.galaxy.gx.gxtool.load import load_xmltool
-from janis_core.ingestion.galaxy.gx.command.generate import gen_command
+from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
+from janis_core.ingestion.galaxy.gxtool.text.cheetah.evaluation import sectional_evaluate
+from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
+from janis_core.ingestion.galaxy.gxtool.command.generate import gen_command
 
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement
+from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
+from janis_core.ingestion.galaxy.gxtool.model import XMLCondaRequirement
 
 from janis_core.ingestion.galaxy import regex_to_glob
 from janis_core.ingestion.galaxy import datatypes
@@ -72,13 +73,13 @@ from janis_core.translations import translate
 
 
  
-QUERY1 = CondaRequirement(_name='abricate', _version='1.0.1')
+QUERY1 = XMLCondaRequirement(_name='abricate', _version='1.0.1')
 QUERY1_EXPECTED_RESULT = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1'
 
-QUERY2 = CondaRequirement(_name='samtools', _version='1.15')
+QUERY2 = XMLCondaRequirement(_name='samtools', _version='1.15')
 QUERY2_EXPECTED_RESULT = 'quay.io/biocontainers/samtools:1.15--h1170115_1'
 
-QUERY3 = CondaRequirement(_name='cutadapt', _version='3.5')
+QUERY3 = XMLCondaRequirement(_name='cutadapt', _version='3.5')
 QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 
 GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')

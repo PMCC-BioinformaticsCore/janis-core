@@ -4,20 +4,20 @@ import sys
 import subprocess
 from typing import Optional, Tuple
 
-from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLRequirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 from .Container import Container
 from .fetch import fetch_online
 from .fetch import DEFAULT_CONTAINER
 
 
-def gen_mulled_image(xmltool: XMLToolDefinition) -> Optional[Container]:
+def gen_mulled_image(xmltool: XMLTool) -> Optional[Container]:
     _check_docker_available()
     base_image_uri, other_reqs = get_base_image_uri(xmltool)
     mulled_image = create_mulled_container(xmltool, base_image_uri, other_reqs)
     return mulled_image
 
-def get_base_image_uri(xmltool: XMLToolDefinition) -> Tuple[str, list[Requirement]]:
+def get_base_image_uri(xmltool: XMLTool) -> Tuple[str, list[XMLRequirement]]:
     # start with main requirement as base container if we can find one
     main_req = xmltool.metadata.main_requirement
     assert(main_req)
@@ -31,7 +31,7 @@ def get_base_image_uri(xmltool: XMLToolDefinition) -> Tuple[str, list[Requiremen
     
     return (DEFAULT_CONTAINER, xmltool.metadata.requirements)  # type: ignore
 
-def create_mulled_container(xmltool: XMLToolDefinition, base_container_uri: str, other_reqs: list[Requirement]) -> Container:
+def create_mulled_container(xmltool: XMLTool, base_container_uri: str, other_reqs: list[XMLRequirement]) -> Container:
     manager = MulledContainerGenerator(xmltool, base_container_uri, other_reqs)
     manager.run_tasks()
     uri = manager.mulled_uri
@@ -55,7 +55,7 @@ def _check_docker_available() -> None:
 # quay.io/biocontainers/bioconductor-limma:3.34.9--r3.4.1_0
 
 class MulledContainerGenerator:
-    def __init__(self, xmltool: XMLToolDefinition, base_container_uri: str, other_reqs: list[Requirement]):
+    def __init__(self, xmltool: XMLTool, base_container_uri: str, other_reqs: list[XMLRequirement]):
         self.xmltool = xmltool
         self.base_container_uri = base_container_uri
         self.other_reqs = other_reqs

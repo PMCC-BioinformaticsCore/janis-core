@@ -1,7 +1,7 @@
 
 
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
+from janis_core.ingestion.galaxy.gxtool.requirements.requirements import Requirement
 
 from ..Container import Container
 
@@ -18,7 +18,7 @@ image_presets = {
     ]
 }
 
-def get_images_preset(requirement: Requirement) -> list[Container]:
+def get_images_preset(requirement: XMLRequirement) -> list[Container]:
     out: list[Container] = []
     if requirement.name in image_presets:
         for details in image_presets[requirement.name]:

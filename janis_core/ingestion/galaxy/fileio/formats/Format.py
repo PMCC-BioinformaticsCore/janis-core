@@ -2,9 +2,9 @@
 
 from abc import ABC, abstractmethod
 
-from janis_core.ingestion.galaxy.model.tool import Tool
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.internal_model.tool import ITool
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
 
 
 class Format(ABC):
@@ -31,7 +31,7 @@ class Format(ABC):
         ...
 
     @abstractmethod
-    def tool(self, tool: Tool) -> str:
+    def tool(self, tool: ITool) -> str:
         """writes a tool"""
         ...
 

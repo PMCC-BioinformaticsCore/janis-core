@@ -4,15 +4,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from janis_core.ingestion.galaxy.model.tool import Tool
-    from janis_core.ingestion.galaxy.model.workflow import Workflow
-    from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+    from janis_core.ingestion.galaxy.internal_model.tool import ITool
+    from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+    from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
 
 import shutil
+from janis_core.ingestion.galaxy.fileio import safe_init_folder
 from janis_core.ingestion.galaxy.runtime import paths
-
+from janis_core import settings
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
-from janis_core.ingestion.galaxy.gx.wrappers import fetch_wrapper
+from janis_core.ingestion.galaxy.gxwrappers import fetch_xml
 
 from .text.workflow.InputsText import InputsText
 from .text.workflow.WorkflowText import WorkflowText
@@ -20,10 +21,9 @@ from .text.tool.ConfigfileText import ConfigfileText
 from .text.tool.UnstranslatedText import UntranslatedText
 from .text.tool.ToolText import ToolText
 
-from .initialisation import init_folder
 
 
-def write_tool(tool: Tool, path: str) -> None:
+def write_tool(tool: ITool, path: str) -> None:
     text = ToolText(tool)
     page = text.render()
     with open(path, 'w') as fp:
@@ -69,13 +69,13 @@ def write_wrappers(janis: Workflow) -> None:
     for step in janis.steps:
         src_files = get_wrapper_files_src(step)
         dest = get_dest_dir(step)
-        init_folder(dest)
+        safe_init_folder(dest)
         for src in src_files:
             shutil.copy2(src, dest)
 
 def get_wrapper_files_src(step: WorkflowStep) -> list[str]:
     wrapper = step.metadata.wrapper
-    wrapper_path = fetch_wrapper(
+    wrapper_path = fetch_xml(
         owner= wrapper.owner,
         repo= wrapper.repo,
         revision= wrapper.revision,

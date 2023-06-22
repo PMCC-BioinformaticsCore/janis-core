@@ -1,0 +1,79 @@
+
+
+
+gen_command()
+CommandFactory
+ArgumentCommandAnnotator
+logging
+
+
+
+TODO 
+- fix galaxy ingest
+- fix WDL ingest
+- fix WDL translate
+- all type definitions in janis_core, import links in janis-unix, janis-bioinformatics for legacy support
+- Workflow inputs
+    - Galaxy: rnaseq_reads_to_counts - too many workflow inputs
+- Null values
+    cwl subworkflow_test wf 
+    looks weird: 
+    OPTIONAL2(
+        [].collect{ file(it) },         // in_file_arr
+        file( params.NULL_VALUE ),      // in_file
+        params.in_string_arr_optional,  // in_string_arr
+        params.in_int_optional,         // in_int
+        params.in_string_optional       // in_string
+    )
+- requirements
+    - build mulled container for tools with multiple requirements
+- check step input values are correct
+- --galaxy-gen-images cmdline option
+- --mode  skeleton | regular | expanded cmdline option
+    - cwl       [DONE]
+    - nextflow  [DONE]
+    - wdl       [DONE ERROR]
+- add support for repeat params (& conditional params?)
+    - cutadapt adapters argument
+    - cutadapt library.type single?
+- revisit parsing <command> section (CommandFactory) since load_partial_cheetah_command isnt being used currently
+- --galaxy-tool-all-commands
+- merge
+
+
+PARSING GALAXY TOOLS
+- loading <command> section [DONE]
+    - from tests 
+    - from step inputs
+    - from vanilla xml
+- Command                   [FRIDAY]
+    - what are the different cli command sections? 
+    - which one is the main software command? 
+    - for the section including main software command:
+        - what arguments exist? 
+        - what is their position? 
+        - do they have a prefix? 
+        - which Tool Wrapper params are they linked to? 
+- Updates                   [FRIDAY]
+    - if XML, can add CommandComponent if not exists (don't want to override ArgumentAnnotator derived components)
+    - if test, can update CommandComponent type
+    - if test, can add observed value
+    - if tool_state, set default value if not linked to dataparam / datacollectionparam (ie strings, ints, floats can all get defaults)
+- Container
+- Configfiles
+- Scripts 
+
+
+
+
+
+
+
+
+BUGS 
+
+- CWL: gatk_haplotype_caller.cwl - File? not parsed correctly 
+    path dbsnp_vcf
+    ->
+    path dbsnp_vcf, stageAs: 'dbsnp_vcf/*'
+

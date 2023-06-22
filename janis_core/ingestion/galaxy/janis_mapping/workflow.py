@@ -3,13 +3,13 @@
 from typing import Any, Optional
 from datetime import datetime
 
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowMetadata
-from janis_core.ingestion.galaxy.model.workflow import InputValue
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
-from janis_core.ingestion.galaxy.model.workflow import StaticInputValue
-from janis_core.ingestion.galaxy.model.workflow import ConnectionInputValue
-from janis_core.ingestion.galaxy.model.workflow import WorkflowInputInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowMetadata
+from janis_core.ingestion.galaxy.internal_model.workflow import InputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.internal_model.workflow import StaticInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import ConnectionInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowInputInputValue
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
 from janis_core.ingestion.galaxy import tags
 

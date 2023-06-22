@@ -3,7 +3,7 @@
 
 import yaml
 from typing import Optional
-from janis_core.ingestion.galaxy.runtime.paths import GALAXY_DATATYPES_YAML
+from settings.ingest.galaxy import GALAXY_DATATYPES_YAML
 
 from .JanisDatatype import JanisDatatype
 
