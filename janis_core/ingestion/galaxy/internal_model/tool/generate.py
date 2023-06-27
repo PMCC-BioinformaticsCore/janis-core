@@ -2,20 +2,25 @@
 
 from typing import Optional, Any, Tuple
 from collections import defaultdict
+from dataclasses import dataclass
 
 from janis_core import settings
-
+from janis_core.ingestion.galaxy.gxtool.command.cmdstr.analysis import CmdstrReferenceType
+from janis_core.ingestion.galaxy.gxtool.command.cmdstr.analysis import get_cmdstr_appearences
 from janis_core.ingestion.galaxy.gxtool.command import Command
 from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
 from janis_core.ingestion.galaxy.gxtool.command.components import OutputComponent
 from janis_core.ingestion.galaxy.gxtool.command.components import RedirectOutput
 from janis_core.ingestion.galaxy.gxtool.command.components import Flag
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
 from janis_core.ingestion.galaxy.gxtool.command.components import factory as component_factory
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 from janis_core.ingestion.galaxy.gxtool.model import (
     XMLParam, 
     XMLInputParam,
+    XMLDataParam,
+    XMLDataCollectionParam,
     XMLBoolParam,
     XMLOutputParam
 )
@@ -54,7 +59,6 @@ class ToolFactory:
             metadata=self.xmltool.metadata,
             container=self.container,
             base_command=self.get_base_command(),
-            # gxparam_register=self.xmltool.inputs,
             configfiles=self.xmltool.configfiles,
             scripts=self.xmltool.scripts,
         )
@@ -82,6 +86,18 @@ class ToolFactory:
         return [p.default_value for p in positionals]
     
 
+@dataclass
+class ComponentMetrics:
+    component: InputComponent
+
+    @property
+    def score(self) -> int:
+        score = 0
+        score += 1 if self.component.confidence.value == 3 else 0
+        score += 1 if self.component.gxparam is not None else 0
+        return score
+
+
 class InputExtractor:
     def __init__(
         self, 
@@ -100,49 +116,140 @@ class InputExtractor:
         self.add_captured_inputs()
         # inputs we didn't identify in the tool command
         self.add_uncaptured_inputs()
+        self.resolve_duplicates()
         return self.inputs
+    
+    def resolve_duplicates(self) -> None:
+        """
+        resolves situations where 2 components were extracted for seemingly the same CLI argument.
+        an example is where a flag was identified with prefix = '-F' an option with the same prefix was also identified.
+        TODO this should probably happen automatically in the CmdstrCommandAnnotator class.
+        benefit is that we could be more aware of the structure of the command and avoid this situation.
+        """
+        self.resolve_duplicate_gxparam_components()
+        self.resolve_duplicate_prefix_components()
 
+    def resolve_duplicate_gxparam_components(self) -> None:
+        # TODO i can't remember if this can happen, but if it can, we should resolve it.
+        gxparam_dict = defaultdict(list) 
+        for comp in self.inputs:
+            if comp.gxparam:
+                gxparam_dict[comp.gxparam.name].append(comp)
+        for name, components in gxparam_dict.items():
+            if len(components) >= 2:
+                raise RuntimeError('implement me')
+
+    def resolve_duplicate_prefix_components(self) -> None:
+        whitelisted_uuids = [x.uuid for x in self.inputs]
+        
+        # generate data structure
+        prefix_dict = defaultdict(list) 
+        for comp in self.inputs:
+            if isinstance(comp, Flag | Option): 
+                prefix_dict[comp.prefix].append(comp)
+            else:
+                # ignore positionals - automatically whitelisted
+                whitelisted_uuids.append(comp.uuid)
+        
+        # resolve
+        for prefix, components in prefix_dict.items():
+            if len(components) == 0:
+                raise RuntimeError('should not happen - debugging')
+            elif len(components) == 1:
+                component = components[0]
+                whitelisted_uuids.append(component.uuid)
+            elif len(components) >= 2:
+                component = self.select_best_component(components)
+                whitelisted_uuids.append(component.uuid)
+
+        self.inputs = [x for x in self.inputs if x.uuid in whitelisted_uuids]
+
+    def select_best_component(self, components: list[InputComponent]) -> InputComponent:
+        components_metrics = [ComponentMetrics(x) for x in components]
+        components_metrics.sort(key=lambda x: x.score, reverse=True)
+
+        # select clear best 
+        if components_metrics[0].score > components_metrics[1].score:
+            return components_metrics[0].component
+        
+        # remove those which are not equal best
+        components = [x.component for x in components_metrics if x.score == components_metrics[0].score]
+        
+        # if all have gxparam or all have high confidence, select equal best via type
+        if all([x.confidence.value == 3 for x in components]) or all([x.gxparam is not None for x in components]):
+            if any([isinstance(x, Option) for x in components]):
+                return [x for x in components if isinstance(x, Option)][0]
+            else:
+                return components[0]
+        
+        # if some have gxparam and some have high confidence, select best via confidence
+        elif any([x.confidence.value == 3 for x in components]) and any([x.gxparam is not None for x in components]):
+            return [x for x in components if x.confidence.value == 3][0]
+        
+        # if none have high confidence or gxparam, select best via type
+        elif any([isinstance(x, Option) for x in components]):
+            return [x for x in components if isinstance(x, Option)][0]
+        
+        # all options with low confidence & no gxparam
+        else:
+            return components[0]
+        
     def add_captured_inputs(self) -> None:
         # get the inputs we identified in the tool command
         self.command.set_cmd_positions()
         self.inputs += self.command.list_inputs(include_base_cmd=False)
     
     def add_uncaptured_inputs(self) -> None:
+        # TODO this should be done in Annotator class. 
+        # eg. ToolStateAnnotator
         # get the tool xml inputs we didn't capture by analyzing the tool command
         # ie we know they're tool inputs, but don't know how they wire to args in the tool command
         if not self.gxstep:
             return None
         
         tool_state = load_tool_state(self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
-        for param_name, param_value in tool_state.items():
-            if self.should_create_uncaptured_input(param_name, param_value): # type: ignore
-                param = self.xmltool.inputs.get(param_name, strategy="lca")
-                inp = self.create_uncaptured_input(param) # type: ignore
-                self.inputs.append(inp)
+        for pname, pvalue in tool_state.items():
+            param = self.xmltool.inputs.get(pname)
+            if param and self.should_create_uncaptured_input(param):
+                component = self.create_uncaptured_input(param, pvalue)
+                self.inputs.append(component)
 
-    def should_create_uncaptured_input(self, param_name: str, param_value: str) -> bool:
-        param = self.xmltool.inputs.get(param_name, strategy="lca")
-        if not param:
-            return False
+    def should_create_uncaptured_input(self, param: XMLParam) -> bool:
+        # # if in skeleton or regular mode, only create inputs for data params
+        # if settings.translate.MODE in ['skeleton', 'regular']:
+        #     if not isinstance(param, XMLDataParam) and not isinstance(param, XMLDataCollectionParam):
+        #         return False
         
+        # ignore if we have a command component already linked to this param
         for inp in self.inputs:
             if inp.gxparam and inp.gxparam.name == param.name:
                 return False
+        
+        # ignore if only appears in <command> section control structures, ignore
+        appearences = get_cmdstr_appearences(
+            self.xmltool.raw_command, 
+            param, 
+            filter_to=[
+                CmdstrReferenceType.INLINE_CHEETAH_LOOP,
+                CmdstrReferenceType.INLINE_PLAIN_TEXT
+            ])
+        if not appearences:
+            return False
             
         return True
-        
-        # if param_value in ['ConnectedValue', 'RuntimeValue']:
-        #     return True
-        
-        # return False
     
-    def create_uncaptured_input(self, gxparam: XMLInputParam) -> InputComponent:
+    def create_uncaptured_input(self, gxparam: XMLParam, pvalue: Any) -> InputComponent:
         if isinstance(gxparam, XMLBoolParam):
-            return self.create_component_for_boolparam(gxparam)
-        elif gxparam.argument:
-            return component_factory.option(prefix=gxparam.argument, gxparam=gxparam)
+            component = self.create_component_for_boolparam(gxparam)
+        elif gxparam.argument:  # this should never happen as ArgumentAnnotator should have identified it
+            component = component_factory.option(prefix=gxparam.argument, gxparam=gxparam)
+            if pvalue is not None:
+                component.values.add(pvalue)
         else:
-            return component_factory.positional(gxparam=gxparam)
+            component = component_factory.positional(gxparam=gxparam)
+            if pvalue is not None:
+                component.values.add(pvalue)
+        return component
         
     def create_component_for_boolparam(self, gxparam: XMLBoolParam) -> InputComponent:
         truevalue_prefix = gxparam.truevalue.strip().split(' ')[0]

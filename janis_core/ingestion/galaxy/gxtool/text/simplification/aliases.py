@@ -91,13 +91,22 @@ class AliasRegister:
 class AliasResolver:
     def __init__(self):
         self.register: AliasRegister = AliasRegister()
+        self.resolution_count = 0
 
     def resolve(self, cmdstr: str) -> str:
         self.register_aliases(cmdstr)
-        return self.resolve_aliases(cmdstr)
+        cmdstr = self.resolve_aliases(cmdstr)
+        self.report()
+        return cmdstr
+    
+    def report(self) -> None:
+        print('--- ALIASES ---')
+        print(f'discovered {len(self.register.aliases.keys())} aliases')
+        print(f'resolved {self.resolution_count} aliases')
+        print()
 
     def register_aliases(self, cmdstr: str) -> None:
-        lines = utils.split_lines(cmdstr)
+        lines = cmdstr.split('\n')
         for line in lines:
             self.register_line(line)
 
@@ -108,7 +117,7 @@ class AliasResolver:
 
     def resolve_aliases(self, cmdstr: str) -> str:
         resolved_lines: list[str] = []
-        for line in utils.split_lines_whitespace(cmdstr):
+        for line in utils.split_lines(cmdstr):
             line = self.resolve_line(line)
             resolved_lines.append(line)
         cmdstr = utils.join_lines(resolved_lines)
@@ -122,6 +131,7 @@ class AliasResolver:
                     # ensure ends/starts with whitespace or quotes or forwardslash or is curly brackets
                     matches = self.get_line_matches(source, line)
                     for match in matches:
+                        self.resolution_count += 1
                         line = self.perform_replacement(match, dest, line)
         return line
 

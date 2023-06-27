@@ -85,8 +85,8 @@ def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
     
     # derive special attributes in case of option tool input
     elif isinstance(internal_inp, Option):
-        if internal_inp.delim != ' ':
-            prefix = f'{internal_inp.prefix}{internal_inp.delim}'
+        if internal_inp.separator != ' ':
+            prefix = f'{internal_inp.prefix}{internal_inp.separator}'
             separate = False
         else:
             prefix = internal_inp.prefix

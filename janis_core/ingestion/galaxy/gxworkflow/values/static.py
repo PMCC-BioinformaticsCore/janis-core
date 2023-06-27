@@ -108,7 +108,7 @@ class CheetahInputIngestor:
         """gets the value for a specific tool argument"""
         if option.gxparam is not None:
             return
-        value = expressions.get_next_word(option.prefix, option.delim, cmdstr)
+        value = expressions.get_next_word(option.prefix, option.separator, cmdstr)
         value = None if value == '' else value
         if value is None:
             self.update_tool_values_static(component=option, value=None)

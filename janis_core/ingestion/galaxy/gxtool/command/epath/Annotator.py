@@ -77,7 +77,7 @@ class OptionAnnotator(Annotator):
         option = factory.option(
             prefix=self.ctoken.text,
             gxparam=gxparam,
-            delim=self.get_delim(),
+            separator=self.get_delim(),
             values=[v.text for v in value_tokens]
         )
         for pos in range(self.ptr, self.stop_ptr + 1):
@@ -171,7 +171,7 @@ class CompoundOptionAnnotator(Annotator):
     
     def handle(self) -> None:
         match = expressions.get_matches(self.ctoken.text, COMPOUND_OPT)[0]
-        option = factory.option(match.group(1), gxparam=self.ctoken.gxparam, delim='', values=[match.group(2)])
+        option = factory.option(match.group(1), gxparam=self.ctoken.gxparam, separator='', values=[match.group(2)])
         self.update_epath_components(self.ptr, option)
     
     def calculate_next_ptr_pos(self) -> int:

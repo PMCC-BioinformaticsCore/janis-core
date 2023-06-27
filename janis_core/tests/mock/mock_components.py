@@ -41,14 +41,14 @@ MOCK_FLAG1.gxparam = MOCK_BOOLPARAM1
 
 MOCK_OPTION1 = Option(prefix='--minid')
 MOCK_OPTION1.values.add('$adv.min_dna_id')
-MOCK_OPTION1.delim = '='
+MOCK_OPTION1.separator = '='
 MOCK_OPTION1.cmd_pos = 2
 MOCK_OPTION1.forced_array = True
 MOCK_OPTION1.gxparam = MOCK_FLOATPARAM1
 
 MOCK_OPTION2 = Option(prefix='--db')
 MOCK_OPTION2.values.add('card')
-MOCK_OPTION2.delim = '='
+MOCK_OPTION2.separator = '='
 MOCK_OPTION2.cmd_pos = 2
 MOCK_OPTION2.gxparam = MOCK_SELECTPARAM1
 

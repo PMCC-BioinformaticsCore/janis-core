@@ -55,27 +55,26 @@ class RealisedTokenFactory:
         self.xmltool = xmltool
         self.tracker = constructs.ConstructTracker()  # this is all a bit ugly
 
-    def try_tokenify(self, the_string: str) -> list[RealisedTokens]:
+    def try_tokenise_text(self, text: str) -> list[RealisedTokens]:
         rtvs: list[RealisedTokens] = []
-        try:
-            for line in utils.split_lines(the_string):
-                self.tracker.update(line)
-                if self.should_tokenify_line(line):
-                    rtvs += self.tokenify_line(line)
-        except ValueError:
-            pass
-            # logging.no_close_quotation()
+        for line in utils.split_lines(text):
+            self.tracker.update(line)
+            if self.should_tokenise_line(line):
+                rtvs += self.try_tokenise_line(line)
         return rtvs
 
-    def should_tokenify_line(self, line: str) -> bool:
+    def should_tokenise_line(self, line: str) -> bool:
         if self.tracker.active_is_boundary(line) or self.tracker.within_banned_segment:
             return False
         return True
     
-    def tokenify_line(self, line: str) -> list[RealisedTokens]:
-        line_tokens = self.create_line_tokens(line)
-        line_tokens = self.set_token_context(line_tokens)
-        return self.create_realised_values(line_tokens)
+    def try_tokenise_line(self, line: str) -> list[RealisedTokens]:
+        try:
+            line_tokens = self.create_line_tokens(line)
+            line_tokens = self.set_token_context(line_tokens)
+            return self.create_realised_values(line_tokens)
+        except ValueError:
+            return []
 
     def create_line_tokens(self, line: str) -> list[Token]:
         line_tokens: list[Token] = []
@@ -94,7 +93,7 @@ class RealisedTokenFactory:
         out: list[RealisedTokens] = []
         for token in line_tokens:
             if is_bool_select(token):
-                vals_as_text: list[str] = token.gxparam.get_all_values(nonempty=True) #type: ignore
+                vals_as_text: list[str] = token.gxparam.non_null_values #type: ignore
                 vals_as_tlists = [self.create_line_tokens(text) for text in vals_as_text]
                 out.append(RealisedTokens(values=vals_as_tlists, original=token))
             else:

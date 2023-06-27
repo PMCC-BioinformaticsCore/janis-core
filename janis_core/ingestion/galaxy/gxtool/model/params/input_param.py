@@ -122,11 +122,11 @@ class XMLBoolParam(XMLInputParam):
     def optional(self) -> bool:
         return True
 
-    def get_all_values(self, nonempty: bool=False) -> list[str]:
+    @property
+    def non_null_values(self) -> list[str]:
+        null_values = ['', 'none', 'None', 'null', None]
         values = [self.truevalue, self.falsevalue]
-        empty_values = ['', 'none', 'None', 'null']
-        if nonempty:
-            values = [v for v in values if v not in empty_values]
+        values = [v for v in values if v not in null_values]
         return values
 
 
@@ -172,11 +172,11 @@ class XMLSelectParam(XMLInputParam):
             return True
         return False
 
-    def get_all_values(self, nonempty: bool=False) -> list[str]:
+    @property
+    def non_null_values(self) -> list[str]:
+        null_values = ['', 'none', 'None', 'null', None]
         values = [opt.value for opt in self.options]
-        empty_values = ['', 'none', 'None', 'null']
-        if nonempty:
-            values = [v for v in values if v not in empty_values]
+        values = [v for v in values if v not in null_values]
         return values
     
 

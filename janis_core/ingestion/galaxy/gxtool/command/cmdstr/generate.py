@@ -9,14 +9,14 @@ from .CommandString import CommandString
 from .CommandString import CommandStringSource
 from .DynamicCommandStatement import DynamicCommandStatement
 from .MainStatementInferrer import MainStatementInferrer
-from .RealisedTokenValues import RealisedTokenFactory
+from ..tokenise import tokenise_text
 
 
 def gen_command_string(source: CommandStringSource, text: str, xmltool: XMLTool) -> CommandString:
-    return CommandStringGenerator(source, text, xmltool).generate()
+    return CommandStringFactory(source, text, xmltool).generate()
 
 
-class CommandStringGenerator:
+class CommandStringFactory:
 
     def __init__(self, source: CommandStringSource, text: str, xmltool: XMLTool) -> None:
         self.source = source
@@ -40,8 +40,7 @@ class CommandStringGenerator:
     def gen_command_statements(self) -> list[DynamicCommandStatement]:
         statements: list[DynamicCommandStatement] = []
         for cmdstmt in self.split_text_statements():
-            factory = RealisedTokenFactory(self.xmltool)
-            realised_tokens = factory.try_tokenify(cmdstmt)
+            realised_tokens = tokenise_text(cmdstmt, self.xmltool)
             dynamicstmt = DynamicCommandStatement(cmdstmt, realised_tokens)
             statements.append(dynamicstmt)
         return statements

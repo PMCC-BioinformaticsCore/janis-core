@@ -12,7 +12,7 @@ class Option(InputComponent):
     def __init__(self, prefix: str) -> None:
         super().__init__()
         self.prefix = prefix
-        self.delim: str = ' '
+        self.separator: str = ' '
         self.gxparam_attachment: int = 1
         self.values: ValueRecord = ValueRecord()
 
@@ -76,6 +76,9 @@ class Option(InputComponent):
         # transfer galaxy param reference
         if not self.gxparam and incoming.gxparam:
             self.gxparam: Optional[XMLParam] = incoming.gxparam
+        # transfer confidence
+        if incoming.confidence.value > self.confidence.value:
+            self.confidence = incoming.confidence
 
     def __str__(self) -> str:
         return f'{str(self.prefix):30}{str(self.default_value):20}{str(self.optional):>10}'

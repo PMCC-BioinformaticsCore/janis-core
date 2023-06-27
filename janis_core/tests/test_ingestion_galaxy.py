@@ -13,7 +13,7 @@ from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.text.cheetah.evaluation import sectional_evaluate
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
-from janis_core.ingestion.galaxy.gxtool.command.generate import gen_command
+from janis_core.ingestion.galaxy.gxtool.command import gen_command
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy.gxtool.model import XMLCondaRequirement
@@ -194,6 +194,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.srcfmt = 'galaxy'
     
     def test_scripts_files_to_create(self) -> None:
+        settings.translate.MODE = 'extended'
         filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))

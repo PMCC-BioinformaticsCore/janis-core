@@ -49,16 +49,40 @@ PARSING GALAXY TOOLS
 - Command                   [FRIDAY]
     - what are the different cli command sections? 
     - which one is the main software command? 
+        - future: create step for each software command, for non-linux software (mkdir, cp etc)?
     - for the section including main software command:
         - what arguments exist? 
-        - what is their position? 
         - do they have a prefix? 
+        - what is their position (positionals only)? 
         - which Tool Wrapper params are they linked to? 
+    
+    - SelectFlagListParamAnnotator [TEST]
+    - ArgumentParamAnnotator [REWORK][TEXT]
+    - ToolStateAnnotator [CREATE][TEST]
+        - move InputExtractor.add_uncaptured_inputs() to an annotation class.  
+        - need to ensure not picking up gxparams which are only control params
+    - limma_voom.xml gen_command()
+        - need to work on Command updating to be aware of the Annotator changes
+        - "-i" incorrectly added as flag
+        - "-D" incorrectly added as flag
+    - select & when detection
+        - mutually exclusive groups 
+        - what to add to cmdstr 
+        - .when() in janis? 
+        - how will this appear in nextflow for tool translations? 
+        - can we autoremove command compoennts for workflow translations?
+            - would be only if all instances of the tool use have the same selects. 
+            - others would need to be the same as tool translation. 
+    - repeat block evaluation?
+    - mutually exclusive cli args 
+
+    
 - Updates                   [FRIDAY]
     - if XML, can add CommandComponent if not exists (don't want to override ArgumentAnnotator derived components)
     - if test, can update CommandComponent type
     - if test, can add observed value
-    - if tool_state, set default value if not linked to dataparam / datacollectionparam (ie strings, ints, floats can all get defaults)
+    - if tool_state, can add observed value
+    - if in InputExtractor.create_uncaptured_input(), can add CommandComponent, can add observed value
 - Container
 - Configfiles
 - Scripts 

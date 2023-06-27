@@ -99,7 +99,7 @@ class BlockFactory:
     def add_block(self) -> None:
         if self.active_lines:
             block = CheetahBlock(
-                type=self.select_block_type(),
+                btype=self.select_block_type(),
                 start=self.active_lines[0].line_num + self.offset,
                 stop=self.active_lines[-1].line_num + self.offset,
                 lines=[ln.text for ln in self.active_lines]
@@ -112,7 +112,7 @@ class BlockFactory:
             (constructs.CH_OPEN_CONDITIONAL, BlockType.CONDITIONAL),
             (constructs.CH_OPEN_LOOP, BlockType.LOOP),
             (constructs.CH_OPEN_FUNC, BlockType.FUNCTION),
-            (constructs.CH_ENV, BlockType.INLINE_CH),
+            (constructs.CH_MACRO, BlockType.INLINE_CH),
             (constructs.LINUX_ALIAS, BlockType.INLINE_ALIAS),
         ]
         for construct, block_type in types:
@@ -156,7 +156,7 @@ class EvaluationStrategy(ABC):
             source = utils.join_lines(source_lines)
             t = Template(source, searchList=[self.input_dict]) # type: ignore
             evaluation = str(unicodify(t))
-            return utils.split_lines_blanklines(evaluation)
+            return utils.split_lines(evaluation)
         except:
             return None
 
@@ -258,8 +258,8 @@ class CheetahBlock:
     The smallest unit of evaluatable cheetah logic
     examples: single line statement, conditional block, loop block
     """
-    def __init__(self, type: BlockType, start: int, stop: int, lines: list[str]):
-        self.type = type
+    def __init__(self, btype: BlockType, start: int, stop: int, lines: list[str]):
+        self.btype = btype
         self.start = start
         self.stop = stop
         self.lines = lines
@@ -271,7 +271,8 @@ class CheetahBlock:
         return self.stop - self.start + 1
     
     def evaluate(self, input_dict: dict[str, Any]) -> None:
-        if self.should_evaluate(input_dict):
+        self.will_evaluate = self.should_evaluate(input_dict)
+        if self.will_evaluate:
             strategy = self.get_eval_strategy(input_dict)
             evaluation = strategy.eval()
             if evaluation is not None:
@@ -284,7 +285,7 @@ class CheetahBlock:
         permitted_blocks = [BlockType.INLINE, BlockType.INLINE_ALIAS, BlockType.INLINE_CH, BlockType.CONDITIONAL]
         if self.lines == ['']:
             return False
-        elif self.type not in permitted_blocks:
+        elif self.btype not in permitted_blocks:
             return False
         elif self.edge_case_input(input_dict):
             return False
@@ -299,9 +300,9 @@ class CheetahBlock:
         return False
 
     def get_eval_strategy(self, input_dict: dict[str, Any]) -> EvaluationStrategy:
-        if self.type in [BlockType.INLINE, BlockType.INLINE_ALIAS, BlockType.INLINE_CH]:
+        if self.btype in [BlockType.INLINE, BlockType.INLINE_ALIAS, BlockType.INLINE_CH]:
             return InlineEvaluationStrategy(self.lines, input_dict)
-        elif self.type == BlockType.CONDITIONAL:
+        elif self.btype == BlockType.CONDITIONAL:
             return ConditionalEvaluationStrategy(self.lines, input_dict)
         else:
             raise RuntimeError()

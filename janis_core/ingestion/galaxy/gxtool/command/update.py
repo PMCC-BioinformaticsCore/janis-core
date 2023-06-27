@@ -119,8 +119,8 @@ class FlagUpdater(Updater):
 
     def should_merge(self) -> bool:
         query_prefix = self.incoming.prefix
-        existing_comp = self.command.get_flag(query_prefix)
-        if existing_comp:
+        existing_flag = self.command.get_flag(query_prefix)
+        if existing_flag:
             return True
         return False
     

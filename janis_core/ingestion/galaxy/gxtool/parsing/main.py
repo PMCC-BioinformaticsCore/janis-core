@@ -93,9 +93,23 @@ class GalaxyToolFactory:
         """returns a an InputRegister by reformatting the galaxy tool representation's params."""
         register = XMLParamRegister()
         g_in_params = self.flatten_params()
+
+        # removing duplicates
+        fingerprints = set()
+        unique_params = []
         for g_param in g_in_params:
-            t_param = parse_input_param(g_param)
-            register.add(t_param)
+            items = [g_param.flat_name, g_param.label, g_param.type]
+            items = [x for x in items if isinstance(x, str)]
+            fingerprint = ''.join(items)
+            if fingerprint not in fingerprints:
+                unique_params.append(g_param)
+                fingerprints.add(fingerprint)
+
+        # parsing individual params
+        for g_param in unique_params:
+            i_param = parse_input_param(g_param)
+            register.add(i_param)
+            
         return register
 
     def flatten_params(self) -> list[ToolParameter]:

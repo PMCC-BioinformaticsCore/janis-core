@@ -12,6 +12,11 @@ from janis_core.ingestion.galaxy.expressions.patterns import (
     # GX_STATIC_KEYWORDS,
 )
 
+def flatten_nesting(cmdstr: str) -> str:
+    cmdlines = cmdstr.split('\n')
+    cmdlines = [ln.strip() for ln in cmdlines]
+    cmdlines = [ln for ln in cmdlines if ln != '']
+    return utils.join_lines(cmdlines)
 
 def replace_function_calls(cmdstr: str) -> str:
     cmdlines = utils.split_lines(cmdstr)

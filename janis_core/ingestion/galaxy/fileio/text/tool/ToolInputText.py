@@ -58,13 +58,13 @@ class ToolInputText(TextRender):
             case Flag():
                 return e.prefix
             case Option():
-                return e.prefix if e.delim == ' ' else e.prefix + e.delim
+                return e.prefix if e.separator == ' ' else e.prefix + e.separator
             case _:
                 raise RuntimeError
     
     def format_separation(self) -> bool:
         if isinstance(self.entity, Option):
-            if self.entity.delim == ' ':
+            if self.entity.separator == ' ':
                 return True
             else:
                 return False

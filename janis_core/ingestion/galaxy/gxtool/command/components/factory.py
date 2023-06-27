@@ -29,13 +29,13 @@ def flag(prefix: str, gxparam: Optional[XMLParam]=None) -> Flag:
 def option( 
     prefix: str,
     gxparam: Optional[XMLParam]=None,
-    delim: Optional[str]=None,
+    separator: Optional[str]=None,
     values: Optional[list[str]]=None
 ) -> Option:
     component = Option(prefix=prefix)
     component.gxparam = gxparam
-    if delim:
-        component.delim = delim
+    if separator:
+        component.separator = separator
     if values:
         for val in values:
             component.values.add(val)

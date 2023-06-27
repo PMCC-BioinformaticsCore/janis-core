@@ -21,12 +21,12 @@ CH_OPEN_FUNC = set(['#def '])
 CH_CLOSE_FUNC = set(['#end def'])
 CH_ALL_FUNC = CH_OPEN_FUNC | CH_CLOSE_FUNC
 
-CH_ENV = set(['#set ', '#import ', '#from ', '#silent ', '#echo '])
+CH_MACRO = set(['#set ', '#import ', '#from ', '#silent ', '#echo '])
 
 LINUX_ALIAS = set(['set ', 'ln ', 'cp ', 'mv ', 'export '])
 LINUX_CMD = set(['mkdir ', 'tar ', 'ls ', 'head ', 'wget ', 'grep ', 'awk ', 'cut ', 'sed ', 'gzip ', 'gunzip ', 'cd ', 'echo ', 'trap ', 'touch '])
 
-CH_CONSTRUCTS = CH_ALL_CONDITIONAL | CH_ALL_LOOP | CH_ALL_FUNC | CH_TRY_EXCEPT | CH_ENV
+CH_CONSTRUCTS = CH_ALL_CONDITIONAL | CH_ALL_LOOP | CH_ALL_FUNC | CH_TRY_EXCEPT | CH_MACRO
 
 
 """small module which holds <command> section constructs of importance"""

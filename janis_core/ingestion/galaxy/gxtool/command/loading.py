@@ -17,7 +17,8 @@ def load_vanilla_command_str() -> str:
     resolves aliases (temporary variables) back to original params
     """
     xmltool = load_xmltool(runtime.tool.tool_path)
-    text = simplify_cmd(xmltool.raw_command, 'xml')
+    text = xmltool.raw_command
+    text = simplify_cmd(text, 'parsing')
     text = resolve_aliases(text)
     return text
 
@@ -28,8 +29,10 @@ def load_templated_command_str(inputs_dict: dict[str, Any]) -> str:
     omits some simplification steps (e.g. cheetah comments) as many of these are handled during templating. 
     """
     xmltool = load_xmltool(runtime.tool.tool_path)
-    text = simplify_cmd(xmltool.raw_command, 'cheetah')
+    text = xmltool.raw_command
+    text = simplify_cmd(xmltool.raw_command, 'templating')
     text = sectional_evaluate(text, inputs=inputs_dict)
+    text = simplify_cmd(text, 'parsing')
     text = resolve_aliases(text)
     return text
 

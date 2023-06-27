@@ -51,6 +51,9 @@ class Flag(InputComponent):
         # gxparam transfer
         if not self.gxparam and incoming.gxparam:
             self.gxparam: Optional[XMLParam] = incoming.gxparam
+        # confidence transfer 
+        if incoming.confidence.value > self.confidence.value:
+            self.confidence = incoming.confidence
         
     def __str__(self) -> str:
         return f'{str(self.default_value):20}{str(self.optional):>10}'
