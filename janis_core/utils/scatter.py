@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Union
+from typing import Optional
 
 from janis_core.operators.selectors import (
     Selector,
@@ -39,9 +39,9 @@ class ScatterDescription:
 
     def __init__(
         self,
-        fields: List[str],
-        method: ScatterMethod = None,
-        labels: Union[Selector, List[str]] = None,
+        fields: list[str],
+        method: Optional[ScatterMethod] = None,
+        labels: Optional[Selector | list[str]] = None,
     ):
         """
 
@@ -51,7 +51,7 @@ class ScatterDescription:
         :type method: ScatterMethod
         """
         self.fields = fields
-        self.method: ScatterMethod = method
+        self.method = method
 
         self.labels = None
         if labels is not None:
@@ -72,7 +72,7 @@ class ScatterDescription:
 
             self.labels = labels
 
-        if len(fields) > 1 and method is None:
+        if len(fields) > 1 and self.method is None:
             raise Exception(
                 "When there is more than one field, a ScatterMethod must be selected"
             )

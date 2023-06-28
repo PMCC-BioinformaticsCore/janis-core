@@ -107,6 +107,7 @@ class TestMatchDetectionAndValidation(unittest.TestCase):
 
 
 class TestStringFormatterInit(unittest.TestCase):
+
     def test_no_format(self):
         b = StringFormatter("this _format has no arguments")
         self.assertDictEqual({}, b.kwargs)
@@ -143,6 +144,7 @@ class TestStringFormatterInit(unittest.TestCase):
 
 
 class TestStringFormatterConcat(unittest.TestCase):
+
     def test_formatter_and_string(self):
         b = StringFormatter("no args") + " here"
         self.assertEqual("no args here", b._format)

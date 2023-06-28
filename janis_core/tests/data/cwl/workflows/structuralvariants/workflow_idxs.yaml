@@ -1,0 +1,81 @@
+fastq1:
+  - class: File
+    location: data/fastq/SRR709972_1.fastq.gz
+  - class: File
+    location: data/fastq/SRR070528_1.fastq.gz
+  - class: File
+    location: data/fastq/SRR070819_1.fastq.gz
+  - class: File
+    location: data/fastq/SRR764718_1.fastq.gz
+  - class: File
+    location: data/fastq/SRR764689_1.fastq.gz
+fastq2:
+  - class: File
+    location: data/fastq/SRR709972_2.fastq.gz
+  - class: File
+    location: data/fastq/SRR070528_2.fastq.gz
+  - class: File
+    location: data/fastq/SRR070819_2.fastq.gz
+  - class: File
+    location: data/fastq/SRR764718_2.fastq.gz
+  - class: File
+    location: data/fastq/SRR764689_2.fastq.gz
+generate_bwa_indexes: false
+reference_fasta:
+  class: File
+  location: data/hs37d5.fa
+reference_fai:
+  class: File
+  location: data/hs37d5.fa.fai
+reference_amb:
+  class: File
+  location: data/hs37d5.fa.amb
+reference_ann:
+  class: File
+  location: data/hs37d5.fa.ann
+reference_bwt:
+  class: File
+  location: data/hs37d5.fa.bwt
+reference_pac:
+  class: File
+  location: data/hs37d5.fa.pac
+reference_sa:
+  class: File
+  location: data/hs37d5.fa.sa
+bed:
+  class: File
+  location: data/gencode.v19.genes.v7_model.patched_contigs.gtf.bed.gz
+  secondaryFiles:
+    - class: File
+      location: data/gencode.v19.genes.v7_model.patched_contigs.gtf.bed.gz.tbi
+samples:
+  class: File
+  location: data/samples_test.txt
+threads_fastqc: 2
+threads_fastp: 12
+threads_bwa_mem: 24
+threads_samtools: 8
+threads_gridss: 8
+min_mapping_quality: 10
+bits_set: 4
+manta_exome: true
+manta_min_len: "50"
+manta_max_len: "1500000"
+manta_min_q: "20"
+blacklist:
+  class: File
+  location: data/hg19-blacklist.v2.num.bed.gz
+gridss_min_len: "100"
+gridss_max_len: "1500000"
+gridss_min_q: "999"
+exomeDepth_min_len: "0.1"
+exomeDepth_max_len: "200"
+exomeDepth_min_bf: "5.5"
+chromosome: "22"
+codex_min_len: "0.1"
+codex_max_len: "200"
+codex_min_lratio: "40"
+enable_manta: true
+enable_gridss: true
+enable_exomeDepth: true
+enable_codex: true

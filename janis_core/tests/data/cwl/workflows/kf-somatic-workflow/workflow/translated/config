@@ -1,0 +1,14 @@
+docker.enabled = true
+
+params {
+
+    // OUTPUT DIRECTORY
+    outdir  = './outputs'
+
+    // INPUTS
+    input        = null
+    destination  = null
+    output       = null
+
+
+}

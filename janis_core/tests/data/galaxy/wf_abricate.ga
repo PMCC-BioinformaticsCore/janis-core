@@ -1,0 +1,104 @@
+{
+    "a_galaxy_workflow": "true",
+    "annotation": "my babricate workflow",
+    "format-version": "0.1",
+    "name": "abricate",
+    "steps": {
+        "0": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 0,
+            "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "in_fasta"
+                }
+            ],
+            "label": "in_fasta",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "bottom": 330.2253723144531,
+                "height": 61.752044677734375,
+                "left": 447.98150634765625,
+                "right": 647.9814910888672,
+                "top": 268.47332763671875,
+                "width": 199.99998474121094,
+                "x": 447.98150634765625,
+                "y": 268.47332763671875
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"format\": [\"fasta\"], \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "58a6d4ba-d77b-4355-99cf-84da4da30e53",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "ca826a63-be54-4e04-8b62-21fd1d6b4c57"
+                }
+            ]
+        },
+        "1": {
+            "annotation": "",
+            "content_id": "toolshed.g2.bx.psu.edu/repos/iuc/abricate/abricate/1.0.1",
+            "errors": null,
+            "id": 1,
+            "input_connections": {
+                "file_input": {
+                    "id": 0,
+                    "output_name": "output"
+                }
+            },
+            "inputs": [
+                {
+                    "description": "runtime parameter for tool ABRicate",
+                    "name": "file_input"
+                }
+            ],
+            "label": null,
+            "name": "ABRicate",
+            "outputs": [
+                {
+                    "name": "report",
+                    "type": "tabular"
+                }
+            ],
+            "position": {
+                "bottom": 423.73973083496094,
+                "height": 154.3032684326172,
+                "left": 788.954833984375,
+                "right": 988.9548187255859,
+                "top": 269.43646240234375,
+                "width": 199.99998474121094,
+                "x": 788.954833984375,
+                "y": 269.43646240234375
+            },
+            "post_job_actions": {},
+            "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/abricate/abricate/1.0.1",
+            "tool_shed_repository": {
+                "changeset_revision": "c2ef298da409",
+                "name": "abricate",
+                "owner": "iuc",
+                "tool_shed": "toolshed.g2.bx.psu.edu"
+            },
+            "tool_state": "{\"adv\": {\"db\": \"resfinder\", \"no_header\": \"false\", \"min_dna_id\": \"80.0\", \"min_cov\": \"80.0\"}, \"file_input\": {\"__class__\": \"RuntimeValue\"}, \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_version": "1.0.1",
+            "type": "tool",
+            "uuid": "1afee518-0912-4c81-bfe2-ea282a848aa8",
+            "workflow_outputs": [
+                {
+                    "label": "ABRicate on input dataset(s) report file",
+                    "output_name": "report",
+                    "uuid": "15cb9b26-c0a9-401d-9948-f460d90187e0"
+                }
+            ]
+        }
+    },
+    "tags": [],
+    "uuid": "933d732e-61a5-4350-8c15-e0d979c5ad16",
+    "version": 3
+}
