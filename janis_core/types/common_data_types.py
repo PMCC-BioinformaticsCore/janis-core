@@ -431,7 +431,7 @@ class File(DataType):
         self.extension = extension
         self.alternate_extensions = alternate_extensions
 
-    def get_extensions(self):
+    def get_extensions(self) -> list[str]:
         exts = []
         if self.extension:
             exts.append(self.extension)
@@ -939,6 +939,7 @@ def get_instantiated_type(datatype: ParseableType, optional=None, overrider=None
     if dt:
         return dt
 
+    print()
     raise TypeError(f"Unable to parse type '{str(datatype)}'")
 
 

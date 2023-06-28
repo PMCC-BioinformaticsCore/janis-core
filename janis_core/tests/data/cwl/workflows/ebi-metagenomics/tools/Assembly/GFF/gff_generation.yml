@@ -1,0 +1,10 @@
+ips_results:
+  class: File
+  path: ../../InterProScan/expected-output/assembly-SRR1620013_small_FASTA_FASTA.I5.tsv
+eggnog_results:
+  class: File
+  path: ../EggNOG/expected-output/assembly-SRR1620013_small_FASTA_FASTA.emapper.annotations.gz
+input_faa:
+  class: File
+  path: ../../../tools/Combined_gene_caller/expected-output/assembly-SRR1620013_small_FASTA_FASTA_CDS.faa
+output_name: assembly-SRR1620013_small_FASTA_FASTA.contigs.annotations.gff

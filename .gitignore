@@ -8,6 +8,8 @@
 *.so
 *.pyc
 
+local/
+
 # Packages #
 ############
 # it's better to unpack these files and commit the raw source
@@ -23,7 +25,11 @@
 # Logs and databases #
 ######################
 *.log
+*.log.*
 *.sqlite
+*.nextflow
+janis_core/ingestion/galaxy/data/downloads
+janis_core/ingestion/galaxy/data/wrappers.json
 
 # OS generated files #
 ######################
@@ -33,12 +39,13 @@ Icon
 Thumbs.db
 .tmtags
 .idea
-tags
+# tags
 vendor.tags
 tmtagsHistory
 *.sublime-project
 *.sublime-workspace
 .bundle
+work/
 
 # Added by Mohammad
 
@@ -79,11 +86,19 @@ docs/_build/
 janis_pipelines.egg-info/
 dist/
 build/
+docs/
 
+translated/
 
+# test data 
+janis_core/tests/data/
 
-
-
+TODO.txt
+.vscode
 \.mypy_cache/
 *.egg-info
 *.dist-info
+test.py
+temp.txt
+.janis
+translated/

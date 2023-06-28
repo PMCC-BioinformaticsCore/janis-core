@@ -1,9 +1,15 @@
 import hashlib
 from typing import Dict, Union, List, Set, Optional
 from datetime import datetime
+import collections.abc
+collections.Iterable = collections.abc.Iterable
+collections.Mapping = collections.abc.Mapping
+
 from tabulate import tabulate
 from pkg_resources import parse_version
 from nose.tools import nottest
+
+
 
 import janis_core as jc
 from janis_core.translations.translationbase import TranslatorBase

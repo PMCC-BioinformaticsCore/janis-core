@@ -1,0 +1,42 @@
+
+
+
+disable_existing_loggers: false
+filters:
+  stack:
+    (): galaxy.web_stack.application_stack_log_filter
+formatters:
+  stack:
+    (): galaxy.web_stack.application_stack_log_formatter
+handlers:
+  galaxy:
+    class: logging.FileHandler
+    filters:
+    - stack
+    formatter: stack
+    level: ERROR
+    stream: galaxylog.log
+loggers:
+  amqp:
+    level: ERROR
+    qualname: amqp
+  botocore:
+    level: ERROR
+    qualname: botocore
+  paste.httpserver.ThreadPool:
+    level: ERROR
+    qualname: paste.httpserver.ThreadPool
+  routes.middleware:
+    level: ERROR
+    qualname: routes.middleware
+  sqlalchemy_json.track:
+    level: ERROR
+    qualname: sqlalchemy_json.track
+  urllib3.connectionpool:
+    level: ERROR
+    qualname: urllib3.connectionpool
+  root:
+    handlers:
+    - galaxy
+    level: ERROR
+version: 1

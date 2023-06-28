@@ -1,0 +1,34 @@
+
+
+
+adjust main step to have an output of type: Directory, perhaps with an outputBinding: { glob: . }, then add the corresponding type: Directory input to post-step
+
+TODO
+
+- For the post step, everything in the pre-step has to be run again
+    - need all the cheetah #set directives, #import re etc
+    - can maybe avoid building indexes etc
+
+- What about stuff like 'samtools sort' in postprocessing? 
+    - bbmap awful
+
+- find out how workflow input dict is populated at runtime for a step
+    - CURRENT: lol no 
+    - FUTURE: get_input_object() and to_dict() methods in galaxy.model
+
+- create or source container with correct environment
+    - use the bgruening/galaxy-stable container (https://github.com/bgruening/docker-galaxy-stable)
+
+- test it works using a fastqc step, then a post-process output step
+
+- rework the Tool() class to allow pre- and post- steps
+
+- do all the necessary wiring to make it work on the workflow level (inputs, outputs etc)
+
+
+
+
+
+
+
+

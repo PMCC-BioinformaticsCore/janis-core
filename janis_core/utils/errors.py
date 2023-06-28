@@ -1,6 +1,12 @@
 import warnings
 
 
+
+class UnsupportedError(Exception):
+    "Raised when a language feature is currently not supported during translation"
+    pass
+
+
 class PipelineTranslatorException(Exception):
     pass
 

@@ -1,5 +1,7 @@
+
+
 import unittest
-from janis_core.translations.wdl import apply_secondary_file_format_to_filename
+from janis_core.utils.secondary import apply_secondary_file_format_to_filename
 
 
 class TestApplySecondaryFileFormat(unittest.TestCase):
