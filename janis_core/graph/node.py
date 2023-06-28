@@ -56,8 +56,8 @@ class Node(object):
         self.identifier: NodeLabel = identifier
         self.depth = depth
 
-        # actually a StepInput
-        self.sources: Dict[str, any] = {}
+        # step inputs
+        self.sources: dict[str, Any] = {}
 
         # Update unique counter for hash
         self._nodeId = Node._N_counter

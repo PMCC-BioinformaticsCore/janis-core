@@ -1,1 +1,0 @@
-janisdk fromcwl bwamem.cwl

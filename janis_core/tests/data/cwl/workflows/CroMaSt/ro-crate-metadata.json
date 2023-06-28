@@ -1,0 +1,671 @@
+{
+  "@context": "https://w3id.org/ro/crate/1.1/context",
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/crate/1.1"
+        },
+        {
+          "@id": "https://about.workflowhub.eu/Workflow-RO-Crate/"
+        }
+      ]
+    },
+    {
+      "@id": "ro-crate-preview.html",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "mainEntity": {
+        "@id": "CroMaSt.cwl"
+      },
+      "author": [
+        {
+          "@id": "https://orcid.org/0000-0002-7025-2241"
+        },
+        {
+          "@id": "https://orcid.org/0000-0002-0399-8713"
+        }
+      ],
+      "provider": [
+        {
+          "@id": "#project-105"
+        }
+      ],
+      "license": "MIT",
+      "identifier": "https://doi.org/10.48546/workflowhub.workflow.390.1",
+      "url": "https://workflowhub.eu/workflows/390/ro_crate?version=1",
+      "name": "Research Object Crate for CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases",
+      "description": "# CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases\r\n\r\nCroMaSt (<span>**Cro**</span>ss <span>**Ma**</span>pper of domain <span>**St**</span>ructural instances) is an automated iterative workflow to clarify domain definition by cross-mapping of domain structural instances between domain databases. CroMaSt (for Cross-Mapper of domain Structural instances) will classify all structural instances of a given domain type into 3 different categories (core, true and domain-like). \r\n\r\n\r\n## Requirements\r\n1. [Conda](https://docs.conda.io/projects/conda/en/latest/) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)\r\n2. [Kpax](http://kpax.loria.fr/download.php)  \r\nDownload and install conda (or Miniconda) and Kpax by following the instructions from their official site.\r\n\r\n\r\n## Get it running \r\n(Considering the requirements are already met)\r\n\r\n1. Clone the repository and change the directory\r\n\r\n```\r\ngit clone https://gitlab.inria.fr/capsid.public_codes/CroMaSt.git\r\ncd CroMaSt\r\n```\r\n\r\n2. Create the conda environment for the workflow\r\n```\r\nconda env create --file yml/environment.yml\r\nconda activate CroMaSt\r\n```\r\n\r\n3. Change the path of variables in paramter file\r\n```\r\nsed -i 's/\\/home\\/hdhondge\\/CroMaSt\\//\\/YOUR\\/PATH\\/TO_CroMaSt\\//g' yml/CroMaSt_input.yml \r\n```\r\n\r\n4. Create the directory to store files from PDB and SIFTS (if not already)\r\n```\r\nmkdir PDB_files SIFTS\r\n```\r\n\r\n5. Download the source input data\r\n```\r\ncwl-runner Tools/download_data.cwl yml/download_data.yml\r\n```\r\n\r\n## Basic example\r\n\r\n### 1. First, we will run the workflow for the KH domain with family identifiers `RRM_1` and `RRM` in Pfam and CATH, respectively.\r\nRun the workflow -\r\n\r\n```\r\ncwl-runner --parallel  --outdir=Results/  CroMaSt.cwl yml/CroMaSt_input.yml\r\n```\r\n\r\n### 2.  Once the iteration is complete, check the `new_param.yml` file from the `outputdir` (Results), if there is any family identifier in either `pfam` or `cath`; run the next iteration using following command (Until there is no new families explored by workflow) -\r\n\r\n```\r\ncwl-runner --parallel  --outdir=Results/  CroMaSt.cwl Results/new_param.yml\r\n```\r\n  \r\n### **Extra:** Start the workflow with multiple families from one or both databases  \r\nIf you would like to start the workflow with multiple families from one or both databases, then simply add a comma in between two family identifiers. \r\n```\r\npfam: ['PF00076', 'PF08777']\r\ncath: ['3.30.70.330']\r\n```\r\n\r\n- **Pro Tip**: Don't forget to give different path to `--outdir` option while running the workflow multiple times or at least move the results to some other location after first run.\r\n\r\n## Run the workflow for protein domain of your choice  \r\n### 1. You can run the workflow for the domain of your choice by simply changing the family identifers in `yml/CroMaSt_input.yml` file.\r\n\r\nSimply replace the following values of family identifiers (for pfam and cath) with the family identifiers of your choice in `yml/CroMaSt_input.yml` file. \r\n```\r\npfam: ['PF00076']\r\ncath: ['3.30.70.330']\r\n```\r\n\r\n\r\n\r\n## Data files used in current version are as follows:\r\n**Files in Data directory can be downloaded as follows**:\r\n\r\n1. File used from Pfam database: [pdbmap.gz](http://ftp.ebi.ac.uk/pub/databases/Pfam/releases/Pfam33.0/pdbmap.gz)  \r\n\r\n2. File used from CATH database: [cath-domain-description-file.txt](ftp://orengoftp.biochem.ucl.ac.uk:21/cath/releases/latest-release/cath-classification-data/cath-domain-description-file.txt)  \r\n\r\n3. Obsolete entries from RCSB PDB\r\n[obsolete_PDB_entry_ids.txt](https://data.rcsb.org/rest/v1/holdings/removed/entry_ids)  \r\n\r\n\r\nCATH Version - 4.3.0 (Ver_Date - 11-Sep-2019) [FTP site](ftp://orengoftp.biochem.ucl.ac.uk/cath/releases/latest-release/cath-classification-data/)  \r\nPfam Version - 33.0 (Ver_Date - 18-Mar-2020) [FTP site](http://ftp.ebi.ac.uk/pub/databases/Pfam/releases/Pfam33.0/)  \r\n\r\n## Reference\r\n```\r\nPoster - \r\n1. Hrishikesh Dhondge, Isaure Chauvot de Beauchêne, Marie-Dominique Devignes. CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases. 21st European Conference on Computational Biology, Sep 2022, Sitges, Spain. ⟨hal-03789541⟩\r\n\r\n```\r\n\r\n## Acknowledgements\r\nThis  project  has  received  funding  from  the  Marie  Skłodowska-Curie Innovative Training Network (MSCA-ITN) RNAct supported by European Union’s Horizon 2020 research and innovation programme under granta greement No 813239.\r\n\r\n",
+      "isBasedOn": "https://github.com/HrishiDhondge/CroMaSt.git",
+      "sdDatePublished": "2023-02-14 03:24:39 +0000",
+      "hasPart": [
+        {
+          "@id": "CroMaSt.cwl"
+        },
+        {
+          "@id": "workflow-390-9f3832867eab6c7a6363f8ca594a4bcf2ff7e96f-diagram.svg"
+        }
+      ]
+    },
+    {
+      "@id": "CroMaSt.cwl",
+      "@type": [
+        "File",
+        "SoftwareSourceCode",
+        "ComputationalWorkflow"
+      ],
+      "contentSize": 21416,
+      "programmingLanguage": {
+        "@id": "#cwl"
+      },
+      "image": {
+        "@id": "workflow-390-9f3832867eab6c7a6363f8ca594a4bcf2ff7e96f-diagram.svg"
+      },
+      "dct:conformsTo": "https://bioschemas.org/profiles/ComputationalWorkflow/1.0-RELEASE/",
+      "description": "# CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases\r\n\r\nCroMaSt (<span>**Cro**</span>ss <span>**Ma**</span>pper of domain <span>**St**</span>ructural instances) is an automated iterative workflow to clarify domain definition by cross-mapping of domain structural instances between domain databases. CroMaSt (for Cross-Mapper of domain Structural instances) will classify all structural instances of a given domain type into 3 different categories (core, true and domain-like). \r\n\r\n\r\n## Requirements\r\n1. [Conda](https://docs.conda.io/projects/conda/en/latest/) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)\r\n2. [Kpax](http://kpax.loria.fr/download.php)  \r\nDownload and install conda (or Miniconda) and Kpax by following the instructions from their official site.\r\n\r\n\r\n## Get it running \r\n(Considering the requirements are already met)\r\n\r\n1. Clone the repository and change the directory\r\n\r\n```\r\ngit clone https://gitlab.inria.fr/capsid.public_codes/CroMaSt.git\r\ncd CroMaSt\r\n```\r\n\r\n2. Create the conda environment for the workflow\r\n```\r\nconda env create --file yml/environment.yml\r\nconda activate CroMaSt\r\n```\r\n\r\n3. Change the path of variables in paramter file\r\n```\r\nsed -i 's/\\/home\\/hdhondge\\/CroMaSt\\//\\/YOUR\\/PATH\\/TO_CroMaSt\\//g' yml/CroMaSt_input.yml \r\n```\r\n\r\n4. Create the directory to store files from PDB and SIFTS (if not already)\r\n```\r\nmkdir PDB_files SIFTS\r\n```\r\n\r\n5. Download the source input data\r\n```\r\ncwl-runner Tools/download_data.cwl yml/download_data.yml\r\n```\r\n\r\n## Basic example\r\n\r\n### 1. First, we will run the workflow for the KH domain with family identifiers `RRM_1` and `RRM` in Pfam and CATH, respectively.\r\nRun the workflow -\r\n\r\n```\r\ncwl-runner --parallel  --outdir=Results/  CroMaSt.cwl yml/CroMaSt_input.yml\r\n```\r\n\r\n### 2.  Once the iteration is complete, check the `new_param.yml` file from the `outputdir` (Results), if there is any family identifier in either `pfam` or `cath`; run the next iteration using following command (Until there is no new families explored by workflow) -\r\n\r\n```\r\ncwl-runner --parallel  --outdir=Results/  CroMaSt.cwl Results/new_param.yml\r\n```\r\n  \r\n### **Extra:** Start the workflow with multiple families from one or both databases  \r\nIf you would like to start the workflow with multiple families from one or both databases, then simply add a comma in between two family identifiers. \r\n```\r\npfam: ['PF00076', 'PF08777']\r\ncath: ['3.30.70.330']\r\n```\r\n\r\n- **Pro Tip**: Don't forget to give different path to `--outdir` option while running the workflow multiple times or at least move the results to some other location after first run.\r\n\r\n## Run the workflow for protein domain of your choice  \r\n### 1. You can run the workflow for the domain of your choice by simply changing the family identifers in `yml/CroMaSt_input.yml` file.\r\n\r\nSimply replace the following values of family identifiers (for pfam and cath) with the family identifiers of your choice in `yml/CroMaSt_input.yml` file. \r\n```\r\npfam: ['PF00076']\r\ncath: ['3.30.70.330']\r\n```\r\n\r\n\r\n\r\n## Data files used in current version are as follows:\r\n**Files in Data directory can be downloaded as follows**:\r\n\r\n1. File used from Pfam database: [pdbmap.gz](http://ftp.ebi.ac.uk/pub/databases/Pfam/releases/Pfam33.0/pdbmap.gz)  \r\n\r\n2. File used from CATH database: [cath-domain-description-file.txt](ftp://orengoftp.biochem.ucl.ac.uk:21/cath/releases/latest-release/cath-classification-data/cath-domain-description-file.txt)  \r\n\r\n3. Obsolete entries from RCSB PDB\r\n[obsolete_PDB_entry_ids.txt](https://data.rcsb.org/rest/v1/holdings/removed/entry_ids)  \r\n\r\n\r\nCATH Version - 4.3.0 (Ver_Date - 11-Sep-2019) [FTP site](ftp://orengoftp.biochem.ucl.ac.uk/cath/releases/latest-release/cath-classification-data/)  \r\nPfam Version - 33.0 (Ver_Date - 18-Mar-2020) [FTP site](http://ftp.ebi.ac.uk/pub/databases/Pfam/releases/Pfam33.0/)  \r\n\r\n## Reference\r\n```\r\nPoster - \r\n1. Hrishikesh Dhondge, Isaure Chauvot de Beauchêne, Marie-Dominique Devignes. CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases. 21st European Conference on Computational Biology, Sep 2022, Sitges, Spain. ⟨hal-03789541⟩\r\n\r\n```\r\n\r\n## Acknowledgements\r\nThis  project  has  received  funding  from  the  Marie  Skłodowska-Curie Innovative Training Network (MSCA-ITN) RNAct supported by European Union’s Horizon 2020 research and innovation programme under granta greement No 813239.\r\n\r\n",
+      "name": "CroMaSt: A workflow for domain family curation through cross-mapping of structural instances between protein domain databases",
+      "url": "https://workflowhub.eu/workflows/390?version=1",
+      "keywords": "Pfam, CATH, Protein domains, data integration",
+      "version": 1,
+      "license": "https://opensource.org/licenses/MIT",
+      "creator": [
+        {
+          "@id": "https://workflowhub.eu/people/256"
+        },
+        {
+          "@id": "https://orcid.org/0000-0002-7035-3042"
+        },
+        {
+          "@id": "https://workflowhub.eu/people/321"
+        }
+      ],
+      "producer": {
+        "@id": "https://workflowhub.eu/projects/105"
+      },
+      "dateCreated": "2022-09-28T11:34:54Z",
+      "dateModified": "2023-01-16T14:02:36Z",
+      "isPartOf": [
+
+      ],
+      "input": [
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-iteration"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-filename"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-true_domain_file"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-siftsDir"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-paramfile"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-db_for_core"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-core_domain_struct"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-prev_crossMapped_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-prev_crossMapped_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmapped_analysis_file"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pdbDir"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath_resmap"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath_lost"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam_resmap"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam_lost"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-domain_like"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-failed_domain"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-min_domain_length"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-alignment_score"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-score_threshold"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_pfam_pass"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_pfam_fail"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_cath_pass"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_cath_fail"
+        }
+      ],
+      "output": [
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-family_ids_x"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-resmapped_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-reslost_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-resmapped_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-reslost_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-true_domains"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-core_domains_list"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-core_structure"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-all_domain_like"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-all_failed_domains"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossmapped_pfam_passed"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossmapped_cath_passed"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossres_mappedpfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossres_mappedcath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-allmap_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-allmap_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-pfam_crossmap_cath_avg"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-cath_crossmap_pfam_avg"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-avg_alignment_result"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-next_parmfile"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-align_unmap_pfam"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam_passed"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam_failed"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-align_unmap_cath"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath_passed"
+        },
+        {
+          "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath_failed"
+        }
+      ],
+      "sdPublisher": {
+        "@id": "https://about.workflowhub.eu/"
+      }
+    },
+    {
+      "@id": "workflow-390-9f3832867eab6c7a6363f8ca594a4bcf2ff7e96f-diagram.svg",
+      "@type": [
+        "File",
+        "ImageObject",
+        "WorkflowSketch"
+      ],
+      "contentSize": 103397
+    },
+    {
+      "@id": "https://about.workflowhub.eu/Workflow-RO-Crate/",
+      "@type": "CreativeWork",
+      "name": "Workflow RO-Crate Profile",
+      "version": "0.2.0"
+    },
+    {
+      "@id": "https://orcid.org/0000-0002-7025-2241",
+      "@type": "Person",
+      "name": "Hrishikesh Dhondge",
+      "identifier": "https://orcid.org/0000-0002-7025-2241"
+    },
+    {
+      "@id": "https://orcid.org/0000-0002-0399-8713",
+      "@type": "Person",
+      "name": "Marie-Dominique Devignes",
+      "identifier": "https://orcid.org/0000-0002-0399-8713"
+    },
+    {
+      "@id": "#project-105",
+      "@type": "Organization",
+      "name": "CAPSID",
+      "identifier": "https://workflowhub.eu/projects/105",
+      "url": "https://capsid.loria.fr/"
+    },
+    {
+      "@id": "https://workflowhub.eu/people/256",
+      "@type": "Person",
+      "name": "Hrishikesh Dhondge"
+    },
+    {
+      "@id": "https://orcid.org/0000-0002-7035-3042",
+      "@type": "Person",
+      "name": "Isaure Chauvot de Beauchêne"
+    },
+    {
+      "@id": "https://workflowhub.eu/people/321",
+      "@type": "Person",
+      "name": "Marie-Dominique Devignes"
+    },
+    {
+      "@id": "https://workflowhub.eu/projects/105",
+      "@type": [
+        "Project",
+        "Organization"
+      ],
+      "name": "CAPSID"
+    },
+    {
+      "@id": "#cwl",
+      "@type": "ComputerLanguage",
+      "name": "Common Workflow Language",
+      "alternateName": "CWL",
+      "identifier": {
+        "@id": "https://w3id.org/cwl/v1.0/"
+      },
+      "url": {
+        "@id": "https://www.commonwl.org/"
+      }
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam",
+      "@type": "FormalParameter",
+      "name": "Pfam family ids",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath",
+      "@type": "FormalParameter",
+      "name": "CATH family ids",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-iteration",
+      "@type": "FormalParameter",
+      "name": "Iteration number",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-filename",
+      "@type": "FormalParameter",
+      "name": "Filename to store family ids per iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-true_domain_file",
+      "@type": "FormalParameter",
+      "name": "To store all the true domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-siftsDir",
+      "@type": "FormalParameter",
+      "name": "Directory for storing all SIFTS files",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-paramfile",
+      "@type": "FormalParameter",
+      "name": "Parameter file for current iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-db_for_core",
+      "@type": "FormalParameter",
+      "name": "Database to select to compute core average structure",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-core_domain_struct",
+      "@type": "FormalParameter",
+      "name": "Core domain structure (.pdb)",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-prev_crossMapped_pfam",
+      "@type": "FormalParameter",
+      "name": "Pfam cross-mapped domain StIs from previous iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-prev_crossMapped_cath",
+      "@type": "FormalParameter",
+      "name": "CATH cross-mapped domain StIs from previous iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmapped_analysis_file",
+      "@type": "FormalParameter",
+      "name": "Filename with alignment scores for unmapped instances",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pdbDir",
+      "@type": "FormalParameter",
+      "name": "The directory for storing all PDB files",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath_resmap",
+      "@type": "FormalParameter",
+      "name": "Filename for residue-mapped CATH domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-cath_lost",
+      "@type": "FormalParameter",
+      "name": "Obsolete and inconsistent CATH domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam_resmap",
+      "@type": "FormalParameter",
+      "name": "Filename for residue-mapped Pfam domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-pfam_lost",
+      "@type": "FormalParameter",
+      "name": "Obsolete and inconsistent Pfam domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-domain_like",
+      "@type": "FormalParameter",
+      "name": "To store all the domain-like StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-failed_domain",
+      "@type": "FormalParameter",
+      "name": "To store all failed domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-min_domain_length",
+      "@type": "FormalParameter",
+      "name": "Threshold for minimum domain length",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-alignment_score",
+      "@type": "FormalParameter",
+      "name": "Alignment score from Kpax to analyse structures",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-score_threshold",
+      "@type": "FormalParameter",
+      "name": "Score threshold for given alignment score from Kpax",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_pfam_pass",
+      "@type": "FormalParameter",
+      "name": "Filename to store unmapped but structurally well aligned instances from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_pfam_fail",
+      "@type": "FormalParameter",
+      "name": "Filename to store unmapped and not properly aligned instances from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_cath_pass",
+      "@type": "FormalParameter",
+      "name": "Filename to store unmapped but structurally well aligned instances from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-inputs-unmap_cath_fail",
+      "@type": "FormalParameter",
+      "name": "Filename to store unmapped and not properly aligned instances from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-family_ids_x",
+      "@type": "FormalParameter",
+      "name": "Family ids per iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-resmapped_pfam",
+      "@type": "FormalParameter",
+      "name": "All Pfam residue-mapped domain StIs with domain labels",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-reslost_pfam",
+      "@type": "FormalParameter",
+      "name": "Obsolete and inconsistent domain StIs from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-resmapped_cath",
+      "@type": "FormalParameter",
+      "name": "All CATH residue-mapped domain StIs with domain labels",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-reslost_cath",
+      "@type": "FormalParameter",
+      "name": "Obsolete and inconsistent domain StIs from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-true_domains",
+      "@type": "FormalParameter",
+      "name": "True domain StIs per iteration",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-core_domains_list",
+      "@type": "FormalParameter",
+      "name": "Core domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-core_structure",
+      "@type": "FormalParameter",
+      "name": "Core domain structure (.pdb)",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-all_domain_like",
+      "@type": "FormalParameter",
+      "name": "Domain-like StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-all_failed_domains",
+      "@type": "FormalParameter",
+      "name": "Failed domain StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossmapped_pfam_passed",
+      "@type": "FormalParameter",
+      "name": "Cross-mapped families with Pfam domain StIs passing the threshold",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossmapped_cath_passed",
+      "@type": "FormalParameter",
+      "name": "Cross-mapped families with CATH domain StIs passing the threshold",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossres_mappedpfam",
+      "@type": "FormalParameter",
+      "name": "Merged cross-mapped and residue-mapped domain StIs from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-crossres_mappedcath",
+      "@type": "FormalParameter",
+      "name": "Merged cross-mapped and residue-mapped domain StIs from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam",
+      "@type": "FormalParameter",
+      "name": "All Pfam un-mapped domin StIs",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-allmap_pfam",
+      "@type": "FormalParameter",
+      "name": "All Pfam domain StIs cross-mapped to CATH family-wise",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath",
+      "@type": "FormalParameter",
+      "name": "All un-mapped domin StIs from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-allmap_cath",
+      "@type": "FormalParameter",
+      "name": "All CATH cross-mapped domin StIs family-wise together",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-pfam_crossmap_cath_avg",
+      "@type": "FormalParameter",
+      "name": "Average structures per cross-mapped CATH family for Pfam StIs at family level",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-cath_crossmap_pfam_avg",
+      "@type": "FormalParameter",
+      "name": "Average structures per cross-mapped Pfam family for CATH StIs at family level",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-avg_alignment_result",
+      "@type": "FormalParameter",
+      "name": "Alignment results from Kpax for all cross-mapped families",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-next_parmfile",
+      "@type": "FormalParameter",
+      "name": "Parameter file for next iteration of the workflow",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-align_unmap_pfam",
+      "@type": "FormalParameter",
+      "name": "Alignment results for Pfam unmapped instances",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam_passed",
+      "@type": "FormalParameter",
+      "name": "Domain-like StIs from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_pfam_failed",
+      "@type": "FormalParameter",
+      "name": "Failed domain StIs from Pfam",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-align_unmap_cath",
+      "@type": "FormalParameter",
+      "name": "Alignment results for CATH unmapped instances",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath_passed",
+      "@type": "FormalParameter",
+      "name": "Domain-like StIs from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "#cromast__a_workflow_for_domain_family_curation_through_cross_mapping_of_structural_instances_between_protein_domain_databases-outputs-unmap_cath_failed",
+      "@type": "FormalParameter",
+      "name": "Failed domain StIs from CATH",
+      "dct:conformsTo": "https://bioschemas.org/profiles/FormalParameter/1.0-RELEASE/"
+    },
+    {
+      "@id": "https://about.workflowhub.eu/",
+      "@type": "Organization",
+      "name": "WorkflowHub",
+      "url": "https://about.workflowhub.eu/"
+    }
+  ]
+}

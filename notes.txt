@@ -1,0 +1,5 @@
+git+https://github.com/GraceAHall/janis-core.git@release-v0.12.1
+git+https://github.com/GraceAHall/janis-assistant.git@release-v0.12.0
+git+https://github.com/GraceAHall/janis-bioinformatics@release-v0.12.0
+git+https://github.com/GraceAHall/janis-pipelines
+git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0

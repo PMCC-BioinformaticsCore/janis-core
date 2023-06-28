@@ -1,3 +1,10 @@
+
+
+
+
+
+# everything below should be in separate file
+
 from typing import Dict, Any, List, Tuple, TypeVar, Optional
 
 T = TypeVar("T")
@@ -59,16 +66,6 @@ def zip_directory(parent_dir, dir_name):
     else:
         Logger.critical(zip_result.stderr)
 
-
-def is_array_prefix(prefix, to):
-    if len(prefix) > len(to):
-        return False
-
-    for i in range(len(prefix)):
-        if prefix[i] != to[i]:
-            return False
-
-    return True
 
 
 def recursive_2param_wrap(methodname, items):

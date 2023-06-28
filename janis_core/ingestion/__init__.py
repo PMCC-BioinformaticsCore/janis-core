@@ -1,1 +1,6 @@
-from janis_core.ingestion.fromcwl import CWlParser
+
+
+# public ingest api
+
+from .main import ingest
+from .SupportedIngestion import SupportedIngestion

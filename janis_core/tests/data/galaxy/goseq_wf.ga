@@ -1,0 +1,141 @@
+{
+    "a_galaxy_workflow": "true",
+    "annotation": "",
+    "format-version": "0.1",
+    "name": "goseq_wf",
+    "steps": {
+        "0": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 0,
+        "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "DE genes"
+                }
+            ],
+            "label": "DE genes",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 0.0,
+                "top": 0.0
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "ff0bacac-0bf7-431d-9110-9fab7031d28c",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "a3efeeb5-5bca-4e05-af6e-143aba663356"
+                }
+            ]
+        },
+        "1": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 1,
+            "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "gene lengths"
+                }
+            ],
+            "label": "gene lengths",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 9.92822265625,
+                "top": 126.99794006347656
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "cc1cdfe4-0da2-4ffa-b9dc-d37ce5ad30fa",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "b384e431-2e84-4670-9b8d-4e892223e40b"
+                }
+            ]
+        },
+        "2": {
+            "annotation": "",
+            "content_id": "toolshed.g2.bx.psu.edu/repos/iuc/goseq/goseq/1.50.0+galaxy0",
+            "errors": null,
+            "id": 2,
+            "input_connections": {
+                "dge_file": {
+                    "id": 0,
+                    "output_name": "output"
+                },
+                "length_file": {
+                    "id": 1,
+                    "output_name": "output"
+                }
+            },
+            "inputs": [
+                {
+                    "description": "runtime parameter for tool goseq",
+                    "name": "dge_file"
+                },
+                {
+                    "description": "runtime parameter for tool goseq",
+                    "name": "length_file"
+                }
+            ],
+            "label": null,
+            "name": "goseq",
+            "outputs": [
+                {
+                    "name": "wallenius_tab",
+                    "type": "tabular"
+                },
+                {
+                    "name": "top_plot",
+                    "type": "pdf"
+                }
+            ],
+            "position": {
+                "left": 299.958984375,
+                "top": 36.98771667480469
+            },
+            "post_job_actions": {},
+            "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/goseq/goseq/1.50.0+galaxy0",
+            "tool_shed_repository": {
+                "changeset_revision": "602de62d995b",
+                "name": "goseq",
+                "owner": "iuc",
+                "tool_shed": "toolshed.g2.bx.psu.edu"
+            },
+            "tool_state": "{\"adv\": {\"p_adj_method\": \"BH\", \"use_genes_without_cat\": \"false\"}, \"categorySource\": {\"catSource\": \"getgo\", \"__current_case__\": 0, \"genome\": \"mm10\", \"gene_id\": \"knownGene\", \"fetchcats\": [\"GO:BP\"]}, \"dge_file\": {\"__class__\": \"RuntimeValue\"}, \"length_file\": {\"__class__\": \"RuntimeValue\"}, \"methods\": {\"wallenius\": \"true\", \"hypergeometric\": \"false\", \"repcnt\": \"0\"}, \"out\": {\"topgo_plot\": \"true\", \"make_plots\": \"false\", \"cat_genes\": \"false\", \"rdata_out\": \"false\"}, \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_version": "1.50.0+galaxy0",
+            "type": "tool",
+            "uuid": "ebfdc1dc-3a64-4eb3-b34a-a20c1d300b8b",
+            "workflow_outputs": [
+                {
+                    "label": "goseq on input dataset(s): Ranked category list - Wallenius method",
+                    "output_name": "wallenius_tab",
+                    "uuid": "476a9e2d-d9a2-40f3-aa6a-6a9f42fa54d9"
+                },
+                {
+                    "label": null,
+                    "output_name": "top_plot",
+                    "uuid": "e50e8cc0-38c4-4928-91be-cf9f9553fe1e"
+                }
+            ]
+        }
+    },
+    "tags": [],
+    "uuid": "be15a8b7-c5f2-49b1-b29b-743b27e74eae",
+    "version": 1
+}

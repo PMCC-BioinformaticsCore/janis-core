@@ -1,5 +1,6 @@
 import operator
 import os
+import importlib
 from typing import Optional, List, Dict, Union
 from unittest import TestCase, mock
 from janis_core.tool.test_suite_runner import ToolTestSuiteRunner
@@ -167,7 +168,12 @@ class TestToolTestRunner(TestCase):
     @nottest
     @mock.patch("urllib.request.urlopen", side_effect=mocked_urllib_urlopen)
     @mock.patch("urllib.request.urlretrieve", side_effect=mocked_urllib_urlretrieve)
+
     def test_download_remote_files(self, mock_urlopen, mock_urlretrieve):
+        janis_assistant_spec = importlib.util.find_spec("spam")
+        if not janis_assistant_spec:
+            self.skipTest('reason')
+            
         runner = ToolTestSuiteRunner(self.tool)
 
         t1 = TTestExpectedOutput(

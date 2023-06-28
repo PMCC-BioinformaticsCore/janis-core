@@ -15,8 +15,6 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Type
 
 from janis_core.deps import cwlgen, wdlgen
-
-from janis_core.utils import is_array_prefix
 from janis_core.utils.logger import Logger
 
 NativeType = str
@@ -28,6 +26,16 @@ def is_python_primitive(t):
         isinstance(t, list) and len(t) > 0 and is_python_primitive(t[0])
     ) or isinstance(t, (str, float, int, bool))
 
+
+def is_array_prefix(prefix, to):
+    if len(prefix) > len(to):
+        return False
+
+    for i in range(len(prefix)):
+        if prefix[i] != to[i]:
+            return False
+
+    return True
 
 # see below for ParseableType
 
@@ -152,7 +160,7 @@ class DataType(ABC):
         self.optional = optional if optional is not None else False
         self.is_prim = NativeTypes.is_primitive(self.primitive())
 
-    def is_array(self):
+    def is_array(self) -> bool:
         return False
 
     def __hash__(self):

@@ -1,0 +1,177 @@
+{
+    "a_galaxy_workflow": "true",
+    "annotation": "",
+    "format-version": "0.1",
+    "name": "limma-voom-wf",
+    "steps": {
+        "0": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 0,
+            "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "count matrix"
+                }
+            ],
+            "label": "count matrix",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 0.0,
+                "top": 0.0
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "29e0bdd4-6adc-45a1-9380-554a9bf8067f",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "6021d73d-03e3-4e2d-afc3-a631782317de"
+                }
+            ]
+        },
+        "1": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 1,
+            "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "factor file"
+                }
+            ],
+            "label": "factor file",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 1.997955322265625,
+                "top": 89.9794921875
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "414331fe-0cea-479e-8a2c-d73e8b13d8bb",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "679aee8e-6146-4182-b516-1ffc6deb1dda"
+                }
+            ]
+        },
+        "2": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 2,
+            "input_connections": {},
+            "inputs": [
+                {
+                    "description": "",
+                    "name": "gene annotations"
+                }
+            ],
+            "label": "gene annotations",
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 1.997955322265625,
+                "top": 161.02456665039062
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": \"\"}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "032ffd17-ccaa-44dd-8dbb-d3b7caf82e68",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "5588e388-ce38-42ec-b264-2060a01e795d"
+                }
+            ]
+        },
+        "3": {
+            "annotation": "",
+            "content_id": "toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0",
+            "errors": null,
+            "id": 3,
+            "input_connections": {
+                "anno|geneanno": {
+                    "id": 2,
+                    "output_name": "output"
+                },
+                "input|counts": {
+                    "id": 0,
+                    "output_name": "output"
+                },
+                "input|fact|finfo": {
+                    "id": 1,
+                    "output_name": "output"
+                }
+            },
+            "inputs": [
+                {
+                    "description": "runtime parameter for tool limma",
+                    "name": "anno"
+                },
+                {
+                    "description": "runtime parameter for tool limma",
+                    "name": "input"
+                }
+            ],
+            "label": null,
+            "name": "limma",
+            "outputs": [
+                {
+                    "name": "outTables",
+                    "type": "input"
+                },
+                {
+                    "name": "outReport",
+                    "type": "html"
+                }
+            ],
+            "position": {
+                "left": 356.9671630859375,
+                "top": 5.01025390625
+            },
+            "post_job_actions": {},
+            "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0",
+            "tool_shed_repository": {
+                "changeset_revision": "d6f5fa4ee473",
+                "name": "limma_voom",
+                "owner": "iuc",
+                "tool_shed": "toolshed.g2.bx.psu.edu"
+            },
+            "tool_state": "{\"adv\": {\"lfc\": \"0.0\", \"pVal\": \"0.05\", \"pAdjust\": \"BH\", \"treat\": \"false\", \"topgenes\": \"10\", \"normalisationOption\": \"TMM\", \"robOption\": \"true\"}, \"anno\": {\"annoOpt\": \"yes\", \"__current_case__\": 0, \"geneanno\": {\"__class__\": \"RuntimeValue\"}}, \"cont\": {\"cfile\": \"no\", \"__current_case__\": 1, \"rep_contrast\": [{\"__index__\": 0, \"contrast\": \"basalpregnant-basallactate\"}]}, \"deMethod\": {\"de_select\": \"voom\", \"__current_case__\": 0, \"weightOption\": \"false\"}, \"f\": {\"filt\": {\"filt_select\": \"no\", \"__current_case__\": 1}}, \"input\": {\"format\": \"matrix\", \"__current_case__\": 1, \"counts\": {\"__class__\": \"RuntimeValue\"}, \"fact\": {\"ffile\": \"yes\", \"__current_case__\": 0, \"finfo\": {\"__class__\": \"RuntimeValue\"}}}, \"out\": {\"plots\": [\"i\"], \"filtCounts\": \"false\", \"normCounts\": \"false\", \"libinfo\": \"false\", \"rscript\": \"false\", \"rdaOption\": \"false\"}, \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_version": "3.50.1+galaxy0",
+            "type": "tool",
+            "uuid": "01d903a5-7668-4ac2-835f-833ce0ca8aba",
+            "workflow_outputs": [
+                {
+                    "label": "limma on input dataset(s): Report",
+                    "output_name": "outReport",
+                    "uuid": "74038ec4-d3e2-424b-882c-3afe603800ea"
+                },
+                {
+                    "label": "limma on input dataset(s): DE tables",
+                    "output_name": "outTables",
+                    "uuid": "218144dd-473d-45d4-bc05-f9b7944d34da"
+                }
+            ]
+        }
+    },
+    "tags": [],
+    "uuid": "614f271a-fe19-40b7-8002-5e3b80aa5e51",
+    "version": 2
+}
