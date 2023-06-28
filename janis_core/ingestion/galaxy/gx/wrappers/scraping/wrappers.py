@@ -54,9 +54,9 @@ class Revision:
     def get_wrappers(self) -> list[Wrapper]:
         tar = self.get_tar()
         folder = os.path.commonprefix(tar.getnames())
-        xmlpaths = [f'{self.download_folder}/{x}' for x in tar.getnames() if x.endswith('.xml')]
+        xmlpaths = [os.path.join(self.download_folder, x) for x in tar.getnames() if x.endswith('.xml')]
         wrappers = self.extract_wrapper_info(xmlpaths)
-        shutil.rmtree(f'{self.download_folder}/{folder}')
+        shutil.rmtree(os.path.join(self.download_folder, folder))
         return wrappers
 
     def extract_wrapper_info(self, xmlpaths: list[str]) -> list[Wrapper]:

@@ -222,7 +222,7 @@ class TranslatorBase(ABC):
                 
                 # copy files
                 for src, dest in settings.general.SOURCE_FILES:
-                    dest = os.path.join(basedir, 'source', dest)
+                    dest = os.path.join(source_dir, dest)
                     if not os.path.isdir(os.path.dirname(dest)):
                         os.mkdir(os.path.dirname(dest))
                     shutil.copy2(src, dest)
@@ -312,7 +312,7 @@ class TranslatorBase(ABC):
                 
                 # copy files
                 for src, dest in settings.general.SOURCE_FILES:
-                    dest = os.path.join(basedir, 'source', dest)
+                    dest = os.path.join(source_dir, dest)
                     if not os.path.isdir(os.path.dirname(dest)):
                         os.mkdir(os.path.dirname(dest))
                     shutil.copy2(src, dest)

@@ -10,12 +10,13 @@ from typing import Any, Optional
 from janis_core import settings
 from .. import runtime
 from .Container import Container
+from janis_core.ingestion.galaxy.fileio import safe_init_file
 
 
 def init_cache() -> ContainerCache:
     if settings.ingest.galaxy.DISABLE_CONTAINER_CACHE:
         temp = tempfile.TemporaryFile()
-        cache_path = f'{tempfile.gettempdir()}/{temp.name}'
+        cache_path = os.path.join(tempfile.gettempdir(), temp.name)
         os.remove(cache_path)
         with open(cache_path, 'w') as fp:
             fp.write('{}')
@@ -40,6 +41,8 @@ class ContainerCache:
         self._write(cache)
 
     def _load(self) -> dict[str, dict[str, str]]:
+        if not os.path.exists(self.cache_path):
+            safe_init_file(self.cache_path, contents='{}')
         try:
             lockpath = f"{self.cache_path.rsplit('.', 1)[0]}.lock"
             lock = filelock.FileLock(lockpath)
@@ -50,8 +53,9 @@ class ContainerCache:
             return {}
 
     def _write(self, cache: dict[str, Any]) -> None:
-        filepath = self.cache_path
-        lockpath = f"{filepath.rsplit('.', 1)[0]}.lock"
+        if not os.path.exists(self.cache_path):
+            safe_init_file(self.cache_path, contents='{}')
+        lockpath = f"{self.cache_path.rsplit('.', 1)[0]}.lock"
         lock = filelock.FileLock(lockpath)
         with lock.acquire(timeout=10):
             with open(self.cache_path, 'w') as fp:

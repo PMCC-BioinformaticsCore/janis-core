@@ -32,20 +32,20 @@ def get_xml_id(filepath: str) -> str:
     root = tree.getroot()
     return str(root.attrib['id']) # type: ignore
 
-def get_xml_by_id(xmldir: str, query_id: str) -> Optional[str]:
-    xmls = [x for x in os.listdir(xmldir) if x.endswith('.xml') and 'macros' not in x]
+def get_xml_by_id(wrapper_dir: str, query_id: str) -> Optional[str]:
+    xmls = [x for x in os.listdir(wrapper_dir) if x.endswith('.xml') and 'macros' not in x]
     for xml in xmls:
-        filepath = f'{xmldir}/{xml}'
-        tool_id = get_xml_id(filepath)
+        path = os.path.join(wrapper_dir, xml)
+        tool_id = get_xml_id(path)
         if query_id == tool_id:
             return xml
     return None 
 
-def get_macros(xmldir: str) -> list[str]:
+def get_macros(wrapper_dir: str) -> list[str]:
     out: list[str] = []    
-    xmls = [x for x in os.listdir(xmldir) if x.endswith('.xml')]
+    xmls = [x for x in os.listdir(wrapper_dir) if x.endswith('.xml')]
     for xml in xmls:
-        path = f'{xmldir}/{xml}'
+        path = os.path.join(wrapper_dir, xml)
         if is_macro_xml(path):
             out.append(path)
     return out

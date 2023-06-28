@@ -18,18 +18,18 @@ from janis_core.ingestion.galaxy.runtime import paths
 # from janis_core.ingestion.galaxy import fileio
 
 
-def setup_data_folder() -> None:
-    # # create user data folder if not exists
-    # if not os.path.exists(paths.USER_DATA_DIR): 
-    #     os.mkdir(paths.USER_DATA_DIR)
+# def setup_data_folder() -> None:
+#     # # create user data folder if not exists
+#     # if not os.path.exists(paths.USER_DATA_DIR): 
+#     #     os.mkdir(paths.USER_DATA_DIR)
 
-    # create user wrapper download folder if not exists
-    curr_path: list[str] = []
-    path = os.path.normpath(paths.DOWNLOADED_WRAPPERS_DIR)
-    for folder in path.split(os.sep):
-        curr_path.append(folder)
-        if not os.path.exists(os.path.join(*curr_path)):
-            os.mkdir(os.path.join(*curr_path))
+#     # create user wrapper download folder if not exists
+#     curr_path: list[str] = []
+#     path = os.path.normpath(paths.DOWNLOADED_WRAPPERS_DIR)
+#     for folder in path.split(os.sep):
+#         curr_path.append(folder)
+#         if not os.path.exists(os.path.join(*curr_path)):
+#             os.mkdir(os.path.join(*curr_path))
 
     # if not os.path.exists(paths.DOWNLOADED_WRAPPERS_DIR):
         # os.mkdir(paths.DOWNLOADED_WRAPPERS_DIR)
