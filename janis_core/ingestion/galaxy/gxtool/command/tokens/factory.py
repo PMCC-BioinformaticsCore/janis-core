@@ -20,7 +20,6 @@ from janis_core.ingestion.galaxy.expressions.patterns import (
     GX_STATIC_KEYWORDS,
     EMPTY_STRING,
     VARIABLES_FMT1,
-    VARIABLES_FMT2,
     ALL,
 )
 
@@ -146,7 +145,6 @@ def _get_variable_tokens(the_string: str, xmltool: Optional[XMLTool]=None) -> li
     """gets tokens for galaxy/env variables"""
     tokens: list[Token] = []
     matches = expressions.get_matches(the_string, VARIABLES_FMT1)
-    matches += expressions.get_matches(the_string, VARIABLES_FMT2)
     base_vars = [strip_to_base_variable(m) for m in matches]
     base_vars = [v for v in base_vars if v is not None]
     

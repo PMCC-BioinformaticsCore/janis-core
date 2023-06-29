@@ -228,12 +228,32 @@ class TestWorkshopCwlToNextflow(unittest.TestCase):
         print(mainstr)
 
 
-class TestWorkshopGalaxyToNextflow(unittest.TestCase):
+class TestGCCGalaxyToNextflow(unittest.TestCase):
     
     def setUp(self) -> None:
         self.src = 'galaxy'
         self.dest = 'nextflow'
         _reset_global_settings()
+
+    def test_cutadapt_wf(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_fastqc_wf(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc_wf.ga')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_fastqc_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_hisat2_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2-6c19daec423d/hisat2.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
 
     def test_toolshed_limma_voom_tool(self):
         uri = 'toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0'

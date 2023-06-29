@@ -13,15 +13,18 @@ from .epath.ExecutionPathAnnotator import GreedyExecutionPathAnnotator
 
 from .Command import Command 
 from .cmdstr.CommandString import CommandString
+from .cmdstr.DynamicCommandStatement import DynamicCommandStatement
 from .cmdstr.RealisedTokenValues import RealisedTokens
-from .cmdstr.analysis import CmdstrReference
-from .cmdstr.analysis import CmdstrReferenceType
-from .cmdstr.analysis import get_cmdstr_appearences
+from .components import CommandComponent
+from .components import ComponentConfidence
 from .components.inputs.InputComponent import InputComponent
-from .components.inputs.InputComponent import InputComponentConfidence
 from .components.inputs.Flag import Flag
 from .components.inputs.Option import Option
 from .components import factory
+
+from .cmdstr import analysis
+from .cmdstr.analysis import CmdstrReference
+from .cmdstr.analysis import CmdstrReferenceType
 
 from .update import update_command
 from .tokenise import tokenise_line
@@ -62,67 +65,6 @@ GlobalCmdstrAnnotator:
 
 ### HELPER FUNCS & PATTERNS - TODO move to .analysis.py ###
 
-BLANK = r'^\s*$'
-SIMPLE_VARIABLE = r'^([\'"]?\$[\w\d_.-]+[\'"]?)$'
-SIMPLE_FLAGS = r'^-[\w\d_-]+$'
-SIMPLE_OPTION = r'^(-[\w\d_-]+)( +|=|:)([\'"]?\$?[\w\d_.-]+[\'"]?)$'
-
-def is_blank(phrase: str) -> bool:
-    if re.search(BLANK, phrase):
-        return True
-    return False
-
-def is_simple_flags(phrase: str) -> bool:
-    words = phrase.strip().split()
-    for word in words:
-        if not re.search(SIMPLE_FLAGS, word):
-            return False
-    return True
-
-def is_simple_variable(phrase: str) -> bool:
-    phrase = phrase.strip()
-    if re.search(SIMPLE_VARIABLE, phrase):
-        return True
-    return False
-
-def is_simple_phrases(phrase: str) -> bool:
-    words = phrase.strip().split()
-    for word in words:
-        pass
-    return True
-
-def is_simple_option(phrase: str) -> bool:
-    phrase = phrase.strip()
-    if re.search(SIMPLE_OPTION, phrase):
-        return True
-    return False
-
-def extract_simple_option(phrase: str) -> Tuple[str, str, str]:
-    phrase = phrase.strip()
-    match = re.search(SIMPLE_OPTION, phrase)
-    if not match:
-        raise RuntimeError
-    prefix = match.group(1)
-    separator = match.group(2)
-    value = match.group(3)
-    return prefix, separator, value
-
-def argument_resembles_prefix(argument: str, prefix: str) -> bool:
-    if prefix in argument:
-        return True
-    # for when argument has incorrect number of dashes
-    elif prefix.lstrip('-') == argument.lstrip('-'):
-        return True
-    return False
-
-def has_single_inline_plaintext_appearence(xmltool: XMLTool, entity: str | XMLParam) -> bool:
-    appearences = get_cmdstr_appearences(xmltool.raw_command, entity, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
-    return len(appearences) == 1
-
-def has_single_multiline_bool_appearence(xmltool: XMLTool, entity: str | XMLParam) -> bool:
-    appearences = get_cmdstr_appearences(xmltool.raw_command, entity, filter_to=CmdstrReferenceType.MULTILINE_BOOL)
-    return len(appearences) == 1
-
 
 
 
@@ -140,16 +82,16 @@ class SimpleInlineBoolAnnotator:
         
         for param in available_params:
             # ignore params with more than 1 appearance in <command>
-            if not has_single_inline_plaintext_appearence(self.xmltool, param):
+            if not analysis.single_inline_plaintext_appearence(self.xmltool, param):
                 continue
 
             # set confidence based on whether param has argument and it looks right
             # meh this isn't particularly good
             confidence = 'low'
             if hasattr(param, 'argument') and param.argument is not None:
-                if argument_resembles_prefix(param.argument, param.truevalue):
+                if analysis.argument_resembles_prefix(param.argument, param.truevalue):
                     confidence = 'high'
-                elif argument_resembles_prefix(param.argument, param.falsevalue):
+                elif analysis.argument_resembles_prefix(param.argument, param.falsevalue):
                     confidence = 'high'
 
             # check if boolean param is flag (normal) 
@@ -176,16 +118,16 @@ class SimpleInlineBoolAnnotator:
         <param name="ignore_overlaps" argument="-x/--ignore-overlaps" type="boolean" truevalue="-x" falsevalue="" checked="False" label="Disable read-pair overlap detection" />
         <param name="skip_anomalous_read_pairs" argument="-A/--count-orphans" type="boolean" truevalue="-A" falsevalue="" checked="False" label="Do not discard anomalous read pairs" />
         """
-        appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
 
         # ensure that cmdstr appearence is a single word, and that word is a variable
-        if not is_simple_variable(appearence.text):
+        if not analysis.is_simple_variable(appearence.text):
             return False
         
         # sorting into blank and non-blank items
         items = [param.truevalue, param.falsevalue]
-        blank_phrases = [i for i in items if is_blank(i)]
-        value_phrases = [i for i in items if not is_blank(i)]
+        blank_phrases = [i for i in items if analysis.is_blank(i)]
+        value_phrases = [i for i in items if not analysis.is_blank(i)]
 
         # ensure that at least one item has a value
         if blank_phrases == 2:
@@ -193,7 +135,7 @@ class SimpleInlineBoolAnnotator:
         
         # ensure that all non-blank items are simple flags
         for phrase in value_phrases:
-            if not is_simple_flags(phrase):
+            if not analysis.is_simple_flags(phrase):
                 return False
         
         return True
@@ -201,7 +143,7 @@ class SimpleInlineBoolAnnotator:
     def handle_as_simple_flags(self, param: XMLBoolParam) -> list[Flag]:
         flags: list[Flag] = []
         items = [param.truevalue, param.falsevalue]
-        value_phrases = [i for i in items if not is_blank(i)]
+        value_phrases = [i for i in items if not analysis.is_blank(i)]
         
         for value in value_phrases:
             prefixes = value.strip().split()
@@ -216,18 +158,18 @@ class SimpleInlineBoolAnnotator:
         this is made up, but something like this
         <param argument="--reference" type="boolean" value="False" truevalue="mm10" falsevalue="hg38"...
         """
-        appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
 
         # param has argument & both options have values
-        if not is_blank(param.truevalue) and not is_blank(param.falsevalue):
+        if not analysis.is_blank(param.truevalue) and not analysis.is_blank(param.falsevalue):
             raise NotImplementedError
             
         # param has argument & truevalue has value
-        elif not is_blank(param.truevalue) and is_simple_phrases(param.truevalue):
+        elif not analysis.is_blank(param.truevalue) and analysis.is_simple_phrases(param.truevalue):
             raise NotImplementedError
 
         # param has argument & falsevalue has value
-        elif not is_blank(param.falsevalue) and is_simple_phrases(param.falsevalue):
+        elif not analysis.is_blank(param.falsevalue) and analysis.is_simple_phrases(param.falsevalue):
             raise NotImplementedError
 
         # if argument, also check argument in cmdstr
@@ -262,7 +204,7 @@ class SimpleMultilineBoolAnnotator:
             update_command(self.command, component)
     
     def is_simple_multiline_bool(self, param: XMLParam) -> bool:
-        appearences = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.MULTILINE_BOOL)
+        appearences = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.MULTILINE_BOOL)
         for appearence in appearences:
             prefix = self.get_simple_prefix(appearence.text)
             if prefix:
@@ -270,7 +212,7 @@ class SimpleMultilineBoolAnnotator:
         return False
 
     def handle_simple_multiline_bool(self, param: XMLParam) -> InputComponent:
-        appearences = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.MULTILINE_BOOL)
+        appearences = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.MULTILINE_BOOL)
         for appearence in appearences:
             prefix = self.get_simple_prefix(appearence.text)
             if prefix:
@@ -300,7 +242,6 @@ class SimpleSelectAnnotator:
     def __init__(self, command: Command, xmltool: XMLTool):
         self.command = command
         self.xmltool = xmltool
-        self.confidence: InputComponentConfidence = InputComponentConfidence.HIGH
 
     def annotate(self) -> None:
         components: list[InputComponent] = []
@@ -309,7 +250,7 @@ class SimpleSelectAnnotator:
 
         for param in available_params:
             # ignore params with more than 1 appearance in <command>
-            if not has_single_inline_plaintext_appearence(self.xmltool, param):
+            if not analysis.single_inline_plaintext_appearence(self.xmltool, param):
                 continue
             
             # all select options are blank or flags
@@ -340,9 +281,9 @@ class SimpleSelectAnnotator:
         num_flag_options = 0
         
         for option in param.options:
-            if is_blank(option.value):
+            if analysis.is_blank(option.value):
                 num_blank_options += 1
-            elif is_simple_flags(option.value):
+            elif analysis.is_simple_flags(option.value):
                 num_flag_options += 1
         
         # ensure all options are blank or flags, and max 1 blank option
@@ -353,7 +294,7 @@ class SimpleSelectAnnotator:
     def handle_as_simple_flag_selector(self, param: XMLSelectParam) -> list[Flag]:
         flags: list[Flag] = []
         
-        phrases = [opt.value for opt in param.options if not is_blank(opt.value)]
+        phrases = [opt.value for opt in param.options if not analysis.is_blank(opt.value)]
         for phrase in phrases:
             prefixes = phrase.strip().split()
             for prefix in prefixes:
@@ -363,20 +304,20 @@ class SimpleSelectAnnotator:
         return flags
     
     def looks_like_simple_option_selector(self, param: XMLSelectParam) -> bool:
-        appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
-        if is_simple_option(appearence.text):
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        if analysis.is_simple_option(appearence.text):
             return True
         return False
     
     def handle_as_simple_option_selector(self, param: XMLSelectParam) -> Option:
-        appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
-        prefix, separator, value = extract_simple_option(appearence.text)
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        prefix, separator, value = analysis.extract_simple_option(appearence.text)
         option = factory.option(prefix=prefix, separator=separator, gxparam=param)
         option.values.add(value)
         return option
     
     def looks_like_complex_option_selector(self, param: XMLSelectParam) -> bool:
-        # appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        # appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
         raise NotImplementedError
     
     def handle_as_complex_option_selector(self, param: XMLSelectParam) -> list[Option]:
@@ -411,7 +352,7 @@ class OptionParamAnnotator:
             update_command(self.command, comp)
 
     def looks_like_simple_option(self, param: XMLParam) -> bool:
-        appearences = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
+        appearences = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
         
         # ensure single inline plain text appearence (all appearences are the same)
         # need to do it this way due to macros or reuse of the same param in different logic blocks
@@ -421,22 +362,22 @@ class OptionParamAnnotator:
         
         # ensure its "--prefix $param.name" or "--prefix=$param.name" etc
         appearence = appearences[0]
-        if not is_simple_option(appearence.text):
+        if not analysis.is_simple_option(appearence.text):
             return False
 
         return True
 
     def handle_as_simple_option(self, param: XMLParam) -> Tuple[InputComponent, str]:
         # create option
-        appearence = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
-        prefix, separator, value = extract_simple_option(appearence.text)
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        prefix, separator, value = analysis.extract_simple_option(appearence.text)
         option = factory.option(prefix=prefix, separator=separator, gxparam=param)
         option.values.add(value)
         
         # confidence based on argument resembling prefix
         confidence = 'low'
         if hasattr(param, 'argument') and param.argument is not None:
-            if argument_resembles_prefix(param.argument, prefix):  # type: ignore
+            if analysis.argument_resembles_prefix(param.argument, prefix):  # type: ignore
                 confidence = 'high'
 
         return option, confidence
@@ -452,7 +393,7 @@ class LocalCmdstrAnnotator:
         self.xmltool = xmltool
 
     def annotate(self) -> None:
-        components: list[InputComponent] = []
+        identified_components: list[CommandComponent] = []
         available_params = [p for p in self.xmltool.inputs.list() if not self.command.gxparam_is_attached(p)]
 
         # get INLINE_PLAIN_TEXT uses of params
@@ -464,36 +405,67 @@ class LocalCmdstrAnnotator:
         # have the same attributes eg prefix & type etc), select first & add to command
 
         for param in available_params:
-            pooled_components: list[InputComponent] = []
-            appearences = get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
+            pooled_components: list[CommandComponent] = []
+            appearences = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
             
             for appearence in appearences:
-                local_text = self.get_local_text(appearence)
-                epaths = self.get_epaths(local_text)
-                pooled_components += self.get_param_linked_components(epaths, param)
+                epath_count = 0
+                epaths = self.get_epaths(appearence)
+                for epath in epaths:
+                    components = self.extract_components(epath, epath_count)
+                    pooled_components += self.get_param_linked_components(components, param)
+                    epath_count += 1
 
             if self.components_agree(pooled_components):
-                components.append(pooled_components[0])
+                pooled_components[0].set_confidence('high')
+                identified_components.append(pooled_components[0])
 
-        for comp in components:
+        for comp in identified_components:
             update_command(self.command, comp)
 
-    def get_local_text(self, appearence: CmdstrReference) -> str:
-        # for this appearence, get the local text by prepend the previous word 
-        # (not including control structure lines)
-        pass
-
-    def get_epaths(self, local_text: str) -> list[ExecutionPath]:
+    def get_epaths(self, appearence: CmdstrReference) -> list[ExecutionPath]:
         # turn local text into annotated epaths
-        pass
-
-    def get_param_linked_components(self, epaths: list[ExecutionPath], param: XMLParam) -> list[InputComponent]:
-        # for each epath, extract components annotated with the provided param
-        pass
+        realised_tokens = tokenise_line(appearence.text, self.xmltool)
+        dynamicstmt = DynamicCommandStatement(appearence.text, realised_tokens)
+        epaths = list(dynamicstmt.get_execution_paths())
+        return epaths
     
-    def components_agree(self, components: list[InputComponent]) -> bool:
+    def extract_components(self, epath: ExecutionPath, epath_count: int) -> list[CommandComponent]:
+        epath.id = epath_count
+        annotator = GreedyExecutionPathAnnotator(epath, self.xmltool, self.command)
+        annotator.annotate()
+        return epath.get_components()
+
+    def get_param_linked_components(self, components: list[CommandComponent], param: XMLParam) -> list[CommandComponent]:
         # for each epath, extract components annotated with the provided param
-        pass
+        out: list[CommandComponent] = []
+        for comp in components:
+            if comp.gxparam and comp.gxparam.name == param.name:
+                out.append(comp)
+        return out
+    
+    def components_agree(self, components: list[CommandComponent]) -> bool:
+        # for each epath, extract components annotated with the provided param
+        if not components:
+            return False
+        
+        ctypes_set = set([c.__class__.__name__ for c in components])
+        dtypes_set = set([c.datatype.classname for c in components])
+
+        # component types must all be the same
+        if not len(ctypes_set) == 1:
+            return False
+        # data types must all be the same
+        if not len(dtypes_set) == 1:
+            return False
+        # if option, all prefixes must be the same
+        if all([isinstance(c, Option) for c in components]):
+            prefixes_set = set([c.prefix for c in components])
+            if not len(prefixes_set) == 1:
+                return False
+        
+        return True
+            
 
 
 
@@ -513,11 +485,12 @@ class GlobalCmdstrAnnotator:
                 self.extract_components(epath)
 
     def extract_components(self, epath: ExecutionPath) -> None:
+        final_pass = True if self.epath_count == len(self.cmdstrs) - 1 else False
         epath.id = self.epath_count
         epath = self.assign_epath_components(epath)
         for component in epath.get_components():
-            update_command(self.command, component)
-            self.epath_count += 1
+            update_command(self.command, component, final_pass)
+        self.epath_count += 1
     
     def assign_epath_components(self, epath: ExecutionPath) -> ExecutionPath:
         annotator = GreedyExecutionPathAnnotator(epath, self.xmltool, self.command)

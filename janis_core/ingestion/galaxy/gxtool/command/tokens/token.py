@@ -37,6 +37,7 @@ class TokenType(Enum):
 class Token:
     match: re.Match[str]
     ttype: TokenType
+    line: int = 0
 
     quoted: bool=False
     gxparam: Optional[XMLParam]=None

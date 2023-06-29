@@ -6,7 +6,6 @@ from .patterns import (
     FLOAT,
     SCRIPT,
     VARIABLES_FMT1,
-    VARIABLES_FMT2,
 )
 
 from .matches import get_matches
@@ -24,9 +23,8 @@ def is_float(the_string: str) -> bool:
     return False
 
 def is_var(the_string: str) -> bool:
-    matches1 = get_matches(the_string, VARIABLES_FMT1)
-    matches2 = get_matches(the_string, VARIABLES_FMT2)
-    if matches1 or matches2:
+    matches = get_matches(the_string, VARIABLES_FMT1)
+    if matches:
         return True
     return False
 

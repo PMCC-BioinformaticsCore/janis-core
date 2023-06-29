@@ -1,9 +1,11 @@
 
 
 from .. import utils
+import regex as re
 
 from janis_core.ingestion.galaxy import expressions
 from janis_core.ingestion.galaxy.expressions.patterns import (
+    VARIABLES_FMT2,
     FUNCTION_CALL_FMT1,
     FUNCTION_CALL_FMT2,
     BACKTICK_SECTION,
@@ -58,29 +60,18 @@ def translate_variable_markers(cmdstr: str) -> str:
     return cmdstr.replace("gxparam_", "$")
 
 def standardise_variable_format(cmdstr: str) -> str:
-    """standardises different forms of a galaxy variable ${var}, $var etc"""
-    cmdlines: list[str] = utils.split_lines(cmdstr)
-    outlines: list[str] = [remove_var_braces(line) for line in cmdlines]
-    return utils.join_lines(outlines)
-
-def remove_var_braces(text: str) -> str:
     """
     modifies cmd word to ensure the $var format is present, rather than ${var}
     takes a safe approach using regex and resolving all vars one by one
     """
-    return text
-    # if text == '':
-    #     return text
-    # matches = scanners.get_variables_fmt2(text)
-    # if len(matches) > 0:
-    #     m = matches[0]
-    #     # this is cursed but trust me it removes the curly braces for the match span
-    #     old_segment = text[m.start(): m.end()]
-    #     new_segment = old_segment[0] + old_segment[2: -1]
-    #     new_segment = new_segment.replace(' ', '')
-    #     text = text.replace(old_segment, new_segment)
-    #     text = remove_var_braces(text)
-    # return text  
+    iterator = re.finditer(VARIABLES_FMT2, cmdstr)
+    matches = [m for m in iterator]
+    matches = sorted(matches, key=lambda m: m.start(), reverse=True)
+
+    for match in matches:
+        new_segment = f'${match.group(1)}'
+        cmdstr = cmdstr[:match.start()] + new_segment + cmdstr[match.end():]
+    return cmdstr
 
 def remove_empty_quotes(cmdstr: str) -> str:
     cmdstr = cmdstr.replace('""', '')

@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 
-from . import constructs
-from . import utils
-from ..epath.utils import is_bool_select
 from ..tokens import Token
 from ..tokens import tokenize
+from . import constructs
+from . import utils
+from .analysis import is_bool_select
 
 
 class RealisedTokens:
@@ -57,10 +57,12 @@ class RealisedTokenFactory:
 
     def try_tokenise_text(self, text: str) -> list[RealisedTokens]:
         rtvs: list[RealisedTokens] = []
+        line_num = 0
         for line in utils.split_lines(text):
             self.tracker.update(line)
             if self.should_tokenise_line(line):
-                rtvs += self.try_tokenise_line(line)
+                rtvs += self.try_tokenise_line(line, line_num)
+            line_num += 1
         return rtvs
 
     def should_tokenise_line(self, line: str) -> bool:
@@ -68,10 +70,10 @@ class RealisedTokenFactory:
             return False
         return True
     
-    def try_tokenise_line(self, line: str) -> list[RealisedTokens]:
+    def try_tokenise_line(self, line: str, line_num: Optional[int]=None) -> list[RealisedTokens]:
         try:
             line_tokens = self.create_line_tokens(line)
-            line_tokens = self.set_token_context(line_tokens)
+            line_tokens = self.set_token_context(line_tokens, line_num)
             return self.create_realised_values(line_tokens)
         except ValueError:
             return []
@@ -82,8 +84,10 @@ class RealisedTokenFactory:
             line_tokens += tokenize(word, xmltool=self.xmltool)
         return line_tokens
 
-    def set_token_context(self, line_tokens: list[Token]) -> list[Token]:
+    def set_token_context(self, line_tokens: list[Token], line_num: Optional[int]=None) -> list[Token]:
         for token in line_tokens:
+            if line_num is not None:
+                token.line = line_num
             token.construct = self.tracker.stack.current_construct
             token.in_conditional = self.tracker.within_conditional
             token.in_loop = self.tracker.within_loop

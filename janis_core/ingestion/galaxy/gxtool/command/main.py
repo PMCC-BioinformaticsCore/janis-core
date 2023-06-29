@@ -44,26 +44,15 @@ class CommandFactory:
         return self.command
     
     def gen_cmdstrs(self) -> list[CommandString]:
+        # NOTE unsure on ordering - vanilla, templated, tests? 
         cmdstrs: list[CommandString] = []
-        
-        # vanilla xml
-        text = load_vanilla_command_str()
-        cmdstr = gen_command_string(source=CommandStringSource.XML, text=text, xmltool=self.xmltool)
-        cmdstrs.append(cmdstr)
-        
-        # templated tests
-        for test in self.xmltool.tests.list():
-            text = load_templated_command_str(test.inputs)
-            cmdstr = gen_command_string(source=CommandStringSource.TEST, text=text, xmltool=self.xmltool)
-            cmdstrs.append(cmdstr)
-        
-        # templated tool state  NOTE unsure on ordering - tests first, or tool state first?
+
+        # templated tool state  
         if self.gxstep:
-            # TODO HERE
             inputs_dict = load_tool_state(
                 self.gxstep, 
                 additional_filters=[
-                    'ReplaceNullWithVarname'
+                    # 'ReplaceNullWithVarname'
                     'ReplaceConnectedWithVarname',
                     'ReplaceRuntimeWithVarname',
                 ]
@@ -72,6 +61,17 @@ class CommandFactory:
             cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=text, xmltool=self.xmltool)
             cmdstrs.append(cmdstr)
 
+        # vanilla xml
+        text = load_vanilla_command_str()
+        cmdstr = gen_command_string(source=CommandStringSource.XML, text=text, xmltool=self.xmltool)
+        cmdstrs.append(cmdstr)
+        
+        # # templated tests
+        # for test in self.xmltool.tests.list():
+        #     text = load_templated_command_str(test.inputs)
+        #     cmdstr = gen_command_string(source=CommandStringSource.TEST, text=text, xmltool=self.xmltool)
+        #     cmdstrs.append(cmdstr)
+        
         return cmdstrs
 
 

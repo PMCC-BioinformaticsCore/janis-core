@@ -17,6 +17,8 @@ from .Annotator import (
     TeeAnnotator
 )
 
+from . import analysis
+
 
 """
 iterates through a ExecutionPath, yielding the current tokens being assessed.
@@ -47,13 +49,13 @@ linux_constructs: list[Type[Annotator]] = [
     TeeAnnotator,  
 ]
 
-# annotation order matters ?
+# annotation order matters 
 tool_arguments: list[Type[Annotator]] = [
-    OptionAnnotator,   # priority 1
-    CompoundOptionAnnotator,
-    FlagAnnotator,
-    PositionalAnnotator
-]
+    OptionAnnotator,            # priority 1
+    CompoundOptionAnnotator,    # priority 2
+    FlagAnnotator,              # priority 3
+    PositionalAnnotator         # priority 4
+]       
 
 
 class GreedyExecutionPathAnnotator:
@@ -63,33 +65,42 @@ class GreedyExecutionPathAnnotator:
         self.command = command
 
     def annotate(self) -> ExecutionPath:
-        self.mark_ignore_tokens()
-        self.annotate_via_param_arguments()
+        self.annotate_existing_components()
         self.annotate_linux_constructs()
         self.annotate_tool_arguments()
-        self.transfer_gxparams()
         return self.epath
 
-    def mark_ignore_tokens(self) -> None:
-        ignore_tokens = [
-            TokenType.FUNCTION_CALL,
-            TokenType.BACKTICK_SHELL_STATEMENT,
-        ]
-        for position in self.epath.positions:
-            if position.token.ttype in ignore_tokens:
-                position.ignore = True
-        
-    def annotate_via_param_arguments(self) -> None:
-        arguments: set[str] = set([param.argument for param in self.xmltool.inputs.list() if param.argument]) # type: ignore
+    def annotate_existing_components(self) -> None:
+        self.annotate_existing_flags()
+        self.annotate_existing_options()
+
+    def annotate_existing_flags(self) -> None:
+        for pos in self.epath.positions:
+            if pos.token.text in self.command.flags and not pos.token.text in self.command.options:
+                flag = self.command.flags[pos.token.text] 
+                if flag.confidence.value == 3:
+                    pos.component = self.command.flags[pos.token.text]
+
+    def annotate_existing_options(self) -> None:
+        # TODO TESTS
         ptr = 0
         while ptr < len(self.epath.positions) - 1:
-            token = self.epath.positions[ptr].token
-            if token.text in arguments:
-                token.ttype = TokenType.FORCED_PREFIX
-                ptr = self.annotate_position(ptr, annotators=tool_arguments)
-            else:
-                ptr += 1
-    
+            pos = self.epath.positions[ptr]
+
+            # do we already have an option with this prefix?
+            if pos.token.text in self.command.options and not pos.token.text in self.command.flags:
+                option = self.command.options[pos.token.text]
+                
+                # if option with high confidence, annotate epath positions with this option
+                if option.confidence.value == 3:
+                    start, stop = analysis.get_option_values_span(ptr, self.epath.positions)
+                    for i in range(ptr, stop + 1):
+                        pos = self.epath.positions[i]
+                        pos.component = option
+                    ptr = stop
+                                        
+            ptr += 1
+
     def annotate_linux_constructs(self) -> None:
         self.iter_annotate(annotators=linux_constructs)
     
@@ -99,22 +110,31 @@ class GreedyExecutionPathAnnotator:
     def iter_annotate(self, annotators: list[Type[Annotator]]) -> None:
         ptr = 0 # reset
         while ptr < len(self.epath.positions) - 1:
-            position = self.epath.positions[ptr]
-            if not position.ignore:
-                ptr = self.annotate_position(ptr, annotators=annotators)
+            if self.can_annotate_position(ptr):
+                ptr = self.do_annotate_position(ptr, annotator_classes=annotators)
             else:
                 ptr += 1
 
-    def annotate_position(self, ptr: int, annotators: list[Type[Annotator]]) -> int:
-        for annotator in annotators:
-            a = annotator(ptr, self.epath.positions)
-            a.annotate()
-            if a.success:
-                return a.calculate_next_ptr_pos()
+    def can_annotate_position(self, ptr: int) -> bool:
+        ignore_tokens = [
+            TokenType.END_STATEMENT,
+            TokenType.FUNCTION_CALL,
+            TokenType.BACKTICK_SHELL_STATEMENT
+        ]
+        pos = self.epath.positions[ptr]
+        if pos.token.ttype in ignore_tokens:
+            return False
+        if pos.component:
+            return False
+        return True
+
+    def do_annotate_position(self, ptr: int, annotator_classes: list[Type[Annotator]]) -> int:
+        for annotator_class in annotator_classes:
+            ann = annotator_class(ptr, self.epath.positions)
+            if ann.can_annotate():
+                ann.do_annotate()
+                return ann.calculate_next_ptr_pos()
         return ptr + 1
 
-    def transfer_gxparams(self) -> None:
-        for position in self.epath.positions:
-            if position.component and position.token.gxparam:
-                position.component.gxparam = position.token.gxparam
+
 

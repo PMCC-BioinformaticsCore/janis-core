@@ -1,18 +1,14 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional
-from enum import Enum, auto
 from janis_core.ingestion.galaxy.gxtool.model import XMLParam
 from uuid import uuid4
 
 from janis_core.ingestion.galaxy import tags
 from janis_core.ingestion.galaxy import datatypes
+from ...components import ComponentConfidence
 
 
-class InputComponentConfidence(Enum):
-    HIGH    = 3
-    MEDIUM  = 2
-    LOW     = 1
 
 class InputComponent(ABC):
     def __init__(self):
@@ -22,7 +18,7 @@ class InputComponent(ABC):
         self.forced_optionality: Optional[bool] = None
         self.forced_array: Optional[bool] = None
         self.forced_default: Optional[bool] = None
-        self.confidence: InputComponentConfidence = InputComponentConfidence.LOW
+        self.confidence: ComponentConfidence = ComponentConfidence.LOW
  
     @property
     @abstractmethod
@@ -95,11 +91,11 @@ class InputComponent(ABC):
     def set_confidence(self, level: str) -> None:
         """set the confidence level ('high'| 'medium' | 'low') of this component."""
         if level == 'high':
-            self.confidence = InputComponentConfidence.HIGH
+            self.confidence = ComponentConfidence.HIGH
         elif level == 'medium':
-            self.confidence = InputComponentConfidence.MEDIUM
+            self.confidence = ComponentConfidence.MEDIUM
         elif level == 'low':
-            self.confidence = InputComponentConfidence.LOW
+            self.confidence = ComponentConfidence.LOW
         else:
             raise ValueError(f'invalid confidence level: {level}')
 

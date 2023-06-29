@@ -22,7 +22,6 @@ def simplify_cmd(text: str, purpose: str) -> str:
         'templating': CheetahSimplifier(),
         'parsing': ParsingSimplifier(),
     }
-
     simplifier = simplifier_map[purpose]
     return simplifier.simplify(text)
 
@@ -39,6 +38,7 @@ class CommandSimplifier:
 
 class CheetahSimplifier(CommandSimplifier):
     filters: list[Callable[[str], str]] = [
+        flatten_nesting,
         simplify_galaxy_dynamic_vars,
     ]
 
@@ -59,9 +59,9 @@ class ParsingSimplifier(CommandSimplifier):
         flatten_multiline_strings,
         replace_function_calls,
         replace_backticks,
-        standardise_variable_format,  # ?
         simplify_sh_constructs,
         simplify_galaxy_dynamic_vars,
+        standardise_variable_format,
         # remove_empty_quotes,
         # interpret_raw # ?
     ]

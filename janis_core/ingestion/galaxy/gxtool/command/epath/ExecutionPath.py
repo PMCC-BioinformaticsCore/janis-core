@@ -16,7 +16,6 @@ from .ComponentOrderingStrategy import SimplifiedComponentOrderingStrategy
 class EPathPosition:
     ptr: int
     token: Token
-    ignore: bool = False
     component: Optional[CommandComponent] = None
 
 

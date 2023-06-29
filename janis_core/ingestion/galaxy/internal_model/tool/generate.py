@@ -13,6 +13,7 @@ from janis_core.ingestion.galaxy.gxtool.command.components import OutputComponen
 from janis_core.ingestion.galaxy.gxtool.command.components import RedirectOutput
 from janis_core.ingestion.galaxy.gxtool.command.components import Flag
 from janis_core.ingestion.galaxy.gxtool.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
 from janis_core.ingestion.galaxy.gxtool.command.components import factory as component_factory
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.model import XMLTool
@@ -22,10 +23,10 @@ from janis_core.ingestion.galaxy.gxtool.model import (
     XMLDataParam,
     XMLDataCollectionParam,
     XMLBoolParam,
-    XMLOutputParam
+    XMLOutputParam,
+    XMLTextParam
 )
 
-# this module imports
 from .tool import ITool
 
 
@@ -111,120 +112,79 @@ class InputExtractor:
         self.inputs: list[InputComponent] = []
 
     def extract(self) -> list[InputComponent]:
-        # getting the inputs is a bit of a mess, so we'll do it in stages
-        # inputs we identified in the tool command
         self.add_captured_inputs()
-        # inputs we didn't identify in the tool command
         self.add_uncaptured_inputs()
-        self.resolve_duplicates()
+        # self.resolve_duplicates()
         return self.inputs
-    
-    def resolve_duplicates(self) -> None:
-        """
-        resolves situations where 2 components were extracted for seemingly the same CLI argument.
-        an example is where a flag was identified with prefix = '-F' an option with the same prefix was also identified.
-        TODO this should probably happen automatically in the CmdstrCommandAnnotator class.
-        benefit is that we could be more aware of the structure of the command and avoid this situation.
-        """
-        self.resolve_duplicate_gxparam_components()
-        self.resolve_duplicate_prefix_components()
 
-    def resolve_duplicate_gxparam_components(self) -> None:
-        # TODO i can't remember if this can happen, but if it can, we should resolve it.
-        gxparam_dict = defaultdict(list) 
-        for comp in self.inputs:
-            if comp.gxparam:
-                gxparam_dict[comp.gxparam.name].append(comp)
-        for name, components in gxparam_dict.items():
-            if len(components) >= 2:
-                raise RuntimeError('implement me')
-
-    def resolve_duplicate_prefix_components(self) -> None:
-        whitelisted_uuids = [x.uuid for x in self.inputs]
-        
-        # generate data structure
-        prefix_dict = defaultdict(list) 
-        for comp in self.inputs:
-            if isinstance(comp, Flag | Option): 
-                prefix_dict[comp.prefix].append(comp)
-            else:
-                # ignore positionals - automatically whitelisted
-                whitelisted_uuids.append(comp.uuid)
-        
-        # resolve
-        for prefix, components in prefix_dict.items():
-            if len(components) == 0:
-                raise RuntimeError('should not happen - debugging')
-            elif len(components) == 1:
-                component = components[0]
-                whitelisted_uuids.append(component.uuid)
-            elif len(components) >= 2:
-                component = self.select_best_component(components)
-                whitelisted_uuids.append(component.uuid)
-
-        self.inputs = [x for x in self.inputs if x.uuid in whitelisted_uuids]
-
-    def select_best_component(self, components: list[InputComponent]) -> InputComponent:
-        components_metrics = [ComponentMetrics(x) for x in components]
-        components_metrics.sort(key=lambda x: x.score, reverse=True)
-
-        # select clear best 
-        if components_metrics[0].score > components_metrics[1].score:
-            return components_metrics[0].component
-        
-        # remove those which are not equal best
-        components = [x.component for x in components_metrics if x.score == components_metrics[0].score]
-        
-        # if all have gxparam or all have high confidence, select equal best via type
-        if all([x.confidence.value == 3 for x in components]) or all([x.gxparam is not None for x in components]):
-            if any([isinstance(x, Option) for x in components]):
-                return [x for x in components if isinstance(x, Option)][0]
-            else:
-                return components[0]
-        
-        # if some have gxparam and some have high confidence, select best via confidence
-        elif any([x.confidence.value == 3 for x in components]) and any([x.gxparam is not None for x in components]):
-            return [x for x in components if x.confidence.value == 3][0]
-        
-        # if none have high confidence or gxparam, select best via type
-        elif any([isinstance(x, Option) for x in components]):
-            return [x for x in components if isinstance(x, Option)][0]
-        
-        # all options with low confidence & no gxparam
-        else:
-            return components[0]
-        
     def add_captured_inputs(self) -> None:
-        # get the inputs we identified in the tool command
+        # inputs we identified in the tool command
         self.command.set_cmd_positions()
         self.inputs += self.command.list_inputs(include_base_cmd=False)
     
     def add_uncaptured_inputs(self) -> None:
-        # TODO this should be done in Annotator class. 
-        # eg. ToolStateAnnotator
-        # get the tool xml inputs we didn't capture by analyzing the tool command
-        # ie we know they're tool inputs, but don't know how they wire to args in the tool command
+        # inputs we identified in the tool command
         if not self.gxstep:
             return None
         
+        unlinked_params: list[XMLParam] = []
+        uncaptured_inputs: list[InputComponent] = []
+
         tool_state = load_tool_state(self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
         for pname, pvalue in tool_state.items():
             param = self.xmltool.inputs.get(pname)
-            if param and self.should_create_uncaptured_input(param):
-                component = self.create_uncaptured_input(param, pvalue)
-                self.inputs.append(component)
+            if param:
+                if not self.param_unlinked(param):
+                    continue
+                if not self.should_create(param, pvalue):
+                    continue
 
-    def should_create_uncaptured_input(self, param: XMLParam) -> bool:
-        # # if in skeleton or regular mode, only create inputs for data params
-        # if settings.translate.MODE in ['skeleton', 'regular']:
-        #     if not isinstance(param, XMLDataParam) and not isinstance(param, XMLDataCollectionParam):
-        #         return False
+                unlinked_params.append(param)
+                component = self.create_uncaptured_input(param, pvalue)
+                uncaptured_inputs.append(component)
+
+        if unlinked_params:
+            print('\n--- UNLINKED PARAMS ---')
+            for param in unlinked_params:
+                print(f'{param.name}: {param.__class__.__name__}')
+
+        if uncaptured_inputs:
+            print('\n--- UNCAPTURED INPUTS ---')
+            for component in uncaptured_inputs:
+                assert(component.gxparam)
+                print(f'{component.__class__.__name__}: {component.gxparam.name}')
+
+        if uncaptured_inputs:
+            if self.can_link_uncaptured_positionals(uncaptured_inputs):
+                uncaptured_inputs = self.link_uncaptured_positionals(uncaptured_inputs)
         
-        # ignore if we have a command component already linked to this param
+        for component in uncaptured_inputs:
+            self.inputs.append(component)
+
+    def should_create(self, param: XMLParam, pvalue: Any) -> bool:
+        # data
+        if isinstance(param, XMLDataParam) or isinstance(param, XMLDataCollectionParam):
+            return True
+        
+        # text
+        elif isinstance(param, XMLTextParam):
+            BLANK_TEXTPARAM_VALUES = set(['', 'null'])
+            if pvalue not in BLANK_TEXTPARAM_VALUES:
+                return True
+        
+        # all other types
+        elif self.param_is_used(param):
+            return True
+
+        return False
+
+    def param_unlinked(self, param: XMLParam) -> bool:
         for inp in self.inputs:
             if inp.gxparam and inp.gxparam.name == param.name:
                 return False
-        
+        return True
+
+    def param_is_used(self, param: XMLParam) -> bool:
         # ignore if only appears in <command> section control structures, ignore
         appearences = get_cmdstr_appearences(
             self.xmltool.raw_command, 
@@ -235,7 +195,6 @@ class InputExtractor:
             ])
         if not appearences:
             return False
-            
         return True
     
     def create_uncaptured_input(self, gxparam: XMLParam, pvalue: Any) -> InputComponent:
@@ -284,7 +243,146 @@ class InputExtractor:
         # treat as text instead of bool
         else:
             return component_factory.positional(gxparam=gxparam)
+        
+    def can_link_uncaptured_positionals(self, uncaptured_inputs: list[InputComponent]) -> bool:
+        unlinked_positionals = [x for x in self.inputs if isinstance(x, Positional) and not x.gxparam]
+        uncaptured_positionals = [x for x in uncaptured_inputs if isinstance(x, Positional)]
+        if len(uncaptured_positionals) == len(unlinked_positionals):
+            print('\nLINKING UNCAPTURED POSITIONALS POSSIBLE!')
+            return True
+        return False
 
+    def link_uncaptured_positionals(self, uncaptured_inputs: list[InputComponent]) -> list[InputComponent]:
+        unlinked_positionals = [x for x in self.inputs if isinstance(x, Positional) and not x.gxparam]
+        uncaptured_positionals = [x for x in uncaptured_inputs if isinstance(x, Positional)]
+        uncaptured_nonpositionals = [x for x in uncaptured_inputs if not isinstance(x, Positional)]
+        
+        if self.can_link_via_numbering(uncaptured_positionals, unlinked_positionals):
+            self.do_positional_link_via_numbering(uncaptured_positionals, unlinked_positionals)
+        else:
+            self.do_positional_link_arbitrary(uncaptured_positionals, unlinked_positionals)
+        
+        return uncaptured_nonpositionals
+
+    def can_link_via_numbering(self, uncaptured_positionals: list[Positional], unlinked_positionals: list[Positional]) -> bool:
+        numbers = list(range(1, len(uncaptured_positionals) + 1))
+        for num in numbers:
+            if sum([x.name.endswith(str(num)) for x in uncaptured_positionals]) != 1:
+                if sum([x.name.endswith(str(num)) for x in unlinked_positionals]) != 1:
+                    return False
+        return True
+
+    def do_positional_link_via_numbering(self, uncaptured_positionals: list[Positional], unlinked_positionals: list[Positional]) -> None:
+        numbers = list(range(1, len(uncaptured_positionals) + 1))
+        for num in numbers:
+            uncaptured = [x for x in uncaptured_positionals if x.name.endswith(str(num))][0]
+            unlinked = [x for x in unlinked_positionals if x.name.endswith(str(num))][0]
+            unlinked.gxparam = uncaptured.gxparam
+
+    def do_positional_link_arbitrary(self, uncaptured_positionals: list[Positional], unlinked_positionals: list[Positional]) -> None:
+        for i in range(len(uncaptured_positionals)):
+            unlinked_positionals[i].gxparam = uncaptured_positionals[i].gxparam
+        
+
+
+    ### DEPRECATED
+
+    def resolve_duplicates(self) -> None:
+        """
+        resolves situations where 2 components were extracted for seemingly the same CLI argument.
+        an example is where a flag was identified with prefix = '-F' an option with the same prefix was also identified.
+        TODO this should probably happen automatically in the CmdstrCommandAnnotator class.
+        benefit is that we could be more aware of the structure of the command and avoid this situation.
+        """
+        self.resolve_duplicate_gxparam_components()
+        self.resolve_duplicate_prefix_components()
+
+    def resolve_duplicate_gxparam_components(self) -> None:
+        # TODO i can't remember if this can happen, but if it can, we should resolve it.
+        gxparam_dict = defaultdict(list) 
+        for comp in self.inputs:
+            if comp.gxparam:
+                gxparam_dict[comp.gxparam.name].append(comp)
+        
+        duplicates = True if any([len(components) > 1 for components in gxparam_dict.values()]) else False
+        if duplicates:
+            print('\n---DUPLICATE GXPARAM ---')
+            for gxparam, components in gxparam_dict.items():
+                if len(components) > 1:
+                    for component in components:
+                        if isinstance(component, Flag):
+                            details = f'[flag] {component.prefix}'
+                        elif isinstance(component, Option):
+                            details = f'[option] {component.prefix}'
+                        elif isinstance(component, Positional):
+                            details = f'[positional] {component.cmd_pos}'
+                        elif isinstance(component, OutputComponent):
+                            details = f'[output] {component.name}'
+                        print(f'{gxparam}: {details}')
+
+    def resolve_duplicate_prefix_components(self) -> None:
+        flags = set([x.prefix for x in self.inputs if isinstance(x, Flag)])
+        options = set([x.prefix for x in self.inputs if isinstance(x, Option)])
+        intersection = flags & options
+        if intersection:
+            print('\n--- DUPLICATE FLAG / OPTION PREFIXES ---')
+            for prefix in intersection:
+                print(prefix) 
+
+        # whitelisted_uuids = [x.uuid for x in self.inputs]
+        
+        # # generate data structure
+        # prefix_dict = defaultdict(list) 
+        # for comp in self.inputs:
+        #     if isinstance(comp, Flag | Option): 
+        #         prefix_dict[comp.prefix].append(comp)
+        #     else:
+        #         # ignore positionals - automatically whitelisted
+        #         whitelisted_uuids.append(comp.uuid)
+        
+        # # resolve
+        # for prefix, components in prefix_dict.items():
+        #     if len(components) == 0:
+        #         raise RuntimeError('should not happen - debugging')
+        #     elif len(components) == 1:
+        #         component = components[0]
+        #         whitelisted_uuids.append(component.uuid)
+        #     elif len(components) >= 2:
+        #         component = self.select_best_component(components)
+        #         whitelisted_uuids.append(component.uuid)
+
+        # self.inputs = [x for x in self.inputs if x.uuid in whitelisted_uuids]
+
+    # def select_best_component(self, components: list[InputComponent]) -> InputComponent:
+    #     components_metrics = [ComponentMetrics(x) for x in components]
+    #     components_metrics.sort(key=lambda x: x.score, reverse=True)
+
+    #     # select clear best 
+    #     if components_metrics[0].score > components_metrics[1].score:
+    #         return components_metrics[0].component
+        
+    #     # remove those which are not equal best
+    #     components = [x.component for x in components_metrics if x.score == components_metrics[0].score]
+        
+    #     # if all have gxparam or all have high confidence, select equal best via type
+    #     if all([x.confidence.value == 3 for x in components]) or all([x.gxparam is not None for x in components]):
+    #         if any([isinstance(x, Option) for x in components]):
+    #             return [x for x in components if isinstance(x, Option)][0]
+    #         else:
+    #             return components[0]
+        
+    #     # if some have gxparam and some have high confidence, select best via confidence
+    #     elif any([x.confidence.value == 3 for x in components]) and any([x.gxparam is not None for x in components]):
+    #         return [x for x in components if x.confidence.value == 3][0]
+        
+    #     # if none have high confidence or gxparam, select best via type
+    #     elif any([isinstance(x, Option) for x in components]):
+    #         return [x for x in components if isinstance(x, Option)][0]
+        
+    #     # all options with low confidence & no gxparam
+    #     else:
+    #         return components[0]
+        
 
 
 class OutputExtractor:

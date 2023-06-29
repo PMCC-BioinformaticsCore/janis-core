@@ -76,6 +76,14 @@ PARSING GALAXY TOOLS
     - repeat block evaluation?
     - mutually exclusive cli args 
 
+
+TODO 
+- get galaxy ingest back up and operational
+    - output collection especially with redirect is scuffed
+    - cutadapt adapter parsing not working due to repeat param & loop in cheetah <command>
+- do slides 
+- get test suite passing (wdl im looking at you)
+- tell richard about stable release
     
 - Updates                   [FRIDAY]
     - if XML, can add CommandComponent if not exists (don't want to override ArgumentAnnotator derived components)

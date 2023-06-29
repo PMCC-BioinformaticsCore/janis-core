@@ -6,6 +6,7 @@ from janis_core.ingestion.galaxy import expressions
 from janis_core.ingestion.galaxy.gxtool.command.components.inputs.InputComponent import InputComponent
 
 from ..model import XMLParam
+from .components import CommandComponent
 from .components.inputs.InputComponent import InputComponent
 from .components.inputs.Positional import Positional
 from .components.inputs.Flag import Flag
@@ -15,18 +16,34 @@ from .components.outputs.RedirectOutput import RedirectOutput
 
 class Command:
     def __init__(self):
+        # this structure sucks
         self.positionals: dict[int, Positional] = {}
         self.flags: dict[str, Flag] = {}
         self.options: dict[str, Option] = {}
         self.redirect: Optional[RedirectOutput] = None
 
+    def delete_component(self, component: CommandComponent) -> None:
+        if isinstance(component, Flag):
+            del self.flags[component.prefix]
+        elif isinstance(component, Option):
+            del self.options[component.prefix]
+        elif isinstance(component, RedirectOutput):
+            self.redirect = None
+        else:
+            raise RuntimeError(f"cant delete component type: {type(component)}")
+
     def gxparam_is_attached(self, gxparam: XMLParam) -> bool:
-        components = self.list_inputs()
-        components += self.list_outputs()
+        components = self.list_components(include_base_cmd=True)
         for component in components:
             if component.gxparam and component.gxparam.name == gxparam.name:
                 return True
         return False
+    
+    def list_components(self, include_base_cmd: bool=True) -> list[CommandComponent]:
+        components: list[CommandComponent] = []
+        components += self.list_inputs(include_base_cmd=include_base_cmd)
+        components += self.list_outputs()
+        return components
 
     def list_inputs(self, include_base_cmd: bool=True) -> list[InputComponent]:
         components: list[InputComponent] = []

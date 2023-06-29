@@ -29,9 +29,10 @@ class Positional(InputComponent):
             return self.gxparam.name  # what about adv.reference?
         # otherwise, most commonly witnessed option value as name
         pseudo_name = self.values.most_common_value
-        if not pseudo_name:
-            pseudo_name = 'positional'
-        return pseudo_name.strip('$')
+        if pseudo_name:
+            pseudo_name = pseudo_name.strip('$\'"}{')
+            return pseudo_name
+        return 'positional'
 
     @property
     def default_value(self) -> Any:
