@@ -188,6 +188,8 @@ class TaskInputCollector:
 
             # add a TaskInputHistory for TInput if not exists
             if tinput_id not in self.histories:
+                if tinput_id == 'domfiles':
+                    print()
                 tinput = [x for x in tool.tool_inputs() if x.id() == tinput_id][0]
                 history = TaskInputHistory(tinput)
                 self.histories[tinput_id] = history

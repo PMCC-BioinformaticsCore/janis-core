@@ -109,6 +109,8 @@ class TaskInputsPopulatorToolMode(TaskInputsPopulator):
         super().__init__(tool)
 
     def populate(self) -> None:
+        if not task_inputs.exists(self.tool.id()):
+            task_inputs.add_tool(self.tool.id())
         for tinput in self.tool.tool_inputs():
             if tinput.default is not None:
                 self.update_as_static_input(tinput.id())
@@ -137,6 +139,8 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
         self.collector.collect(main_wf)
     
     def populate(self) -> None:
+        if not task_inputs.exists(self.tool.id()):
+            task_inputs.add_tool(self.tool.id())
         if settings.translate.MODE in ['skeleton', 'regular']:
             task_input_ids = get_step_referenced_tinputs(self.collector)
         else:

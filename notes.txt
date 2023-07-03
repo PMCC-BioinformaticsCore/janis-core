@@ -1,20 +1,26 @@
 
 
 
-gen_command()
-CommandFactory
-ArgumentCommandAnnotator
-logging
-
-
-
 TODO 
-- fix galaxy ingest
+- fix galaxy ingest [DONE]
+- test suite passing [IN PROGRESS]
+    - check all new cli args
+    - update all janis packages to use pyproject.toml
+    - ensure datatypes correctly segregated
+
+BUGS
+- prune_workflow() - some oddities around deeply nested subworkflows
+- nextflow: filename handling
+- wdl
+
+- picard_MarkDuplicates.xml: REMOVE_DUPLICATES='${remove_duplicates}' causing issues
+
+
 - fix WDL ingest
 - fix WDL translate
-- all type definitions in janis_core, import links in janis-unix, janis-bioinformatics for legacy support
-- Workflow inputs
-    - Galaxy: rnaseq_reads_to_counts - too many workflow inputs
+- all type definitions in janis_core, import links in janis-unix, janis-bioinformatics for legacy support [DONE?]
+- Workflow inputs [DONE?] 
+
 - Null values
     cwl subworkflow_test wf 
     looks weird: 

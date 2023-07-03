@@ -47,6 +47,7 @@ from janis_core import settings
 
 def reset_global_settings() -> None:
     settings.validation.STRICT_IDENTIFIERS = True 
+    settings.translate.MODE = 'regular'
     settings.translate.ALLOW_EMPTY_CONTAINER = True 
     settings.translate.MERGE_RESOURCES = False
     settings.translate.RENDER_COMMENTS = True 
@@ -64,8 +65,6 @@ def reset_global_settings() -> None:
     settings.translate.MAX_CORES = None           
     settings.translate.MAX_DURATION = None           
     settings.translate.MAX_MEM = None      
-
-
 
 
 
@@ -753,6 +752,7 @@ class TestContainerOverride(unittest.TestCase):
 class TestCWLCompleteOperators(unittest.TestCase):
     def setUp(self) -> None:
         reset_global_settings()
+        settings.translate.MODE = 'extended'
 
     def test_step_input(self):
         self.maxDiff = None

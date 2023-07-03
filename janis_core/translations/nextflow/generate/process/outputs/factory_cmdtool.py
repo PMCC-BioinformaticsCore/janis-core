@@ -333,6 +333,7 @@ class CmdtoolProcessOutputFactory:
         ftype = self.get_fmttype(entity)
         expr = self.unwrap_collection_expression(entity, ftype)
         if secondary_ext is not None:
+            assert(primary_ext is not None)
             try:
                 expr = self.replace_extension_in_expression_unsafe(expr, primary_ext, secondary_ext)
             except Exception as e:

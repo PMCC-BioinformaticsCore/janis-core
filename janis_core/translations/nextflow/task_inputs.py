@@ -92,11 +92,11 @@ class TaskInputRegister:
 
 ti_register = TaskInputRegister()
 
-def exists(tool_id: str, inp: ToolInput | TInput) -> bool:
+def exists(tool_id: str, inp: Optional[ToolInput | TInput]=None) -> bool:
     # checks the tool id has an entry for this tool input
     if tool_id not in ti_register.data_structure:
         return False
-    if inp.id() not in ti_register.data_structure[tool_id]:
+    if inp and inp.id() not in ti_register.data_structure[tool_id]:
         return False
     return True
 
@@ -115,6 +115,9 @@ def get(tool_id: str, inp: ToolInput | TInput) -> TaskInput:
 
 def getall(tool_id: str) -> list[TaskInput]:
     return ti_register.getall(tool_id)
+
+def add_tool(tool_id: str) -> None:
+    ti_register.data_structure[tool_id] = {}
 
 def update(tool_id: str, dstype_str: str, tinput_id: str, value: Optional[str | list[str]]):
     ti_register.add(tool_id, dstype_str, tinput_id, value)

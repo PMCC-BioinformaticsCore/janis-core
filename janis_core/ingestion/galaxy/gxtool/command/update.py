@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from .Command import Command
 
-from abc import ABC, abstractmethod
-
+from janis_core.ingestion.galaxy.gxtool.model import XMLSelectParam
 from .components import CommandComponent
 from .components.inputs.Positional import Positional
 from .components.inputs.Flag import Flag
@@ -17,8 +17,6 @@ from .components.outputs.RedirectOutput import RedirectOutput
 
 
 def update_command(command: Command, incoming: CommandComponent, final_pass: bool=False) -> None:
-    if final_pass:
-        print()
     if should_update(command, incoming, final_pass):
         updater = select_updater(incoming)
         updater.update(command, incoming)
@@ -47,6 +45,10 @@ def should_update(command: Command, incoming: CommandComponent, final_pass: bool
         if final_pass:
             return True
         return False
+
+    # select params which are list of simple flags
+    if isinstance(incoming, Flag) and incoming.gxparam and isinstance(incoming.gxparam, XMLSelectParam):
+        return True
     
     # get existing components similar to incoming component
     similar_components = get_similar_components(command, incoming)

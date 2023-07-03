@@ -14,9 +14,11 @@ from ..tokens import Token, TokenType
 BLANK = r'^\s*$'
 SIMPLE_VARIABLE = r'^([\'"\t ]?\$\w[\w\d._]+[\'"\t ]?)$'
 SIMPLE_PREFIX = r'^-[\w\d_-]+$'
+SIMPLE_PHRASE = r'^[\t \'"]*?[\w\d].*?(\n|$)'
 SIMPLE_OPTION = r'^(-[\w\d_-]+)( +|=|:)([\'"]?\$\w[\w\d._]+[\'"]?)$'
+SIMPLE_COMPOUND_OPTION = r'^(-\w)(\d+|[\'"]?\$\w[\w\d._]+[\'"]?)$'
 
-INLINE_PARAM_MATCHER = r'(^|.*?[\'"(\t ]+)\$(__PARAM_NAME__)(([\'"):\t ]+.*?(?=\n))|([\'"):\t ]*?(?=\n))|$)'
+INLINE_PARAM_MATCHER = r'(^|.*?[=\'"(\t ]+)\$(__PARAM_NAME__)(([\'"):\t ]+.*?(?=\n))|([\'"):\t ]*?(?=\n))|$)'
 MULTILINE_BOOL_MATCHER = r'#if.*?\$(__PARAM_NAME__)[\s\S]*?#end if'
 LINUX_CMD_MATCHER = r'(^|.*? )(set |ln |cp |mv |export |mkdir |tar |ls |head |wget |grep |awk |cut |sed |gzip |gunzip |cd |echo |trap |touch ).*?$'
 CHEETAH_MACRO_MATCHER = r'(^|.*? )(#set |#import |#from |#silent |#echo ).*?$'
@@ -72,11 +74,27 @@ def is_simple_variable(phrase: str) -> bool:
         return True
     return False
 
-def is_simple_phrases(phrase: str) -> bool:
-    words = phrase.strip().split()
-    for word in words:
-        raise NotImplementedError
-    return True
+def is_simple_phrase(phrase: str) -> bool:
+    if re.search(SIMPLE_PHRASE, phrase):
+        return True
+    return False
+
+
+def is_compound_option(phrase: str) -> bool:
+    phrase = phrase.strip()
+    if re.search(SIMPLE_COMPOUND_OPTION, phrase):
+        return True
+    return False
+
+def extract_compound_option(phrase: str) -> Tuple[str, str, str]:
+    phrase = phrase.strip()
+    match = re.search(SIMPLE_COMPOUND_OPTION, phrase)
+    if not match:
+        raise RuntimeError
+    prefix = match.group(1)
+    separator = ''
+    value = match.group(2)
+    return prefix, separator, value
 
 def is_simple_option(phrase: str) -> bool:
     phrase = phrase.strip()

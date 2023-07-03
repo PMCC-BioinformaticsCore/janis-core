@@ -34,7 +34,7 @@ from .tokenise import tokenise_line
 This module exists to analyse the command string of a galaxy tool, and identify the components.
 This is the main orchestrator of turning a galaxy tool XML into an internal software 'Command' object. 
 
-InlineBoolParamAnnotator:
+SimpleInlineBoolAnnotator:
     - identifies components from boolean params
     - only annotates if the boolean param has single appearence in XML <command> 
     - only looks at the local context of where the param is used in tool XML <command>
@@ -103,9 +103,10 @@ class SimpleInlineBoolAnnotator:
             
             # or option (weird)
             elif self.looks_like_simple_option(param):
-                comp = self.handle_as_simple_option(param)
-                comp.set_confidence(confidence)
-                components.append(comp)
+                comps = self.handle_as_simple_option(param)
+                for comp in comps:
+                    comp.set_confidence(confidence)
+                components += comps
 
         for comp in components:
             update_command(self.command, comp)
@@ -155,28 +156,58 @@ class SimpleInlineBoolAnnotator:
 
     def looks_like_simple_option(self, param: XMLBoolParam) -> bool:
         """
+        can be either: 
+            --prefix $param, where $param truevalue/falsevalue is single word
+            $param, where $param truevalue/falsevalue is simple options
+        
         this is made up, but something like this
         <param argument="--reference" type="boolean" value="False" truevalue="mm10" falsevalue="hg38"...
+        
         """
         appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
 
         # param has argument & both options have values
-        if not analysis.is_blank(param.truevalue) and not analysis.is_blank(param.falsevalue):
-            raise NotImplementedError
-            
-        # param has argument & truevalue has value
-        elif not analysis.is_blank(param.truevalue) and analysis.is_simple_phrases(param.truevalue):
-            raise NotImplementedError
-
-        # param has argument & falsevalue has value
-        elif not analysis.is_blank(param.falsevalue) and analysis.is_simple_phrases(param.falsevalue):
-            raise NotImplementedError
-
-        # if argument, also check argument in cmdstr
+        if analysis.is_simple_option(appearence.text):
+            for value in param.non_null_values:
+                if analysis.is_simple_flags(value):
+                    return False
+                elif analysis.is_simple_option(value):
+                    return False
+                elif not analysis.is_simple_phrase(value):
+                    return False
+            return True
+        
+        elif analysis.is_simple_variable(appearence.text):
+            for value in param.non_null_values:
+                if not analysis.is_simple_option(value):
+                    return False
+            return True
+        
         return False
-    
-    def handle_as_simple_option(self, param: XMLBoolParam) -> InputComponent:
-        raise NotImplementedError
+
+    def handle_as_simple_option(self, param: XMLBoolParam) -> list[InputComponent]:
+        components: list[InputComponent] = []
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        
+        if analysis.is_simple_option(appearence.text):
+            prefix, separator, param_ref = analysis.extract_simple_option(appearence.text)
+            option = factory.option(prefix=prefix, separator=separator, gxparam=param)
+            option.values.add(param_ref)
+            for item in param.non_null_values:
+                option.values.add(item)
+            components.append(option)
+
+        elif analysis.is_simple_variable(appearence.text):
+            for item in param.non_null_values:
+                prefix, separator, value = analysis.extract_simple_option(item)
+                option = factory.option(prefix=prefix, separator=separator, gxparam=param)
+                option.values.add(value)
+                components.append(option)
+            
+        else:
+            raise NotImplementedError
+        
+        return components
 
 
 
@@ -252,7 +283,7 @@ class SimpleSelectAnnotator:
             # ignore params with more than 1 appearance in <command>
             if not analysis.single_inline_plaintext_appearence(self.xmltool, param):
                 continue
-            
+
             # all select options are blank or flags
             if self.looks_like_simple_flag_selector(param):
                 flags = self.handle_as_simple_flag_selector(param)
@@ -267,34 +298,23 @@ class SimpleSelectAnnotator:
                 components.append(option)
             
             # select options are prefixes and values
-            elif self.looks_like_complex_option_selector(param):
-                options = self.handle_as_complex_option_selector(param)
-                for opt in options:
-                    opt.set_confidence('low')
-                components += options
+            elif self.looks_like_compound_option_selector(param):
+                opt = self.handle_as_compound_option_selector(param)
+                opt.set_confidence('low')
+                components.append(opt)
         
         for comp in components:
             update_command(self.command, comp)
 
     def looks_like_simple_flag_selector(self, param: XMLSelectParam) -> bool:
-        num_blank_options = 0
-        num_flag_options = 0
-        
-        for option in param.options:
-            if analysis.is_blank(option.value):
-                num_blank_options += 1
-            elif analysis.is_simple_flags(option.value):
-                num_flag_options += 1
-        
-        # ensure all options are blank or flags, and max 1 blank option
-        if num_blank_options <= 1 and num_blank_options + num_flag_options == len(param.options):
-            return True
-        return False
-    
+        for value in param.non_null_values:
+            if not analysis.is_simple_flags(value):
+                return False
+        return True
+
     def handle_as_simple_flag_selector(self, param: XMLSelectParam) -> list[Flag]:
         flags: list[Flag] = []
-        
-        phrases = [opt.value for opt in param.options if not analysis.is_blank(opt.value)]
+        phrases = [value for value in param.non_null_values]
         for phrase in phrases:
             prefixes = phrase.strip().split()
             for prefix in prefixes:
@@ -316,12 +336,21 @@ class SimpleSelectAnnotator:
         option.values.add(value)
         return option
     
-    def looks_like_complex_option_selector(self, param: XMLSelectParam) -> bool:
-        # appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
-        raise NotImplementedError
+    def looks_like_compound_option_selector(self, param: XMLSelectParam) -> bool:
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        if analysis.is_compound_option(appearence.text):
+            print('--- FOUND COMPOUND OPTION ---')
+            return True
+        return False
     
-    def handle_as_complex_option_selector(self, param: XMLSelectParam) -> list[Option]:
-        raise NotImplementedError
+    def handle_as_compound_option_selector(self, param: XMLSelectParam) -> Option:
+        appearence = analysis.get_cmdstr_appearences(self.xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
+        prefix, separator, param_ref = analysis.extract_compound_option(appearence.text)
+        option = factory.option(prefix=prefix, separator=separator, gxparam=param)
+        option.values.add(param_ref)
+        for item in param.non_null_values:
+            option.values.add(item)
+        return option
         
 
 

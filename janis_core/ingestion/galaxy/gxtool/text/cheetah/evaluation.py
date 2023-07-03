@@ -32,6 +32,9 @@ class EvaluationMetrics:
 
     def report(self) -> None:
         print('--- CHEETAH EVAL ---')
+        if self.total_blocks == 0:
+            print('no blocks to evaluate')
+            return
         success_percent = self.success_blocks / self.total_blocks * 100
         print(f'success blocks: {success_percent:0.1f}%')
         for btype_name, count in self.block_types.items():

@@ -268,8 +268,9 @@ class InputExtractor:
         numbers = list(range(1, len(uncaptured_positionals) + 1))
         for num in numbers:
             if sum([x.name.endswith(str(num)) for x in uncaptured_positionals]) != 1:
-                if sum([x.name.endswith(str(num)) for x in unlinked_positionals]) != 1:
-                    return False
+                return False
+            if sum([x.name.endswith(str(num)) for x in unlinked_positionals]) != 1:
+                return False
         return True
 
     def do_positional_link_via_numbering(self, uncaptured_positionals: list[Positional], unlinked_positionals: list[Positional]) -> None:

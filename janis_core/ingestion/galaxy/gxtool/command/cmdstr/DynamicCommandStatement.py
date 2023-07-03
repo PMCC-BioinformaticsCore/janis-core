@@ -30,11 +30,12 @@ class DynamicCommandStatement:
     def __init__(self, cmdline: str, realised_tokens: list[RealisedTokens]):
         self.cmdline = cmdline
         self.realised_tokens = realised_tokens
+        self.max_paths = 20
 
     def get_tokens(self) -> list[Token]:
         return [rt.get_original_token() for rt in self.realised_tokens]
 
-    def get_execution_paths(self) -> Iterable[ExecutionPath]:
+    def get_execution_paths(self) -> list[ExecutionPath]:
         """
         galaxy select or bool params may have multiple possible realised values 
         in a command string. for each of these values, we create an ExecutionPath
@@ -53,18 +54,25 @@ class DynamicCommandStatement:
 
         """ 
         # get all tokens as defaults
+        epaths: list[ExecutionPath] = []
         default_tokens = [rtvs.get_default_token() for rtvs in self.realised_tokens]
-        for i in range(len(self.realised_tokens)):
-            tokens_copy = deepcopy(default_tokens)
-            if len(self.realised_tokens[i].tlists) > 1:
-                # get the additional different values the current position can take and 
-                # hot swap these in to the default tokens to produce 'realised' tokens
-                for tlist in self.realised_tokens[i].tlists[1:]:
-                    realised_tokens = tokens_copy[:i] + tlist + tokens_copy[i + 1:]
-                    yield ExecutionPath(realised_tokens)
+        max_divergence = max([len(rtv.tlists) for rtv in self.realised_tokens])
+        num_epaths = min(max_divergence, self.max_paths)
+        
+        for i in range(1, num_epaths + 1):
+            default_tokens_copy = deepcopy(default_tokens)
+            this_epath_tokens: list[Token] = []
+            for j in range(len(self.realised_tokens)):
+                if len(self.realised_tokens[j].tlists) >= i:
+                    this_epath_tokens += self.realised_tokens[j].tlists[i - 1]
+                else:
+                    this_epath_tokens.append(default_tokens_copy[j])
+            epath = ExecutionPath(this_epath_tokens)
+            epaths.append(epath)
 
-        # yield the defaults as final ExecutionPath
-        yield ExecutionPath(default_tokens)
+        # yield the default tokens as final ExecutionPath
+        epaths.append(ExecutionPath(default_tokens))
+        return epaths
     
     def get_galaxy_reference_count(self) -> int:
         default_tokens = [rtvs.get_default_token() for rtvs in self.realised_tokens]

@@ -14,6 +14,9 @@ from .Container import Container
 def resolve_dependencies_as_container(xmltool: XMLTool) -> str:
     # for each of the galaxy requirements, find a useable container from quay.io.
     # return the container url. 
+    if settings.testing.TESTING_USE_DEFAULT_CONTAINER:
+        return DEFAULT_CONTAINER.uri
+
     if len(xmltool.metadata.requirements) == 0:
         return DEFAULT_CONTAINER.uri
     

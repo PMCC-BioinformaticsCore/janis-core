@@ -124,7 +124,7 @@ class XMLBoolParam(XMLInputParam):
 
     @property
     def non_null_values(self) -> list[str]:
-        null_values = ['', 'none', 'None', 'null', None]
+        null_values = ['', ' ', 'null', None]
         values = [self.truevalue, self.falsevalue]
         values = [v for v in values if v not in null_values]
         return values

@@ -502,7 +502,7 @@ class Unwrapper:
     
     def unwrap_basename_operator(self, op: BasenameOperator) -> str:
         arg = self.unwrap(op.args[0])
-        return f"{arg}"
+        return f"{arg}.name"
     
     def unwrap_nameroot_operator(self, op: NamerootOperator) -> str:
         arg = self.unwrap(op.args[0])
@@ -770,7 +770,7 @@ class Unwrapper:
                     var = self.vmanager.get(inp.id()).items[1]   # reads_joined
                     var_copy = deepcopy(var)
                 else:
-                    var = self.vmanager.get(inp.id()).items[0]   # ['reads1', 'reads2']
+                    var = self.vmanager.get(inp.id()).original   # ['reads1', 'reads2']
                     var_copy = deepcopy(var)
                     var_copy.value = var_copy.value[index]   # reads1 or reads2
             
@@ -779,7 +779,7 @@ class Unwrapper:
                     var = self.vmanager.get(inp.id()).items[1]   # file_array_joined
                     var_copy = deepcopy(var)
                 else:
-                    var = self.vmanager.get(inp.id()).items[0]   # file_array
+                    var = self.vmanager.get(inp.id()).original   # file_array
                     var_copy = deepcopy(var)
             
             else:
@@ -787,20 +787,45 @@ class Unwrapper:
                 var_copy = deepcopy(var)
         
         elif self.context == 'process_output':
-            if dtt == DTypeType.SECONDARY:
-                var = self.vmanager.get(inp.id()).items[0]
-                var_copy = deepcopy(var)
-                var_copy.value = f'{var_copy.value}[0]' if index is None else f'{var_copy.value}[{index}]'
-            
+            # always referring to the original process input
+            var = self.vmanager.get(inp.id()).original
+            var_copy = deepcopy(var)
+            # FILENAME ??
+
+            if dtt == DTypeType.SECONDARY_ARRAY:
+                # determine actual index in flat_array using index * num_files
+                assert(index is not None)
+                exts = utils.get_extensions(inp.input_type)
+                actual_index = index * len(exts)
+                var_copy.value = f'{var_copy.value}[{actual_index}]'
+
+            elif dtt == DTypeType.SECONDARY:
+                assert(index is None)
+                var_copy.value = f'{var_copy.value}[0]'
+
+            elif dtt == DTypeType.FILE_PAIR_ARRAY:
+                # determine actual index in flat_array using index * 2
+                assert(index is not None)
+                actual_index = index * 2
+                var_copy.value = f'{var_copy.value}[{actual_index}]'
+
             elif dtt == DTypeType.FILE_PAIR:
-                var = self.vmanager.get(inp.id()).original
-                var_copy = deepcopy(var)
-                var_copy.value = var_copy.value[0] if index is None else var_copy.value[index]
+                assert(index is None)
+                var_copy.value = f'{var_copy.value}[0]'
+
+            elif dtt == DTypeType.FILE_ARRAY:
+                if index:
+                    var_copy.value = f'{var_copy.value}[{index}]'
+
+            elif dtt == DTypeType.FILE:
+                assert(index is None)
+
+            # elif dtt == DTypeType.GENERIC and isinstance(inp.input_type, Filename):
+                pass
             
             else:
-                var = self.vmanager.get(inp.id()).original
-                var_copy = deepcopy(var)
-        
+                pass
+                
         else:
             raise RuntimeError
         
@@ -866,21 +891,6 @@ class Unwrapper:
 
 
     ### WORKFLOW PLUMBING ###
-
-    def unwrap_channel(self, node: InputNode) -> Any:
-        """
-        ch_name                     = same type (most cases)
-        ch_name.toList()            = singles -> array (workflow input array channel creation)
-        ch_name.flatten()           = array -> singles (scatter.dot)
-        cartesian_cross.ch_subname  = scatter.cross  
-        """
-        if self.context != 'workflow':
-            raise RuntimeError
-        ch = channels.get(self.scope, janis_uuid=node.uuid)
-        return self.get_channel_expression(
-            channel_name=ch.name,
-            upstream_dtype=node.datatype,
-        )
 
     def unwrap_input_node_selector(self, sel: InputNodeSelector) -> Any:
         return self.unwrap(sel.input_node)

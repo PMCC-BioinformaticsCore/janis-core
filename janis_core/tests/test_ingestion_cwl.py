@@ -552,7 +552,7 @@ class TestIdentifiers(unittest.TestCase):
 class TestPreprocessing(unittest.TestCase):
 
     def test_convert_cwl_types_to_python_clt(self):
-        doc = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl'
+        doc = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_caller.cwl'
         clt = load_cwl_document(doc)
         # no idea how to test :/
     

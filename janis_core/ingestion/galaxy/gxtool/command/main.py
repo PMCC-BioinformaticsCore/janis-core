@@ -23,24 +23,48 @@ Generates a Command object from a Galaxy XML tool definition.
 The Command object stores the positional, optional, and flag arguments of the software tool. 
 """
 
-def gen_command(xmltool: XMLTool, gxstep: Optional[dict[str, Any]]=None) -> Command:
-    factory = CommandFactory(xmltool, gxstep)
+def gen_command(
+    xmltool: XMLTool, 
+    gxstep: Optional[dict[str, Any]]=None,
+    annotators: Optional[list[str]]=None
+    ) -> Command:
+    factory = CommandFactory(xmltool, gxstep, annotators)
     return factory.create()
 
-
 class CommandFactory:
-    def __init__(self, xmltool: XMLTool, gxstep: Optional[dict[str, Any]]=None):
+    DEFAULT_ANNOTATORS = [
+        'SimpleInlineBoolAnnotator',
+        'SimpleMultilineBoolAnnotator',
+        'SimpleSelectAnnotator',
+        'OptionParamAnnotator',
+        'LocalCmdstrAnnotator',
+        'GlobalCmdstrAnnotator',
+    ]
+
+    def __init__(
+        self, 
+        xmltool: XMLTool, 
+        gxstep: Optional[dict[str, Any]]=None,
+        annotators: Optional[list[str]]=None
+        ) -> None:
         self.xmltool = xmltool
         self.gxstep = gxstep
+        self.annotators = annotators if annotators else self.DEFAULT_ANNOTATORS
         self.command = Command()
 
     def create(self) -> Command:
-        SimpleInlineBoolAnnotator(self.command, self.xmltool).annotate()
-        SimpleMultilineBoolAnnotator(self.command, self.xmltool).annotate()
-        SimpleSelectAnnotator(self.command, self.xmltool).annotate()
-        OptionParamAnnotator(self.command, self.xmltool).annotate()
-        LocalCmdstrAnnotator(self.command, self.xmltool).annotate()
-        GlobalCmdstrAnnotator(self.command, self.xmltool, self.gen_cmdstrs()).annotate()
+        if 'SimpleInlineBoolAnnotator' in self.annotators:
+            SimpleInlineBoolAnnotator(self.command, self.xmltool).annotate()
+        if 'SimpleMultilineBoolAnnotator' in self.annotators:
+            SimpleMultilineBoolAnnotator(self.command, self.xmltool).annotate()
+        if 'SimpleSelectAnnotator' in self.annotators:
+            SimpleSelectAnnotator(self.command, self.xmltool).annotate()
+        if 'OptionParamAnnotator' in self.annotators:
+            OptionParamAnnotator(self.command, self.xmltool).annotate()
+        if 'LocalCmdstrAnnotator' in self.annotators:
+            LocalCmdstrAnnotator(self.command, self.xmltool).annotate()
+        if 'GlobalCmdstrAnnotator' in self.annotators:
+            GlobalCmdstrAnnotator(self.command, self.xmltool, self.gen_cmdstrs()).annotate()
         return self.command
     
     def gen_cmdstrs(self) -> list[CommandString]:

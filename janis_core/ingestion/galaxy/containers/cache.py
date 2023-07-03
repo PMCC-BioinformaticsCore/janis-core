@@ -16,7 +16,7 @@ from .Container import Container
 def init_cache() -> ContainerCache:
     if settings.ingest.galaxy.DISABLE_CONTAINER_CACHE:
         temp = tempfile.TemporaryFile()
-        cache_path = os.path.join(tempfile.gettempdir(), temp.name)
+        cache_path = os.path.join(tempfile.gettempdir(), str(temp.name))
         os.remove(cache_path)
         with open(cache_path, 'w') as fp:
             fp.write('{}')

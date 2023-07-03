@@ -86,12 +86,13 @@ class OptionAnnotator(Annotator):
             values = [pos.token.text for pos in self.positions[values_span[0]:values_span[1] + 1]]
 
         gxparams = [pos.token.gxparam for pos in self.positions[component_span[0]:component_span[1] + 1] if pos.token.gxparam]
+        unique_params = set([x.name for x in gxparams])
+        if len(unique_params) > 1:
+            raise RuntimeError
         if len(gxparams) == 0:
             param = None
-        elif len(gxparams) == 1:
+        elif len(gxparams) >= 1:
             param = gxparams[0]
-        elif len(gxparams) > 1:
-            raise RuntimeError
  
         option = factory.option(
             prefix=prefix,

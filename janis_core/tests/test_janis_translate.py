@@ -9,6 +9,10 @@ from janis_core.translations import translate
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
 from janis_core.tests.testworkflows import AssemblyTestWF
+from janis_core.redefinitions.tools import Cat
+from janis_core.redefinitions.tools import GenerateVardictHeaderLines
+from janis_core.redefinitions.workflows import BwaAligner
+from janis_core.redefinitions.workflows import WGSGermlineMultiCallers
 
 from janis_core import CommandToolBuilder
 from janis_core import WorkflowBuilder
@@ -194,6 +198,18 @@ class TestTranslationEndpoints(unittest.TestCase):
     def test_workflow_translate_nextflow(self) -> None:
         AssemblyTestWF().translate('nextflow', export_path='./translated')
 
+    def test_str_tool(self):
+        BwaAligner().translate("janis")
+
+    def test_str_python_tool(self):
+        GenerateVardictHeaderLines().translate("janis")
+
+    def test_command_tool(self):
+        Cat().translate("janis")
+
+    def test_str_big_workflow(self):
+        WGSGermlineMultiCallers().translate("janis")
+
 
 
 
@@ -247,6 +263,11 @@ class TestGCCGalaxyToNextflow(unittest.TestCase):
     
     def test_fastqc_tool(self):
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_nanoplot_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/nanoplot-edbb6c5028f5/nanoplot.xml')
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
@@ -323,6 +344,25 @@ class TestPreprocessingModes(unittest.TestCase):
     def setUp(self) -> None:
         _reset_global_settings()
     
+    def test_main_wf_skeleton(self) -> None:
+        pass
+    
+    def test_main_wf_regular(self) -> None:
+        pass
+    
+    def test_main_wf_extended(self) -> None:
+        pass
+    
+    def test_main_wf_skeleton(self) -> None:
+        pass
+    
+    def test_main_wf_regular(self) -> None:
+        pass
+    
+    def test_main_wf_extended(self) -> None:
+        pass
+    
+
     def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
