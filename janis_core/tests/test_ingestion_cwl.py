@@ -1,5 +1,6 @@
 
 import unittest
+import os
 from typing import Any, Tuple
 
 from janis_core import (
@@ -10,7 +11,9 @@ from janis_core import (
     WildcardSelector,
     StringFormatter,
     InputNodeSelector,
-    NamerootOperator
+    NamerootOperator,
+    CommandToolBuilder,
+    ToolInput,
 )
 
 from janis_core.ingestion.cwl.loading import load_cwl_document
@@ -35,7 +38,7 @@ from janis_core.messages import get_messages
 from janis_core import settings
 
 
-
+CWL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/cwl')
 
 def _load_cwl_doc(filepath: str) -> Tuple[Any, Any]:
     cwl_version = load_cwl_version(filepath)
@@ -198,6 +201,64 @@ class TestFallbacksErrorHandling(unittest.TestCase):
 
 
 
+class TestDatatypes(unittest.TestCase):
+    
+    def test_primitive_types(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/datatypes/basic_types.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
+        jtool = parser.parse()
+        self.assertIsInstance(jtool, CommandToolBuilder)
+        self.assertEqual(len(jtool.inputs_map()), 6)
+        actual_types = {x.id(): x.intype.__repr__() for x in jtool.inputs_map().values()}
+        expected_types = {
+            'inFile': 'File',
+            'inInt': 'Integer',
+            'inStr': 'String',
+            'inFileOpt': 'Optional<File>',
+            'inIntOpt': 'Optional<Integer>',
+            'inStrOpt': 'Optional<String>',
+        }
+        self.assertDictEqual(actual_types, expected_types)
+    
+    def test_array_types(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/datatypes/array_types.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
+        jtool = parser.parse()
+        self.assertIsInstance(jtool, CommandToolBuilder)
+        self.assertEqual(len(jtool.inputs_map()), 6)
+        actual_types = {x.id(): x.intype.__repr__() for x in jtool.inputs_map().values()}
+        expected_types = {
+            'inFileArr': 'Array<File>',
+            'inIntArr': 'Array<Integer>',
+            'inStrArr': 'Array<String>',
+            'inFileArrOpt': 'Optional<Array<File>>',
+            'inIntArrOpt': 'Optional<Array<Integer>>',
+            'inStrArrOpt': 'Optional<Array<String>>',
+        }
+        self.assertDictEqual(actual_types, expected_types)
+    
+    def test_secondary_types(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/datatypes/secondary_types.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
+        jtool = parser.parse()
+        self.assertIsInstance(jtool, CommandToolBuilder)
+        self.assertEqual(len(jtool.inputs_map()), 8)
+        actual_types = {x.id(): x.intype.__repr__() for x in jtool.inputs_map().values()}
+        expected_types = {
+            'inSecondary1': 'IndexedBam',
+            'inSecondary2': 'GenericFileWithSecondaries []',
+            'inSecondaryArr1': 'Array<IndexedBam>',
+            'inSecondaryArr2': 'Array<GenericFileWithSecondaries []>',
+            'inSecondaryOpt1': 'Optional<IndexedBam>',
+            'inSecondaryOpt2': 'Optional<GenericFileWithSecondaries> []',
+            'inSecondaryArrOpt1': 'Optional<Array<IndexedBam>>',
+            'inSecondaryArrOpt2': 'Optional<Array<GenericFileWithSecondaries []>>',
+        }
+        self.assertDictEqual(actual_types, expected_types)
+
 
 
 class TestDatatypeErrorHandling(unittest.TestCase):
@@ -206,7 +267,7 @@ class TestDatatypeErrorHandling(unittest.TestCase):
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
         from cwl_utils.parser import cwl_v1_0 as cwl_utils
         cwl_type = ['null', 'File', 'string']
-        dtype, error_messages = ingest_cwl_type(cwl_type, cwl_utils, secondary_files=None)
+        dtype, error_messages = ingest_cwl_type(cwl_type, cwl_utils, secondaries=None)
         self.assertIsInstance(dtype, File)
         self.assertIn("entity supports multiple datatypes: ['File', 'String']. selected File as fallback. this may affect pipeline execution", error_messages)
     
@@ -214,7 +275,7 @@ class TestDatatypeErrorHandling(unittest.TestCase):
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
         from cwl_utils.parser import cwl_v1_0 as cwl_utils
         datatype = 'kitten'
-        dtype, error_messages = ingest_cwl_type(datatype, cwl_utils, secondary_files=None)
+        dtype, error_messages = ingest_cwl_type(datatype, cwl_utils, secondaries=None)
         self.assertIsInstance(dtype, File)
         self.assertIn('Unsupported datatype: kitten. Treated as a file.', error_messages)
     
@@ -222,7 +283,7 @@ class TestDatatypeErrorHandling(unittest.TestCase):
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
         from cwl_utils.parser import cwl_v1_0 as cwl_utils
         datatype = 'file:///home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl#annotation_type'
-        dtype, error_messages = ingest_cwl_type(datatype, cwl_utils, secondary_files=None)
+        dtype, error_messages = ingest_cwl_type(datatype, cwl_utils, secondaries=None)
         self.assertIsInstance(dtype, File)
         self.assertGreater(len(error_messages), 0)
 
@@ -231,7 +292,7 @@ class TestDatatypeErrorHandling(unittest.TestCase):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/expressions/inputs_arguments.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
         cinp = clt.inputs[1]
-        dtype, error_messages = ingest_cwl_type(cinp.type, cwl_utils, secondary_files=cinp.secondaryFiles)
+        dtype, error_messages = ingest_cwl_type(cinp.type, cwl_utils, secondaries=cinp.secondaryFiles)
         self.assertIsInstance(dtype, GenericFileWithSecondaries)
         self.assertGreater(len(error_messages), 0)
 
@@ -397,7 +458,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         tinput = parser.parse()
         self.assertIsInstance(tinput.input_type, GenericFileWithSecondaries)
         error_msgs = get_messages(tinput.uuid)
-        expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
+        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
         self.assertIn(expected_msg, error_msgs)
 
     def test_clt_input_inputbinding_valuefrom(self):
@@ -424,7 +485,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         tout = parser.parse()
         self.assertIsInstance(tout.output_type, GenericFileWithSecondaries)
         error_msgs = get_messages(tout.uuid)
-        expected_msg = "could not parse secondaries format from javascript expression: <js>inputs.bam.basename + inputs.bam.nameext.replace('m','i')</js>"
+        expected_msg = "could not parse secondaries format from javascript expressions: $(inputs.bam.basename + inputs.bam.nameext.replace('m','i'))"
         self.assertIn(expected_msg, error_msgs)
     
     def test_clt_output_outputbinding_glob(self):
@@ -461,7 +522,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         self.assertIsInstance(winp.datatype, GenericFileWithSecondaries)
         self.assertEqual(len(winp.datatype.secondaries), 0)
         error_msgs = get_messages(winp.uuid)
-        expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
+        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
         self.assertIn(expected_msg, error_msgs)
     
     def test_step_input_valuefrom(self):
@@ -508,7 +569,7 @@ class TestJavascriptExpressionErrorHandling(unittest.TestCase):
         self.assertIsInstance(winp.datatype, GenericFileWithSecondaries)
         self.assertEqual(len(winp.datatype.secondaries), 0)
         error_msgs = get_messages(winp.uuid)
-        expected_msg = "could not parse secondaries format from javascript expression: <js>self.basename + self.nameext.replace('m','i')</js>"
+        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
         self.assertIn(expected_msg, error_msgs)
   
 

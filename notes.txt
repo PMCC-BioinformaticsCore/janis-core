@@ -1,78 +1,58 @@
 
 
 
-TODO 
-- fix galaxy ingest [DONE]
-- test suite passing [IN PROGRESS]
-    - check all new cli args
-    - update all janis packages to use pyproject.toml
-    - ensure datatypes correctly segregated
+TODO: TEST SUITE 100%
+- nextflow
+    - filename handling
+    - secondaries & file pairs
 
-BUGS
-- prune_workflow() - some oddities around deeply nested subworkflows
-- nextflow: filename handling
-- wdl
+NICETIES:
+- wdl 
+    - miniwdl can't parse some WDL formats
+    - wdl ingest: need to injest local variables (bwa.wdl Int totalSortThreads = select_first([sortThreads, estimatedSortThreads]))
+    - mismatch secondary types
+    - scatter on multiple inputs
+    - nameroot operator - ask richard
+- galaxy 
+    - make it faster
+    - output collection especially with redirect is scuffed
+    - picard_MarkDuplicates.xml: REMOVE_DUPLICATES='${remove_duplicates}' causing issues
 
-- picard_MarkDuplicates.xml: REMOVE_DUPLICATES='${remove_duplicates}' causing issues
+TODO: RELEASE
+- test cli
+    - --galaxy-gen-images cmdline option etc
+- all test-suites 
+- all packages segregated as much as possible (ensure legacy compatibility)
+- all packages build from pyproject.toml 
+- ensure datatypes correctly segregated
 
-
-- fix WDL ingest
-- fix WDL translate
-- all type definitions in janis_core, import links in janis-unix, janis-bioinformatics for legacy support [DONE?]
-- Workflow inputs [DONE?] 
-
-- Null values
-    cwl subworkflow_test wf 
-    looks weird: 
-    OPTIONAL2(
-        [].collect{ file(it) },         // in_file_arr
-        file( params.NULL_VALUE ),      // in_file
-        params.in_string_arr_optional,  // in_string_arr
-        params.in_int_optional,         // in_int
-        params.in_string_optional       // in_string
-    )
-- requirements
-    - build mulled container for tools with multiple requirements
-- check step input values are correct
-- --galaxy-gen-images cmdline option
-- --mode  skeleton | regular | expanded cmdline option
-    - cwl       [DONE]
-    - nextflow  [DONE]
-    - wdl       [DONE ERROR]
-- add support for repeat params (& conditional params?)
-    - cutadapt adapters argument
-    - cutadapt library.type single?
-- revisit parsing <command> section (CommandFactory) since load_partial_cheetah_command isnt being used currently
-- --galaxy-tool-all-commands
-- merge
-
-
-PARSING GALAXY TOOLS
-- loading <command> section [DONE]
-    - from tests 
-    - from step inputs
-    - from vanilla xml
-- Command                   [FRIDAY]
-    - what are the different cli command sections? 
-    - which one is the main software command? 
-        - future: create step for each software command, for non-linux software (mkdir, cp etc)?
-    - for the section including main software command:
-        - what arguments exist? 
-        - do they have a prefix? 
-        - what is their position (positionals only)? 
-        - which Tool Wrapper params are they linked to? 
-    
-    - SelectFlagListParamAnnotator [TEST]
-    - ArgumentParamAnnotator [REWORK][TEXT]
-    - ToolStateAnnotator [CREATE][TEST]
+FUTURE FEATURES
+- prune_workflow() 
+    - move static values to step.sources
+- nextflow
+    - Null values
+        cwl subworkflow_test wf 
+        looks weird: 
+        OPTIONAL2(
+            [].collect{ file(it) },         // in_file_arr
+            file( params.NULL_VALUE ),      // in_file
+            params.in_string_arr_optional,  // in_string_arr
+            params.in_int_optional,         // in_int
+            params.in_string_optional       // in_string
+        )
+- galaxy
+    - annotation
         - move InputExtractor.add_uncaptured_inputs() to an annotation class.  
         - need to ensure not picking up gxparams which are only control params
-    - limma_voom.xml gen_command()
-        - need to work on Command updating to be aware of the Annotator changes
-        - "-i" incorrectly added as flag
-        - "-D" incorrectly added as flag
+    - repeat params (& conditional params?)
+        - add support
+        - cutadapt adapters argument
+        - cutadapt library.type single?
+    - command
+        - which one is the main software command? 
+        - future: create step for each software command, for non-linux software (mkdir, cp etc)?
     - select & when detection
-        - mutually exclusive groups 
+        - mutually exclusive groups (cli args)
         - what to add to cmdstr 
         - .when() in janis? 
         - how will this appear in nextflow for tool translations? 
@@ -80,38 +60,5 @@ PARSING GALAXY TOOLS
             - would be only if all instances of the tool use have the same selects. 
             - others would need to be the same as tool translation. 
     - repeat block evaluation?
-    - mutually exclusive cli args 
-
-
-TODO 
-- get galaxy ingest back up and operational
-    - output collection especially with redirect is scuffed
-    - cutadapt adapter parsing not working due to repeat param & loop in cheetah <command>
-- do slides 
-- get test suite passing (wdl im looking at you)
-- tell richard about stable release
     
-- Updates                   [FRIDAY]
-    - if XML, can add CommandComponent if not exists (don't want to override ArgumentAnnotator derived components)
-    - if test, can update CommandComponent type
-    - if test, can add observed value
-    - if tool_state, can add observed value
-    - if in InputExtractor.create_uncaptured_input(), can add CommandComponent, can add observed value
-- Container
-- Configfiles
-- Scripts 
-
-
-
-
-
-
-
-
-BUGS 
-
-- CWL: gatk_haplotype_caller.cwl - File? not parsed correctly 
-    path dbsnp_vcf
-    ->
-    path dbsnp_vcf, stageAs: 'dbsnp_vcf/*'
 

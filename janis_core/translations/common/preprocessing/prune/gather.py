@@ -11,10 +11,8 @@ def gather_tools(wf: WorkflowBuilder) -> dict[str, CommandToolBuilder]:
 def do_gather_tools(wf: WorkflowBuilder, gathered_tools: dict[str, CommandToolBuilder]) -> dict[str, CommandToolBuilder]:
     for step in wf.step_nodes.values():
         if isinstance(step.tool, WorkflowBuilder):
-            # if step.tool.id() not in gathered_tools:
-            #     gathered_tools[step.tool.id()] = step.tool
             gathered_tools = do_gather_tools(step.tool, gathered_tools)
-        elif step.tool.id() not in gathered_tools and isinstance(step.tool, CommandToolBuilder):
+        elif isinstance(step.tool, CommandToolBuilder) and step.tool.id() not in gathered_tools:
             gathered_tools[step.tool.id()] = step.tool
         else:
             continue

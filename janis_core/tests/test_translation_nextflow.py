@@ -1569,6 +1569,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
         
         # filename using input selector
         process = [x[1] for x in subtasks if x[0] == 'modules/filename_input_selector_test_tool.nf'][0]
+        print(process)
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             "path inp1",

@@ -899,6 +899,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 return cls.wrap_in_codeblock_if_required(
                     el, is_code_environment=code_environment
                 )
+            # if value.input_to_select == 'totalSortThreads':
+            #     print()
             return translate_input_selector(
                 selector=value,
                 code_environment=code_environment,

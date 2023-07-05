@@ -29,7 +29,8 @@ def ingest_prepost(g_step: dict[str, Any], janis: Workflow, galaxy: dict[str, An
     tool_state = load_tool_state(
         g_step, 
         additional_filters=[
-            'ReplaceNullWithVarname'
+            'ReplaceBoolWithValue',
+            'ReplaceNullWithVarname',
             'ReplaceConnectedWithVarname',
             'ReplaceRuntimeWithVarname',
         ]

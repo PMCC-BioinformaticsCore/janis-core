@@ -33,6 +33,7 @@ from janis_core.operators import (
     MemorySelector,
     StringFormatter,
     Selector,
+    NamerootOperator,
     Operator,
     StepOutputSelector,
     InputNodeSelector,

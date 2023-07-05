@@ -76,7 +76,8 @@ class CommandFactory:
             inputs_dict = load_tool_state(
                 self.gxstep, 
                 additional_filters=[
-                    # 'ReplaceNullWithVarname'
+                    'ReplaceNullWithVarname',
+                    'ReplaceBoolWithValue',
                     'ReplaceConnectedWithVarname',
                     'ReplaceRuntimeWithVarname',
                 ]

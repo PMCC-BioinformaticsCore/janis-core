@@ -237,7 +237,7 @@ class InitialWorkDirRequirementParser:
                     if isinstance(res, InputSelector):
                         for inp in self.clt.inputs:
                             name = get_id_entity(inp.id)
-                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondary_files=inp.secondaryFiles)
+                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
                             self.error_msgs += error_msgs
                             basetype = utils.get_base_type(dtype)
                             if name == res.input_to_select and isinstance(basetype, File):
@@ -256,7 +256,7 @@ class InitialWorkDirRequirementParser:
                     if isinstance(res, InputSelector):
                         for inp in self.clt.inputs:
                             name = get_id_entity(inp.id)
-                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondary_files=inp.secondaryFiles)
+                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
                             self.error_msgs += error_msgs
                             basetype = utils.get_base_type(dtype)
                             if name == res.input_to_select and isinstance(basetype, Directory):
@@ -554,7 +554,7 @@ class CLTParser(CLTEntityParser):
     def clt_has_stderr_outputs(self, entity: Any) -> bool:
         clt = entity
         for out in clt.outputs:
-            dtype, error_msgs = ingest_cwl_type(out.type, self.cwl_utils, secondary_files=out.secondaryFiles)
+            dtype, error_msgs = ingest_cwl_type(out.type, self.cwl_utils, secondaries=out.secondaryFiles)
             self.error_msgs += error_msgs
             if isinstance(dtype, Stderr):
                 return True
@@ -659,7 +659,7 @@ class CLTInputParser(CLTEntityParser):
         return get_id_entity(self.entity.id)
 
     def parse_dtype(self) -> Any:
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
         self.error_msgs += error_msgs
         return dtype
     
@@ -736,7 +736,7 @@ class CLTOutputParser(CLTEntityParser):
         identifier = get_id_entity(self.entity.id)
         
         # datatype
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
         self.error_msgs += error_msgs
 
         if isinstance(dtype, Stdout):

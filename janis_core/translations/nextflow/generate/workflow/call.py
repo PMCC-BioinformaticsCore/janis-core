@@ -193,7 +193,6 @@ class TaskCallArgumentGenerator:
             if isinstance(node, StepNode):
                 return True
         return False
-            
 
     def generate(self) -> str:
         """calculate the arg which will feed this task input"""

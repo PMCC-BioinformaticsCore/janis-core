@@ -75,7 +75,6 @@ def get_local_filters_to_apply(additional_filters: list[str]) -> list[Type[Filte
         IgnoreCurrentCase,
     ]
     default_filters = [
-        'ReplaceBoolWithValue',
         'IgnoreCurrentCase',
     ]
     filter_names = set(default_filters + additional_filters)

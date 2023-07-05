@@ -129,6 +129,18 @@ def _load_xmltool_for_step(filepath: str, step: int) -> XMLTool:
     _configure_tool_settings(gx_step)
     return load_xmltool(runtime.tool.tool_path)
 
+def _docker_not_running() -> bool:
+    import subprocess
+    try:
+        completed_process = subprocess.run(['docker', 'version'], shell=True, capture_output=True)
+        if completed_process.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        return False
+    
+
 # def _prepare_tool_state_for_cheetah(path: str, step: int) -> dict[str, Any]:
 #     with open(path, 'r') as fp:
 #         gxworkflow = json.load(fp)
@@ -302,6 +314,7 @@ class TestResolveDependencies(unittest.TestCase):
         image_uri = resolve_dependencies_as_container(xmltool)
         self.assertEqual(image_uri, 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1')
 
+    @unittest.skipUnless(_docker_not_running(), 'docker daemon must be running to test this')
     def test_multiple_requirements(self) -> None:
         wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2_wf.ga')
         xmltool = _load_xmltool_for_step(wf_path, 2)

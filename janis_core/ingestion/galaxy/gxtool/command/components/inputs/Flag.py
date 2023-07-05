@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from janis_core.ingestion.galaxy.gxtool.model import XMLParam
 from janis_core.ingestion.galaxy.gxtool.model import XMLBoolParam
+from janis_core.ingestion.galaxy.gxtool.model import XMLSelectParam
 
 from .InputComponent import InputComponent
 
@@ -21,7 +22,7 @@ class Flag(InputComponent):
     def default_value(self) -> bool:
         if self.forced_default is not None:
             return self.forced_default
-        if isinstance(self.gxparam, XMLBoolParam):
+        elif isinstance(self.gxparam, XMLBoolParam):
             if self.gxparam.checked and self.gxparam.truevalue == self.prefix:
                 return True
             elif self.gxparam.checked and self.gxparam.truevalue == "":
@@ -30,6 +31,9 @@ class Flag(InputComponent):
                 return True
             elif not self.gxparam.checked and self.gxparam.falsevalue == "":
                 return False
+        elif isinstance(self.gxparam, XMLSelectParam):
+            print()
+
         return False
     
     @property

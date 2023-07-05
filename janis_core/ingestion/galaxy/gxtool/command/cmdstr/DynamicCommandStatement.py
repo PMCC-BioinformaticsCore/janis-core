@@ -30,7 +30,7 @@ class DynamicCommandStatement:
     def __init__(self, cmdline: str, realised_tokens: list[RealisedTokens]):
         self.cmdline = cmdline
         self.realised_tokens = realised_tokens
-        self.max_paths = 20
+        self.max_paths = 10
 
     def get_tokens(self) -> list[Token]:
         return [rt.get_original_token() for rt in self.realised_tokens]
@@ -60,13 +60,12 @@ class DynamicCommandStatement:
         num_epaths = min(max_divergence, self.max_paths)
         
         for i in range(1, num_epaths + 1):
-            default_tokens_copy = deepcopy(default_tokens)
             this_epath_tokens: list[Token] = []
             for j in range(len(self.realised_tokens)):
                 if len(self.realised_tokens[j].tlists) >= i:
                     this_epath_tokens += self.realised_tokens[j].tlists[i - 1]
                 else:
-                    this_epath_tokens.append(default_tokens_copy[j])
+                    this_epath_tokens.append(deepcopy(default_tokens[j]))
             epath = ExecutionPath(this_epath_tokens)
             epaths.append(epath)
 

@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
@@ -44,6 +44,15 @@ def ingest_values_inputs(g_step: dict[str, Any], i_step: WorkflowStep, i_workflo
     ingestor = StaticInputIngestor(g_step, i_step, i_workflow)
     ingestor.ingest()
 
+def _null_tool_state_value(value: Any) -> bool:
+    if value is None:
+        return True
+    elif value == []:
+        return True
+    elif value == '':
+        return True
+    return False
+
 
 class CheetahInputIngestor:
     """
@@ -77,7 +86,8 @@ class CheetahInputIngestor:
         tool_state = load_tool_state(
             self.g_step, 
             additional_filters=[
-                'ReplaceNullWithVarname'
+                'ReplaceBoolWithValue',
+                # 'ReplaceNullWithVarname',
                 'ReplaceConnectedWithVarname',
                 'ReplaceRuntimeWithVarname',
             ]
@@ -108,32 +118,23 @@ class CheetahInputIngestor:
         """gets the value for a specific tool argument"""
         if option.gxparam is not None:
             return
+        if not expressions.is_present(option.prefix, cmdstr):
+            self.update_tool_values_static(component=option, value=None)
+            return
+        
         value = expressions.get_next_word(option.prefix, option.separator, cmdstr)
         value = None if value == '' else value
+        
         if value is None:
             self.update_tool_values_static(component=option, value=None)
-        # elif self.is_param(value):
-        #     pass
+        elif value == '__FUNCTION_CALL__':
+            self.update_tool_values_runtime(component=option)
+        elif value == '__BACKTICK_SHELL_STATEMENT__':
+            self.update_tool_values_runtime(component=option)
         elif expressions.is_var(value) or expressions.has_var(value):
             self.update_tool_values_runtime(component=option)
         else:
             self.update_tool_values_static(component=option, value=value)
-
-    # # TODO upgrade for pre/post task section
-    # def is_param(self, text: Optional[str]) -> bool:
-    #     # how does this even work? 
-    #     # $ can also mean env var? 
-    #     if text:
-    #         if text.strip('"\'')[0] == '$':
-    #             return True
-    #         elif len(text) > 1 and text[1] == '$':  # WTF 
-    #             return True
-    #     return False
-
-    # def handle_gxvar_opt(self, option: Option, value: str) -> None:
-    #     # TODO future: attach the identified param if not attached? 
-    #     # should always be attached tho? 
-    #     pass
     
     def update_tool_values_static(self, component: Flag | Option, value: Any) -> None:
         # create & add value 
@@ -177,6 +178,7 @@ class StaticInputIngestor:
         self.g_step = g_step
         self.i_step = i_step
         self.i_workflow = i_workflow
+        self.tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
 
     def ingest(self) -> None:
         for component in self.get_linkable_components():
@@ -202,9 +204,10 @@ class StaticInputIngestor:
         """
         if component.gxparam:
             query = component.gxparam.name 
-            tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
-            if query in tool_state:
-                return True
+            if query in self.tool_state:
+                value = self.tool_state[query]
+                if not _null_tool_state_value(value):
+                    return True
         return False
 
     def update_tool_values_static(self, component: InputComponent) -> None:
@@ -221,8 +224,7 @@ class StaticInputIngestor:
         """
         # pull value from 'tool_state'
         # should only be static values left
-        tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
-        g_value = tool_state[component.gxparam.name] # type: ignore
+        g_value = self.tool_state[component.gxparam.name] # type: ignore
         is_default = True if component.default_value == g_value else False
         value = factory.static(component, value=g_value, default=is_default)
         self.i_step.inputs.add(value)

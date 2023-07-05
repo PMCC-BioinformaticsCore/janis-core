@@ -40,7 +40,7 @@ def has_var(the_string: str) -> bool:
     return False
 
 def is_present(word: str, text: str) -> bool:
-    pattern = rf'\s{word}\s'
-    if re.findall(pattern, text):
+    pattern = rf'(^|[\t ]){word}(?=\s).*$'
+    if re.findall(pattern, text, re.MULTILINE):
         return True
     return False

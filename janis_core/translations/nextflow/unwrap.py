@@ -345,6 +345,8 @@ class Unwrapper:
     def get_input_by_id(self, input_id: str) -> ToolInput:
         assert(self.tool is not None)
         inputs = [x for x in self.tool.inputs() if x.id() == input_id]
+        if len(inputs) == 0:
+            print()
         return inputs[0]
     
     def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
