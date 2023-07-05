@@ -80,8 +80,8 @@ requires-python = ">=3.11"
 repository      = "https://github.com/PMCC-BioinformaticsCore/janis-core"
 documentation   = "https://janis.readthedocs.io/en/latest/"
 
+
 [tool.setuptools]
-packages = ["janis_core"]
 include-package-data = true
 
 [tool.setuptools.package-data]
@@ -92,3 +92,8 @@ janis_core = [
     "ingestion/galaxy/data/*.xml.sample",
     "ingestion/galaxy/data/*.xml.sample"
 ]
+
+[tool.setuptools.packages.find]
+where = ["./"]
+include = ["janis_core*"]
+namespaces = false
