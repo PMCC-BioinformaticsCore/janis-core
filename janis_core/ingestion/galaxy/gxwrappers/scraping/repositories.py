@@ -2,7 +2,7 @@
 
 from bs4 import Tag
 from collections import defaultdict
-import gx.wrappers.scraping.utils as utils
+from . import utils
 
 
 

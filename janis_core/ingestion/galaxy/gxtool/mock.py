@@ -6,7 +6,7 @@ import yaml
 from typing import Any
 
 from janis_core.ingestion.galaxy import runtime
-from settings.ingest.galaxy import GALAXY_CONFIG
+from janis_core.settings.ingest.galaxy import GALAXY_CONFIG
 
 from sqlalchemy.orm.scoping import scoped_session
 

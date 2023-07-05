@@ -6,7 +6,7 @@ from typing import Optional
 from janis_core.ingestion.galaxy.gxwrappers import Wrapper
 from janis_core.ingestion.galaxy.fileio import safe_init_file
 
-from settings.ingest.galaxy import WRAPPER_CACHE
+from janis_core.settings.ingest.galaxy import WRAPPER_CACHE
 
 
 

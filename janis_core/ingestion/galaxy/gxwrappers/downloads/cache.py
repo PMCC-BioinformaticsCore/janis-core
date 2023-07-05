@@ -3,7 +3,7 @@
 import os
 import tarfile
 from typing import Optional
-from settings.ingest.galaxy import DOWNLOADED_WRAPPERS_DIR
+from janis_core.settings.ingest.galaxy import DOWNLOADED_WRAPPERS_DIR
 from janis_core.ingestion.galaxy.fileio import safe_init_folder
 
 

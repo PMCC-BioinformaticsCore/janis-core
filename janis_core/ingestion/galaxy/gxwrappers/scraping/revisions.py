@@ -6,7 +6,7 @@ from typing import Any, Tuple
 from bs4 import Tag
 
 from janis_core.ingestion.galaxy.runtime.dates import TOOLSHED_DATE_FMT, JANIS_DATE_FMT
-import gx.wrappers.scraping.utils as utils
+from . import utils
 
 NEW_REPOS_ONLY = True
 THREADS = 10

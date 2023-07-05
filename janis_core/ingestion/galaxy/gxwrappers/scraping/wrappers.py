@@ -11,8 +11,9 @@ from xml.etree import ElementTree as et
 
 from galaxy.tool_util.parser import get_tool_source
 from janis_core.ingestion.galaxy.gxwrappers import Wrapper
-import gx.wrappers.scraping.utils as utils
-from wrappers.WrapperCache import WrapperCache
+
+from ..wrappers.WrapperCache import WrapperCache
+from . import utils
 
 
 THREADS = 10

@@ -1,12 +1,11 @@
 
 
 
-
 from typing import Iterable
 from janis_core.ingestion.galaxy.gxwrappers.scraping.revisions import get_revisions_in_repo
 from janis_core.ingestion.galaxy.gxwrappers.scraping.wrappers import Revision
-from wrappers.WrapperCache import WrapperCache
-import gx.wrappers.scraping.utils as utils
+from ..wrappers.WrapperCache import WrapperCache
+from . import utils
 
 
 # SCRAPING
