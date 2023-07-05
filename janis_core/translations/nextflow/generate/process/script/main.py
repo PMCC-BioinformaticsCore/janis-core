@@ -37,7 +37,7 @@ class ProcessScriptGenerator:
 
     def generate(self) -> Tuple[Optional[str], str]:
         """Generate the script content of a Nextflow process for Janis command line tool"""
-        self.handle_undefined_variable_references()
+        # self.handle_undefined_variable_references()
         self.handle_cmdtool_directories()
         self.handle_cmdtool_base_command()
         if settings.translate.MODE != 'skeleton':

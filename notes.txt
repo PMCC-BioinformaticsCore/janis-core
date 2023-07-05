@@ -3,16 +3,15 @@
 
 TODO: TEST SUITE 100%
 - nextflow
-    - filename handling
-    - secondaries & file pairs
-
-NICETIES:
+    - baseName vs simpleName?
 - wdl 
     - miniwdl can't parse some WDL formats
     - wdl ingest: need to injest local variables (bwa.wdl Int totalSortThreads = select_first([sortThreads, estimatedSortThreads]))
     - mismatch secondary types
     - scatter on multiple inputs
     - nameroot operator - ask richard
+
+NICETIES:
 - galaxy 
     - make it faster
     - output collection especially with redirect is scuffed

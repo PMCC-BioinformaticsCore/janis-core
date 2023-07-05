@@ -460,10 +460,13 @@ class Unwrapper:
             
             elif dtt in [ 
                 DTypeType.SECONDARY,
-                DTypeType.FILE_PAIR
+                DTypeType.FILE_PAIR,
             ]:
                 expr = self.unwrap_input_selector(obj, index=index)
                 return expr
+            
+            else:
+                raise NotImplementedError
 
         # normal case
         expr = self.unwrap(obj)
@@ -822,9 +825,6 @@ class Unwrapper:
             elif dtt == DTypeType.FILE:
                 assert(index is None)
 
-            # elif dtt == DTypeType.GENERIC and isinstance(inp.input_type, Filename):
-                pass
-            
             else:
                 pass
                 

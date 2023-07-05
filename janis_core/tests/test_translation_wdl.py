@@ -1098,7 +1098,7 @@ workflow wb {
     Int? echo_2_runtime_disk
     Int? echo_2_runtime_seconds
   }
-  call T.TestStepTool as echo {
+  call S.SingleTestTool as echo {
     input:
       input1=inp,
       runtime_memory=echo_runtime_memory,
@@ -1106,7 +1106,7 @@ workflow wb {
       runtime_disk=echo_runtime_disk,
       runtime_seconds=echo_runtime_seconds
   }
-  call T.TestStepTool as echo_2 {
+  call S.SingleTestTool as echo_2 {
     input:
       input1=inp,
       runtime_memory=echo_2_runtime_memory,

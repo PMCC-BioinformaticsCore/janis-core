@@ -9,6 +9,7 @@ from janis_core.operators.selectors import InputNodeSelector
 from janis_core.operators.selectors import Selector
 from janis_core.operators.selectors import StepOutputSelector
 from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 
 @dataclass
@@ -36,7 +37,10 @@ class TaskInputHistory:
 
     @property
     def is_optional(self) -> bool:
-        if self.tinput.intype.optional == True:
+        dtt = utils.get_dtt(self.tinput.intype)
+        if dtt == DTypeType.FILENAME:
+            return False
+        elif self.tinput.intype.optional == True:
             return True
         return False
     

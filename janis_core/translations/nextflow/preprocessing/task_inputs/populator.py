@@ -141,18 +141,25 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
     def populate(self) -> None:
         if not task_inputs.exists(self.tool.id()):
             task_inputs.add_tool(self.tool.id())
-        if settings.translate.MODE in ['skeleton', 'regular']:
-            task_input_ids = get_step_referenced_tinputs(self.collector)
-        else:
-            task_input_ids = [x.id() for x in self.tool.tool_inputs()]
+        # if settings.translate.MODE in ['skeleton', 'regular']:
+        #     task_input_ids = get_step_referenced_tinputs(self.collector)
+        # else:
+        task_input_ids = [x for x in self.collector.histories.keys()]
         
-        for tinput in self.tool.tool_inputs(): 
-            if tinput.id() in task_input_ids:
-                self.update_as_task_input(tinput)
-            elif tinput.default is not None:
-                self.update_as_static_input(tinput) 
+        for tinput in self.tool.tool_inputs():
+            dtt = utils.get_dtt(tinput.intype)
+            if dtt == DTypeType.FILENAME and not tinput.id() in task_input_ids:
+                self.update_as_ignored_input(tinput)
             else:
-                self.update_as_ignored_input(tinput) 
+                self.update_as_task_input(tinput)
+
+            # if tinput.id() in task_input_ids:
+
+            #     self.update_as_task_input(tinput)
+            # elif tinput.default is not None:
+            #     self.update_as_static_input(tinput) 
+            # else:
+            #     self.update_as_ignored_input(tinput) 
 
     ### helper methods
     def update_as_task_input(self, tinput: TInput) -> None:

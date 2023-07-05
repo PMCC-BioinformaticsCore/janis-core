@@ -217,6 +217,7 @@ class TypePriorityInputStrategy(InputOrderingStrategy):
             DTypeType.FILE_PAIR: 3,
             DTypeType.FILE_ARRAY: 4,
             DTypeType.FILE: 5,
+            DTypeType.FILENAME: 5,
             DTypeType.FLAG_ARRAY: 6,
             DTypeType.FLAG: 7,
             DTypeType.GENERIC_ARRAY: 8,

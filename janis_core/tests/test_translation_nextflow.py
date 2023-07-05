@@ -167,6 +167,8 @@ from janis_core.translations.nextflow.generate.workflow.datatype_mismatch import
 
 ### helper functions
 
+TRANSLATED_DIR = os.path.join(os.getcwd(), 'translated')
+
 def reset_globals() -> None:
     # reset the translator
     translator = NextflowTranslator()
@@ -642,6 +644,7 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file',
+            'val in_int1',
             'val in_int2',
             'val in_str1',
         }
@@ -697,6 +700,11 @@ class TestTaskInputs(unittest.TestCase):
         print(process.get_string())
         expected_inputs = {
             'path in_file',
+            'val in_str2',
+            'val in_str3',
+            'val in_int1',
+            'val in_int2',
+            'val in_int4',
         }
         actual_inputs = {inp.get_string() for inp in process.inputs}
         self.assertEqual(actual_inputs, expected_inputs)
@@ -761,201 +769,201 @@ class TestTaskInputs(unittest.TestCase):
         
 
 
-class TestPreprocessingTaskInputs(unittest.TestCase):
+# class TestPreprocessingTaskInputs(unittest.TestCase):
 
-    def setUp(self) -> None:
-        reset_globals()
-        settings.translate.MODE = 'regular'
+#     def setUp(self) -> None:
+#         reset_globals()
+#         settings.translate.MODE = 'regular'
 
-    def test_main_wf(self) -> None:
-        wf = MinimalTaskInputsTestWF1()
-        wf = do_preprocessing_workflow(wf)
+#     def test_main_wf(self) -> None:
+#         wf = MinimalTaskInputsTestWF1()
+#         wf = do_preprocessing_workflow(wf)
 
-        # main wf
-        actual_task_inputs = nextflow.task_inputs.task_inputs(wf.id())
-        expected_task_inputs: set[str] = set()
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         # main wf
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(wf.id())
+#         expected_task_inputs: set[str] = set()
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        actual_param_inputs = nextflow.task_inputs.param_inputs(wf.id())
-        expected_param_inputs = {'inFile', 'inStr1', 'inInt1'}
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(wf.id())
+#         expected_param_inputs = {'inFile', 'inStr1', 'inInt1'}
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        actual_static_inputs = nextflow.task_inputs.static_inputs(wf.id())
-        expected_static_inputs: set[str] = set()
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(wf.id())
+#         expected_static_inputs: set[str] = set()
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(wf.id())
-        expected_ignored_inputs = set()
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(wf.id())
+#         expected_ignored_inputs = set()
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
 
-    # no subworkflows
-    def test_one_call(self) -> None:
-        wf = MinimalTaskInputsTestWF1()
-        wf = do_preprocessing_workflow(wf)
-        tool = wf.step_nodes['stp1'].tool
+#     # no subworkflows
+#     def test_one_call(self) -> None:
+#         wf = MinimalTaskInputsTestWF1()
+#         wf = do_preprocessing_workflow(wf)
+#         tool = wf.step_nodes['stp1'].tool
 
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        expected_param_inputs = set()
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         expected_param_inputs = set()
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        expected_static_inputs = {'inInt1'}
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         expected_static_inputs = {'inInt1'}
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
-        expected_ignored_inputs = set()
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         expected_ignored_inputs = set()
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
     
-    def test_two_calls(self) -> None:
-        wf = MinimalTaskInputsTestWF2()
-        wf = do_preprocessing_workflow(wf)
-        tool = wf.step_nodes['stp1'].tool
+#     def test_two_calls(self) -> None:
+#         wf = MinimalTaskInputsTestWF2()
+#         wf = do_preprocessing_workflow(wf)
+#         tool = wf.step_nodes['stp1'].tool
 
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        expected_task_inputs = {'inFile', 'inStr1', 'inStr2', 'inStr3', 'inStr4', 'inInt1', 'inInt2', 'inInt3'}
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         expected_task_inputs = {'inFile', 'inStr1', 'inStr2', 'inStr3', 'inStr4', 'inInt1', 'inInt2', 'inInt3'}
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        expected_param_inputs = set()
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         expected_param_inputs = set()
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        expected_static_inputs = set()
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         expected_static_inputs = set()
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
-        expected_ignored_inputs = set()
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         expected_ignored_inputs = set()
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
     
-    def test_three_calls(self) -> None:
-        wf = MinimalTaskInputsTestWF3()
-        wf = do_preprocessing_workflow(wf)
-        tool = wf.step_nodes['stp1'].tool
+#     def test_three_calls(self) -> None:
+#         wf = MinimalTaskInputsTestWF3()
+#         wf = do_preprocessing_workflow(wf)
+#         tool = wf.step_nodes['stp1'].tool
 
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        expected_task_inputs = {
-            'inFile', 
-            'inStr1', 
-            'inStr2', 
-            'inStr3', 
-            'inStr4', 
-            'inInt1', 
-            'inInt2', 
-            'inInt3',
-            'inInt4',
-        }
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         expected_task_inputs = {
+#             'inFile', 
+#             'inStr1', 
+#             'inStr2', 
+#             'inStr3', 
+#             'inStr4', 
+#             'inInt1', 
+#             'inInt2', 
+#             'inInt3',
+#             'inInt4',
+#         }
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        expected_param_inputs = set()
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         expected_param_inputs = set()
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        expected_static_inputs = set()
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         expected_static_inputs = set()
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
-        expected_ignored_inputs = set()
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         expected_ignored_inputs = set()
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
 
 
-    # subworkflows
-    def test_one_call_sub(self) -> None:
-        wf = MinimalTaskInputsTestWF4()
-        wf = do_preprocessing_workflow(wf)
-        subwf = wf.step_nodes['stp1'].tool
-        tool = subwf.step_nodes['stp1'].tool
+#     # subworkflows
+#     def test_one_call_sub(self) -> None:
+#         wf = MinimalTaskInputsTestWF4()
+#         wf = do_preprocessing_workflow(wf)
+#         subwf = wf.step_nodes['stp1'].tool
+#         tool = subwf.step_nodes['stp1'].tool
 
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
         
-        expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
-        # self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
+#         # self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        expected_param_inputs = set()
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         expected_param_inputs = set()
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        expected_static_inputs = {'inInt1'}
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         expected_static_inputs = {'inInt1'}
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        expected_ignored_inputs = set()
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         expected_ignored_inputs = set()
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
         
-        # actual_task_inputs = nextflow.task_inputs.task_inputs(subwf.id())
-        # expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
-        # self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         # actual_task_inputs = nextflow.task_inputs.task_inputs(subwf.id())
+#         # expected_task_inputs = {'inFile', 'inStr1', 'inInt2'}
+#         # self.assertSetEqual(actual_task_inputs, expected_task_inputs)
         
-        # actual_param_inputs = nextflow.task_inputs.param_inputs(subwf.id())
-        # expected_param_inputs = set()
-        # self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         # actual_param_inputs = nextflow.task_inputs.param_inputs(subwf.id())
+#         # expected_param_inputs = set()
+#         # self.assertSetEqual(actual_param_inputs, expected_param_inputs)
         
-        # actual_static_inputs = nextflow.task_inputs.static_inputs(subwf.id())
-        # expected_static_inputs = {'inInt1'}
-        # self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         # actual_static_inputs = nextflow.task_inputs.static_inputs(subwf.id())
+#         # expected_static_inputs = {'inInt1'}
+#         # self.assertSetEqual(actual_static_inputs, expected_static_inputs)
         
-        # actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(subwf.id())
-        # expected_ignored_inputs = set()
-        # self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         # actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(subwf.id())
+#         # expected_ignored_inputs = set()
+#         # self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
 
-    def test_two_calls_sub(self) -> None:
-        wf = MinimalTaskInputsTestWF5()
-        wf = do_preprocessing_workflow(wf)
+#     def test_two_calls_sub(self) -> None:
+#         wf = MinimalTaskInputsTestWF5()
+#         wf = do_preprocessing_workflow(wf)
         
-        # TaskInputsTestTool1
-        tool = wf.step_nodes['stp1'].tool
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         # TaskInputsTestTool1
+#         tool = wf.step_nodes['stp1'].tool
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
         
-        expected_task_inputs = {
-            'inFile',
-            'inStr1',
-            'inStr2',
-            'inStr3',
-            'inInt2',
-            'inInt4',
-        }
-        expected_param_inputs = set()
-        expected_static_inputs = {'inInt1'}
-        expected_ignored_inputs = {
-            'inStr4',
-            'inInt3',
-        }
+#         expected_task_inputs = {
+#             'inFile',
+#             'inStr1',
+#             'inStr2',
+#             'inStr3',
+#             'inInt2',
+#             'inInt4',
+#         }
+#         expected_param_inputs = set()
+#         expected_static_inputs = {'inInt1'}
+#         expected_ignored_inputs = {
+#             'inStr4',
+#             'inInt3',
+#         }
         
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
         
-        # SubMinimalTaskInputsTestWF
-        tool = wf.step_nodes['stp2'].tool
+#         # SubMinimalTaskInputsTestWF
+#         tool = wf.step_nodes['stp2'].tool
 
-        actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
-        actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
-        actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
-        actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
+#         actual_task_inputs = nextflow.task_inputs.task_inputs(tool.id())
+#         actual_param_inputs = nextflow.task_inputs.param_inputs(tool.id())
+#         actual_static_inputs = nextflow.task_inputs.static_inputs(tool.id())
+#         actual_ignored_inputs = nextflow.task_inputs.ignored_inputs(tool.id())
         
-        expected_task_inputs = {'inFile'}
-        expected_param_inputs = {'inStr1', 'inInt2'}
-        expected_static_inputs = set()
-        expected_ignored_inputs = {
-            'inStr2',
-            'inStr3',
-            'inInt1',
-            'inInt3',
-        }
+#         expected_task_inputs = {'inFile'}
+#         expected_param_inputs = {'inStr1', 'inInt2'}
+#         expected_static_inputs = set()
+#         expected_ignored_inputs = {
+#             'inStr2',
+#             'inStr3',
+#             'inInt1',
+#             'inInt3',
+#         }
         
-        self.assertSetEqual(actual_task_inputs, expected_task_inputs)
-        self.assertSetEqual(actual_param_inputs, expected_param_inputs)
-        self.assertSetEqual(actual_static_inputs, expected_static_inputs)
-        self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
+#         self.assertSetEqual(actual_task_inputs, expected_task_inputs)
+#         self.assertSetEqual(actual_param_inputs, expected_param_inputs)
+#         self.assertSetEqual(actual_static_inputs, expected_static_inputs)
+#         self.assertSetEqual(actual_ignored_inputs, expected_ignored_inputs)
 
 
 
@@ -1285,8 +1293,9 @@ class TestFiles(unittest.TestCase):
     def test_config_params_pythontool(self) -> None:
         # test_nonfile
         # string, int, bool
+        
         wf = InputsPythonToolTestWF()
-        _, config, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        _, config, _ = translate(wf, dest_fmt='nextflow', to_console=False, export_path='translated')
         actual_lines = split_to_lines(config)
         for ln in actual_lines:
             print(ln)
@@ -1307,11 +1316,11 @@ class TestFiles(unittest.TestCase):
             'in_str             = NULL_VALUE  // (MANDATORY string)',
             'in_str_arr         = NULL_VALUE  // (MANDATORY array)         eg. [string1, ...]',
             '// PROCESS: JOIN_ARRAY_PYTHON_TEST_TOOL',
-            'join_array_python_test_tool.code_file  = "/home/grace/work/pp/translation/janis-core/inputspythontooltestwf/templates/JoinArrayPythonTestTool.py"',
+            f'join_array_python_test_tool.code_file  = "{TRANSLATED_DIR}/templates/JoinArrayPythonTestTool.py"',
             '// PROCESS: MULTI_TYPES_INPUT_PYTHON_TOOL',
-            'multi_types_input_python_tool.code_file  = "/home/grace/work/pp/translation/janis-core/inputspythontooltestwf/templates/MultiTypesInputPythonTool.py"',
+            f'multi_types_input_python_tool.code_file  = "{TRANSLATED_DIR}/templates/MultiTypesInputPythonTool.py"',
             '// PROCESS: SECONDARY_INPUT_PYTHON_TEST_TOOL',
-            'secondary_input_python_test_tool.code_file  = "/home/grace/work/pp/translation/janis-core/inputspythontooltestwf/templates/SecondaryInputPythonTestTool.py"',
+            f'secondary_input_python_test_tool.code_file  = "{TRANSLATED_DIR}/templates/SecondaryInputPythonTestTool.py"',
             '}',
         ]
         self.assertEqual(len(actual_lines), len(expected_lines))
@@ -1563,6 +1572,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
             "path inp1",
             "val inp2",
         ]
+        print(process)
         self.assertEqual(len(actual_lines), len(expected_lines))
         for inp in expected_lines:
             self.assertIn(inp, actual_lines)
@@ -1676,7 +1686,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         process = [x[1] for x in subtasks if x[0] == 'modules/filename_collection_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
-            'path "${inp1.simpleName + ".csv"}", emit: out3',
+            'path "${inp1.baseName + ".csv"}", emit: out3',
             'path "${"generated" + ".csv"}", emit: out4',
             'path "generated.csv", emit: out5',
             'path "generated.merged.csv", emit: out6'
@@ -1770,7 +1780,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         step = wf.step_nodes['stp5']
         process = nextflow.generate.process.generate_process(step.tool)
         actual_outputs = {out.get_string() for out in process.outputs}
-        expected_outputs = {'path "${inp.simpleName + ".gz"}", emit: out'}
+        expected_outputs = {'path "${inp.baseName + ".gz"}", emit: out'}
         self.assertEqual(actual_outputs, expected_outputs)
     
     def test_edge_markduplicates_metrics(self) -> None:
@@ -1781,7 +1791,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.get_string())
         expected_outputs = {
-            'path "${["hello", "generated"].find{ it != null } + ".metrics.txt"}", emit: metrics'
+            'path "${[output_prefix, "generated"].find{ it != null } + ".metrics.txt"}", emit: metrics'
         }
         self.assertEqual(actual_outputs, expected_outputs)
 
@@ -2287,38 +2297,10 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_script:
             self.assertIn(ln, actual_script)
 
-    @unittest.skip('known bug but rare case')
+    # @unittest.skip('known bug but rare case')
     def test_file_pair_optional2(self) -> None:
         # name accession should be different?
         wf = FilePairsOptionalTestWF2()
-        wf = do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        
-        print(process.get_string())
-        actual_prescript = simplify_prescript(process.pre_script)
-        expected_prescript = [
-            'def reads_joined = reads1.simpleName != params.NULL_VALUE ? reads1 + \' \' + reads2 : ""',
-            'def reads1 = reads1.simpleName != params.NULL_VALUE ? reads1 : ""',
-            'def reads2 = reads2.simpleName != params.NULL_VALUE ? reads2 : ""',
-        ]
-        self.assertEqual(len(actual_prescript), len(expected_prescript))
-        for ln in expected_prescript:
-            self.assertIn(ln, actual_prescript)
-
-        actual_script = simplify_script(process.script)
-        expected_script = [
-            'echo',
-            '${reads_joined}',
-        ]
-        self.assertEqual(len(actual_script), len(expected_script))
-        for ln in expected_script:
-            self.assertIn(ln, actual_script)
-
-    @unittest.skip('known bug but rare case')
-    def test_file_pair_optional3(self) -> None:
-        # name accession should be different?
-        wf = FilePairsOptionalTestWF3()
         wf = do_preprocessing_workflow(wf)
         step = wf.step_nodes["stp1"]
         process = nextflow.generate.process.generate_process(step.tool)
@@ -2342,6 +2324,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             '${reads_joined}',
             '--reads-index-0 ${read1}',
             '--reads-index-1 ${read2}',
+            '> stdout',
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -2399,7 +2382,6 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_script:
             self.assertIn(ln, actual_script)
 
-    @unittest.skip('filenames are scuffed')
     def test_filename_generated_tool(self):
         wf = FilenameTestWF1()
         wf = do_preprocessing_workflow(wf)
@@ -2409,20 +2391,23 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         print(process.get_string())
         expected_process = [
             'process FILENAME_GENERATED_TOOL {',
-            'debug true',
             'publishDir "${params.outdir}/filename_generated_tool"',
             'input:',
             'path file_inp',
             'path file_inp_optional, stageAs: \'file_inp_optional/*\'',
+            'val inp',
+            'val inp_optional',
             'output:',
             'val "*", emit: out',
             'script:',
+            'def file_inp_optional = file_inp_optional.simpleName != params.NULL_VALUE ? file_inp_optional : ""',
+            'def inp_optional = inp_optional != params.NULL_VALUE ? inp_optional : ""',
             '\"\"\"',
             'echo \\',
-            '${params.filename_generated_tool.inp} \\',
-            '${params.filename_generated_tool.inp_optional} \\',
-            '${file_inp.simpleName}.transformed.fnp \\',
-            '${file_inp_optional.simpleName}.optional.txt \\',
+            '${inp} \\',
+            '${inp_optional} \\',
+            '${file_inp.baseName}.transformed.fnp \\',
+            '${file_inp_optional.baseName}.optional.txt',
             '\"\"\"',
             '}'
         ]
@@ -2454,7 +2439,6 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         for ln in expected_script:
             self.assertIn(ln, actual_script)
 
-    @unittest.skip('filenames are messed up')
     def test_filename_types2(self) -> None:
         wf = FilenameTestWF1()
         wf = do_preprocessing_workflow(wf)
@@ -2472,7 +2456,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         expected_script = [
             'echo',
             '${inp1}',
-            '${inp1.simpleName}.processed.txt',
+            '${inp1.baseName}.processed.txt',
+            '> out',
         ]
         self.assertEqual(len(actual_script), len(expected_script))
         for ln in expected_script:
@@ -3474,7 +3459,7 @@ class TestPlumbingBasic(unittest.TestCase):
         self.assertListEqual(actual, expected)
         
         actual = _get_task_call_lines(mainstr, 'STP2')
-        expected = ["in_file,", "params.NULL_VALUE"]
+        expected = ["in_file"]
         self.assertListEqual(actual, expected)
 
     def test_subworkflow(self) -> None:

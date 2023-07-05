@@ -177,8 +177,10 @@ class TaskCallArgumentGenerator:
     def desttype(self) -> DataType:
         """the datatype of the relevant ToolInput"""
         tinputs = self.tool.tool_inputs()
-        tinp = [x for x in tinputs if x.id() == self.tinput_id][0]
-        return tinp.intype  # type: ignore
+        relevant_inputs = [x for x in tinputs if x.id() == self.tinput_id]
+        if not relevant_inputs:
+            raise RuntimeError
+        return relevant_inputs[0].intype  # type: ignore
     
     @property
     def dest_scatter(self) -> bool:

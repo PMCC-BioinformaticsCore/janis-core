@@ -78,6 +78,7 @@ class CmdtoolProcessOutputFactory:
             DTypeType.FILE_PAIR: self.file_pair_output,
             DTypeType.FILE_ARRAY: self.file_array_output,
             DTypeType.FILE: self.file_output,
+            DTypeType.FILENAME: self.non_file_output,
             DTypeType.GENERIC_ARRAY: self.non_file_output,
             DTypeType.GENERIC: self.non_file_output,
         }
