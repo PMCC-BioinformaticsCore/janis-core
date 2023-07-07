@@ -1029,28 +1029,28 @@ class TestGalaxyToWdl(unittest.TestCase):
         _reset_global_settings()
     
     def test_abricate_wf(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/wf_abricate.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_unicycler_assembly(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/unicycler_assembly.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_rna_seq_counts_to_genes(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_counts_to_genes.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_rna_seq_genes_to_pathways(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_genes_to_pathways.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     @unittest.skip('implement scatter on multiple inputs')
     def test_rna_seq_reads_to_counts(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_reads_to_counts.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -1064,27 +1064,27 @@ class TestGalaxyToCwl(unittest.TestCase):
         _reset_global_settings()
 
     def test_abricate_wf(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/wf_abricate.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_unicycler_assembly(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/unicycler_assembly.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     def test_rna_seq_counts_to_genes(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_counts_to_genes.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_rna_seq_genes_to_pathways(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_genes_to_pathways.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     def test_rna_seq_reads_to_counts(self):
-        filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_reads_to_counts.ga'
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 

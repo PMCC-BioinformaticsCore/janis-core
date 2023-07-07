@@ -235,8 +235,4 @@ def _get_wrapper_files_src(wrapper: Wrapper) -> list[str]:
     dirname = os.path.dirname(tool_xml)
     macro_xmls = galaxy_utils.get_macros(dirname)
     xmls = [tool_xml] + macro_xmls
-<<<<<<< HEAD
     return sorted(xmls)
-=======
-    return sorted(xmls)
->>>>>>> 3a92e5942a14c88bd54af460b37396ea3b8f34fd
