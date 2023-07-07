@@ -9,9 +9,9 @@ from janis_core import ToolOutput
 from janis_core import ToolMetadata
 
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
-from janis_core.ingestion.galaxy.gx.gxtool.metadata import ToolXMLMetadata
-from janis_core.ingestion.galaxy.model.tool import Tool
-from janis_core.ingestion.galaxy.gx.command.components import (
+from janis_core.ingestion.galaxy.gxtool.model import XMLMetadata
+from janis_core.ingestion.galaxy.internal_model.tool import ITool
+from janis_core.ingestion.galaxy.gxtool.command.components import (
     InputComponent,
     Flag,
     Option,
@@ -24,7 +24,7 @@ from .general import to_janis_selector
 
 ### MODULE EXPORTS
 
-def to_janis_tool(internal: Tool) -> CommandToolBuilder:
+def to_janis_tool(internal: ITool) -> CommandToolBuilder:
     """
     maps internal model tool to janis model tool
     missing the following (unnessesary):
@@ -54,7 +54,7 @@ def to_janis_tool(internal: Tool) -> CommandToolBuilder:
         doc=internal.metadata.help
     )
 
-def to_janis_files_to_create(internal: Tool) -> dict[str, str]:
+def to_janis_files_to_create(internal: ITool) -> dict[str, str]:
     files_to_create: dict[str, str] = {}
     if internal.configfiles:
         for configfile in internal.configfiles:
@@ -85,8 +85,8 @@ def to_janis_tool_input(internal_inp: InputComponent) -> ToolInput:
     
     # derive special attributes in case of option tool input
     elif isinstance(internal_inp, Option):
-        if internal_inp.delim != ' ':
-            prefix = f'{internal_inp.prefix}{internal_inp.delim}'
+        if internal_inp.separator != ' ':
+            prefix = f'{internal_inp.prefix}{internal_inp.separator}'
             separate = False
         else:
             prefix = internal_inp.prefix
@@ -118,7 +118,7 @@ def to_janis_tool_output(internal_out: OutputComponent) -> ToolOutput:
         doc=internal_out.docstring
     )
 
-def to_janis_metadata(internal_meta: ToolXMLMetadata) -> ToolMetadata:
+def to_janis_metadata(internal_meta: XMLMetadata) -> ToolMetadata:
     """ maps internal model tool metadata to janis model tool metadata"""
     return ToolMetadata(
         short_documentation=internal_meta.description,
@@ -133,7 +133,7 @@ def to_janis_metadata(internal_meta: ToolXMLMetadata) -> ToolMetadata:
         documentation=f'"""{internal_meta.help}"""'
     )
 
-def _get_contributors(internal_meta: ToolXMLMetadata) -> list[str]:
+def _get_contributors(internal_meta: XMLMetadata) -> list[str]:
     contributors: list[str] = ['gxtool2janis']
     if internal_meta.owner:
         contributors += [f'Wrapper owner: galaxy toolshed user {internal_meta.owner}']

@@ -1,7 +1,7 @@
 
 
-from janis_core.ingestion.galaxy.gx.gxtool import ToolXMLMetadata
-from janis_core.ingestion.galaxy.model.workflow import WorkflowMetadata
+from janis_core.ingestion.galaxy.gxtool.model import XMLMetadata
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowMetadata
 
 
 MOCK_WORKFLOW_METADATA = WorkflowMetadata(
@@ -12,7 +12,7 @@ MOCK_WORKFLOW_METADATA = WorkflowMetadata(
     tags=['assembly']
 )
 
-MOCK_TOOL_METADATA = ToolXMLMetadata(
+MOCK_TOOL_METADATA = XMLMetadata(
     id='abricate',
     name='ABRicate',
     version='1.0.1',

@@ -8,7 +8,8 @@ import tempfile
 from typing import Any, Optional
 
 from janis_core import settings
-from .. import runtime
+from janis_core.ingestion.galaxy.fileio import safe_init_file
+
 from .Container import Container
 from janis_core.ingestion.galaxy.fileio import safe_init_file
 
@@ -16,12 +17,12 @@ from janis_core.ingestion.galaxy.fileio import safe_init_file
 def init_cache() -> ContainerCache:
     if settings.ingest.galaxy.DISABLE_CONTAINER_CACHE:
         temp = tempfile.TemporaryFile()
-        cache_path = os.path.join(tempfile.gettempdir(), temp.name)
+        cache_path = os.path.join(tempfile.gettempdir(), str(temp.name))
         os.remove(cache_path)
         with open(cache_path, 'w') as fp:
             fp.write('{}')
     else:
-        cache_path = runtime.paths.CONTAINER_CACHE
+        cache_path = settings.ingest.galaxy.CONTAINER_CACHE
     return ContainerCache(cache_path)
 
 

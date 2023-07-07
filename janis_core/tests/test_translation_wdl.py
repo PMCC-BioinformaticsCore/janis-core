@@ -2,7 +2,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from typing import Optional, Any
 
-from janis_core.deps import wdlgen
+import wdlgen
 from janis_core.types import UnionType
 
 from janis_core.translations import translate
@@ -55,6 +55,7 @@ from janis_core.utils.scatter import ScatterDescription, ScatterMethod
 
 def reset_global_settings() -> None:
     settings.validation.STRICT_IDENTIFIERS = True 
+    settings.translate.MODE = 'extended'
     settings.translate.ALLOW_EMPTY_CONTAINER = True 
     settings.translate.MERGE_RESOURCES = False
     settings.translate.RENDER_COMMENTS = True 
@@ -1098,7 +1099,7 @@ workflow wb {
     Int? echo_2_runtime_disk
     Int? echo_2_runtime_seconds
   }
-  call T.TestStepTool as echo {
+  call S.SingleTestTool as echo {
     input:
       input1=inp,
       runtime_memory=echo_runtime_memory,
@@ -1106,7 +1107,7 @@ workflow wb {
       runtime_disk=echo_runtime_disk,
       runtime_seconds=echo_runtime_seconds
   }
-  call T.TestStepTool as echo_2 {
+  call S.SingleTestTool as echo_2 {
     input:
       input1=inp,
       runtime_memory=echo_2_runtime_memory,

@@ -1,11 +1,11 @@
 
 
-from janis_core.ingestion.galaxy.gx.command.components import Positional
-from janis_core.ingestion.galaxy.gx.command.components import Flag
-from janis_core.ingestion.galaxy.gx.command.components import Option
-from janis_core.ingestion.galaxy.gx.command.components import RedirectOutput
-from janis_core.ingestion.galaxy.gx.command.components.outputs.InputOutput import InputOutput
-from janis_core.ingestion.galaxy.gx.command.components.outputs.WildcardOutput import WildcardOutput
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
+from janis_core.ingestion.galaxy.gxtool.command.components import Flag
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import RedirectOutput
+from janis_core.ingestion.galaxy.gxtool.command.components.outputs.InputOutput import InputOutput
+from janis_core.ingestion.galaxy.gxtool.command.components.outputs.WildcardOutput import WildcardOutput
 
 
 from .mock_params import MOCK_DATAPARAM1
@@ -41,14 +41,14 @@ MOCK_FLAG1.gxparam = MOCK_BOOLPARAM1
 
 MOCK_OPTION1 = Option(prefix='--minid')
 MOCK_OPTION1.values.add('$adv.min_dna_id')
-MOCK_OPTION1.delim = '='
+MOCK_OPTION1.separator = '='
 MOCK_OPTION1.cmd_pos = 2
 MOCK_OPTION1.forced_array = True
 MOCK_OPTION1.gxparam = MOCK_FLOATPARAM1
 
 MOCK_OPTION2 = Option(prefix='--db')
 MOCK_OPTION2.values.add('card')
-MOCK_OPTION2.delim = '='
+MOCK_OPTION2.separator = '='
 MOCK_OPTION2.cmd_pos = 2
 MOCK_OPTION2.gxparam = MOCK_SELECTPARAM1
 

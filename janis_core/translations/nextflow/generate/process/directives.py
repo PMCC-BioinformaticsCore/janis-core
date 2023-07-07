@@ -28,7 +28,7 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
     nf_directives: dict[str, NFProcessDirective] = {}
     
     # publishDir
-    if settings.translate.nextflow.MODE == 'workflow':
+    if settings.translate.nextflow.ENTITY == 'workflow':
         nf_directives['publishDir'] = NFPublishDirDirective(tool.id())
     
     # debug
@@ -67,7 +67,7 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
             nf_directives['disk'] = NFDiskDirective(param)
     
     # directives from tool resources
-    if settings.translate.nextflow.MODE == 'workflow':
+    if settings.translate.nextflow.ENTITY == 'workflow':
         if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
             param = params.add(tinput_id='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int(), subtype='sub_tool')
             nf_directives['cpus'] = NFCpusDirective(param)

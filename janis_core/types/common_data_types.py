@@ -6,7 +6,8 @@ import os.path
 from inspect import isclass
 from typing import Dict, Any, Set, List, Optional
 
-from janis_core.deps import cwlgen, wdlgen
+import cwl_utils.parser.cwl_v1_2 as cwlgen
+import wdlgen
 from janis_core.tool.test_classes import TTestExpectedOutput, TTestPreprocessor
 
 from janis_core.utils.logger import Logger

@@ -6,7 +6,6 @@ import requests
 from typing import Any, Optional
 from requests import Response
 
-from janis_core.ingestion.galaxy.logs import logging
 
 
 

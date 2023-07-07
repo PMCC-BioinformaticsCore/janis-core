@@ -270,6 +270,8 @@ class JanisShed:
 
 
 if __name__ == "__main__":
+    # TODO decouple jains-core form janis-bioinformatics here
+
     import janis_bioinformatics.tools
 
     # JanisShed.hydrate_transformations()

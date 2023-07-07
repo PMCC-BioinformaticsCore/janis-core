@@ -26,8 +26,7 @@ from typing import Union
 
 
 import ruamel.yaml
-
-from janis_core.deps import cwlgen
+import cwl_utils.parser.cwl_v1_2 as cwlgen
 
 from janis_core import settings
 from janis_core import WorkflowBase
@@ -900,6 +899,8 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 return cls.wrap_in_codeblock_if_required(
                     el, is_code_environment=code_environment
                 )
+            # if value.input_to_select == 'totalSortThreads':
+            #     print()
             return translate_input_selector(
                 selector=value,
                 code_environment=code_environment,

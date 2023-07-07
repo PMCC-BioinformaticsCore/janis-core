@@ -25,7 +25,7 @@ class DTypeType(Enum):
     FILE_PAIR       = auto()
     FILE_ARRAY      = auto()
     FILE            = auto()
-    # FILENAME        = auto()
+    FILENAME        = auto()
     FLAG_ARRAY      = auto()
     FLAG            = auto()
     GENERIC_ARRAY   = auto()
@@ -53,6 +53,9 @@ def get_dtt(dtype: DataType) -> DTypeType:
 
     elif is_file_type(dtype):
         return DTypeType.FILE
+    
+    elif is_filename_type(dtype):
+        return DTypeType.FILENAME
     
     elif is_flag_array_type(dtype):
         return DTypeType.FLAG_ARRAY

@@ -55,14 +55,14 @@ STRATEGIES = {
     'Workflow': GenericFormattingStrategy(),
     'WorkflowInput': WorkflowInputFormattingStrategy(),
     'WorkflowStep': GenericFormattingStrategy(),
-    'Tool': ToolNameStrategy(),
+    'ITool': ToolNameStrategy(),
     'Positional': GenericFormattingStrategy(),
     'Flag': GenericFormattingStrategy(),
     'Option': GenericFormattingStrategy(),
     'RedirectOutput': GenericFormattingStrategy(),
     'WildcardOutput': GenericFormattingStrategy(),
     'InputOutput': GenericFormattingStrategy(),
-}
+} 
 
 
 def format_tag(starting_text: str, entity: Any) -> str:

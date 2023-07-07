@@ -1,15 +1,14 @@
 import unittest
 
 from janis_core.translations import WdlTranslator
-from janis_core.utils import is_module_available
 from janis_core.workflow.workflow import WorkflowBuilder
 
+from janis_core.redefinitions.tools import Echo, Cat
 
-@unittest.skipUnless(is_module_available("janis_unix"), "janis_unix is not available")
+
+
 class TestConditionals(unittest.TestCase):
     def test_1(self):
-        from janis_unix import Echo, Cat
-
         w = WorkflowBuilder("conditionalTest")
 
         w.input("inp", int, value=1)
@@ -25,8 +24,6 @@ class TestConditionals(unittest.TestCase):
         )
 
     def test_switch(self):
-        from janis_unix import Echo, Cat
-
         w = WorkflowBuilder("switchTest")
 
         w.input("inp", int, value=2)

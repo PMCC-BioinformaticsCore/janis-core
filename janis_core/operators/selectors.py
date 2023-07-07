@@ -2,11 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Union, Optional, Type, Any
 
 from janis_core.types.data_types import ParseableType
-
 from janis_core.types import get_instantiated_type, DataType
-
-from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
+from janis_core.graph.node import NodeType
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core.utils.errors import UnsupportedError

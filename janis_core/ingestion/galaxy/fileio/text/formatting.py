@@ -2,9 +2,9 @@
 
 from typing import Any, Optional, Protocol, Tuple
 
-from janis_core.ingestion.galaxy.gx.command.components import CommandComponent
-from janis_core.ingestion.galaxy.gx.command.components import InputComponent
-from janis_core.ingestion.galaxy.gx.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import CommandComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
 
 from janis_core.ingestion.galaxy.datatypes import JanisDatatype
 

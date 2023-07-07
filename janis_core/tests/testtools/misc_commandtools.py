@@ -89,7 +89,7 @@ class CatTestTool(CommandTool):
 
 class SingleTestTool(CommandTool):
     def tool(self):
-        return "TestStepTool"
+        return self.__class__.__name__
 
     def base_command(self):
         return "echo"

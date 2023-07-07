@@ -3,13 +3,13 @@
 from typing import Any, Optional
 from datetime import datetime
 
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowMetadata
-from janis_core.ingestion.galaxy.model.workflow import InputValue
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
-from janis_core.ingestion.galaxy.model.workflow import StaticInputValue
-from janis_core.ingestion.galaxy.model.workflow import ConnectionInputValue
-from janis_core.ingestion.galaxy.model.workflow import WorkflowInputInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowMetadata
+from janis_core.ingestion.galaxy.internal_model.workflow import InputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.internal_model.workflow import StaticInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import ConnectionInputValue
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowInputInputValue
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
 from janis_core.ingestion.galaxy import tags
 
@@ -135,7 +135,7 @@ class Mapper:
         """
         unknown_count: int = 0
         invalues = gstep.inputs.all
-        invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+        # invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
         for gvalue in invalues:
             # tool input is known (normal case)
             if gvalue.component:       
@@ -230,7 +230,7 @@ def _get_scatter_targets(gstep: WorkflowStep) -> list[str]:
     targets: list[str] = []
     
     invalues = gstep.inputs.all
-    invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
+    # invalues = [x for x in invalues if not isinstance(x, StaticInputValue)]
     for v in invalues:
         if v.scatter:
             if v.component:

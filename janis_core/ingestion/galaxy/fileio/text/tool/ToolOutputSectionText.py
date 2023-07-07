@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass
 from typing import Tuple
-from janis_core.ingestion.galaxy.gx.command.components import OutputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import OutputComponent
 
 from ..TextRender import TextRender
 from ..tool.ToolOutputText import ToolOutputText

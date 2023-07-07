@@ -16,12 +16,14 @@ from janis_core import (
     File,
     Directory
 )
-from janis_core.ingestion.galaxy.gx.gxtool.param import OutputParam, CollectionOutputParam, DataOutputParam
+from janis_core.ingestion.galaxy.gxtool.model import XMLOutputParam
+from janis_core.ingestion.galaxy.gxtool.model import XMLDataOutputParam
+from janis_core.ingestion.galaxy.gxtool.model import XMLCollectionOutputParam
 
 from janis_core.ingestion.galaxy import tags
-from janis_core.ingestion.galaxy.model.workflow.input import WorkflowInput
-from janis_core.ingestion.galaxy.model.workflow.step.outputs import StepOutput
-from janis_core.ingestion.galaxy.gx.command.components import (
+from janis_core.ingestion.galaxy.internal_model.workflow.input import WorkflowInput
+from janis_core.ingestion.galaxy.internal_model.workflow.step.outputs import StepOutput
+from janis_core.ingestion.galaxy.gxtool.command.components import (
     InputComponent,
     OutputComponent,
     RedirectOutput,
@@ -90,13 +92,13 @@ def to_janis_selector(component: OutputComponent) -> Optional[InputSelector | Wi
         return WildcardSelector('unknown_collection_pattern')
 
 def get_collection_pattern(component: OutputComponent) -> Optional[str]:
-    # linked to CollectionOutputParam
-    if isinstance(component.gxparam, CollectionOutputParam):
+    # linked to XMLCollectionOutputParam
+    if isinstance(component.gxparam, XMLCollectionOutputParam):
         if component.gxparam.discover_pattern:
             return component.gxparam.discover_pattern
     
-    # linked to DataOutputParam
-    if isinstance(component.gxparam, DataOutputParam):
+    # linked to XMLDataOutputParam
+    if isinstance(component.gxparam, XMLDataOutputParam):
         if component.gxparam.from_work_dir:
             return component.gxparam.from_work_dir
         if component.gxparam.discover_pattern:
@@ -106,14 +108,14 @@ def get_collection_pattern(component: OutputComponent) -> Optional[str]:
     # <outputs> section, rather than in the <inputs> section
     if isinstance(component, InputOutput):
         
-        # linked to CollectionOutputParam
-        if isinstance(component.gxparam, OutputParam):
-            if isinstance(component.gxparam, CollectionOutputParam):
+        # linked to XMLCollectionOutputParam
+        if isinstance(component.gxparam, XMLOutputParam):
+            if isinstance(component.gxparam, XMLCollectionOutputParam):
                 if component.gxparam.discover_pattern:
                     return component.gxparam.discover_pattern
             
-            # linked to DataOutputParam
-            if isinstance(component.gxparam, DataOutputParam):
+            # linked to XMLDataOutputParam
+            if isinstance(component.gxparam, XMLDataOutputParam):
                 if component.gxparam.from_work_dir:
                     return component.gxparam.from_work_dir
                 if component.gxparam.discover_pattern:

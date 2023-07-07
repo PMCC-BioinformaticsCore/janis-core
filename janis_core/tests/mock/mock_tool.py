@@ -1,7 +1,7 @@
 
 
 
-from janis_core.ingestion.galaxy.model.tool import Tool
+from janis_core.ingestion.galaxy.internal_model.tool import ITool
 
 from .mock_params import MOCK_PARAM_REGISTER
 from .mock_metadata import MOCK_TOOL_METADATA
@@ -15,7 +15,7 @@ from .mock_components import (
     MOCK_INPUT_OUTPUT
 )
 
-MOCK_TOOL_ABRICATE = Tool(
+MOCK_TOOL_ABRICATE = ITool(
     metadata=MOCK_TOOL_METADATA,
     configfiles=[],
     scripts=[],

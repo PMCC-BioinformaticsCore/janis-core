@@ -27,13 +27,22 @@ ingestor_map = {
     'wdl': ingest_wdl
 }
 
-def ingest(path: str, format: str) -> Tool:
+def ingest(
+    path: str, 
+    format: str, 
+    build_galaxy_tool_images: bool = False, 
+    ) -> Tool:
     # setup logging
     configure_logging()                         
-    # set translate settings
+    
+    # set ingest settings
     settings.ingest.SOURCE = format                     
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
+    if build_galaxy_tool_images:
+        settings.ingest.galaxy.GEN_IMAGES = True
+
+    # do ingest
     assert(format in SupportedIngestion.all())  # validate format
     ingest_func = ingestor_map[format]          # select ingestor
     internal = ingest_func(path)                # ingest

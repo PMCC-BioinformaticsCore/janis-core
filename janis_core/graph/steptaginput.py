@@ -1,7 +1,6 @@
 from typing import Optional
 
 from janis_core.types import get_instantiated_type
-
 from janis_core.operators import Selector
 from janis_core.graph.node import Node, NodeType
 from janis_core.tool.tool import TInput

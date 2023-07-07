@@ -1,7 +1,7 @@
 
 from typing import Optional, Any
 
-from janis_bioinformatics.data_types.bam import BamBai
+from janis_core.redefinitions.types import BamBai
 from janis_core import (
     ToolOutput,
     ToolInput,

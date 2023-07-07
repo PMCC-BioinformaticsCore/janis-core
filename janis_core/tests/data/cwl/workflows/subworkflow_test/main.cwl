@@ -24,6 +24,8 @@ inputs:
         type: string
     inStringOptional:
         type: string?
+    inStringOptional2:
+        type: string?
     inStringArr:
         type: string[]
     inStringArrOptional:
@@ -32,6 +34,9 @@ inputs:
         type: int
     inIntOptional:
         type: int?
+    inIntOptional2:
+        type: int?
+        default: 5
 
 outputs:
     outFile:
@@ -46,6 +51,7 @@ steps:
             inString: inString
             inSecondary: inSecondary
             inFileOptional: inFileOptional
+            inIntOptional: inIntOptional2
         out:
             [out_stdout]
     mandatory:

@@ -195,9 +195,9 @@ class NamerootOperator(Operator):
         return f"os.path.splitext(os.path.basename({arg}))[0]"
 
     def to_wdl(self, unwrap_operator, *args):
-        ext = args[0].split('.')[-1]
+        # ext = args[0].split('.')[-1]
         arg = unwrap_operator(args[0])
-        return f"basename({arg}, .{ext})"
+        return f"basename({arg}, \".*\")"
 
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(

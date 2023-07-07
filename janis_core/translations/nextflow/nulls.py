@@ -28,6 +28,9 @@ def get_null_value(dtype: DataType, as_param: bool=False, should_add_file_cast: 
 
     elif dtt == DTypeType.FILE:
         expr = file_null()
+    
+    elif dtt == DTypeType.FILENAME:
+        expr = generic_null()
 
     elif dtt == DTypeType.GENERIC_ARRAY:
         expr = generic_array_null()

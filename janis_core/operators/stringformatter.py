@@ -1,8 +1,7 @@
 from typing import Optional, List, Dict, Tuple
 
-from janis_core.utils import first_value
-
 from janis_core.types import String, AnyType
+from janis_core.utils import first_value
 from janis_core.operators.logical import Operator, AddOperator
 from janis_core.utils.bracketmatching import get_keywords_between_braces
 from janis_core.utils.errors import (

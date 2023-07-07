@@ -6,7 +6,7 @@ from typing import Optional, Any
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
-from janis_core import Tool, Workflow, TInput
+from janis_core import Tool, WorkflowBuilder, TInput
 
 from . import task_inputs
 from .task_inputs import TaskInputType
@@ -17,7 +17,7 @@ def init_variable_manager_for_task(tool: Tool) -> VariableManager:
     initialise a variable manager for a tool, covering all tool inputs. 
     differs from task_inputs because task_inputs are based on the task 'class', whereas the variable manager is specific to an 'instance' of the task 
     """
-    if isinstance(tool, Workflow):
+    if isinstance(tool, WorkflowBuilder):
         initialiser = WorkflowVariableManagerInitialiser(tool)
     else:
         initialiser = ProcessVariableManagerInitialiser(tool)
@@ -62,15 +62,14 @@ class WorkflowVariableManagerInitialiser(VariableManagerInitialiser):
         for tinput in self.tool.tool_inputs():
             if not task_inputs.exists(self.tool.id(), tinput):
                 self.initialise_ignored_input(tinput, vmanager)
+                continue
             
+            task_input = task_inputs.get(self.tool.id(), tinput)
+            if task_input.ti_type == TaskInputType.IGNORED:
+                self.initialise_ignored_input(tinput, vmanager)
             else:
-                task_input = task_inputs.get(self.tool.id(), tinput)
-                if task_input.ti_type == TaskInputType.IGNORED:
-                    self.initialise_ignored_input(tinput, vmanager)
-                
-                else:
-                    vtype_str = self.types_map[task_input.ti_type]
-                    vmanager.update(task_input.tinput_id, vtype_str=vtype_str, value=task_input.value)
+                vtype_str = self.types_map[task_input.ti_type]
+                vmanager.update(task_input.tinput_id, vtype_str=vtype_str, value=task_input.value)
         
         return vmanager
     
@@ -171,6 +170,8 @@ class VariableManager:
         }
 
     def get(self, tinput_id: str) -> VariableHistory:
+        if tinput_id not in self.data_structure:
+            raise RuntimeError
         return self.data_structure[tinput_id]
         
     def update(self, tinput_id: str, vtype_str: str, value: Optional[str | list[str]]) -> None:

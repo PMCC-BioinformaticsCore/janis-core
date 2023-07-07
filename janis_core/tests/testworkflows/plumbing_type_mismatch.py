@@ -4,9 +4,7 @@ from typing import Optional
 
 from janis_core import Workflow, ToolInput, ToolOutput, CommandTool
 from janis_core.types import File, Array, Stdout
-from janis_bioinformatics.data_types.bam import BamBai, Bam
-from janis_bioinformatics.data_types.fasta import FastaWithIndexes, FastaDict
-
+from janis_core.redefinitions.types import BamBai, Bam, FastaWithIndexes, FastaDict
 
 
 class PlumbingTypeMismatchTestWF(Workflow):

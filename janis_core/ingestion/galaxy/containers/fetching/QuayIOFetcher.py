@@ -2,7 +2,7 @@
 
 
 from typing import Any
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLRequirement
 
 from ..Container import Container
 from ..fetching.Fetcher import Fetcher
@@ -11,7 +11,7 @@ from . import utils
 
 class QuayIOFetcher(Fetcher):
 
-    def fetch(self, requirement: Requirement) -> list[Container]:
+    def fetch(self, requirement: XMLRequirement) -> list[Container]:
         interactor = QuayInteractor()
         tool_data = interactor.request_tool_data(requirement.name)
         if tool_data:
@@ -19,7 +19,7 @@ class QuayIOFetcher(Fetcher):
         else:
             return []
 
-    def response_to_containers(self, repo: dict[str, Any], requirement: Requirement) -> list[Container]:
+    def response_to_containers(self, repo: dict[str, Any], requirement: XMLRequirement) -> list[Container]:
         out: list[Container] = []
         for details in repo['tags'].values():
             info: dict[str, str] = {

@@ -3,7 +3,7 @@
 
 from typing import Tuple
 
-from janis_core.ingestion.galaxy.model.workflow.step.outputs import StepOutput
+from janis_core.ingestion.galaxy.internal_model.workflow.step.outputs import StepOutput
 
 from ..TextRender import TextRender
 from .. import ordering

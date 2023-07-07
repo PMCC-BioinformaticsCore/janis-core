@@ -506,7 +506,7 @@ class FilePairFormatter(PreScriptFormatter):
     ARR_JOIN_PREFIX     = '"{prefix}{spacer}${{{pair1}}}{delim}${{{pair2}}}"'
     ARR_JOIN_PREFIXEACH  = '"{prefix}{spacer}${{{pair1}}}{delim}{prefix}{spacer}${{{pair2}}}"'
     
-    COND_CHECK_FMT  = '{src}[0] != {null}'
+    COND_CHECK_FMT  = '{src}.simpleName != {null}'
     COND_TRUE_POS   = '{src}'
     COND_TRUE_OPT   = '"{prefix}{spacer}" + {src}'
     COND_FALSE_POS = '{default}'
@@ -535,7 +535,7 @@ class FilePairFormatter(PreScriptFormatter):
         dest = self.varhistory.current.value
         pair1 = self.varhistory.original.value[0]
 
-        cond_check = self.COND_CHECK_FMT.format(src=pair1, null=NULL_VALUE)
+        cond_check = self.COND_CHECK_FMT.format(src=pair1, null=f'params.{NULL_VALUE}')
         cond_true = self.arr_join()
         cond_false = '""'
         condition = self.CONDITION_FMT.format(cond_check=cond_check, cond_true=cond_true, cond_false=cond_false)
@@ -593,7 +593,7 @@ class FilePairFormatter(PreScriptFormatter):
         dest = self.varhistory.original.value[pair]
 
         ### CONDITION CHECK
-        cond_check = self.COND_CHECK_FMT.format(src=src, null=NULL_VALUE)
+        cond_check = self.COND_CHECK_FMT.format(src=src, null=f'params.{NULL_VALUE}')
         
         ### CONDITION TRUE
         if self.attributes.prefix:

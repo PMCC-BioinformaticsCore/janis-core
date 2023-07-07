@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
-    from janis_core.ingestion.galaxy.model.workflow import Workflow
+    from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
 
 from datetime import datetime
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT

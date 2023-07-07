@@ -1,6 +1,6 @@
 
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import ContainerRequirement
+from janis_core.ingestion.galaxy.gxtool.model import XMLContainerRequirement
 
 from ..Container import Container
 from .Fetcher import Fetcher
@@ -8,7 +8,7 @@ from .Fetcher import Fetcher
 
 class ContainerReqFetcher(Fetcher):
     
-    def fetch(self, requirement: ContainerRequirement) -> list[Container]:
+    def fetch(self, requirement: XMLContainerRequirement) -> list[Container]:
         info: dict[str, str] = {
             'image_type': requirement.image_type,
             'repo': requirement.name,
