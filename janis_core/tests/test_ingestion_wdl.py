@@ -1,7 +1,9 @@
 
-
+import os 
 import unittest
 from janis_core.ingestion.wdl import WdlParser
+
+WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
 
 class TestFromWdl(unittest.TestCase):

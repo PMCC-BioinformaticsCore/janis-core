@@ -1,6 +1,7 @@
 
 
 import json
+import os
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy.gxworkflow.parsing.inputs import parse_input_step
@@ -13,7 +14,9 @@ from janis_core.ingestion.galaxy.internal_model.workflow import StepOutput
 from .mock_tool import MOCK_TOOL_ABRICATE
 
 
-gx_workflow_path = 'janis_core/tests/data/galaxy/wf_abricate.ga'  
+GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
+
+gx_workflow_path = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'  
 step1_wrapper_details = {
     "owner": "iuc", 
     "repo": "abricate", 
