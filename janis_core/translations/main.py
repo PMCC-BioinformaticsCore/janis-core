@@ -102,7 +102,7 @@ def translate(
     entity = to_builders(entity)
     if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(entity, WorkflowBuilder):
         assert(isinstance(entity, WorkflowBuilder))
-        entity = prune_workflow(entity)
+        prune_workflow(entity)
 
     # select the translation unit 
     translator = get_translator(dest_fmt)

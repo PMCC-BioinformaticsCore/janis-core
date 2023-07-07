@@ -207,7 +207,7 @@ def do_preprocessing_workflow(wf: Workflow, ignore_task_inputs: bool=False) -> W
     wf = to_builders(wf)
     if settings.translate.MODE in ['skeleton', 'regular'] and isinstance(wf, WorkflowBuilder):
         assert(isinstance(wf, WorkflowBuilder))
-        wf = prune_workflow(wf)
+        prune_workflow(wf)
     if not ignore_task_inputs:
         nextflow.preprocessing.populate_task_inputs_workflowmode(wf, wf)
     assert(isinstance(wf, WorkflowBuilder))

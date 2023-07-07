@@ -1,12 +1,9 @@
 
 
-from typing import Tuple, Any
-from janis_core import WorkflowBuilder, CommandToolBuilder, ToolInput, ToolArgument
+from janis_core import WorkflowBuilder, CommandToolBuilder
 from janis_core.workflow.workflow import StepNode
-from janis_core.operators.selectors import InputNodeSelector
+from janis_core.operators.selectors import InputSelector
 from janis_core.translations.common import trace
-from janis_core import translation_utils as utils
-
 from .history import TaskInputCollector
 
 
@@ -31,7 +28,7 @@ def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     # identify tinputs which have a single static value as source & migrate the source to tool default
     migrate_single_statics_to_defaults(valid_tinput_ids, collector, tool)
     # remove step.sources which are not needed, migrate inputnode srcs to raw values
-    update_sources(main_wf, tool, collector, valid_tinput_ids)
+    prune_sources(main_wf, tool.id(), valid_tinput_ids)
 
     # add tinputs which reference a previously validated tinput
     valid_tinput_ids = valid_tinput_ids | get_tinput_reference_tinputs(tool, valid_tinput_ids)
@@ -39,7 +36,7 @@ def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     valid_tinput_ids = valid_tinput_ids | get_default_tinputs(tool, valid_tinput_ids)
     
     # remove the ToolInputs / ToolArguments which are not needed
-    prune_tool(tool, valid_tinput_ids)
+    prune_tool(main_wf, tool.id(), valid_tinput_ids)
     # apply the pruned tool to the workflow
     # apply_pruned_tool(main_wf, tool)
 
@@ -99,22 +96,16 @@ def migrate_single_statics_to_defaults(
             tinput = [x for x in tool._inputs if x.id() == tinput_id][0] 
             tinput.default = node.default
 
-def update_sources(
-    local_wf: WorkflowBuilder, 
-    tool: CommandToolBuilder,
-    collector: TaskInputCollector, 
-    valid_tinput_ids: set[str],
-    ) -> None:
-
+def prune_sources(local_wf: WorkflowBuilder, tool_id: str, valid_tinput_ids: set[str]) -> None:
     for step in local_wf.step_nodes.values():
         if isinstance(step.tool, WorkflowBuilder):
-            update_sources(step.tool, tool, collector, valid_tinput_ids)
-        elif step.tool.id() == tool.id():
-            do_update_sources(step, collector, valid_tinput_ids)
+            prune_sources(step.tool, tool_id, valid_tinput_ids)
+        elif isinstance(step.tool, CommandToolBuilder) and step.tool.id() == tool_id:
+            do_prune_sources(step, valid_tinput_ids)
         else:
             continue
 
-def do_update_sources(step: StepNode, collector: TaskInputCollector, valid_tinput_ids: set[str]) -> None:
+def do_prune_sources(step: StepNode, valid_tinput_ids: set[str]) -> None:
     # remove sources which are not needed
     invalid_sources = set(step.sources.keys()) - valid_tinput_ids
     for tinput_id in invalid_sources:
@@ -152,11 +143,17 @@ def get_tinput_reference_tinputs(tool: CommandToolBuilder, valid_tinput_ids: set
                 break
     return extra_tinput_ids
 
-def prune_tool(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> None:
-    prune_tool_inputs(tool, valid_tinput_ids)
-    prune_tool_arguments(tool, valid_tinput_ids)
+def prune_tool(local_wf: WorkflowBuilder, tool_id: str, valid_tinput_ids: set[str]) -> None:
+    for step in local_wf.step_nodes.values():
+        if isinstance(step.tool, WorkflowBuilder):
+            prune_tool(step.tool, tool_id, valid_tinput_ids)
+        elif isinstance(step.tool, CommandToolBuilder) and step.tool.id() == tool_id:
+            do_prune_tool_inputs(step.tool, valid_tinput_ids)
+            do_prune_tool_arguments(step.tool, valid_tinput_ids)
+        else:
+            continue
     
-def prune_tool_inputs(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> None:
+def do_prune_tool_inputs(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> None:
     # early exit
     if not tool._inputs:
         return 
@@ -169,7 +166,7 @@ def prune_tool_inputs(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> N
     for i in sorted(items_to_delete, reverse=True):
         del tool._inputs[i]     # type: ignore
 
-def prune_tool_arguments(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> None:
+def do_prune_tool_arguments(tool: CommandToolBuilder, valid_tinput_ids: set[str]) -> None:
     # early exit
     if not tool._arguments:
         return 

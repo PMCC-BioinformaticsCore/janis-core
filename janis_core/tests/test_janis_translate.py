@@ -298,10 +298,10 @@ class TestPreprocessingPrune(unittest.TestCase):
         _reset_global_settings()
         self.flat_wf = PruneFlatTW()
         self.flat_wf = to_builders(self.flat_wf)
-        self.flat_wf = prune_workflow(self.flat_wf)
+        prune_workflow(self.flat_wf)
         self.nested_wf = PruneNestedTW()
         self.nested_wf = to_builders(self.nested_wf)
-        self.nested_wf = prune_workflow(self.nested_wf)
+        prune_workflow(self.nested_wf)
 
     ### workflow inputs ###
     
