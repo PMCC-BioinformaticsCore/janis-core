@@ -17,13 +17,14 @@ This file is logically structured similar to the cwl equiv:
 """
 
 import json
+import wdlgen as wdl
 from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
 from janis_core import settings
 from janis_core.messages import get_messages
 from janis_core.code.codetool import CodeTool
-from janis_core.deps import wdlgen as wdl
+
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators import (
     InputSelector,
@@ -32,6 +33,7 @@ from janis_core.operators import (
     MemorySelector,
     StringFormatter,
     Selector,
+    NamerootOperator,
     Operator,
     StepOutputSelector,
     InputNodeSelector,

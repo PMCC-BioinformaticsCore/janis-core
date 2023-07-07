@@ -1,16 +1,17 @@
 
 
-from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
-from janis_core.ingestion.galaxy.gx.gxtool.param import ParamRegister
-from janis_core.ingestion.galaxy.gx.gxtool.TestRegister import TestRegister
+from janis_core.ingestion.galaxy.gxtool.model import XMLTool
+from janis_core.ingestion.galaxy.gxtool.model import XMLParamRegister
+from janis_core.ingestion.galaxy.gxtool.model import XMLTestRegister
 from .mock_metadata import MOCK_TOOL_METADATA
 
 
-MOCK_XMLTOOL = XMLToolDefinition(
+MOCK_XMLTOOL = XMLTool(
     metadata=MOCK_TOOL_METADATA,
     raw_command='',
     configfiles=[],
-    inputs=ParamRegister(),
-    outputs=ParamRegister(),
-    tests=TestRegister([])
+    scripts=[],
+    inputs=XMLParamRegister(),
+    outputs=XMLParamRegister(),
+    tests=XMLTestRegister([])
 )

@@ -5,15 +5,16 @@ from typing import TYPE_CHECKING
 from janis_core.ingestion.galaxy.fileio import safe_init_folder
 
 if TYPE_CHECKING:
-    from janis_core.ingestion.galaxy.model.tool import Tool
-    from janis_core.ingestion.galaxy.model.workflow import Workflow
-    from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+    from janis_core.ingestion.galaxy.internal_model.tool import ITool
+    from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+    from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
 
 import shutil
+from janis_core.ingestion.galaxy.fileio import safe_init_folder
 from janis_core.ingestion.galaxy.runtime import paths
-
+from janis_core import settings
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
-from janis_core.ingestion.galaxy.gx.wrappers import fetch_xml
+from janis_core.ingestion.galaxy.gxwrappers import fetch_xml
 
 from .text.workflow.InputsText import InputsText
 from .text.workflow.WorkflowText import WorkflowText
@@ -21,10 +22,7 @@ from .text.tool.ConfigfileText import ConfigfileText
 from .text.tool.UnstranslatedText import UntranslatedText
 from .text.tool.ToolText import ToolText
 
-
-
-
-def write_tool(tool: Tool, path: str) -> None:
+def write_tool(tool: ITool, path: str) -> None:
     text = ToolText(tool)
     page = text.render()
     with open(path, 'w') as fp:

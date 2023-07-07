@@ -1,7 +1,7 @@
 
 
 
-from janis_core.ingestion.galaxy.model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
 
 from .mock_metadata import MOCK_WORKFLOW_METADATA
 from .mock_entities import MOCK_WORKFLOW_INPUT1

@@ -6,41 +6,41 @@ from typing import Any, Optional, Tuple
 from janis_core import settings
 from janis_core import Tool
 from janis_core.ingestion.galaxy import runtime
-from janis_core.ingestion.galaxy import mapping
-from janis_core.ingestion.galaxy.startup import tool_setup
-from janis_core.ingestion.galaxy.gx.gxtool import load_xmltool
-from janis_core.ingestion.galaxy.gx.command import gen_command
+from janis_core.ingestion.galaxy import internal_mapping
+from janis_core.ingestion.galaxy.runtime.startup import tool_setup
+from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
+from janis_core.ingestion.galaxy.gxtool.command import gen_command
 from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
-from janis_core.ingestion.galaxy.model.tool.generate import gen_tool
-from janis_core.ingestion.galaxy.model.tool import Tool as InternalTool
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import StepMetadata
+from janis_core.ingestion.galaxy.internal_model.tool.generate import gen_tool
+from janis_core.ingestion.galaxy.internal_model.tool import ITool as InternalTool
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import StepMetadata
 from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
 
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.metadata import ingest_metadata
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.inputs import ingest_workflow_inputs
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.step import ingest_workflow_steps
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.prepost import ingest_workflow_steps_prepost
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.outputs import ingest_workflow_steps_outputs
-from janis_core.ingestion.galaxy.gx.wrappers.requests.versions import request_single_wrapper
+from janis_core.ingestion.galaxy.gxworkflow.parsing.metadata import ingest_metadata
+from janis_core.ingestion.galaxy.gxworkflow.parsing.inputs import ingest_workflow_inputs
+from janis_core.ingestion.galaxy.gxworkflow.parsing.step import ingest_workflow_steps
+from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.prepost import ingest_workflow_steps_prepost
+from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.outputs import ingest_workflow_steps_outputs
+from janis_core.ingestion.galaxy.gxwrappers import request_single_wrapper
 
-from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_connection_inputs
-from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_runtime_inputs
-from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_static_inputs
-from janis_core.ingestion.galaxy.gx.gxworkflow.values import handle_step_default_inputs
+from janis_core.ingestion.galaxy.gxworkflow.values import handle_step_connection_inputs
+from janis_core.ingestion.galaxy.gxworkflow.values import handle_step_runtime_inputs
+from janis_core.ingestion.galaxy.gxworkflow.values import handle_step_static_inputs
+from janis_core.ingestion.galaxy.gxworkflow.values import handle_step_default_inputs
 
-from janis_core.ingestion.galaxy.gx.gxworkflow.updates import update_component_knowledge
-from janis_core.ingestion.galaxy.gx.gxworkflow.connections import handle_scattering
-from janis_core.ingestion.galaxy.gx.gxworkflow.values.scripts import handle_step_script_configfile_inputs
+from janis_core.ingestion.galaxy.gxworkflow.updates import update_component_knowledge
+from janis_core.ingestion.galaxy.gxworkflow.connections import handle_scattering
+from janis_core.ingestion.galaxy.gxworkflow.values.scripts import handle_step_script_configfile_inputs
 
-from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
-from janis_core.ingestion.galaxy.gx.wrappers import WrapperCache
-from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import get_builtin_tool_path
-from janis_core.ingestion.galaxy.gx.wrappers.downloads.wrappers import fetch_xml
+from janis_core.ingestion.galaxy.gxwrappers import Wrapper
+from janis_core.ingestion.galaxy.gxwrappers import WrapperCache
+from janis_core.ingestion.galaxy.gxwrappers.downloads.wrappers import get_builtin_tool_path
+from janis_core.ingestion.galaxy.gxwrappers.downloads.wrappers import fetch_xml
 
 from janis_core.ingestion.galaxy import datatypes
-# from janis_core.ingestion.galaxy.startup import setup_data_folder
+# from janis_core.ingestion.galaxy.runtime.startup import setup_data_folder
 from janis_core.messages import info_ingesting_tool
 from janis_core.messages import info_ingesting_workflow
 from janis_core.ingestion.galaxy.janis_mapping import to_janis_tool
@@ -89,7 +89,7 @@ def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> InternalToo
     datatypes.populate()
     runtime.tool.tool_path = path
     galaxy = load_xmltool(path)
-    command = gen_command(galaxy)
+    command = gen_command(galaxy, gxstep)
     container = resolve_dependencies_as_container(galaxy)
     internal = gen_tool(galaxy, command, container, gxstep)
     return internal
@@ -138,7 +138,7 @@ def ingest_workflow(path: str) -> Workflow:
 def ingest_workflow_tools(janis: Workflow, galaxy: dict[str, Any]) -> None:
     for gx_step in galaxy['steps'].values():
         if gx_step['type'] == 'tool':
-            j_step = mapping.step(gx_step['id'], janis, galaxy)
+            j_step = internal_mapping.step(gx_step['id'], janis, galaxy)
             args = _gen_ingest_settings_for_step(j_step.metadata)
             tool_setup(args)
             tool = ingest_tool(runtime.tool.tool_path, gx_step)
@@ -235,4 +235,8 @@ def _get_wrapper_files_src(wrapper: Wrapper) -> list[str]:
     dirname = os.path.dirname(tool_xml)
     macro_xmls = galaxy_utils.get_macros(dirname)
     xmls = [tool_xml] + macro_xmls
+<<<<<<< HEAD
     return sorted(xmls)
+=======
+    return sorted(xmls)
+>>>>>>> 3a92e5942a14c88bd54af460b37396ea3b8f34fd

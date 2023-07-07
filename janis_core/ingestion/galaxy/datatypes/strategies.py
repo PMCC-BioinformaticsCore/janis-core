@@ -6,7 +6,7 @@ from typing import Any
 from janis_core.ingestion.galaxy import expressions
 import json
 
-# from janis_core.ingestion.galaxy.gx.command.components.inputs.Option import Option
+# from janis_core.ingestion.galaxy.gxtool.command.components.inputs.Option import Option
 
 from .JanisDatatype import JanisDatatype
 from .conversion import galaxy_to_internal

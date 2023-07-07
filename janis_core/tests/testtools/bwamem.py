@@ -15,8 +15,7 @@ from janis_core import (
     CommandTool
 )
 from janis_core.tool.test_classes import TTestCase
-from janis_bioinformatics.data_types import Sam, FastaBwa, FastqGz, FastqGzPair, Bam
-
+from janis_core.redefinitions.types import Sam, FastaBwa, FastqGz, FastqGzPair, Bam
 
 
 class BwaMemTestTool(CommandTool):

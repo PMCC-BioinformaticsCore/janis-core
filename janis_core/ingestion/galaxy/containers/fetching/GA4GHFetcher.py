@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import Requirement
+from janis_core.ingestion.galaxy.gxtool.requirements.requirements import Requirement
 from janis_core.ingestion.galaxy.utils.general import global_align
 
 from .Fetcher import Fetcher
@@ -13,7 +13,7 @@ from . import utils
 class GA4GHFetcher(Fetcher):
     """uses the GA4GH trs api to get tool containers and versions"""
 
-    def fetch(self, requirement: Requirement) -> list[Container]:
+    def fetch(self, requirement: XMLRequirement) -> list[Container]:
         interactor = GA4GHInteractor()
         tools_list = interactor.request_tool_data(requirement.name)
         # TODO finish refactoring. GA4GH was down. 

@@ -1,8 +1,6 @@
-
 import os
 from typing import Any
 from .types import cast_cwl_type_to_python
-
 
 def handle_inline_cltool_identifiers(cwl_workflow: Any, cwl_utils: Any) -> Any:
     """

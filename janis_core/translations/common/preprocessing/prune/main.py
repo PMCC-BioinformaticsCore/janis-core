@@ -1,14 +1,24 @@
 
 
-from janis_core import WorkflowBase
+from janis_core import WorkflowBuilder
 
 from .gather import gather_tools
-from .do_prune import prune_unused_tool_inputs
-from .apply import apply_pruned_tools
+from .tools import prune_tools_and_sources
+from .workflows import prune_main_workflow_inputs
 
+
+"""
+exists to enable the settings.translate.MODE feature. 
+prunes the main workflow inputs, so that only those which are used are kept.
+prunes tool inputs which aren't used. 
+prunes step sources which aren't used.
+
+"""
  
-def prune_unused_inputs(wf: WorkflowBase) -> WorkflowBase:
+def prune_workflow(wf: WorkflowBuilder) -> WorkflowBuilder:
     tools = gather_tools(wf)
-    pruned_tools = prune_unused_tool_inputs(wf, tools)
-    wf = apply_pruned_tools(wf, pruned_tools)
+    wf = prune_tools_and_sources(wf, tools)
+    wf = prune_main_workflow_inputs(wf)
     return wf
+
+

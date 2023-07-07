@@ -6,16 +6,18 @@ import json
 import xml.etree.ElementTree as et
 
 from janis_core.ingestion.main import ingest_galaxy
-from janis_core.ingestion.galaxy.gx.gxtool.text.simplification.aliases import resolve_aliases
+
+from janis_core.ingestion.galaxy.gxtool.text.simplification.aliases import resolve_aliases
 
 from janis_core.ingestion.galaxy import runtime
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_state import load_tool_state
-from janis_core.ingestion.galaxy.gx.gxtool.text.cheetah.evaluation import sectional_evaluate
-from janis_core.ingestion.galaxy.gx.gxtool.load import load_xmltool
-from janis_core.ingestion.galaxy.gx.command.generate import gen_command
+from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
+from janis_core.ingestion.galaxy.gxtool.text.cheetah.evaluation import sectional_evaluate
+from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
+from janis_core.ingestion.galaxy.gxtool.command import gen_command
 
-from janis_core.ingestion.galaxy.gx.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
-from janis_core.ingestion.galaxy.gx.gxtool.requirements.model import CondaRequirement
+from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
+from janis_core.ingestion.galaxy.gxtool.model import XMLTool
+from janis_core.ingestion.galaxy.gxtool.model import XMLCondaRequirement
 
 from janis_core.ingestion.galaxy import regex_to_glob
 from janis_core.ingestion.galaxy import datatypes
@@ -70,17 +72,15 @@ from .mock.mock_workflow import MOCK_WORKFLOW
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
-UNICYCLER_VANILLA_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command.xml'
-UNICYCLER_TEMPLATED_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_command_templated.xml'
-UNICYCLER_INPUTS_PATH = './janis_core/tests/data/command/manipulation/template/unicycler/unicycler_step.json'
+
  
-QUERY1 = CondaRequirement(_name='abricate', _version='1.0.1')
+QUERY1 = XMLCondaRequirement(_name='abricate', _version='1.0.1')
 QUERY1_EXPECTED_RESULT = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1'
 
-QUERY2 = CondaRequirement(_name='samtools', _version='1.15')
+QUERY2 = XMLCondaRequirement(_name='samtools', _version='1.15')
 QUERY2_EXPECTED_RESULT = 'quay.io/biocontainers/samtools:1.15--h1170115_1'
 
-QUERY3 = CondaRequirement(_name='cutadapt', _version='3.5')
+QUERY3 = XMLCondaRequirement(_name='cutadapt', _version='3.5')
 QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 
 GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
@@ -94,17 +94,24 @@ def _reset_global_settings() -> None:
     settings.ingest.SAFE_MODE = True
     settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
     settings.ingest.cwl.REQUIRE_CWL_VERSION = False
+    settings.testing.TESTING_USE_DEFAULT_CONTAINER = True
     settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
     settings.graph.ALLOW_UNKNOWN_SOURCE = False
     settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
+    datatypes.populate()
 
 def _run(filepath: str, srcfmt: str, destfmt: str) -> Optional[str]:
     wf = ingest(filepath, srcfmt)
     return translate(wf, destfmt, allow_empty_container=True, export_path='./translated')
 
-def _load_galaxy_workflow(filepath: str) -> dict[str, Any]:
+def _load_gxworkflow(filepath: str) -> dict[str, Any]:
     with open(filepath, 'r') as fp:
         return json.load(fp)
+
+def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
+    metadata = parse_step_metadata(step)
+    runtime.tool.update_via_wrapper(metadata.wrapper)
+    return load_tool_state(step, additional_filters=additional_filters)
 
 def _configure_tool_settings(step: dict[str, Any]) -> None:
     metadata = parse_step_metadata(step)
@@ -116,11 +123,31 @@ def _read_cmd(path: str) -> str:
     assert(root.text)
     return root.text
 
-def _read_step_inputs(path: str) -> dict[str, Any]:
-    with open(path, 'r') as fp:
-        step = json.load(fp)
-    step['tool_state'] = load_tool_state(step)
-    return step['tool_state']
+def _load_xmltool_for_step(filepath: str, step: int) -> XMLTool:
+    gx_workflow = _load_gxworkflow(filepath)
+    gx_step = gx_workflow['steps'][str(step)]
+    _configure_tool_settings(gx_step)
+    return load_xmltool(runtime.tool.tool_path)
+
+def _docker_not_running() -> bool:
+    import subprocess
+    try:
+        completed_process = subprocess.run(['docker', 'version'], shell=True, capture_output=True)
+        if completed_process.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        return False
+    
+
+# def _prepare_tool_state_for_cheetah(path: str, step: int) -> dict[str, Any]:
+#     with open(path, 'r') as fp:
+#         gxworkflow = json.load(fp)
+#     step = gxworkflow['steps'][str(step)]
+#     _configure_tool_settings(step)
+#     tool_state = load_tool_state(step)
+#     return tool_state
 
 # def _load_tool_command_and_state(step: dict[str, Any], flat: bool=False) -> Tuple[str, dict[str, Any]]:
 #     xmltool = load_xmltool(runtime.tool.tool_path)
@@ -132,10 +159,6 @@ def _read_step_inputs(path: str) -> dict[str, Any]:
 #     )
 #     return cmdstr, tool_state
 
-def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> dict[str, Any]:
-    metadata = parse_step_metadata(step)
-    runtime.tool.update_via_wrapper(metadata.wrapper)
-    return load_tool_state(step, additional_filters=additional_filters)
 
 
 ### test classes ###
@@ -143,7 +166,6 @@ def _load_tool_state(step: dict[str, Any], additional_filters: list[str]=[]) -> 
 class TestRegexToGlob(unittest.TestCase):
 
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
     
     def test_convert_wildcards(self) -> None:
@@ -187,11 +209,11 @@ class TestRegexToGlob(unittest.TestCase):
 class TestAccessoryFiles(unittest.TestCase):
 
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
         self.srcfmt = 'galaxy'
     
     def test_scripts_files_to_create(self) -> None:
+        settings.translate.MODE = 'extended'
         filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
@@ -275,43 +297,402 @@ class TestAccessoryFiles(unittest.TestCase):
 class TestResolveDependencies(unittest.TestCase):
 
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
-
-    def test_no_requirements(self) -> None:
-        pass
-    
-    def test_single_requirement(self) -> None:
-        pass
-
-    def test_multiple_requirements(self) -> None:
         settings.ingest.galaxy.GEN_IMAGES = True
         settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = True
-        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
-        gx_step = gx_workflow['steps']['3']
-        _configure_tool_settings(gx_step)
-        xmltool = load_xmltool(runtime.tool.tool_path)
+        settings.testing.TESTING_USE_DEFAULT_CONTAINER = False
+
+    def test_coreutils_requirement(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/text_processing-d698c222f354/cut.xml')
+        jtool = ingest_galaxy(filepath)
+        image_uri = jtool.container()
+        self.assertEqual(image_uri, 'quay.io/biocontainers/coreutils:8.25--1')
+    
+    def test_single_requirement(self) -> None:
+        wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga')
+        xmltool = _load_xmltool_for_step(wf_path, 1)
         image_uri = resolve_dependencies_as_container(xmltool)
-        self.assertEqual(image_uri, 'ppp-janis-translate:limma-voom-3.50.1')
+        self.assertEqual(image_uri, 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1')
+
+    @unittest.skipUnless(_docker_not_running(), 'docker daemon must be running to test this')
+    def test_multiple_requirements(self) -> None:
+        wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2_wf.ga')
+        xmltool = _load_xmltool_for_step(wf_path, 2)
+        image_uri = resolve_dependencies_as_container(xmltool)
+        self.assertEqual(image_uri, 'quay.io/ppp-janis-translate/hisat2:2.2.1')
 
 
-
-class TestComponentExtraction(unittest.TestCase):
+class TestCommandAnnotation(unittest.TestCase):
 
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
 
-    def test_goseq(self) -> None:
-        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/goseq_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
-        gx_step = gx_workflow['steps']['2']
-        _configure_tool_settings(gx_step)
-        xmltool = load_xmltool(runtime.tool.tool_path)
+    def test_simple_inline_bool_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
+        command = gen_command(xmltool, annotators=['SimpleInlineBoolAnnotator'])
+        expected_flags = set([
+            '--no-indels', '--revcomp', '--discard-trimmed', '--discard-untrimmed',
+            '--discard-cassava', '--trim-n', '--zero-cap'
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertEqual(len(command.options), 0)
+        self.assertEqual(len(command.positionals), 0)
+        self.assertIsNone(command.redirect)
+
+    def test_simple_multiline_bool_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 3)
+        command = gen_command(xmltool, annotators=['SimpleMultilineBoolAnnotator'])
+        # expected_flags = set([
+        #     '-y', '-F', '-x', '-L', '-r', '-T', '-w', '-b'
+        # ])
+        expected_flags = set([
+            '-F', '-x', '-L', '-r', '-T', '-w', '-b'
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertEqual(len(command.options), 0)
+        self.assertEqual(len(command.positionals), 0)
+        self.assertIsNone(command.redirect)
+
+    def test_simple_select_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
+        command = gen_command(xmltool, annotators=['SimpleSelectAnnotator'])
+        expected_flags = set([
+            '--match-read-wildcards', '--no-match-adapter-wildcards'
+        ])
+        expected_options = set([
+            '--action', '--pair-filter'
+        ])
+        actual_options = set(list(command.options.keys()))
+        actual_flags = set(list(command.flags.keys()))
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertEqual(len(command.positionals), 0)
+        self.assertIsNone(command.redirect)
+
+    def test_option_param_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
+        command = gen_command(xmltool, annotators=['OptionParamAnnotator'])
+        expected_options = set([
+            '--nextseq-trim',
+            '-U',
+            '--quality-cutoff',
+            '--length',
+            '--length-tag',
+            '--times',
+            '--overlap',
+            '--rename',
+            '--strip-suffix',
+            '--max-expected-errors',
+            '-u',
+            '-Q',
+            '--max-n',
+            '--error-rate',
+        ])
+        actual_options = set(list(command.options.keys()))
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertEqual(len(command.flags), 0)
+        self.assertEqual(len(command.positionals), 0)
+        self.assertIsNone(command.redirect)
+
+    def test_local_cmdstr_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 3)
+        command = gen_command(xmltool, annotators=['LocalCmdstrAnnotator'])
+        expected_options = set([
+            '-C',
+            '-t',
+            '-P',
+            '-z',
+            '-G',
+            '-a',
+            '-n',
+            '-c',
+            '-m',
+            '-l',
+            '-f',
+            '-d',
+            '-p',
+            '-s',
+        ])
+        actual_options = set(list(command.options.keys()))
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertEqual(len(command.flags), 0)
+        self.assertEqual(len(command.positionals), 0)
+        self.assertIsNone(command.redirect)
+
+    def test_global_cmdstr_annotator(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 3)
+        command = gen_command(xmltool, annotators=['GlobalCmdstrAnnotator'])
+        expected_positionals = set([
+            'Rscript', 'limma_voom_script'
+        ])
+        expected_flags = set([
+            '-x',
+            '-T',
+            '-r',
+            '-F',
+            '-y',
+            '-b',
+            '-w',
+            '-L',
+
+        ])
+        expected_options = set([
+            '-i',
+            '-n',
+            '-P',
+            '-a',
+            '-m',
+            '-G',
+            '-t',
+            '-c',
+            '-f',
+            '-o',
+            '-C',
+            '-R',
+            '-s',
+            '-j',
+            '-l',
+            '-D',
+            '-z',
+            '-d',
+            '-p',
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNone(command.redirect)
+
+    def test_all_goseq(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/goseq_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
         command = gen_command(xmltool)
-        print()
-        pass
+        expected_positionals = set([
+            'Rscript', 'goseq_script'
+        ])
+        expected_flags = set([])
+        expected_options = set([
+            '--genome',
+            '--sample_vs_wallenius_plot',
+            '--nobias_tab',
+            '--p_adj_method',
+            '--repcnt',
+            '--length_file',
+            '--gene_id',
+            '--use_genes_without_cat',
+            '--categories_genes_out_fp',
+            '--dge_file',
+            '--wallenius_tab',
+            '--length_bias_plot',
+            '--rdata',
+            '--fetch_cats',
+            '--make_plots',
+            '--top_plot',
+            '--category_file',
+            '--sampling_tab',
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNone(command.redirect)
+        
+    def test_all_limma_voom(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 3)
+        command = gen_command(xmltool)
+        expected_positionals = set([
+            'Rscript', 'limma_voom_script'
+        ])
+        expected_flags = set([
+            '-x',
+            '-T',
+            '-r',
+            '-F',
+            '-y',
+            '-b',
+            '-w',
+            '-L',
+            '-y',
+        ])
+        expected_options = set([
+            '-i',
+            '-n',
+            '-P',
+            '-a',
+            '-m',
+            '-G',
+            '-t',
+            '-c',
+            '-f',
+            '-o',
+            '-C',
+            '-R',
+            '-s',
+            '-j',
+            '-l',
+            '-D',
+            '-z',
+            '-d',
+            '-p',
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNone(command.redirect)
+    
+    def test_all_cutadapt(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
+        command = gen_command(xmltool)
+        expected_positionals = set([
+            'cutadapt', 'input_1', 'input_2'
+        ])
+        expected_flags = set([
+            '--no-indels', 
+            '--revcomp', 
+            '--discard-trimmed', 
+            '--discard-untrimmed',
+            '--discard-cassava', 
+            '--trim-n', 
+            '--zero-cap', 
+            '--match-read-wildcards', 
+            '--no-match-adapter-wildcards'
+        ])
+        expected_options = set([
+            '--action', 
+            '--pair-filter',
+            '-u',
+            '-U',
+            '-Q',
+            '--error-rate',
+            '--times',
+            '--overlap',
+            '--max-n',
+            '--max-expected-errors',
+            '--quality-cutoff',
+            '--nextseq-trim',
+            '--strip-suffix',
+            '--length',
+            '--length-tag',
+            '--rename',
+            '--minimum-length',
+            '--maximum-length',
+            '-j',
+            '--json',
+            '--info-file',
+            '--rest-file',
+            '--wildcard-file',
+            '--too-short-output',
+            '--too-long-output',
+            '--too-short-paired-output',
+            '--too-long-paired-output',
+            '--untrimmed-paired-output',
+            '--paired-output',
+            '--untrimmed-output',
+            '--output',
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNotNone(command.redirect)
+
+    def test_all_hisat2(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2_wf.ga')
+        xmltool = _load_xmltool_for_step(filepath, 2)
+        command = gen_command(xmltool)
+        expected_positionals = set([
+            'hisat2'
+        ])
+        expected_flags = set([
+            '--tmo',
+            '--nofw',
+            '--non-deterministic',
+            '--no-softclip',
+            '--dta-cufflinks',
+            '--ff',
+            '--no-discordant',
+            '--phred64',
+            '--ignore-quals',
+            '--fr',
+            '--no-unal',
+            '--int-quals',
+            '--dta',
+            '--phred33',
+            '--new-summary',
+            '--add-chrname',
+            '--omit-sec-seq',
+            '--norc',
+            '--no-mixed',
+            '--remove-chrname',
+            '--no-templatelen-adjustment',
+            '--rf',
+            '-f',
+            '--no-spliced-alignment',
+            '--solexa-quals',
+        ])
+        expected_options = set([
+            '--pen-cansplice',
+            '--mp',
+            '--rdg',
+            '-X',
+            '--al-gz',
+            '--sp',
+            '--score-min',
+            '--pen-noncanintronlen',
+            '-I',
+            '--n-ceil',
+            '--trim3',
+            '--trim5',
+            '--seed',
+            '--min-intronlen',
+            '--rfg',
+            '--known-splicesite-infile',
+            '--un-gz',
+            '--max-intronlen',
+            '-2',
+            '--qupto',
+            '-x',
+            '--skip',
+            '--al-bz2',
+            '-p',
+            '-1',
+            '-k',
+            '--summary-file',
+            '--np',
+            '--pen-noncansplice',
+            '-U',
+            '--novel-splicesite-outfile',
+            '--rna-strandness',
+            '--un-bz2',
+            '--pen-canintronlen',
+            '--rg-id',
+        ])
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNone(command.redirect)
 
 
 class TestLoadToolState(unittest.TestCase):
@@ -320,35 +701,38 @@ class TestLoadToolState(unittest.TestCase):
     from internal tool objects.
     """
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
         
 
     def test_default_filters(self) -> None:
-        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step)
-        self.assertEqual(tool_state['output_selector'], None)
+        self.assertEqual(tool_state['output_selector'][0], 'report')
         self.assertEqual(tool_state['adapter_options']['action'], 'trim')
         self.assertEqual(tool_state['library']['r1']['cut'], '0')
     
     def test_null_varname_filter(self) -> None:
-        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step, additional_filters=['ReplaceNullWithVarname'])
-        self.assertEqual(tool_state['output_selector'], '$output_selector')
+        self.assertEqual(tool_state['filter_options']['minimum_length'], '$filter_options.minimum_length')
+        self.assertEqual(tool_state['filter_options']['maximum_length'], '$filter_options.maximum_length')
+        self.assertEqual(tool_state['filter_options']['max_n'], '$filter_options.max_n')
+        self.assertEqual(tool_state['filter_options']['max_expected_errors'], '$filter_options.max_expected_errors')
         self.assertEqual(tool_state['adapter_options']['action'], 'trim')
         self.assertEqual(tool_state['library']['r1']['cut'], '0')
 
     def test_flat_filter(self) -> None:
-        wf_path = os.path.abspath('./janis_core/tests/data/galaxy/cutadapt_wf.ga')
-        gx_workflow = _load_galaxy_workflow(wf_path)
+        wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        gx_workflow = _load_gxworkflow(wf_path)
         gx_step = gx_workflow['steps']['2']
         tool_state = _load_tool_state(gx_step, additional_filters=['Flatten'])
-        self.assertEqual(tool_state['output_selector'], None)
+        self.assertEqual(tool_state['output_selector'][0], 'report')
         self.assertEqual(tool_state['adapter_options.action'], 'trim')
+        self.assertEqual(tool_state['filter_options.minimum_length'], None)
         self.assertEqual(tool_state['library.r1.cut'], '0')
 
 
@@ -360,7 +744,6 @@ class TestJanisGeneralMapping(unittest.TestCase):
     from internal tool objects.
     """
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
         self.tool = MOCK_TOOL_ABRICATE
 
@@ -408,7 +791,6 @@ class TestJanisToolMapping(unittest.TestCase):
     MOCK_TOOL is used to test mapping functions.
     """
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
         self.tool = MOCK_TOOL_ABRICATE
     
@@ -435,7 +817,7 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jinp3, ToolInput)
         self.assertIsInstance(jinp4, ToolInput)
         # check attributes are correct
-        self.assertEquals(jinp1.tag, 'fileInput')
+        self.assertEquals(jinp1.tag, 'file_input')
         self.assertEquals(jinp1.prefix, None)
         self.assertEquals(jinp1.separate_value_from_prefix, True)
         self.assertIsInstance(jinp1.input_type, File)
@@ -445,12 +827,12 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jinp2.input_type, Boolean)
         self.assertEquals(jinp2.input_type.optional, True)
 
-        self.assertEquals(jinp3.tag, 'minid')
+        self.assertEquals(jinp3.tag, 'adv_min_dna_id')
         self.assertEquals(jinp3.prefix, '--minid=')
         self.assertEquals(jinp3.separate_value_from_prefix, False)
         self.assertIsInstance(jinp3.input_type, Array)
         
-        self.assertEquals(jinp4.tag, 'db')
+        self.assertEquals(jinp4.tag, 'adv_db')
         self.assertEquals(jinp4.prefix, '--db=')
         self.assertEquals(jinp4.separate_value_from_prefix, False)
         self.assertEquals(jinp4.default, 'resfinder')
@@ -470,18 +852,18 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jout3, ToolOutput)
         # check attributes are correct
         self.assertIsInstance(jout1.output_type, Stdout)
-        self.assertEquals(jout1.tag, 'outReport1')
+        self.assertEquals(jout1.tag, 'out_report1')
         self.assertIsNone(jout1.selector)
         
         self.assertIsInstance(jout2.output_type, File)
-        self.assertEquals(jout2.tag, 'outReport2')
+        self.assertEquals(jout2.tag, 'out_report2')
         self.assertIsInstance(jout2.selector, WildcardSelector)
         self.assertEquals(jout2.selector.wildcard, 'report.txt')
         
         self.assertIsInstance(jout3.output_type, File)
-        self.assertEquals(jout3.tag, 'outFileInput')
+        self.assertEquals(jout3.tag, 'out_file_input')
         self.assertIsInstance(jout3.selector, InputSelector)
-        self.assertEquals(jout3.selector.input_to_select, 'fileInput')
+        self.assertEquals(jout3.selector.input_to_select, 'file_input')
 
     def test_to_janis_metadata(self) -> None:
         """
@@ -500,54 +882,51 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsNotNone(jmeta.version)
 
 
-
-
 class TestJanisWorkflowMapping(unittest.TestCase):
     """
     tests ability to map or generate janis workflow objects 
-    from internal workflow objects
+    from internal galaxy ingest model
     """
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
-        self.workflow = MOCK_WORKFLOW
-        self.jworkflow = to_janis_workflow(self.workflow)
-        self.jinputs = to_janis_inputs_dict(self.workflow)
+        self.internal = MOCK_WORKFLOW
+        self.jworkflow = to_janis_workflow(self.internal)
+        self.jinputs = to_janis_inputs_dict(self.internal)
 
     def test_to_janis_workflow(self) -> None:
         self.assertIsInstance(self.jworkflow, WorkflowBuilder)
     
     def test_to_janis_inputs_dict(self) -> None:
         # single input, no value
-        self.assertEquals(self.jinputs['inFasta'], None)
+        self.assertEquals(self.jinputs['in_fasta'], None)
         # single input, provided value
-        self.workflow.inputs[0].value = 'path/to/file.fasta'
-        jinputs = to_janis_inputs_dict(self.workflow)
-        self.assertEquals(jinputs['inFasta'], 'path/to/file.fasta')
+        self.internal.inputs[0].value = 'path/to/file.fasta'
+        jinputs = to_janis_inputs_dict(self.internal)
+        self.assertEquals(jinputs['in_fasta'], 'path/to/file.fasta')
 
     def test_janis_metadata(self) -> None:
         self.assertIsInstance(self.jworkflow.metadata, WorkflowMetadata)
 
     def test_janis_inputs(self) -> None:
         target_inputs = {
-            'inFasta', 
-            'abricate_noheader', 
-            'abricate_minid', 
-            'abricate_db'
+            'in_fasta', 
+            'abricate_adv_db',
+            'abricate_adv_min_dna_id',
+            'abricate_noheader',
         }
         actual_inputs = set(self.jworkflow.input_nodes.keys())
         self.assertEquals(target_inputs, actual_inputs)
 
-        jinp = self.jworkflow.input_nodes['inFasta']
+        jinp = self.jworkflow.input_nodes['in_fasta']
         self.assertIsInstance(jinp, InputNode)
         self.assertIsInstance(jinp.datatype, File)
 
     def test_janis_outputs(self) -> None:
-        target_outputs = {'abricate_outReport1'}
+        target_outputs = {'abricate_out_report1'}
         actual_outputs = set(self.jworkflow.output_nodes.keys())
         self.assertEquals(target_outputs, actual_outputs)
 
-        jout = self.jworkflow.output_nodes['abricate_outReport1']
+        jout = self.jworkflow.output_nodes['abricate_out_report1']
         self.assertIsInstance(jout, OutputNode)
         self.assertIsInstance(jout.datatype, Stdout)
         self.assertIsInstance(jout.datatype.subtype, File)
@@ -564,15 +943,14 @@ class TestJanisWorkflowMapping(unittest.TestCase):
         self.assertIsInstance(jstep.tool, CommandTool)
 
         # sources (tool input values)
-        self.assertIn('fileInput', jstep.sources)
+        self.assertIn('file_input', jstep.sources)
         self.assertIn('noheader', jstep.sources)
-        self.assertIn('minid', jstep.sources)
-        self.assertIn('db', jstep.sources)
+        self.assertIn('adv_min_dna_id', jstep.sources)
+        self.assertIn('adv_db', jstep.sources)
         
         # scatter 
-        self.assertEquals(jstep.scatter.fields, ['minid'])
+        self.assertEquals(jstep.scatter.fields, ['adv_min_dna_id'])
         self.assertEquals(jstep.scatter.method, ScatterMethod.dot)
-
 
 
 
@@ -581,7 +959,6 @@ class TestDatatypeInference(unittest.TestCase):
     tests the datatype which is assigned to an entity
     """
     def setUp(self) -> None:
-        datatypes.populate()
         _reset_global_settings()
 
     def test_positional(self) -> None:
@@ -606,24 +983,27 @@ class TestDatatypeInference(unittest.TestCase):
 
 
 
-
-
 class TestSectionalCheetah(unittest.TestCase):
 
+    @unittest.skip('not implemented')
     def test_unicycler(self):
-        vanilla = _read_cmd(UNICYCLER_VANILLA_PATH)
-        reference = _read_cmd(UNICYCLER_TEMPLATED_PATH)
-        inputs = _read_step_inputs(UNICYCLER_INPUTS_PATH)
-        templated = sectional_evaluate(vanilla, inputs)
-        self.assertEquals(reference, templated)
+        original_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_original.txt'
+        expected_filepath = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_templated.txt'
+        inputs_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/inputs.json'
+        
+        # original command
+        with open(original_filepath, 'r') as fp:
+            original = fp.read().strip()
+        # expected command (after cheetah templating)
+        with open(expected_filepath, 'r') as fp:
+            expected = fp.read().strip()
+        # tool state (inputs)
+        with open(inputs_filepath, 'r') as fp:
+            tool_state = json.load(fp)
+        
+        actual = sectional_evaluate(original, tool_state).strip()
+        self.assertEquals(actual, expected)
 
-
-
-def get_cmd(path: str) -> str:
-    tree = et.parse(path)
-    root = tree.getroot()
-    assert(root.text)
-    return root.text
 
 # class TestAliases(unittest.TestCase):
 
@@ -643,7 +1023,12 @@ def get_cmd(path: str) -> str:
 #         res_cmd = resolve_aliases(raw_cmd)
 #         self.assertEquals(ref_cmd, res_cmd)
 
+
+
 class TestFromGalaxy(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _reset_global_settings()
 
     def test_ingest_abricate_tool(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/abricate/abricate.xml')
@@ -659,14 +1044,15 @@ class TestFromGalaxy(unittest.TestCase):
         jworkflow = ingest_galaxy(filepath)
         assert(isinstance(jworkflow, WorkflowBuilder))
 
-        self.assertEquals(len(jworkflow.input_nodes), 2)
+        self.assertEquals(len(jworkflow.input_nodes), 42)
         self.assertIn('in_forward', jworkflow.input_nodes)
         self.assertIn('in_reverse', jworkflow.input_nodes)
         self.assertEquals(len(jworkflow.step_nodes), 1)
         self.assertIn('cutadapt', jworkflow.step_nodes)
-        self.assertEquals(len(jworkflow.output_nodes), 2)
+        self.assertEquals(len(jworkflow.output_nodes), 3)
         self.assertIn('cutadapt_out12', jworkflow.output_nodes)
         self.assertIn('cutadapt_out22', jworkflow.output_nodes)
+        self.assertIn('cutadapt_out_report', jworkflow.output_nodes)
     
     def test_ingest_unicycler_assembly(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga')
@@ -674,10 +1060,10 @@ class TestFromGalaxy(unittest.TestCase):
         assert(isinstance(jworkflow, WorkflowBuilder))
 
         self.assertEquals(len(jworkflow.step_nodes), 6)
-        self.assertEquals(len(jworkflow.output_nodes), 19)
-        self.assertIn('inForwardReads', jworkflow.input_nodes)
-        self.assertIn('inReverseReads', jworkflow.input_nodes)
-        self.assertIn('inLongReads', jworkflow.input_nodes)
+        self.assertEquals(len(jworkflow.output_nodes), 7)
+        self.assertIn('in_short_R1', jworkflow.input_nodes)
+        self.assertIn('in_short_R2', jworkflow.input_nodes)
+        self.assertIn('in_long', jworkflow.input_nodes)
     
     def test_translate_cutadapt_wf_nextflow(self) -> None:
         srcfmt = 'galaxy'

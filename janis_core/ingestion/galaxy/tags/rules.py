@@ -5,10 +5,13 @@ import regex as re
 import keyword
 import builtins
 
-#from janis_core.ingestion.galaxy.logs import logging
-
 python_keys = set(keyword.kwlist)
 builtin_keys = set(dir(builtins))
+extra_datatype_keys = set([
+    "long",
+    "short"
+    "double"
+])
 janis_keys = set([
     "identifier",
     "tool",
@@ -19,8 +22,7 @@ janis_keys = set([
     "input",
     "inputs"
 ])
-keywords = python_keys | builtin_keys | janis_keys
-
+keywords = python_keys | builtin_keys | janis_keys | extra_datatype_keys
 
 def replace_keywords(tag: str, entity: Any) -> str:
     if tag in keywords:

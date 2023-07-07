@@ -1,9 +1,9 @@
 
 
 
-from janis_core.ingestion.galaxy.model.tool import Tool
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.internal_model.tool import ITool
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
 
 from .Format import Format
 
@@ -20,7 +20,7 @@ class DefaultFormat(Format):
     def step(self, step: WorkflowStep) -> str:
         raise NotImplementedError()
 
-    def tool(self, tool: Tool) -> str:
+    def tool(self, tool: ITool) -> str:
         raise NotImplementedError()
 
     def script(self) -> str:

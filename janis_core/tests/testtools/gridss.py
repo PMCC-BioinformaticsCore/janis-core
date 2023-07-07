@@ -16,7 +16,7 @@ from janis_core import (
     CommandTool
 )
 
-from janis_bioinformatics.data_types import Bam, BamBai, FastaWithDict, Bed, Vcf
+from janis_core.redefinitions.types import Bam, BamBai, FastaWithDict, Bed, Vcf
 
 
 class GridssTestTool(CommandTool):

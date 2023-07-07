@@ -3,14 +3,14 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional, Tuple
 
-from janis_core.ingestion.galaxy.model.tool.Tool import Tool
+from janis_core.ingestion.galaxy.internal_model.tool.tool import ITool
 
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
-from janis_core.ingestion.galaxy.model.workflow import InputValue, ConnectionInputValue, StaticInputValue, WorkflowInputInputValue
-from janis_core.ingestion.galaxy.gx.command.components import Positional
-from janis_core.ingestion.galaxy.gx.command.components import InputComponent
-from janis_core.ingestion.galaxy.gx.command.components import factory
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
+from janis_core.ingestion.galaxy.internal_model.workflow import InputValue, ConnectionInputValue, StaticInputValue, WorkflowInputInputValue
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
+from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import factory
 
 from .WorkflowInputText import WorkflowInputText
 from ..TextRender import TextRender
@@ -62,7 +62,7 @@ class ToolInputLine:
 class ToolInputLineFactory:
     unknown_count = 0
     
-    def __init__(self, tool: Tool):
+    def __init__(self, tool: ITool):
         self.tool = tool
 
     def create(self, invalue: InputValue) -> ToolInputLine:

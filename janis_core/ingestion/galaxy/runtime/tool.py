@@ -3,8 +3,8 @@
 import os
 from typing import Any, Optional
 
-from janis_core.ingestion.galaxy.gx.wrappers import Wrapper
-from janis_core.ingestion.galaxy.gx.wrappers import fetch_xml
+from janis_core.ingestion.galaxy.gxwrappers import Wrapper
+from janis_core.ingestion.galaxy.gxwrappers import fetch_xml
 from janis_core.ingestion.galaxy.utils.galaxy import get_xml_id
 
 tool_path: str

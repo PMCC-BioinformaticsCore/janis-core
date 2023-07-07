@@ -196,7 +196,7 @@ class ParamFormatterClosedForm:
             return self.to_string_with_labels()
 
     def to_string_without_labels(self) -> str:
-        return f'{INDENT}{self.name:<{self.name_width}} = {self.value:<{self.value_width}}'
+        return f'{INDENT}{self.name:<{self.name_width}} = {self.value}'
 
     def to_string_with_labels(self) -> str:
         return f"""\

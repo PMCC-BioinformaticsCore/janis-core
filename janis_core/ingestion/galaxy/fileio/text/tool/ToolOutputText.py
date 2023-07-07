@@ -3,10 +3,10 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from janis_core.ingestion.galaxy.gx.command.components import OutputComponent
-from janis_core.ingestion.galaxy.gx.command.components import InputOutput
-from janis_core.ingestion.galaxy.gx.command.components import RedirectOutput
-from janis_core.ingestion.galaxy.gx.command.components import WildcardOutput
+from janis_core.ingestion.galaxy.gxtool.command.components import OutputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import InputOutput
+from janis_core.ingestion.galaxy.gxtool.command.components import RedirectOutput
+from janis_core.ingestion.galaxy.gxtool.command.components import WildcardOutput
 
 from ..TextRender import TextRender
 from .. import formatting

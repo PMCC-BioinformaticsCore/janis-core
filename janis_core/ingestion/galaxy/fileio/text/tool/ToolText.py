@@ -5,7 +5,7 @@ import textwrap
 from typing import Tuple
 from datetime import datetime
 
-from janis_core.ingestion.galaxy.model.tool.Tool import Tool
+from janis_core.ingestion.galaxy.internal_model.tool.tool import ITool
 from janis_core.ingestion.galaxy.runtime.dates import JANIS_DATE_FMT
 
 from ..tool.ToolInputSectionText import ToolInputSectionText
@@ -16,7 +16,7 @@ from .. import ordering
 from .. import formatting
 
 
-def note_snippet(tool: Tool) -> str:
+def note_snippet(tool: ITool) -> str:
     tool_name = tool.metadata.id
     tool_version = tool.metadata.version
     return f"""\
@@ -31,7 +31,7 @@ import sys
 sys.path.append('/home/grace/work/pp/gxtool2janis')
 """
 
-def metadata_snippet(tool: Tool) -> str:
+def metadata_snippet(tool: ITool) -> str:
     return f"""\
 metadata = ToolMetadata(
     short_documentation="{tool.metadata.description}",
@@ -47,7 +47,7 @@ metadata = ToolMetadata(
 )
 """
 
-def get_contributors(tool: Tool) -> list[str]:
+def get_contributors(tool: ITool) -> list[str]:
     contributors: list[str] = ['gxtool2janis']
     if tool.metadata.owner:
         contributors += [f'Wrapper owner: galaxy toolshed user {tool.metadata.owner}']
@@ -55,7 +55,7 @@ def get_contributors(tool: Tool) -> list[str]:
         contributors += [f'Wrapper creator: {tool.metadata.creator}']
     return contributors
 
-def builder_snippet(tool: Tool) -> str:
+def builder_snippet(tool: ITool) -> str:
     container = f'"{tool.container}"' if tool.container else None
     return f"""\
 {tool.tag} = CommandToolBuilder(
@@ -69,7 +69,7 @@ def builder_snippet(tool: Tool) -> str:
 )
 """
 
-def translate_snippet(tool: Tool) -> str:
+def translate_snippet(tool: ITool) -> str:
     tool_tag = tool.tag
     return textwrap.dedent(f"""\
     if __name__ == "__main__":
@@ -89,7 +89,7 @@ core_imports = [
 
 
 class ToolText(TextRender):
-    def __init__(self, entity: Tool):
+    def __init__(self, entity: ITool):
         super().__init__()
         self.entity = entity
 

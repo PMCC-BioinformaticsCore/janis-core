@@ -25,13 +25,13 @@ LINUX_TEE = r'(?<![\d&])\| ?tee( -a)?'
 LINUX_STREAM_MERGE = r'(?<=\s|^)\d?>&\d'
 
 KEYVAL_PAIR = r'(?<=\s|^)(\S+?)([=:])(\S+?)(?=\s|$)'
-COMPOUND_OPT = r'^(-\w)(\d+?)$'
+COMPOUND_OPT = r'^(-\w)(\d+?)$'   # eg "head -n1"  -n is the prefix, and 1 is the value
 
 CHEETAH_SET = r'(?:^|\s)#set ([$\w\d]+) = [\'"]?([$\w\d.]+)[\'"]?(?=\s|$)'
 CHEETAH_EDGE_CASE_INPUT = r'\${?input([ =.}\'")]|$)'
 
-VARIABLES_FMT1 = r'\$\w[\w._]+'
-VARIABLES_FMT2 = r'\$\{\w[\w._]+\}'
+VARIABLES_FMT1 = r'\$(\w[\w\d._]+)'
+VARIABLES_FMT2 = r'\$\{(\w[\w\d._]+)\}'
 FUNCTION_CALL_FMT1 = r'\$\{[^(].+?(\(.*\))[^(]*\}'
 FUNCTION_CALL_FMT2 = r'\$[^(){} \n\'"]+(\(.*\))[^(){} \n\'"]*'
 

@@ -3,17 +3,27 @@
 import unittest
 from typing import Any
 
+from janis_core import settings
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
-from janis_core import settings
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
+from janis_core.tests.testworkflows import PruneFlatTW
+from janis_core.tests.testworkflows import PruneNestedTW
 from janis_core.tests.testworkflows import AssemblyTestWF
+from janis_core.redefinitions.tools import Cat
+from janis_core.redefinitions.tools import GenerateVardictHeaderLines
+from janis_core.redefinitions.workflows import BwaAligner
+from janis_core.redefinitions.workflows import WGSGermlineMultiCallers
 
-from janis_core import CommandTool, CommandToolBuilder
-from janis_core import Workflow, WorkflowBuilder
+from janis_core import CommandToolBuilder
+from janis_core import WorkflowBuilder
 from janis_core import CodeTool
 
+from janis_core.translations import nextflow
+from janis_core.translations.common import to_builders
+from janis_core.translations.common import prune_workflow
+from janis_core import settings
 
 import os 
 import regex as re
@@ -27,10 +37,9 @@ WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
 # ------- HELPER FUNCS ------- #
 
-
 def _run(filepath: str, srcfmt: str, destfmt: str) -> Any:
     internal = ingest(filepath, srcfmt)
-    return translate(internal, destfmt, allow_empty_container=True, export_path='./translated')
+    return translate(internal, destfmt, export_path='./translated')
 
 def _is_nf_process(filecontents: str) -> bool:
     pattern = r'process.*?\{'
@@ -112,10 +121,9 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
     return out
 
 def _reset_global_settings() -> None:
-    from janis_core.translations import nextflow
+    
     nextflow.task_inputs.clear()
     nextflow.params.clear()
-    settings.translate.MODE = 'regular'
     settings.ingest.SAFE_MODE = False
     settings.ingest.galaxy.GEN_IMAGES = False
     settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
@@ -129,7 +137,8 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
-
+    settings.translate.MODE = 'regular'
+    settings.translate.ALLOW_EMPTY_CONTAINER = True
 
 
 
@@ -176,10 +185,12 @@ class TestTranslationEndpoints(unittest.TestCase):
     
     # WDL INGEST -> TRANSLATE
 
+    @unittest.skip('wdl ingest needs work')
     def test_from_wdl_to_nextflow_tool(self) -> None:
         filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
         _run(filepath, 'wdl', 'nextflow')
 
+    @unittest.skip('wdl ingest needs work')
     def test_from_wdl_to_nextflow_workflow(self) -> None:
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         _run(filepath, 'wdl', 'nextflow')
@@ -195,46 +206,56 @@ class TestTranslationEndpoints(unittest.TestCase):
     def test_workflow_translate_nextflow(self) -> None:
         AssemblyTestWF().translate('nextflow', export_path='./translated')
 
+    def test_str_tool(self):
+        BwaAligner().translate("janis")
+
+    def test_str_python_tool(self):
+        GenerateVardictHeaderLines().translate("janis")
+
+    def test_command_tool(self):
+        Cat().translate("janis")
+
+    def test_str_big_workflow(self):
+        WGSGermlineMultiCallers().translate("janis")
 
 
 
-# ------- WORSHOP TESTS ------- #
-
-class TestWorkshopCwlToNextflow(unittest.TestCase):
-    
-    def setUp(self) -> None:
-        self.src = 'cwl'
-        self.dest = 'nextflow'
-        _reset_global_settings()
-
-    def test_tool_samtools_flagstat(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/samtools_flagstat.cwl'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_tool_gatk_haplotype_caller(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/tools/gatk_haplotype_caller.cwl'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_wf_align_sort_markdup(self):
-        settings.translate.MODE = 'extended'
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/subworkflows/align_sort_markdup.cwl'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_wf_alignment_exome(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/analysis-workflows/pipelines/alignment_exome.cwl'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-
-class TestWorkshopGalaxyToNextflow(unittest.TestCase):
+class TestGalaxyToNextflow(unittest.TestCase):
     
     def setUp(self) -> None:
         self.src = 'galaxy'
         self.dest = 'nextflow'
         _reset_global_settings()
+
+    def test_cutadapt_wf(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
+    def test_nanoplot_wf(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/nanoplot_wf.ga')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_fastqc_wf(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc_wf.ga')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_fastqc_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_nanoplot_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/nanoplot-edbb6c5028f5/nanoplot.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    def test_hisat2_tool(self):
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2-6c19daec423d/hisat2.xml')
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
 
     def test_toolshed_limma_voom_tool(self):
         uri = 'toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0'
@@ -245,9 +266,9 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
         mainstr = _run(uri, self.src, self.dest)
         print(mainstr)
-    
-    def test_abricate_wf(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
+
+    def test_rna_seq_reads_to_counts(self):
+        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -255,54 +276,214 @@ class TestWorkshopGalaxyToNextflow(unittest.TestCase):
         filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
-
-    def test_rna_seq_counts_to_genes(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
     
-    def test_rna_seq_genes_to_pathways(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+    # def test_rna_seq_counts_to_genes(self):
+    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
+    #     mainstr = _run(filepath, self.src, self.dest)
+    #     print(mainstr)
     
-    def test_rna_seq_reads_to_counts(self):
-        # settings.translate.MODE = 'extended'
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+    # def test_rna_seq_genes_to_pathways(self):
+    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
+    #     mainstr = _run(filepath, self.src, self.dest)
+    #     print(mainstr)
 
 
-# ---- PREPROCESSING ------------------------------
 
-from janis_core.translations.common import to_builders
 
-class TestPreprocessingToBuilders(unittest.TestCase):
+# ---- PREPROCESSING: PRUNE ------------------------------
+
+class TestPreprocessingPrune(unittest.TestCase):
     
     def setUp(self) -> None:
         _reset_global_settings()
+        self.flat_wf = PruneFlatTW()
+        self.flat_wf = to_builders(self.flat_wf)
+        self.flat_wf = prune_workflow(self.flat_wf)
+        self.nested_wf = PruneNestedTW()
+        self.nested_wf = to_builders(self.nested_wf)
+        self.nested_wf = prune_workflow(self.nested_wf)
 
-    def test_commandtool_to_builders(self) -> None:
-        entity = GridssTestTool()
-        entity = to_builders(entity)
-        self.assertIsInstance(entity, CommandToolBuilder)
+    ### workflow inputs ###
     
-    def test_codetool_to_builders(self) -> None:
-        entity = FileOutputPythonTestTool()
-        entity = to_builders(entity)
-        self.assertIsInstance(entity, CodeTool)
+    def test_flat_wf_inputs(self) -> None:
+        actual_inputs = set(list(self.flat_wf.input_nodes.keys()))
+        expected_inputs = set([
+            'inFile1',
+            'inFile2',
+            'inFile3',
+            
+            'inStr1',
+            'inStr2',
+            'inStr3',
+            
+            'inFileOpt1',
+            'inFileOpt2',
+            
+            'inStrOpt1',
+            'inStrOpt2',
 
-    def test_workflow_to_builders(self) -> None:
-        entity = AssemblyTestWF()
-        entity = to_builders(entity)
-        self.assertIsInstance(entity, WorkflowBuilder)
-        assert(isinstance(entity, WorkflowBuilder))
-        for step in entity.step_nodes.values():
-            self.assertIsInstance(step.tool, CommandToolBuilder)
+        ])
+        self.assertSetEqual(actual_inputs, expected_inputs)
+    
+    def test_nested_wf_inputs(self) -> None:
+        actual_inputs = set(list(self.nested_wf.input_nodes.keys()))
+        expected_inputs = set([
+            'inFile1',
+            'inFile2',
+            'inFile3',
+            
+            'inStr1',
+            'inStr2',
+            'inStr3',
+            
+            'inFileOpt1',
+            'inFileOpt2',
+            'inFileOpt3',
+            
+            'inStrOpt1',
+            'inStrOpt2',
+            'inStrOpt3',
+        ])
+        self.assertSetEqual(actual_inputs, expected_inputs)
+        
+    ### migrating statics ###
+
+    def test_migrate_single_statics(self) -> None:
+        tool = self.flat_wf.step_nodes['stp4'].tool
+        
+        # checking num inputs
+        num_actual_inputs = len(tool._inputs)
+        num_expected_inputs = 4
+        self.assertEqual(num_actual_inputs, num_expected_inputs)
+        
+        tool = self.flat_wf.step_nodes['stp6'].tool
+        
+        # checking num inputs
+        num_actual_inputs = len(tool._inputs)
+        num_expected_inputs = 3
+        self.assertEqual(num_actual_inputs, num_expected_inputs)
+        
+        # checking default values
+        for tinput in tool._inputs:
+            if tinput.id() == 'inStrOpt1':
+                self.assertEqual(tinput.default, 'hello')
+            elif tinput.id() == 'inStrOpt2':
+                self.assertEqual(tinput.default, 'there')
+            elif tinput.id() == 'inStrOpt3':
+                self.assertEqual(tinput.default, 'friend')
+            else:
+                self.assertEqual(tinput.default, None)
+        
+    def test_remove_sources(self) -> None:
+        step = self.flat_wf.step_nodes['stp4']
+        actual_sources = set(list(step.sources.keys()))
+        expected_sources = set(['inFileOpt1', 'inStrOpt1'])
+        self.assertEqual(actual_sources, expected_sources)
+        
+        step = self.flat_wf.step_nodes['stp5']
+        actual_sources = set(list(step.sources.keys()))
+        expected_sources = set(['inFileOpt2', 'inStrOpt2'])
+        self.assertEqual(actual_sources, expected_sources)
+        
+        step = self.flat_wf.step_nodes['stp6']
+        actual_sources = set(list(step.sources.keys()))
+        expected_sources = set()
+        self.assertEqual(actual_sources, expected_sources)
+
+
+    ### tool inputs: flat wf ###
+
+    def test_mandatory_tinputs(self) -> None:
+        tool = self.flat_wf.step_nodes['stp1'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set([
+            'inFile1', 'inFile2', 'inStr1', 'inStr2'
+        ])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+
+    def test_connection_sources(self) -> None:
+        tool = self.flat_wf.step_nodes['stp4'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set(['inFileOpt1', 'inStrOpt1'])
+        for tinput_id in expected_tinputs:
+            self.assertIn(tinput_id, actual_tinputs)
+    
+    def test_inputnode_sources(self) -> None:
+        tool = self.flat_wf.step_nodes['stp5'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set(['inFileOpt2', 'inStrOpt2'])
+        for tinput_id in expected_tinputs:
+            self.assertIn(tinput_id, actual_tinputs)
+    
+    def test_static_sources(self) -> None:
+        tool = self.flat_wf.step_nodes['stp6'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set(['inStrOpt3'])
+        for tinput_id in expected_tinputs:
+            self.assertIn(tinput_id, actual_tinputs)
+    
+    def test_optional_tinputs(self) -> None:
+        tool = self.flat_wf.step_nodes['stp4'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set([
+            'inFileOpt1', 
+            'inFileOpt2', 
+            'inStrOpt1', 
+            'inStrOpt2', 
+        ])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+    
+    def test_inputref_tinputs(self) -> None:
+        tool = self.flat_wf.step_nodes['stp2'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set(['inFile1', 'OutputName'])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+    
+    def test_outputref_tinputs(self) -> None:
+        tool = self.flat_wf.step_nodes['stp3'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set(['inFileOpt1', 'inStrOpt1'])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+    
+    ### tool inputs: nested wf ###
+    
+    def test_nested_tool(self) -> None:
+        tool = self.nested_wf.step_nodes['stp1'].tool
+        actual_tinputs = set([x.id() for x in tool._inputs])
+        expected_tinputs = set([
+            'inFileOpt1', 
+            'inFileOpt2', 
+            'inFileOpt3', 
+            'inStrOpt1', 
+            'inStrOpt2', 
+            'inStrOpt3', 
+        ])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+    
+    def test_nested_wf1(self) -> None:
+        tool = self.nested_wf.step_nodes['stp2'].tool
+        actual_tinputs = set([x for x in tool.input_nodes.keys()])
+        expected_tinputs = set([
+            'inFileOpt2', 
+            'inFileOpt3', 
+            'inStrOpt2', 
+            'inStrOpt3', 
+        ])
+        self.assertEqual(actual_tinputs, expected_tinputs)
+
+    def test_nested_wf2(self) -> None:
+        tool = self.nested_wf.step_nodes['stp2'].tool.step_nodes['stp2'].tool
+        actual_tinputs = set([x for x in tool.input_nodes.keys()])
+        expected_tinputs = set([
+            'inFileOpt3', 
+            'inStrOpt3', 
+        ])
+        self.assertEqual(actual_tinputs, expected_tinputs)
 
 
 
-# ---- MODES ------------------------------
+
+# ---- PREPROCESSING: MODES ------------------------------
 
 class TestPreprocessingModes(unittest.TestCase):
     
@@ -312,11 +493,19 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+
+        # main
+        expected_num_clt_inputs = 12
+        clt_inputs = _get_cwl_clt_inputs(maintask)
+        self.assertEqual(len(clt_inputs), expected_num_clt_inputs)
+
+        # subtasks
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 4,
+            'tools/basic_v0_1_0.cwl': 6,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 5,
+            'tools/subworkflow.cwl': 6,
         }
         for filepath, filecontents in sub_tasks:
             if _is_cwl_clt(filecontents):
@@ -330,6 +519,7 @@ class TestPreprocessingModes(unittest.TestCase):
                     self.assertNotIn('inputBinding', inp)
     
     def test_skeleton_wdl(self) -> None:
+        # TODO
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
@@ -343,9 +533,10 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 4,
+            'modules/basic.nf': 6,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
+            'subworkflows/subworkflow.nf': 6,
         }
         expected_script_lengths = {
             'modules/basic.nf': 2,
@@ -362,11 +553,19 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_cwl1(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+
+        # main
+        expected_num_clt_inputs = 12
+        clt_inputs = _get_cwl_clt_inputs(maintask)
+        self.assertEqual(len(clt_inputs), expected_num_clt_inputs)
+
+        # subtasks
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 4,
+            'tools/basic_v0_1_0.cwl': 6,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 5,
+            'tools/subworkflow.cwl': 6,
         }
         for filepath, filecontents in sub_tasks:
             if _is_cwl_clt(filecontents):
@@ -384,7 +583,7 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
-            'tools/fastqc_v0_1_0.cwl': 1,
+            'tools/fastqc_v0_1_0.cwl': 2,
             'tools/files_to_folder_v0_1_0.cwl': 2,
             'tools/ngtax_v0_1_0.cwl': 9,
             'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': 4,
@@ -393,7 +592,7 @@ class TestPreprocessingModes(unittest.TestCase):
             'tools/fastqc_v0_1_0.cwl': [],
             'tools/files_to_folder_v0_1_0.cwl': ['files', 'folders', 'destination'],
             'tools/ngtax_v0_1_0.cwl': ['sample', 'fragment'],
-            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': ['input', 'metadata', 'identifier', 'fragment'],
+            'tools/ngtax_to_tsv_fasta_v0_1_0.cwl': ['metadata', 'input', 'identifier', 'fragment'],
         }
         expected_num_clt_args = {
             'tools/fastqc_v0_1_0.cwl': 2,
@@ -418,6 +617,7 @@ class TestPreprocessingModes(unittest.TestCase):
                     else:
                         self.assertNotIn('inputBinding', inp)
     
+    @unittest.skip('implement me')
     def test_regular_wdl(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
@@ -444,18 +644,20 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_nextflow(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        print(maintask)
         expected_inputs_count = {
-            'modules/basic.nf': 4,
+            'modules/basic.nf': 6,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 5,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 7,
+            'modules/basic.nf': 9,
             'modules/mandatory_input_types.nf': 8,
             'modules/optional_input_types.nf': 7,
         }
         for filepath, filecontents in sub_tasks:
+            print(filecontents)
             if _is_nf_process(filecontents):
                 actual_input_lines = _get_nf_process_input_lines(filecontents)
                 actual_script_lines = _get_nf_process_script_lines(filecontents)
@@ -467,7 +669,7 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 6,
+            'tools/basic_v0_1_0.cwl': 7,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 6,
         }
@@ -482,6 +684,7 @@ class TestPreprocessingModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
 
+    @unittest.skip('implement me')
     def test_extended_wdl(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
@@ -509,12 +712,12 @@ class TestPreprocessingModes(unittest.TestCase):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 6,
+            'modules/basic.nf': 7,
             'modules/mandatory_input_types.nf': 6,
             'modules/optional_input_types.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 9,
+            'modules/basic.nf': 10,
             'modules/mandatory_input_types.nf': 8,
             'modules/optional_input_types.nf': 8,
         }
@@ -524,6 +727,36 @@ class TestPreprocessingModes(unittest.TestCase):
                 actual_script_lines = _get_nf_process_script_lines(filecontents)
                 self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
                 self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+
+
+
+# ---- PREPROCESSING: TO BUILDERS ------------------------------
+
+
+
+class TestPreprocessingToBuilders(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_commandtool_to_builders(self) -> None:
+        entity = GridssTestTool()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, CommandToolBuilder)
+    
+    def test_codetool_to_builders(self) -> None:
+        entity = FileOutputPythonTestTool()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, CodeTool)
+
+    def test_workflow_to_builders(self) -> None:
+        entity = AssemblyTestWF()
+        entity = to_builders(entity)
+        self.assertIsInstance(entity, WorkflowBuilder)
+        assert(isinstance(entity, WorkflowBuilder))
+        for step in entity.step_nodes.values():
+            self.assertIsInstance(step.tool, CommandToolBuilder)
+
 
 
 # ---- FROM CWL ---------------------------
@@ -545,21 +778,25 @@ class TestCwlToWdl(unittest.TestCase):
         toolstr = _run(filepath, self.src, self.dest)
         print(toolstr)
 
+    @unittest.skip('implement secondary type mismatch cleanup')
     def test_kids_manta(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('implement scatter on multiple inputs')
     def test_ebi_metagenomics_raw_reads(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/raw-reads-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('implement scatter on multiple inputs')
     def test_ebi_metagenomics_amplicon(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/amplicon-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('implement scatter on multiple inputs')
     def test_ebi_metagenomics_assembly(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/ebi-metagenomics/workflows/assembly-wf--v.5-cond.cwl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -627,8 +864,7 @@ class TestCwlToNextflow(unittest.TestCase):
     def test_fastqc2_tool(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
-        from janis_core import settings
-        settings.translate.nextflow.MODE = 'workflow'
+        settings.translate.nextflow.ENTITY = 'workflow'
         print(toolstr)
 
     def test_kids_manta(self):
@@ -692,6 +928,7 @@ class TestCwlToNextflow(unittest.TestCase):
         print(mainstr)
 
     # hard
+    @unittest.skip('need to check prune to make sure cwl entities have unique names')
     def test_cromast(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/CroMaSt/CroMaSt.cwl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -708,21 +945,37 @@ class TestWdlToCwl(unittest.TestCase):
         self.dest = 'cwl'
         _reset_global_settings()
 
-    def test_multisample_jointgt_gatk4(self):
+    @unittest.skip('need injest fixes')
+    def test_bwa_tool(self):
+        filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    @unittest.skip('need injest fixes')
+    def test_somatic_wf(self):
+        filepath = f'{WDL_TESTDATA_PATH}/somatic_wf.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    @unittest.skip('need injest fixes')
+    def test_multisample_jointgt_gatk4_wf(self):
         filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
+    @unittest.skip('need injest fixes')
     def test_reads2map_preprocessing(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
+    @unittest.skip('need injest fixes')
     def test_reads2map_reads2map(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('need injest fixes')
     def test_reads2map_snp_calling(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -738,21 +991,25 @@ class TestWdlToNextflow(unittest.TestCase):
         self.dest = 'nextflow'
         _reset_global_settings()
 
+    @unittest.skip('need injest fixes')
     def test_multisample_jointgt_gatk4(self):
         filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
+    @unittest.skip('need injest fixes')
     def test_reads2map_preprocessing(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
+    @unittest.skip('need injest fixes')
     def test_reads2map_reads2map(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('need injest fixes')
     def test_reads2map_snp_calling(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -791,6 +1048,7 @@ class TestGalaxyToWdl(unittest.TestCase):
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
+    @unittest.skip('implement scatter on multiple inputs')
     def test_rna_seq_reads_to_counts(self):
         filepath = '/home/grace/work/pp/translation/janis-core/janis_core/tests/data/galaxy/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)

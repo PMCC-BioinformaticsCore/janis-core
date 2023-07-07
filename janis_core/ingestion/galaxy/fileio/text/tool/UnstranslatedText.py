@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
-    from janis_core.ingestion.galaxy.model.workflow import WorkflowStep
+    from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowStep
 
 from ..TextRender import TextRender
 

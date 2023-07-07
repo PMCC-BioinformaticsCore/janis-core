@@ -1,5 +1,8 @@
 
 
+from .preprocessing_prune import PruneFlatTW
+from .preprocessing_prune import PruneNestedTW
+
 from .basics import BasicIOTestWF
 from .basics import WildcardSelectorOutputTestWF
 from .basics import InputSelectorTestWF

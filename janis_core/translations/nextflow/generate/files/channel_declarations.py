@@ -3,7 +3,7 @@
 
 from typing import Optional
 
-from janis_core import TInput, Workflow
+from janis_core import TInput, Workflow, InputNodeSelector
 from janis_core.types import File, Filename, Directory, DataType
 
 from janis_core import settings
@@ -73,8 +73,9 @@ def is_scattered_on(input_node: TInput, wf: Workflow) -> bool:
         fields = step.scatter.fields
         for tinput_id, src in step.sources.items():
             if tinput_id in fields:
-                if src.source_map[0].source.input_node.id() == input_node.id():
-                    return True
+                if isinstance(src.source_map[0].source, InputNodeSelector):
+                    if src.source_map[0].source.input_node.id() == input_node.id():
+                        return True
 
     return False
 

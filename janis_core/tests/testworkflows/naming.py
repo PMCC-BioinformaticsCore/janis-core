@@ -18,9 +18,9 @@ from janis_core.types import (
     Stdout
 )
 
-from janis_bioinformatics.data_types.bam import BamBai
-from janis_bioinformatics.data_types.vcf import VcfTabix
-from janis_bioinformatics.data_types.fasta import FastaWithIndexes
+from janis_core.redefinitions.types import BamBai
+from janis_core.redefinitions.types import VcfTabix
+from janis_core.redefinitions.types import FastaWithIndexes
 
 
 class NamingTestWF(Workflow):

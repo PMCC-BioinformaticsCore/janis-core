@@ -87,8 +87,11 @@ janis_pipelines.egg-info/
 dist/
 build/
 docs/
-
+test.py
+myscript.sh
 translated/
+involucro
+data/
 
 # test data 
 janis_core/tests/data/
@@ -104,3 +107,4 @@ temp.txt
 translated/
 myscript.sh
 notes.txt
+presenter_notes.txt

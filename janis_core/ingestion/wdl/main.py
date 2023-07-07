@@ -55,6 +55,8 @@ class WdlParser:
             return self.from_loaded_task(obj)
         elif isinstance(obj, WDL.Workflow):
             return self.from_loaded_workflow(obj)
+        else:
+            raise RuntimeError(f"Unhandled WDL object type: {type(obj)}")
 
     def from_loaded_workflow(self, obj: WDL.Workflow):
         wf = j.WorkflowBuilder(identifier=obj.name)
@@ -242,7 +244,8 @@ class WdlParser:
         inputs = obj.inputs
 
         cpus = self.translate_expr(rt.get("cpu"))
-        if not isinstance(cpus, j.Selector) and cpus is not None and not isinstance(cpus, (int, float)):
+        # if cpus is not None and not isinstance(cpus, j.Selector) and not isinstance(cpus, (int, float)):
+        if isinstance(cpus, str):
             cpus = int(cpus)
 
         c = j.CommandToolBuilder(

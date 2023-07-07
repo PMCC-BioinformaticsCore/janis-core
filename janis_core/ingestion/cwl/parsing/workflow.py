@@ -89,7 +89,7 @@ class WorkflowInputParser(WorkflowEntityParser):
     def do_parse(self) -> InputNodeSelector:
 
         identifier = get_id_entity(self.entity.id)
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
         self.error_msgs += error_msgs
         
         inp = self.wf.input(
@@ -146,7 +146,7 @@ class WorkflowOutputParser(WorkflowEntityParser):
         else:
             source = janis_sources
 
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondary_files=self.entity.secondaryFiles)
+        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
         self.error_msgs += error_msgs
 
         out = self.wf.output(

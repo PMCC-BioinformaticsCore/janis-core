@@ -41,6 +41,11 @@ inputs:
         type: int?
         inputBinding:
             position: 6
+    inIntOptional2:
+        type: int?
+        default: 10
+        inputBinding:
+            position: 6
 outputs:
     out_stdout:
         type: stdout     

@@ -4,10 +4,10 @@
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
-from janis_core.ingestion.galaxy.gx.command.components import Flag
-from janis_core.ingestion.galaxy.gx.command.components import InputComponent
-from janis_core.ingestion.galaxy.gx.command.components import Positional
-from janis_core.ingestion.galaxy.gx.command.components import Option
+from janis_core.ingestion.galaxy.gxtool.command.components import Flag
+from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
+from janis_core.ingestion.galaxy.gxtool.command.components import Positional
+from janis_core.ingestion.galaxy.gxtool.command.components import Option
 
 from ..TextRender import TextRender
 from .. import formatting
@@ -58,13 +58,13 @@ class ToolInputText(TextRender):
             case Flag():
                 return e.prefix
             case Option():
-                return e.prefix if e.delim == ' ' else e.prefix + e.delim
+                return e.prefix if e.separator == ' ' else e.prefix + e.separator
             case _:
                 raise RuntimeError
     
     def format_separation(self) -> bool:
         if isinstance(self.entity, Option):
-            if self.entity.delim == ' ':
+            if self.entity.separator == ' ':
                 return True
             else:
                 return False

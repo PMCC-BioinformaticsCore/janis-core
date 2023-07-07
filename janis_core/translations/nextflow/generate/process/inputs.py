@@ -126,6 +126,10 @@ class ProcessInputGenerator:
         elif dtt == DTypeType.FILE:
             return self.create_path_input(self.tinput)
         
+        # filename
+        elif dtt == DTypeType.FILENAME:
+            return self.create_val_input(self.tinput)
+        
         # nonfile array
         elif dtt == DTypeType.GENERIC_ARRAY:
             return self.create_val_input(self.tinput)

@@ -20,8 +20,7 @@ from janis_core.types import (
     Array,
 )
 
-
-from janis_unix import Csv, Tsv, TextFile
+from janis_core.redefinitions.types import Csv, Tsv, TextFile
 
 # WORKFLOW
 class OutputCollectionTestWF(Workflow):

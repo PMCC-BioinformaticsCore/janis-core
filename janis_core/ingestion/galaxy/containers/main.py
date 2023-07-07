@@ -1,6 +1,6 @@
 
 from janis_core import settings
-from janis_core.ingestion.galaxy.gx.gxtool import XMLToolDefinition
+from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 
 from .mulled import gen_mulled_image
 from .mulled import get_base_image_uri
@@ -11,9 +11,12 @@ from .cache import init_cache
 from .Container import Container
 
 
-def resolve_dependencies_as_container(xmltool: XMLToolDefinition) -> str:
+def resolve_dependencies_as_container(xmltool: XMLTool) -> str:
     # for each of the galaxy requirements, find a useable container from quay.io.
     # return the container url. 
+    if settings.testing.TESTING_USE_DEFAULT_CONTAINER:
+        return DEFAULT_CONTAINER.uri
+
     if len(xmltool.metadata.requirements) == 0:
         return DEFAULT_CONTAINER.uri
     

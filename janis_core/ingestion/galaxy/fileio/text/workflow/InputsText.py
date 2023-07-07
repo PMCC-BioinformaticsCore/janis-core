@@ -1,8 +1,8 @@
 
 from typing import Tuple
 
-from janis_core.ingestion.galaxy.model.workflow import Workflow
-from janis_core.ingestion.galaxy.model.workflow import WorkflowInput
+from janis_core.ingestion.galaxy.internal_model.workflow import Workflow
+from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowInput
 from ..TextRender import TextRender
 #from ..formatting import format_typestr
 

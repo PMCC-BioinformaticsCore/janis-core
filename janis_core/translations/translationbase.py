@@ -304,6 +304,7 @@ class TranslatorBase(ABC):
                     Logger.log(f"Written {filename} to disk")
 
             # writing source files to output folder (specifically galaxy tool wrappers)
+            # copying source files 
             if settings.general.SOURCE_FILES is not None:
                 # create source folder in basedir
                 source_dir = os.path.join(basedir, 'source')
