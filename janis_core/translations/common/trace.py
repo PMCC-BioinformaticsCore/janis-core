@@ -8,6 +8,9 @@ from collections import defaultdict
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.operator import IndexOperator, Operator
 from janis_core.types import Filename, DataType, Stdout
+
+from janis_core.operators import SingleValueOperator, TwoValueOperator
+
 from janis_core.operators.logical import (
     IsDefined,
     If,
@@ -16,6 +19,7 @@ from janis_core.operators.logical import (
     CeilOperator,
     RoundOperator,
 )
+
 from janis_core.operators.standard import (
     ReadContents,
     ReadJsonOperator,
@@ -31,7 +35,7 @@ from janis_core.operators.standard import (
     FileSizeOperator,
     FirstOperator,
     FilterNullOperator,
-    ReplaceOperator
+    ReplaceOperator,
 )
 from janis_core.operators.operator import (
     IndexOperator,
@@ -58,11 +62,19 @@ from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool, Comman
 from janis_core import translation_utils as utils
 
 
+def trace_entities(entity: Any, tool: Optional[Tool]=None) -> list[Any]:
+    tracer = EntityTracer(tool)
+    tracer.trace(entity)
+    return tracer.entities
 
 def trace_entity_counts(entity: Any, tool: Optional[Tool]=None) -> dict[str, int]:
-    tracer = EntityCountTracer(tool)
+    tracer = EntityTracer(tool)
     tracer.trace(entity)
-    return tracer.counter
+    counter: dict[str, int] = defaultdict(int)
+    for e in tracer.entities:
+        ename = e.__class__.__name__
+        counter[ename] += 1
+    return counter
 
 def trace_source_datatype(entity: Any, tool: Optional[Tool]=None) -> Optional[DataType]:
     tracer = SourceDatatypeTracer(tool)
@@ -153,6 +165,8 @@ class Tracer(ABC):
             Filename: self.filename,
 
             # selectors
+            ToolInput: self.tool_input,
+            ToolArgument: self.tool_argument,
             AliasSelector: self.alias_selector,
             InputNodeSelector: self.input_node_selector,
             WildcardSelector: self.wildcard_selector,
@@ -184,15 +198,21 @@ class Tracer(ABC):
     def trace_list(self, entity: list[Any]) -> None:
         for item in entity:
             self.trace(item)
+            
+    def tool_input(self, entity: ToolInput | TInput) -> None:
+        # the toolinput name
+        self.trace(entity.id())
+        dtype = entity.input_type if isinstance(entity, ToolInput) else entity.intype
+        # the datatype if it is a Filename type
+        if isinstance(dtype, Filename):
+            self.trace(dtype)
     
-    # def tool_input(self, entity: ToolInput) -> None:
-    #     raise NotImplementedError
+    def tool_argument(self, entity: ToolArgument) -> None:
+        self.trace(entity.prefix)
+        self.trace(entity.value)
     
-    # def tool_output(self, entity: ToolOutput) -> None:
-    #     raise NotImplementedError
-    
-    # def tool_argument(self, entity: ToolArgument) -> None:
-    #     raise NotImplementedError
+    def tool_output(self, entity: ToolOutput) -> None:
+        self.trace(entity.selector)
 
     def alias_selector(self, entity: AliasSelector) -> None:
         self.trace(entity.inner_selector)
@@ -210,16 +230,8 @@ class Tracer(ABC):
         assert(isinstance(self.tool, CommandTool | CodeTool))
         tinputs = [x for x in self.tool.inputs() if x.id() == entity.input_to_select]
         if not tinputs:
-            print()
+            return
         self.trace(tinputs[0])
-        
-    def tool_input(self, entity: ToolInput | TInput) -> None:
-        # the toolinput name
-        self.trace(entity.id())
-        dtype = entity.input_type if isinstance(entity, ToolInput) else entity.intype
-        # the datatype if it is a Filename type
-        if isinstance(dtype, Filename):
-            self.trace(dtype)
 
     def step_output_selector(self, entity: StepOutputSelector) -> None:
         # TODO check
@@ -278,20 +290,26 @@ class Tracer(ABC):
 
  
 
-class EntityCountTracer(Tracer):
+class EntityTracer(Tracer):
 
     def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
-        self.counter: dict[str, int] = defaultdict(int)
+        self.entities: list[Any] = []
     
-    def trace(self, entity: Any) -> None:
+    def trace(self, entity: Any, is_first_call: bool=False) -> None:
+        if not is_first_call:
+            self.entities.append(entity)
         etype = type(entity)
-        ename = entity.__class__.__name__
-        self.counter[ename] += 1
 
         if etype in self.custom_trace_funcs:
             func = self.custom_trace_funcs[etype]
             func(entity)
+        
+        elif isinstance(entity, SingleValueOperator):
+            self.operator_single_arg_trace(entity)
+        
+        elif isinstance(entity, TwoValueOperator):
+            self.operator_multi_arg_trace(entity)
         
         elif etype in self.single_arg_trace_types:
             self.operator_single_arg_trace(entity)
