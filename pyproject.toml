@@ -5,7 +5,7 @@ requires        = ["setuptools>=67.8.0", "wheel>=0.40.0"]
 
 [project]
 name            = "janis-pipelines.core"
-version         = "v0.13.0-beta1"
+version         = "v0.13.0"
 description     = "Workflow language + translation utilities to convert workflows from one language to another"
 readme          = "README.md"
 license         = { file = "LICENSE" }
