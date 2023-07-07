@@ -87,10 +87,11 @@ include-package-data = true
 [tool.setuptools.package-data]
 janis_core = [
     "messages/*.yaml",
-    "ingestion/galaxy/data/*.json",
-    "ingestion/galaxy/data/*.yaml",
-    "ingestion/galaxy/data/*.xml.sample",
-    "ingestion/galaxy/data/*.xml.sample"
+    "ingestion/data/*.json",
+    "ingestion/data/*.yaml",
+    "ingestion/data/galaxy/*.json",
+    "ingestion/data/galaxy/*.yaml",
+    "ingestion/data/galaxy/*.xml.sample",
 ]
 
 [tool.setuptools.packages.find]
