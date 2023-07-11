@@ -15,10 +15,9 @@ prunes step sources which aren't used.
 
 """
  
-def prune_workflow(wf: WorkflowBuilder) -> WorkflowBuilder:
+def prune_workflow(wf: WorkflowBuilder) -> None:
     tools = gather_tools(wf)
-    wf = prune_tools_and_sources(wf, tools)
-    wf = prune_main_workflow_inputs(wf)
-    return wf
+    prune_tools_and_sources(wf, tools)
+    prune_main_workflow_inputs(wf)
 
 
