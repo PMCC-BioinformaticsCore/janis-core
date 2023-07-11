@@ -72,7 +72,6 @@ from .mock.mock_workflow import MOCK_WORKFLOW
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
-
  
 QUERY1 = XMLCondaRequirement(_name='abricate', _version='1.0.1')
 QUERY1_EXPECTED_RESULT = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1'
@@ -204,7 +203,7 @@ class TestRegexToGlob(unittest.TestCase):
         self.assertEqual(regex_to_glob.convert("\S+\ \S+\ single 1\..*"), "* * single 1.*")
         self.assertEqual(regex_to_glob.convert(".*? index (0|1)\..*"), "* index {0,1}.*")
         self.assertEqual(regex_to_glob.convert("\S+ \S+ (single (0|1)|(forward|reverse) 0)\..*"), "* * {single {0,1},{forward,reverse} 0}.*")
-
+ 
 
 class TestAccessoryFiles(unittest.TestCase):
 
@@ -214,7 +213,7 @@ class TestAccessoryFiles(unittest.TestCase):
     
     def test_scripts_files_to_create(self) -> None:
         settings.translate.MODE = 'extended'
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
         tool = wf.step_nodes['limma_voom'].tool
@@ -225,7 +224,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.assertIn('limma_voom.R', tool.files_to_create())
     
     def test_configfiles_files_to_create(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/annotate-my-ids-wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
         tool = wf.step_nodes['annotatemyids'].tool
@@ -236,7 +235,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.assertIn('annotatemyids_script', tool.files_to_create())
     
     def test_scripts_as_params(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
         tool = wf.step_nodes['limma_voom'].tool
@@ -250,7 +249,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.assertIsNone(tinput.prefix)
     
     def test_configfiles_as_params(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/annotate-my-ids-wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
         tool = wf.step_nodes['annotatemyids'].tool
@@ -264,7 +263,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.assertIsNone(tinput.prefix)
     
     def test_scripts_workflow_components(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/limma_voom_wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/limma_voom_wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
 
@@ -278,7 +277,7 @@ class TestAccessoryFiles(unittest.TestCase):
         self.assertEqual(source.id(), 'limma_voom_script')
         
     def test_configfiles_workflow_components(self) -> None:
-        filepath = os.path.abspath('./janis_core/tests/data/galaxy/annotate-my-ids-wf.ga')
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/annotate-my-ids-wf.ga')
         wf = ingest(filepath, self.srcfmt)
         assert(isinstance(wf, Workflow))
         
@@ -977,52 +976,6 @@ class TestDatatypeInference(unittest.TestCase):
     
     def test_workflow_input(self) -> None:
         self.assertEquals(datatypes.get(MOCK_WORKFLOW_INPUT1), file_t)
-    
-    # def test_option_typestring(self) -> None:
-    #     raise NotImplementedError()
-
-
-
-class TestSectionalCheetah(unittest.TestCase):
-
-    @unittest.skip('not implemented')
-    def test_unicycler(self):
-        original_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_original.txt'
-        expected_filepath = './janis_core/tests/data/galaxy/cheetah_templating/unicycler_templated.txt'
-        inputs_filepath  = './janis_core/tests/data/galaxy/cheetah_templating/inputs.json'
-        
-        # original command
-        with open(original_filepath, 'r') as fp:
-            original = fp.read().strip()
-        # expected command (after cheetah templating)
-        with open(expected_filepath, 'r') as fp:
-            expected = fp.read().strip()
-        # tool state (inputs)
-        with open(inputs_filepath, 'r') as fp:
-            tool_state = json.load(fp)
-        
-        actual = sectional_evaluate(original, tool_state).strip()
-        self.assertEquals(actual, expected)
-
-
-# class TestAliases(unittest.TestCase):
-
-#     def test_resolve_fastqc(self):
-#         raw_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command.xml'
-#         ref_path = './janis_core/tests/data/command/manipulation/aliases/fastqc/fastqc_command_resolved.xml'
-#         raw_cmd = get_cmd(raw_path)
-#         ref_cmd = get_cmd(ref_path)
-#         res_cmd = resolve_aliases(raw_cmd)
-#         self.assertEquals(ref_cmd, res_cmd)
-    
-#     def test_resolve_unicycler(self):
-#         raw_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command.xml'
-#         ref_path = './janis_core/tests/data/command/manipulation/aliases/unicycler/unicycler_command_resolved.xml'
-#         raw_cmd = get_cmd(raw_path)
-#         ref_cmd = get_cmd(ref_path)
-#         res_cmd = resolve_aliases(raw_cmd)
-#         self.assertEquals(ref_cmd, res_cmd)
-
 
 
 class TestFromGalaxy(unittest.TestCase):

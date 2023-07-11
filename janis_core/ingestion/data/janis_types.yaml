@@ -24,126 +24,11 @@ types:
     classname: Boolean
     extensions: 
     import_path: janis_core.types.common_data_types
-  - format: bai
-    source: janis
-    classname: Bai
-    extensions: .bai
-    import_path: janis_bioinformatics.data_types.bai
-  - format: bam
-    source: janis
-    classname: Bam
-    extensions: .bam
-    import_path: janis_bioinformatics.data_types.bam
-  - format: bed
-    source: janis
-    classname: bed
-    extensions: .bed
-    import_path: janis_bioinformatics.data_types.bed
-  - format: bed.gz
-    source: janis
-    classname: BedGz
-    extensions: .bed.gz
-    import_path: janis_bioinformatics.data_types.bed
-  - format: vcf.gz
-    source: janis
-    classname: CompressedVcf
-    extensions: .vcf.gz
-    import_path: janis_bioinformatics.data_types.vcf
-  - format: tar.gz
-    source: janis
-    classname: TarFileGz
-    extensions: .tar.gz
-    import_path: janis_unix.data_types.tarfile
-  - format: cram
-    source: janis
-    classname: Cram
-    extensions: .cram
-    import_path: janis_bioinformatics.data_types.cram
-  - format: crai
-    source: janis
-    classname: Crai
-    extensions: .crai
-    import_path: janis_bioinformatics.data_types.crai
-  - format: csv
-    source: janis
-    classname: csv
-    extensions: .csv
-    import_path: janis_unix.data_types.csv
   - format: directory
     source: janis
     classname: Directory
     extensions: 
     import_path: janis_core.types.common_data_types
-  - format: fasta
-    source: janis
-    classname: Fasta
-    extensions: .fasta,.fa,.fna
-    import_path: janis_bioinformatics.data_types.fasta
-  - format: fai
-    source: janis
-    classname: FastaFai
-    extensions: .fai
-    import_path: janis_bioinformatics.data_types.fasta
-  - format: fasta.gz
-    source: janis
-    classname: FastaGz
-    extensions: .fasta.gz,.fa.gz,.fna.gz
-    import_path: janis_bioinformatics.data_types.fasta
-  - format: fastq
-    source: janis
-    classname: Fastq
-    extensions: .fq,.fastq
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: fastqsanger
-    source: janis
-    classname: Fastq
-    extensions: .fq,.fastq
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: fastqillumina
-    source: janis
-    classname: Fastq
-    extensions: .fq,.fastq
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: fastq.gz
-    source: janis
-    classname: FastqGz
-    extensions: .fq.gz,.fastq.gz
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: fastqsanger.gz
-    source: janis
-    classname: FastqGz
-    extensions: .fq.gz,.fastq.gz
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: fastqillumina.gz
-    source: janis
-    classname: FastqGz
-    extensions: .fq.gz,.fastq.gz
-    import_path: janis_bioinformatics.data_types.fastq
-  - format: gz
-    source: janis
-    classname: Gunzipped
-    extensions: .gz
-    import_path: janis_unix.data_types.gunzipped
-  - format: html
-    source: janis
-    classname: HtmlFile
-    extensions: .html
-    import_path: janis_unix.data_types.html
-  - format: json
-    source: janis
-    classname: JsonFile
-    extensions: .json
-    import_path: janis_unix.data_types.json
-  - format: kallisto.idx
-    source: janis
-    classname: KallistoIdx
-    extensions: .kallisto.idx
-    import_path: janis_bioinformatics.tools.kallisto.data_types
-  - format: sam
-    source: janis
-    classname: Sam
-    extensions: .sam
-    import_path: janis_bioinformatics.data_types.sam
   - format: string
     source: janis
     classname: String
@@ -159,41 +44,176 @@ types:
     classname: String
     extensions: 
     import_path: janis_core.types.common_data_types
+  - format: csv
+    source: janis
+    classname: Csv
+    extensions: .csv
+    import_path: janis_core.redefinitions.types
   - format: tar
     source: janis
     classname: TarFile
     extensions: .tar
-    import_path: janis_unix.data_types.tarfile
+    import_path: janis_core.redefinitions.types
   - format: txt
     source: janis
     classname: TextFile
     extensions: .txt
-    import_path: janis_unix.data_types.text
+    import_path: janis_core.redefinitions.types
   - format: text
     source: janis
     classname: TextFile
     extensions: .txt
-    import_path: janis_unix.data_types.text
+    import_path: janis_core.redefinitions.types
   - format: tsv
     source: janis
     classname: Tsv
     extensions: .tsv
-    import_path: janis_unix.data_types.tsv
+    import_path: janis_core.redefinitions.types
   - format: tabular
     source: janis
     classname: Tsv
     extensions: .tsv
-    import_path: janis_unix.data_types.tsv
+    import_path: janis_core.redefinitions.types
   - format: vcf
     source: janis
     classname: Vcf
     extensions: .vcf
-    import_path: janis_bioinformatics.data_types.vcf
+    import_path: janis_core.redefinitions.types
   - format: zip
     source: janis
     classname: ZipFile
     extensions: .zip
-    import_path: janis_unix.data_types.zipfile
+    import_path: janis_core.redefinitions.types
+  - format: bai
+    source: janis
+    classname: Bai
+    extensions: .bai
+    import_path: janis_core.redefinitions.types
+  - format: bam
+    source: janis
+    classname: Bam
+    extensions: .bam
+    import_path: janis_core.redefinitions.types
+  - format: bed
+    source: janis
+    classname: Bed
+    extensions: .bed
+    import_path: janis_core.redefinitions.types
+  - format: bed.gz
+    source: janis
+    classname: BedGz
+    extensions: .bed.gz
+    import_path: janis_core.redefinitions.types
+  - format: vcf.gz
+    source: janis
+    classname: CompressedVcf
+    extensions: .vcf.gz
+    import_path: janis_core.redefinitions.types
+  - format: tar.gz
+    source: janis
+    classname: TarFileGz
+    extensions: .tar.gz
+    import_path: janis_core.redefinitions.types
+  - format: cram
+    source: janis
+    classname: Cram
+    extensions: .cram
+    import_path: janis_core.redefinitions.types
+  - format: crai
+    source: janis
+    classname: Crai
+    extensions: .crai
+    import_path: janis_core.redefinitions.types
+  - format: csv
+    source: janis
+    classname: Csv
+    extensions: .csv
+    import_path: janis_core.redefinitions.types
+  - format: fasta
+    source: janis
+    classname: Fasta
+    extensions: .fasta,.fa,.fna
+    import_path: janis_core.redefinitions.types
+  - format: fai
+    source: janis
+    classname: FastaFai
+    extensions: .fai
+    import_path: janis_core.redefinitions.types
+  - format: fasta.gz
+    source: janis
+    classname: FastaGz
+    extensions: .fasta.gz,.fa.gz,.fna.gz
+    import_path: janis_core.redefinitions.types
+  - format: fastq
+    source: janis
+    classname: Fastq
+    extensions: .fq,.fastq
+    import_path: janis_core.redefinitions.types
+  - format: fastqsanger
+    source: janis
+    classname: Fastq
+    extensions: .fq,.fastq
+    import_path: janis_core.redefinitions.types
+  - format: fastqillumina
+    source: janis
+    classname: Fastq
+    extensions: .fq,.fastq
+    import_path: janis_core.redefinitions.types
+  - format: fastq.gz
+    source: janis
+    classname: FastqGz
+    extensions: .fq.gz,.fastq.gz
+    import_path: janis_core.redefinitions.types
+  - format: fastqsanger.gz
+    source: janis
+    classname: FastqGz
+    extensions: .fq.gz,.fastq.gz
+    import_path: janis_core.redefinitions.types
+  - format: fastqillumina.gz
+    source: janis
+    classname: FastqGz
+    extensions: .fq.gz,.fastq.gz
+    import_path: janis_core.redefinitions.types
+  - format: gz
+    source: janis
+    classname: Gunzipped
+    extensions: .gz
+    import_path: janis_core.redefinitions.types
+  - format: html
+    source: janis
+    classname: HtmlFile
+    extensions: .html
+    import_path: janis_core.redefinitions.types
+  - format: json
+    source: janis
+    classname: JsonFile
+    extensions: .json
+    import_path: janis_core.redefinitions.types
+  - format: kallisto.idx
+    source: janis
+    classname: KallistoIdx
+    extensions: .kallisto.idx
+    import_path: janis_core.redefinitions.types
+  - format: whisper_idx
+    source: janis
+    classname: WhisperIdx
+    extensions: .whisper_idx*
+    import_path: janis_core.redefinitions.types
+  - format: sam
+    source: janis
+    classname: Sam
+    extensions: .sam
+    import_path: janis_core.redefinitions.types
+  - format: tbi
+    source: janis
+    classname: FileTabix
+    extensions: .tbi
+    import_path: janis_core.redefinitions.types
+  - format: bai
+    source: janis
+    classname: Bai
+    extensions: .bai
+    import_path: janis_core.redefinitions.types
   - format: source_h
     source: galaxy
     classname: Source_h

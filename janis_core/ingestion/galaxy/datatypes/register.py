@@ -3,9 +3,10 @@
 
 import yaml
 from typing import Optional
-from janis_core.settings.ingest.galaxy import GALAXY_DATATYPES_YAML
+from janis_core.settings.ingest.galaxy import DATATYPES_YAML
 
 from .JanisDatatype import JanisDatatype
+
 
 
 class DatatypeRegister:
@@ -27,7 +28,7 @@ class DatatypeRegister:
         provides structue where we can search all the galaxy and janis types given what we see
         in galaxy 'format' attributes.
         """
-        path = GALAXY_DATATYPES_YAML
+        path = DATATYPES_YAML
         with open(path, 'r') as fp:
             datatypes = yaml.safe_load(fp)
         for type_data in datatypes['types']:
