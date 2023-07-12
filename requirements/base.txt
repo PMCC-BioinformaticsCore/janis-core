@@ -1,5 +1,5 @@
 importlib-metadata==4.12.0
-illusional-wdlgen @ git+https://github.com/GraceAHall/python-wdlgen@release-v0.12.0
+illusional-wdlgen
 ruamel.yaml >= 0.12.4, <= 0.16.5
 regex
 tabulate
