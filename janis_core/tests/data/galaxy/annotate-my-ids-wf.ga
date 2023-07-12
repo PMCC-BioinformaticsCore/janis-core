@@ -1,0 +1,87 @@
+{
+    "a_galaxy_workflow": "true",
+    "annotation": "",
+    "format-version": "0.1",
+    "name": "annotate-my-ids-wf",
+    "steps": {
+        "0": {
+            "annotation": "",
+            "content_id": null,
+            "errors": null,
+            "id": 0,
+            "input_connections": {},
+            "inputs": [],
+            "label": null,
+            "name": "Input dataset",
+            "outputs": [],
+            "position": {
+                "left": 0.0,
+                "top": 0.0
+            },
+            "tool_id": null,
+            "tool_state": "{\"optional\": false, \"tag\": null}",
+            "tool_version": null,
+            "type": "data_input",
+            "uuid": "9f349422-7a51-4c5f-8ebd-09242aecb9d0",
+            "workflow_outputs": [
+                {
+                    "label": null,
+                    "output_name": "output",
+                    "uuid": "54ed6694-9e56-4c8d-b0ea-9dd714fd7588"
+                }
+            ]
+        },
+        "1": {
+            "annotation": "",
+            "content_id": "toolshed.g2.bx.psu.edu/repos/iuc/annotatemyids/annotatemyids/3.16.0+galaxy1",
+            "errors": null,
+            "id": 1,
+            "input_connections": {
+                "id_file": {
+                    "id": 0,
+                    "output_name": "output"
+                }
+            },
+            "inputs": [
+                {
+                    "description": "runtime parameter for tool annotateMyIDs",
+                    "name": "id_file"
+                }
+            ],
+            "label": null,
+            "name": "annotateMyIDs",
+            "outputs": [
+                {
+                    "name": "out_tab",
+                    "type": "tabular"
+                }
+            ],
+            "position": {
+                "left": 300.98358154296875,
+                "top": 3.012298583984375
+            },
+            "post_job_actions": {},
+            "tool_id": "toolshed.g2.bx.psu.edu/repos/iuc/annotatemyids/annotatemyids/3.16.0+galaxy1",
+            "tool_shed_repository": {
+                "changeset_revision": "133f36c29579",
+                "name": "annotatemyids",
+                "owner": "iuc",
+                "tool_shed": "toolshed.g2.bx.psu.edu"
+            },
+            "tool_state": "{\"file_has_header\": \"false\", \"id_file\": {\"__class__\": \"RuntimeValue\"}, \"id_type\": \"ENSEMBL\", \"organism\": \"Hs\", \"output_cols\": [\"ENSEMBL\", \"ENTREZID\", \"SYMBOL\", \"GENENAME\"], \"remove_dups\": \"false\", \"rscriptOpt\": \"false\", \"__page__\": null, \"__rerun_remap_job_id__\": null}",
+            "tool_version": "3.16.0+galaxy1",
+            "type": "tool",
+            "uuid": "a4baacab-9d8e-4134-a0d7-8a6374a35f5f",
+            "workflow_outputs": [
+                {
+                    "label": "annotateMyIDs on input dataset(s): Annotated IDs",
+                    "output_name": "out_tab",
+                    "uuid": "3dcde895-6754-4857-bcb0-cd9543f00213"
+                }
+            ]
+        }
+    },
+    "tags": [],
+    "uuid": "ff5738ee-ad63-403d-bd26-03f83e640a5a",
+    "version": 1
+}

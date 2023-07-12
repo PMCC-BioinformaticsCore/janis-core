@@ -1,9 +1,12 @@
 import copy
 import os
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
+from uuid import uuid4
 
+from janis_core.messages import log_warning
+from janis_core import settings
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
 from janis_core.operators import (
@@ -26,8 +29,8 @@ from janis_core.tool.documentation import (
     DocumentationMeta,
 )
 from janis_core.tool.tool import Tool, ToolType, TInput, TOutput
-from janis_core.translationdeps.exportpath import ExportPathKeywords
-from janis_core.translationdeps.supportedtranslations import SupportedTranslation
+from janis_core.translation_deps.exportpath import ExportPathKeywords
+from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.types import (
     DataType,
     ParseableType,
@@ -95,11 +98,12 @@ class InputNode(Node):
         wf,
         identifier: str,
         datatype: DataType,
-        default: any,
-        value: any,
-        doc: InputDocumentation = None,
+        default: Any,
+        value: Any,
+        doc: Optional[InputDocumentation] = None,
     ):
         super().__init__(wf, NodeType.INPUT, identifier)
+        self.uuid: str = str(uuid4())
         self.datatype = datatype
         self.default = default
         self.doc: Optional[InputDocumentation] = doc
@@ -120,14 +124,15 @@ class StepNode(Node):
     def __init__(
         self,
         wf,
-        identifier,
+        identifier: str,
         tool: Tool,
-        doc: DocumentationMeta = None,
-        scatter: ScatterDescription = None,
-        when: Operator = None,
+        doc: Optional[DocumentationMeta] = None,
+        scatter: Optional[ScatterDescription] = None,
+        when: Optional[Operator] = None,
         _foreach=None,
     ):
         super().__init__(wf, NodeType.STEP, identifier)
+        self.uuid: str = str(uuid4())
         self.tool = tool
         self.doc = doc
         self.scatter = scatter
@@ -221,7 +226,7 @@ class StepNode(Node):
 
         self.__dict__[key] = value
 
-    def nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+    def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
         """
         Nextflow string representation of a StepNode
 
@@ -234,7 +239,7 @@ class StepNode(Node):
         """
         if len(self.outputs().keys()) >= 1:
             first_tag = list(self.outputs().keys())[0]
-            return self.get_item(first_tag).nextflow(
+            return self.get_item(first_tag).to_nextflow(
                 var_indicator=var_indicator, step_indicator=step_indicator
             )
 
@@ -257,6 +262,7 @@ class OutputNode(Node):
         skip_typecheck=False,
     ):
         super().__init__(wf, NodeType.OUTPUT, identifier)
+        self.uuid: str = str(uuid4())
         self.datatype = datatype
 
         sources = source if isinstance(source, list) else [source]
@@ -332,6 +338,8 @@ class WorkflowBase(Tool):
         pass
 
     def verify_identifier(self, identifier: str, component: str):
+        if not settings.validation.STRICT_IDENTIFIERS:
+            return None
 
         if identifier in self.__dict__:
             raise Exception(
@@ -354,10 +362,10 @@ class WorkflowBase(Tool):
         self,
         identifier: str,
         datatype: ParseableType,
-        default: any = None,
-        value: any = None,
-        doc: Union[str, InputDocumentation, Dict[str, any]] = None,
-    ):
+        default: Any = None,
+        value: Any = None,
+        doc: Optional[str | InputDocumentation | Dict[str, Any]] = None,
+    ) -> InputNodeSelector:
         """
         Create an input node on a workflow
         :return:
@@ -392,7 +400,7 @@ class WorkflowBase(Tool):
         output_name: Union[bool, str, Selector, ConnectionSource] = True,
         extension: Optional[str] = None,
         doc: Union[str, OutputDocumentation] = None,
-    ):
+    ) -> OutputNode:
         """
         Create an output on a workflow
 
@@ -699,7 +707,7 @@ class WorkflowBase(Tool):
         when: Optional[Operator] = None,
         ignore_missing=False,
         doc: str = None,
-    ):
+    ) -> StepNode:
         """
         Construct a step on this workflow.
 
@@ -743,12 +751,17 @@ class WorkflowBase(Tool):
             ins = set(tool.inputs_map().keys())
             fields = set(scatter.fields)
             if any(f not in ins for f in fields):
-                # if there is a field not in the input map, we have a problem
-                extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
-                raise Exception(
-                    f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
-                    f"as they are not inputs to the tool '{tool.id()}'"
-                )
+                if settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
+                    msg = f"This task is supposed to run in parallel across {fields}, but some of these are not task inputs."
+                    log_warning(self.uuid, msg)
+                    raise Exception("should this be checked?")
+                else:
+                    # if there is a field not in the input map, we have a problem
+                    extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
+                    raise Exception(
+                        f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
+                        f"as they are not inputs to the tool '{tool.id()}'"
+                    )
 
         tool.workflow = self
         inputs = tool.inputs_map()
@@ -801,10 +814,11 @@ class WorkflowBase(Tool):
                 parsed_type = get_instantiated_type(v)
 
                 if parsed_type and not referencedtype.can_receive_from(parsed_type):
-                    raise TypeError(
-                        f"The type {parsed_type.id()} inferred from the value '{v}' is not "
-                        f"compatible with the '{identifier}.{k}' type: {referencedtype.id()}"
-                    )
+                    if not settings.graph.ALLOW_INCOMPATIBLE_TYPES:
+                        raise TypeError(
+                            f"The type {parsed_type.id()} inferred from the value '{v}' is not "
+                            f"compatible with the '{identifier}.{k}' type: {referencedtype.id()}"
+                        )
 
                 referencedtype.optional = True
 
@@ -935,54 +949,6 @@ class WorkflowBase(Tool):
             TOutput(o.id(), o.datatype, doc=o.doc) for o in self.output_nodes.values()
         ]
 
-    def translate(
-        self,
-        translation: Union[str, SupportedTranslation],
-        to_console=True,
-        tool_to_console=False,
-        to_disk=False,
-        write_inputs_file=True,
-        with_docker=True,
-        with_hints=False,
-        with_resource_overrides=False,
-        validate=False,
-        should_zip=True,
-        export_path=ExportPathKeywords.default,
-        merge_resources=False,
-        hints=None,
-        allow_null_if_not_optional=True,
-        additional_inputs: Dict = None,
-        max_cores=None,
-        max_mem=None,
-        max_duration=None,
-        allow_empty_container=False,
-        container_override: dict = None,
-    ):
-        from janis_core.translations import translate_workflow
-
-        return translate_workflow(
-            self,
-            translation=translation,
-            to_console=to_console,
-            tool_to_console=tool_to_console,
-            to_disk=to_disk,
-            with_docker=with_docker,
-            with_resource_overrides=with_resource_overrides,
-            should_zip=should_zip,
-            export_path=export_path,
-            write_inputs_file=write_inputs_file,
-            should_validate=validate,
-            merge_resources=merge_resources,
-            hints=hints,
-            allow_null_if_not_optional=allow_null_if_not_optional,
-            additional_inputs=additional_inputs,
-            max_cores=max_cores,
-            max_mem=max_mem,
-            max_duration=max_duration,
-            allow_empty_container=allow_empty_container,
-            container_override=container_override,
-        )
-
     def generate_inputs_override(
         self,
         additional_inputs=None,
@@ -1025,9 +991,9 @@ class WorkflowBase(Tool):
         hints: Dict[str, Any] = None,
         to_console=True,
     ):
-        from janis_core.translations import build_resources_input
+        from janis_core.translations import build_resources_file
 
-        tr = build_resources_input(self, translation, hints)
+        tr = build_resources_file(self, translation, hints)
         if to_console:
             print(tr)
         return tr

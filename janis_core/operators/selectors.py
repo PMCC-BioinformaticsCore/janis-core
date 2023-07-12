@@ -1,15 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Union, Optional
+from typing import Union, Optional, Type, Any
 
 from janis_core.types.data_types import ParseableType
-
 from janis_core.types import get_instantiated_type, DataType
-
-from janis_core.graph.node import NodeType
 from janis_core.types.common_data_types import Array, File, Directory, Int
+from janis_core.graph.node import NodeType
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
-
+from janis_core.utils.errors import UnsupportedError
 
 class Selector(ABC):
     @staticmethod
@@ -182,7 +180,7 @@ class Selector(ABC):
 
     def __len__(self):
 
-        raise Exception(
+        raise UnsupportedError(
             f"Calling the len function on a Janis selector, ie:'len({str(self)})' is not supported, please use '{str(self)}.length)'"
         )
 
@@ -274,7 +272,11 @@ SelectorOrValue = Union[Selector, int, str, float]
 
 class InputSelector(Selector):
     def __init__(
-        self, input_to_select, remove_file_extension=None, type_hint=File, **kwargs
+        self, 
+        input_to_select: str, 
+        remove_file_extension: Optional[bool]=None, 
+        type_hint: Type[DataType]=File, 
+        **kwargs: dict[str, Any]
     ):
         """
         :param input_to_select: The name of the input to select
@@ -290,7 +292,7 @@ class InputSelector(Selector):
 
         # maybe worth validating the input_to_select identifier
         self.input_to_select = input_to_select
-        self.type_hint = get_instantiated_type(type_hint) or File()
+        self.type_hint: DataType = get_instantiated_type(type_hint) or File()
 
         if "use_basename" in kwargs:
             use_basename = kwargs["use_basename"]
@@ -327,8 +329,11 @@ class InputSelector(Selector):
     def __repr__(self):
         return str(self)
 
-    def nextflow(self, prefix: str = "$params.", tool_id_prefix: str = ""):
-        return f"{tool_id_prefix}{self.input_to_select}"
+    def to_nextflow(self):
+        return self.input_to_select
+    
+    # def to_nextflow(self, prefix: str = "$params.", tool_id_prefix: str = ""):
+    #     return f"{tool_id_prefix}{self.input_to_select}"
 
 
 class InputNodeSelector(Selector):
@@ -366,7 +371,9 @@ class InputNodeSelector(Selector):
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
 
-    def nextflow(self, var_indicator: str = "$params.", step_indicator: str = ""):
+    def to_nextflow(self, var_indicator: str = "$params.", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return f"{var_indicator}{self.input_node.id()}"
 
 
@@ -412,9 +419,11 @@ class StepOutputSelector(Selector):
         kwarg = {key: self}
         return StringFormatter(f"{{{key}}}", **kwarg)
 
-    def nextflow(self, var_indicator: str = "$", step_indicator: str = "$"):
-        return f"{step_indicator}{self.node.id()}.out.{self.tag}"
-
+    def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
+        return f'{step_indicator}{self.node.id()}.out.{self.tag}'
+    
 
 class WildcardSelector(Selector):
     def __init__(self, wildcard, select_first=False):
@@ -427,13 +436,19 @@ class WildcardSelector(Selector):
     def to_string_formatter(self):
         raise Exception("A wildcard selector cannot be coerced into a StringFormatter")
 
-    def nextflow(self, prefix: str = "", tool_id_prefix: str = ""):
+    def to_nextflow(self, prefix: str = "", tool_id_prefix: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return str(self.wildcard)
 
 
 class AliasSelector(Selector):
     """
-    Simply a way to silence the Janis type system
+    Simply a way to silence the Janis type system.
+    
+    This absolutely should not be a 'Selector'. 
+    The whole Selector system itself is clunky. 
+    - Grace
     """
 
     def __init__(self, inner: Selector, dt: ParseableType):
@@ -446,7 +461,9 @@ class AliasSelector(Selector):
     def __repr__(self):
         return f"({self.inner_selector} as {self.data_type})"
 
-    def nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+    def to_nextflow(self, var_indicator: str = "$", step_indicator: str = ""):
+        # deprecated
+        raise RuntimeError('deprecated')
         return self.inner_selector.nextflow(var_indicator, step_indicator)
 
     def to_string_formatter(self):
@@ -528,7 +545,7 @@ class CpuSelector(ResourceSelector):
 
 class DiskSelector(ResourceSelector):
     def __init__(self, default=20):
-        super().__init__("runtime_disks", Int(optional=True), default)
+        super().__init__("runtime_disk", Int(optional=True), default)
 
     def get_value_from_tool(self, tool, hints):
         return tool.disk(hints)

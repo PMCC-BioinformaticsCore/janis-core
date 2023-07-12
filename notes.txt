@@ -1,0 +1,71 @@
+<<<<<<< HEAD
+git+https://github.com/GraceAHall/janis-core.git@release-v0.12.1
+git+https://github.com/GraceAHall/janis-assistant.git@release-v0.12.0
+git+https://github.com/GraceAHall/janis-bioinformatics@release-v0.12.0
+git+https://github.com/GraceAHall/janis-pipelines
+git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0
+=======
+
+
+
+TODO: TEST SUITE 100%
+- nextflow
+    - baseName vs simpleName?
+- wdl 
+    - miniwdl can't parse some WDL formats
+    - wdl ingest: need to injest local variables (bwa.wdl Int totalSortThreads = select_first([sortThreads, estimatedSortThreads]))
+    - mismatch secondary types
+    - scatter on multiple inputs
+    - nameroot operator - ask richard
+
+NICETIES:
+- galaxy 
+    - make it faster
+    - output collection especially with redirect is scuffed
+    - picard_MarkDuplicates.xml: REMOVE_DUPLICATES='${remove_duplicates}' causing issues
+
+TODO: RELEASE
+- test cli
+    - --galaxy-gen-images cmdline option etc
+- all test-suites 
+- all packages segregated as much as possible (ensure legacy compatibility)
+- all packages build from pyproject.toml 
+- ensure datatypes correctly segregated
+
+FUTURE FEATURES
+- prune_workflow() 
+    - move static values to step.sources
+- nextflow
+    - Null values
+        cwl subworkflow_test wf 
+        looks weird: 
+        OPTIONAL2(
+            [].collect{ file(it) },         // in_file_arr
+            file( params.NULL_VALUE ),      // in_file
+            params.in_string_arr_optional,  // in_string_arr
+            params.in_int_optional,         // in_int
+            params.in_string_optional       // in_string
+        )
+- galaxy
+    - annotation
+        - move InputExtractor.add_uncaptured_inputs() to an annotation class.  
+        - need to ensure not picking up gxparams which are only control params
+    - repeat params (& conditional params?)
+        - add support
+        - cutadapt adapters argument
+        - cutadapt library.type single?
+    - command
+        - which one is the main software command? 
+        - future: create step for each software command, for non-linux software (mkdir, cp etc)?
+    - select & when detection
+        - mutually exclusive groups (cli args)
+        - what to add to cmdstr 
+        - .when() in janis? 
+        - how will this appear in nextflow for tool translations? 
+        - can we autoremove command compoennts for workflow translations?
+            - would be only if all instances of the tool use have the same selects. 
+            - others would need to be the same as tool translation. 
+    - repeat block evaluation?
+    
+
+>>>>>>> 3a92e5942a14c88bd54af460b37396ea3b8f34fd

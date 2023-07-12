@@ -3,9 +3,7 @@ from typing import Union, List, Type
 
 from janis_core import WorkflowBase
 from janis_core.utils.scatter import ScatterDescription, ScatterMethod
-
 from janis_core.types import Array
-
 from janis_core.workflow.workflow import Tool, Workflow
 
 

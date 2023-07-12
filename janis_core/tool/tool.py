@@ -3,7 +3,8 @@ import sys
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict, Set, Any
+from uuid import uuid4
 
 from janis_core.types.common_data_types import Array
 from janis_core.tool.documentation import (
@@ -21,7 +22,6 @@ from janis_core.tool.test_classes import (
     TTestPreprocessor,
 )
 from nose.tools import nottest
-
 
 class ToolType(Enum):
     Workflow = "workflow"
@@ -51,9 +51,9 @@ class TInput(object):
         items = ["{self.id()}", self.intype.id()]
         if self.default is not None:
             items.append("default=" + str(self.default))
-        return f"ToolInput({', '.join(items)})"
+        return f"TInput({', '.join(items)})"
 
-    def id(self):
+    def id(self) -> str:
         return self.tag
 
 
@@ -64,9 +64,9 @@ class TOutput(object):
         self.doc: Optional[OutputDocumentation] = doc
 
     def __repr__(self):
-        return f'ToolOutput("{self.id()}", {self.outtype.id()})'
+        return f'TOutput("{self.id()}", {self.outtype.id()})'
 
-    def id(self):
+    def id(self) -> str:
         return self.tag
 
 
@@ -82,13 +82,13 @@ class Tool(ABC, object):
         :param metadata_class:
         :param connections:
         """
-
+        self.uuid: str = str(uuid4())
         self.metadata: metadata_class = metadata_class()
         meta = self.bind_metadata()
         if meta:
             self.metadata = meta
 
-        self.connections = connections
+        self.connections: dict[str, Any] = connections
 
     def __repr__(self):
         return f"{str(self.type())}<{self.id()}>"
@@ -192,19 +192,73 @@ class Tool(ABC, object):
     def doc(self) -> Optional[str]:
         return None
 
-    @abstractmethod
     def translate(
         self,
-        translation: str,
-        to_console=True,
-        to_disk=False,
-        export_path=None,
-        with_docker=True,
-        with_resource_overrides=False,
-        allow_empty_container=False,
-        container_override=None,
-    ):
-        raise Exception("Subclass must provide implementation for 'translate()' method")
+        dest_fmt: str,
+        mode: Optional[str] = None,
+
+        # file io
+        to_disk: Optional[bool] = None,
+        export_path: Optional[str] = None,
+        should_zip: Optional[bool] = None,   
+        to_console: Optional[bool] = None,
+        tool_to_console: Optional[bool] = None,
+        write_inputs_file: Optional[bool] = None,
+        
+        # inputs
+        additional_inputs: Optional[dict[str, str]] = None,
+        hints: Optional[dict[str, str]] = None,
+        
+        # containers
+        with_container: Optional[bool] = None,
+        allow_empty_container: Optional[bool] = None,
+        container_override: Optional[str | dict[str, Any]] = None,
+        
+        # resouces
+        with_resource_overrides: Optional[bool] = None,
+        merge_resources: Optional[bool] = None,
+        max_cores: Optional[int] = None,
+        max_mem: Optional[int] = None,
+        max_duration: Optional[int] = None,
+        
+        # misc
+        render_comments: Optional[bool] = None,
+        should_validate: Optional[bool] = None,
+        ) -> Any:
+        from janis_core.translations import translate
+        return translate(
+            entity=self,
+            dest_fmt=dest_fmt,
+            mode=mode,
+
+            # file io
+            to_disk=to_disk,
+            export_path=export_path,
+            should_zip=should_zip,
+            to_console=to_console,
+            tool_to_console=tool_to_console,
+            write_inputs_file=write_inputs_file,
+            
+            # inputs
+            additional_inputs=additional_inputs,
+            hints=hints,
+            
+            # containers
+            with_container=with_container,
+            allow_empty_container=allow_empty_container,
+            container_override=container_override,
+            
+            # resouces
+            with_resource_overrides=with_resource_overrides,
+            merge_resources=merge_resources,
+            max_cores=max_cores,
+            max_mem=max_mem,
+            max_duration=max_duration,
+            
+            # misc
+            render_comments=render_comments,
+            should_validate=should_validate,
+        )
 
     def bind_metadata(self):
         """

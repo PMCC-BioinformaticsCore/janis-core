@@ -23,7 +23,9 @@
 # Logs and databases #
 ######################
 *.log
+*.log.*
 *.sqlite
+*.nextflow
 
 # OS generated files #
 ######################
@@ -33,14 +35,13 @@ Icon
 Thumbs.db
 .tmtags
 .idea
-tags
+# tags
 vendor.tags
 tmtagsHistory
 *.sublime-project
 *.sublime-workspace
 .bundle
-
-# Added by Mohammad
+work/
 
 ## Generic
 **/*~
@@ -50,7 +51,7 @@ tmtagsHistory
 **/.gradle/
 **/.DS_Store
 
-## Java stuffs
+## Java stuff
 **/*.class
 
 ## Build Tools
@@ -76,14 +77,23 @@ venv/
 
 .coverage
 docs/_build/
-janis_pipelines.egg-info/
 dist/
 build/
+docs/
+test.py
+myscript.sh
+translated/
+involucro
 
-
-
-
-
+TODO.txt
+.vscode
 \.mypy_cache/
 *.egg-info
 *.dist-info
+test.py
+temp.txt
+.janis
+translated/
+myscript.sh
+notes.txt
+presenter_notes.txt

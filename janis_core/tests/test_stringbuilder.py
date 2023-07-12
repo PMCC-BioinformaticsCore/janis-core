@@ -107,6 +107,7 @@ class TestMatchDetectionAndValidation(unittest.TestCase):
 
 
 class TestStringFormatterInit(unittest.TestCase):
+
     def test_no_format(self):
         b = StringFormatter("this _format has no arguments")
         self.assertDictEqual({}, b.kwargs)
@@ -114,7 +115,8 @@ class TestStringFormatterInit(unittest.TestCase):
     def test_one_correct_argument(self):
         b = StringFormatter("this {test} has one argument", test="My test _format")
         self.assertDictEqual({"test": "My test _format"}, b.kwargs)
-
+    
+    @unittest.skip("Exception has been rewritten for CWL ingest to prevent partial failure")
     def test_one_incorrect_argument(self):
         self.assertRaises(
             IncorrectArgsException,
@@ -123,6 +125,7 @@ class TestStringFormatterInit(unittest.TestCase):
             test="this will fail",
         )
 
+    @unittest.skip("Exception has been rewritten for CWL ingest to prevent partial failure")
     def test_too_many_args(self):
         self.assertRaises(
             TooManyArgsException,
@@ -133,6 +136,7 @@ class TestStringFormatterInit(unittest.TestCase):
             it="will",
         )
 
+    @unittest.skip("Exception has been rewritten for CWL ingest to prevent partial failure")
     def test_too_many_args2(self):
         self.assertRaises(
             TooManyArgsException,
@@ -143,6 +147,7 @@ class TestStringFormatterInit(unittest.TestCase):
 
 
 class TestStringFormatterConcat(unittest.TestCase):
+
     def test_formatter_and_string(self):
         b = StringFormatter("no args") + " here"
         self.assertEqual("no args here", b._format)
@@ -181,6 +186,8 @@ class TestStringFormatterConcat(unittest.TestCase):
         except ConflictingArgumentsException:
             self.assertTrue(True)
 
+
+    @unittest.skip("Exception has been rewritten for CWL ingest to prevent partial failure")
     def test_byproduct_by_concat_string(self):
         try:
             b = StringFormatter("one {") + "test}"

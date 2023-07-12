@@ -245,7 +245,7 @@ class ToolEvaluator:
         for engine in engines:
             try:
                 translator = engines[engine]
-                translator.translate(
+                translator.translate_workflow(
                     tool, export_path=output_dir, to_console=False, to_disk=True
                 )
             except Exception as e:

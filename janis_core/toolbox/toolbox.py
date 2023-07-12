@@ -1,15 +1,14 @@
-from typing import List, Type, Optional, Tuple
+from typing import List, Type, Optional
 from inspect import isfunction, ismodule, isabstract, isclass
 
 from janis_core.tool.commandtool import Tool, ToolType, CommandTool, CommandToolBuilder
 from janis_core.code.pythontool import CodeTool, PythonTool
-from janis_core.types import get_instantiated_type, File
 from janis_core.workflow.workflow import Workflow, WorkflowBuilder
 from janis_core.types.data_types import DataType
 from janis_core.utils.logger import Logger, LogLevel
 import janis_core.toolbox.entrypoints as EP
 from janis_core.toolbox.register import TaggedRegistry, Registry
-from janis_core.transformation import JanisTransformation, JanisTransformationGraph
+from janis_core.transformation import JanisTransformationGraph
 
 
 class JanisShed:
@@ -271,6 +270,8 @@ class JanisShed:
 
 
 if __name__ == "__main__":
+    # TODO decouple jains-core form janis-bioinformatics here
+
     import janis_bioinformatics.tools
 
     # JanisShed.hydrate_transformations()

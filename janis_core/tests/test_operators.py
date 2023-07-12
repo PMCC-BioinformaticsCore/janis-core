@@ -106,7 +106,7 @@ class TestIndexOperator(unittest.TestCase):
         cls.wf2 = w2
 
     def test_wdl(self):
-        self.wf.translate("wdl", allow_empty_container=True)
+        self.wf.translate("wdl")
 
     # def test2_wdl(self):
     #     self.assertRaises(
