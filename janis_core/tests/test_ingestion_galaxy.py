@@ -313,7 +313,8 @@ class TestResolveDependencies(unittest.TestCase):
         image_uri = resolve_dependencies_as_container(xmltool)
         self.assertEqual(image_uri, 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1')
 
-    @unittest.skipUnless(_docker_not_running(), 'docker daemon must be running to test this')
+    #@unittest.skipUnless(_docker_not_running(), 'docker daemon must be running to test this')
+    @unittest.skip("requires docker to test")
     def test_multiple_requirements(self) -> None:
         wf_path = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2_wf.ga')
         xmltool = _load_xmltool_for_step(wf_path, 2)
