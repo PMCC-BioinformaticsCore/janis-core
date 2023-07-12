@@ -74,7 +74,7 @@ dependencies = [
     "nose",
     "pydantic<2"
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10.5"
 
 [project.urls]
 repository      = "https://github.com/PMCC-BioinformaticsCore/janis-core"
