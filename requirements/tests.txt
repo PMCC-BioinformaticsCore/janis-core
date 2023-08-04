@@ -1,2 +1,4 @@
 -r base.txt
 pytest
+git+https://github.com/PMCC-BioinformaticsCore/janis-pipelines
+git+https://github.com/PMCC-BioinformaticsCore/janis-bioinformatics

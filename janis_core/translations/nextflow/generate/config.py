@@ -20,6 +20,7 @@ TEMPLATE = """\
 
 nextflow.enable.dsl = 2
 singularity.enabled = true
+singularity.autoMounts = true
 singularity.cacheDir = "$HOME/.singularity/cache"
 
 params {{

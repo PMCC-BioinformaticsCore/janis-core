@@ -95,10 +95,14 @@ class ProcessScriptGenerator:
         return undef_variables
 
     def handle_cmdtool_directories(self) -> None:
+        """generate cmdline 'mkdir' statement for each directory to create"""
         for dirpath in self.tool.directories_to_create() or []:
             unwrapped_dir = unwrap_expression(
                 val=dirpath, 
-                in_shell_script=True
+                context='process_script',
+                variable_manager=self.vmanager,
+                tool=self.tool,
+                in_shell_script=True,
             ) 
             line = f"mkdir -p '{unwrapped_dir}';"
             self.script.append(line)

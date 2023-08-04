@@ -273,15 +273,15 @@ def _get_process_output_lines(text: str) -> list[str]:
     sec_end = r'(script:)|(exec:)'
     return _lines_within_section(text, sec_start, sec_end)
 
-def _get_process_prescript_lines(text: str) -> list[str]:
-    sec_start = r'script:'
-    sec_end = r'"""'
-    return _lines_within_section(text, sec_start, sec_end)
+# def _get_process_prescript_lines(text: str) -> list[str]:
+#     sec_start = r'script:'
+#     sec_end = r'"""'
+#     return _lines_within_section(text, sec_start, sec_end)
 
-def _get_process_script_lines(text: str) -> list[str]:
-    sec_start = r'"""'
-    sec_start = r'"""'
-    return _lines_within_section(text, sec_start, sec_end)
+# def _get_process_script_lines(text: str) -> list[str]:
+#     sec_start = r'"""'
+#     sec_start = r'"""'
+#     return _lines_within_section(text, sec_start, sec_end)
 
 def _get_task_call_lines(text: str, task_name: str) -> list[str]:
     out: list[str] =[]
@@ -1230,6 +1230,7 @@ class TestFiles(unittest.TestCase):
         expected_lines = [
             'nextflow.enable.dsl = 2',
             'singularity.enabled = true',
+            'singularity.autoMounts = true',
             'singularity.cacheDir = "$HOME/.singularity/cache"',
             'params {',
             '// Placeholder for null values.',
@@ -1260,6 +1261,7 @@ class TestFiles(unittest.TestCase):
         expected_lines = [
             'nextflow.enable.dsl = 2',
             'singularity.enabled = true',
+            'singularity.autoMounts = true',
             'singularity.cacheDir = "$HOME/.singularity/cache"',
             'params {',
             '// Placeholder for null values.',
@@ -1303,6 +1305,7 @@ class TestFiles(unittest.TestCase):
         expected_lines = [
             'nextflow.enable.dsl = 2',
             'singularity.enabled = true',
+            'singularity.autoMounts = true',
             'singularity.cacheDir = "$HOME/.singularity/cache"',
             'params {',
             '// Placeholder for null values.',
