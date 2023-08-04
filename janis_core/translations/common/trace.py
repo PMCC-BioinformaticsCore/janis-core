@@ -319,10 +319,10 @@ class EntityTracer(Tracer):
     
     def trace(self, entity: Any) -> None:
         ### CLASS SPECIFIC ###
-        if self.is_first_call:
-            self.is_first_call = False
-        else:
-            self.entities.append(entity)
+        # if self.is_first_call:
+        #     self.is_first_call = False
+        # else:
+        self.entities.append(entity)
         
         ### CONTINUE TRACING ###
         self.do_trace(entity)
