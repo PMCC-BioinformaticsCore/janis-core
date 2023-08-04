@@ -219,6 +219,91 @@ class TestTranslationEndpoints(unittest.TestCase):
         WGSGermlineMultiCallers().translate("janis")
 
 
+# ensuring janis pipelines for janis translate tests
+def janis_pipelines_installed() -> bool:
+    try:
+        import janis_pipelines
+        import janis_bioinformatics
+        return True
+    except:
+        return False
+
+class TestJanisToNextflow(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        self.src = 'janis'
+        self.dest = 'nextflow'
+        _reset_global_settings()
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_bwa_aligner(self) -> None:
+        from janis_bioinformatics.tools.common import BwaAligner
+        wf = BwaAligner()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_bwa_alignment(self) -> None:
+        from janis_pipelines.alignment.alignment import BwaAlignment
+        wf = BwaAlignment()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_bwa_alignment_and_qc(self) -> None:
+        from janis_pipelines import BwaAlignmentAndQC
+        wf = BwaAlignmentAndQC()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_germline_gatk(self) -> None:
+        from janis_pipelines import WGSGermlineGATK
+        wf = WGSGermlineGATK()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_germline_gatk_variants_only(self) -> None:
+        from janis_pipelines import WGSGermlineGATKVariantsOnly
+        wf = WGSGermlineGATKVariantsOnly()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_germline_multi_callers(self) -> None:
+        from janis_pipelines import WGSGermlineMultiCallers
+        wf = WGSGermlineMultiCallers()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_germline_multi_callers_variants_only(self) -> None:
+        from janis_pipelines import WGSGermlineMultiCallersVariantsOnly
+        wf = WGSGermlineMultiCallersVariantsOnly()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_somatic_gatk(self) -> None:
+        from janis_pipelines import WGSSomaticGATK
+        wf = WGSSomaticGATK()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_somatic_gatk_variants_only(self) -> None:
+        from janis_pipelines import WGSSomaticGATKVariantsOnly
+        wf = WGSSomaticGATKVariantsOnly()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_somatic_multi_callers(self) -> None:
+        from janis_pipelines import WGSSomaticMultiCallers
+        wf = WGSSomaticMultiCallers()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+    @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
+    def test_wgs_somatic_multi_callers_variants_only(self) -> None:
+        from janis_pipelines import WGSSomaticMultiCallersVariantsOnly
+        wf = WGSSomaticMultiCallersVariantsOnly()
+        maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
+
+
+
+
 
 class TestGalaxyToNextflow(unittest.TestCase):
     

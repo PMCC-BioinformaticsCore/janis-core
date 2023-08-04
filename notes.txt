@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-git+https://github.com/GraceAHall/janis-core.git@release-v0.12.1
-git+https://github.com/GraceAHall/janis-assistant.git@release-v0.12.0
-git+https://github.com/GraceAHall/janis-bioinformatics@release-v0.12.0
-git+https://github.com/GraceAHall/janis-pipelines
-git+https://github.com/GraceAHall/python-wdlgen.git@release-v0.12.0
-=======
-
 
 
 TODO: TEST SUITE 100%
@@ -68,4 +60,3 @@ FUTURE FEATURES
     - repeat block evaluation?
     
 
->>>>>>> 3a92e5942a14c88bd54af460b37396ea3b8f34fd

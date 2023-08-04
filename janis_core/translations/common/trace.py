@@ -120,7 +120,6 @@ def trace_referenced_variables(entity: Any, tool: Optional[Tool]=None) -> set[st
 
 
 
-
 class Tracer(ABC):
     
     def __init__(self, tool: Optional[Tool]=None):
@@ -187,6 +186,28 @@ class Tracer(ABC):
     @abstractmethod
     def trace(self, entity: Any) -> None:
         ...
+    
+    def do_trace(self, entity: Any) -> None:
+        etype = type(entity)
+
+        if etype in self.custom_trace_funcs:
+            func = self.custom_trace_funcs[etype]
+            func(entity)
+        
+        elif isinstance(entity, SingleValueOperator):
+            self.operator_single_arg_trace(entity)
+        
+        elif isinstance(entity, TwoValueOperator):
+            self.operator_multi_arg_trace(entity)
+        
+        elif etype in self.single_arg_trace_types:
+            self.operator_single_arg_trace(entity)
+        
+        elif etype in self.multi_arg_trace_types:
+            self.operator_multi_arg_trace(entity)
+        
+        else:
+            pass
 
     def operator_single_arg_trace(self, entity: Operator) -> None:
         self.trace(entity.args[0])
@@ -288,39 +309,23 @@ class Tracer(ABC):
         self.trace(entity.extension)
 
 
- 
 
 class EntityTracer(Tracer):
 
     def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
         self.entities: list[Any] = []
+        self.is_first_call = True
     
-    def trace(self, entity: Any, is_first_call: bool=False) -> None:
-        if not is_first_call:
-            self.entities.append(entity)
-        etype = type(entity)
-
-        if etype in self.custom_trace_funcs:
-            func = self.custom_trace_funcs[etype]
-            func(entity)
-        
-        elif isinstance(entity, SingleValueOperator):
-            self.operator_single_arg_trace(entity)
-        
-        elif isinstance(entity, TwoValueOperator):
-            self.operator_multi_arg_trace(entity)
-        
-        elif etype in self.single_arg_trace_types:
-            self.operator_single_arg_trace(entity)
-        
-        elif etype in self.multi_arg_trace_types:
-            self.operator_multi_arg_trace(entity)
-        
+    def trace(self, entity: Any) -> None:
+        ### CLASS SPECIFIC ###
+        if self.is_first_call:
+            self.is_first_call = False
         else:
-            pass
-
-
+            self.entities.append(entity)
+        
+        ### CONTINUE TRACING ###
+        self.do_trace(entity)
 
 
 class SourceDatatypeTracer(Tracer):
@@ -330,31 +335,21 @@ class SourceDatatypeTracer(Tracer):
         self.datatypes: list[DataType] = []
     
     def trace(self, entity: Any) -> None:
+        ### CLASS SPECIFIC ###
         # reached a leaf node (a data source)
         if self.have_reached_source(entity):
             self.handle_source(entity)
+            return 
 
         # edge case: IndexOperator, where the target is the source
         elif isinstance(entity, IndexOperator):
             target: Any = entity.args[0]  # type: ignore
             if self.have_reached_source(target):
                 self.handle_source(target, array_to_single=True)
-
-        # other nodes: continue tracing
-        else:
-            etype = type(entity)
-            if etype in self.custom_trace_funcs:
-                func = self.custom_trace_funcs[etype]
-                func(entity)
-            
-            elif etype in self.single_arg_trace_types:
-                self.operator_single_arg_trace(entity)
-            
-            elif etype in self.multi_arg_trace_types:
-                self.operator_multi_arg_trace(entity)
-            
-            else:
-                pass
+                return 
+        
+        ### CONTINUE TRACING ###
+        self.do_trace(entity)
 
     def have_reached_source(self, entity: Any) -> bool:
         if isinstance(entity, InputNodeSelector) or isinstance(entity, StepOutputSelector):
@@ -387,7 +382,6 @@ class SourceDatatypeTracer(Tracer):
 
 
 
-
 class SourceScatterTracer(Tracer):
     
     def __init__(self, tool: Optional[Tool]=None):
@@ -395,25 +389,14 @@ class SourceScatterTracer(Tracer):
         self.source_scatter: bool = False
 
     def trace(self, entity: Any) -> None:
+        ### CLASS SPECIFIC ###
         # only steps have scatter, so only StepOutputSelector needs to be checked. 
         if isinstance(entity, StepOutputSelector):
             self.handle_step_output_selector(entity)
+            return
 
-        # other nodes: continue tracing
-        else:
-            etype = type(entity)
-            if etype in self.custom_trace_funcs:
-                func = self.custom_trace_funcs[etype]
-                func(entity)
-            
-            elif etype in self.single_arg_trace_types:
-                self.operator_single_arg_trace(entity)
-            
-            elif etype in self.multi_arg_trace_types:
-                self.operator_multi_arg_trace(entity)
-            
-            else:
-                pass
+        ### CONTINUE TRACING ###
+        self.do_trace(entity)
 
     def handle_step_output_selector(self, entity: StepOutputSelector) -> None:
         # we have found the step which feeds the data.
@@ -421,8 +404,8 @@ class SourceScatterTracer(Tracer):
         step = entity.node
         if step.scatter:
             self.source_scatter = True
-        
 
+        
 
 class ReferencedVariableTracer(Tracer):
 
@@ -440,7 +423,7 @@ class ReferencedVariableTracer(Tracer):
         return None
     
     def trace(self, entity: Any) -> None:
-        should_continue = True
+        ### CLASS SPECIFIC ###
         # reached a leaf node (variable reference to tool input)
         if isinstance(entity, (ToolInput, TInput, InputNode)):
             # we need to check whether the TInput is a deadend.
@@ -449,27 +432,13 @@ class ReferencedVariableTracer(Tracer):
             if isinstance(dtype, Filename):
                 referenced_ids = trace_referenced_variables(entity, self.tool)
                 if not referenced_ids:
-                    should_continue = False
                     self.variables.add(entity.id())
+                    return
+
             else:
-                should_continue = False
                 self.variables.add(entity.id())
-        
-        # other nodes: continue tracing
-        if should_continue:
-            etype = type(entity)
-            if etype in self.custom_trace_funcs:
-                func = self.custom_trace_funcs[etype]
-                func(entity)
-            
-            elif etype in self.single_arg_trace_types:
-                self.operator_single_arg_trace(entity)
-            
-            elif etype in self.multi_arg_trace_types:
-                self.operator_multi_arg_trace(entity)
-            
-            else:
-                # for things we dont care about. 
-                # dead paths which don't lead anywhere. 
-                pass
+                return
+
+        ### CONTINUE TRACING ###
+        self.do_trace(entity)
 
