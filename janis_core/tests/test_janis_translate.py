@@ -136,7 +136,7 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
-    settings.translate.MODE = 'regular'
+    settings.translate.MODE = 'extended'
     settings.translate.ALLOW_EMPTY_CONTAINER = True
 
 # ensuring janis pipelines for janis translate tests
@@ -1016,16 +1016,33 @@ class TestCwlToNextflow(unittest.TestCase):
         self.dest = 'nextflow'
         _reset_global_settings()
 
-    def test_super_enhancer(self):
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/super_enhancer_wf.cwl'
+    # Tools
+    def test_tool_samtools_flagstat(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
-    
-    def test_fastqc2_tool(self):
+
+    def test_tool_gatk_haplotype_caller(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/gatk_haplotype_caller.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
+    def test_tool_fastqc(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
         settings.translate.nextflow.ENTITY = 'workflow'
         print(toolstr)
+    
+    # Workflows
+    def test_wf_align_sort_markdup(self):
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/align_sort_markdup/align_sort_markdup.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
+    def test_super_enhancer(self):
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/super_enhancer_wf.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
 
     def test_kids_manta(self):
         filepath = f'{CWL_TESTDATA_PATH}/workflows/kf-somatic-workflow/workflow/kfdrc_production_manta_wf.cwl'

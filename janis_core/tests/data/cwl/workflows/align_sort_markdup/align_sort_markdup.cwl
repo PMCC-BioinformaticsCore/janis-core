@@ -33,7 +33,7 @@ steps:
     align:
         scatter: [bam, readgroup]
         scatterMethod: dotproduct
-        run: align.cwl
+        run: subworkflows/align.cwl
         in:
             bam: bams
             readgroup: readgroups
@@ -41,27 +41,27 @@ steps:
         out:
             [tagged_bam]
     merge:
-        run: ../tools/merge_bams_samtools.cwl
+        run: tools/merge_bams_samtools.cwl
         in:
             bams: align/tagged_bam
             name: final_name
         out:
             [merged_bam]
     name_sort:
-        run: ../tools/name_sort.cwl
+        run: tools/name_sort.cwl
         in:
             bam: merge/merged_bam
         out:
             [name_sorted_bam]
     mark_duplicates_and_sort:
-        run: ../tools/mark_duplicates_and_sort.cwl
+        run: tools/mark_duplicates_and_sort.cwl
         in:
             bam: name_sort/name_sorted_bam
             output_name: final_name
         out:
             [sorted_bam, metrics_file]
     index_bam:
-        run: ../tools/index_bam.cwl
+        run: tools/index_bam.cwl
         in:
             bam: mark_duplicates_and_sort/sorted_bam
         out:

@@ -7,6 +7,7 @@ import sys
 import inspect
 
 from janis_core import JanisShed
+from janis_core import translation_utils as utils
 from janis_core.types import (
     DataType, 
     GenericFileWithSecondaries, 
@@ -74,8 +75,8 @@ def cast_cwl_type_to_python(cwlvalue: Any) -> Any:
     return cwlvalue
 
 def _calcluate_hash_of_set(items: Any):
+    items = [x.replace('^', '') for x in items]
     return hash("|".join(sorted(set(items))))
-
 
 def is_javascript_expr(text: str) -> bool:
     pattern = r'^\$((\([\s\S]*\))|(\{[\s\S]*\}))$'
@@ -212,12 +213,22 @@ class CWLTypeParser:
             if len(dtypes) == 1:
                 return dtypes[0]
             
-            # multiple types type
+            # multiple types
             elif len(dtypes) > 1:
+                # create (dtype, dtypetype) tuples to label with type categories
+                dtypes_w_categories = [(utils.get_dtt(x), x) for x in dtypes]
+
+                # sort by order of importance (according to dtypetype category - uses enum index) 
+                dtypes_w_categories.sort(key=lambda x: x[0].value)
+                
+                # get the most important type
+                selected = dtypes_w_categories[0][1]
+                
+                # print user message
                 dtype_names = [x.name() for x in dtypes]
-                msg = f'entity supports multiple datatypes: {dtype_names}. selected {dtype_names[0]} as fallback. this may affect pipeline execution'
+                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected} as fallback. this may affect pipeline execution'
                 self.error_msgs.append(msg)
-                return dtypes[0]
+                return selected
             
             else:
                 raise RuntimeError
@@ -243,7 +254,7 @@ class CWLTypeParser:
                 raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
 
     def get_data_type_from_secondaries(self) -> DataType:
-        # TODO needs work here - add galaxy secondary types
+        # TODO needs work here - add galaxy secondary types?
         sec_types = inspect.getmembers(sys.modules['janis_core.redefinitions.types'], inspect.isclass)
         sec_types = [x[1] for x in sec_types if issubclass(x[1], DataType)]
         sec_types = [x for x in sec_types if x.secondary_files()]
@@ -251,7 +262,6 @@ class CWLTypeParser:
         for dtype in sec_types:
             secondaries = dtype.secondary_files()
             assert(isinstance(secondaries, list))
-            secondaries = [x.replace('^', '') for x in secondaries]
             sec_hash = _calcluate_hash_of_set(secondaries)
             sec_types_map[sec_hash] = dtype
 
