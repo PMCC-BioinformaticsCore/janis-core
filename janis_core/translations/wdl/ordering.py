@@ -5,7 +5,7 @@
 
 
 from abc import ABC, abstractmethod
-from janis_core import ToolInput
+from janis_core import ToolInput, TInput
 from janis_core.workflow.workflow import InputNode
 
 
@@ -45,9 +45,15 @@ def order_tool_inputs(inputs: list[ToolInput]) -> list[ToolInput]:
         inputs = strategy.order(inputs)
     return inputs
 
-def get_tool_input_positions(inputs: list[ToolInput]) -> dict[str, int]:
+def get_tool_input_positions_cmdtool(inputs: list[ToolInput]) -> dict[str, int]:
     inputs = order_tool_inputs(inputs)
-    return {inp.id(): i for i, inp in enumerate(inputs)}
+    order_map = {inp.id(): i for i, inp in enumerate(inputs)}
+    return order_map
+
+def get_tool_input_positions_codetool(inputs: list[TInput]) -> dict[str, int]:
+    order_map = {inp.id(): i for i, inp in enumerate(inputs)}
+    return order_map
+
 
 
 

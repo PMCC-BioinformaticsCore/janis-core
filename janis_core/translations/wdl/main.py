@@ -81,7 +81,8 @@ from janis_core import Workflow
 from janis_core.workflow.workflow import StepNode
 
 from .ordering import get_workflow_input_positions
-from .ordering import get_tool_input_positions
+from .ordering import get_tool_input_positions_cmdtool
+from .ordering import get_tool_input_positions_codetool
 
 ## PRIMARY TRANSLATION METHODS
 
@@ -1445,8 +1446,12 @@ def translate_step_node(
     inputs_details: dict[str, dict[str, Any]] = {}
     if isinstance(step.tool, Workflow):
         input_positions = get_workflow_input_positions(list(step.tool.input_nodes.values()))
+    elif isinstance(step.tool, CommandTool):
+        input_positions = get_tool_input_positions_cmdtool(step.tool.inputs())
+    elif isinstance(step.tool, CodeTool):
+        input_positions = get_tool_input_positions_codetool(step.tool.inputs())
     else:
-        input_positions = get_tool_input_positions(step.tool.inputs())
+        raise RuntimeError
     last_position = 999
     
     for k, inp in step.inputs().items():
@@ -1557,8 +1562,8 @@ def translate_step_node(
             else:
                 tag = get_secondary_tag_from_original_tag(k, tag)
 
-            # get extra info from tool_input. used to render comments
-
+            # get tool input to derive additional information. 
+            # used to render comments.
             if isinstance(step.tool, Workflow):
                 tool_input = [x for x in step.tool.input_nodes.values() if x.id() == k][0]
             else:
@@ -1569,13 +1574,14 @@ def translate_step_node(
             for edge in ar_source:
                 if isinstance(edge.source, StepOutputSelector):
                     special_label = '*CONNECTION*'
+            
             # prefix
-            if isinstance(step.tool, Workflow):
-                prefix = None
-            else:
+            prefix = None
+            if isinstance(step.tool, CommandTool):
                 prefix = tool_input.prefix
                 if isinstance(prefix, str):
                     prefix = prefix.rstrip('=')
+            
             # position
             # odd grammar here is handle situations where we don't know what position the
             # input should be (eg secondary files). In these cases, just uses the previous position. 
