@@ -138,7 +138,11 @@ class CheetahInputIngestor:
     
     def update_tool_values_static(self, component: Flag | Option, value: Any) -> None:
         # create & add value 
-        is_default = True if component.default_value == value else False
+        is_default = False
+        if component.default_value == value:
+            is_default = True
+        elif component.default_value == [value]:
+            is_default = True
         inputval = factory.static(component, value, default=is_default)
         self.i_step.inputs.add(inputval)
     
@@ -225,6 +229,10 @@ class StaticInputIngestor:
         # pull value from 'tool_state'
         # should only be static values left
         g_value = self.tool_state[component.gxparam.name] # type: ignore
-        is_default = True if component.default_value == g_value else False
+        is_default = False
+        if component.default_value == g_value:
+            is_default = True
+        elif component.default_value == [g_value]:
+            is_default = True
         value = factory.static(component, value=g_value, default=is_default)
         self.i_step.inputs.add(value)

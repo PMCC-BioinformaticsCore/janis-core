@@ -386,6 +386,7 @@ class TestGalaxyToNextflow(unittest.TestCase):
         self.src = 'galaxy'
         self.dest = 'nextflow'
         _reset_global_settings()
+        settings.translate.MODE = 'regular'
 
     # tools
     def test_tool_fastqc(self):
@@ -1196,8 +1197,6 @@ class TestWdlToNextflow(unittest.TestCase):
 
 
 
-
-
 # ---- FROM GALAXY ------------------------
 
 class TestGalaxyToWdl(unittest.TestCase):
@@ -1206,6 +1205,7 @@ class TestGalaxyToWdl(unittest.TestCase):
         self.src = 'galaxy'
         self.dest = 'wdl'
         _reset_global_settings()
+        settings.translate.MODE = 'regular'
     
     def test_wf_abricate(self):
         filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
@@ -1241,6 +1241,7 @@ class TestGalaxyToCwl(unittest.TestCase):
         self.src = 'galaxy'
         self.dest = 'cwl'
         _reset_global_settings()
+        settings.translate.MODE = 'regular'
 
     def test_wf_abricate(self):
         filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'

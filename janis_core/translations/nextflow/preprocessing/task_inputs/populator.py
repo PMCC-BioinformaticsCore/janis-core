@@ -147,19 +147,12 @@ class TaskInputsPopulatorWorkflowMode(TaskInputsPopulator):
         task_input_ids = [x for x in self.collector.histories.keys()]
         
         for tinput in self.tool.tool_inputs():
-            dtt = utils.get_dtt(tinput.intype)
-            if dtt == DTypeType.FILENAME and not tinput.id() in task_input_ids:
-                self.update_as_ignored_input(tinput)
-            else:
+            if tinput.id() in task_input_ids:
                 self.update_as_task_input(tinput)
-
-            # if tinput.id() in task_input_ids:
-
-            #     self.update_as_task_input(tinput)
-            # elif tinput.default is not None:
-            #     self.update_as_static_input(tinput) 
-            # else:
-            #     self.update_as_ignored_input(tinput) 
+            elif tinput.default is not None:
+                self.update_as_static_input(tinput) 
+            else:
+                self.update_as_ignored_input(tinput)
 
     ### helper methods
     def update_as_task_input(self, tinput: TInput) -> None:

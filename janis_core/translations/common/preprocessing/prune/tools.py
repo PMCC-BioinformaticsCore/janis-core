@@ -40,7 +40,6 @@ def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     # apply the pruned tool to the workflow
     # apply_pruned_tool(main_wf, tool)
 
-
 def get_step_referenced_tinputs(collector: TaskInputCollector) -> set[str]:
     # get the tinputs which are needed based on step inputs
     tinputs_to_keep: set[str] = set()
@@ -63,14 +62,16 @@ def get_step_referenced_tinputs(collector: TaskInputCollector) -> set[str]:
         #         one step, then it's value is driven by its default in another. they could be different. 
         elif len(history.sources) == 1 and collector.step_count >= 2:
             tinputs_to_keep.add(tinput_id)
-        # RULE 5: if only has single placeholder source, ignore
-        elif len(history.sources) == 1 and len(history.placeholder_sources) == 1:
-            continue
-        # RULE 6: if has 1+ sources which are workflow inputs, keep
-        elif len(history.input_sources) >= 1:
-            tinputs_to_keep.add(tinput_id)
         else:
             continue
+        # # RULE 5: if only has single placeholder source, ignore
+        # elif len(history.sources) == 1 and len(history.placeholder_sources) == 1:
+        #     continue
+        # # RULE 6: if has 1+ sources which are workflow inputs, keep
+        # elif len(history.input_sources) >= 1:
+        #     tinputs_to_keep.add(tinput_id)
+        # else:
+        #     continue
     
     return tinputs_to_keep
 
