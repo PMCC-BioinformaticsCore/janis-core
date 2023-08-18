@@ -226,7 +226,7 @@ class CWLTypeParser:
                 
                 # print user message
                 dtype_names = [x.name() for x in dtypes]
-                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected} as fallback. this may affect pipeline execution'
+                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected.__class__.__name__} as fallback. this may affect pipeline execution'
                 self.error_msgs.append(msg)
                 return selected
             
