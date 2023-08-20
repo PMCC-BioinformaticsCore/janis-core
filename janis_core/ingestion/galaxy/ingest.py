@@ -116,7 +116,7 @@ def ingest_workflow(path: str) -> Workflow:
     ingest_workflow_inputs(internal, galaxy)
     ingest_workflow_steps(internal, galaxy)         # creates steps, but only the metadata
     ingest_workflow_tools(internal, galaxy)         # has to happen after ingesting step metadata, but before step inputs / outputs
-    ingest_workflow_steps_prepost(internal, galaxy)
+    # ingest_workflow_steps_prepost(internal, galaxy)
     ingest_workflow_steps_outputs(internal, galaxy) 
 
     # assigning step input values

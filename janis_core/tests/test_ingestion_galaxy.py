@@ -8,16 +8,18 @@ import xml.etree.ElementTree as et
 from janis_core.ingestion.main import ingest_galaxy
 
 from janis_core.ingestion.galaxy.gxtool.text.simplification.aliases import resolve_aliases
+from janis_core.ingestion.galaxy.gxtool.text.simplification.main_statement import mark_main_statement
 
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.text.cheetah.evaluation import sectional_evaluate
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
-from janis_core.ingestion.galaxy.gxtool.command import gen_command
+from janis_core.ingestion.galaxy.gxtool.text.simplification.simplify import simplify_cmd
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
 from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 from janis_core.ingestion.galaxy.gxtool.model import XMLCondaRequirement
+from janis_core.ingestion.galaxy.gxtool.command import gen_command
 
 from janis_core.ingestion.galaxy import regex_to_glob
 from janis_core.ingestion.galaxy import datatypes
@@ -322,6 +324,91 @@ class TestResolveDependencies(unittest.TestCase):
         self.assertEqual(image_uri, 'quay.io/ppp-janis-translate/hisat2:2.2.1')
 
 
+class TestMarkMainStatement(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def get_marked_main_statement(self, filepath: str, step: int) -> str:
+        xmltool = _load_xmltool_for_step(filepath, step)
+        text = xmltool.raw_command
+        text = simplify_cmd(text, 'main_statement')
+        text = mark_main_statement(text, xmltool)
+        return text
+
+    def test_wf_featurecounts(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/wf_featurecounts.ga')
+        text = self.get_marked_main_statement(filepath, 1)
+        self.assertIn('\n__JANIS_MAIN__\n\nfeatureCounts', text)
+        
+    def test_wf_unicycler(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga')
+
+        # fastqc
+        text = self.get_marked_main_statement(filepath, 3)
+        self.assertIn('\n__JANIS_MAIN__\n\nfastqc', text)
+        
+        # unicycler
+        text = self.get_marked_main_statement(filepath, 5)
+        self.assertIn('\n__JANIS_MAIN__\n\nunicycler', text)
+        
+        # nanoplot
+        text = self.get_marked_main_statement(filepath, 6)
+        self.assertIn('\n__JANIS_MAIN__\n\n$reads_temp.append("read." + str($extension))\n#end if\nNanoPlot', text)
+        
+        # quast
+        text = self.get_marked_main_statement(filepath, 7)
+        self.assertIn('echo $labels &&\n__JANIS_MAIN__\n\n#else', text)
+        
+        # busco
+        text = self.get_marked_main_statement(filepath, 8)
+        self.assertIn('\n__JANIS_MAIN__\n\n#end if\nbusco', text)
+
+    def test_wf_rna_seq_reads_to_counts(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga')
+
+        # fastqc
+        text = self.get_marked_main_statement(filepath, 2)
+        self.assertIn('\n__JANIS_MAIN__\n\nfastqc', text)
+        
+        # cutadapt
+        text = self.get_marked_main_statement(filepath, 3)
+        self.assertIn('\n__JANIS_MAIN__\n\n#end if\ncutadapt', text)
+        
+        # hisat2
+        text = self.get_marked_main_statement(filepath, 5)
+        self.assertIn('\n__JANIS_MAIN__\n\n#end if\nhisat2', text)
+        
+        # featurecounts
+        text = self.get_marked_main_statement(filepath, 6)
+        self.assertIn('\n__JANIS_MAIN__\n\nfeatureCounts', text)
+        
+        # picard MarkDuplicates
+        text = self.get_marked_main_statement(filepath, 7)
+        self.assertIn('\n__JANIS_MAIN__\n\npicard\nMarkDuplicates', text)
+        
+        # samtools idxstats
+        text = self.get_marked_main_statement(filepath, 8)
+        self.assertIn('\n__JANIS_MAIN__\n\n#end if\n#end if\nsamtools idxstats', text)
+        
+        # rseqc geneBody_coverage
+        text = self.get_marked_main_statement(filepath, 9)
+        self.assertIn('\n__JANIS_MAIN__\n\ngeneBody_coverage.py', text)
+        
+        # rseqc infer_experiment
+        text = self.get_marked_main_statement(filepath, 10)
+        self.assertIn('\n__JANIS_MAIN__\ninfer_experiment.py', text)
+        
+        # rseqc read_distribution
+        text = self.get_marked_main_statement(filepath, 11)
+        self.assertIn('\n__JANIS_MAIN__\nread_distribution.py', text)
+        
+        # multiqc
+        text = self.get_marked_main_statement(filepath, 13)
+        self.assertIn('\n__JANIS_MAIN__\n\n#end for\n#end if\n#end for\nmultiqc', text)
+        
+
+
 class TestCommandAnnotation(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -617,8 +704,11 @@ class TestCommandAnnotation(unittest.TestCase):
 
     def test_all_hisat2(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2_wf.ga')
-        xmltool = _load_xmltool_for_step(filepath, 2)
-        command = gen_command(xmltool)
+        gx_workflow = _load_gxworkflow(filepath)
+        gx_step = gx_workflow['steps']['2']
+        _configure_tool_settings(gx_step)
+        xmltool = load_xmltool(runtime.tool.tool_path)
+        command = gen_command(xmltool, gx_step)
         expected_positionals = set([
             'hisat2'
         ])
@@ -693,6 +783,73 @@ class TestCommandAnnotation(unittest.TestCase):
         self.assertSetEqual(actual_flags, expected_flags)
         self.assertSetEqual(actual_options, expected_options)
         self.assertIsNone(command.redirect)
+
+    def test_all_picard_markduplicates(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/wf_mark_duplicates.ga')
+        gx_workflow = _load_gxworkflow(filepath)
+        gx_step = gx_workflow['steps']['1']
+        _configure_tool_settings(gx_step)
+        xmltool = load_xmltool(runtime.tool.tool_path)
+        command = gen_command(xmltool, gx_step)
+
+        expected_positionals = set([
+            'picard',
+            'MarkDuplicates',
+        ])
+
+        expected_flags = set()
+
+        expected_options = set([
+            'OPTICAL_DUPLICATE_PIXEL_DISTANCE',
+            'OUTPUT',
+            'QUIET',
+            'METRICS_FILE',
+            'BARCODE_TAG',
+            'REMOVE_DUPLICATES',
+            'VALIDATION_STRINGENCY',
+            'VERBOSITY',
+            'DUPLICATE_SCORING_STRATEGY',
+            'TAGGING_POLICY',
+            'INPUT',
+            'ASSUME_SORTED'
+        ])
+
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNone(command.redirect)
+    
+    def test_all_samtools_idxstats(self) -> None:
+        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/wf_samtools_idxstats.ga')
+        gx_workflow = _load_gxworkflow(filepath)
+        gx_step = gx_workflow['steps']['1']
+        _configure_tool_settings(gx_step)
+        xmltool = load_xmltool(runtime.tool.tool_path)
+        command = gen_command(xmltool, gx_step)
+
+        expected_positionals = set([
+            'samtools',
+            'idxstats',
+            'input'
+        ])
+        expected_flags = set()
+        expected_options = set([
+            '-@'
+        ])
+
+        actual_flags = set(list(command.flags.keys()))
+        actual_options = set(list(command.options.keys()))
+        actual_positionals = set([x.name for x in command.positionals.values()])
+
+        self.assertSetEqual(actual_positionals, expected_positionals)
+        self.assertSetEqual(actual_flags, expected_flags)
+        self.assertSetEqual(actual_options, expected_options)
+        self.assertIsNotNone(command.redirect)
+
 
 
 class TestLoadToolState(unittest.TestCase):

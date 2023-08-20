@@ -7,15 +7,17 @@ from janis_core.ingestion.galaxy.gxworkflow.tool_state.load import load_tool_sta
 
 from .loading import load_vanilla_command_str
 from .loading import load_templated_command_str
-from .cmdstr.CommandString import CommandString
-from .cmdstr.CommandString import CommandStringSource
-from .cmdstr.generate import gen_command_string
+from .cmdstr.DynamicCommandStatement import DynamicCommandStatement
+# from .cmdstr.CommandString import CommandString
+# from .cmdstr.CommandString import CommandStringSource
+# from .cmdstr.generate import gen_command_string
 from .annotation import SimpleInlineBoolAnnotator
 from .annotation import SimpleMultilineBoolAnnotator
 from .annotation import SimpleSelectAnnotator
 from .annotation import OptionParamAnnotator
 from .annotation import LocalCmdstrAnnotator
 from .annotation import GlobalCmdstrAnnotator
+from .tokenise import tokenise_text
 from .Command import Command
 
 """
@@ -53,25 +55,32 @@ class CommandFactory:
         self.command = Command()
 
     def create(self) -> Command:
+        # split into pre, main, post
+        # remove post 
+        # all annotators except Local/GlobalCmdstrAnnotator - supply main as text
+        # Local/GlobalCmdstrAnnotator - supply supply pre & main, only start greedy search from main
+        cmdtext = load_vanilla_command_str()
+        mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]
+
         if 'SimpleInlineBoolAnnotator' in self.annotators:
-            SimpleInlineBoolAnnotator(self.command, self.xmltool).annotate()
+            SimpleInlineBoolAnnotator(self.command, mainstmt_text, self.xmltool).annotate()
         if 'SimpleMultilineBoolAnnotator' in self.annotators:
-            SimpleMultilineBoolAnnotator(self.command, self.xmltool).annotate()
+            SimpleMultilineBoolAnnotator(self.command, mainstmt_text, self.xmltool).annotate()
         if 'SimpleSelectAnnotator' in self.annotators:
-            SimpleSelectAnnotator(self.command, self.xmltool).annotate()
+            SimpleSelectAnnotator(self.command, mainstmt_text, self.xmltool).annotate()
         if 'OptionParamAnnotator' in self.annotators:
-            OptionParamAnnotator(self.command, self.xmltool).annotate()
+            OptionParamAnnotator(self.command, mainstmt_text, self.xmltool).annotate()
         if 'LocalCmdstrAnnotator' in self.annotators:
-            LocalCmdstrAnnotator(self.command, self.xmltool).annotate()
+            LocalCmdstrAnnotator(self.command, mainstmt_text, self.xmltool).annotate()
         if 'GlobalCmdstrAnnotator' in self.annotators:
-            GlobalCmdstrAnnotator(self.command, self.xmltool, self.gen_cmdstrs()).annotate()
+            stmts_dynamic = self.get_dynamic_statements()
+            GlobalCmdstrAnnotator(self.command, self.xmltool, stmts_dynamic).annotate()
         return self.command
     
-    def gen_cmdstrs(self) -> list[CommandString]:
-        # NOTE unsure on ordering - vanilla, templated, tests? 
-        cmdstrs: list[CommandString] = []
+    def get_dynamic_statements(self) -> list[DynamicCommandStatement]:
+        stmts_dynamic = []
 
-        # templated tool state  
+        # cheetah templating if galaxy step tool state present
         if self.gxstep:
             inputs_dict = load_tool_state(
                 self.gxstep, 
@@ -82,22 +91,21 @@ class CommandFactory:
                     'ReplaceRuntimeWithVarname',
                 ]
             )
-            text = load_templated_command_str(inputs_dict)
-            cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=text, xmltool=self.xmltool)
-            cmdstrs.append(cmdstr)
+            cmdtext = load_templated_command_str(inputs_dict)
+            mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]    
+            mainstmt_tokens = tokenise_text(mainstmt_text, self.xmltool)
+            mainstmt_dynamic = DynamicCommandStatement(mainstmt_text, mainstmt_tokens)
+            stmts_dynamic.append(mainstmt_dynamic)
 
         # vanilla xml
-        text = load_vanilla_command_str()
-        cmdstr = gen_command_string(source=CommandStringSource.XML, text=text, xmltool=self.xmltool)
-        cmdstrs.append(cmdstr)
+        cmdtext = load_vanilla_command_str()
+        mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]    
+        mainstmt_tokens = tokenise_text(mainstmt_text, self.xmltool)
+        mainstmt_dynamic = DynamicCommandStatement(mainstmt_text, mainstmt_tokens)
+        stmts_dynamic.append(mainstmt_dynamic)
         
-        # # templated tests
-        # for test in self.xmltool.tests.list():
-        #     text = load_templated_command_str(test.inputs)
-        #     cmdstr = gen_command_string(source=CommandStringSource.TEST, text=text, xmltool=self.xmltool)
-        #     cmdstrs.append(cmdstr)
-        
-        return cmdstrs
+        return stmts_dynamic
+
 
 
 

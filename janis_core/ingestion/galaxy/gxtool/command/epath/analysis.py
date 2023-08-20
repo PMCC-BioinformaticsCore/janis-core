@@ -1,5 +1,5 @@
 
-from typing import Tuple
+from typing import Tuple, Optional
 from copy import deepcopy
 from janis_core.ingestion.galaxy import expressions
 
@@ -16,6 +16,13 @@ NON_VALUE_TOKENTYPES = set([
     TokenType.LINUX_REDIRECT,
     TokenType.LINUX_STREAM_MERGE,
     TokenType.EXCISION,
+])
+
+STATEMENT_END_TOKENTYPES = set([
+    TokenType.END_STATEMENT,
+    TokenType.LINUX_TEE, 
+    TokenType.LINUX_REDIRECT,
+    TokenType.LINUX_STREAM_MERGE,
 ])
 
 """
@@ -83,9 +90,13 @@ def is_prefix(pos: EPathPosition) -> bool:
     return False
 
 def has_kvlinker_structure(cpos: EPathPosition, npos: EPathPosition) -> bool:
-    if is_prefix(cpos):
-        if npos.token.ttype == TokenType.KV_LINKER:
-            return True 
+    if npos.token.ttype == TokenType.KV_LINKER:
+        if cpos.token.ttype == TokenType.FORCED_PREFIX:
+            return True
+        elif cpos.token.ttype == TokenType.STRING:
+            return True
+        elif cpos.token.ttype == TokenType.INTEGER and cpos.token.text.startswith('-'):
+            return True
     return False
 
 def has_prefix_value_structure(cpos: EPathPosition, npos: EPathPosition) -> bool:
@@ -153,10 +164,6 @@ def is_option(cpos: EPathPosition, npos: EPathPosition) -> bool:
         - must be in same text construct (normal text, conditional block, loop)
         - must not be different galaxy params! this implies different tool args. 
     """
-    # current must be a prefix
-    if not is_prefix(cpos):
-        return False
-
     # negative indicators
     if different_constructs(cpos, npos):
         return False
@@ -166,9 +173,9 @@ def is_option(cpos: EPathPosition, npos: EPathPosition) -> bool:
         return False
     
     # positive indicators
-    if has_kvlinker_structure(cpos, npos):
-        return True
     if has_prefix_value_structure(cpos, npos):
+        return True
+    if has_kvlinker_structure(cpos, npos):
         return True
     if has_compound_structure(cpos, npos):
         return True
@@ -192,10 +199,8 @@ def get_option_values_span(ptr: int, positions: list[EPathPosition]) -> Tuple[in
 
 def get_option_values_span_greedy(ptr: int, positions: list[EPathPosition]) -> Tuple[int, int]:
     start = deepcopy(ptr)
-
     while should_eat_value(ptr, ptr + 1, positions):
         ptr += 1
-
     return start, ptr
 
 def should_eat_value(curr_ptr: int, next_ptr: int, positions: list[EPathPosition]) -> bool:
@@ -207,8 +212,16 @@ def should_eat_value(curr_ptr: int, next_ptr: int, positions: list[EPathPosition
         return False
     if different_lines(positions[curr_ptr], positions[next_ptr]):
         return False
+    if is_last_positional(next_ptr, positions):
+        return False
     return True
 
+def is_last_positional(ptr: int, positions: list[EPathPosition]) -> bool:
+    if is_positional(positions[ptr]):
+        npos = positions[ptr + 1]
+        if npos.token.ttype in STATEMENT_END_TOKENTYPES:
+            return True
+    return False
 
 
 

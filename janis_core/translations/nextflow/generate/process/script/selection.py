@@ -1,6 +1,6 @@
 
 
-
+from janis_core import settings
 from janis_core import ToolInput, ToolArgument, CommandTool
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
@@ -56,25 +56,26 @@ def prescript_inputs(tool: CommandTool, vmanager: VariableManager) -> list[ToolI
 
 ### SCRIPT ###
 
-def preprocessing_inputs(tool: CommandTool, vmanager: VariableManager) -> list[ToolInput]:
-    valid: list[ToolInput] = []
+# def preprocessing_inputs(tool: CommandTool, vmanager: VariableManager) -> list[ToolInput]:
+#     valid: list[ToolInput] = []
     
-    script_ref_inputs = script_reference_inputs(tool, vmanager)
-    for tinput in script_ref_inputs:
-        dtt = utils.get_dtt(tinput.input_type)
-        attributes = get_attributes(tinput)
+#     script_ref_inputs = script_reference_inputs(tool, vmanager)
+#     for tinput in script_ref_inputs:
+#         dtt = utils.get_dtt(tinput.input_type)
+#         attributes = get_attributes(tinput)
         
-        if dtt == DTypeType.SECONDARY_ARRAY and attributes.optional:
-            valid.append(tinput)
-        elif dtt == DTypeType.SECONDARY and attributes.optional:
-            valid.append(tinput)
+#         if dtt == DTypeType.SECONDARY_ARRAY and attributes.optional:
+#             valid.append(tinput)
+#         elif dtt == DTypeType.SECONDARY and attributes.optional:
+#             valid.append(tinput)
 
-    return valid
+#     return valid
 
 def all_script_inputs_arguments(tool: CommandTool, vmanager: VariableManager) -> list[ToolInput | ToolArgument]:
     ins_args: list[ToolInput | ToolArgument] = []
     ins_args += script_reference_inputs(tool, vmanager)
-    ins_args += script_value_inputs(tool, vmanager)
+    if settings.translate.MODE != 'skeleton':
+        ins_args += script_value_inputs(tool, vmanager)
     ins_args += script_arguments(tool)
     return ins_args
 

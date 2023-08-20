@@ -98,9 +98,9 @@ class MainStatementInferrer:
     def choose_best_statement_vanilla(self) -> int:
         identifiers = [
             top_all_metrics,
+            gxref_priority,
             perfect_requirement_match,
             requirement_priority,
-            gxref_priority
         ]
         for identifier_func in identifiers:
             selection = identifier_func(self.metric_records)

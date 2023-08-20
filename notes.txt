@@ -1,5 +1,20 @@
 
 
+SMALL BUGS
+- get_execution_paths() is returning 2 paths, when it should return 1
+- annoying final UNKNOWN token end of cmdstmt
+- resolve aliases doing weird shit  (hisat2) -x '$$reference_genome.index.fields.path'
+
+SKELETON MODE BUGS
+1.  CWL 
+    runtime inputs (runtime.cpu etc) should be kept in skeleton / regular mode
+
+6.  ::FEATURE::
+    for options which appear in the templated command, mark these as mandatory.
+    exceptions:
+        - value is a galaxy param which we know is optional (in conditional param etc, or the param is marked optional)
+
+
 TODO: TEST SUITE 100%
 - nextflow
     - baseName vs simpleName?

@@ -82,7 +82,7 @@ class CheetahInputIngestor:
                     pass
 
     def prepare_command(self) -> str:
-        xmltool = load_xmltool(runtime.tool.tool_path)
+        # xmltool = load_xmltool(runtime.tool.tool_path)
         tool_state = load_tool_state(
             self.g_step, 
             additional_filters=[
@@ -92,12 +92,13 @@ class CheetahInputIngestor:
                 'ReplaceRuntimeWithVarname',
             ]
         )
-        command = load_templated_command_str(inputs_dict=tool_state)
-        cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=command, xmltool=xmltool)
-        stmtstr = cmdstr.main.cmdline
-        # logging.runtime_data(command)
-        # logging.runtime_data(stmtstr)
-        return stmtstr
+        cmdtext = load_templated_command_str(inputs_dict=tool_state)
+        return cmdtext.split('__JANIS_MAIN__')[1] 
+        # cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=command, xmltool=xmltool)
+        # stmtstr = cmdstr.main.cmdline
+        # # logging.runtime_data(command)
+        # # logging.runtime_data(stmtstr)
+        # return stmtstr
     
     def get_linkable_components(self) -> list[InputComponent]:
         out: list[InputComponent] = []

@@ -416,6 +416,7 @@ class TestGalaxyToNextflow(unittest.TestCase):
 
     # workflows
     def test_wf_cutadapt(self):
+        settings.translate.MODE = 'skeleton'
         filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
@@ -431,6 +432,8 @@ class TestGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
 
     def test_wf_rna_seq_reads_to_counts(self):
+        settings.translate.MODE = 'skeleton'
+        # settings.translate.MODE = 'regular'
         filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
