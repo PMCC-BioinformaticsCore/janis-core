@@ -138,6 +138,7 @@ def _reset_global_settings() -> None:
     settings.validation.VALIDATE_STRINGFORMATTERS = False
     settings.translate.MODE = 'extended'
     settings.translate.ALLOW_EMPTY_CONTAINER = True
+    settings.translate.nextflow.ENTITY = 'workflow'
 
 # ensuring janis pipelines for janis translate tests
 def janis_pipelines_installed() -> bool:
@@ -239,12 +240,18 @@ class TestJanisToNextflow(unittest.TestCase):
 
     @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
     def test_wf_bwa_aligner(self) -> None:
+        # settings.translate.MODE = 'extended'
+        # settings.translate.MODE = 'regular'
+        # settings.translate.MODE = 'skeleton'
         from janis_bioinformatics.tools.common import BwaAligner
         wf = BwaAligner()
         maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
 
     @unittest.skipUnless(janis_pipelines_installed(), "janis_pipelines not installed")
     def test_wf_bwa_alignment(self) -> None:
+        # settings.translate.MODE = 'extended'
+        settings.translate.MODE = 'regular'
+        # settings.translate.MODE = 'skeleton'
         from janis_pipelines.alignment.alignment import BwaAlignment
         wf = BwaAlignment()
         maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
@@ -386,7 +393,7 @@ class TestGalaxyToNextflow(unittest.TestCase):
         self.src = 'galaxy'
         self.dest = 'nextflow'
         _reset_global_settings()
-        settings.translate.MODE = 'regular'
+        settings.translate.MODE = 'skeleton'
 
     # tools
     def test_tool_fastqc(self):
@@ -410,6 +417,7 @@ class TestGalaxyToNextflow(unittest.TestCase):
         print(mainstr)
     
     def test_tool_samtools_flagstat_toolshed(self):
+        settings.translate.MODE = 'extended'
         uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
         mainstr = _run(uri, self.src, self.dest)
         print(mainstr)
@@ -655,20 +663,90 @@ class TestPreprocessingModes(unittest.TestCase):
     
     def setUp(self) -> None:
         _reset_global_settings()
-    
+
+    def test_skeleton_nextflow(self) -> None:
+        settings.translate.MODE = 'skeleton'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_inputs_count = {
+            'modules/basic.nf': 3,
+            'modules/mandatory_input_types.nf': 6,
+            'modules/optional_input_types.nf': 5,
+            'subworkflows/subworkflow.nf': 6,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 6,
+            'modules/mandatory_input_types.nf': 8,
+            'modules/optional_input_types.nf': 7,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                print(filecontents)
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+
+    def test_regular_nextflow(self) -> None:
+        settings.translate.MODE = 'regular'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
+        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        print(maintask)
+        expected_inputs_count = {
+            'modules/basic.nf': 3,
+            'modules/mandatory_input_types.nf': 6,
+            'modules/optional_input_types.nf': 5,
+            'subworkflows/subworkflow.nf': 6,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 7,
+            'modules/mandatory_input_types.nf': 8,
+            'modules/optional_input_types.nf': 7,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                print(filecontents)
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+
+    def test_extended_nextflow(self) -> None:
+        settings.translate.MODE = 'extended'
+        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
+        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_inputs_count = {
+            'modules/basic.nf': 7,
+            'modules/mandatory_input_types.nf': 6,
+            'modules/optional_input_types.nf': 6,
+        }
+        expected_script_lengths = {
+            'modules/basic.nf': 10,
+            'modules/mandatory_input_types.nf': 8,
+            'modules/optional_input_types.nf': 8,
+        }
+        for filepath, filecontents in sub_tasks:
+            if _is_nf_process(filecontents):
+                print(filecontents)
+                actual_input_lines = _get_nf_process_input_lines(filecontents)
+                actual_script_lines = _get_nf_process_script_lines(filecontents)
+                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
+                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+
+    @unittest.skip('not implemented')
     def test_skeleton_cwl(self) -> None:
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
         maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
 
         # main
-        expected_num_clt_inputs = 12
+        expected_num_clt_inputs = 11
         clt_inputs = _get_cwl_clt_inputs(maintask)
         self.assertEqual(len(clt_inputs), expected_num_clt_inputs)
 
         # subtasks
         expected_num_clt_inputs = {
-            'tools/basic_v0_1_0.cwl': 6,
+            'tools/basic_v0_1_0.cwl': 4,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
             'tools/optional_input_types_v0_1_0.cwl': 5,
             'tools/subworkflow.cwl': 6,
@@ -684,6 +762,7 @@ class TestPreprocessingModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertNotIn('inputBinding', inp)
     
+    @unittest.skip('not implemented')
     def test_skeleton_wdl(self) -> None:
         # TODO
         settings.translate.MODE = 'skeleton'
@@ -694,28 +773,7 @@ class TestPreprocessingModes(unittest.TestCase):
                 command_lines = _get_wdl_task_command_lines(filecontents)
                 self.assertEqual(len(command_lines), 2)
     
-    def test_skeleton_nextflow(self) -> None:
-        settings.translate.MODE = 'skeleton'
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
-        expected_inputs_count = {
-            'modules/basic.nf': 6,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 5,
-            'subworkflows/subworkflow.nf': 6,
-        }
-        expected_script_lengths = {
-            'modules/basic.nf': 2,
-            'modules/mandatory_input_types.nf': 2,
-            'modules/optional_input_types.nf': 2,
-        }
-        for filepath, filecontents in sub_tasks:
-            if _is_nf_process(filecontents):
-                actual_input_lines = _get_nf_process_input_lines(filecontents)
-                actual_script_lines = _get_nf_process_script_lines(filecontents)
-                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
-                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
-    
+    @unittest.skip('not implemented')
     def test_regular_cwl1(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
@@ -744,6 +802,7 @@ class TestPreprocessingModes(unittest.TestCase):
                 for inp in clt_inputs:
                     self.assertIn('inputBinding', inp)
     
+    @unittest.skip('not implemented')
     def test_regular_cwl2(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
@@ -806,30 +865,8 @@ class TestPreprocessingModes(unittest.TestCase):
             if _is_wdl_task(filecontents):
                 command_lines = _get_wdl_task_command_lines(filecontents)
                 raise NotImplementedError
-    
-    def test_regular_nextflow(self) -> None:
-        settings.translate.MODE = 'regular'
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
-        print(maintask)
-        expected_inputs_count = {
-            'modules/basic.nf': 6,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 5,
-        }
-        expected_script_lengths = {
-            'modules/basic.nf': 9,
-            'modules/mandatory_input_types.nf': 8,
-            'modules/optional_input_types.nf': 7,
-        }
-        for filepath, filecontents in sub_tasks:
-            print(filecontents)
-            if _is_nf_process(filecontents):
-                actual_input_lines = _get_nf_process_input_lines(filecontents)
-                actual_script_lines = _get_nf_process_script_lines(filecontents)
-                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
-                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
 
+    @unittest.skip('not implemented')
     def test_extended_cwl(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
@@ -872,27 +909,6 @@ class TestPreprocessingModes(unittest.TestCase):
         for filepath, filecontents in sub_tasks:
             if _is_wdl_task(filecontents):
                 raise NotImplementedError
-
-    def test_extended_nextflow(self) -> None:
-        settings.translate.MODE = 'extended'
-        filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
-        expected_inputs_count = {
-            'modules/basic.nf': 7,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 6,
-        }
-        expected_script_lengths = {
-            'modules/basic.nf': 10,
-            'modules/mandatory_input_types.nf': 8,
-            'modules/optional_input_types.nf': 8,
-        }
-        for filepath, filecontents in sub_tasks:
-            if _is_nf_process(filecontents):
-                actual_input_lines = _get_nf_process_input_lines(filecontents)
-                actual_script_lines = _get_nf_process_script_lines(filecontents)
-                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
-                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
 
 
 

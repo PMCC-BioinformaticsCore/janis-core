@@ -78,7 +78,7 @@ class ParamRegister:
         self.params: list[Param] = []
 
     @property
-    def ordered_params(self) -> list[Param]:
+    def ordered_params(self) -> list[Param]: 
         params = self.params
         for orderer in orderers:
             params = orderer.order(params)

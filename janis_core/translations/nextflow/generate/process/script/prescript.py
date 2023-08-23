@@ -10,6 +10,7 @@ from janis_core.translation_utils import DTypeType
 from ....variables import VariableManager
 from ....variables import VariableHistory
 from ....variables import VariableType
+from ....unwrap import unwrap_expression
 from .... import naming
 
 from .ctype import CType, get_ctype
@@ -28,12 +29,10 @@ NULL_PATH = 'null'
 
 def gen_prescript_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
     lines: list[str] = []
-
     tinputs = selection.prescript_inputs(tool, vmanager)
     tinputs = ordering.prescript_inputs(tinputs)
     for tinput in tinputs:
         lines += gen_prescript_lines_for_input(tinput, tool, vmanager)
-    
     return lines
         
 
@@ -54,6 +53,7 @@ def gen_prescript_lines_for_input(
         DTypeType.FILE_PAIR: FilePairFormatter,
         DTypeType.FILE_ARRAY: FileArrayFormatter,
         DTypeType.FILE: FileFormatter,
+        DTypeType.FILENAME: FilenameFormatter,
         DTypeType.FLAG_ARRAY: FlagArrayFormatter,
         DTypeType.FLAG: FlagFormatter,
         DTypeType.GENERIC_ARRAY: GenericArrayFormatter,
@@ -469,6 +469,29 @@ class GenericFormatter(PreScriptFormatter):
 class FileFormatter(GenericFormatter):
     
     COND_CHECK_FMT = '{src}.simpleName != {null}'
+
+
+class FilenameFormatter(GenericFormatter):
+
+    def format(self) -> None:
+        # always need prescript: 'generated.txt' etc 
+        line = self.optional_declaration()
+        self.prescript.append(line)
+
+    def default_str(self, apply_prefix: bool=False) -> str:
+        expr = unwrap_expression(
+            val=self.dtype,
+            context='process_output',
+            variable_manager=self.vmanager,
+            tool=self.tool,
+            in_shell_script=True,
+            quote_strings=False
+        )
+        if not expr.startswith('"') and not expr.endswith('"'):
+            expr = f'"{expr}"'
+        if apply_prefix:
+            expr = f'"{self.prefix_str}{self.spacer_str}" + {expr}'
+        return expr
 
 
 class SecondaryFormatter(GenericFormatter):

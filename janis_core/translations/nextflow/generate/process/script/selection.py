@@ -35,6 +35,7 @@ def prescript_inputs(tool: CommandTool, vmanager: VariableManager) -> list[ToolI
                 DTypeType.SECONDARY,
                 DTypeType.FILE_PAIR_ARRAY,
                 DTypeType.FILE_PAIR,
+                DTypeType.FILENAME,
                 DTypeType.FLAG,
             ]:
                 out.append(inp)

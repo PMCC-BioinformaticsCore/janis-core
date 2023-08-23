@@ -813,15 +813,20 @@ class Unwrapper:
                 var_copy.value = f'{var_copy.value}[{actual_index}]'
 
             elif dtt == DTypeType.FILE_PAIR:
-                assert(index is None)
-                var_copy.value = f'{var_copy.value}[0]'
+                if index:
+                    var_copy.value = f'{var_copy.value}[{index}]'
+                else:
+                    var_copy.value = f'{var_copy.value}[0]'
 
             elif dtt == DTypeType.FILE_ARRAY:
                 if index:
                     var_copy.value = f'{var_copy.value}[{index}]'
 
             elif dtt == DTypeType.FILE:
-                assert(index is None)
+                pass
+                # if index:
+                #     var_copy.value = f'{var_copy.value}[{index}]'
+                # assert(index is None)
 
             else:
                 pass

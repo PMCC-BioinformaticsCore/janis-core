@@ -10,7 +10,8 @@ from janis_core.tool.commandtool import (
 
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
-from janis_core.workflow.workflow import Workflow, WorkflowBase
+from janis_core.tool.commandtool import CommandToolBuilder
+from janis_core.workflow.workflow import Workflow, WorkflowBase, WorkflowBuilder
 from janis_core.translations.translationbase import TranslatorBase
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core import InputSelector, File, Directory
@@ -133,9 +134,10 @@ class NextflowTranslator(TranslatorBase):
 
     def translate_workflow_internal(self, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
         # set class variables to avoid passing junk params
+        assert(isinstance(wf, WorkflowBuilder))
         settings.translate.nextflow.BASE_OUTDIR = self.basedir
 
-        preprocessing.populate_task_inputs_workflowmode(wf, wf)
+        preprocessing.populate_task_inputs(wf, wf)
         processes = generate_processes(wf)
         workflows = generate_workflows(wf, processes)
         files = generate_files(wf, processes, workflows)
@@ -159,12 +161,11 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
+        assert(isinstance(tool, CommandToolBuilder))
         settings.translate.nextflow.ENTITY = 'tool'
-
-        preprocessing.populate_task_inputs_toolmode(tool)
+        preprocessing.populate_task_inputs(tool)
         process = generate_process(tool)
         process_file = generate_file_process(process, tool)
-
         return process_file.get_string()
 
     @classmethod
@@ -179,11 +180,9 @@ class NextflowTranslator(TranslatorBase):
         """
         assert(isinstance(tool, PythonTool))
         settings.translate.nextflow.ENTITY = 'tool'
-
-        preprocessing.populate_task_inputs_toolmode(tool)
+        preprocessing.populate_task_inputs(tool)
         process = generate_process(tool)
         process_file = generate_file_process(process, tool)
-
         return process_file.get_string()
 
     @classmethod

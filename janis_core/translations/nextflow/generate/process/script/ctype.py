@@ -138,12 +138,14 @@ def is_basic(tinput: ToolInput) -> bool:
 
 def is_optional(tinput: ToolInput) -> bool:
     if isinstance(tinput.input_type, Filename):
-        return False
+        return True
     elif tinput.input_type.optional == True:  # type: ignore
         return True
     return False
 
 def has_default(tinput: ToolInput) -> bool:
+    if isinstance(tinput.input_type, Filename):
+        return True
     if tinput.default is not None:
         return True
     return False
