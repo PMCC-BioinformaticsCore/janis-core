@@ -44,6 +44,10 @@ class Option(InputComponent):
                 default = self.values.most_common_value
         else:
             default = None
+        # wrap in list if array
+        if default is not None:
+            if self.array and not isinstance(default, list):
+                default = [default]
         return utils.sanitise_default_value(default)
     
     @property

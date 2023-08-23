@@ -52,6 +52,9 @@ class Positional(InputComponent):
                 default = self.values.most_common_value
         else:
             default = None
+        if default is not None:
+            if self.array and not isinstance(default, list):
+                default = [default]
         return utils.sanitise_default_value(default)
 
     @property

@@ -4,6 +4,7 @@ from typing import Any
 
 from ..parsing.main import load_xmltool
 from ..text.simplification.aliases import resolve_aliases
+from ..text.simplification.main_statement import mark_main_statement
 from ..text.cheetah.evaluation import sectional_evaluate
 from ..text.simplification.simplify import simplify_cmd
 
@@ -18,6 +19,8 @@ def load_vanilla_command_str() -> str:
     """
     xmltool = load_xmltool(runtime.tool.tool_path)
     text = xmltool.raw_command
+    text = simplify_cmd(text, 'main_statement')
+    text = mark_main_statement(text, xmltool)
     text = simplify_cmd(text, 'parsing')
     text = resolve_aliases(text)
     return text
@@ -30,7 +33,9 @@ def load_templated_command_str(inputs_dict: dict[str, Any]) -> str:
     """
     xmltool = load_xmltool(runtime.tool.tool_path)
     text = xmltool.raw_command
-    text = simplify_cmd(xmltool.raw_command, 'templating')
+    text = simplify_cmd(text, 'main_statement')
+    text = mark_main_statement(text, xmltool)
+    text = simplify_cmd(text, 'templating')
     text = sectional_evaluate(text, inputs=inputs_dict)
     text = simplify_cmd(text, 'parsing')
     text = resolve_aliases(text)

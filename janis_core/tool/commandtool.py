@@ -104,7 +104,8 @@ class ToolInput(ToolArgument):
         localise_file: Optional[bool] = None,
         default: Any = None,
         doc: Optional[Union[str, InputDocumentation]] = None,
-        value: Optional[str]=None
+        value: Optional[str]=None,
+        should_render: bool=True
     ):
         """
         A ``ToolInput`` represents an input to a tool, with parameters that allow it to be bound on the command line.

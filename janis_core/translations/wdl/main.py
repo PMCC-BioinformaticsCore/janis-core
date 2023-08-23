@@ -349,7 +349,8 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
         # run mode skeleton: only base command in command
         if settings.translate.MODE == 'skeleton':
-            commands.append(wdl.Task.Command(bc))
+            pass
+            # commands.append(wdl.Task.Command(bc))
         # run mode minimal | full: base command + inputs + args in command
         else:
             commands.append(wdl.Task.Command(bc, command_ins, command_args))

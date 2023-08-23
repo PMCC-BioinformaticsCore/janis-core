@@ -5,7 +5,8 @@ from janis_core.workflow.workflow import StepNode
 from janis_core.operators.selectors import InputSelector
 from janis_core.translations.common import trace
 from .history import TaskInputCollector
-
+from janis_core import translation_utils as utils
+from janis_core.translation_utils import DTypeType
 
 def prune_tools_and_sources(main_wf: WorkflowBuilder, tools: dict[str, CommandToolBuilder]) -> None:
     for tool in tools.values():
@@ -13,6 +14,8 @@ def prune_tools_and_sources(main_wf: WorkflowBuilder, tools: dict[str, CommandTo
 
 def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     # for each tool input, get all sources from each wf step which feed this input 
+    if tool.id() == 'cutadapt':
+        print()
     collector = TaskInputCollector(tool)
     collector.collect(main_wf)
 
@@ -21,6 +24,8 @@ def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     valid_tinput_ids: set[str] = set() 
     # identify tinputs which need to be kept based on step.sources
     valid_tinput_ids = valid_tinput_ids | get_step_referenced_tinputs(collector)
+    # identify tinputs which optional files with default referencing another input
+    valid_tinput_ids = valid_tinput_ids | get_optional_file_inputs_w_default(tool)
     # identify tinputs which are referenced in tool outputs
     valid_tinput_ids = valid_tinput_ids | get_output_referenced_tinputs(main_wf, tool)
 
@@ -40,48 +45,61 @@ def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     # apply the pruned tool to the workflow
     # apply_pruned_tool(main_wf, tool)
 
-
 def get_step_referenced_tinputs(collector: TaskInputCollector) -> set[str]:
     # get the tinputs which are needed based on step inputs
-    tinputs_to_keep: set[str] = set()
+    filtered_tinputs: set[str] = set()
     
     for tinput_id, history in collector.histories.items():
         # RULE 1: mandatory tool inputs are always kept
         if not history.is_optional:  
-            tinputs_to_keep.add(tinput_id)
-        # RULE 2: if has multiple sources, keep
+            filtered_tinputs.add(tinput_id)
+        # RULE 2: tool inputs which are fed by mandatory types are kept
+        elif len(history.mandatory_input_sources) >= 1:
+            filtered_tinputs.add(tinput_id)
+        # RULE 3: if has multiple sources, keep
         elif len(history.sources) >= 2:
-            tinputs_to_keep.add(tinput_id)
-        # RULE 3: if has step connections, keep
+            filtered_tinputs.add(tinput_id)
+        # RULE 4: if has step connections, keep
         elif len(history.connection_sources) >= 1:
-            tinputs_to_keep.add(tinput_id)
-        # RULE 4: if weird sources, keep
+            filtered_tinputs.add(tinput_id)
+        # RULE 5: if weird sources, keep
         elif len(history.other_sources) >= 1:
-            tinputs_to_keep.add(tinput_id)
-        # RULE 4: (edge case) if tool used in 2+ steps, but tinput has only 1 source, keep.
+            filtered_tinputs.add(tinput_id)
+        # RULE 6: (edge case) if tool used in 2+ steps, but tinput has only 1 source, keep.
         #         this is needed because if we are driving the tinput's value from a source in 
         #         one step, then it's value is driven by its default in another. they could be different. 
         elif len(history.sources) == 1 and collector.step_count >= 2:
-            tinputs_to_keep.add(tinput_id)
-        # RULE 5: if only has single placeholder source, ignore
-        elif len(history.sources) == 1 and len(history.placeholder_sources) == 1:
-            continue
-        # RULE 6: if has 1+ sources which are workflow inputs, keep
-        elif len(history.input_sources) >= 1:
-            tinputs_to_keep.add(tinput_id)
+            filtered_tinputs.add(tinput_id)
         else:
             continue
+        # # RULE 5: if only has single placeholder source, ignore
+        # elif len(history.sources) == 1 and len(history.placeholder_sources) == 1:
+        #     continue
+        # # RULE 6: if has 1+ sources which are workflow inputs, keep
+        # elif len(history.input_sources) >= 1:
+        #     tinputs_to_keep.add(tinput_id)
+        # else:
+        #     continue
     
-    return tinputs_to_keep
+    return filtered_tinputs
+
+def get_optional_file_inputs_w_default(tool: CommandToolBuilder) -> set[str]:
+    filtered_tinputs: set[str] = set()
+    for tinput in tool._inputs:
+        dtt = utils.get_dtt(tinput.input_type) # type: ignore
+        if dtt == DTypeType.FILE:
+            if tinput.input_type.optional and tinput.default is not None:
+                filtered_tinputs.add(tinput.id())
+    return filtered_tinputs
 
 def get_output_referenced_tinputs(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> set[str]:
     # TODO check if the output is consumed as a source somewhere else in the workflow. 
     # if not we can remove it. 
-    extra_tinput_ids: set[str] = set()
+    filtered_tinputs: set[str] = set()
     for tout in tool._outputs:
         ref_vars = trace.trace_referenced_variables(tout, tool)
-        extra_tinput_ids = extra_tinput_ids | ref_vars
-    return extra_tinput_ids
+        filtered_tinputs = filtered_tinputs | ref_vars
+    return filtered_tinputs
 
 def migrate_single_statics_to_defaults(
     valid_tinput_ids: set[str], 

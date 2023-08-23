@@ -82,7 +82,7 @@ class CheetahInputIngestor:
                     pass
 
     def prepare_command(self) -> str:
-        xmltool = load_xmltool(runtime.tool.tool_path)
+        # xmltool = load_xmltool(runtime.tool.tool_path)
         tool_state = load_tool_state(
             self.g_step, 
             additional_filters=[
@@ -92,12 +92,13 @@ class CheetahInputIngestor:
                 'ReplaceRuntimeWithVarname',
             ]
         )
-        command = load_templated_command_str(inputs_dict=tool_state)
-        cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=command, xmltool=xmltool)
-        stmtstr = cmdstr.main.cmdline
-        # logging.runtime_data(command)
-        # logging.runtime_data(stmtstr)
-        return stmtstr
+        cmdtext = load_templated_command_str(inputs_dict=tool_state)
+        return cmdtext.split('__JANIS_MAIN__')[1] 
+        # cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=command, xmltool=xmltool)
+        # stmtstr = cmdstr.main.cmdline
+        # # logging.runtime_data(command)
+        # # logging.runtime_data(stmtstr)
+        # return stmtstr
     
     def get_linkable_components(self) -> list[InputComponent]:
         out: list[InputComponent] = []
@@ -138,7 +139,11 @@ class CheetahInputIngestor:
     
     def update_tool_values_static(self, component: Flag | Option, value: Any) -> None:
         # create & add value 
-        is_default = True if component.default_value == value else False
+        is_default = False
+        if component.default_value == value:
+            is_default = True
+        elif component.default_value == [value]:
+            is_default = True
         inputval = factory.static(component, value, default=is_default)
         self.i_step.inputs.add(inputval)
     
@@ -225,6 +230,10 @@ class StaticInputIngestor:
         # pull value from 'tool_state'
         # should only be static values left
         g_value = self.tool_state[component.gxparam.name] # type: ignore
-        is_default = True if component.default_value == g_value else False
+        is_default = False
+        if component.default_value == g_value:
+            is_default = True
+        elif component.default_value == [g_value]:
+            is_default = True
         value = factory.static(component, value=g_value, default=is_default)
         self.i_step.inputs.add(value)

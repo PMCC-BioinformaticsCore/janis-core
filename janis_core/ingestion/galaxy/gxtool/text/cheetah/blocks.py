@@ -178,6 +178,7 @@ class InlineEvaluationStrategy(EvaluationStrategy):
 
 
 class ConditionalEvaluationStrategy(EvaluationStrategy):
+    immune_lines = '__JANIS_MAIN__'
 
     def prepare_template(self) -> list[str]:
         self.mask_children()
@@ -224,9 +225,12 @@ class ConditionalEvaluationStrategy(EvaluationStrategy):
     def get_surviving_children(self, evaluation: list[str]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         for identifier, block in self.masked_blocks.items():
-            position = self.get_identifier_line_num(evaluation, identifier)
-            if position is not None:
+            if block.lines[0] in self.immune_lines:
                 out[identifier] = block
+            else:
+                position = self.get_identifier_line_num(evaluation, identifier)
+                if position is not None:
+                    out[identifier] = block
         return out
 
     def get_identifier_line_num(self, lines: list[str], identifier: str) -> Optional[int]:

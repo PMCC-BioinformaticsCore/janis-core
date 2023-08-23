@@ -40,8 +40,8 @@ class ProcessScriptGenerator:
         # self.handle_undefined_variable_references()
         self.handle_cmdtool_directories()
         self.handle_cmdtool_base_command()
-        if settings.translate.MODE != 'skeleton':
-            self.handle_cmdtool_inputs_arguments()
+        # if settings.translate.MODE != 'skeleton':
+        self.handle_cmdtool_inputs_arguments()
         self.handle_stdout_redirect()
         prescript = self.finalise_prescript()
         script = self.finalise_script()

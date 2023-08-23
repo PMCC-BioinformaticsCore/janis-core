@@ -120,8 +120,8 @@ def argument_resembles_prefix(argument: str, prefix: str) -> bool:
         return True
     return False
 
-def single_inline_plaintext_appearence(xmltool: XMLTool, param: XMLParam) -> bool:
-    appearences = get_cmdstr_appearences(xmltool.raw_command, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
+def single_inline_plaintext_appearence(cmdstmt: str, param: XMLParam) -> bool:
+    appearences = get_cmdstr_appearences(cmdstmt, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)
     return len(appearences) == 1
 
 def single_multiline_bool_appearence(xmltool: XMLTool, param: XMLParam) -> bool:

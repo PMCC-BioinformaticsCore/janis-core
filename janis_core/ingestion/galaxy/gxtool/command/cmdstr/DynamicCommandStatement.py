@@ -56,6 +56,11 @@ class DynamicCommandStatement:
         # get all tokens as defaults
         epaths: list[ExecutionPath] = []
         default_tokens = [rtvs.get_default_token() for rtvs in self.realised_tokens]
+
+        # incase of empty command statement. can occur.
+        if not default_tokens:
+            return []
+        
         max_divergence = max([len(rtv.tlists) for rtv in self.realised_tokens])
         num_epaths = min(max_divergence, self.max_paths)
         

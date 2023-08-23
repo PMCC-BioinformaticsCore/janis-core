@@ -1,5 +1,39 @@
 
 
+SMALL BUGS
+- get_execution_paths() is returning 2 paths, when it should return 1
+- annoying final UNKNOWN token end of cmdstmt
+- resolve aliases doing weird shit  (hisat2) -x '$$reference_genome.index.fields.path'
+- 'skeleton' mode should autotemplate tool inputs/arguments if they reference a process input
+- filename types: 
+    - always retain
+    - janis_pipelines - CutAdaptBase_2
+    - need pre-script for filename types
+    - determine default
+        - either "generated" or some form like ${output_prefix}-R1.fastq.gz
+    - reference prescript redefinition in script 
+- file type inputs - optional with default pointing to another tool input:
+    - janis_pipelines - FastQCBase (extended):
+      def read1 = read1.simpleName != params.NULL_VALUE ? read1 : ${reads1}
+    - janis_pipelines - FastQCBase (regular):
+      missing, but should be present! 
+
+
+
+REGULAR MODE BUGS
+0.  JANIS -> NEXTFLOW (BwaAlignment())
+    - GETFASTQC_ADAPTERS should have 'read1_fastqc_datafile' as input
+    - GETFASTQC_ADAPTERS should have 'read2_fastqc_datafile' as input
+
+1.  CWL -> NEXTFLOW
+    runtime inputs (runtime.cpu etc) should be kept in skeleton / regular mode
+
+6.  ::GALAXY FEATURE::
+    for options which appear in the templated command, mark these as mandatory.
+    exceptions:
+        - value is a galaxy param which we know is optional (in conditional param etc, or the param is marked optional)
+
+
 TODO: TEST SUITE 100%
 - nextflow
     - baseName vs simpleName?

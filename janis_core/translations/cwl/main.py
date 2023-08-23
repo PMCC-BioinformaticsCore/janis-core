@@ -1177,8 +1177,8 @@ def translate_tool_input(
 
     doc = toolinput.doc.doc if toolinput.doc else None
 
-    if settings.translate.MODE == 'skeleton':
-        input_binding = None
+    # if settings.translate.MODE == 'skeleton':
+    #     input_binding = None
 
     return cwlgen.CommandInputParameter(
         id=toolinput.tag,

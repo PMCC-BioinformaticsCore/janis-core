@@ -3,10 +3,9 @@
 from typing import Any
 from dataclasses import dataclass, field
 
-from janis_core import WorkflowBuilder, TInput, CommandToolBuilder
+from janis_core import WorkflowBuilder, TInput, CommandToolBuilder, PythonTool
 from janis_core.workflow.workflow import StepNode
 from janis_core.operators.selectors import InputNodeSelector
-from janis_core.operators.selectors import Selector
 from janis_core.operators.selectors import StepOutputSelector
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
@@ -89,34 +88,24 @@ class TaskInputCollector:
     for a given tool_id, searches the workflow for each step calling that tool.
     records the values provided to each TInput in that step call. 
     """
-    def __init__(self, tool: CommandToolBuilder) -> None:
+    def __init__(self, tool: CommandToolBuilder | PythonTool | WorkflowBuilder) -> None:
         self.tool = tool
         self.histories: dict[str, TaskInputHistory] = {}
         self.step_count: int = 0
 
-    @property
-    def base_inputs_dict(self) -> dict[str, Any]:
-        return {tinput.id(): None for tinput in self.tool.tool_inputs()}
-
     def collect(self, wf: WorkflowBuilder) -> None:
         # iterate through workflow steps, finding those which call self.tool
         for step in wf.step_nodes.values():
-
+            if not isinstance(step.tool, CommandToolBuilder | PythonTool | WorkflowBuilder):
+                raise RuntimeError
+            
             # collect task inputs if step calls self.tool
-            if isinstance(step.tool, CommandToolBuilder) and step.tool.id() == self.tool.id():
+            if step.tool.id() == self.tool.id():
                 inputs_dict: dict[str, Any] = {}
                 self.step_count += 1
                 
                 # update task inputs for tinputs with item in sources
                 inputs_dict = inputs_dict | self.gather_sources(step.sources)
-                
-                # update task inputs for tinputs with static values
-                inputs_dict = inputs_dict | self.gather_static_values(step.sources)
-
-                # trace each value in task_inputs, if is InputNode with default and is not file type, 
-                # update the step inputs with the default.
-                # this is an example of a static value (eg inStr='hello')
-                # inputs_dict = self.replace_static_values(inputs_dict)
                 
                 # update the dict
                 self.update_histories(inputs_dict, step)
@@ -131,15 +120,6 @@ class TaskInputCollector:
             selector = src.source_map[0].source
             out[tinput_id] = selector
         return out
-    
-    def gather_static_values(self, inputs_dict: dict[str, Any]) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        return out
-        # for tid, node in inputs_dict.items():
-        #     if isinstance(node, InputNode):
-        #         if node.default is not None:  # type: ignore
-        #             inputs_dict[tid] = node.default  # type: ignore
-        # return inputs_dict
 
     def update_histories(self, inputs_dict: dict[str, Any], step: StepNode) -> None:
         # update the record of each TInput's history
@@ -153,7 +133,5 @@ class TaskInputCollector:
             
             # add a value to this TInput's TaskInputHistory
             if src is not None:
-                if tinput_id not in self.histories:
-                    print()
                 self.histories[tinput_id].add_value(step.id(), src)
 
