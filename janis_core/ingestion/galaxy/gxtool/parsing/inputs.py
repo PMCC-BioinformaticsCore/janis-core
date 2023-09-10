@@ -1,6 +1,6 @@
 
 
-from galaxy.tools.parameters.basic import ToolParameter as GalaxyParam
+from typing import Any
 from janis_core.ingestion.galaxy.runtime.exceptions import ParamNotSupportedError
 
 from ..model import (
@@ -17,12 +17,12 @@ from ..model import (
 )
 
 
-def parse_input_param(gxparam: GalaxyParam) -> XMLParam:
+def parse_input_param(gxparam: Any) -> XMLParam:
     factory = XMLInputParamFactory()
     return factory.produce(gxparam)
 
 class XMLInputParamFactory:
-    def produce(self, gxparam: GalaxyParam) -> XMLParam:
+    def produce(self, gxparam: Any) -> XMLParam:
         match gxparam.type: # type: ignore
             case 'text':
                 param = self.parse_text_param(gxparam)
@@ -49,19 +49,19 @@ class XMLInputParamFactory:
         param = self.map_common_fields(gxparam, param)
         return param 
         
-    def map_common_fields(self, gxparam: GalaxyParam, param: XMLInputParam) -> XMLInputParam:
+    def map_common_fields(self, gxparam: Any, param: XMLInputParam) -> XMLInputParam:
         param.label = str(gxparam.label)
         param.helptext = str(gxparam.help)
         param.argument = gxparam.argument
         param.set_optionality(bool(gxparam.optional))
         return param
 
-    def parse_text_param(self, gxparam: GalaxyParam) -> XMLTextParam:
+    def parse_text_param(self, gxparam: Any) -> XMLTextParam:
         param = XMLTextParam(str(gxparam.flat_name))
         param.value = gxparam.value
         return param
 
-    def parse_int_param(self, gxparam: GalaxyParam) -> XMLIntegerParam:
+    def parse_int_param(self, gxparam: Any) -> XMLIntegerParam:
         param = XMLIntegerParam(str(gxparam.flat_name))
         if hasattr(gxparam, 'value'):
             param.value = gxparam.value
@@ -71,21 +71,21 @@ class XMLInputParamFactory:
             param.max = gxparam.max
         return param
 
-    def parse_float_param(self, gxparam: GalaxyParam) -> XMLFloatParam:
+    def parse_float_param(self, gxparam: Any) -> XMLFloatParam:
         param = XMLFloatParam(str(gxparam.flat_name))
         param.value = gxparam.value
         param.min = gxparam.min
         param.max = gxparam.max
         return param
 
-    def parse_bool_param(self, gxparam: GalaxyParam) -> XMLBoolParam:
+    def parse_bool_param(self, gxparam: Any) -> XMLBoolParam:
         param = XMLBoolParam(str(gxparam.flat_name))
         param.checked = bool(gxparam.checked)
         param.truevalue = str(gxparam.truevalue)
         param.falsevalue = str(gxparam.falsevalue)
         return param
 
-    def parse_select_param(self, gxparam: GalaxyParam) -> XMLSelectParam:
+    def parse_select_param(self, gxparam: Any) -> XMLSelectParam:
         # TODO this could be dynamic options!
         param = XMLSelectParam(str(gxparam.flat_name))
         param.multiple = bool(gxparam.multiple)
@@ -95,13 +95,13 @@ class XMLInputParamFactory:
                 param.options.append(option)
         return param
 
-    def parse_data_param(self, gxparam: GalaxyParam) -> XMLDataParam:
+    def parse_data_param(self, gxparam: Any) -> XMLDataParam:
         param = XMLDataParam(str(gxparam.flat_name))
         param.formats = gxparam.extensions
         param.multiple = bool(gxparam.multiple)
         return param
 
-    def parse_data_collection_param(self, gxparam: GalaxyParam) -> XMLDataCollectionParam:
+    def parse_data_collection_param(self, gxparam: Any) -> XMLDataCollectionParam:
         name = str(gxparam.flat_name)
         collection_type = gxparam.collection_types[0]
         param = XMLDataCollectionParam(name, collection_type)

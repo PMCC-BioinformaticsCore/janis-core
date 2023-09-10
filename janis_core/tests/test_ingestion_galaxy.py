@@ -4,16 +4,15 @@ import unittest
 import os 
 import json
 import xml.etree.ElementTree as et
+import pytest 
 
 from janis_core.ingestion.main import ingest_galaxy
 
-from janis_core.ingestion.galaxy.gxtool.text.simplification.aliases import resolve_aliases
 from janis_core.ingestion.galaxy.gxtool.text.simplification.main_statement import mark_main_statement
-
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
-from janis_core.ingestion.galaxy.gxtool.text.cheetah.evaluation import sectional_evaluate
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
+from janis_core.ingestion.galaxy.gxtool.parsing.nogx.main import load_xmltool_new
 from janis_core.ingestion.galaxy.gxtool.text.simplification.simplify import simplify_cmd
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
@@ -164,6 +163,33 @@ def _docker_not_running() -> bool:
 
 ### test classes ###
 
+
+class TestLoadXMLTool(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_fastqc(self) -> None:
+        filepath = f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml'
+        runtime.tool.tool_path = filepath
+        tool = load_xmltool(filepath)
+        print()
+    
+    @unittest.skip('requires moving to new parser')
+    def test_fastqc2(self) -> None:
+        filepath = f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml'
+        tool = load_xmltool_new(filepath)
+        print()
+
+    @unittest.skip('requires moving to new parser')
+    def test_hisat2(self) -> None:
+        filepath = f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/hisat2.xml'
+        tool = load_xmltool(filepath)
+        print()
+
+
+
+@pytest.mark.basic
 class TestRegexToGlob(unittest.TestCase):
 
     def setUp(self) -> None:

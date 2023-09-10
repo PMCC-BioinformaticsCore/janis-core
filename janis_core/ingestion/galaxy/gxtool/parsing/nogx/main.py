@@ -1,70 +1,53 @@
 
+
+
 import os
-import tempfile
 import regex as re
-from typing import Any, Optional
+from typing import Any
 
 from galaxy.tools import Tool as GxTool
-from galaxy.tools import create_tool_from_source
 from galaxy.tools.parameters.basic import ToolParameter
 from galaxy.tool_util.parser import get_tool_source
+from galaxy.tool_util.parser.xml import XmlToolSource
 from galaxy.tool_util.parser.output_objects import ToolOutput
-from galaxy.model import History
 
-from ..model import XMLDataParam
-from ..model import XMLConfigfile
-from ..model import XMLScript
-from ..model import XMLTool
-from ..model import XMLMetadata
-from ..model import XMLCitation
-from ..model import XMLParamRegister
-from ..model import XMLCondaRequirement
-from ..model import XMLContainerRequirement
-from ..model import XMLTest
-from ..model import XMLTestRegister
+from ...model import XMLDataParam
+from ...model import XMLConfigfile
+from ...model import XMLScript
+from ...model import XMLTool
+from ...model import XMLMetadata
+from ...model import XMLCitation
+from ...model import XMLParamRegister
+from ...model import XMLCondaRequirement
+from ...model import XMLContainerRequirement
+from ...model import XMLTest
+from ...model import XMLTestRegister
 
-from ...expressions.patterns import GX_TOOL_SCRIPT
-from ...expressions.matches import get_matches
-from ..mock import MockApp, MockObjectStore
+from ....expressions.patterns import GX_TOOL_SCRIPT
+from ....expressions.matches import get_matches
 
-from .param_flattener import XMLParamFlattener
-from .outputs import parse_output_param
-from .inputs import parse_input_param
+from ..param_flattener import XMLParamFlattener
+from ..outputs import parse_output_param
+from ..inputs import parse_input_param
 
 Requirement = XMLContainerRequirement | XMLCondaRequirement
 
+from .GXTool import GXTool
 
-def load_xmltool(path: str) -> XMLTool:
-    gxtool = _load_galaxy_tool(path)
+
+def load_xmltool_new(path: str) -> XMLTool:
+    tool_source = get_tool_source(path)
+    assert(isinstance(tool_source, XmlToolSource))
+    config_file = None
+    gxtool = GXTool(config_file, tool_source)
+    gxtool.assert_finalized()
     factory = GalaxyToolFactory(gxtool, path)
     return factory.create()
 
-def _load_galaxy_tool(path: str) -> GxTool:
-    app = _get_app()
-    tool_source = get_tool_source(path)
-    tool = create_tool_from_source(app, tool_source)
-    tool.assert_finalized()
-    return tool
 
-
-
-def _get_app() -> MockApp:
-    # basic details
-    app = MockApp()
-    app.job_search = None
-    app.object_store = MockObjectStore()
-    # config
-    app.config.new_file_path = os.path.join(tempfile.mkdtemp(), "new_files")
-    app.config.admin_users = "grace@thebest.com"
-    app.config.len_file_path = "moocow"
-    # database
-    
-    app.model.context.add(History())
-    app.model.context.flush()
-    return app
 
 class GalaxyToolFactory:
-    def __init__(self, gxtool: GxTool, xmlpath: str):
+    def __init__(self, gxtool: GXTool, xmlpath: str):
         self.gxtool = gxtool
         self.xmlpath = xmlpath
         self.scripts: list[XMLScript] = []
