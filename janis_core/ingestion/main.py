@@ -5,11 +5,11 @@ from janis_core import settings
 from janis_core.messages import configure_logging
 
 from .SupportedIngestion import SupportedIngestion
-from .galaxy import parse_galaxy
 from .cwl import parse as parse_cwl
 from .wdl import WdlParser
 
 def ingest_galaxy(uri: str) -> Tool:
+    from .galaxy import parse_galaxy
     return parse_galaxy(uri)
 
 def ingest_cwl(path: str) -> Tool:

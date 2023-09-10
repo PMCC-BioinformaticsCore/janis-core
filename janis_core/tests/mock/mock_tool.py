@@ -16,6 +16,7 @@ from .mock_components import (
 )
 
 MOCK_TOOL_ABRICATE = ITool(
+    xmltool=None,
     metadata=MOCK_TOOL_METADATA,
     configfiles=[],
     scripts=[],

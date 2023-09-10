@@ -21,7 +21,6 @@ from janis_core.ingestion.galaxy.utils import galaxy as galaxy_utils
 from janis_core.ingestion.galaxy.gxworkflow.parsing.metadata import ingest_metadata
 from janis_core.ingestion.galaxy.gxworkflow.parsing.inputs import ingest_workflow_inputs
 from janis_core.ingestion.galaxy.gxworkflow.parsing.step import ingest_workflow_steps
-from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.prepost import ingest_workflow_steps_prepost
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.outputs import ingest_workflow_steps_outputs
 from janis_core.ingestion.galaxy.gxwrappers import request_single_wrapper
 
@@ -116,7 +115,6 @@ def ingest_workflow(path: str) -> Workflow:
     ingest_workflow_inputs(internal, galaxy)
     ingest_workflow_steps(internal, galaxy)         # creates steps, but only the metadata
     ingest_workflow_tools(internal, galaxy)         # has to happen after ingesting step metadata, but before step inputs / outputs
-    # ingest_workflow_steps_prepost(internal, galaxy)
     ingest_workflow_steps_outputs(internal, galaxy) 
 
     # assigning step input values

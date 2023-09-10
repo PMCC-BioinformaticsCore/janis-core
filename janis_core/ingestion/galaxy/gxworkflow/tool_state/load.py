@@ -23,6 +23,7 @@ from .filters import (
 
 # MODULE ENTRY
 def load_tool_state(
+    xmltool: XMLTool,
     step: dict[str, Any], 
     additional_filters: list[str]=[],
     ) -> dict[str, Any]:
@@ -32,7 +33,7 @@ def load_tool_state(
     """
     local_filters = get_local_filters_to_apply(additional_filters)
     global_filters = get_global_filters_to_apply(additional_filters)
-    xmltool = load_xmltool(runtime.tool.tool_path)
+    # xmltool = load_xmltool(runtime.tool.tool_path)
     tool_state = json.loads(step['tool_state'])
     tool_state = apply_local_filters(local_filters, tool_state, xmltool)
     tool_state = apply_global_filters(global_filters, tool_state, xmltool)

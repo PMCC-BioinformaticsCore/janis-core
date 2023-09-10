@@ -57,6 +57,7 @@ class ToolFactory:
 
     def create(self) -> ITool:
         tool = ITool(
+            xmltool=self.xmltool,
             metadata=self.xmltool.metadata,
             container=self.container,
             base_command=self.get_base_command(),
@@ -130,7 +131,7 @@ class InputExtractor:
         unlinked_params: list[XMLParam] = []
         uncaptured_inputs: list[InputComponent] = []
 
-        tool_state = load_tool_state(self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
+        tool_state = load_tool_state(self.xmltool, self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
         for pname, pvalue in tool_state.items():
             param = self.xmltool.inputs.get(pname)
             if param:

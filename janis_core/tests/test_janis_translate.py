@@ -1,6 +1,7 @@
 
 
 import unittest
+import pytest
 from typing import Any
 
 from janis_core import settings
@@ -30,10 +31,12 @@ import regex as re
 import yaml
 
 CWL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/cwl')
-GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
 JANIS_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/janis')
 WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
+GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
+GALAXY_TESTTOOL_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/wrappers')
+GALAXY_TESTWF_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/workflows')
 
 # ------- HELPER FUNCS ------- #
 
@@ -181,7 +184,7 @@ class TestTranslationEndpoints(unittest.TestCase):
     # GALAXY INGEST -> TRANSLATE
 
     def test_from_galaxy_to_nextflow_tool(self) -> None:
-        filepath = f'{GALAXY_TESTDATA_PATH}/abricate/abricate.xml'
+        filepath = f'{GALAXY_TESTTOOL_PATH}/abricate-c2ef298da409/abricate.xml'
         _run(filepath, 'galaxy', 'nextflow')
     
     def test_from_galaxy_to_nextflow_tool_toolshed(self) -> None:
@@ -189,7 +192,7 @@ class TestTranslationEndpoints(unittest.TestCase):
         _run(filepath, 'galaxy', 'nextflow')
 
     def test_from_galaxy_to_nextflow_workflow(self) -> None:
-        filepath = f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga'
+        filepath = f'{GALAXY_TESTWF_PATH}/cutadapt_wf.ga'
         _run(filepath, 'galaxy', 'nextflow')
     
     # WDL INGEST -> TRANSLATE
@@ -229,7 +232,21 @@ class TestTranslationEndpoints(unittest.TestCase):
 
 
 
-### ----- JANIS -> NEXTFLOW ----- ###
+### ----- FROM JANIS ----- ###
+
+class TestJanisToCWL(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        self.src = 'wdl'
+        self.dest = 'cwl'
+        _reset_global_settings()
+
+    @unittest.skip('add tests')
+    def test_tool_bwa(self):
+        filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
 
 class TestJanisToNextflow(unittest.TestCase):
     
@@ -311,8 +328,6 @@ class TestJanisToNextflow(unittest.TestCase):
         maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
 
 
-### ----- JANIS -> WDL ----- ###
-
 class TestJanisToWDL(unittest.TestCase):
     
     def setUp(self) -> None:
@@ -385,83 +400,6 @@ class TestJanisToWDL(unittest.TestCase):
         from janis_pipelines import WGSSomaticMultiCallersVariantsOnly
         wf = WGSSomaticMultiCallersVariantsOnly()
         maintask, config, subtasks = translate(wf, self.dest, export_path='./translated')
-
-
-class TestGalaxyToNextflow(unittest.TestCase):
-    
-    def setUp(self) -> None:
-        self.src = 'galaxy'
-        self.dest = 'nextflow'
-        _reset_global_settings()
-        settings.translate.MODE = 'skeleton'
-
-    # tools
-    def test_tool_fastqc(self):
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_tool_nanoplot(self):
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/nanoplot-edbb6c5028f5/nanoplot.xml')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_tool_hisat2(self):
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/hisat2-6c19daec423d/hisat2.xml')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_tool_limma_voom_toolshed(self):
-        uri = 'toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0'
-        mainstr = _run(uri, self.src, self.dest)
-        print(mainstr)
-    
-    def test_tool_samtools_flagstat_toolshed(self):
-        settings.translate.MODE = 'extended'
-        uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
-        mainstr = _run(uri, self.src, self.dest)
-        print(mainstr)
-
-    # workflows
-    def test_wf_cutadapt(self):
-        settings.translate.MODE = 'skeleton'
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/cutadapt_wf.ga')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_wf_nanoplot(self):
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/nanoplot_wf.ga')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_wf_fastqc(self):
-        filepath = os.path.abspath(f'{GALAXY_TESTDATA_PATH}/fastqc_wf.ga')
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_wf_rna_seq_reads_to_counts(self):
-        settings.translate.MODE = 'skeleton'
-        # settings.translate.MODE = 'regular'
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_wf_unicycler_assembly(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    # def test_rna_seq_counts_to_genes(self):
-    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
-    #     mainstr = _run(filepath, self.src, self.dest)
-    #     print(mainstr)
-    
-    # def test_rna_seq_genes_to_pathways(self):
-    #     filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
-    #     mainstr = _run(filepath, self.src, self.dest)
-    #     print(mainstr)
-
-
 
 
 # ---- PREPROCESSING: PRUNE ------------------------------
@@ -1218,73 +1156,125 @@ class TestWdlToNextflow(unittest.TestCase):
 
 # ---- FROM GALAXY ------------------------
 
-class TestGalaxyToWdl(unittest.TestCase):
-    
+class TestFromGalaxy(unittest.TestCase):
+
     def setUp(self) -> None:
-        self.src = 'galaxy'
-        self.dest = 'wdl'
         _reset_global_settings()
         settings.translate.MODE = 'regular'
-    
-    def test_wf_abricate(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_wf_unicycler_assembly(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-    def test_wf_rna_seq_counts_to_genes(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    def test_wf_rna_seq_genes_to_pathways(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-    
-    @unittest.skip('implement scatter on multiple inputs')
-    def test_wf_rna_seq_reads_to_counts(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
-
-
-
-class TestGalaxyToCwl(unittest.TestCase):
-    
-    def setUp(self) -> None:
         self.src = 'galaxy'
-        self.dest = 'cwl'
-        _reset_global_settings()
-        settings.translate.MODE = 'regular'
 
-    def test_wf_abricate(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+    #############
+    ### TOOLS ###
+    #############
+
+    def test_tool_fastqc(self):
+        # ingest
+        filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml')
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+
+    @pytest.mark.release
+    def test_tool_nanoplot(self):
+        # ingest
+        filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/nanoplot-edbb6c5028f5/nanoplot.xml')
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+    
+    @pytest.mark.release
+    def test_tool_hisat2(self):
+        # ingest
+        filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/hisat2-6c19daec423d/hisat2.xml')
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+
+    @pytest.mark.release
+    def test_tool_limma_voom_toolshed(self):
+        uri = 'toolshed.g2.bx.psu.edu/repos/iuc/limma_voom/limma_voom/3.50.1+galaxy0'
+        internal = ingest(uri, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+    
+    @pytest.mark.release
+    def test_tool_samtools_flagstat_toolshed(self):
+        settings.translate.MODE = 'extended'
+        uri = 'toolshed.g2.bx.psu.edu/repos/devteam/samtools_flagstat/samtools_flagstat/2.0.4'
+        internal = ingest(uri, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+
+    #################
+    ### WORKFLOWS ###
+    #################
 
     def test_wf_unicycler_assembly(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/unicycler_assembly.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/unicycler_assembly.ga'
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
 
+    @pytest.mark.release
+    def test_wf_abricate(self):
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/wf_abricate.ga'
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
+
+    @pytest.mark.release
     def test_wf_rna_seq_counts_to_genes(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_counts_to_genes.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/rna_seq_counts_to_genes.ga'
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
     
+    @pytest.mark.release
     def test_wf_rna_seq_genes_to_pathways(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_genes_to_pathways.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/rna_seq_genes_to_pathways.ga'
+        internal = ingest(filepath, self.src)
+        
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        translate(internal, 'wdl', export_path='./translated')
     
+    @pytest.mark.release
     def test_wf_rna_seq_reads_to_counts(self):
-        filepath = f'{GALAXY_TESTDATA_PATH}/rna_seq_reads_to_counts.ga'
-        mainstr = _run(filepath, self.src, self.dest)
-        print(mainstr)
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/rna_seq_reads_to_counts.ga'
+        internal = ingest(filepath, self.src)
 
-
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        # TODO implement multiple edge step input for wdl (below)
+        # translate(internal, 'wdl', export_path='./translated')

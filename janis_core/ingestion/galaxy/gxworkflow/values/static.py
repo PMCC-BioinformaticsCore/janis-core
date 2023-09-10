@@ -8,18 +8,14 @@ if TYPE_CHECKING:
 from janis_core.ingestion.galaxy.internal_model.workflow import WorkflowInput
 
 
-from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 
-from janis_core.ingestion.galaxy.gxtool.command.cmdstr import gen_command_string
-from janis_core.ingestion.galaxy.gxtool.command.cmdstr.CommandString import CommandStringSource
 from janis_core.ingestion.galaxy.gxtool.command.components import Flag
 from janis_core.ingestion.galaxy.gxtool.command.components import InputComponent
 from janis_core.ingestion.galaxy.gxtool.command.components import Option
 from janis_core.ingestion.galaxy.gxtool.command import load_templated_command_str
 
 from . import factory
-from janis_core.ingestion.galaxy.internal_model.workflow import InputValue
 
 from janis_core.ingestion.galaxy import internal_mapping
 from janis_core.ingestion.galaxy import datatypes
@@ -83,7 +79,9 @@ class CheetahInputIngestor:
 
     def prepare_command(self) -> str:
         # xmltool = load_xmltool(runtime.tool.tool_path)
+        xmltool = self.i_step.tool.xmltool
         tool_state = load_tool_state(
+            xmltool,
             self.g_step, 
             additional_filters=[
                 'ReplaceBoolWithValue',
@@ -92,7 +90,7 @@ class CheetahInputIngestor:
                 'ReplaceRuntimeWithVarname',
             ]
         )
-        cmdtext = load_templated_command_str(inputs_dict=tool_state)
+        cmdtext = load_templated_command_str(xmltool, tool_state)
         return cmdtext.split('__JANIS_MAIN__')[1] 
         # cmdstr = gen_command_string(source=CommandStringSource.TOOL_STATE, text=command, xmltool=xmltool)
         # stmtstr = cmdstr.main.cmdline
@@ -183,7 +181,11 @@ class StaticInputIngestor:
         self.g_step = g_step
         self.i_step = i_step
         self.i_workflow = i_workflow
-        self.tool_state = load_tool_state(self.g_step, additional_filters=['Flatten', 'DeNestClass'])
+        self.tool_state = load_tool_state(
+            self.i_step.tool.xmltool, 
+            self.g_step, 
+            additional_filters=['Flatten', 'DeNestClass']
+        )
 
     def ingest(self) -> None:
         for component in self.get_linkable_components():

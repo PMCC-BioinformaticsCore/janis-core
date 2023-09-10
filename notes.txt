@@ -1,5 +1,81 @@
 
 
+----------------------------------
+--- REDUCING TEST SUITE WEIGHT ---
+----------------------------------
+
+TIMES 
+
+full suite: 64 sec (base), 109 sec (release)
+test_commandtool: 2 sec
+test_conditionals: 2 sec
+test_generics_util: 2 sec
+test_ingestion_cwl: 3 sec
+test_ingestion_galaxy: 30 sec
+test_ingestion_wdl: 2 sec
+test_janis_translate: 81 sec
+    - TestCwlToNextflow: 9 sec
+    - TestCwlToWdl: 5 sec
+    - TestFromGalaxy: 26 sec (base), 81 sec (release)
+    - TestJanisToNextflow: 5 sec
+    - TestJanisToWdl: 4 sec
+    - TestPreprocessingModes: 3 sec
+    - TestPreprocessingPrune: 3 sec
+    - TestPreprocessingToBuilders: 3 sec
+    - TestTranslationEndpoints: 15 sec
+test_logger: 3 sec
+test_metadata: 2 sec
+test_operators: 2 sec
+test_python_tool: 2 sec
+test_receivefrom: 2 sec
+test_secondary: 2 sec
+test_stringbuilder: 2 sec
+test_test_runner: 2 sec
+test_tools: 2 sec
+test_translation_cwl: 3 sec
+test_translation_modules: 2 sec
+test_translation_nextflow: 3 sec
+test_translation_wdl: 2 sec
+test_types: 2 sec
+test_validateinputvalues: 2 sec
+test_validators: 2 sec
+test_workflow: 2 sec
+
+LOCAL SUPPLY ALL TOOLSHED FILES FOR TEST 
+- 
+
+QUAY API CALLS -> DETERMINISTIC URI
+- swap quay.io API calls to deterministic uri
+
+MULLED BUILD -> MULLED HASH
+- swap mulled build to mulled hash
+
+
+
+general 
+- it's all galaxy 
+- all tools needed for workflow tests could be stored locally as package data. 
+- need to reduce the amount of times tools are loaded. 
+- reinstate cache with pickle
+
+test_ingestion_galaxy.py (galaxy)
+- most tests do full ingest(). 
+- could store these on the class, then tests just check attributes on the janis entities.
+
+test_janis_translate.py (galaxy)
+- can have basic group, and extended group (CI)
+- basic group just 2 tests: single tool, single workflow
+
+pytest 
+- `@pytest.mark.<markername>` to mark tests 
+- `pytest -m <markername> -v` to run tests in group (change pytest command in github actions)
+- "publish" github action stays the same
+- "unit_tests" github action changed to using test group
+- tried locally, works 
+
+
+
+
 ------------------------------------
 --- GENERAL RUNTIME IMPROVEMENTS ---
 ------------------------------------
@@ -28,33 +104,6 @@ migrate galaxy tool xml parsing into janis
 - few days work 
 - looks doable
 
-
-----------------------------------
---- REDUCING TEST SUITE WEIGHT ---
-----------------------------------
-
-REDUCING TEST SUITE WEIGHT
-
-general 
-- it's all galaxy 
-- all tools needed for workflow tests could be stored locally as package data. 
-- need to reduce the amount of times tools are loaded. 
-- reinstate cache with pickle
-
-test_ingestion_galaxy.py (galaxy)
-- most tests do full ingest(). 
-- could store these on the class, then tests just check attributes on the janis entities.
-
-test_janis_translate.py (galaxy)
-- can have basic group, and extended group (CI)
-- basic group just 2 tests: single tool, single workflow
-
-pytest 
-- `@pytest.mark.<markername>` to mark tests 
-- `pytest -m <markername> -v` to run tests in group (change pytest command in github actions)
-- "publish" github action stays the same
-- "unit_tests" github action changed to using test group
-- tried locally, works 
 
 
 

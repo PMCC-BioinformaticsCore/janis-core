@@ -22,6 +22,7 @@ class XMLParamFlattener:
 
     def explore_node(self, node: XmlNode, heirarchy: list[str]) -> None:
         heirarchy = deepcopy(heirarchy)
+        # TODO move these to check attributes to remove galaxy class imports
         match node:
             case HiddenToolParameter():
                 pass

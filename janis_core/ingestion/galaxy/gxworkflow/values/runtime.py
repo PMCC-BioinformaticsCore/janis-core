@@ -38,8 +38,9 @@ class RuntimeInputIngestor:
 
     def ingest_runtime(self, g_step: dict[str, Any]) -> None:
         j_step = internal_mapping.step(g_step['id'], self.janis, self.galaxy)
-        runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
-        tool_state = load_tool_state(g_step, additional_filters=['Flatten', 'DeNestClass'])
+        xmltool = j_step.tool.xmltool
+        # runtime.tool.set(from_wrapper=j_step.metadata.wrapper)
+        tool_state = load_tool_state(xmltool, g_step, additional_filters=['Flatten', 'DeNestClass'])
         g_targets = [key for key, val in tool_state.items() if val == 'RuntimeValue']
 
         for g_target in g_targets:

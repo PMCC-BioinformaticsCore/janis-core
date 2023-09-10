@@ -59,7 +59,7 @@ class CommandFactory:
         # remove post 
         # all annotators except Local/GlobalCmdstrAnnotator - supply main as text
         # Local/GlobalCmdstrAnnotator - supply supply pre & main, only start greedy search from main
-        cmdtext = load_vanilla_command_str()
+        cmdtext = load_vanilla_command_str(self.xmltool)
         mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]
 
         if 'SimpleInlineBoolAnnotator' in self.annotators:
@@ -83,6 +83,7 @@ class CommandFactory:
         # cheetah templating if galaxy step tool state present
         if self.gxstep:
             inputs_dict = load_tool_state(
+                self.xmltool,
                 self.gxstep, 
                 additional_filters=[
                     'ReplaceNullWithVarname',
@@ -91,14 +92,14 @@ class CommandFactory:
                     'ReplaceRuntimeWithVarname',
                 ]
             )
-            cmdtext = load_templated_command_str(inputs_dict)
+            cmdtext = load_templated_command_str(self.xmltool, inputs_dict)
             mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]    
             mainstmt_tokens = tokenise_text(mainstmt_text, self.xmltool)
             mainstmt_dynamic = DynamicCommandStatement(mainstmt_text, mainstmt_tokens)
             stmts_dynamic.append(mainstmt_dynamic)
 
         # vanilla xml
-        cmdtext = load_vanilla_command_str()
+        cmdtext = load_vanilla_command_str(self.xmltool)
         mainstmt_text = cmdtext.split('__JANIS_MAIN__')[1]    
         mainstmt_tokens = tokenise_text(mainstmt_text, self.xmltool)
         mainstmt_dynamic = DynamicCommandStatement(mainstmt_text, mainstmt_tokens)

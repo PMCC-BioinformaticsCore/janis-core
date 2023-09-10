@@ -14,9 +14,9 @@ from janis_core.ingestion.galaxy.internal_model.workflow import StepOutput
 from .mock_tool import MOCK_TOOL_ABRICATE
 
 
-GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
+GALAXY_TESTWF_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/workflows')
 
-gx_workflow_path = f'{GALAXY_TESTDATA_PATH}/wf_abricate.ga'  
+gx_workflow_path = f'{GALAXY_TESTWF_PATH}/wf_abricate.ga'  
 step1_wrapper_details = {
     "owner": "iuc", 
     "repo": "abricate", 

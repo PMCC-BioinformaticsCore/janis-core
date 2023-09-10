@@ -2,7 +2,7 @@
 import os
 import tempfile
 import regex as re
-from typing import Any, Optional
+from typing import Any
 
 from galaxy.tools import Tool as GxTool
 from galaxy.tools import create_tool_from_source
