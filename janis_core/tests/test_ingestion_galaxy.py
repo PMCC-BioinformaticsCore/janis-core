@@ -83,7 +83,6 @@ QUERY2_EXPECTED_RESULT = 'quay.io/biocontainers/samtools:1.15--h1170115_1'
 QUERY3 = XMLCondaRequirement(_name='cutadapt', _version='3.5')
 QUERY3_EXPECTED_RESULT = 'quay.io/biocontainers/cutadapt:3.5--py36h91eb985_1'
 
-GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
 GALAXY_TESTTOOL_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/wrappers')
 GALAXY_TESTWF_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/workflows')
 
@@ -97,6 +96,7 @@ def _reset_global_settings() -> None:
     settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = False
     settings.ingest.cwl.REQUIRE_CWL_VERSION = False
     settings.testing.TESTING_USE_DEFAULT_CONTAINER = True
+    settings.testing.TESTMODE = True
     settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
     settings.graph.ALLOW_UNKNOWN_SOURCE = False
     settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
@@ -151,6 +151,27 @@ class TestLoadXMLTool(unittest.TestCase):
         tool = load_xmltool(filepath)
         print()
 
+
+class TestGetWrapperToolshed(unittest.TestCase):
+    """
+    Needed because all other test data has been moved to tests/data/galaxy.
+    Want to make sure the normal process of retrieving a toolshed tool works. 
+    """
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+        settings.testing.TESTMODE = False
+        self.src = 'galaxy'
+
+    def test_fastqc(self) -> None:
+        filepath = f'{GALAXY_TESTTOOL_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml'
+        runtime.tool.tool_path = filepath
+        tool = load_xmltool(filepath)
+    
+    def test_minimap2_toolshed(self) -> None:
+        uri = 'toolshed.g2.bx.psu.edu/repos/iuc/minimap2/minimap2/2.26+galaxy0'
+        internal = ingest(uri, self.src)
+    
 
 class TestRegexToGlob(unittest.TestCase):
 
@@ -285,14 +306,17 @@ class TestResolveDependencies(unittest.TestCase):
         settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = True
         settings.testing.TESTING_USE_DEFAULT_CONTAINER = False
 
+    @unittest.skip("swapping to deterministic quay.io uris")
     def test_coreutils_requirement(self) -> None:
         # TODO use deterministic quay.io uri
         raise NotImplementedError
+    
         filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/text_processing-d698c222f354/cut.xml')
         jtool = ingest_galaxy(filepath)
         image_uri = jtool.container()
         self.assertEqual(image_uri, 'quay.io/biocontainers/coreutils:8.25--1')
     
+    @unittest.skip("swapping to deterministic quay.io uris")
     def test_single_requirement(self) -> None:
         # TODO use deterministic quay.io uri
         raise NotImplementedError
@@ -301,6 +325,7 @@ class TestResolveDependencies(unittest.TestCase):
         image_uri = resolve_dependencies_as_container(xmltool)
         self.assertEqual(image_uri, 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1')
 
+    @unittest.skip("swapping to deterministic quay.io uris")
     def test_multiple_requirements(self) -> None:
         # TODO use mulled-hash 
         raise NotImplementedError
@@ -326,7 +351,7 @@ class TestMarkMainStatement(unittest.TestCase):
         filepath = os.path.abspath(f'{GALAXY_TESTWF_PATH}/wf_featurecounts.ga')
         text = self.get_marked_main_statement(filepath, 1)
         self.assertIn('\n__JANIS_MAIN__\n\nfeatureCounts', text)
-        
+    
     def test_wf_unicycler(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTWF_PATH}/unicycler_assembly.ga')
 
@@ -350,6 +375,7 @@ class TestMarkMainStatement(unittest.TestCase):
         text = self.get_marked_main_statement(filepath, 8)
         self.assertIn('\n__JANIS_MAIN__\n\n#end if\nbusco', text)
 
+    @pytest.mark.release
     def test_wf_rna_seq_reads_to_counts(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTWF_PATH}/rna_seq_reads_to_counts.ga')
 
@@ -1138,6 +1164,7 @@ class TestFromGalaxy(unittest.TestCase):
         self.assertIn('cutadapt_out22', jworkflow.output_nodes)
         self.assertIn('cutadapt_out_report', jworkflow.output_nodes)
     
+    @pytest.mark.release
     def test_ingest_unicycler_assembly(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTWF_PATH}/unicycler_assembly.ga')
         jworkflow = ingest_galaxy(filepath)

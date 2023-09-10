@@ -6,7 +6,8 @@
 
 TIMES 
 
-full suite: 64 sec (base), 109 sec (release)
+full suite: 58 sec (base), 215 sec (release)
+
 test_commandtool: 2 sec
 test_conditionals: 2 sec
 test_generics_util: 2 sec

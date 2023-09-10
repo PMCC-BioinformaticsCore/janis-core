@@ -34,7 +34,6 @@ CWL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/cwl')
 JANIS_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/janis')
 WDL_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/wdl')
 
-GALAXY_TESTDATA_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy')
 GALAXY_TESTTOOL_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/wrappers')
 GALAXY_TESTWF_PATH = os.path.join(os.getcwd(), 'janis_core/tests/data/galaxy/workflows')
 
@@ -139,6 +138,7 @@ def _reset_global_settings() -> None:
     settings.graph.ALLOW_INCOMPATIBLE_TYPES = True
     settings.validation.STRICT_IDENTIFIERS = False
     settings.validation.VALIDATE_STRINGFORMATTERS = False
+    settings.testing.TESTMODE = True
     settings.translate.MODE = 'extended'
     settings.translate.ALLOW_EMPTY_CONTAINER = True
     settings.translate.nextflow.ENTITY = 'workflow'
@@ -1235,6 +1235,18 @@ class TestFromGalaxy(unittest.TestCase):
         translate(internal, 'wdl', export_path='./translated')
 
     @pytest.mark.release
+    def test_wf_rna_seq_reads_to_counts(self):
+        # ingest
+        filepath = f'{GALAXY_TESTWF_PATH}/rna_seq_reads_to_counts.ga'
+        internal = ingest(filepath, self.src)
+
+        # translate to CWL, WDL, NXF
+        translate(internal, 'cwl', export_path='./translated')
+        translate(internal, 'nextflow', export_path='./translated')
+        # TODO implement multiple edge step input for wdl (below)
+        # translate(internal, 'wdl', export_path='./translated')
+
+    @pytest.mark.release
     def test_wf_abricate(self):
         # ingest
         filepath = f'{GALAXY_TESTWF_PATH}/wf_abricate.ga'
@@ -1267,14 +1279,4 @@ class TestFromGalaxy(unittest.TestCase):
         translate(internal, 'nextflow', export_path='./translated')
         translate(internal, 'wdl', export_path='./translated')
     
-    @pytest.mark.release
-    def test_wf_rna_seq_reads_to_counts(self):
-        # ingest
-        filepath = f'{GALAXY_TESTWF_PATH}/rna_seq_reads_to_counts.ga'
-        internal = ingest(filepath, self.src)
 
-        # translate to CWL, WDL, NXF
-        translate(internal, 'cwl', export_path='./translated')
-        translate(internal, 'nextflow', export_path='./translated')
-        # TODO implement multiple edge step input for wdl (below)
-        # translate(internal, 'wdl', export_path='./translated')

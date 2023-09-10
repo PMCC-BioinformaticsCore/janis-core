@@ -4,6 +4,7 @@ import tarfile
 import os
 from typing import Optional
 
+from janis_core import settings
 from janis_core.ingestion.galaxy.utils import galaxy as utils
 from janis_core.ingestion.galaxy.gxwrappers.downloads.cache import DownloadCache
 
@@ -18,6 +19,12 @@ def fetch_xml(owner: str, repo: str, revision: str, tool_id: str) -> str:
         path = _fetch_cache(repo, revision, tool_id)
     if not path:
         path = _fetch_builtin(tool_id)
+
+    # if running the test suite, expect all tools to be builtins or in the wrapper cache
+    # if arrive here, this was not the case. 
+    if not path and settings.testing.TESTMODE == True:
+        raise RuntimeError(f'could not find wrapper for {tool_id}:{revision}')
+    
     if not path:
         path = _fetch_toolshed(owner, repo, revision, tool_id)
     if not path:
