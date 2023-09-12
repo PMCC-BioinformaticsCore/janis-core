@@ -10,7 +10,6 @@ from janis_core.ingestion.galaxy import internal_mapping
 from janis_core.ingestion.galaxy.runtime.startup import tool_setup
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
 from janis_core.ingestion.galaxy.gxtool.command import gen_command
-from janis_core.ingestion.galaxy.containers import resolve_dependencies_as_container
 
 from janis_core.ingestion.galaxy.internal_model.tool.generate import gen_tool
 from janis_core.ingestion.galaxy.internal_model.tool import ITool as InternalTool
@@ -84,13 +83,11 @@ def ingest_tool(path: str, gxstep: Optional[dict[str, Any]]=None) -> InternalToo
     'galaxy' is the galaxy tool representation, and
     'internal' is the internal tool representation we will build. 
     """
-    # setup_data_folder()
     datatypes.populate()
     runtime.tool.tool_path = path
     galaxy = load_xmltool(path)
     command = gen_command(galaxy, gxstep)
-    container = resolve_dependencies_as_container(galaxy)
-    internal = gen_tool(galaxy, command, container, gxstep)
+    internal = gen_tool(galaxy, command, gxstep)
     return internal
 
 def ingest_workflow(path: str) -> Workflow:
@@ -105,7 +102,6 @@ def ingest_workflow(path: str) -> Workflow:
     
     Overall process for galaxy ingest is: galaxy -> *internal* -> janis_core model.
     """
-    # setup_data_folder()
     datatypes.populate()
     galaxy = _load_galaxy_workflow(path)
     internal = Workflow()

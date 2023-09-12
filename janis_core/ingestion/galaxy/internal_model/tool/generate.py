@@ -28,15 +28,15 @@ from janis_core.ingestion.galaxy.gxtool.model import (
 )
 
 from .tool import ITool
+from .containers import resolve_dependencies_as_container
 
 
 def gen_tool(
     xmltool: XMLTool, 
     command: Command, 
-    container: Optional[str], 
     gxstep: Optional[dict[str, Any]]=None
     ) -> ITool:
-    tfactory = ToolFactory(xmltool, command, container, gxstep)
+    tfactory = ToolFactory(xmltool, command, gxstep)
     tool = tfactory.create()
     return tool
 
@@ -46,20 +46,18 @@ class ToolFactory:
         self, 
         xmltool: XMLTool, 
         command: Command, 
-        container: Optional[str],
         gxstep: Optional[dict[str, Any]]=None
         ) -> None:
     
         self.xmltool = xmltool
         self.command = command
-        self.container = container
         self.gxstep = gxstep
 
     def create(self) -> ITool:
         tool = ITool(
             xmltool=self.xmltool,
             metadata=self.xmltool.metadata,
-            container=self.container,
+            container=resolve_dependencies_as_container(self.xmltool),
             base_command=self.get_base_command(),
             configfiles=self.xmltool.configfiles,
             scripts=self.xmltool.scripts,
