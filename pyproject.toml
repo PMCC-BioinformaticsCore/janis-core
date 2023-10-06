@@ -77,7 +77,6 @@ requires-python = ">=3.10.5"
 repository      = "https://github.com/PMCC-BioinformaticsCore/janis-core"
 documentation   = "https://janis.readthedocs.io/en/latest/"
 
-
 [tool.setuptools]
 include-package-data = true
 
@@ -95,3 +94,6 @@ janis_core = [
 where = ["./"]
 include = ["janis_core*"]
 namespaces = false
+
+[project.scripts]
+janis-translate = "janis_core.cli:main"
