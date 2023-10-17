@@ -1,0 +1,13 @@
+
+{
+    "main.inInt": 1, 
+    "main.inStr": "hello", 
+    "main.inBool": true,
+    "main.inFile": "../../infile1.bam",
+    "main.inFileOpt": "../../infile2.bam",
+    "main.inFileArr": ["../../textfile1.txt", "../../textfile2.txt"],
+    "main.inSecondary": {
+        "bam": "../../2895499223_sorted.bam",
+        "bai": "../../2895499223_sorted.bam.bai"
+    }
+}

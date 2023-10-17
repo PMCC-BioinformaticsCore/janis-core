@@ -1,4 +1,44 @@
 
+-----------------
+--- WDL-lexer ---
+-----------------
+
+Motivation: 
+- wdl2cwl produces .sh script to run. Not very native CWL. 
+- does a good job at interpreting local vars? look into how this is done. 
+- if in some situations we can do native CWL parsing of shell, this is better? 
+- should result in much more native looking CWL and Nextflow 
+
+TODO
+Command Parsing
+- split text into commands: list[str | WDL.Expr.Placeholder]
+- how do we handle local scope variables?
+- decide how to parse command 
+    - if there are multiple non-linux-env-var-set commands, use ShellCommandParser
+    - else, use BasicCommandParser
+
+BasicCommandParser
+- remove comments
+- remove env var set commands
+- extract stdout redirects
+- interpret position, prefix, separator, delim for each component (use galaxy as reference)
+- each WDL.Expr.Placeholder needs to be evaluated (look at how wdl2cwl does it)
+
+ShellCommandParser
+- remove comments
+- each line becomes ToolArgument
+- each WDL.Expr.Placeholder needs to be evaluated (look at how wdl2cwl does it)
+
+
+
+
+---------------------
+--- USER COMMENTS ---
+---------------------
+
+
+
+
 
 ----------------------------------
 --- REDUCING TEST SUITE WEIGHT ---
