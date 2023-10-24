@@ -17,7 +17,7 @@ def main() -> None:
 
 def do_translate(args: dict[str, str]) -> None:
     internal = ingest(args['infile'], args['from']) 
-    return translate(internal, args['to'], export_path=args['outdir'])
+    return translate(internal, args['to'], mode=args['mode'], export_path=args['outdir'])
 
 def interpret_args(args: argparse.Namespace) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -26,6 +26,8 @@ def interpret_args(args: argparse.Namespace) -> dict[str, str]:
             out['from'] = val
         elif key == 'to':
             out['to'] = val
+        elif key == 'mode':
+            out['mode'] = val
         elif key == 'infile':
             out['infile'] = val
         elif key == 'output_dir':
