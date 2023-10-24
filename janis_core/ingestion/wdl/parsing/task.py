@@ -17,7 +17,7 @@ from .types import parse_type
 from .command import parse_command
 
 
-def parse_task(task: WDL.Tree.Task):
+def parse_task(task: WDL.Tree.Task) -> CommandToolBuilder:
     # metadata
     name = task.name
     version = "DEV"
