@@ -415,7 +415,7 @@ class CLTParser(CLTEntityParser):
         
         jtool = CommandToolBuilder(
             tool=identifier,
-            base_command=None,
+            base_command=self.entity.baseCommand,
             inputs=inputs,
             outputs=outputs,
             arguments=arguments,

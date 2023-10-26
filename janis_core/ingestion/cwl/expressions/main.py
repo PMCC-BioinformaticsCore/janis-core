@@ -38,6 +38,8 @@ step_output_selector_matcher = re.compile(r"^steps\.([A-z0-9_]+)\.([A-z0-9_]+)$"
 # valueFrom: $(inputs.myWfInp) -> InputNodeSelector("myWfInp")
 input_selector_matcher = re.compile(r"^inputs\.([A-z0-9_]+)$")  
 
+
+
 # literal strings
 string_matcher = re.compile(r'^".+?"$')  
 
@@ -129,6 +131,7 @@ class ExpressionParser:
     def convert_javascript_token(self, token: str) -> Optional[Any]:
         step_output_selector_match = step_output_selector_matcher.match(token)
         input_selector_match = input_selector_matcher.match(token)
+        ternary_conditional_match = 
 
         # inputs        
         if input_selector_match:

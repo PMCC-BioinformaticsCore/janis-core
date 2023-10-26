@@ -1,4 +1,17 @@
 
+
+------------------
+--- CWL BOOFED ---
+------------------
+
+no base command 
+- samtools_index.cwl [check]
+
+untranslated javascript:
+- '$(((inputs.index_name !== null) ? inputs.index_name : inputs.sequences.nameroot))'
+- $(inputs.reads_1.basename).trimmed$(inputs.reads_1.nameext)
+- $(inputs.reads_1.format): add support for edam formats? add as a comment? eg edam:format_2359 -> "BAM"
+
 -----------------
 --- WDL-lexer ---
 -----------------

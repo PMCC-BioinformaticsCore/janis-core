@@ -47,6 +47,26 @@ def _load_cwl_doc(filepath: str) -> Tuple[Any, Any]:
     return loaded_doc, cwl_utils
 
 
+class TestBasicFunctionality(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.ingest.SAFE_MODE = False
+
+    def test_tool_bwa_index(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/BWA-Index.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTParser(cwl_utils=cwl_utils, clt=clt, entity=clt, uuid='bwa_index')
+        tool = parser.parse()
+        msgs = get_messages('bwa_index')
+        self.assertEqual(tool.id(), 'BWA_Index')
+        self.assertEqual(len(tool._inputs), 3)
+        self.assertEqual(len(tool._arguments), 2)
+        print()
+
+    def test_tool_bwa_mem(self):
+        pass
+
+
 
 class TestRequirementsParsing(unittest.TestCase):
 
@@ -154,8 +174,6 @@ class TestRequirementsParsing(unittest.TestCase):
         reqs = parser.do_parse()
         self.assertIn('AA_SRC', reqs['env_vars'])
         self.assertEqual(reqs['env_vars']['AA_SRC'], '/home/programs/AmpliconArchitect-master/src')
-
-
 
 
 class TestFallbacksErrorHandling(unittest.TestCase):

@@ -1,0 +1,40 @@
+
+
+?the_text   : javascript
+            | javascript text   
+            | javascript text javascript
+            | javascript text javascript text
+            | javascript text javascript text javascript
+            | text
+
+javascript  : "$(" expr ")"
+TEXT        : /[^$(]+/
+text        : TEXT
+
+?expr   : group
+        | ternary
+        | value "===" value -> deep_eq
+        | value "!==" value -> deep_ineq
+        | value "==" value  -> eq
+        | value "!=" value  -> ineq
+        | value
+
+group   : "(" expr ")"
+ternary : expr "?" expr ":" expr
+
+value   : TRUE
+        | FALSE
+        | SIGNED_NUMBER
+        | ESCAPED_STRING
+        | SYMBOL
+
+TRUE    : /true/
+FALSE   : /false/
+SYMBOL  : /[.\w]+/
+
+
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+
