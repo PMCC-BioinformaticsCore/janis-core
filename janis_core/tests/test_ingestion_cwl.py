@@ -6,13 +6,23 @@ from typing import Any, Tuple
 from janis_core import (
     InputSelector,
     BasenameOperator,
+    SplitOperator,
     FileSizeOperator,
     ReadContents,
     WildcardSelector,
     StringFormatter,
     InputNodeSelector,
     NamerootOperator,
+    NameextOperator,
+    DirnameOperator,
     CommandToolBuilder,
+    JoinOperator,
+    LengthOperator,
+    FlattenOperator,
+    FirstOperator,
+    SliceOperator,
+    ReplaceOperator,
+    IndexOperator,
     ToolInput,
 )
 
@@ -21,7 +31,7 @@ from janis_core.ingestion.cwl.loading import load_cwl_version
 from janis_core.ingestion.cwl.loading import load_cwl_utils_from_version
 
 from janis_core.ingestion.cwl.identifiers import get_cwl_reference
-from janis_core.ingestion.cwl.expressions import parse_basic_expression
+from janis_core.ingestion.cwl.expressions import parse_expression
 
 from janis_core.ingestion.cwl.parsing.tool import CLTArgumentParser
 from janis_core.ingestion.cwl.parsing.tool import CLTInputParser
@@ -664,64 +674,215 @@ class TestDocumentLoading(unittest.TestCase):
         
 
 
-class TestFromCwlExpressions(unittest.TestCase):
+class TestParseExpression(unittest.TestCase):
+    """
+    $(self.dirname)/$(self.nameroot)        # just weird?
+    $(self.location.split('/'))
+    $(self.location.split('/').slice(-1)[0])
+    $(self.path.split('.').slice(0,-2).join('.'))
+    $(self === "name" ? true : false)
+    $(self === 'name' ? true : false).fastq
+    $(self === "name" ? true : false).fastq$(inputs.index_name.ext)
+    $((inputs.index_name !== null) ? inputs.index_name : inputs.sequences.nameroot)
+    $(inputs.reads_1.basename).trimmed$(inputs.reads_1.nameext)
+    $(self.location.split('/').slice(-1)[0].split('.').slice(-1)[0])
+    $(inputs.graph.nameroot).$(self)            # wtf?
+    $(default_output_filename(".bw"))           # defined function call
+    $('> ' + 'stats.log')                       # string concatenation
+    $('> ' + inputs.index_base_name + '.log')   # string concatenation
+
+    """
+
+    def test_input(self):
+        expr = "$(inputs.sequences)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, InputSelector)
+        self.assertEqual("sequences", result.input_to_select)
+        
+        expr = "$(inputs.reads_1)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, InputSelector)
+        self.assertEqual("reads_1", result.input_to_select)
+
+    def test_self(self):
+        raise NotImplementedError
+    
+    def test_runtime(self):
+        raise NotImplementedError
+    
+    def test_file_basename(self):
+        expr = "$(inputs.reads_1.basename)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, BasenameOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        
+    def test_file_nameroot(self):
+        expr = "$(inputs.reads_1.nameroot)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, NamerootOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_file_nameext(self):
+        expr = "$(inputs.reads_1.nameext)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, NameextOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_file_dirname(self):
+        expr = "$(inputs.reads_1.dirname)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, DirnameOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_file_size(self):
+        expr = "$(inputs.reads_1.size)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, FileSizeOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_file_contents(self):
+        expr = "$(inputs.reads_1.contents)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, ReadContents)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_arr_join(self):
+        expr = "$(inputs.reads.join('.'))"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, JoinOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], str)
+        self.assertEqual(result.args[1], "'.'")
+    
+    def test_arr_slice(self):
+        expr = "$(inputs.reads.slice(0,-1))"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, SliceOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], int)
+        self.assertEqual(result.args[1], 0)
+        self.assertIsInstance(result.args[2], int)
+        self.assertEqual(result.args[2], -1)
+        
+        expr = "$(inputs.reads.slice(3))"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, SliceOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], int)
+        self.assertEqual(result.args[1], 3)
+        self.assertIsNone(result.args[2])
+    
+    def test_arr_length(self):
+        expr = "$(inputs.readgroups.length)"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, LengthOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_arr_flatten(self):
+        expr = "$(inputs.readgroups.flat())"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, FlattenOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+    
+    def test_arr_index(self):
+        expr = "$(inputs.readgroups[1])"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, IndexOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], int)
+        self.assertEqual(result.args[1], 1)
+
+    def test_str_split(self):
+        expr = "$(inputs.sequences.split('/'))"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, SplitOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], str)
+        self.assertEqual(result.args[1], "'/'")
+
+    def test_str_replace(self):
+        expr = "$(inputs.name.replace(/ /g,''))"
+        result, success = parse_expression(expr)
+        self.assertIsInstance(result, ReplaceOperator)
+        self.assertIsInstance(result.args[0], InputSelector)
+        self.assertIsInstance(result.args[1], str)
+        self.assertEqual(result.args[1], "/ /g")
+        self.assertIsInstance(result.args[2], str)
+        self.assertEqual(result.args[2], "''")
+    
+    def test_ternary(self):
+        # TODO ADD TO JANIS_CORE
+        raise NotImplementedError
+    
+    def test_expression(self):
+        raise NotImplementedError
+    
+    def test_complex1(self):
+        raise NotImplementedError
+
+    def test_complex2(self):
+        raise NotImplementedError
+
+
+
+class TestFromCwlExpressionsDEPRECATED(unittest.TestCase):
 
     def test_number(self):
         expr = "${return 16 }"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertEqual(16, result)
 
     def test_number_with_semicolon(self):
         expr = "${return 16;}"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertEqual(16, result)
 
     def test_number_with_spaces(self):
         expr = "${ return 80000 }"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertEqual(80000, result)
 
     def test_string(self):
         expr = '${ return "over 80000" }'
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertEqual("over 80000", result)
 
     def test_input_selector(self):
         expr = "$(inputs.my_input)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertIsInstance(result, InputSelector)
         self.assertEqual("my_input", result.input_to_select)
 
     def test_input_selector_with_basename(self):
         expr = "$(inputs.my_input.basename)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertIsInstance(result, BasenameOperator)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
 
     def test_input_selector_with_filesize(self):
         expr = "$(inputs.my_input.size)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertIsInstance(result, FileSizeOperator)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
 
     def test_input_selector_with_contents(self):
         expr = "$(inputs.my_input.contents)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertIsInstance(result, ReadContents)
         self.assertIsInstance(result.args[0], InputSelector)
         self.assertEqual("my_input", result.args[0].input_to_select)
     
     def test_runtime_outdir(self):
         expr = "$(runtime.outdir)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertTrue(success)
         self.assertEquals(result, '.')
     
     def test_composite_1(self):
         expr = "$(runtime.outdir)/$(inputs.bam.basename)"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertTrue(success)
         self.assertIsInstance(result, BasenameOperator)
         self.assertIsInstance(result.args[0], InputSelector)
@@ -729,7 +890,7 @@ class TestFromCwlExpressions(unittest.TestCase):
     
     def test_composite_2(self):
         expr = "$(inputs.bam.basename).bai"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertTrue(success)
         self.assertIsInstance(result, StringFormatter)
         self.assertEqual(result._format, "{JANIS_CWL_TOKEN_1}.bai")
@@ -739,7 +900,7 @@ class TestFromCwlExpressions(unittest.TestCase):
     
     def test_composite_3(self):
         expr = "$(runtime.outdir)/$(inputs.bam.nameroot).bai"
-        result, success = parse_basic_expression(expr)
+        result, success = parse_expression(expr)
         self.assertTrue(success)
         self.assertIsInstance(result, StringFormatter)
         self.assertEqual(result._format, "{JANIS_CWL_TOKEN_1}.bai")

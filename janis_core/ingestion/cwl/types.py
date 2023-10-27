@@ -25,7 +25,7 @@ from janis_core.types import (
 from janis_core.utils.errors import UnsupportedError
 from janis_core import settings
 
-from .expressions import parse_basic_expression
+from .expressions import parse_expression
 
 
 file_datatype_cache: dict[int, Any] = {}

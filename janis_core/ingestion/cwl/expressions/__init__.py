@@ -1,2 +1,2 @@
 
-from .main import parse_basic_expression
+from .main import parse_expression

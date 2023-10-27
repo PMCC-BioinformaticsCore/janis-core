@@ -15,7 +15,7 @@ from janis_core import translation_utils as utils
 from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
 from ..identifiers import get_id_filename
-from ..expressions import parse_basic_expression
+from ..expressions import parse_expression
 
 
 @dataclass
@@ -113,7 +113,7 @@ class CLTRequirementsParser(CLTEntityParser):
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
                 # maybe convert mebibytes to megabytes?
-                memory, success = parse_basic_expression(req.ramMin or req.ramMax)
+                memory, success = parse_expression(req.ramMin or req.ramMax)
                 if not success:
                     msg = 'untranslated javascript expression in task MEM requirement'
                     self.error_msgs.append(msg)
@@ -123,7 +123,7 @@ class CLTRequirementsParser(CLTEntityParser):
     def get_cpus(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
-                cpus, success = parse_basic_expression(req.coresMin)
+                cpus, success = parse_expression(req.coresMin)
                 if not success:
                     msg = 'untranslated javascript expression in task CPU requirement'
                     self.error_msgs.append(msg)
@@ -133,7 +133,7 @@ class CLTRequirementsParser(CLTEntityParser):
     def get_time(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if hasattr(req, 'timelimit') and isinstance(req, self.cwl_utils.ToolTimeLimit):
-                time, success = parse_basic_expression(req.timelimit)
+                time, success = parse_expression(req.timelimit)
                 if not success:
                     msg = 'untranslated javascript expression in task TIME requirement'
                     self.error_msgs.append(msg)
@@ -172,12 +172,12 @@ class CLTRequirementsParser(CLTEntityParser):
             if isinstance(req, self.cwl_utils.EnvVarRequirement):
                 for envdef in req.envDef:
                     # entry name
-                    name_expr, success = parse_basic_expression(envdef.envName)
+                    name_expr, success = parse_expression(envdef.envName)
                     if not success:
                         msg = 'untranslated javascript expression in environment variable name'
                         self.error_msgs.append(msg)
                     # entry 
-                    entry_expr, success = parse_basic_expression(envdef.envValue)
+                    entry_expr, success = parse_expression(envdef.envValue)
                     if not success:
                         msg = 'untranslated javascript expression in environment variable value'
                         self.error_msgs.append(msg)
@@ -231,7 +231,7 @@ class InitialWorkDirRequirementParser:
             if re.search(self.FILE_CLASS_MATCHER, self.value):
                 return True
             else:
-                res, success = parse_basic_expression(self.value)
+                res, success = parse_expression(self.value)
                 if success:
                     # successfully parsed requirement value into janis
                     if isinstance(res, InputSelector):
@@ -250,7 +250,7 @@ class InitialWorkDirRequirementParser:
             if re.search(self.DIRECTORY_CLASS_MATCHER, self.value):
                 return True
             else:
-                res, success = parse_basic_expression(self.value)
+                res, success = parse_expression(self.value)
                 if success:
                     # successfully parsed requirement value into janis
                     if isinstance(res, InputSelector):
@@ -265,7 +265,7 @@ class InitialWorkDirRequirementParser:
     
     @property
     def value_is_resolvable(self) -> bool:
-        _, success = parse_basic_expression(self.value)
+        _, success = parse_expression(self.value)
         if success:
             return True
         return False   
@@ -273,7 +273,7 @@ class InitialWorkDirRequirementParser:
     @property
     def name_is_resolvable(self) -> bool:
         if self.name:
-            _, success = parse_basic_expression(self.name)
+            _, success = parse_expression(self.name)
             if success:
                 return True
         return False
@@ -375,7 +375,7 @@ class InitialWorkDirRequirementParser:
             # most likely just specifying the file / directory needs to be staged. do nothing for now.
             # future: try to detect whether its a file or directory. create directory if directory. 
             if self.value_is_resolvable and self.is_probably_directory:
-                res, _ = parse_basic_expression(self.value)
+                res, _ = parse_expression(self.value)
                 return res
 
             elif self.is_probably_directory:
@@ -517,7 +517,7 @@ class CLTParser(CLTEntityParser):
         
         # stderr: n + 1
         if entity.stderr:
-            filename, success = parse_basic_expression(entity.stderr)
+            filename, success = parse_expression(entity.stderr)
             if not success:
                 filename = 'stderr.txt'
                 self.error_msgs.append('untranslated javascript expression in stderr filename. used stderr.txt as fallback')
@@ -533,7 +533,7 @@ class CLTParser(CLTEntityParser):
         
         # stdout: n + 2
         if entity.stdout:
-            filename, success = parse_basic_expression(entity.stdout)
+            filename, success = parse_expression(entity.stdout)
             if not success:
                 filename = 'stdout.txt'
                 self.error_msgs.append('untranslated javascript expression in stdout filename. used stdout.txt as fallback')
@@ -543,7 +543,7 @@ class CLTParser(CLTEntityParser):
         
         # stdin: n + 3
         if entity.stdin:
-            filename, success = parse_basic_expression(entity.stdin)
+            filename, success = parse_expression(entity.stdin)
             if not success:
                 self.error_msgs.append('untranslated javascript expression in stdin filename')
             arg = ToolArgument(prefix='<', value=filename, position=n + 3)
@@ -593,7 +593,7 @@ class CLTArgumentParser(CLTEntityParser):
     def do_parse(self) -> Optional[ToolArgument]: 
         # I don't know when a clt argument would be a string
         if isinstance(self.entity, str):
-            res, success = parse_basic_expression(self.entity)
+            res, success = parse_expression(self.entity)
             if not success:
                 self.error_msgs.append('untranslated javascript expression')
             if res is None:
@@ -602,7 +602,7 @@ class CLTArgumentParser(CLTEntityParser):
         
         # normal case
         else:
-            res, success = parse_basic_expression(self.entity.valueFrom)
+            res, success = parse_expression(self.entity.valueFrom)
             if not success:
                 self.error_msgs.append('untranslated javascript expression')
             if res is None:
@@ -706,7 +706,7 @@ class CLTInputParser(CLTEntityParser):
         value = None
         if self.entity.inputBinding and self.entity.inputBinding.valueFrom:
             if settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS: # why? 
-                value, success = parse_basic_expression(self.entity.inputBinding.valueFrom)
+                value, success = parse_expression(self.entity.inputBinding.valueFrom)
                 if not success:
                     msg = f'untranslated javascript expression in inputBinding.valueFrom'
                     self.error_msgs.append(msg)
@@ -748,7 +748,7 @@ class CLTOutputParser(CLTEntityParser):
         selector = None
         
         if self.clt.stdout is not None:
-            expr, success = parse_basic_expression(self.clt.stdout)
+            expr, success = parse_expression(self.clt.stdout)
             if success:
                 dtype = File()
                 selector = expr
@@ -772,7 +772,7 @@ class CLTOutputParser(CLTEntityParser):
 
         elif self.entity.outputBinding:
             if self.entity.outputBinding.glob:
-                res, success = parse_basic_expression(self.entity.outputBinding.glob)
+                res, success = parse_expression(self.entity.outputBinding.glob)
                 if isinstance(res, str):
                     selector = WildcardSelector(res)
                 else:
@@ -781,7 +781,7 @@ class CLTOutputParser(CLTEntityParser):
                     self.error_msgs.append('untranslated javascript expression in output collection')
             
             elif self.entity.outputBinding.outputEval:
-                res, success = parse_basic_expression(self.entity.outputBinding.outputEval)
+                res, success = parse_expression(self.entity.outputBinding.outputEval)
                 if isinstance(res, str):
                     selector = WildcardSelector(res)
                 else:

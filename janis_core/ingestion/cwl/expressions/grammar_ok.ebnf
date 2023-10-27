@@ -14,12 +14,14 @@ text        : TEXT
 
 ### higher level constructs ###
 
-?expr   : ternary
-        | cond_check
-        | method_call 
-        | attribute
-        | group
+?expr   : object expr
         | object 
+        | attribute expr
+        | attribute
+        | method_call+
+        | ternary
+        | group
+        | cond_check
         | value  # may cause issues?
 
 ternary : expr "?" expr ":" expr
@@ -35,30 +37,26 @@ group   : "(" expr ")"
             | expr "<" expr   -> lt
             | expr
 
+
 ### objects, attributes, methods ###
 
 ?object : "inputs." SYMBOL  -> input
         | "runtime." SYMBOL -> runtime
         | "self"            -> self
 
-?attribute  : expr ".basename"   -> attr_basename
-            | expr ".dirname"    -> attr_dirname
-            | expr ".nameroot"   -> attr_nameroot
-            | expr ".nameext"    -> attr_nameext
-            | expr ".size"       -> attr_size
-            | expr ".contents"   -> attr_contents
-            | expr ".length"     -> attr_length
+?attribute  : ".basename"   -> attr_basename
+            | ".nameroot"   -> attr_nameroot
+            | ".nameext"    -> attr_nameext
+            | ".ext"        -> attr_ext
+            | ".format"     -> attr_format
+            | ".contents"   -> attr_contents
+            | ".length"     -> attr_length
+            | ".location"   -> attr_location
 
-?method_call: expr ".join(" method_args ")"     -> meth_join
-            | expr ".slice(" method_args ")"    -> meth_slice
-            | expr ".split(" method_args ")"    -> meth_split
-            | expr ".flat()"                    -> meth_flat
-            | expr "[" SIGNED_NUMBER "]"        -> meth_index
-            | expr ".replace(" method_args ")"  -> meth_replace
-
-            # TODO: 
-            # meth_filter
-            # meth_map
+?method_call: ".join(" method_args ")"  -> meth_join
+            | ".split(" method_args ")" -> meth_split
+            | ".slice(" method_args ")" -> meth_slice
+            | "[" SIGNED_NUMBER "]"     -> meth_array_index
 
 ?method_args: value                             
             | value ARGSEP value                
@@ -73,10 +71,7 @@ ARGSEP     : /, *?/
         | "null"        -> null
         | SIGNED_NUMBER 
         | QUOTED_STRING 
-        | REGEX
         | SYMBOL        
-
-REGEX: /\/[\s\S]*?\/[a-z]?/
 
 SYMBOL: /[a-zA-Z0-9_]+/
 
@@ -87,5 +82,8 @@ QUOTED_STRING : ( "\"" _STRING_QUOT_INNER "\"" ) | ( "'" _STRING_QUOT_INNER "'" 
 %import common.SIGNED_NUMBER
 %import common.WS
 %ignore WS
+
+
+
 
 
