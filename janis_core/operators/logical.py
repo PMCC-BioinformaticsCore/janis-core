@@ -77,10 +77,10 @@ class If(Operator, ABC):
 
     @staticmethod
     def friendly_signature():
-        return "(condition: Boolean, value_if_true: X, value_if_false: Y) -> Union[X,Y]"
+        return "(condition: Any, value_if_true: X, value_if_false: Y) -> Union[X,Y]"
 
     def argtypes(self) -> List[DataType]:
-        return [Boolean, AnyType, AnyType]
+        return [AnyType, AnyType, AnyType]
 
     def returntype(self):
         args = []
@@ -144,9 +144,9 @@ class AssertNotNull(Operator):
         return unwrap_operator(self.args[0])
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        # depends on the datatype?
+        obj = unwrap_operator(self.args[0])
+        return f'assert {obj} != null'
 
     def returntype(self):
         from copy import copy
@@ -161,6 +161,48 @@ class AssertNotNull(Operator):
         ret.optional = False
         return ret
 
+
+class GroupOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "(X) -> (X)"
+
+    def argtypes(self) -> List[DataType]:
+        return [AnyType]
+
+    def returntype(self):
+        arg = self.args[0]
+        if isinstance(arg, Selector):
+            return get_instantiated_type(arg.returntype())
+        else:
+            return get_instantiated_type(arg)
+
+    def __str__(self):
+        arg = self.args[0]
+        return f"({arg})"
+
+    def __repr__(self):
+        return str(self)
+
+    def evaluate(self, inputs):
+        return self.evaluate_arg(self.args[0], inputs)
+
+    def to_wdl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"({arg})"
+
+    def to_cwl(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"({arg})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"({arg})"
+
+    def to_python(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"({arg})"
+    
 
 # Other single value operators
 

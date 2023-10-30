@@ -1,6 +1,7 @@
 
 
 # logging
+from .main import ErrorCategory
 from .main import configure_logging
 from .main import info_ingesting_tool
 from .main import info_ingesting_workflow

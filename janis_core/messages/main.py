@@ -2,6 +2,7 @@
 
 from logging import getLogger, config
 from .logfile import LogFile
+from .logfile import LogLine
 
 
 from typing import Optional
@@ -9,7 +10,7 @@ import os
 import warnings
 import yaml
 from pathlib import Path
-
+from enum import Enum
 """
 This file was built for ingest / translation message logging. 
 
@@ -44,11 +45,17 @@ currently, these janis entities have uuids:
 
 """
 
-
-
 # -------------
 # configuration
 # -------------
+
+class ErrorCategory(Enum):
+    SCRIPT      = 'script'
+    DATATYPE    = 'datatype'
+    DATAFLOW    = 'dataflow'
+    VERSION     = 'version'
+    FALLBACK    = 'fallback'
+    FATAL       = 'fatal'
 
 warnings.filterwarnings("ignore")
 
@@ -85,42 +92,47 @@ def info_ingesting_tool(spec: str, name: str) -> None:
     logger = getLogger('console')
     logger.info(f'ingesting {spec} tool - "{name}"')
 
-
 # -------
 # to file
 # -------
 
-def _log_message(level: str, uuid: Optional[str], msg: str) -> None:
+def _log_message(level: str, category: Optional[ErrorCategory], uuid: Optional[str], msg: str) -> None:
     logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
     # or you could generate a file in the output folder for the user to show this info. 
     if uuid is None:
         uuid = 'general'
-    logfile.add(level, uuid, msg)
+    if category is not None:
+        cat = category.value        
+    logfile.add(level, cat, uuid, msg)
 
 def log_info(uuid: Optional[str], msg: str) -> None:
     """logs a message which is considered INFO to the logfile"""
-    _log_message('INFO', uuid, msg)
+    _log_message('INFO', None, uuid, msg)
 
-def log_warning(uuid: Optional[str], msg: str) -> None:
+def log_warning(uuid: str, msg: str) -> None:
     """logs a message which is considered a WARNING to the logfile"""
-    _log_message('WARNING', uuid, msg)
+    _log_message('WARNING', None, uuid, msg)
 
-def log_error(uuid: Optional[str], msg: str) -> None:
+def log_error(uuid: Optional[str], category: ErrorCategory, msg: str) -> None:
     """logs a message which is considered an ERROR to the logfile"""
-    _log_message('ERROR', uuid, msg)
+    _log_message('ERROR', category, uuid, msg)
 
-def get_messages(uuid: str, level: Optional[str]=None) -> list[str]:
-    # get messages corresponding to this uuid from logfile
+def get_messages(uuid: Optional[str]=None, level: Optional[str]=None) -> list[LogLine]:
     logfile = LogFile(MESSAGE_LOG_PATH)
-    loglines = logfile.messages[uuid]
+    loglines = logfile.lines
+    
+    # filter for specific entity
+    if uuid is not None:
+        loglines = [x for x in loglines if x.uuid == uuid]
     
     # filter for specific type of log message if 'level' supplied
-    valid_levels = ['INFO', 'WARNING', 'ERROR']
-    if level and level in valid_levels:
+    if level is not None:
+        valid_levels = ['INFO', 'WARNING', 'ERROR']
+        if level not in valid_levels:
+            raise RuntimeError
         loglines = [x for x in loglines if x.level == level]
 
-    messages = [l.message for l in loglines]
-    return messages
+    return loglines
 

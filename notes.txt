@@ -1,5 +1,26 @@
 
 
+---------------------
+--- CWL JS PARSER ---
+---------------------
+
+$(self.dirname)/$(self.nameroot)        # just weird?
+$(self.location.split('/'))
+$(self.location.split('/').slice(-1)[0])
+$(self.path.split('.').slice(0,-2).join('.'))
+$(self === "name" ? true : false)
+$(self === 'name' ? true : false).fastq
+$(self === "name" ? true : false).fastq$(inputs.index_name.ext)
+$(inputs.graph.nameroot).$(self)            # wtf?
+$(default_output_filename(".bw"))           # defined function call
+
+messages
+- triggered by: parser exceptions
+- handled by: replace with '__TOKEN1__' & user message
+
+translators 
+- ensure correct unwrapping with new format. 
+
 ------------------
 --- CWL BOOFED ---
 ------------------

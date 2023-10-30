@@ -4,7 +4,7 @@ import copy
 from typing import Any, Optional, Tuple
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-
+from functools import cached_property
 
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, InputSelector
 from janis_core.types import File, Stdout, Stderr, Directory, DataType
@@ -113,31 +113,19 @@ class CLTRequirementsParser(CLTEntityParser):
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
                 # maybe convert mebibytes to megabytes?
-                memory, success = parse_expression(req.ramMin or req.ramMax)
-                if not success:
-                    msg = 'untranslated javascript expression in task MEM requirement'
-                    self.error_msgs.append(msg)
-                return memory
+                return parse_expression(req.ramMin or req.ramMax, self.entity)
         return None
     
     def get_cpus(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
-                cpus, success = parse_expression(req.coresMin)
-                if not success:
-                    msg = 'untranslated javascript expression in task CPU requirement'
-                    self.error_msgs.append(msg)
-                return cpus
+                return parse_expression(req.coresMin, self.entity)
         return None
 
     def get_time(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if hasattr(req, 'timelimit') and isinstance(req, self.cwl_utils.ToolTimeLimit):
-                time, success = parse_expression(req.timelimit)
-                if not success:
-                    msg = 'untranslated javascript expression in task TIME requirement'
-                    self.error_msgs.append(msg)
-                return time
+                return parse_expression(req.timelimit, self.entity)
         return None
     
     def get_files_directories_to_create(self, requirements: list[Any]) -> Tuple[dict[str, Any], list[str | InputSelector]]:
@@ -171,51 +159,43 @@ class CLTRequirementsParser(CLTEntityParser):
         for req in requirements:
             if isinstance(req, self.cwl_utils.EnvVarRequirement):
                 for envdef in req.envDef:
-                    # entry name
-                    name_expr, success = parse_expression(envdef.envName)
-                    if not success:
-                        msg = 'untranslated javascript expression in environment variable name'
-                        self.error_msgs.append(msg)
-                    # entry 
-                    entry_expr, success = parse_expression(envdef.envValue)
-                    if not success:
-                        msg = 'untranslated javascript expression in environment variable value'
-                        self.error_msgs.append(msg)
-                    out[name_expr] = entry_expr
-        
+                    name = parse_expression(envdef.envName, self.entity)
+                    entry = parse_expression(envdef.envValue, self.entity)
+                    out[name] = entry
         return out
 
 
-@dataclass
 class InitialWorkDirRequirementParser:
-    cwl_utils: Any
-    clt: Any
-    req: Any
-    
-    is_expression_tool: bool = False
-    error_msgs: list[str] = field(default_factory=list)
-    
-    # want to calculate these fields
-    file_to_create: Optional[Tuple[str, str | InputSelector]] = None
-    directory_to_create: Optional[str | InputSelector] = None
 
-    FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
-    DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
+    def __init__(self, cwl_utils: Any, clt: Any, req: Any, is_expression_tool: bool=False) -> None:
+        self.cwl_utils = cwl_utils
+        self.clt = clt
+        self.req = req
+        self.is_expression_tool = is_expression_tool
 
-    "File | Directory | Dirent | string | Expression"
-    # TODO improve this. can be smarter about error messages. 
-    # eg file value can be resolved (InputSelector or str), but file name is expression. 
-    # want to say:
-    # f'file required for runtime ({InputSelector.input_to_select}) is renamed before runtime using cwl / js: <js>{self.name}</js>. please address'
+        # resolving value
+        self.r_value, self.r_value_ok = parse_expression(self.value, self.clt)
+        
+        # resolving name
+        if self.name is not None:
+            self.r_name, self.r_name_ok = parse_expression(self.name, self.clt)
+        else:
+            self.r_name, self.r_name_ok = None, True
+        
+        # want to calculate these fields
+        file_to_create: Optional[Tuple[str, str | InputSelector]] = None
+        directory_to_create: Optional[str | InputSelector] = None
 
-    @property
+        "File | Directory | Dirent | string | Expression"
+
+    @cached_property
     def name(self) -> Optional[str]:
         name: Optional[str] = None
         if isinstance(self.req, self.cwl_utils.Dirent):
             name = self.req.entryname
         return name
-    
-    @property
+
+    @cached_property
     def value(self) -> str:
         if isinstance(self.req, str):
             text: str = self.req
@@ -224,70 +204,229 @@ class InitialWorkDirRequirementParser:
         else:
             raise NotImplementedError
         return text
-
-    @property
-    def is_probably_file(self) -> bool:
-        if self.value.startswith('$(') or self.value.startswith('${'):
-            if re.search(self.FILE_CLASS_MATCHER, self.value):
-                return True
-            else:
-                res, success = parse_expression(self.value)
-                if success:
-                    # successfully parsed requirement value into janis
-                    if isinstance(res, InputSelector):
-                        for inp in self.clt.inputs:
-                            name = get_id_entity(inp.id)
-                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
-                            self.error_msgs += error_msgs
-                            basetype = utils.get_base_type(dtype)
-                            if name == res.input_to_select and isinstance(basetype, File):
-                                return True
-        return False
     
-    @property
-    def is_probably_directory(self) -> bool:
-        if self.value.startswith('$(') or self.value.startswith('${'):
-            if re.search(self.DIRECTORY_CLASS_MATCHER, self.value):
-                return True
-            else:
-                res, success = parse_expression(self.value)
-                if success:
-                    # successfully parsed requirement value into janis
-                    if isinstance(res, InputSelector):
-                        for inp in self.clt.inputs:
-                            name = get_id_entity(inp.id)
-                            dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
-                            self.error_msgs += error_msgs
-                            basetype = utils.get_base_type(dtype)
-                            if name == res.input_to_select and isinstance(basetype, Directory):
-                                return True
-        return False
-    
-    @property
-    def value_is_resolvable(self) -> bool:
-        _, success = parse_expression(self.value)
-        if success:
+    @cached_property
+    def is_dirent(self) -> bool:
+        if isinstance(self.req, self.cwl_utils.Dirent):
             return True
-        return False   
+        return False
     
-    @property
-    def name_is_resolvable(self) -> bool:
-        if self.name:
-            _, success = parse_expression(self.name)
-            if success:
+    @cached_property
+    def is_file(self) -> bool:
+        if isinstance(self.req, str):
+            FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
+            if re.search(FILE_CLASS_MATCHER, self.value):
                 return True
         return False
     
-    @property 
-    def name_has_expression(self) -> bool:
-        if self.name:
-            if self.name.startswith('$(') or self.name.startswith('${'):
+    @cached_property
+    def is_directory(self) -> bool:
+        if isinstance(self.req, str):
+            DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
+            if re.search(DIRECTORY_CLASS_MATCHER, self.value):
                 return True
         return False
+        
+    @cached_property
+    def is_expression(self) -> bool:
+        if isinstance(self.req, str):
+            if self.value.startswith('$(') or self.value.startswith('${'):
+                return True
+        return False
+    
+    @cached_property
+    def is_string(self) -> bool:
+        if isinstance(self.req, str):
+            if not self.is_expression:
+                return True
+        return False
+
+
+        "File | Directory | Dirent | string | Expression"
+        # Expression
+        if isinstance(self.req, str) and self.r_value_ok:
+            return 'Expression'
+        
+        # File object
+        elif isinstance(self.req, str):
+            FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
+            if re.search(FILE_CLASS_MATCHER, self.value):
+                return 'File'
+        
+        # Directory object
+        elif isinstance(self.req, str):
+            DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
+            if re.search(DIRECTORY_CLASS_MATCHER, self.value):
+                return 'Directory'
+
+
+            if self.r_value_ok:
+                if isinstance(self.r_value, InputSelector):
+                    return 'File'
+            return 'string'
+        elif isinstance(self.req, self.cwl_utils.Dirent):
+            return 'Dirent'
+        else:
+            raise NotImplementedError
+        
+
+    @cached_property
+    def get_file(self) -> Tuple[Any, bool]:
+        # Resolved Expression: InputSelector (File)
+        if self.r_value_ok:
+            if 
+
+        # Unresolved Expression
+        FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
+        if re.search(FILE_CLASS_MATCHER, self.value):
+            pass
+
+        # Dirent
+        
+
+        # string
+
+    """
+    InitialWorkDirRequirement:
+      listing:
+        - entry: inputs.genome_folder
+          writable: true
+    
+    InitialWorkDirRequirement:
+      listing:
+        - entry: $(inputs.sequences)  
+
+    InitialWorkDirRequirement:
+      listing:
+        - entry: inputs.input_file
+          entryname: inputs.input_file.basename
+          writable: true
+
+    InitialWorkDirRequirement:
+      listing:
+        - $(inputs.reference_index)
+        - $(inputs.reference_fasta)
+        - $(inputs.reads_index)
+    
+    InitialWorkDirRequirement:
+      listing: [ $(inputs.sequences) ]
+
+    InitialWorkDirRequirement:
+      listing:
+        - entryname: param_file.txt
+          entry: |-
+            PeakListPath = $(inputs.PeakList.path)
+            IonizedPrecursorMass =  $(inputs.IonizedPrecursorMass)
+
+    InitialWorkDirRequirement:
+      listing: |
+        ${ return [ { "class": "Directory",
+                    "listing": inputs.bins,
+                    "basename": "jsons" } ]; }
+
+    InitialWorkDirRequirement:
+      listing: |
+        ${
+          var entry = "library_id,molecule_h5\n"
+          for (var i=0; i < inputs.molecule_info_h5.length; i++){
+            entry += get_label(i) + "," + inputs.molecule_info_h5[i].path + "\n"
+          }
+          return [{
+            "entry": entry,
+            "entryname": "metadata.csv"
+          }];
+        }
+    """
+
+
+    @cached_property
+    def entry_type(self) -> str:
+        if isinstance(self.req, str):
+            return 'string'
+        elif isinstance(self.req, self.cwl_utils.Dirent):
+            return 'Dirent'
+        else:
+            raise NotImplementedError
+
+    @cached_property
+    def get_directory(self) -> Tuple[Any, bool]:
+        DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
+        if re.search(DIRECTORY_CLASS_MATCHER, self.value):
+            pass
+
+        # InputSelector -> Directory
+        # Expression
+        # string
+        # Dirent
+        return True
+    
+
+    # @property
+    # def is_probably_file(self) -> bool:
+    #     if self.r_value_ok:
+    #         if 
+    #     if self.value.startswith('$(') or self.value.startswith('${'):
+    #         if re.search(self.FILE_CLASS_MATCHER, self.value):
+    #             return True
+    #         else:
+    #             res = parse_expression(self.value, self.clt)
+    #             # successfully parsed requirement value into janis?
+    #             if isinstance(res, InputSelector):
+    #                 for inp in self.clt.inputs:
+    #                     name = get_id_entity(inp.id)
+    #                     dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
+    #                     self.error_msgs += error_msgs
+    #                     basetype = utils.get_base_type(dtype)
+    #                     if name == res.input_to_select and isinstance(basetype, File):
+    #                         return True
+    #     return False
+    
+    # @property
+    # def is_probably_directory(self) -> bool:
+    #     if self.value.startswith('$(') or self.value.startswith('${'):
+    #         if re.search(self.DIRECTORY_CLASS_MATCHER, self.value):
+    #             return True
+    #         else:
+    #             res = parse_expression(self.value, self.clt)
+    #             # successfully parsed requirement value into janis
+    #             if isinstance(res, InputSelector):
+    #                 for inp in self.clt.inputs:
+    #                     name = get_id_entity(inp.id)
+    #                     dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
+    #                     self.error_msgs += error_msgs
+    #                     basetype = utils.get_base_type(dtype)
+    #                     if name == res.input_to_select and isinstance(basetype, Directory):
+    #                         return True
+    #     return False
+    
+    # @property
+    # def value_is_resolvable(self) -> bool:
+    #     _, success = parse_expression(self.value)
+    #     if success:
+    #         return True
+    #     return False   
+    
+    # @property
+    # def name_is_resolvable(self) -> bool:
+    #     if self.name:
+    #         _, success = parse_expression(self.name)
+    #         if success:
+    #             return True
+    #     return False
+    
+    # @property 
+    # def name_has_expression(self) -> bool:
+    #     if self.name:
+    #         if self.name.startswith('$(') or self.name.startswith('${'):
+    #             return True
+    #     return False
 
     def parse(self) -> None:
-        if self.is_probably_file and self.is_probably_directory:
+        if self.is_file and self.is_directory:
             raise RuntimeError
+        
+        if self.is_file:
+
         
         # error handling for names generated using expression
         if self.name_has_expression and self.is_probably_file:
