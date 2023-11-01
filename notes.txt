@@ -1,37 +1,79 @@
 
 
----------------------
---- CWL JS PARSER ---
----------------------
 
-$(self.dirname)/$(self.nameroot)        # just weird?
-$(self.location.split('/'))
-$(self.location.split('/').slice(-1)[0])
-$(self.path.split('.').slice(0,-2).join('.'))
-$(self === "name" ? true : false)
-$(self === 'name' ? true : false).fastq
-$(self === "name" ? true : false).fastq$(inputs.index_name.ext)
-$(inputs.graph.nameroot).$(self)            # wtf?
-$(default_output_filename(".bw"))           # defined function call
 
-messages
-- triggered by: parser exceptions
-- handled by: replace with '__TOKEN1__' & user message
 
-translators 
-- ensure correct unwrapping with new format. 
+----------------
+--- MESSAGES ---
+----------------
+CWL TODO
+- main.py -> workflow parsing?
+- VERSION
+- EXPERIMENTAL
+- FATAL
+
+WORKFLOW 
+
+### untranslated javascript ###
+__TOKEN1__ = "$(inputs.myfile)"
+__TOKEN2__ = "$(inputs.reads2)"
+
+### errors / warnings ###
+# inputs ---
+# error:    [FALLBACK] reads1: parse failed. used fallback.
+# warning:  [DATATYPE] reads2: WDL structs unsupported, used File instead.
+# warning:  [DATAFLOW] reads2: unused input
+
+# step1 ---
+# error: [FALLBACK] step1:          parse failed. used fallback.
+# error: [DATAFLOW] step1,reads2:   could not connect sources.
 
 ------------------
 --- CWL BOOFED ---
 ------------------
 
-no base command 
-- samtools_index.cwl [check]
+get basic functionality back online 
+- workflow parsing
+- InitalWorkDirRequirement
 
-untranslated javascript:
-- '$(((inputs.index_name !== null) ? inputs.index_name : inputs.sequences.nameroot))'
-- $(inputs.reads_1.basename).trimmed$(inputs.reads_1.nameext)
-- $(inputs.reads_1.format): add support for edam formats? add as a comment? eg edam:format_2359 -> "BAM"
+--------------
+--- CWL JS ---
+--------------
+
+locations: CommandLineTool
+- InlineJavascriptRequirement:expressionLib
+- InitialWorkDirRequirement
+- InitialWorkDirRequirement:Dirent:entry
+- InitialWorkDirRequirement:Dirent:entryname
+
+locations: Workflow
+- WorkflowOutputParameter:outputBinding:glob?
+- WorkflowOutputParameter:outputBinding:outputEval?
+- WorkflowStepInput:valueFrom
+- InlineJavascriptRequirement:expressionLib
+
+js expressions: workflow context
+- call parse_expression() during workflow parsing!
+- workflow input
+- workflow output?
+- step input?
+- step conditions?
+- step output?
+
+js expressions: translators 
+- ensure correct unwrapping with new format. 
+
+js expressions: self
+- $(self.dirname)/$(self.nameroot)        # just weird?
+- $(self.location.split('/'))
+- $(self.location.split('/').slice(-1)[0])
+- $(self.path.split('.').slice(0,-2).join('.'))
+- $(self === "name" ? true : false)
+- $(self === 'name' ? true : false).fastq
+- $(self === "name" ? true : false).fastq$(inputs.index_name.ext)
+- $(inputs.graph.nameroot).$(self)            # wtf?
+- $(default_output_filename(".bw"))           # defined function call
+
 
 -----------------
 --- WDL-lexer ---

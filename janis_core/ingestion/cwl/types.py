@@ -1,12 +1,13 @@
-
-
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Type
 import regex as re
-from copy import deepcopy
 import sys
 import inspect
 
-from janis_core import JanisShed
+from janis_core.messages import ErrorCategory
+from janis_core.messages import log_warning
+from janis_core.utils.errors import UnsupportedError
+from janis_core import settings
+
 from janis_core import translation_utils as utils
 from janis_core.types import (
     DataType, 
@@ -21,12 +22,61 @@ from janis_core.types import (
     Stdout,
     Stderr,
 )
+from janis_core.redefinitions.types import (
+    Fasta,
+    Fastq,
+    Sam,
+    Bam,
+    Bed,
+    Vcf,
+    Tsv,
+    Cram,
+)
+from janis_core.ingestion.galaxy.datatypes.galaxy import (
+    Anndata,
+    BigWig,
+    Gtf,
+    Gff,
+    BedGraph,
+    BigBed
+)
 
-from janis_core.utils.errors import UnsupportedError
-from janis_core import settings
+edam_format_map = {
+    'edam:format_1929': Fasta,
+    'edam:format_1930': Fastq,
+    'edam:format_1931': Fastq,
+    'edam:format_1932': Fastq,
+    'edam:format_1933': Fastq,
+    'edam:format_1974': Gff,
+    'edam:format_2306': Gtf,
+    'edam:format_2572': Bam,
+    'edam:format_2573': Sam,
+    'edam:format_3003': Bed,
+    'edam:format_3004': BigBed,
+    'edam:format_3006': BigWig,
+    'edam:format_3016': Vcf,
+    'edam:format_3462': Cram,
+    'edam:format_3583': BedGraph,
+    'edam:format_3590': Anndata,
+    'edam:format_3709': Tsv,
+}
 
-from .expressions import parse_expression
-
+file_priorities = {
+    'Fasta': 1,
+    'Fastq': 2,
+    'Gff': 3,
+    'Gtf': 4,
+    'Bam': 5,
+    'Sam': 6,
+    'Bed': 7,
+    'BigBed': 8,
+    'BigWig': 9,
+    'Vcf': 10,
+    'Cram': 11,
+    'BedGraph': 12,
+    'Anndata': 13,
+    'Tsv': 14,
+}
 
 file_datatype_cache: dict[int, Any] = {}
 
@@ -88,9 +138,11 @@ def is_javascript_expr(text: str) -> bool:
 def ingest_cwl_type(
     cwl_type: Any, 
     cwl_utils: Any,
+    cwl_entity: Any, 
+    tool_uuid: str,
     secondaries: Optional[str | list[str]]=None,
-    ) -> Tuple[DataType, list[str]]:
-    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, secondaries)
+    ) -> DataType:
+    dtype_parser = CWLTypeParser(cwl_type, cwl_utils, cwl_entity, secondaries, tool_uuid)
     return dtype_parser.parse()
 
 
@@ -99,12 +151,15 @@ class CWLTypeParser:
         self,
         cwl_type: Any,
         cwl_utils: Any,
+        cwl_entity: Any, 
         secondaries: Optional[str | list[str]],
+        tool_uuid: str
     ):
         self.cwl_type = cwl_type
         self.cwl_utils = cwl_utils
+        self.cwl_entity = cwl_entity
         self.secondaries = secondaries
-        self.error_msgs: list[str] = []
+        self.tool_uuid = tool_uuid
         self.secondary_patterns: list[str] = self.preprocess_secondary_file_patterns(secondaries)
     
     def preprocess_secondary_file_patterns(self, secondaries: Optional[str | list[str]]) -> list[str]:
@@ -126,6 +181,29 @@ class CWLTypeParser:
         return out
 
     @property
+    def file_subtypes(self) -> list[Type[DataType]]:
+        # TODO check if any format is a javascript expression.
+
+        # get formats from cwl entity
+        if not hasattr(self.cwl_entity, 'format') or self.cwl_entity.format is None:
+            formats_list = []
+        elif isinstance(self.cwl_entity.format, list):
+            formats_list = self.cwl_entity.format
+        elif isinstance(self.cwl_entity.format, str):
+            formats_list = [self.cwl_entity.format]
+        else:
+            raise NotImplementedError
+
+        # replace uri with edam:format_xxxx structure if applicable
+        formats_list = [x.replace('http://edamontology.org/', 'edam:') for x in formats_list]
+        # pull out edam formats
+        edam_formats = [x for x in formats_list if x.startswith('edam:format_')]
+        # remove unknown formats
+        edam_formats = [x for x in edam_formats if x in edam_format_map]
+        # return janis datatypes
+        return [edam_format_map[x] for x in edam_formats]
+
+    @property
     def secondary_files_plain(self) -> list[str]:
         return [x for x in self.secondary_patterns if not is_javascript_expr(x)]
     
@@ -133,11 +211,29 @@ class CWLTypeParser:
     def secondary_files_exprs(self) -> list[str]:
         return [x for x in self.secondary_patterns if is_javascript_expr(x)]
     
-    def parse(self) -> Tuple[DataType, list[str]]:
+    def parse(self) -> DataType:
         # parse basic cwl type
         inp_type = self.from_cwl_inner_type(self.cwl_type)
-        return (inp_type, self.error_msgs)
+        return inp_type
     
+    @property
+    def file_subtype(self) -> DataType:
+        filetypes = self.file_subtypes
+        
+        if len(filetypes) > 1:
+            filetypes.sort(key=lambda x: file_priorities.get(x.__name__, 999))
+            ftype = filetypes[0]
+            msg = f'entity supports multiple edam formats. selected {ftype.__name__} as fallback.'
+            log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
+            return ftype()
+        
+        elif len(filetypes) == 1:
+            ftype = filetypes[0]
+            return ftype()
+        
+        else:
+            return File()
+        
     def from_cwl_inner_type(self, cwl_type: Any) -> DataType:
         if isinstance(cwl_type, str):
             # optionality
@@ -155,7 +251,7 @@ class CWLTypeParser:
                 if self.secondary_patterns:
                     inner = self.get_data_type_from_secondaries()
                 else:
-                    inner = File()
+                    inner = self.file_subtype
             elif cwl_type == "Directory":
                 inner = Directory()
             elif cwl_type == "string":
@@ -178,11 +274,11 @@ class CWLTypeParser:
                 inner = Int()
             else:
                 if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
-                    msg = f"Unsupported datatype: {cwl_type}. Treated as a file."
-                    self.error_msgs.append(msg)
+                    msg = f"unsupported datatype: {cwl_type}. treated as generic File."
+                    log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                     inner = File()
                 else:
-                    raise UnsupportedError(f"Can't detect type {cwl_type}")
+                    raise UnsupportedError(f"can't detect type {cwl_type}")
             
             # array depth
             dtype = inner
@@ -201,8 +297,7 @@ class CWLTypeParser:
             # casting individual cwl types to janis
             dtypes: list[DataType] = []
             for ctype in cwl_types:
-                dtype, error_messages = ingest_cwl_type(ctype, self.cwl_utils, self.secondaries)
-                self.error_msgs += error_messages
+                dtype = ingest_cwl_type(ctype, self.cwl_utils, self.cwl_entity, self.tool_uuid, self.secondaries)
                 dtypes.append(dtype)
             
             # annotate janis dtypes as optional
@@ -215,19 +310,25 @@ class CWLTypeParser:
             
             # multiple types
             elif len(dtypes) > 1:
-                # create (dtype, dtypetype) tuples to label with type categories
-                dtypes_w_categories = [(utils.get_dtt(x), x) for x in dtypes]
-
-                # sort by order of importance (according to dtypetype category - uses enum index) 
-                dtypes_w_categories.sort(key=lambda x: x[0].value)
+                dtype_names = [x.name() for x in dtypes]
+                edam_types = [x for x in dtypes if x.__class__.__name__ in edam_format_map]
+                edam_types.sort(key=lambda x: file_priorities.get(x.__name__, 999))
                 
-                # get the most important type
-                selected = dtypes_w_categories[0][1]
+                # edam file types
+                if len(edam_types) > 0:
+                    selected = edam_types[0]
+                # other types
+                else:
+                    # create (dtype, dtypetype) tuples to label with type categories
+                    dtypes_w_categories = [(utils.get_dtt(x), x) for x in dtypes]
+                    # sort by order of importance (according to dtypetype category - uses enum index) 
+                    dtypes_w_categories.sort(key=lambda x: x[0].value)
+                    # get the most important type
+                    selected = dtypes_w_categories[0][1]
                 
                 # print user message
-                dtype_names = [x.name() for x in dtypes]
-                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected.__class__.__name__} as fallback. this may affect pipeline execution'
-                self.error_msgs.append(msg)
+                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected.__class__.__name__} as fallback.'
+                log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                 return selected
             
             else:
@@ -248,7 +349,7 @@ class CWLTypeParser:
         else:
             if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
                 msg = f"Unsupported datatype: {type(cwl_type).__name__}. Treated as a file."
-                self.error_msgs.append(msg)
+                log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                 return File(optional=False)
             else:
                 raise UnsupportedError(f"Can't parse type {type(cwl_type).__name__}")
@@ -281,8 +382,8 @@ class CWLTypeParser:
             # if success:
             #     raise NotImplementedError
             # else:
-            msg = f'could not parse secondaries format from javascript expressions: {self.secondary_files_exprs[0]}'
-            self.error_msgs.append(msg)
+            msg = f'could not parse secondaries format from javascript expression. treated as generic File with secondaries.'
+            log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
             return GenericFileWithSecondaries(secondaries=[])
         
         else:

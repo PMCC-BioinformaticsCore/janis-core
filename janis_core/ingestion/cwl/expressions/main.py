@@ -4,24 +4,64 @@ import os
 from lark import Lark
 from lark import Tree
 from lark import Token
-from typing import Tuple, Any
+from typing import Tuple, Any, Optional
+import regex as re
 import janis_core as j
 from janis_core.messages import log_error
-from janis_core.messages import get_messages
+from janis_core.messages import load_loglines
+from janis_core.messages import LogLine
 from janis_core.messages import ErrorCategory
 
 GRAMMAR_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/grammar.ebnf'
 
-def parse_expression(expr: str, entity: j.CommandToolBuilder | j.WorkflowBuilder) -> Any:
-    result, success = ExpressionParser().parse(expr)
-    if not success:
-        messages = get_messages(entity.id(), level='ERROR')
-        messages = [x for x in messages if x.category == ErrorCategory.SCRIPT]
-        new_token = f'__TOKEN{len(messages) + 1}__'
-        msg = f'{new_token} = "{expr}"'
-        log_error(entity.id(), ErrorCategory.SCRIPT, msg)
-        return new_token, False
-    return result, success
+def parse_expression(expr: str, tool_uuid: str, context: str='clt') -> Any:
+    if expr is None:
+        return None, True
+    
+    elif not isinstance(expr, str):
+        expr = str(expr)
+    
+    # no '$' wrapping 
+    if not expr.startswith('$(') and not expr.startswith('${'):
+        new_expr = f'$({expr})'
+        result, success = ExpressionParser(context).parse(new_expr)
+
+        # is expression
+        if success:
+            return result, True
+        # not expression
+        else:
+            return expr, True
+    
+    # has '$' wrapping 
+    else:
+        result, success = ExpressionParser(context).parse(expr)
+
+        # successful parse
+        if success:
+            return result, True
+        
+        # unsuccessful parse
+        # expr already has token
+        loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool_uuid)
+        token = get_token_for_expr(expr, loglines)
+        if token:
+            return token, False
+        
+        # expr needs new token
+        token = f'__TOKEN{len(loglines) + 1}__'
+        msg = f'{token} = "{expr}"'
+        log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+        return token, False
+
+def get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
+    token_p = r'__TOKEN\d+__'
+    for line in loglines:
+        if re.match(token_p, line.message):
+            token, expr = line.message.split(' = ', 1)
+            if expr.strip('"') == expr:
+                return token
+    return None
 
 class ExpressionParser:
     file_attr_map = {
@@ -60,6 +100,10 @@ class ExpressionParser:
     with open(GRAMMAR_PATH) as fp:
         grammar = fp.read()
     parser = Lark(grammar, start='the_text')
+
+    def __init__(self, context: str) -> None:
+        assert context in ['clt', 'wf']
+        self.context = context 
     
     def parse(self, expr: str) -> Tuple[Any, bool]:
         try:

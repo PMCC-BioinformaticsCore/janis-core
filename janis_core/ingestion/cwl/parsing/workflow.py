@@ -2,7 +2,7 @@
 
 
 from typing import Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from janis_core.workflow.workflow import Workflow, OutputNode, InputNodeSelector, StepNode, InputNode, StepOutputSelector
@@ -12,13 +12,14 @@ from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
 from ..identifiers import remove_output_name_from_output_source
 from ..graph import get_janis_wf_sources
+from ..expressions import parse_expression
 
 from janis_core import settings
 from janis_core.types import File
-from janis_core.messages import log_warning
+from janis_core.messages import log_error
+from janis_core.messages import ErrorCategory
 
 parsing_error_count = 0
-
 
 
 @dataclass
@@ -26,11 +27,8 @@ class WorkflowEntityParser(ABC):
     cwl_utils: Any
     entity: Any
     wf: Workflow
+    tool_uuid: str
     success: bool = False
-    uuid: Optional[str] = None
-    error_msgs: list[str] = field(default_factory=list)
-    failure_message: str = ''
-    should_log_messages: bool = True
 
     def parse(self) -> Any:
         # normal mode
@@ -46,16 +44,7 @@ class WorkflowEntityParser(ABC):
             j_entity = self.do_parse()
             self.success = True
         
-        self.log_messages()
         return j_entity
-
-    def log_messages(self) -> None:
-        if self.success == False:
-            self.error_msgs.append(self.failure_message)
-        
-        if self.should_log_messages:
-            for msg in self.error_msgs:
-                log_warning(self.uuid, msg)
 
     @abstractmethod
     def do_parse(self) -> Any:
@@ -71,26 +60,25 @@ class WorkflowEntityParser(ABC):
 class WorkflowInputParser(WorkflowEntityParser):
     """parses a cwl WorkflowInputParameter to add an input to the janis Workflow"""
 
-    failure_message: str = 'error parsing workflow input. returned generic optional File input as fallback'
-
     def fallback(self) -> InputNodeSelector:
+        # log message
+        msg = f'error parsing {get_id_entity(self.entity.id)}. returned generic optional File input as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK, subsection='inputs')
+
+        # fallback
         global parsing_error_count
         parsing_error_count += 1 
         
         identifier = f'unknown_{parsing_error_count}'
         inp = self.wf.input(
             identifier=identifier,
-            datatype=File,
+            datatype=File(optional=True),
         )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = inp.input_node.uuid
         return inp
 
     def do_parse(self) -> InputNodeSelector:
-
         identifier = get_id_entity(self.entity.id)
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
-        self.error_msgs += error_msgs
+        dtype = ingest_cwl_type(self.entity.type, self.cwl_utils, self.entity, self.tool_uuid, secondaries=self.entity.secondaryFiles)
         
         inp = self.wf.input(
             identifier=identifier,
@@ -98,38 +86,31 @@ class WorkflowInputParser(WorkflowEntityParser):
             default=self.entity.default,
             doc=self.entity.doc,
         )
-        # this must be set for error messages to be associated with this workflow input
-        self.uuid = inp.input_node.uuid
         return inp
-
 
 
 @dataclass
 class WorkflowOutputParser(WorkflowEntityParser):
     """parses a cwl WorkflowInputParameter to add an input to the janis Workflow"""
 
-    failure_message: str = "error parsing workflow output. \
-                            created a generic File workflow output as fallback. \
-                            created a generic File workflow input as the fallback's data source."
-
     def fallback(self) -> OutputNode:
+        # log message
+        msg = f'error parsing {get_id_entity(self.entity.id)}. returned generic File output (and corresponding input) as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK, subsection='outputs')
+        
+        # fallback
         global parsing_error_count
         parsing_error_count += 1
-        
         identifier = f'unknown_{parsing_error_count}'
-
         inp = self.wf.input(
             identifier,
             datatype=File,
         )
-
         out = self.wf.output(
             identifier=identifier,
             datatype=File,
             source=inp
         )
-        # this must be set for error messages to be associated with this workflow output
-        self.uuid = out.uuid
         return out
 
     def do_parse(self) -> OutputNode: 
@@ -146,16 +127,13 @@ class WorkflowOutputParser(WorkflowEntityParser):
         else:
             source = janis_sources
 
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
-        self.error_msgs += error_msgs
+        dtype = ingest_cwl_type(self.entity.type, self.cwl_utils, self.entity, self.tool_uuid, secondaries=self.entity.secondaryFiles)
 
         out = self.wf.output(
             identifier=out_identifier,
             datatype=dtype,
             source=source,
         )
-        # this must be set for error messages to be associated with this workflow output
-        self.uuid = out.uuid
         return out
     
 
@@ -163,69 +141,62 @@ class WorkflowOutputParser(WorkflowEntityParser):
 @dataclass
 class WorkflowStepInputsParser(WorkflowEntityParser):
 
-    failure_message: str = "error parsing task invocation inputs. \
-                            task invocation will have no inputs as fallback. "
-
     def fallback(self) -> dict[str, Any]:
+        # log message
         step_identifier = get_id_entity(self.entity.id)
         jstep = self.wf.step_nodes[step_identifier]
-        # this must be set for error messages to be associated with this workflow output
-        self.uuid = jstep.uuid
+        msg = f"error parsing step inputs"
+        log_error(self.tool_uuid, msg, ErrorCategory.PLUMBING, subsection=f'step:{jstep.id()}')
+        
+        # fallback
         return {}
 
     def do_parse(self) -> dict[str, Any]: 
         step_identifier = get_id_entity(self.entity.id)
         jstep = self.wf.step_nodes[step_identifier]
 
-        # this must be set for error messages to be associated with this workflow output
-        self.uuid = jstep.uuid
-        
-        valid_step_inputs = self.get_valid_step_inputs(self.entity, jstep)
+        # valid_step_inputs = self.get_valid_step_inputs(self.entity, jstep)
 
         inputs_dict = {}
-        for inp in valid_step_inputs:
+        for inp in self.entity.in_:
             inp_identifier = get_id_entity(inp.id)
-            parser = WorkflowStepInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=self.wf)
+            parser = WorkflowStepInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=self.wf, tool_uuid=self.wf.uuid)
+            parser.step_name = jstep.id()
             source = parser.parse()
-            if source is not None:
-                inputs_dict[inp_identifier] = source
-            else:
-                raise Exception("should this be checked?")
-                print()
-            # collect error messages from step inputs, log them as errors parsing this step instead
-            self.error_msgs += parser.error_msgs  
+            inputs_dict[inp_identifier] = source
 
         return inputs_dict
 
-    def get_valid_step_inputs(self, cwlstp: Any, jstep: StepNode) -> list[Any]:
-        return [x for x in cwlstp.in_ if self.is_valid_step_input(x, jstep)]
+    # this may have been a mistake to comment out
+    # def get_valid_step_inputs(self, cwlstp: Any, jstep: StepNode) -> list[Any]:
+    #     return [x for x in cwlstp.in_ if self.is_valid_step_input(x, jstep)]
 
-    def is_valid_step_input(self, inp: Any, jstep: StepNode) -> bool:
-        inp_identifier = get_id_entity(inp.id)
-        if inp_identifier in jstep.tool.inputs_map():
-            return True
-        else:
-            msg = f'{jstep.tool.id()} task has no input named "{inp_identifier}". Ignored as fallback.'
-            self.error_msgs.append(msg)
-            return False
+    # def is_valid_step_input(self, inp: Any, jstep: StepNode) -> bool:
+    #     inp_identifier = get_id_entity(inp.id)
+    #     if inp_identifier in jstep.tool.inputs_map():
+    #         return True
+    #     else:
+    #         raise RuntimeError
+    #         # msg = f'{jstep.tool.id()} task has no input named "{inp_identifier}". Ignored as fallback.'
+    #         # self.error_msgs.append(msg)
+    #         # return False
         
     
 
 @dataclass
 class WorkflowStepInputParser(WorkflowEntityParser):
+    step_name: str = ''
 
-    failure_message: str = ''
-    should_log_messages: bool = False
-    
     def fallback(self) -> Optional[InputNode | StepOutputSelector]:
+        # log message
         identifier = get_id_entity(self.entity.id)
-        self.failure_message = f"error parsing data source for '{identifier}'. Ignored as fallback. "
+        msg = f"error parsing data source for '{identifier}'. Returned None as fallback."
+        log_error(self.tool_uuid, msg, ErrorCategory.PLUMBING, subsection=f'step:{self.step_name}')
+        
+        # fallback
         return None
 
     def do_parse(self) -> Optional[InputNode | StepOutputSelector]: 
-        identifier = get_id_entity(self.entity.id)
-        self.failure_message = f"error parsing data source for '{identifier}'. Ignored as fallback. "
-        
         source = self.resolve_source()
         value_from = self.resolve_value_from(source)
         
@@ -250,6 +221,8 @@ class WorkflowStepInputParser(WorkflowEntityParser):
     def resolve_source(self) -> Any:
         inp = self.entity
         source = None
+        # TODO HERE 
+        raise NotImplementedError
         if inp.source is not None:
             sources = get_janis_wf_sources(self.wf, inp.source)
             if len(sources) == 1:
@@ -287,15 +260,33 @@ class WorkflowStepInputParser(WorkflowEntityParser):
     
 
 @dataclass
-class WorkflowStepScatterParser(WorkflowEntityParser):
+class WorkflowStepAttributesParser(WorkflowEntityParser):
     """parses janis step to return a ScatterDescription."""
 
-    failure_message: str = 'error parsing task parallelisation. ignored parallelisation as fallback'
-    
-    def fallback(self) -> Optional[ScatterDescription]:
+    scatter: Optional[ScatterDescription] = None
+    when: Optional[Any] = None
+
+    def fallback(self) -> None:
+        # log message
+        step_identifier = get_id_entity(self.entity.id)
+        jstep = self.wf.step_nodes[step_identifier]
+        msg = 'error parsing step modifiers (scatter | conditional execution). ignored as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.PLUMBING, subsection=f'step:{jstep.id()}')
+        
+        # fallback
         return None
 
-    def do_parse(self) -> Optional[ScatterDescription]:
+    def do_parse(self) -> None:
+        self.scatter = self.parse_scatter()
+        self.when = self.parse_when()
+
+    def parse_when(self) -> Any:
+        if hasattr(self.entity, 'when') and self.entity.when is not None:
+            res, success = parse_expression(self.entity.when, self.tool_uuid)
+            return res
+        return None
+
+    def parse_scatter(self) -> Optional[ScatterDescription]:
         scatter = None
 
         if self.entity.scatter:
@@ -315,6 +306,9 @@ class WorkflowStepScatterParser(WorkflowEntityParser):
         return scatter
         
     def ingest_scatter_method(self, scatter_method: Optional[str]) -> Optional[ScatterMethod]:
+        step_identifier = get_id_entity(self.entity.id)
+        jstep = self.wf.step_nodes[step_identifier]
+
         if scatter_method is None or scatter_method == "":
             return None
         
@@ -323,10 +317,7 @@ class WorkflowStepScatterParser(WorkflowEntityParser):
         
         elif scatter_method == "nested_crossproduct":
             msg = 'task parallelisation method was nested crossproduct, but Janis only supports flat crossproduct. Used flat crossproduct as fallback.'
-            self.error_msgs.append(msg)
-            # j.Logger.warn(
-            #     "Requesting nested_crossproduct, but Janis only supports flat_crossproduct. Will fallback to flat_crossproduct"
-            # )
+            log_error(self.tool_uuid, msg, ErrorCategory.PLUMBING, subsection=f'step:{jstep.id()}')
             return ScatterMethod.cross
         
         elif scatter_method == "flat_crossproduct":
@@ -334,4 +325,4 @@ class WorkflowStepScatterParser(WorkflowEntityParser):
         
         else:
             msg = f"Unsupported scatter method '{scatter_method}'. Used flat crossproduct as fallback."
-            self.error_msgs.append(msg)
+            log_error(self.tool_uuid, msg, ErrorCategory.PLUMBING, subsection=f'step:{jstep.id()}')

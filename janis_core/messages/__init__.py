@@ -1,13 +1,15 @@
 
 
-# logging
-from .main import ErrorCategory
+# objects
+from .enums import ErrorCategory
+from .logfile import LogFile
+from .logfile import LogLine
+
+# functions
 from .main import configure_logging
 from .main import info_ingesting_tool
 from .main import info_ingesting_workflow
-
-# messages
 from .main import log_info
 from .main import log_warning
 from .main import log_error
-from .main import get_messages
+from .main import load_loglines

@@ -2,15 +2,15 @@
 import re 
 import copy
 from typing import Any, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from functools import cached_property
 
-from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, InputSelector
+from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, Selector
 from janis_core.types import File, Stdout, Stderr, Directory, DataType
 from janis_core import settings
-from janis_core.messages import log_warning
-from janis_core import translation_utils as utils
+from janis_core.messages import log_error
+from janis_core.messages import ErrorCategory
 
 from ..types import ingest_cwl_type
 from ..identifiers import get_id_entity
@@ -19,15 +19,12 @@ from ..expressions import parse_expression
 
 
 @dataclass
-class CLTEntityParser(ABC):
+class CLTParser:
     cwl_utils: Any
     clt: Any
     entity: Any
     is_expression_tool: bool = False
     success: bool = False
-    uuid: Optional[str] = None
-    error_msgs: list[str] = field(default_factory=list)
-    failure_message: str = ''
 
     def parse(self) -> Any:
         # normal mode
@@ -43,15 +40,229 @@ class CLTEntityParser(ABC):
             j_entity = self.do_parse()
             self.success = True
         
-        self.log_messages()
         return j_entity
 
-    def log_messages(self) -> None:
-        if self.success == False:
-            self.error_msgs.append(self.failure_message)
+    def fallback(self) -> CommandTool:
+        # inputs, arguments, outputs, requirements have fallbacks. 
+        # error must have occured with other clt fields (io streams, base command, doc etc). 
         
-        for msg in self.error_msgs:
-            log_warning(self.uuid, msg)
+        identifier = get_id_filename(self.entity.id) # this does not have a fallback. really hope no errors here :/
+        jtool = CommandToolBuilder(
+            tool=identifier,
+            base_command=self.entity.baseCommand,
+            inputs=[],
+            outputs=[],
+            arguments=[],
+            version="v0.1.0",
+            doc=None,
+            friendly_name=None,
+            container="ubuntu:latest"
+        )
+        # this must be set for error messages to be associated with this entity
+        self.tool_uuid = jtool.uuid
+
+        # log message
+        msg = 'error parsing tool. returned minimal tool definition as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+
+        inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
+        outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
+        arguments = [self.ingest_command_tool_argument(arg) for arg in (self.entity.arguments or [])]
+        
+        inputs = [inp for inp in inputs if inp is not None]
+        outputs = [out for out in outputs if out is not None]
+        arguments = [arg for arg in arguments if arg is not None]
+
+        jtool._inputs = inputs
+        jtool._outputs = outputs
+        jtool._arguments = arguments
+    
+        # requirements
+        req_parser = CLTRequirementsParser(
+            cwl_utils=self.cwl_utils,
+            clt=self.clt,
+            entity=self.entity, 
+            tool_uuid=self.tool_uuid, 
+            is_expression_tool=self.is_expression_tool
+        )
+        reqs = req_parser.parse()
+        
+        jtool._directories_to_create = reqs['directories_to_create'] or None # type: ignore
+        jtool._files_to_create = reqs['files_to_create'] or None # type: ignore
+        jtool._env_vars = reqs['env_vars'] or None # type: ignore
+        jtool._container = reqs['container']
+        jtool._memory = reqs['memory']
+        jtool._cpus = reqs['cpus']
+        jtool._time = reqs['time']
+        return jtool
+
+    def do_parse(self) -> CommandTool:
+        identifier = get_id_filename(self.entity.id)
+        jtool = CommandToolBuilder(
+            tool=identifier,
+            base_command=self.entity.baseCommand,
+            inputs=[],
+            outputs=[],
+            arguments=[],
+            version="v0.1.0",
+            doc=self.entity.doc,
+            friendly_name=self.entity.label,
+            container="ubuntu:latest"
+        )
+        # this must be set for error messages to be associated with this entity
+        self.tool_uuid = jtool.uuid
+
+        inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
+        outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
+        arguments = [self.ingest_command_tool_argument(arg) for arg in (self.entity.arguments or [])]
+        
+        inputs = [inp for inp in inputs if inp is not None]
+        outputs = [out for out in outputs if out is not None]
+        arguments = [arg for arg in arguments if arg is not None]
+
+        jtool._inputs = inputs
+        jtool._outputs = outputs
+        jtool._arguments = arguments
+
+        if self.is_expression_tool:
+            # ToolInput for script file, staging under correct name
+            # ToolArgument to correctly supply inputs as argv to script
+            # TODO HERE
+            raise NotImplementedError
+
+        # arguments & selector patterns for io stream names
+        # addresses cwl stdin: stdout: stderr: file naming
+        jtool._arguments += self.ingest_io_streams(self.entity, jtool)
+        
+        # requirements
+        req_parser = CLTRequirementsParser(
+            cwl_utils=self.cwl_utils, 
+            clt=self.clt,
+            entity=self.entity, 
+            tool_uuid=self.tool_uuid, 
+            is_expression_tool=self.is_expression_tool
+        )
+        requirements = req_parser.parse()
+        
+        jtool._directories_to_create = requirements['directories_to_create'] or None # type: ignore
+        jtool._files_to_create = requirements['files_to_create'] or None # type: ignore
+        jtool._env_vars = requirements['env_vars'] or None # type: ignore
+        jtool._container = requirements['container']
+        jtool._memory = requirements['memory']
+        jtool._cpus = requirements['cpus']
+        jtool._time = requirements['time']
+        return jtool
+    
+    def ingest_command_tool_argument(self, arg: Any) -> Optional[ToolArgument]:
+        parser = CLTArgumentParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=arg, tool_uuid=self.tool_uuid)
+        return parser.parse()
+
+    def ingest_command_tool_input(self, inp: Any) -> Optional[ToolInput]:
+        parser = CLTInputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=inp, tool_uuid=self.tool_uuid)
+        return parser.parse()
+        
+    def ingest_command_tool_output(self, out: Any, is_expression_tool: bool=False) -> ToolOutput:  
+        parser = CLTOutputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=out, tool_uuid=self.tool_uuid)
+        return parser.parse()
+    
+    def ingest_io_streams(self, entity: Any, jtool: CommandTool) -> list[ToolArgument]:
+        out: list[ToolArgument] = []
+
+        # n = last position for clt inputs / arguments
+        n = self.get_last_input_position(jtool)
+        
+        # stderr: n + 1
+        if entity.stderr:
+            filename, success = parse_expression(entity.stderr, self.tool_uuid)
+            # if not success:
+            #     msg = 'error parsing tool. returned minimal tool definition as fallback'
+            #     log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+            #     filename = 'stderr.txt'
+            #     self.error_msgs.append('untranslated javascript expression in stderr filename. used stderr.txt as fallback')
+            arg = ToolArgument(prefix='2>', value=filename, position=n + 1)
+            out.append(arg)
+            self.apply_collection_to_stderr_types(filename, jtool)
+        
+        elif self.clt_has_stderr_outputs(entity):
+            filename = 'stderr.txt'
+            arg = ToolArgument(prefix='2>', value=filename, position=n + 1)
+            out.append(arg)
+            self.apply_collection_to_stderr_types(filename, jtool)
+        
+        # stdout: n + 2
+        if entity.stdout:
+            filename, success = parse_expression(entity.stdout, self.tool_uuid)
+            # if not success:
+            #     filename = 'stdout.txt'
+            #     self.error_msgs.append('untranslated javascript expression in stdout filename. used stdout.txt as fallback')
+            arg = ToolArgument(prefix='>', value=filename, position=n + 2)
+            out.append(arg)
+            self.apply_collection_to_stdout_types(filename, jtool)
+        
+        # stdin: n + 3
+        if entity.stdin:
+            filename, success = parse_expression(entity.stdin, self.tool_uuid)
+            # if not success:
+            #     self.error_msgs.append('untranslated javascript expression in stdin filename')
+            arg = ToolArgument(prefix='<', value=filename, position=n + 3)
+            out.append(arg)
+
+        return out
+    
+    def clt_has_stderr_outputs(self, entity: Any) -> bool:
+        clt = entity
+        for out in clt.outputs:
+            dtype = ingest_cwl_type(out.type, self.cwl_utils, out, self.tool_uuid, secondaries=out.secondaryFiles)
+            # self.error_msgs += error_msgs
+            if isinstance(dtype, Stderr):
+                return True
+        return False
+    
+    def apply_collection_to_stderr_types(self, filename: str, jtool: CommandTool) -> None: 
+        for out in jtool.outputs():
+            if isinstance(out.output_type, Stderr):
+                out.selector = WildcardSelector(filename)
+    
+    def apply_collection_to_stdout_types(self, filename: str, jtool: CommandTool) -> None: 
+        for out in jtool.outputs():
+            if isinstance(out.output_type, Stdout):
+                out.selector = WildcardSelector(filename)
+
+    def get_last_input_position(self, jtool: CommandTool) -> int:
+        max_pos = 0
+        inputs: list[ToolInput | ToolArgument] = copy.deepcopy(jtool.inputs())
+        if jtool.arguments():
+            inputs += copy.deepcopy(jtool.arguments())
+        for inp in inputs:
+            if inp.position and inp.position > max_pos:
+                max_pos = inp.position
+        return max_pos
+    
+
+@dataclass
+class CLTEntityParser(ABC):
+    cwl_utils: Any
+    clt: Any
+    entity: Any
+    tool_uuid: str
+    is_expression_tool: bool = False
+    success: bool = False
+
+    def parse(self) -> Any:
+        # normal mode
+        if settings.ingest.SAFE_MODE:
+            try:
+                j_entity = self.do_parse()
+                self.success = True
+            except Exception:
+                j_entity = self.fallback()
+        
+        # dev mode
+        else:
+            j_entity = self.do_parse()
+            self.success = True
+        
+        return j_entity
 
     @abstractmethod
     def do_parse(self) -> Any:
@@ -62,11 +273,15 @@ class CLTEntityParser(ABC):
         ...
 
 
-
 @dataclass
 class CLTRequirementsParser(CLTEntityParser):
 
     def fallback(self) -> dict[str, Any]:
+        # log message
+        msg = 'error parsing tool requirements. ignored requirements as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+
+        # fallback
         return {
             'container': None,
             'memory': None,
@@ -113,24 +328,27 @@ class CLTRequirementsParser(CLTEntityParser):
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
                 # maybe convert mebibytes to megabytes?
-                return parse_expression(req.ramMin or req.ramMax, self.entity)
+                res, success = parse_expression(req.ramMin or req.ramMax, self.tool_uuid)
+                return res
         return None
     
     def get_cpus(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
-                return parse_expression(req.coresMin, self.entity)
+                res, success = parse_expression(req.coresMin, self.tool_uuid)
+                return res
         return None
 
     def get_time(self, requirements: list[Any]) -> Optional[int]:
         for req in requirements:
             if hasattr(req, 'timelimit') and isinstance(req, self.cwl_utils.ToolTimeLimit):
-                return parse_expression(req.timelimit, self.entity)
+                res, success = parse_expression(req.timelimit, self.tool_uuid)
+                return res
         return None
     
-    def get_files_directories_to_create(self, requirements: list[Any]) -> Tuple[dict[str, Any], list[str | InputSelector]]:
+    def get_files_directories_to_create(self, requirements: list[Any]) -> Tuple[dict[str, Any], list[str | Selector]]:
         files_to_create: dict[str, Any] = {}
-        directories_to_create: list[str | InputSelector] = []
+        directories_to_create: list[str | Selector] = []
 
         for req in requirements:
             if isinstance(req, self.cwl_utils.InitialWorkDirRequirement):
@@ -141,15 +359,12 @@ class CLTRequirementsParser(CLTEntityParser):
                     listing = req.listing
                 
                 for item in listing:
-                    parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item, is_expression_tool=self.is_expression_tool)
+                    parser = InitialWorkDirRequirementParser(cwl_utils=self.cwl_utils, clt=self.entity, req=item, tool_uuid=self.tool_uuid, is_expression_tool=self.is_expression_tool)
                     parser.parse()
-                    self.error_msgs += parser.error_msgs
-                    if parser.file_to_create is not None:
-                        name, value = parser.file_to_create
-                        files_to_create[name] = value
-                    if parser.directory_to_create is not None:
-                        value = parser.directory_to_create
-                        directories_to_create.append(value)
+                    for fname, fcontents in parser.files_to_create:
+                        files_to_create[fname] = fcontents
+                    for dname in parser.directories_to_create:
+                        directories_to_create.append(dname)
         
         return files_to_create, directories_to_create
     
@@ -159,34 +374,67 @@ class CLTRequirementsParser(CLTEntityParser):
         for req in requirements:
             if isinstance(req, self.cwl_utils.EnvVarRequirement):
                 for envdef in req.envDef:
-                    name = parse_expression(envdef.envName, self.entity)
-                    entry = parse_expression(envdef.envValue, self.entity)
+                    name, success = parse_expression(envdef.envName, self.tool_uuid)
+                    entry, success = parse_expression(envdef.envValue, self.tool_uuid)
                     out[name] = entry
         return out
 
 
 class InitialWorkDirRequirementParser:
-
-    def __init__(self, cwl_utils: Any, clt: Any, req: Any, is_expression_tool: bool=False) -> None:
+    """
+    extracts files / directories to create from single InitialWorkDirRequirement entry
+    requirement types: File | Directory | Dirent | string | Expression
+    """
+    def __init__(self, cwl_utils: Any, clt: Any, req: Any, tool_uuid: str, is_expression_tool: bool=False) -> None:
         self.cwl_utils = cwl_utils
         self.clt = clt
         self.req = req
+        self.tool_uuid = tool_uuid
         self.is_expression_tool = is_expression_tool
 
-        # resolving value
-        self.r_value, self.r_value_ok = parse_expression(self.value, self.clt)
-        
-        # resolving name
+        # resolving value, name
+        self.r_value, self.r_value_ok = parse_expression(self.value, self.tool_uuid)
         if self.name is not None:
-            self.r_name, self.r_name_ok = parse_expression(self.name, self.clt)
+            self.r_name, self.r_name_ok = parse_expression(self.name, self.tool_uuid)
         else:
             self.r_name, self.r_name_ok = None, True
         
         # want to calculate these fields
-        file_to_create: Optional[Tuple[str, str | InputSelector]] = None
-        directory_to_create: Optional[str | InputSelector] = None
+        self.error_msgs: list[str] = []
+        self.files_to_create: list[Tuple[str, str | Selector]] = []
+        self.directories_to_create: list[str | Selector] = []
 
-        "File | Directory | Dirent | string | Expression"
+    def parse(self) -> None:
+        # normal mode
+        if settings.ingest.SAFE_MODE:
+            try:
+                j_entity = self.do_parse()
+            except Exception:
+                j_entity = self.fallback()
+        # dev mode
+        else:
+            j_entity = self.do_parse()
+        return j_entity
+    
+    def fallback(self) -> None:
+        msg = 'error parsing InitialWorkDirRequirement. ignored as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        self.files_to_create = [] 
+        self.directories_to_create = [] 
+
+    def do_parse(self) -> None:
+        success = False
+        parsers = [
+            self.parse_as_textfile,
+            self.parse_as_selector,
+            self.parse_as_object,
+            self.parse_as_directory_path,
+        ]
+        for parser in parsers:
+            success = parser()
+            if success:
+                return None
+        raise RuntimeError
 
     @cached_property
     def name(self) -> Optional[str]:
@@ -194,556 +442,154 @@ class InitialWorkDirRequirementParser:
         if isinstance(self.req, self.cwl_utils.Dirent):
             name = self.req.entryname
         return name
-
+    
     @cached_property
     def value(self) -> str:
-        if isinstance(self.req, str):
-            text: str = self.req
-        elif isinstance(self.req, self.cwl_utils.Dirent):
+        if isinstance(self.req, self.cwl_utils.Dirent):
             text: str = self.req.entry
+        elif isinstance(self.req, str):
+            text: str = self.req
         else:
             raise NotImplementedError
         return text
-    
-    @cached_property
-    def is_dirent(self) -> bool:
-        if isinstance(self.req, self.cwl_utils.Dirent):
+        
+    def extract_input_type(self, sel: Selector) -> Optional[str]:
+        pattern = r'inputs\.([a-zA-Z0-9_]+)'
+        template = str(sel)
+        match = re.match(pattern, template)
+        if match:
+            input_name = match.group(1)
+            for inp in self.clt.inputs:
+                name = get_id_entity(inp.id)
+                if name == input_name:
+                    dtype = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, cwl_entity=inp, tool_uuid=self.tool_uuid, secondaries=inp.secondaryFiles)
+                    if isinstance(dtype, Directory):
+                        return 'dir'
+                    else:
+                        return 'file'
+        return None
+
+    def looks_like_expr(self, text: str) -> bool:
+        if text.startswith('$(') or text.startswith('${'):
+            return True
+        pattern = r'^inputs\.([a-zA-Z0-9_]+)'
+        match = re.match(pattern, text)
+        if match:
             return True
         return False
     
-    @cached_property
-    def is_file(self) -> bool:
-        if isinstance(self.req, str):
-            FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
-            if re.search(FILE_CLASS_MATCHER, self.value):
-                return True
-        return False
-    
-    @cached_property
-    def is_directory(self) -> bool:
-        if isinstance(self.req, str):
-            DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
-            if re.search(DIRECTORY_CLASS_MATCHER, self.value):
-                return True
-        return False
+    def parse_as_textfile(self) -> bool:
+        fname_pattern = r'[a-zA-Z0-9_-]+\.(sh|py|r|R|rscript|Rscript|bash|txt|config|csv|tsv|json|yml|yaml|xml|html)'
+        # must be dirent
+        if not isinstance(self.req, self.cwl_utils.Dirent):
+            return False
         
-    @cached_property
-    def is_expression(self) -> bool:
-        if isinstance(self.req, str):
-            if self.value.startswith('$(') or self.value.startswith('${'):
-                return True
-        return False
-    
-    @cached_property
-    def is_string(self) -> bool:
-        if isinstance(self.req, str):
-            if not self.is_expression:
-                return True
-        return False
-
-
-        "File | Directory | Dirent | string | Expression"
-        # Expression
-        if isinstance(self.req, str) and self.r_value_ok:
-            return 'Expression'
+        # resolved entry and entryname must be strings
+        if not isinstance(self.r_value, str) or not isinstance(self.r_name, str):
+            return False
         
-        # File object
-        elif isinstance(self.req, str):
-            FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
-            if re.search(FILE_CLASS_MATCHER, self.value):
-                return 'File'
+        # entryname and entry must be strings
+        if self.looks_like_expr(self.req.entryname):
+            return False
+        if self.looks_like_expr(self.req.entry):
+            return False
         
-        # Directory object
-        elif isinstance(self.req, str):
-            DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
-            if re.search(DIRECTORY_CLASS_MATCHER, self.value):
-                return 'Directory'
-
-
-            if self.r_value_ok:
-                if isinstance(self.r_value, InputSelector):
-                    return 'File'
-            return 'string'
-        elif isinstance(self.req, self.cwl_utils.Dirent):
-            return 'Dirent'
-        else:
-            raise NotImplementedError
+        # entryname must match a typical script file
+        match = re.match(fname_pattern, self.req.entryname)
+        if not match:
+            return False
         
-
-    @cached_property
-    def get_file(self) -> Tuple[Any, bool]:
-        # Resolved Expression: InputSelector (File)
-        if self.r_value_ok:
-            if 
-
-        # Unresolved Expression
-        FILE_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]File[\'"]')
-        if re.search(FILE_CLASS_MATCHER, self.value):
-            pass
-
-        # Dirent
+        # entry must have multiple lines 
+        if '\n' not in self.req.entry:
+            return False 
         
-
-        # string
-
-    """
-    InitialWorkDirRequirement:
-      listing:
-        - entry: inputs.genome_folder
-          writable: true
-    
-    InitialWorkDirRequirement:
-      listing:
-        - entry: $(inputs.sequences)  
-
-    InitialWorkDirRequirement:
-      listing:
-        - entry: inputs.input_file
-          entryname: inputs.input_file.basename
-          writable: true
-
-    InitialWorkDirRequirement:
-      listing:
-        - $(inputs.reference_index)
-        - $(inputs.reference_fasta)
-        - $(inputs.reads_index)
-    
-    InitialWorkDirRequirement:
-      listing: [ $(inputs.sequences) ]
-
-    InitialWorkDirRequirement:
-      listing:
-        - entryname: param_file.txt
-          entry: |-
-            PeakListPath = $(inputs.PeakList.path)
-            IonizedPrecursorMass =  $(inputs.IonizedPrecursorMass)
-
-    InitialWorkDirRequirement:
-      listing: |
-        ${ return [ { "class": "Directory",
-                    "listing": inputs.bins,
-                    "basename": "jsons" } ]; }
-
-    InitialWorkDirRequirement:
-      listing: |
-        ${
-          var entry = "library_id,molecule_h5\n"
-          for (var i=0; i < inputs.molecule_info_h5.length; i++){
-            entry += get_label(i) + "," + inputs.molecule_info_h5[i].path + "\n"
-          }
-          return [{
-            "entry": entry,
-            "entryname": "metadata.csv"
-          }];
-        }
-    """
-
-
-    @cached_property
-    def entry_type(self) -> str:
-        if isinstance(self.req, str):
-            return 'string'
-        elif isinstance(self.req, self.cwl_utils.Dirent):
-            return 'Dirent'
-        else:
-            raise NotImplementedError
-
-    @cached_property
-    def get_directory(self) -> Tuple[Any, bool]:
-        DIRECTORY_CLASS_MATCHER = re.compile(r'[\'"]?class[\'"]?:.*?[\'"]Directory[\'"]')
-        if re.search(DIRECTORY_CLASS_MATCHER, self.value):
-            pass
-
-        # InputSelector -> Directory
-        # Expression
-        # string
-        # Dirent
+        # looks like script. do parse. 
+        self.files_to_create.append((self.req.entryname, self.req.entry))
         return True
     
-
-    # @property
-    # def is_probably_file(self) -> bool:
-    #     if self.r_value_ok:
-    #         if 
-    #     if self.value.startswith('$(') or self.value.startswith('${'):
-    #         if re.search(self.FILE_CLASS_MATCHER, self.value):
-    #             return True
-    #         else:
-    #             res = parse_expression(self.value, self.clt)
-    #             # successfully parsed requirement value into janis?
-    #             if isinstance(res, InputSelector):
-    #                 for inp in self.clt.inputs:
-    #                     name = get_id_entity(inp.id)
-    #                     dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
-    #                     self.error_msgs += error_msgs
-    #                     basetype = utils.get_base_type(dtype)
-    #                     if name == res.input_to_select and isinstance(basetype, File):
-    #                         return True
-    #     return False
-    
-    # @property
-    # def is_probably_directory(self) -> bool:
-    #     if self.value.startswith('$(') or self.value.startswith('${'):
-    #         if re.search(self.DIRECTORY_CLASS_MATCHER, self.value):
-    #             return True
-    #         else:
-    #             res = parse_expression(self.value, self.clt)
-    #             # successfully parsed requirement value into janis
-    #             if isinstance(res, InputSelector):
-    #                 for inp in self.clt.inputs:
-    #                     name = get_id_entity(inp.id)
-    #                     dtype, error_msgs = ingest_cwl_type(inp.type, cwl_utils=self.cwl_utils, secondaries=inp.secondaryFiles)
-    #                     self.error_msgs += error_msgs
-    #                     basetype = utils.get_base_type(dtype)
-    #                     if name == res.input_to_select and isinstance(basetype, Directory):
-    #                         return True
-    #     return False
-    
-    # @property
-    # def value_is_resolvable(self) -> bool:
-    #     _, success = parse_expression(self.value)
-    #     if success:
-    #         return True
-    #     return False   
-    
-    # @property
-    # def name_is_resolvable(self) -> bool:
-    #     if self.name:
-    #         _, success = parse_expression(self.name)
-    #         if success:
-    #             return True
-    #     return False
-    
-    # @property 
-    # def name_has_expression(self) -> bool:
-    #     if self.name:
-    #         if self.name.startswith('$(') or self.name.startswith('${'):
-    #             return True
-    #     return False
-
-    def parse(self) -> None:
-        if self.is_file and self.is_directory:
-            raise RuntimeError
+    def parse_as_selector(self) -> bool:
+        # name and value must be resolvable
+        if not self.r_name_ok or not self.r_value_ok:
+            return False
         
-        if self.is_file:
-
+        # resolved value must be a Selector
+        if not isinstance(self.r_value, Selector):
+            return False
         
-        # error handling for names generated using expression
-        if self.name_has_expression and self.is_probably_file:
-            msg = f'file required for runtime generates name using cwl / js: <js>{self.name}</js>. please address'
-            self.error_msgs.append(msg)
-        elif self.name_has_expression and self.is_probably_directory:
-            msg = f'directory required for runtime generates name using cwl / js: <js>{self.name}</js>. please address'
-            self.error_msgs.append(msg)
-
-        # Expression
-        if isinstance(self.req, str):
-            self.file_to_create = self.get_files_to_create_from_str()
-            self.directory_to_create = self.get_directories_to_create_from_str()
+        # resolved value must map to input
+        input_type = self.extract_input_type(self.r_value)
+        if input_type is None:
+            return False 
         
-        # Dirent
-        elif isinstance(self.req, self.cwl_utils.Dirent):
-            self.file_to_create = self.get_files_to_create_from_dirent()
-            self.directory_to_create = self.get_directories_to_create_from_dirent()
-
-        elif isinstance(self.req, dict):
-            raise NotImplementedError
-
+        # file with entryname
+        if input_type == 'file' and self.r_name is not None:
+            self.files_to_create.append((str(self.r_name), self.r_value))
+            return True 
+        
+        # file
+        elif input_type == 'file':
+            self.files_to_create.append((str(self.r_value), self.r_value))
+            return True 
+        
+        # directory
         else:
-            raise NotImplementedError
-        
-    def get_files_to_create_from_str(self) -> Optional[Tuple[str, str | InputSelector]]:
-        # value is expression
-        if self.value.startswith('$(') or self.value.startswith('${'):
-            if self.value_is_resolvable and self.is_probably_file:
-                # most likely just specifying the file needs to be staged. do nothing for now.
-                pass
-            elif self.is_probably_file:
-                # TODO error message
-                pass
-        
-        # value is string
-        else:
-            raise NotImplementedError
-
-    def get_files_to_create_from_dirent(self) -> Optional[Tuple[str, str | InputSelector]]:
-        # most likely just specifying the file / directory needs to be staged. do nothing for now.
-        if self.value.startswith('$('):
-            pass
-
-        # js code to generate required file
-        elif self.value.startswith('${'):
-            msg = f'{self.name}: js code to dynamically create runtime file. please address'
-            self.error_msgs.append(msg)
-            if not self.name:
-                raise NotImplementedError
-            return (self.name, self.value)
-
-        else:
-            assert(isinstance(self.name, str))
-            # the .js code script to run
-            if self.is_expression_tool:
-                if not self.name:
-                    raise NotImplementedError
-                modified_js = self.modify_js(self.value)
-                return (self.name, modified_js)
-            else:
-                # either a static script, or a script to template at runtime
-                # script to template at runtime
-                if '$(inputs.' in self.value:
-                    msg = f'likely untranslated cwl / js in script: {self.name}'
-                    self.error_msgs.append(msg)
-                    if not self.name:
-                        raise NotImplementedError
-                    return (self.name, self.value)
-                # static script
-                else:
-                    if not self.name:
-                        raise NotImplementedError
-                    return (self.name, self.value)
+            # TODO this is really weird 
+            self.directories_to_create.append(str(self.r_value))
+            return True 
     
-    def modify_js(self, script: str) -> str:
-        text_to_remove = '"use strict";\nvar inputs=$(inputs);\nvar runtime=$(runtime);\n'
-        text_to_substitute = '\nvar inputs = JSON.parse( process.argv[2] );\n\n'
-        assert(text_to_remove in script)
-        script = script.replace(text_to_remove, text_to_substitute)
-        return script
-       
-    def get_directories_to_create_from_str(self) -> Optional[str | InputSelector]:
-        if self.value.startswith('$(') or self.value.startswith('${'):
-            # most likely just specifying the file / directory needs to be staged. do nothing for now.
-            # future: try to detect whether its a file or directory. create directory if directory. 
-            if self.value_is_resolvable and self.is_probably_directory:
-                res, _ = parse_expression(self.value)
-                return res
-
-            elif self.is_probably_directory:
-                msg = f'directory required for runtime generated using cwl / js: <js>{self.value}</js>. please address'
-                self.error_msgs.append(msg)
-        else:
-            # no idea yet. 
-            raise NotImplementedError 
-
-    def get_directories_to_create_from_dirent(self) -> Optional[str | InputSelector]:
-        if self.name and self.value:
-            if self.is_probably_directory:
-                return self.value
-        elif self.value:
-            if self.is_probably_directory:
-                raise NotImplementedError
-        else:
-            raise RuntimeError 
-    
-    
-
-@dataclass
-class CLTParser(CLTEntityParser):
-    
-    failure_message: str = 'error parsing task. returned minimal task definition as fallback'
-
-    def fallback(self) -> CommandTool:
-        # inputs, arguments, outputs, requirements have fallbacks. 
-        # error must have occured with other clt fields (io streams, base command, doc etc). 
-        identifier = get_id_filename(self.entity.id)  # this does not have a fallback. really hope the error isnt here :/
-        inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
-        outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
-        arguments = [self.ingest_command_tool_argument(arg) for arg in (self.entity.arguments or [])]
-
-        inputs = [inp for inp in inputs if inp is not None]
-        arguments = [arg for arg in arguments if arg is not None]
-        
-        jtool = CommandToolBuilder(
-            tool=identifier,
-            base_command=self.entity.baseCommand,
-            inputs=inputs,
-            outputs=outputs,
-            arguments=arguments,
-            version="v0.1.0",
-            doc=None,
-            friendly_name=None,
-            container="ubuntu:latest"
-        )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = jtool.uuid
-    
-        # requirements
-        req_parser = CLTRequirementsParser(
-            cwl_utils=self.cwl_utils,
-            clt=self.clt,
-            entity=self.entity, 
-            uuid=self.uuid, 
-            is_expression_tool=self.is_expression_tool
-        )
-        reqs = req_parser.parse()
-        
-        jtool._directories_to_create = reqs['directories_to_create'] or None
-        jtool._files_to_create = reqs['files_to_create'] or None
-        jtool._env_vars = reqs['env_vars'] or None
-        jtool._container = reqs['container']
-        jtool._memory = reqs['memory']
-        jtool._cpus = reqs['cpus']
-        jtool._time = reqs['time']
-        return jtool
-
-    def do_parse(self) -> CommandTool:
-        # convert yaml datatypes to python datatypes
-
-        identifier = get_id_filename(self.entity.id)
-        inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
-        outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
-        arguments = [self.ingest_command_tool_argument(arg) for arg in (self.entity.arguments or [])]
-
-        jtool = CommandToolBuilder(
-            tool=identifier,
-            base_command=self.entity.baseCommand,
-            inputs=inputs,
-            outputs=outputs,
-            arguments=arguments,
-            version="v0.1.0",
-            doc=self.entity.doc,
-            friendly_name=self.entity.label,
-            container="ubuntu:latest"
-        )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = jtool.uuid
-
-        if self.is_expression_tool:
-            # ToolInput for script file, staging under correct name
-            # ToolArgument to correctly supply inputs as argv to script
-            # TODO HERE
-            pass
-
-        # arguments & selector patterns for io stream names
-        # addresses cwl stdin: stdout: stderr: file naming
-        jtool._arguments += self.ingest_io_streams(self.entity, jtool)
-        
-        # requirements
-        req_parser = CLTRequirementsParser(
-            cwl_utils=self.cwl_utils, 
-            clt=self.clt,
-            entity=self.entity, 
-            uuid=self.uuid, 
-            is_expression_tool=self.is_expression_tool
-        )
-        requirements = req_parser.parse()
-        
-        jtool._directories_to_create = requirements['directories_to_create'] or None
-        jtool._files_to_create = requirements['files_to_create'] or None
-        jtool._env_vars = requirements['env_vars'] or None
-        jtool._container = requirements['container']
-        jtool._memory = requirements['memory']
-        jtool._cpus = requirements['cpus']
-        jtool._time = requirements['time']
-        return jtool
-    
-    def ingest_command_tool_argument(self, arg: Any) -> Optional[ToolArgument]:
-        parser = CLTArgumentParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=arg)
-        return parser.parse()
-
-    def ingest_command_tool_input(self, inp: Any) -> Optional[ToolInput]:
-        parser = CLTInputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=inp)
-        return parser.parse()
-        
-    def ingest_command_tool_output(self, out: Any, is_expression_tool: bool=False) -> ToolOutput:  
-        parser = CLTOutputParser(cwl_utils=self.cwl_utils, clt=self.clt, entity=out)
-        return parser.parse()
-    
-    def ingest_io_streams(self, entity: Any, jtool: CommandTool) -> list[ToolArgument]:
-        out: list[ToolArgument] = []
-
-        # n = last position for clt inputs / arguments
-        n = self.get_last_input_position(jtool)
-        
-        # stderr: n + 1
-        if entity.stderr:
-            filename, success = parse_expression(entity.stderr)
-            if not success:
-                filename = 'stderr.txt'
-                self.error_msgs.append('untranslated javascript expression in stderr filename. used stderr.txt as fallback')
-            arg = ToolArgument(prefix='2>', value=filename, position=n + 1)
-            out.append(arg)
-            self.apply_collection_to_stderr_types(filename, jtool)
-        
-        elif self.clt_has_stderr_outputs(entity):
-            filename = 'stderr.txt'
-            arg = ToolArgument(prefix='2>', value=filename, position=n + 1)
-            out.append(arg)
-            self.apply_collection_to_stderr_types(filename, jtool)
-        
-        # stdout: n + 2
-        if entity.stdout:
-            filename, success = parse_expression(entity.stdout)
-            if not success:
-                filename = 'stdout.txt'
-                self.error_msgs.append('untranslated javascript expression in stdout filename. used stdout.txt as fallback')
-            arg = ToolArgument(prefix='>', value=filename, position=n + 2)
-            out.append(arg)
-            self.apply_collection_to_stdout_types(filename, jtool)
-        
-        # stdin: n + 3
-        if entity.stdin:
-            filename, success = parse_expression(entity.stdin)
-            if not success:
-                self.error_msgs.append('untranslated javascript expression in stdin filename')
-            arg = ToolArgument(prefix='<', value=filename, position=n + 3)
-            out.append(arg)
-
-        return out
-    
-    def clt_has_stderr_outputs(self, entity: Any) -> bool:
-        clt = entity
-        for out in clt.outputs:
-            dtype, error_msgs = ingest_cwl_type(out.type, self.cwl_utils, secondaries=out.secondaryFiles)
-            self.error_msgs += error_msgs
-            if isinstance(dtype, Stderr):
-                return True
+    def parse_as_object(self) -> bool:
         return False
-    
-    def apply_collection_to_stderr_types(self, filename: str, jtool: CommandTool) -> None: 
-        for out in jtool.outputs():
-            if isinstance(out.output_type, Stderr):
-                out.selector = WildcardSelector(filename)
-    
-    def apply_collection_to_stdout_types(self, filename: str, jtool: CommandTool) -> None: 
-        for out in jtool.outputs():
-            if isinstance(out.output_type, Stdout):
-                out.selector = WildcardSelector(filename)
 
-    def get_last_input_position(self, jtool: CommandTool) -> int:
-        max_pos = 0
-        inputs: list[ToolInput | ToolArgument] = copy.deepcopy(jtool.inputs())
-        if jtool.arguments():
-            inputs += copy.deepcopy(jtool.arguments())
-        for inp in inputs:
-            if inp.position and inp.position > max_pos:
-                max_pos = inp.position
-        return max_pos
-
+    def parse_as_directory_path(self) -> bool:
+        # name and value must be resolvable
+        if not self.r_name_ok or not self.r_value_ok:
+            return False
+        
+        # resolved value must be a string
+        if not isinstance(self.r_value, str):
+            return False
+        
+        # resolved name must be None
+        if self.r_name is not None:
+            return False
+        
+        # must look like directory
+        # filename_pattern = r'^\/?([a-zA-Z0-9-_]+\/)*([a-zA-Z0-9-_.]+)$'
+        dirname_pattern = r'^\/?([a-zA-Z0-9-_]+\/)*([a-zA-Z0-9-_]+\/?)$'
+        if not re.match(dirname_pattern, self.r_value):
+            return False 
+        
+        self.directories_to_create.append(self.r_value)
+        return True 
+    
+    # def modify_js(self, script: str) -> str:
+    #     text_to_remove = '"use strict";\nvar inputs=$(inputs);\nvar runtime=$(runtime);\n'
+    #     text_to_substitute = '\nvar inputs = JSON.parse( process.argv[2] );\n\n'
+    #     assert(text_to_remove in script)
+    #     script = script.replace(text_to_remove, text_to_substitute)
+    #     return script
 
 
 @dataclass
 class CLTArgumentParser(CLTEntityParser):
 
-    failure_message: str = "error parsing a section of the task script. substituted this section for '[error]' as fallback"
 
-    def fallback(self) -> ToolArgument:
-        return ToolArgument('[error]')
+    def fallback(self) -> None:
+        msg = 'error parsing CommandLineTool Argument. ignored as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        return None
 
     def do_parse(self) -> Optional[ToolArgument]: 
         # I don't know when a clt argument would be a string
         if isinstance(self.entity, str):
-            res, success = parse_expression(self.entity)
-            if not success:
-                self.error_msgs.append('untranslated javascript expression')
+            res, success = parse_expression(self.entity, self.tool_uuid)
             if res is None:
                 return None
             arg = ToolArgument(res)
         
         # normal case
         else:
-            res, success = parse_expression(self.entity.valueFrom)
-            if not success:
-                self.error_msgs.append('untranslated javascript expression')
+            res, success = parse_expression(self.entity.valueFrom, self.tool_uuid)
             if res is None:
                 return None
             arg = ToolArgument(
@@ -762,10 +608,11 @@ class CLTArgumentParser(CLTEntityParser):
 @dataclass
 class CLTInputParser(CLTEntityParser):
 
-    failure_message: str = 'error parsing task input. returned generic optional File input as fallback'
-
     def fallback(self) -> ToolInput:
         identifier = get_id_entity(self.entity.id) # hope the error isnt here lol
+        msg = 'error parsing CommandLineTool Input. returned generic optional File input as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+
         return ToolInput(
             tag=identifier,
             input_type=File(optional=True),
@@ -779,9 +626,11 @@ class CLTInputParser(CLTEntityParser):
         )
 
     def do_parse(self) -> ToolInput:
+        tag = get_id_entity(self.entity.id)
+        dtype = ingest_cwl_type(self.entity.type, self.cwl_utils, self.entity, self.tool_uuid, secondaries=self.entity.secondaryFiles)
         inp = ToolInput(
-            tag=self.parse_tag(),
-            input_type=self.parse_dtype(),
+            tag=tag,
+            input_type=dtype,
             position=self.parse_position(),
             prefix=self.parse_prefix(),
             separate_value_from_prefix=self.parse_separate(),
@@ -790,17 +639,7 @@ class CLTInputParser(CLTEntityParser):
             default=self.parse_default(),
             value=self.parse_value()
         )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = inp.uuid
         return inp
-    
-    def parse_tag(self) -> str:
-        return get_id_entity(self.entity.id)
-
-    def parse_dtype(self) -> Any:
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
-        self.error_msgs += error_msgs
-        return dtype
     
     def parse_position(self) -> Optional[int]:
         if self.entity.inputBinding is not None:
@@ -844,26 +683,20 @@ class CLTInputParser(CLTEntityParser):
     def parse_value(self) -> Any:
         value = None
         if self.entity.inputBinding and self.entity.inputBinding.valueFrom:
-            if settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS: # why? 
-                value, success = parse_expression(self.entity.inputBinding.valueFrom)
-                if not success:
-                    msg = f'untranslated javascript expression in inputBinding.valueFrom'
-                    self.error_msgs.append(msg)
-            else:
-                pass
-                # j.Logger.warn(
-                #     f"Won't translate the expression for input {self.entity.id}: {self.entity.inputBinding.valueFrom}"
-                # )
+            value, success = parse_expression(self.entity.inputBinding.valueFrom, self.tool_uuid)
         return value
 
 
 @dataclass 
 class CLTOutputParser(CLTEntityParser):
 
-    failure_message: str = 'error parsing task output. returned generic optional File output as fallback'
-    
     def fallback(self) -> ToolOutput:
-        identifier = get_id_entity(self.entity.id)  # hope the error isnt here lol
+        # log message
+        identifier = get_id_entity(self.entity.id) # hope the error isnt here lol
+        msg = 'error parsing CommandLineTool output. returned generic File output as fallback'
+        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+
+        # fallback
         return ToolOutput(
             tag=identifier, 
             output_type=File(optional=True), 
@@ -873,10 +706,8 @@ class CLTOutputParser(CLTEntityParser):
     def do_parse(self) -> ToolOutput:
         # tag
         identifier = get_id_entity(self.entity.id)
-        
         # datatype
-        dtype, error_msgs = ingest_cwl_type(self.entity.type, self.cwl_utils, secondaries=self.entity.secondaryFiles)
-        self.error_msgs += error_msgs
+        dtype = ingest_cwl_type(self.entity.type, self.cwl_utils, self.entity, self.tool_uuid, secondaries=self.entity.secondaryFiles)
 
         if isinstance(dtype, Stdout):
             return self.do_parse_stdout(identifier, dtype)
@@ -887,20 +718,15 @@ class CLTOutputParser(CLTEntityParser):
         selector = None
         
         if self.clt.stdout is not None:
-            expr, success = parse_expression(self.clt.stdout)
-            if success:
-                dtype = File()
-                selector = expr
-            else:
-                self.error_msgs.append('untranslated javascript expression in output collection')
+            expr, success = parse_expression(self.clt.stdout, self.tool_uuid)
+            dtype = File()
+            selector = expr
             
         out = ToolOutput(
             tag=identifier, 
             output_type=dtype, 
             selector=selector
         )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = out.uuid
         return out
     
     def do_parse_generic(self, identifier: str, dtype: DataType) -> ToolOutput:
@@ -911,29 +737,23 @@ class CLTOutputParser(CLTEntityParser):
 
         elif self.entity.outputBinding:
             if self.entity.outputBinding.glob:
-                res, success = parse_expression(self.entity.outputBinding.glob)
-                if isinstance(res, str):
+                res, success = parse_expression(self.entity.outputBinding.glob, self.tool_uuid)
+                if isinstance(res, str) and not res.startswith('__TOKEN'):
                     selector = WildcardSelector(res)
                 else:
                     selector = res
-                if not success:
-                    self.error_msgs.append('untranslated javascript expression in output collection')
             
             elif self.entity.outputBinding.outputEval:
-                res, success = parse_expression(self.entity.outputBinding.outputEval)
-                if isinstance(res, str):
+                res, success = parse_expression(self.entity.outputBinding.outputEval, self.tool_uuid)
+                if isinstance(res, str) and not res.startswith('__TOKEN'):
                     selector = WildcardSelector(res)
                 else:
                     selector = res
-                if not success:
-                    self.error_msgs.append('untranslated javascript expression in output collection')
               
         out = ToolOutput(
             tag=identifier, 
             output_type=dtype, 
             selector=selector
         )
-        # this must be set for error messages to be associated with this entity
-        self.uuid = out.uuid
         return out
 

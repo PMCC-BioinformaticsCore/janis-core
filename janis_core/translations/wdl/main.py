@@ -22,7 +22,7 @@ from inspect import isclass
 from typing import List, Dict, Any, Set, Tuple, Optional
 
 from janis_core import settings
-from janis_core.messages import get_messages
+from janis_core.messages import load_loglines
 from janis_core.code.codetool import CodeTool
 
 from janis_core.graph.steptaginput import Edge, StepTagInput
@@ -1605,7 +1605,7 @@ def translate_step_node(
     for key, val in resource_overrides.items():
         inputs_details[key] = {'value': val}
 
-    messages = get_messages(step.id())   # uuid is currently using janis-core identifiers
+    messages = load_loglines(step.id())   # uuid is currently using janis-core identifiers
     render_comments = settings.translate.RENDER_COMMENTS
     call = wdl.WorkflowCall(step_identifier, step.id(), inputs_details, messages, render_comments)
 

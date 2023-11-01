@@ -3,14 +3,15 @@
 from logging import getLogger, config
 from .logfile import LogFile
 from .logfile import LogLine
-
+from .enums import ErrorLevel
+from .enums import ErrorCategory
 
 from typing import Optional
 import os
 import warnings
 import yaml
 from pathlib import Path
-from enum import Enum
+
 """
 This file was built for ingest / translation message logging. 
 
@@ -48,14 +49,6 @@ currently, these janis entities have uuids:
 # -------------
 # configuration
 # -------------
-
-class ErrorCategory(Enum):
-    SCRIPT      = 'script'
-    DATATYPE    = 'datatype'
-    DATAFLOW    = 'dataflow'
-    VERSION     = 'version'
-    FALLBACK    = 'fallback'
-    FATAL       = 'fatal'
 
 warnings.filterwarnings("ignore")
 
@@ -96,43 +89,46 @@ def info_ingesting_tool(spec: str, name: str) -> None:
 # to file
 # -------
 
-def _log_message(level: str, category: Optional[ErrorCategory], uuid: Optional[str], msg: str) -> None:
+def _log_message(level: ErrorLevel, category: Optional[ErrorCategory], msg: str,  tool_uuid: Optional[str], subsection: Optional[str]) -> None:
     logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
     # or you could generate a file in the output folder for the user to show this info. 
-    if uuid is None:
-        uuid = 'general'
-    if category is not None:
-        cat = category.value        
-    logfile.add(level, cat, uuid, msg)
+    if tool_uuid is None:
+        tool_uuid = 'general'
+    logfile.add(level=level, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
 
-def log_info(uuid: Optional[str], msg: str) -> None:
+def log_info(msg: str) -> None:
     """logs a message which is considered INFO to the logfile"""
-    _log_message('INFO', None, uuid, msg)
+    _log_message(ErrorLevel.INFO, tool_uuid=None, category=None, msg=msg, subsection=None)
 
-def log_warning(uuid: str, msg: str) -> None:
+def log_warning(tool_uuid: str, msg: str, category: ErrorCategory, subsection: Optional[str]=None) -> None:
     """logs a message which is considered a WARNING to the logfile"""
-    _log_message('WARNING', None, uuid, msg)
+    _log_message(ErrorLevel.WARNING, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
 
-def log_error(uuid: Optional[str], category: ErrorCategory, msg: str) -> None:
+def log_error(tool_uuid: str, msg: str, category: ErrorCategory, subsection: Optional[str]=None) -> None:
     """logs a message which is considered an ERROR to the logfile"""
-    _log_message('ERROR', category, uuid, msg)
+    _log_message(ErrorLevel.ERROR, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
 
-def get_messages(uuid: Optional[str]=None, level: Optional[str]=None) -> list[LogLine]:
+def load_loglines(
+    level: Optional[ErrorLevel]=None, 
+    category: Optional[ErrorCategory]=None, 
+    tool_uuid: Optional[str]=None, 
+    subsection: Optional[str]=None
+    ) -> list[LogLine]:
+
     logfile = LogFile(MESSAGE_LOG_PATH)
     loglines = logfile.lines
     
-    # filter for specific entity
-    if uuid is not None:
-        loglines = [x for x in loglines if x.uuid == uuid]
-    
-    # filter for specific type of log message if 'level' supplied
+    # filters
     if level is not None:
-        valid_levels = ['INFO', 'WARNING', 'ERROR']
-        if level not in valid_levels:
-            raise RuntimeError
-        loglines = [x for x in loglines if x.level == level]
-
+        loglines = [x for x in loglines if x.level.value == level.value]
+    if category is not None:
+        loglines = [x for x in loglines if x.category is not None and x.category.value == category.value]
+    if tool_uuid is not None:
+        loglines = [x for x in loglines if x.tool_uuid == tool_uuid]
+    if subsection is not None:
+        loglines = [x for x in loglines if x.subsection == subsection]
+    
     return loglines
 
