@@ -14,7 +14,13 @@ from janis_core.messages import ErrorCategory
 
 GRAMMAR_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/grammar.ebnf'
 
-def parse_expression(expr: str, tool_uuid: str, context: str='clt') -> Any:
+def parse_expression(
+    expr: str, 
+    tool_uuid: str, 
+    context: str='clt', 
+    error_token_override: Optional[str]=None
+    ) -> Any:
+
     if expr is None:
         return None, True
     
@@ -43,6 +49,12 @@ def parse_expression(expr: str, tool_uuid: str, context: str='clt') -> Any:
         
         # unsuccessful parse
         # expr already has token
+        if error_token_override:
+            msg = f'{error_token_override}: {expr}'
+            log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+            # this is shit
+            return None, False
+
         loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool_uuid)
         token = get_token_for_expr(expr, loglines)
         if token:

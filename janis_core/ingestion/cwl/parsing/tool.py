@@ -292,7 +292,8 @@ class CLTRequirementsParser(CLTEntityParser):
             'env_vars': {}
         }
 
-    def do_parse(self) -> dict[str, Any]:  # type: ignore I FKN KNOW
+    def do_parse(self) -> dict[str, Any]:  
+        self.handle_expression_libs()
         requirements = self.entity.requirements or []
 
         out: dict[str, Any] = {
@@ -313,6 +314,21 @@ class CLTRequirementsParser(CLTEntityParser):
         out['env_vars'] = self.get_env_vars(requirements)
         
         return out
+        
+    def handle_expression_libs(self) -> None:
+        """
+        goal is to mark expression libraries as messages at top of output file.
+        achieve this by attempting to parse (will fail), causing a __TOKENX__ = "[JS EXPR]" to be created as a message. 
+        """
+
+        for req in self.entity.requirements:
+            if req.__class__.__name__ == 'InlineJavascriptRequirement':
+                if hasattr(req, 'expressionLib') and isinstance(req.expressionLib, list):
+                    for exprlib in req.expressionLib:
+                        assert isinstance(exprlib, str)
+                        if not exprlib.startswith('$(') or not exprlib.startswith('$('):
+                            exprlib = f'$({exprlib})'
+                        res, success = parse_expression(exprlib, self.tool_uuid)
 
     def get_container(self, requirements: list[Any]) -> str:
         fallback = 'ubuntu:latest'
@@ -391,9 +407,10 @@ class InitialWorkDirRequirementParser:
         self.req = req
         self.tool_uuid = tool_uuid
         self.is_expression_tool = is_expression_tool
+        error_token_override = "error parsing InitialWorkDirRequirement"
 
         # resolving value, name
-        self.r_value, self.r_value_ok = parse_expression(self.value, self.tool_uuid)
+        self.r_value, self.r_value_ok = parse_expression(self.value, self.tool_uuid, error_token_override=error_token_override)
         if self.name is not None:
             self.r_name, self.r_name_ok = parse_expression(self.name, self.tool_uuid)
         else:
@@ -534,10 +551,12 @@ class InitialWorkDirRequirementParser:
         # directory
         else:
             # TODO this is really weird 
+            return False
             self.directories_to_create.append(str(self.r_value))
             return True 
     
     def parse_as_object(self) -> bool:
+        # TODO?
         return False
 
     def parse_as_directory_path(self) -> bool:

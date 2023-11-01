@@ -301,6 +301,7 @@ class OutputNode(Node):
         self.output_folder = output_folder
         self.output_name = output_name
         self.extension = extension
+        self.operator: Optional[Operator] = None
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway

@@ -28,37 +28,45 @@ __TOKEN2__ = "$(inputs.reads2)"
 # error: [FALLBACK] step1:          parse failed. used fallback.
 # error: [DATAFLOW] step1,reads2:   could not connect sources.
 
+-----------------------
+--- CWL UNSUPPORTED ---
+-----------------------
+- linkMerge
+- WorkflowStepInput:valueFrom
+- Any JS Expression using "self"
+- [Workflow] InlineJavascriptRequirement:expressionLib?
+
 ------------------
 --- CWL BOOFED ---
 ------------------
+
+Can InputNodeSelectors be InputSelectors instead?
+
+JS
+- undefined vs null?
 
 get basic functionality back online 
 - workflow parsing
 - InitalWorkDirRequirement
 
+misc
+- move entity ids to non-janis keywords
+- ingestion.cwl.parsing.workflow.resolve_source()?
+
 --------------
 --- CWL JS ---
 --------------
 
+InitialWorkDirRequirement
+- log to top of screen without __TOKEN__.
+- eg: unparsed expression for file / directory staging: ${JS}
+
+
 locations: CommandLineTool
-- InlineJavascriptRequirement:expressionLib
 - InitialWorkDirRequirement
 - InitialWorkDirRequirement:Dirent:entry
 - InitialWorkDirRequirement:Dirent:entryname
-
-locations: Workflow
-- WorkflowOutputParameter:outputBinding:glob?
-- WorkflowOutputParameter:outputBinding:outputEval?
-- WorkflowStepInput:valueFrom
 - InlineJavascriptRequirement:expressionLib
-
-js expressions: workflow context
-- call parse_expression() during workflow parsing!
-- workflow input
-- workflow output?
-- step input?
-- step conditions?
-- step output?
 
 js expressions: translators 
 - ensure correct unwrapping with new format. 

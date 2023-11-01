@@ -2,6 +2,7 @@ from typing import Optional
 
 from janis_core.types import get_instantiated_type
 from janis_core.operators import Selector
+from janis_core.operators import Operator
 from janis_core.graph.node import Node, NodeType
 from janis_core.tool.tool import TInput
 from janis_core.utils import first_value
@@ -115,6 +116,7 @@ class StepTagInput:
         self.ftag: Optional[str] = finish_tag
         self.multiple_inputs = False
         self.source_map: list[Edge] = []
+        self.operator: Optional[Operator] = None
 
     def add_source(self, operator: Selector, should_scatter: Optional[bool]=None) -> Edge:
         """

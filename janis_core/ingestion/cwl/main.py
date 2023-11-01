@@ -152,8 +152,7 @@ class CWlParser:
             wf.has_scatter = True
         
         if parser.when is not None:
-            jstep.scatter = parser.scatter
-            wf.has_scatter = True
+            jstep.when = parser.when
 
     def ingest_workflow_step_inputs(self, wf: j.Workflow, cwlstp: Any) -> None:
         parser = WorkflowStepInputsParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, tool_uuid=wf.uuid)
@@ -163,6 +162,32 @@ class CWlParser:
         jstep = wf.step_nodes[step_identifier]
         jstep.tool.connections = inputs_dict
         add_step_edges_to_graph(jstep, wf)
+        self.ingest_workflow_step_inputs_pickvalue(jstep, cwlstp)
+
+    def ingest_workflow_step_inputs_pickvalue(self, jstep: StepNode, cwlstp: Any) -> None:
+        operator_map = {
+            'first_non_null': j.FirstOperator,
+            'the_only_non_null': j.FirstOperator,
+            'all_non_null': j.FilterNullOperator,
+        }
+
+        # new: multiple input sources with selection method
+        for inp in cwlstp.in_:
+            inp_identifier = get_id_entity(inp.id)
+            if inp_identifier not in jstep.sources:
+                continue 
+            
+            # must have more than one source
+            sti = jstep.sources[inp_identifier]
+            if len(sti.source_map) <= 1:
+                continue 
+
+            # must have pickValue set on cwl step input
+            if not hasattr(inp, 'pickValue') or inp.pickValue is None:
+                continue 
+
+            operator = operator_map[inp.pickValue]
+            sti.operator = operator(sti.source_map)
 
     def ingest_command_line_tool(self, clt: Any, is_expression_tool: bool=False):
         parser = CLTParser(cwl_utils=self.cwl_utils, clt=clt, entity=clt, is_expression_tool=is_expression_tool)

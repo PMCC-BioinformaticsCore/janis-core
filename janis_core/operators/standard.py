@@ -705,8 +705,8 @@ class FirstOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
-        return f"{iterable}[0]"
-        # return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
+        # return f"{iterable}[0]"
+        return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
 
     def to_nextflow(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])

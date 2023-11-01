@@ -10,18 +10,6 @@ requirements:
           rootname = (rootname=="")?inputs.molecule_info_h5[i].basename:rootname;
           return inputs.gem_well_labels?inputs.gem_well_labels[i].replace(/,/g, "_"):rootname;
       };
-  InitialWorkDirRequirement:
-    listing: |
-      ${
-        var entry = "library_id,molecule_h5\n"
-        for (var i=0; i < inputs.molecule_info_h5.length; i++){
-          entry += get_label(i) + "," + inputs.molecule_info_h5[i].path + "\n"
-        }
-        return [{
-          "entry": entry,
-          "entryname": "metadata.csv"
-        }];
-      }
 hints:
   DockerRequirement:
     dockerPull: cumulusprod/cellranger:4.0.0

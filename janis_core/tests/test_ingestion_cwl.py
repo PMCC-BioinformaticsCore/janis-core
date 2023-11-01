@@ -6,7 +6,9 @@ from typing import Any, Tuple
 from janis_core import (
     InputSelector,
     CommandToolBuilder,
+    WorkflowBuilder,
     ToolInput,
+    ScatterDescription,
 )
 
 from janis_core.operators.stringformatter import StringFormatter
@@ -113,72 +115,126 @@ class TestBasicFunctionality(unittest.TestCase):
         pass
 
 
+class TestExtendedFunctionality(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _do_setup()
+
+    def test_scatter(self):
+        filepath = f'{CWL_TESTDATA_DIR}/workflows/scatter_wf.cwl'
+        workflow: WorkflowBuilder = parse_cwl(filepath)  # type: ignore
+        self.assertIsInstance(workflow, WorkflowBuilder)
+        self.assertIn('echo', workflow.step_nodes)
+        step = workflow.step_nodes['echo']
+        self.assertIsInstance(step.scatter, ScatterDescription)
+        self.assertListEqual(step.scatter.fields, ['text'])
+        self.assertIsNone(step.scatter.method)
+    
+    def test_conditional_execution(self):
+        filepath = f'{CWL_TESTDATA_DIR}/workflows/conditional_execution/conditional_execution.cwl'
+        workflow = parse_cwl(filepath)
+        self.assertIsInstance(workflow, WorkflowBuilder)
+        self.assertIn('align', workflow.step_nodes)
+        self.assertIn('extract_metadata', workflow.step_nodes)
+        step = workflow.step_nodes['extract_metadata']
+        self.assertIsInstance(step.when, EqualityOperator)
+    
+    def test_multiple_sources_step_input(self):
+        filepath = f'{CWL_TESTDATA_DIR}/workflows/conditional_execution/conditional_execution.cwl'
+        workflow = parse_cwl(filepath)
+        self.assertIsInstance(workflow, WorkflowBuilder)
+        self.assertIn('align', workflow.step_nodes)
+        self.assertIn('extract_metadata', workflow.step_nodes)
+        sti = workflow.step_nodes['align'].sources['metadata']
+        self.assertEqual(len(sti.source_map), 2)
+        self.assertIsInstance(sti.operator, FirstOperator)
+    
+    def test_multiple_sources_wf_output(self):
+        filepath = f'{CWL_TESTDATA_DIR}/workflows/conditional_execution/conditional_execution.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        workflow: WorkflowBuilder = parse_cwl(filepath) # type: ignore
+        self.assertIsInstance(workflow, WorkflowBuilder)
+        self.assertIn('out_alignments', workflow.output_nodes)
+        self.assertIn('out_metadata', workflow.output_nodes)
+        out_alignments = workflow.output_nodes['out_alignments']
+        out_metadata = workflow.output_nodes['out_metadata']
+        self.assertEqual(str(out_alignments.source), 'align.aligned_reads')
+        self.assertIsInstance(out_metadata.operator, FirstOperator)
+    
+        
+
+
 
 class TestRequirementsParsing(unittest.TestCase):
 
     def setUp(self) -> None:
         _do_setup()
 
-    def test_directories_to_create1(self):
-        pass
-
-    def test_directories_to_create2(self):
-        pass
-        
-    def test_directories_to_create3(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/prepare_fasta_db.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_directories_to_create3')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_directories_to_create3')
-        print()
-
-    def test_files_to_create0(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bundle_secondaryfiles.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create0')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create0')
-        self.assertIn('inputs.primary_file', reqs['files_to_create'])
-        self.assertIsInstance(reqs['files_to_create']['inputs.primary_file'], InputSelector)
-        self.assertIn('inputs.secondary_files', reqs['files_to_create'])
-        self.assertIsInstance(reqs['files_to_create']['inputs.secondary_files'], InputSelector)
-    
-    def test_files_to_create1(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bismark_prepare_genome.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create1')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create1')
-    
-    def test_files_to_create2(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/BWA-Mem2-index.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create2')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create2')
-    
-    def test_files_to_create3(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bzip2_compress.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create3')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create3')
-    
-    def test_files_to_create4(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/component_segmentation.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create4')
-        reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create4')
-    
-    def test_files_to_create5(self):
+    def test_expression_lib(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/cellranger-aggr.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create5')
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_expression_lib')
         reqs = parser.parse()
-        msgs = load_loglines(tool_uuid='test_files_to_create5')
- 
+        lines = load_loglines(tool_uuid='test_expression_lib')
+        msgs = [x.message for x in lines]
+        self.assertIn('__TOKEN1__ = "$(var get_label = function(i) { var rootname = inputs.molecule_info_h5[i].basename.split(\'.\').slice(0,-1).join(\'.\'); rootname = (rootname=="")?inputs.molecule_info_h5[i].basename:rootname; return inputs.gem_well_labels?inputs.gem_well_labels[i].replace(/,/g, "_"):rootname; };)"', msgs)
+
+    def test_files_to_create_textfile(self):
+        settings.ingest.SAFE_MODE = True
+        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/amplicon_architect.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test')
+        reqs = parser.parse()
+        self.assertEqual(len(reqs['files_to_create']), 1)
+        self.assertIn('setup_vars.sh', reqs['files_to_create'])
+        self.assertIn('export AA_DATA_REPO', reqs['files_to_create']['setup_vars.sh'])
+        msgs = load_loglines(tool_uuid='test')
+        self.assertEqual(len(msgs), 1)
+
+    @unittest.skip('how does this work for janis?')
+    def test_files_to_create_selector(self):
+        raise NotImplementedError
+
+    @unittest.skip('how does this work for janis?')
+    def test_files_to_create_object(self):
+        raise NotImplementedError
+    
+    @unittest.skip('cant find example')
+    def test_files_to_create_dirpath(self):
+        raise NotImplementedError
+
+    # def test_files_to_create0(self):
+    #     filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bundle_secondaryfiles.cwl'
+    #     clt, cwl_utils = _load_cwl_doc(filepath)
+    #     parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create0')
+    #     reqs = parser.parse()
+    #     msgs = load_loglines(tool_uuid='test_files_to_create0')
+    #     self.assertIn('inputs.primary_file', reqs['files_to_create'])
+    #     self.assertIsInstance(reqs['files_to_create']['inputs.primary_file'], InputSelector)
+    #     self.assertIn('inputs.secondary_files', reqs['files_to_create'])
+    #     self.assertIsInstance(reqs['files_to_create']['inputs.secondary_files'], InputSelector)
+    
+    # def test_files_to_create1(self):
+    #     filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bismark_prepare_genome.cwl'
+    #     clt, cwl_utils = _load_cwl_doc(filepath)
+    #     parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create1')
+    #     reqs = parser.parse()
+    #     msgs = load_loglines(tool_uuid='test_files_to_create1')
+    
+    # def test_files_to_create2(self):
+    #     filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/BWA-Mem2-index.cwl'
+    #     clt, cwl_utils = _load_cwl_doc(filepath)
+    #     parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create2')
+    #     reqs = parser.parse()
+    #     msgs = load_loglines(tool_uuid='test_files_to_create2')
+    
+    # def test_files_to_create3(self):
+    #     filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bzip2_compress.cwl'
+    #     clt, cwl_utils = _load_cwl_doc(filepath)
+    #     parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create3')
+    #     reqs = parser.parse()
+    #     msgs = load_loglines(tool_uuid='test_files_to_create3')
+
     # def test_files_to_create9(self):
     #     filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bundle_secondaryfiles.cwl'
     #     clt, cwl_utils = _load_cwl_doc(filepath)
@@ -263,6 +319,7 @@ class TestRequirementsParsing(unittest.TestCase):
     #     self.assertIn('var inputs = JSON.parse( process.argv[2] );\n', script)
 
     def test_env_vars1(self):
+        settings.ingest.SAFE_MODE = True
         filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/amplicon_architect.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test')
@@ -275,6 +332,7 @@ class TestErrorHandlingFallbacks(unittest.TestCase):
 
     def setUp(self) -> None:
         _do_setup()
+        settings.ingest.SAFE_MODE = True
 
     @unittest.skip('not implemented')
     def test_workflow_input_parser(self) -> None:
@@ -312,11 +370,14 @@ class TestErrorHandlingFallbacks(unittest.TestCase):
     def test_clt_output_parser(self) -> None:
         raise NotImplementedError
 
-    @unittest.skip('not implemented')    
     def test_requirements_parser(self) -> None:
-        raise NotImplementedError
-
-
+        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/component_segmentation.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create4')
+        reqs = parser.parse()
+        lines = load_loglines(tool_uuid='test_files_to_create4')
+        msgs = [x.message for x in lines]
+        print()
 
 class TestDatatypes(unittest.TestCase):
 
@@ -458,6 +519,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
 
     def setUp(self) -> None:
         _do_setup()
+        settings.ingest.SAFE_MODE = True
 
     def test_resource_requirements(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/resources.cwl'
@@ -477,55 +539,45 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         self.assertIn('__TOKEN2__ = "$([inputs.runtime_cpu, (2 * inputs.outputFiles), 1].filter(function (inner) { return inner != null })[0])"', msgs)
         self.assertIn('__TOKEN3__ = "$([inputs.runtime_seconds, 86400].filter(function (inner) { return inner != null })[0])"', msgs)
 
-    def test_initial_workdir_requirement_listing(self):
+    def test_initial_workdir_requirement(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/requirements.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
 
         parser = CLTParser(cwl_utils, clt=clt, entity=clt)
         jtool = parser.parse()
-        lines = load_loglines(jtool.uuid)
-        msgs = [x.message for x in lines]
         self.assertIsNone(jtool.files_to_create())
         
-        expected_msg = 'directory required for runtime generated using cwl / js: <js>${    return [{"class": "Directory",            "basename": "subdir",            "listing": [ inputs.example ]            }]}</js>. please address'
-        self.assertIn(expected_msg, msgs)
-        
-    def test_initial_workdir_requirement_dirent_entryname(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/requirements.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-
-        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
-        jtool = parser.parse()
-        lines = load_loglines(jtool.uuid)
+        lines = load_loglines(tool_uuid=jtool.uuid)
         msgs = [x.message for x in lines]
-        self.assertIsNone(jtool.files_to_create())
-
-        expected_msg = 'untranslated javascript expression in environment variable value'
-        self.assertIn(expected_msg, msgs)
+        self.assertEqual(len(msgs), 3)
+        self.assertIn('error parsing InitialWorkDirRequirement. ignored as fallback', msgs)
+        self.assertIn('error parsing InitialWorkDirRequirement: ${    return [{"class": "Directory",            "basename": "subdir",            "listing": [ inputs.example ]            }]}', msgs)
     
-    def test_initial_workdir_requirement_dirent_entry(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/requirements.cwl'
+    def test_secondaryfiles(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
-
-        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
-        jtool = parser.parse()
-        lines = load_loglines(jtool.uuid)
+        parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[1], tool_uuid='test')
+        tinput = parser.parse()
+        self.assertIsInstance(tinput.input_type, GenericFileWithSecondaries)
+        lines = load_loglines(tool_uuid='test')
         msgs = [x.message for x in lines]
-        self.assertIsNone(jtool.files_to_create())
-
-        expected_msg = 'untranslated javascript expression in environment variable value'
+        expected_msg = 'could not parse secondaries format from javascript expression. treated as generic File with secondaries.'
         self.assertIn(expected_msg, msgs)
 
-    def test_envvar_requirement_envdef_envvalue(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/requirements.cwl'
+    def test_clt_input(self):
+        # TODO could actually parse this expression. 
+        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTParser(cwl_utils, clt=clt, entity=clt)
-        jtool = parser.parse()
-        lines = load_loglines(jtool.uuid)
+        
+        parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[5], tool_uuid='test')
+        tinput = parser.parse()
+        lines = load_loglines(tool_uuid='test')
         msgs = [x.message for x in lines]
-        self.assertEqual(jtool.env_vars()['test1'], '<js>9 + 10</js>')
+        expected_msg = '__TOKEN1__ = "$([inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0])"'
+        self.assertEqual(tinput.value, '__TOKEN1__')
+        self.assertIn(expected_msg, msgs)
 
-    def test_clt_argument_valuefrom(self):
+    def test_clt_argument(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
         
@@ -536,135 +588,26 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         self.assertEqual(arg.value, '__TOKEN1__')
         self.assertIn('__TOKEN1__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', msgs)
     
-    @unittest.skip("TODO leave log_info message")
-    def test_clt_input_format(self):
-        # don't need to worry about File format in cwl - type is ingested as File
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[3], tool_uuid='test')
-        tinput = parser.parse()
-    
-    def test_clt_input_secondaryfiles(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[1], tool_uuid='test')
-        tinput = parser.parse()
-        self.assertIsInstance(tinput.input_type, GenericFileWithSecondaries)
-        error_msgs = load_loglines(tinput.uuid)
-        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
-        self.assertIn(expected_msg, error_msgs)
-
-    def test_clt_input_inputbinding_valuefrom(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/inputs_arguments.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        
-        parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[5], tool_uuid='test')
-        tinput = parser.parse()
-        expected_value = '<js>[inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0]</js>'
-        self.assertEqual(tinput.value, expected_value)
-    
-    @unittest.skip("TODO leave log_info message")
-    def test_clt_output_format(self):
-        # don't need to worry about File format in cwl - type is ingested as File
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[1], tool_uuid='test')
-        tout = parser.parse()
-
-    def test_clt_output_secondaryfiles(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[1], tool_uuid='test')
-        tout = parser.parse()
-        self.assertIsInstance(tout.output_type, GenericFileWithSecondaries)
-        error_msgs = load_loglines(tout.uuid)
-        expected_msg = "could not parse secondaries format from javascript expressions: $(inputs.bam.basename + inputs.bam.nameext.replace('m','i'))"
-        self.assertIn(expected_msg, error_msgs)
-    
-    def test_clt_output_outputbinding_glob(self):
-        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
-        clt, cwl_utils = _load_cwl_doc(filepath)
-        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[0], tool_uuid='test')
-        tout = parser.parse()
-        self.assertIsInstance(tout.selector, WildcardSelector)
-        self.assertEqual(tout.selector.wildcard, 'output.txt')
-
-        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[2], tool_uuid='test')
-        tout = parser.parse()
-        self.assertIsInstance(tout.selector, StringFormatter)
-        self.assertEqual(tout.selector._format, '{JANIS_CWL_TOKEN_1}.trimmed.fastq')
-        self.assertEqual(tout.selector.kwargs['JANIS_CWL_TOKEN_1'], "<js>inputs.fastq.nameroot.replace(/\\b.fastq\\b/g, '')</js>")
-    
-    def test_clt_output_outputbinding_outputEval(self):
+    def test_clt_output(self):
+        # TODO this use of "self" is ok. should make output ReadContents. 
         filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[3], tool_uuid='test')
         tout = parser.parse()
-        self.assertIsInstance(tout.selector, ReadContents)
-        self.assertEqual(tout.selector.args[0], '<js>self[0]</js>')
-    
-    @unittest.skip("TODO leave log_info message")
-    def test_wf_input_format(self) -> None:
-        # don't need to worry about File format in cwl - type is ingested as File
-        raise NotImplementedError
-
-    def test_wf_input_secondaryfiles(self):
+        lines = load_loglines(tool_uuid='test')
+        msgs = [x.message for x in lines]
+        self.assertEqual(tout.selector, '__TOKEN1__')
+        self.assertIn('__TOKEN1__ = "$(self[0].contents)"', msgs)
+        
+    def test_step_input(self):
         filepath = f'{CWL_TESTDATA_DIR}/workflows/expressions.cwl'
         wf = parse_cwl(filepath)
-        winp = wf.input_nodes['bambai_pair2']
-        self.assertIsInstance(winp.datatype, GenericFileWithSecondaries)
-        self.assertEqual(len(winp.datatype.secondaries), 0)
-        error_msgs = load_loglines(winp.uuid)
-        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
-        self.assertIn(expected_msg, error_msgs)
-    
-    def test_step_input_valuefrom(self):
-        filepath = f'{CWL_TESTDATA_DIR}/workflows/expressions.cwl'
-        wf = parse_cwl(filepath)
-        
-        # example 1
-        jstep = wf.step_nodes['echo2']
-        inp_name = 'text'
-        
-        self.assertIn(inp_name, jstep.tool.connections)
-        self.assertEqual(jstep.tool.connections[inp_name], "<js>$(inputs.prefix_str + '_' + inputs.suffix_str)</js>")
-        self.assertIn(inp_name, jstep.sources)
-        self.assertEqual(jstep.sources[inp_name].source_map[0].source.input_node.default, "<js>$(inputs.prefix_str + '_' + inputs.suffix_str)</js>")
-        
-        msgs = load_loglines(jstep.uuid)
-        expected_msg = "'text' input value contains untranslated javascript expression: <js>$(inputs.prefix_str + '_' + inputs.suffix_str)</js>"
-        self.assertIn(expected_msg, msgs)
+        lines = load_loglines(tool_uuid=wf.uuid)
+        msgs = [x.message for x in lines]
 
-        # example 2
-        jstep = wf.step_nodes['rename_png1']
-        inp_name = 'target_filename'
-        
-        self.assertIn(inp_name, jstep.tool.connections)
-        self.assertIsInstance(jstep.tool.connections[inp_name], InputNodeSelector)
-        self.assertEqual(jstep.tool.connections[inp_name].input_node.id(), 'bambai_pair1')
-        
-        self.assertIn(inp_name, jstep.sources)
-        self.assertIsNone(jstep.sources[inp_name].source_map[0].source.input_node.default)
-        
-        msgs = load_loglines(jstep.uuid)
-        self.assertIn('\'target_filename\' input value contains untranslated javascript expression: <js>$(inputs.bambai_pair1.location.split(\'/\').slice(-1)[0].split(\'.\').slice(0,-1).join(\'.\')+"_default_s_enhcr.png")</js>', msgs)
-
-    @unittest.skip("TODO leave log_info message")
-    def test_wf_output_format(self) -> None:
-        # TODO implement this - log info message about the format which was discarded
-        # don't need to worry about File format in cwl - type is ingested as File
-        raise NotImplementedError
-
-    def test_wf_output_secondaryfiles(self):
-        filepath = f'{CWL_TESTDATA_DIR}/workflows/expressions.cwl'
-        wf = parse_cwl(filepath)
-        winp = wf.output_nodes['out3']
-        self.assertIsInstance(winp.datatype, GenericFileWithSecondaries)
-        self.assertEqual(len(winp.datatype.secondaries), 0)
-        error_msgs = load_loglines(winp.uuid)
-        expected_msg = "could not parse secondaries format from javascript expressions: $(self.basename + self.nameext.replace('m','i'))"
-        self.assertIn(expected_msg, error_msgs)
-  
+        self.assertIn('could not parse secondaries format from javascript expression. treated as generic File with secondaries.', msgs)
+        self.assertIn("error parsing data source for 'text'. Returned None as fallback.", msgs)
+        self.assertIn("error parsing data source for 'target_filename'. Returned None as fallback.", msgs)
 
 
 
@@ -1139,3 +1082,17 @@ class TestParseExpression(unittest.TestCase):
         expected = '(str(int(((inputs.runtime_memory / inputs.runtime_cpu) - 100))) + "M")'
         actual = str(result)
         self.assertEqual(actual, expected)
+
+    def test_clt_output(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[0], tool_uuid='test')
+        tout = parser.parse()
+        self.assertIsInstance(tout.selector, WildcardSelector)
+        self.assertEqual(tout.selector.wildcard, 'output.txt')
+
+        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[2], tool_uuid='test')
+        tout = parser.parse()
+        self.assertIsInstance(tout.selector, StringFormatter)
+        self.assertEqual(tout.selector._format, '{token1}.trimmed.fastq')
+        self.assertIsInstance(tout.selector.kwargs['token1'], ReplaceOperator)

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from janis_core.workflow.workflow import Workflow, OutputNode, InputNodeSelector, StepNode, InputNode, StepOutputSelector
+from janis_core.operators import FirstOperator, FilterNullOperator
 from janis_core import ScatterDescription, ScatterMethod
 
 from ..types import ingest_cwl_type
@@ -89,6 +90,7 @@ class WorkflowInputParser(WorkflowEntityParser):
         return inp
 
 
+
 @dataclass
 class WorkflowOutputParser(WorkflowEntityParser):
     """parses a cwl WorkflowInputParameter to add an input to the janis Workflow"""
@@ -134,7 +136,27 @@ class WorkflowOutputParser(WorkflowEntityParser):
             datatype=dtype,
             source=source,
         )
+        self.ingest_workflow_output_pickvalue(out)
         return out
+
+    def ingest_workflow_output_pickvalue(self, out: OutputNode) -> None:
+        # new
+        operator_map = {
+            'first_non_null': FirstOperator,
+            'the_only_non_null': FirstOperator,
+            'all_non_null': FilterNullOperator,
+        }
+            
+        # must have more than one source
+        if not isinstance(out.source, list) or len(out.source) <= 1:
+            return 
+
+        # must have pickValue set on cwl step input
+        if not hasattr(self.entity, 'pickValue') or self.entity.pickValue is None:
+            return 
+
+        operator = operator_map[self.entity.pickValue]
+        out.operator = operator(out.source)
     
 
 
@@ -222,7 +244,7 @@ class WorkflowStepInputParser(WorkflowEntityParser):
         inp = self.entity
         source = None
         # TODO HERE 
-        raise NotImplementedError
+        # raise NotImplementedError
         if inp.source is not None:
             sources = get_janis_wf_sources(self.wf, inp.source)
             if len(sources) == 1:
@@ -256,7 +278,7 @@ class WorkflowStepInputParser(WorkflowEntityParser):
             self.error_msgs.append(msg)
 
         return value
-    
+
     
 
 @dataclass
