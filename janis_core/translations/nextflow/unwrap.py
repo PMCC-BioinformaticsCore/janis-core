@@ -177,12 +177,12 @@ class Unwrapper:
             list: self.unwrap_list,
 
             # logical operators
-            IsDefined: self.unwrap_is_defined_operator,
-            If: self.unwrap_if_operator,
-            AssertNotNull: self.unwrap_assert_not_null_operator,
-            FloorOperator: self.unwrap_floor_operator,
-            CeilOperator: self.unwrap_ceil_operator,
-            RoundOperator: self.unwrap_round_operator,
+            # IsDefined: self.unwrap_is_defined_operator,
+            # If: self.unwrap_if_operator,
+            # AssertNotNull: self.unwrap_assert_not_null_operator,
+            # FloorOperator: self.unwrap_floor_operator,
+            # CeilOperator: self.unwrap_ceil_operator,
+            # RoundOperator: self.unwrap_round_operator,
 
             # operator operators
             IndexOperator: self.unwrap_index_operator,
@@ -192,21 +192,22 @@ class Unwrapper:
             AsFloatOperator: self.unwrap_as_float_operator,
             
             # standard operators
-            ReadContents: self.unwrap_read_contents_operator,
-            ReadJsonOperator: self.unwrap_read_json_operator,
-            JoinOperator: self.unwrap_join_operator,
-            BasenameOperator: self.unwrap_basename_operator,
-            NamerootOperator: self.unwrap_nameroot_operator,
-            NameextOperator: self.unwrap_nameext_operator,
-            TransposeOperator: self.unwrap_transpose_operator,
-            LengthOperator: self.unwrap_length_operator,
-            RangeOperator: self.unwrap_range_operator,
-            FlattenOperator: self.unwrap_flatten_operator,
-            ApplyPrefixOperator: self.unwrap_apply_prefix_operator,
-            FileSizeOperator: self.unwrap_file_size_operator,
-            FirstOperator: self.unwrap_first_operator,
-            FilterNullOperator: self.unwrap_filter_null_operator,
-            ReplaceOperator: self.unwrap_replace_operator,
+            # TODO kill these
+            # ReadContents: self.unwrap_read_contents_operator,
+            # ReadJsonOperator: self.unwrap_read_json_operator,
+            # JoinOperator: self.unwrap_join_operator,
+            # BasenameOperator: self.unwrap_basename_operator,
+            # NamerootOperator: self.unwrap_nameroot_operator,
+            # NameextOperator: self.unwrap_nameext_operator,
+            # TransposeOperator: self.unwrap_transpose_operator,
+            # LengthOperator: self.unwrap_length_operator,
+            # RangeOperator: self.unwrap_range_operator,
+            # FlattenOperator: self.unwrap_flatten_operator,
+            # ApplyPrefixOperator: self.unwrap_apply_prefix_operator,
+            # FileSizeOperator: self.unwrap_file_size_operator,
+            # FirstOperator: self.unwrap_first_operator,
+            # FilterNullOperator: self.unwrap_filter_null_operator,
+            # ReplaceOperator: self.unwrap_replace_operator,
             
             # selectors
             AliasSelector: self.unwrap_alias_selector,
@@ -288,6 +289,7 @@ class Unwrapper:
     This is needed to properly enclose curly braces. For example: 
         
     Janis:      InputSelector("read", remove_file_extension=True) + "_fastqc.zip"
+    Janis:      AddOperator(InputSelector())
     ->
     Nextflow:   "${read.simpleName}_fastqc.zip"
     
@@ -312,6 +314,9 @@ class Unwrapper:
 
     ### HELPERS ###
     def should_apply_curly_braces(self, val: Any) -> bool:
+        # TODO here address curly brace shit. 
+        # raise NotImplementedError
+        # return False
         if self.in_shell_script:
             if len(self.operator_stack) == 1:
                 if self.operator_stack[0] == val.__class__.__name__:
@@ -334,7 +339,7 @@ class Unwrapper:
             return True
         if self.quote_strings == False:
             return False
-        # string within curly braces
+        # string within curly braces # TODO test
         if len(self.operator_stack) > 0:
             return True
         # stringformatter within shell script

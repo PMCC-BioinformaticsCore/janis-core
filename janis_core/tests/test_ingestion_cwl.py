@@ -106,13 +106,26 @@ class TestBasicFunctionality(unittest.TestCase):
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTParser(cwl_utils=cwl_utils, clt=clt, entity=clt)
         tool = parser.parse()
-        msgs = load_loglines()
+        msgs = load_loglines(tool_uuid=tool.uuid)
+        
+        self.assertEqual(len(msgs), 0)
         self.assertEqual(tool.id(), 'BWA_Index')
+        self.assertListEqual(tool._base_command, ['bwa', 'index'])
         self.assertEqual(len(tool._inputs), 3)
         self.assertEqual(len(tool._arguments), 2)
+        self.assertEqual(len(tool._outputs), 1)
 
     def test_tool_bwa_mem(self):
-        pass
+        filepath = f'{CWL_TESTDATA_DIR}/tools/BWA-Mem.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTParser(cwl_utils=cwl_utils, clt=clt, entity=clt)
+        tool = parser.parse()
+        
+        self.assertEqual(tool.id(), 'BWA_Mem')
+        self.assertListEqual(tool._base_command, ['bwa', 'mem'])
+        self.assertEqual(len(tool._inputs), 20)
+        self.assertEqual(len(tool._arguments), 1)
+        self.assertEqual(len(tool._outputs), 1)
 
 
 class TestExtendedFunctionality(unittest.TestCase):
@@ -169,6 +182,36 @@ class TestRequirementsParsing(unittest.TestCase):
 
     def setUp(self) -> None:
         _do_setup()
+
+    def test_hints(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/bedgraph_sort.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_hints')
+        actual_reqs = parser.parse()
+        expected_reqs = {
+            'container': 'docker.io/debian:stable-slim',
+            'memory': 15000,
+            'cpus': 1,
+            'time': None,
+            'disk': None,
+        }
+        for k, v in expected_reqs.items():
+            self.assertEqual(actual_reqs[k], v)
+    
+    def test_requirements(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/mark_duplicates_and_sort.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_requirements')
+        actual_reqs = parser.parse()
+        expected_reqs = {
+            'container': 'mgibio/mark_duplicates-cwl:1.0.1',
+            'memory': 40000,
+            'cpus': 8,
+            'time': None,
+            'disk': None,
+        }
+        for k, v in expected_reqs.items():
+            self.assertEqual(actual_reqs[k], v)
 
     def test_expression_lib(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/requirements/cellranger-aggr.cwl'
@@ -608,7 +651,6 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         self.assertIn('could not parse secondaries format from javascript expression. treated as generic File with secondaries.', msgs)
         self.assertIn("error parsing data source for 'text'. Returned None as fallback.", msgs)
         self.assertIn("error parsing data source for 'target_filename'. Returned None as fallback.", msgs)
-
 
 
 

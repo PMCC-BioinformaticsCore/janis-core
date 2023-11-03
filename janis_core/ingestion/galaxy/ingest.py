@@ -1,8 +1,12 @@
 
-
 import json
 import os
 from typing import Any, Optional, Tuple
+ 
+# this is boofed, but necessary for local unittest on my machine
+import packaging.version
+packaging.version.LegacyVersion = packaging.version.Version
+
 from janis_core import settings
 from janis_core import Tool
 from janis_core.ingestion.galaxy import runtime

@@ -94,6 +94,7 @@ class CLTParser:
         jtool._memory = reqs['memory']
         jtool._cpus = reqs['cpus']
         jtool._time = reqs['time']
+        jtool._disk = reqs['disk']
         return jtool
 
     def do_parse(self) -> CommandTool:
@@ -142,15 +143,16 @@ class CLTParser:
             tool_uuid=self.tool_uuid, 
             is_expression_tool=self.is_expression_tool
         )
-        requirements = req_parser.parse()
+        reqs = req_parser.parse()
         
-        jtool._directories_to_create = requirements['directories_to_create'] or None # type: ignore
-        jtool._files_to_create = requirements['files_to_create'] or None # type: ignore
-        jtool._env_vars = requirements['env_vars'] or None # type: ignore
-        jtool._container = requirements['container']
-        jtool._memory = requirements['memory']
-        jtool._cpus = requirements['cpus']
-        jtool._time = requirements['time']
+        jtool._directories_to_create = reqs['directories_to_create'] or None # type: ignore
+        jtool._files_to_create = reqs['files_to_create'] or None # type: ignore
+        jtool._env_vars = reqs['env_vars'] or None # type: ignore
+        jtool._container = reqs['container']
+        jtool._memory = reqs['memory']
+        jtool._cpus = reqs['cpus']
+        jtool._time = reqs['time']
+        jtool._disk = reqs['disk']
         return jtool
     
     def ingest_command_tool_argument(self, arg: Any) -> Optional[ToolArgument]:
@@ -287,41 +289,44 @@ class CLTRequirementsParser(CLTEntityParser):
             'memory': None,
             'cpus': None,
             'time': None,
+            'disk': None,
             'directories_to_create': [],
             'files_to_create': {},
             'env_vars': {}
         }
 
     def do_parse(self) -> dict[str, Any]:  
-        self.handle_expression_libs()
-        requirements = self.entity.requirements or []
+        reqs = self.entity.requirements or []
+        hints = self.entity.hints or []
+        self.handle_expression_libs(reqs, hints)
 
         out: dict[str, Any] = {
             'container': None,
             'memory': None,
             'cpus': None,
             'time': None,
+            'disk': None,
             'directories_to_create': [],
             'files_to_create': {},
             'env_vars': {}
         }
         
-        out['container'] = self.get_container(requirements)
-        out['memory'] = self.get_memory(requirements)
-        out['cpus'] = self.get_cpus(requirements)
-        out['time'] = self.get_time(requirements)
-        out['files_to_create'], out['directories_to_create'] = self.get_files_directories_to_create(requirements)
-        out['env_vars'] = self.get_env_vars(requirements)
+        out['container'] = self.get_container(reqs, hints)
+        out['memory'] = self.get_memory(reqs, hints)
+        out['cpus'] = self.get_cpus(reqs, hints)
+        out['time'] = self.get_time(reqs, hints)
+        out['disk'] = self.get_disk(reqs, hints)
+        out['files_to_create'], out['directories_to_create'] = self.get_files_directories_to_create(reqs, hints)
+        out['env_vars'] = self.get_env_vars(reqs, hints)
         
         return out
         
-    def handle_expression_libs(self) -> None:
+    def handle_expression_libs(self, reqs: list[Any], hints: list[Any]) -> None:
         """
         goal is to mark expression libraries as messages at top of output file.
         achieve this by attempting to parse (will fail), causing a __TOKENX__ = "[JS EXPR]" to be created as a message. 
         """
-
-        for req in self.entity.requirements:
+        for req in reqs:
             if req.__class__.__name__ == 'InlineJavascriptRequirement':
                 if hasattr(req, 'expressionLib') and isinstance(req.expressionLib, list):
                     for exprlib in req.expressionLib:
@@ -330,43 +335,107 @@ class CLTRequirementsParser(CLTEntityParser):
                             exprlib = f'$({exprlib})'
                         res, success = parse_expression(exprlib, self.tool_uuid)
 
-    def get_container(self, requirements: list[Any]) -> str:
+    def get_container(self, reqs: list[Any], hints: list[Any]) -> str:
         fallback = 'ubuntu:latest'
         if self.is_expression_tool:
             return 'node:latest'
         else:
-            for req in requirements:
+            for req in reqs:
                 if isinstance(req, self.cwl_utils.DockerRequirement):
                     return req.dockerPull
+            for hint in hints:
+                if 'class' in hint and hint['class'] == 'DockerRequirement':
+                    return hint['dockerPull']
         return fallback
     
-    def get_memory(self, requirements: list[Any]) -> Optional[int]:
-        for req in requirements:
+    def get_memory(self, reqs: list[Any], hints: list[Any]) -> Optional[int]:
+        for req in reqs:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
-                # maybe convert mebibytes to megabytes?
-                res, success = parse_expression(req.ramMin or req.ramMax, self.tool_uuid)
+                if hasattr(req, 'ramMin') and req.ramMin is not None:
+                    res, success = parse_expression(req.ramMin, self.tool_uuid)
+                    return res
+                if hasattr(req, 'ramMax') and req.ramMax is not None:
+                    res, success = parse_expression(req.ramMax, self.tool_uuid)
+                    return res
+        for hint in hints:
+            if 'ramMin' in hint and hint['ramMin'] is not None:
+                res, success = parse_expression(hint['ramMin'], self.tool_uuid)
+                return res
+            elif 'ramMax' in hint and hint['ramMax'] is not None:
+                res, success = parse_expression(hint['ramMax'], self.tool_uuid)
                 return res
         return None
     
-    def get_cpus(self, requirements: list[Any]) -> Optional[int]:
-        for req in requirements:
+    def get_cpus(self, reqs: list[Any], hints: list[Any]) -> Optional[int]:
+        for req in reqs:
             if isinstance(req, self.cwl_utils.ResourceRequirement):
-                res, success = parse_expression(req.coresMin, self.tool_uuid)
+                if hasattr(req, 'coresMin') and req.coresMin is not None:
+                    res, success = parse_expression(req.coresMin, self.tool_uuid)
+                    return res
+                if hasattr(req, 'coresMax') and req.coresMax is not None:
+                    res, success = parse_expression(req.coresMax, self.tool_uuid)
+                    return res
+        for hint in hints:
+            if 'coresMin' in hint and hint['coresMin'] is not None:
+                res, success = parse_expression(hint['coresMin'], self.tool_uuid)
+                return res
+            elif 'coresMax' in hint and hint['coresMax'] is not None:
+                res, success = parse_expression(hint['coresMax'], self.tool_uuid)
                 return res
         return None
 
-    def get_time(self, requirements: list[Any]) -> Optional[int]:
-        for req in requirements:
+    def get_time(self, reqs: list[Any], hints: list[Any]) -> Optional[int]:
+        for req in reqs:
             if hasattr(req, 'timelimit') and isinstance(req, self.cwl_utils.ToolTimeLimit):
                 res, success = parse_expression(req.timelimit, self.tool_uuid)
                 return res
+        for hint in hints:
+            if 'timelimit' in hint and hint['timelimit'] is not None:
+                res, success = parse_expression(hint['timelimit'], self.tool_uuid)
+                return res
         return None
     
-    def get_files_directories_to_create(self, requirements: list[Any]) -> Tuple[dict[str, Any], list[str | Selector]]:
+    def get_disk(self, reqs: list[Any], hints: list[Any]) -> Optional[int]:
+        """
+        tmpdirMin
+        tmpdirMax
+        outdirMin
+        outdirMax
+        """
+        for req in reqs:
+            if isinstance(req, self.cwl_utils.ResourceRequirement):
+                if hasattr(req, 'tmpdirMin') and req.tmpdirMin is not None:
+                    res, success = parse_expression(req.tmpdirMin, self.tool_uuid)
+                    return res
+                if hasattr(req, 'outdirMin') and req.outdirMin is not None:
+                    res, success = parse_expression(req.outdirMin, self.tool_uuid)
+                    return res
+                if hasattr(req, 'tmpdirMax') and req.tmpdirMax is not None:
+                    res, success = parse_expression(req.tmpdirMax, self.tool_uuid)
+                    return res
+                if hasattr(req, 'outdirMax') and req.outdirMax is not None:
+                    res, success = parse_expression(req.outdirMax, self.tool_uuid)
+                    return res
+        for hint in hints:
+            if 'tmpdirMin' in hint and hint['tmpdirMin'] is not None:
+                res, success = parse_expression(hint['tmpdirMin'], self.tool_uuid)
+                return res
+            if 'outdirMin' in hint and hint['outdirMin'] is not None:
+                res, success = parse_expression(hint['outdirMin'], self.tool_uuid)
+                return res
+            if 'tmpdirMax' in hint and hint['tmpdirMax'] is not None:
+                res, success = parse_expression(hint['tmpdirMax'], self.tool_uuid)
+                return res
+            if 'outdirMax' in hint and hint['outdirMax'] is not None:
+                res, success = parse_expression(hint['outdirMax'], self.tool_uuid)
+                return res
+        return None
+    
+    def get_files_directories_to_create(self, reqs: list[Any], hints: list[Any]) -> Tuple[dict[str, Any], list[str | Selector]]:
         files_to_create: dict[str, Any] = {}
         directories_to_create: list[str | Selector] = []
 
-        for req in requirements:
+        for req in reqs:
             if isinstance(req, self.cwl_utils.InitialWorkDirRequirement):
                 # ensure array
                 if isinstance (req.listing, str):
@@ -384,10 +453,10 @@ class CLTRequirementsParser(CLTEntityParser):
         
         return files_to_create, directories_to_create
     
-    def get_env_vars(self, requirements: list[Any]) -> dict[str, Any]:
+    def get_env_vars(self, reqs: list[Any], hints: list[Any]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         
-        for req in requirements:
+        for req in reqs:
             if isinstance(req, self.cwl_utils.EnvVarRequirement):
                 for envdef in req.envDef:
                     name, success = parse_expression(envdef.envName, self.tool_uuid)
@@ -410,9 +479,9 @@ class InitialWorkDirRequirementParser:
         error_token_override = "error parsing InitialWorkDirRequirement"
 
         # resolving value, name
-        self.r_value, self.r_value_ok = parse_expression(self.value, self.tool_uuid, error_token_override=error_token_override)
+        self.r_value, self.r_value_ok = parse_expression(self.value, self.tool_uuid, error_token_override=error_token_override, implicit_wrapping=True)
         if self.name is not None:
-            self.r_name, self.r_name_ok = parse_expression(self.name, self.tool_uuid)
+            self.r_name, self.r_name_ok = parse_expression(self.name, self.tool_uuid, implicit_wrapping=True)
         else:
             self.r_name, self.r_name_ok = None, True
         
@@ -443,9 +512,9 @@ class InitialWorkDirRequirementParser:
         success = False
         parsers = [
             self.parse_as_textfile,
-            self.parse_as_selector,
-            self.parse_as_object,
             self.parse_as_directory_path,
+            # self.parse_as_selector,
+            # self.parse_as_object,
         ]
         for parser in parsers:
             success = parser()

@@ -1,10 +1,9 @@
 
-from typing import Any, Optional
+from typing import Any
 import unittest
 import os 
 import json
-import xml.etree.ElementTree as et
-import pytest 
+import pytest  
 
 from janis_core.ingestion.main import ingest_galaxy
 
@@ -12,7 +11,6 @@ from janis_core.ingestion.galaxy.gxtool.text.simplification.main_statement impor
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
-from janis_core.ingestion.galaxy.gxtool.parsing.nogx.main import load_xmltool_new
 from janis_core.ingestion.galaxy.gxtool.text.simplification.simplify import simplify_cmd
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
@@ -142,7 +140,7 @@ class TestLoadXMLTool(unittest.TestCase):
     @unittest.skip('requires moving to new parser')
     def test_fastqc2(self) -> None:
         filepath = f'{GALAXY_TESTTOOL_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml'
-        tool = load_xmltool_new(filepath)
+        # tool = load_xmltool_new(filepath)
         print()
 
     @unittest.skip('requires moving to new parser')

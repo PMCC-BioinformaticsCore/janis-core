@@ -10,7 +10,7 @@ from Cheetah.Template import Template
 # from galaxy.util import unicodify
 
 from .. import utils
-from janis_core.ingestion.galaxy.gxtool.parsing.nogx import unicodify
+from janis_core.ingestion.galaxy.gxtool.parsing import unicodify
 from janis_core.ingestion.galaxy.gxtool.command.cmdstr import constructs
 
 from janis_core.ingestion.galaxy import expressions

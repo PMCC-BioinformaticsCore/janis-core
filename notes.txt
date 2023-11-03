@@ -1,6 +1,69 @@
+---------------
+--- GENERAL ---
+---------------
+
+CHANGES [TEST THESE]:
+- WDL runtime duration removed
+
+TODO 
+- messages -> output file
+- adapt translation units for new cwl parsed expressions
+- address bugs 
+- exceptions
+    - samtools index (cwl -> wdl)
+    - bwa index (cwl -> wdl)
+    - cutadapt (cwl -> wdl)
+
+------------------
+--- CWL INGEST ---
+------------------
+
+misc
+- can everything be both an object and a dict???? or is this just hints? just hints I think?
+
+test suite
+- edam formats 
 
 
 
+---------------------
+--- NXF TRANSLATE ---
+---------------------
+
+CWL -> NXF boofed 
+- bwa index:
+    whenever there is a Janis IfOperator the operator should be moved to prescript. See below. 
+    script:
+    """
+    ${(${(${index_name != None}) ? index_name : sequences.simpleName})} \
+    """
+
+misc 
+- Janis BasenameOperator -> Nextflow updated to no mods. This isn't doing normal janis unwrapping so didnt work.
+- curly brace unwrapping boofed 
+
+---------------------
+--- WDL TRANSLATE ---
+---------------------
+
+misc 
+- string + int interpolation? 
+- inputs which are secondary files getting split into individual inputs (may be fine to leave as-is)
+- remove runtime_seconds from inputs 
+
+CWL -> WDL failed 
+- bwa index 
+- cutadapt paired 
+
+CWL -> WDL Boofed
+- samtools index: wtf is this?
+    """
+    set -e
+    cat <<EOT >> 'inputs.bam_sorted'
+    ~{bam_sorted}
+    EOT
+    samtools index \
+    """
 
 
 ----------------

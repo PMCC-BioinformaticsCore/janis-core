@@ -2,9 +2,8 @@
 import os
 import tempfile
 import regex as re
-from typing import Any
-
-from galaxy.tools import Tool as GxTool
+from typing import Any 
+ 
 from galaxy.tools import create_tool_from_source
 from galaxy.tools.parameters.basic import ToolParameter
 from galaxy.tool_util.parser import get_tool_source
@@ -39,7 +38,7 @@ def load_xmltool(path: str) -> XMLTool:
     factory = GalaxyToolFactory(gxtool, path)
     return factory.create()
 
-def _load_galaxy_tool(path: str) -> GxTool:
+def _load_galaxy_tool(path: str) -> Any:
     app = _get_app()
     tool_source = get_tool_source(path)
     tool = create_tool_from_source(app, tool_source)
@@ -64,7 +63,7 @@ def _get_app() -> MockApp:
     return app
 
 class GalaxyToolFactory:
-    def __init__(self, gxtool: GxTool, xmlpath: str):
+    def __init__(self, gxtool: Any, xmlpath: str):
         self.gxtool = gxtool
         self.xmlpath = xmlpath
         self.scripts: list[XMLScript] = []

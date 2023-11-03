@@ -1,3 +1,1 @@
 
-
-from .encoding import unicodify

@@ -970,14 +970,15 @@ EOT"""
             string_environment=False,
             tool=tool,
             id="runtimestats",
-        )
-        runtime_block.kwargs["duration"] = cls.unwrap_expression(
-            TimeSelector(),
-            inmap,
-            string_environment=False,
-            tool=tool,
-            id="runtimestats",
-        )
+        ) 
+        # Note: commented this out because seems runtime.duration no longer supported in WDL
+        # runtime_block.kwargs["duration"] = cls.unwrap_expression(
+        #     TimeSelector(),
+        #     inmap,
+        #     string_environment=False,
+        #     tool=tool,
+        #     id="runtimestats",
+        # )
         runtime_block.kwargs["disks"] = cls.unwrap_expression(
             StringFormatter("local-disk {value} SSD", value=DiskSelector()),
             inmap,
@@ -2154,7 +2155,8 @@ def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_memory"),
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_cpu"),
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_disk"),
-                wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_seconds"),
+                # Note: commented this out because seems runtime.duration no longer supported in WDL
+                # wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_seconds"),
             ]
         )
     else:

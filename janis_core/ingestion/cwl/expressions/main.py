@@ -15,56 +15,83 @@ from janis_core.messages import ErrorCategory
 GRAMMAR_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/grammar.ebnf'
 
 def parse_expression(
-    expr: str, 
+    expr: Any, 
     tool_uuid: str, 
-    context: str='clt', 
+    implicit_wrapping: bool=False,
     error_token_override: Optional[str]=None
     ) -> Any:
+    print(type(expr))
 
+    # don't parse None
     if expr is None:
         return None, True
     
-    elif not isinstance(expr, str):
-        expr = str(expr)
+    # don't parse ints / floats / bools
+    if isinstance(expr, int | float | bool):
+        return expr, True
     
-    # no '$' wrapping 
-    if not expr.startswith('$(') and not expr.startswith('${'):
-        new_expr = f'$({expr})'
-        result, success = ExpressionParser(context).parse(new_expr)
-
-        # is expression
-        if success:
-            return result, True
-        # not expression
-        else:
-            return expr, True
+    # check we have a string
+    if not isinstance(expr, str):
+        raise NotImplementedError
     
     # has '$' wrapping 
+    if expr.startswith('$(') or expr.startswith('${'):
+        return parse_explicit_expr(expr, tool_uuid, error_token_override)
+
+    # no '$' wrapping but in this cwl context may still be valid expression
+    # add '$' and attempt parse.
+    elif implicit_wrapping:
+        return parse_implicit_expr(expr, tool_uuid, error_token_override)
+
+    # its just a string
     else:
-        result, success = ExpressionParser(context).parse(expr)
+        return expr, True 
 
-        # successful parse
-        if success:
-            return result, True
-        
-        # unsuccessful parse
-        # expr already has token
-        if error_token_override:
-            msg = f'{error_token_override}: {expr}'
-            log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
-            # this is shit
-            return None, False
+def parse_explicit_expr(
+    expr: str, 
+    tool_uuid: str, 
+    error_token_override: Optional[str]=None
+    ) -> Any:
 
-        loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool_uuid)
-        token = get_token_for_expr(expr, loglines)
-        if token:
-            return token, False
-        
-        # expr needs new token
-        token = f'__TOKEN{len(loglines) + 1}__'
-        msg = f'{token} = "{expr}"'
+    result, success = ExpressionParser().parse(expr)
+    # successful parse
+    if success:
+        return result, True
+    
+    # unsuccessful parse
+    # expr already has token
+    if error_token_override:
+        msg = f'{error_token_override}: {expr}'
         log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+        # this is shit
+        return None, False
+
+    loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool_uuid)
+    token = get_token_for_expr(expr, loglines)
+    if token:
         return token, False
+    
+    # expr needs new token
+    token = f'__TOKEN{len(loglines) + 1}__'
+    msg = f'{token} = "{expr}"'
+    log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+    return token, False
+
+def parse_implicit_expr(
+    expr: str, 
+    tool_uuid: str, 
+    error_token_override: Optional[str]=None
+    ) -> Any:
+    new_expr = f'$({expr})'
+    result, success = ExpressionParser().parse(new_expr)
+
+    # is expression
+    if success:
+        return result, True
+    
+    # not expression
+    else:
+        return expr, True
 
 def get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
     token_p = r'__TOKEN\d+__'
@@ -74,6 +101,7 @@ def get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
             if expr.strip('"') == expr:
                 return token
     return None
+
 
 class ExpressionParser:
     file_attr_map = {
@@ -113,10 +141,6 @@ class ExpressionParser:
         grammar = fp.read()
     parser = Lark(grammar, start='the_text')
 
-    def __init__(self, context: str) -> None:
-        assert context in ['clt', 'wf']
-        self.context = context 
-    
     def parse(self, expr: str) -> Tuple[Any, bool]:
         try:
             tree = self.parser.parse(expr)

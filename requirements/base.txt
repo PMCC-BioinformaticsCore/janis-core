@@ -4,6 +4,7 @@ ruamel.yaml >= 0.12.4, <= 0.16.5
 regex
 tabulate
 path
+packaging==21.3
 galaxy-app==22.1.1
 galaxy-auth==22.1.1
 galaxy-config==22.1.1
@@ -19,7 +20,6 @@ galaxy-util==22.1.1
 galaxy-web-framework==22.1.1
 galaxy-web-stack==22.1.1
 pulsar-galaxy-lib==0.14.13
-packaging==21.3
 miniwdl
 biopython==1.79
 filelock==3.7.0

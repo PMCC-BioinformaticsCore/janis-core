@@ -1,5 +1,6 @@
 
 from copy import copy
+import regex as re
 from typing import List, Optional
 
 from janis_core.utils.logger import Logger
@@ -80,9 +81,12 @@ class ReadJsonOperator(Operator):
         return f"JSON.parse({fp}.contents)"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        arg = unwrap_operator(self.args[0])
+        PATTERN = r'^[\'"](.*)[\'"]$'
+        if isinstance(arg, str) and re.match(PATTERN, arg):
+            match = re.match(PATTERN, arg)
+            arg = match.group(1)
+        return f'jsonSlurper.parseText(file("${{task.workDir}}/{arg}").text)'
 
     def requires_contents(self):
         return True
@@ -256,7 +260,7 @@ class BasenameOperator(Operator):
 
     def to_nextflow(self, unwrap_operator, *args):
         file_obj = unwrap_operator(args[0])
-        return f"{file_obj}.name"
+        return f"{file_obj}"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -273,6 +277,7 @@ class BasenameOperator(Operator):
     def evaluate(self, inputs):
         from os.path import basename
         return basename(self.evaluate_arg(self.args[0], inputs))
+
 
 # TODO test. currently untested.
 class DirnameOperator(Operator):
