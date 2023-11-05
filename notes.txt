@@ -24,6 +24,8 @@ misc
 test suite
 - edam formats 
 
+expressions
+- "self" can be parsed. 
 
 
 ---------------------
@@ -37,6 +39,11 @@ CWL -> NXF boofed
     """
     ${(${(${index_name != None}) ? index_name : sequences.simpleName})} \
     """
+
+unwrap 
+- 
+
+
 
 misc 
 - Janis BasenameOperator -> Nextflow updated to no mods. This isn't doing normal janis unwrapping so didnt work.

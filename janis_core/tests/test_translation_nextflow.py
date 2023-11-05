@@ -3652,6 +3652,148 @@ class TestPlumbingExpressions(unittest.TestCase):
         
 
 
+class TestUnwrap(unittest.TestCase):
+
+    def setUp(self) -> None:
+        reset_globals()
+        wf = UnwrapTestWF()
+        self.wf = do_preprocessing_workflow(wf)
+
+    def test_selectors(self) -> None:
+        step = self.wf.step_nodes["selectors_step"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        process_text = process.get_string()
+        prescript = simplify_prescript(process_text)
+        script = simplify_script(process_text)
+        print(process_text)
+
+        # prescript
+        self.assertIn('def target_filename = target_filename != params.NULL_VALUE ? target_filename : "${in_file.baseName}.fastq.gz"', prescript)
+        
+        # script
+        self.assertIn('--targetFilename ${target_filename}', script)
+        self.assertIn('--inFile ${in_file}', script)
+    
+    def test_standard(self) -> None:
+        step = self.wf.step_nodes["standard_step"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        process_text = process.get_string()
+        print(process_text)
+        prescript = simplify_prescript(process_text)
+        script = simplify_script(process_text)
+
+        # prescript
+        self.assertIn('def in_bam_bai_arr = get_primary_files(in_bam_bai_arr_flat, 2)', prescript)
+        self.assertIn("def in_bam_bai_arr_joined = in_bam_bai_arr.join(' ')", prescript)
+        self.assertIn('def in_bam_bai = in_bam_bai[0]', prescript)
+        self.assertIn('def in_file_arr_joined = in_file_arr.join(\' \')', prescript)
+        self.assertIn('def in_int_opt = in_int_opt != params.NULL_VALUE ? in_int_opt : ""', prescript)
+        self.assertIn('def in_str_opt = in_str_opt != params.NULL_VALUE ? in_str_opt : ""', prescript)
+
+        # script
+        self.assertIn('--BasenameOperator ${in_file}', script)
+        self.assertIn('--DirnameOperator ${in_file.parent}', script)
+        self.assertIn('--NamerootOperator ${in_file.simpleName}', script)
+        self.assertIn('--NameextOperator ${in_file.extension}', script)
+        self.assertIn('--FileSizeOperator ${(in_file.size / 1048576)}', script)
+        self.assertIn('--ReadContents ${in_file.text}', script)
+        self.assertIn('--ReadJsonOperator ${jsonSlurper.parseText(file("${task.workDir}/${in_file}").text)}', script)
+        self.assertIn('--RangeOperator ${0..in_int}', script)
+        self.assertIn('--SplitOperator ${in_str.split(" ")}', script)
+        self.assertIn('--ReplaceOperator ${in_str.replaceAll("/[a-z]/", "/[A-Z]/")}', script)
+        self.assertIn('--LengthOperator ${in_file_arr.size()}', script)
+        self.assertIn('--FlattenOperator ${in_file_arr.flatten()}', script)
+        self.assertIn('--SliceOperator ${in_file_arr[0..-2]}', script)
+        self.assertIn('--IndexOperator ${in_file_arr[1]}', script)
+        self.assertIn('--IndexOperator ${in_bam_bai_arr[1]}', script)
+        self.assertIn('--ApplyPrefixOperator ${in_file_arr.map{it -> "--prefix" + it}}', script)
+        self.assertIn('--FirstOperator ${in_file_arr.first()}', script)
+        self.assertIn('--FilterNullOperator ${in_file_arr.filter{it -> it != null}}', script)
+        self.assertIn('--FilterNullOperatorLiteral ${[1, null, 3, 4, null].filter{it -> it != null}}', script)
+        self.assertIn('--JoinOperator ${in_file_arr.join(",")}', script)
+        self.assertIn('--TransposeOperator ${in_file_arr.transpose()}', script)
+    
+    def test_logical(self) -> None:
+        step = self.wf.step_nodes["logical_step"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        process_text = process.get_string()
+        print(process_text)
+        prescript = simplify_prescript(process_text)
+        script = simplify_script(process_text)
+
+        # prescript
+        self.assertIn("def in_bam_bai_arr = get_primary_files(in_bam_bai_arr_flat, 2)", prescript)
+        self.assertIn("def in_bam_bai_arr_joined = in_bam_bai_arr.join(' ')", prescript)
+        self.assertIn("def in_bam_bai = in_bam_bai[0]", prescript)
+        self.assertIn("def in_file_arr_joined = in_file_arr.join(' ')", prescript)
+        self.assertIn("def in_file_opt = in_file_opt.simpleName != params.NULL_VALUE ? in_file_opt : \"\"", prescript)
+        self.assertIn("def in_float_opt = in_float_opt != params.NULL_VALUE ? in_float_opt : \"\"", prescript)
+        self.assertIn("def in_int_opt = in_int_opt != params.NULL_VALUE ? in_int_opt : \"\"", prescript)
+        self.assertIn("def in_str_opt = in_str_opt != params.NULL_VALUE ? in_str_opt : \"\"", prescript)
+
+        # script
+        self.assertIn("--AssertNotNull ${assert in_file_opt != null}", script)
+        self.assertIn("--IsDefined ${in_file_opt}", script)
+        self.assertIn("--NotOperator ${!(in_file_opt)}", script)
+        self.assertIn("--FloorOperator ${Math.floor(in_float)}", script)
+        self.assertIn("--CeilOperator ${Math.ceil(in_float)}", script)
+        self.assertIn("--RoundOperator ${Math.round(in_float)}", script)
+        self.assertIn("--GroupOperator ${(5 + 10)}", script)
+        self.assertIn("--AndOperator ${in_file_opt && in_str_opt}", script)
+        self.assertIn("--OrOperator ${in_file_opt || in_str_opt}", script)
+        self.assertIn("--EqualityOperator ${in_str_opt == \"hello!\"}", script)
+        self.assertIn("--InequalityOperator ${in_str_opt != \"hello!\"}", script)
+        self.assertIn("--GtOperator ${in_int > 0}", script)
+        self.assertIn("--GteOperator ${in_int >= 0}", script)
+        self.assertIn("--LtOperator ${in_int < 0}", script)
+        self.assertIn("--LteOperator ${in_int <= 0}", script)
+        self.assertIn("--AddOperator ${9 + 10}", script)
+        self.assertIn("--SubtractOperator ${9 - 10}", script)
+        self.assertIn("--MultiplyOperator ${9 * 10}", script)
+        self.assertIn("--DivideOperator ${9 / 10}", script)
+        
+        # not script
+        self.assertNotIn("--If ${in_file_opt ? in_file_opt : \"\"}", script)
+    
+    def test_complex(self) -> None:
+        step = self.wf.step_nodes["complex_step"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        process_text = process.get_string()
+        print(process_text)
+        prescript = simplify_prescript(process_text)
+        script = simplify_script(process_text)
+
+        # prescript
+        self.assertIn("def in_bam_bai_arr = get_primary_files(in_bam_bai_arr_flat, 2)", prescript)
+        self.assertIn("def in_bam_bai_arr_joined = in_bam_bai_arr.join(' ')", prescript)
+        self.assertIn("def in_bam_bai = in_bam_bai[0]", prescript)
+        self.assertIn("def in_file_arr_joined = in_file_arr.join(' ')", prescript)
+        self.assertIn("def in_file_opt = in_file_opt.simpleName != params.NULL_VALUE ? in_file_opt : \"\"", prescript)
+        self.assertIn("def in_float_opt = in_float_opt != params.NULL_VALUE ? in_float_opt : \"\"", prescript)
+        self.assertIn("def in_int_opt = in_int_opt != params.NULL_VALUE ? in_int_opt : \"\"", prescript)
+        self.assertIn("def in_str_opt = in_str_opt != params.NULL_VALUE ? in_str_opt : \"\"", prescript)
+
+        # script
+        self.assertIn('--StringFormatter ${in_file}.trimmed${in_file.extension}', script)
+        self.assertIn('--ArrayMethodChain ${in_file_arr[0].split(".")[0..-1].join(".")}', script)
+        self.assertIn('--Concat ${"> " + in_str + ".log"}', script)
+        self.assertIn('--Math ${Math.ceil((in_file.size / 1048576) / (1024 * 1024 * 1024) + 20)}', script)
+    
+    def test_process_prescript(self) -> None:
+        raise NotImplementedError
+    
+    def test_process_script(self) -> None:
+        raise NotImplementedError
+    
+    def test_process_output(self) -> None:
+        raise NotImplementedError
+    
+    def test_workflow_input(self) -> None:
+        raise NotImplementedError
+    
+    def test_workflow_output(self) -> None:
+        raise NotImplementedError
+    
 
 
 class TestUnwrapProcess(unittest.TestCase):
@@ -3667,9 +3809,21 @@ class TestUnwrapProcess(unittest.TestCase):
         print(process.get_string())
 
     # PROCESS RELATED
+    def test_input(self) -> None:
+        # prescript 
+        # script 
+        self.assertIn("--filenameGen generated.gz", self.script)
+    
+    def test_ternary(self) -> None:
+        # only ever prescript section
+        self.assertIn("--filenameGen generated.gz", self.script)
+    
+    
+    # PROCESS RELATED
     @unittest.skip('filenames are scuffed')
     def test_filename_generated(self) -> None:
         self.assertIn("--filenameGen generated.gz", self.script)
+
     @unittest.skip('filenames are scuffed')
     def test_filename_reference(self) -> None:
         self.assertIn("--filenameRef ${in_file.simpleName}.fastq.gz", self.script)
@@ -3741,7 +3895,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=node,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = 'ch_in_file'
         self.assertEqual(actual, expected)
@@ -3757,7 +3911,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=node,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = 'params.in_str'
         self.assertEqual(actual, expected)
@@ -3773,7 +3927,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=src,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
@@ -3789,7 +3943,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=src,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = 'STP1.out.out'
         self.assertEqual(actual, expected)
@@ -3806,7 +3960,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=src,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
         self.assertEqual(actual, expected)
@@ -3822,7 +3976,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
             val=src,
             context='workflow',
             variable_manager=variable_manager,
-            quote_strings=True
+            strquote_override=True
         )
         expected = 'ch_in_file_arr[0]'
         self.assertEqual(actual, expected)

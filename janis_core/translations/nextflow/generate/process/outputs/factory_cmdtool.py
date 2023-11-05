@@ -188,8 +188,6 @@ class CmdtoolProcessOutputFactory:
             context='process_output',
             variable_manager=self.variable_manager,
             tool=self.tool,
-            in_shell_script=self.add_braces,
-            quote_strings=self.quote_strings,
         )
     
     # process output creation methods

@@ -1,7 +1,7 @@
 
 
 from typing import Any, Optional
-from janis_core import ToolInput, ToolArgument, CommandTool, DataType
+from janis_core import ToolInput, ToolArgument, CommandTool, DataType, Selector
 
 from ....nfgen_utils import to_groovy
 from ....unwrap import unwrap_expression
@@ -28,13 +28,15 @@ def delim_str(tinput: ToolInput) -> str:
 
 
 def unwrap(val: Any, tool: CommandTool, vmanager: VariableManager, quote_strings: Optional[bool]=None) -> Any:
+    apply_braces = True if isinstance(val, Selector) else False
+    inside_braces = True if apply_braces else False
     return unwrap_expression(
         val=val,
         context='process_script',
         variable_manager=vmanager,
         tool=tool,
-        in_shell_script=True,
-        quote_strings=quote_strings
+        apply_braces=apply_braces,
+        inside_braces=inside_braces,
     )
 
 def eval_cmdline_targ(

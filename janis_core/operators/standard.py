@@ -343,7 +343,7 @@ class NamerootOperator(Operator):
 
     def to_nextflow(self, unwrap_operator, *args):
         file_obj = unwrap_operator(args[0])
-        return f"{file_obj}.baseName"
+        return f"{file_obj}.simpleName"
 
     def argtypes(self):
         return [UnionType(File, Directory)]

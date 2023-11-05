@@ -224,7 +224,6 @@ class TaskCallArgumentGenerator:
             val=self.src,
             context='workflow',
             variable_manager=self.vmanager,
-            quote_strings=True
         )
             
         if isinstance(arg, list):

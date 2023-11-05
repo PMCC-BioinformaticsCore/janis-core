@@ -102,7 +102,6 @@ class ProcessScriptGenerator:
                 context='process_script',
                 variable_manager=self.vmanager,
                 tool=self.tool,
-                in_shell_script=True,
             ) 
             line = f"mkdir -p '{unwrapped_dir}';"
             self.script.append(line)

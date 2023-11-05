@@ -694,9 +694,8 @@ class FloorOperator(Operator):
         return f"Math.floor({arg})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        arg = unwrap_operator(self.args[0])
+        return f"Math.floor({arg})"
 
     def evaluate(self, inputs):
         from math import floor
@@ -736,9 +735,8 @@ class CeilOperator(Operator):
         return f"Math.ceil({arg})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        arg = unwrap_operator(self.args[0])
+        return f"Math.ceil({arg})"
 
     def evaluate(self, inputs):
         from math import ceil
@@ -778,9 +776,8 @@ class RoundOperator(Operator):
         return f"Math.round({arg})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        arg = unwrap_operator(self.args[0])
+        return f"Math.round({arg})"
 
     def evaluate(self, inputs):
         result = self.evaluate_arg(self.args[0], inputs)

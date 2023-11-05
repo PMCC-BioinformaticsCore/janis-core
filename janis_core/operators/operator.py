@@ -217,6 +217,11 @@ class SingleValueOperator(Operator, ABC):
     @abstractmethod
     def cwl_symbol():
         pass
+    
+    @staticmethod
+    @abstractmethod
+    def nextflow_symbol():
+        pass
 
     @staticmethod
     @abstractmethod
@@ -241,7 +246,7 @@ class SingleValueOperator(Operator, ABC):
         return f"{self.cwl_symbol()}({unwrap_operator(*args)})"
 
     def to_nextflow(self, unwrap_operator, *args):
-        return f"{self.to_nextflow()}({unwrap_operator(*args)})"
+        return f"{self.nextflow_symbol()}({unwrap_operator(*args)})"
 
     def to_python(self, unwrap_operator, *args):
         return f"{self.symbol()}({unwrap_operator(*args)})"

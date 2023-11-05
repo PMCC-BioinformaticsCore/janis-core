@@ -221,7 +221,6 @@ class SubWFGenerator(WFGenerator):
                 val=out.source, 
                 context='workflow',
                 variable_manager=self.vmanager,
-                in_shell_script=True
             )
             emit_item = NFWorkflowEmit(outname, expression)
             emit.append(emit_item)

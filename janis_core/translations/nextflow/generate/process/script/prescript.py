@@ -3,7 +3,7 @@
 from typing import Any
 from abc import ABC, abstractmethod
 
-from janis_core import ToolInput, CommandTool, DataType
+from janis_core import ToolInput, CommandTool, DataType, Filename, Selector, StringFormatter
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 
@@ -479,14 +479,47 @@ class FilenameFormatter(GenericFormatter):
         self.prescript.append(line)
 
     def default_str(self, apply_prefix: bool=False) -> str:
-        expr = unwrap_expression(
-            val=self.dtype,
-            context='process_output',
-            variable_manager=self.vmanager,
-            tool=self.tool,
-            in_shell_script=True,
-            quote_strings=False
-        )
+        val: Filename = self.dtype # type: ignore
+
+        if any([isinstance(x, Selector) for x in [val.prefix, val.suffix, val.extension]]):
+            kwargs = {}
+            fmt = ''
+            if val.prefix is not None:
+                if isinstance(val.prefix, str):
+                    fmt += f'{val.prefix}'
+                else:
+                    fmt += '{prefix}'
+                    kwargs['prefix']=val.prefix
+            if val.suffix is not None:
+                if isinstance(val.suffix, str):
+                    fmt += f'{val.suffix}'
+                else:
+                    fmt += '{suffix}'
+                    kwargs['suffix']=val.suffix
+            if val.extension is not None:
+                if isinstance(val.extension, str):
+                    fmt += f'{val.extension}'
+                else:
+                    fmt += '{extension}'
+                    kwargs['extension']=val.extension
+
+            
+            val = StringFormatter(fmt, **kwargs)
+
+            apply_braces = False
+            inside_braces = False
+            expr = unwrap_expression(
+                val=val,
+                context='process_prescript',
+                variable_manager=self.vmanager,
+                tool=self.tool,
+                apply_braces=apply_braces,
+                inside_braces=inside_braces,
+            )
+        
+        else:
+            expr = val.generated_filename()
+            
         if not expr.startswith('"') and not expr.endswith('"'):
             expr = f'"{expr}"'
         if apply_prefix:
