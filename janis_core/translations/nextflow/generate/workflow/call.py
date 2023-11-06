@@ -220,11 +220,14 @@ class TaskCallArgumentGenerator:
         return f'params.{param.name}'
 
     def generate_regular(self) -> str:
-        arg = unwrap_expression(
-            val=self.src,
-            context='workflow',
-            variable_manager=self.vmanager,
-        )
+        if self.src is not None:
+            arg = unwrap_expression(
+                val=self.src,
+                context='workflow',
+                variable_manager=self.vmanager,
+            )
+        else:
+            arg = None
             
         if isinstance(arg, list):
             raise NotImplementedError

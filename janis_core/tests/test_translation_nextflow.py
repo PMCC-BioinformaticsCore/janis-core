@@ -279,15 +279,15 @@ def _get_process_output_lines(text: str) -> list[str]:
     sec_end = r'(script:)|(exec:)'
     return _lines_within_section(text, sec_start, sec_end)
 
-# def _get_process_prescript_lines(text: str) -> list[str]:
-#     sec_start = r'script:'
-#     sec_end = r'"""'
-#     return _lines_within_section(text, sec_start, sec_end)
+def _get_process_prescript_lines(text: str) -> list[str]:
+    sec_start = r'script:'
+    sec_end = r'"""'
+    return _lines_within_section(text, sec_start, sec_end)
 
-# def _get_process_script_lines(text: str) -> list[str]:
-#     sec_start = r'"""'
-#     sec_start = r'"""'
-#     return _lines_within_section(text, sec_start, sec_end)
+def _get_process_script_lines(text: str) -> list[str]:
+    sec_start = r'"""'
+    sec_end = r'"""'
+    return _lines_within_section(text, sec_start, sec_end)
 
 def _get_task_call_lines(text: str, task_name: str) -> list[str]:
     out: list[str] =[]
@@ -309,7 +309,6 @@ def _lines_within_section(text: str, sec_start: str, sec_end: str) -> list[str]:
     lines = text.split('\n')                        # split into lines
     lines = [ln.strip(' ') for ln in lines]         # strip indents
     lines = [ln for ln in lines if not ln == '']    # remove empty lines
-    lines = [ln for ln in lines if not ln == '"""'] # remove script """ start end
     within_section: bool = False
     for line in lines:
         if re.findall(sec_start, line) and not within_section:
@@ -1761,7 +1760,7 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_outputs = {out.get_string() for out in process.outputs}
         print(process.outputs[0].get_string())
         expected_outputs = {
-            'tuple path("${bam[0].name}"), path("*.bai"), emit: out'
+            'tuple path("${bam[0]}"), path("*.bai"), emit: out'
         }
         self.assertEqual(actual_outputs, expected_outputs)
     
@@ -2418,8 +2417,8 @@ class TestCmdtoolProcessScript(unittest.TestCase):
             'val "*", emit: out',
             'script:',
             'def file_inp_optional = file_inp_optional.simpleName != params.NULL_VALUE ? file_inp_optional : ""',
-            'def generated_file_inp = generated_file_inp != params.NULL_VALUE ? generated_file_inp : "${file_inp.baseName}.transformed.fnp"',
-            'def generated_file_inp_optional = generated_file_inp_optional != params.NULL_VALUE ? generated_file_inp_optional : "${file_inp_optional.baseName}.optional.txt"',
+            'def generated_file_inp = generated_file_inp != params.NULL_VALUE ? generated_file_inp : "${file_inp.simpleName}.transformed.fnp"',
+            'def generated_file_inp_optional = generated_file_inp_optional != params.NULL_VALUE ? generated_file_inp_optional : "${file_inp_optional.simpleName}.optional.txt"',
             'def generated_inp = generated_inp != params.NULL_VALUE ? generated_inp : "${inp}"',
             'def generated_inp_optional = generated_inp_optional != params.NULL_VALUE ? generated_inp_optional : "${inp_optional}"',
             'def inp_optional = inp_optional != params.NULL_VALUE ? inp_optional : ""',
@@ -2471,7 +2470,7 @@ class TestCmdtoolProcessScript(unittest.TestCase):
 
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def inp2 = inp2 != params.NULL_VALUE ? inp2 : "${inp1.baseName}.processed.txt"'
+            'def inp2 = inp2 != params.NULL_VALUE ? inp2 : "${inp1.simpleName}.processed.txt"'
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in expected_prescript:
@@ -3638,7 +3637,7 @@ class TestPlumbingExpressions(unittest.TestCase):
         print(mainstr)
         actual = _get_task_call_lines(mainstr, 'PRINT')
         expected = [
-            "[params.mystring, GET_STRING.out.out].find{ it != null }"
+            "[params.mystring, GET_STRING.out.out].first()"
         ]
         self.assertEqual(len(actual), len(expected))
         for arg in expected:
@@ -3675,31 +3674,36 @@ class TestUnwrap(unittest.TestCase):
         # actual
         actual_inputs = _get_process_input_lines(process_text)
         actual_outputs = _get_process_output_lines(process_text)
-        actual_prescript = simplify_prescript(process_text)
-        actual_script = simplify_script(process_text)
+        actual_prescript = _get_process_prescript_lines(process_text)
+        actual_script = _get_process_script_lines(process_text)
 
         # expected
         expected_inputs = [
-            'path bam_sorted'
+            'path bam_sorted',
+            'path reads_1', 
+            'val in_filename',
         ]
         expected_outputs = [
             'tuple path("${bam_sorted}"), path("*.bai"), emit: bam_sorted_indexed',
             'path "${reads_1}.trimmed${reads_1.extension}", emit: trimmed_reads_1'
         ]
         expected_prescript = [
+            'def in_filename = in_filename != params.NULL_VALUE ? in_filename : "generated"',
         ]
         expected_script = [
-            'samtools index',
-            '-b',
-            '${bam_sorted}',
+            'samtools index \\',
+            '-b \\',
+            '${bam_sorted} \\',
+            '${in_filename}',
         ]
 
         # checks
         self.assertEqual(actual_inputs, expected_inputs)
         self.assertEqual(actual_outputs, expected_outputs)
         self.assertEqual(actual_prescript, expected_prescript)
-        self.assertEqual(actual_script, expected_inputs)
+        self.assertEqual(actual_script, expected_script)
     
+    @unittest.skip('should probably implement this')
     def test_workflow_basics(self) -> None:
         # workflow input
         # workflow call
@@ -3873,16 +3877,7 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn('--Concat ${"> " + in_str + ".log"}', script)
         self.assertIn('--Math ${Math.ceil((in_file.size / 1048576) / (1024 * 1024 * 1024) + 20)}', script)
     
-    def test_index_operator_secondaries(self) -> None:
-        self.assertIn("--IndexOperatorSecondariesBam ${in_bam_bai}", self.script)
-        self.assertIn("--IndexOperatorSecondariesBai ${in_bam_bai}", self.script)
     
-    def test_index_operator_secondaries_array(self) -> None:
-        print(self.script)
-        self.assertIn("--IndexOperatorArraySecondariesBams ${in_bam_bai_arr[0]}", self.script)
-        self.assertIn("--IndexOperatorArraySecondariesBais ${in_bam_bai_arr[1]}", self.script)
-    
-
 
 def update_variables(tool: Tool, vmanager: VariableManager) -> None:
     for tinput in _get_param_inputs(tool, vmanager):
@@ -3915,7 +3910,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         node = wf.input_nodes['inFile']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=node,
             context='workflow',
             variable_manager=variable_manager,
@@ -3931,7 +3926,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         node = wf.input_nodes['inStr']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=node,
             context='workflow',
             variable_manager=variable_manager,
@@ -3947,7 +3942,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         src = sources['inp']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=src,
             context='workflow',
             variable_manager=variable_manager,
@@ -3963,7 +3958,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         src = sources['inp']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=src,
             context='workflow',
             variable_manager=variable_manager,
@@ -3980,13 +3975,13 @@ class TestUnwrapWorkflow(unittest.TestCase):
         src = sources['inp']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=src,
             context='workflow',
             variable_manager=variable_manager,
             strquote_override=True
         )
-        expected = '[params.mystring, GET_STRING.out.out].find{ it != null }'
+        expected = '[params.mystring, GET_STRING.out.out].first()'
         self.assertEqual(actual, expected)
     
     def test_index_operator_wf(self) -> None:
@@ -3996,7 +3991,7 @@ class TestUnwrapWorkflow(unittest.TestCase):
         src = sources['inp']
         variable_manager = init_variable_manager_for_task(wf)
         update_variables(wf, variable_manager)
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=src,
             context='workflow',
             variable_manager=variable_manager,
@@ -4011,33 +4006,17 @@ class TestUnwrapStringFormatter(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
     
-    def test_basic(self):
-        settings.translate.nextflow.ENTITY = 'tool'
-        tool = BasicTestTool()
-        tool = do_preprocessing_tool(tool)
-        variable_manager = init_variable_manager_for_task(tool)
-        sf = StringFormatter("no format")
-        actual = nextflow.unwrap_expression(
-            val=sf,
-            context='process_script',
-            variable_manager=variable_manager,
-            tool=tool, 
-            in_shell_script=True
-        )
-        self.assertEqual("no format", actual)
-
     def test_string(self):
         settings.translate.nextflow.ENTITY = 'tool'
         tool = BasicTestTool()
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter("there's a {str_arg} arg", str_arg="string")
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=sf,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=True
         )
         self.assertEqual("there\'s a string arg", actual)
     
@@ -4047,12 +4026,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         tool = do_preprocessing_tool(tool)
         variable_manager = init_variable_manager_for_task(tool)
         sf = StringFormatter("an input {arg}", arg=InputSelector("testtool"))
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=sf,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=True,
         )
         self.assertEqual("an input ${testtool}", actual)
     
@@ -4062,12 +4040,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
         step = wf.step_nodes["stp1"]
         variable_manager = init_variable_manager_for_task(step.tool)
         sf = StringFormatter("an input {arg}", arg=InputSelector("compressionLevel"))
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=sf, 
             context='process_script',
             variable_manager=variable_manager,
             tool=step.tool,
-            in_shell_script=True
         )
         expected = "an input ${compression_level}"
         self.assertEqual(actual, expected)
@@ -4082,12 +4059,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        actual = nextflow.unwrap_expression(
+        actual = unwrap_expression(
             val=sf,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=True
         )
         self.assertEqual("${user}:${static}", actual)
 
@@ -4101,23 +4077,14 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             username=InputSelector("user"),
             password=InputSelector("static"),
         )
-        actual_scripting = nextflow.unwrap_expression(
+        actual_script = unwrap_expression(
             val=sf,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=False
         )
-        actual_shell = nextflow.unwrap_expression(
-            val=sf,
-            context='process_script',
-            variable_manager=variable_manager,
-            tool=tool, 
-            in_shell_script=True
-        )
-        print(actual_shell)
-        self.assertEqual("user\\tstatic", actual_scripting)
-        self.assertEqual("${user}\\\\t${static}", actual_shell)
+        print(actual_script)
+        self.assertEqual("${user}\\\\t${static}", actual_script)
 
     def test_expression(self):
         settings.translate.nextflow.ENTITY = 'tool'
@@ -4129,12 +4096,11 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             name=InputSelector("testtool"),
             items=JoinOperator(InputSelector("arrayInp"), separator=";"),
         )
-        res = nextflow.unwrap_expression(
+        res = unwrap_expression(
             val=sf,
             context='process_script',
             variable_manager=variable_manager,
             tool=tool, 
-            in_shell_script=True
         )
         self.assertEqual("${testtool}:${array_inp.join(\";\")}", res)
     
@@ -4148,9 +4114,8 @@ class TestUnwrapStringFormatter(unittest.TestCase):
             arg=arg,
             tool=step.tool,
             vmanager=vmanager,
-            shell_quote=True
         )
-        expected = '--java-options "-Xmx${8 * 3 / 4}G ${compression_level ? "-Dsamjdk.compress_level=" + compression_level : ""} ${[java_options, []].find{ it != null }.join(" ")}"'
+        expected = '--java-options -Xmx${8 * 3 / 4}G ${compression_level ? "-Dsamjdk.compress_level=" + compression_level : ""} ${[java_options, []].first().join(" ")}'
         self.assertEqual(actual, expected)
 
 

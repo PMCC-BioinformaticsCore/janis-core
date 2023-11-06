@@ -1,13 +1,10 @@
 
-
-
 ---------------
 --- GENERAL ---
 ---------------
 
 DOING
-- apply_braces
-- filename -> StringFormatter, unwrap StringFormatter instead. 
+- messages -> output file
 
 CHANGES [TEST THESE]:
 - WDL runtime duration removed
