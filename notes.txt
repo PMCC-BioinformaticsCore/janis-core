@@ -1,6 +1,13 @@
+
+
+
 ---------------
 --- GENERAL ---
 ---------------
+
+DOING
+- apply_braces
+- filename -> StringFormatter, unwrap StringFormatter instead. 
 
 CHANGES [TEST THESE]:
 - WDL runtime duration removed

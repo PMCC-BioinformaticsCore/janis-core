@@ -1,7 +1,7 @@
 
 from typing import Tuple, Optional
 
-from janis_core import CommandTool, ToolArgument, Stdout
+from janis_core import CommandToolBuilder, ToolArgument, Stdout
 from janis_core import settings
 from janis_core.translations.common import trace
 
@@ -15,7 +15,7 @@ from .script import gen_script_lines
 
 
 def gen_nf_process_script(
-    tool: CommandTool,
+    tool: CommandToolBuilder,
     vmanager: VariableManager,
 ) -> Tuple[Optional[str], str]:
     return ProcessScriptGenerator(
@@ -27,7 +27,7 @@ def gen_nf_process_script(
 class ProcessScriptGenerator:
     def __init__(
         self,
-        tool: CommandTool, 
+        tool: CommandToolBuilder, 
         vmanager: VariableManager
     ):
         self.tool = tool

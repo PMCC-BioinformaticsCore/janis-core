@@ -1,7 +1,7 @@
 
 
 from typing import Any, Optional
-from janis_core import ToolInput, ToolArgument, CommandTool, DataType, Selector
+from janis_core import ToolInput, ToolArgument, CommandToolBuilder, DataType, Selector, StringFormatter
 
 from ....nfgen_utils import to_groovy
 from ....unwrap import unwrap_expression
@@ -26,22 +26,20 @@ def delim_str(tinput: ToolInput) -> str:
         return tinput.separator
     return ' '
 
-
-def unwrap(val: Any, tool: CommandTool, vmanager: VariableManager, quote_strings: Optional[bool]=None) -> Any:
-    apply_braces = True if isinstance(val, Selector) else False
-    inside_braces = True if apply_braces else False
+def unwrap(val: Any, tool: CommandToolBuilder, vmanager: VariableManager, quote_strings: Optional[bool]=None) -> Any:
+    apply_braces = True if isinstance(val, Selector) and not isinstance(val, StringFormatter) else False
     return unwrap_expression(
         val=val,
         context='process_script',
         variable_manager=vmanager,
         tool=tool,
         apply_braces=apply_braces,
-        inside_braces=inside_braces,
+        strquote_override=False
     )
 
 def eval_cmdline_targ(
     arg: ToolArgument, 
-    tool: CommandTool, 
+    tool: CommandToolBuilder, 
     vmanager: VariableManager, 
     shell_quote: Optional[bool]=None
     ) -> str:
@@ -74,7 +72,7 @@ def eval_cmdline_targ(
 def eval_cmdline_tinput(
     default: Any, 
     tinput: ToolInput, 
-    tool: CommandTool, 
+    tool: CommandToolBuilder, 
     vmanager: VariableManager,
     apply_prefix: bool,
     quote_strings: Optional[bool]=None

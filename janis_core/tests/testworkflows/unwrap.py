@@ -17,9 +17,8 @@ from janis_core.types import (
     Float,
     Array,
 )
-from janis_core.redefinitions.types import BamBai
+from janis_core.redefinitions.types import Bam, BamBai
 import janis_core as j
-
 
 
 # WORKFLOW
@@ -38,6 +37,14 @@ class UnwrapTestWF(Workflow):
         self.input("inFloat", Float())
         self.input("inFloatOpt", Float(optional=True))
 
+        self.step(
+            "basics_step", 
+            BasicsTestTool(
+                reads_1=self.inFile,
+                bam_sorted=self.inFile,
+            )
+        )
+        
         self.step(
             "selectors_step", 
             SelectorTestTool(
@@ -101,6 +108,54 @@ class UnwrapTestWF(Workflow):
 
 
 # TOOLS
+class BasicsTestTool(CommandTool):
+    
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
+        
+    def base_command(self) -> Optional[str | list[str]]:
+        return ['samtools', 'index']
+
+    def friendly_name(self):
+        return "TEST: BasicsTestTool"
+
+    def tool(self):
+        return "BasicsTestTool"
+    
+    def inputs(self):
+        return [
+            ToolInput("reads_1", File()),
+            ToolInput("in_filename", Filename(), position=3),
+            ToolInput("bam_sorted", Bam(), position=2),
+        ]
+    
+    def arguments(self):
+        return [
+            ToolArgument('-b', position=1)
+        ]
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "bam_sorted_indexed",
+                BamBai(),
+                selector=j.BasenameOperator(j.InputSelector('bam_sorted')),
+            ),
+            ToolOutput(
+                "trimmed_reads_1",
+                File(),
+                selector=j.StringFormatter(
+                    format='{token1}.trimmed{token2}', 
+                    token1=j.BasenameOperator(j.InputSelector("reads_1")), 
+                    token2=j.NameextOperator(j.InputSelector("reads_1"))
+                )
+            )
+        ]
+
+
 class SelectorTestTool(CommandTool):
     """
     TODO

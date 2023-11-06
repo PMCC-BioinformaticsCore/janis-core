@@ -117,7 +117,10 @@ from janis_core import (
     Tool,
     WorkflowBuilder,
     Workflow,
-    CommandToolBuilder
+    CommandToolBuilder,
+    SplitOperator,
+    BasenameOperator,
+    NameextOperator,
 )
 
 from janis_core.translations import translate
@@ -156,6 +159,7 @@ from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 from janis_core import settings
 
+from janis_core.translations.nextflow import unwrap_expression
 from janis_core.translations.nextflow.generate.workflow.common import get_common_type
 from janis_core.translations.nextflow.generate.workflow.datatype_mismatch import (
     get_array_depth,
@@ -163,6 +167,8 @@ from janis_core.translations.nextflow.generate.workflow.datatype_mismatch import
     is_array_depth_mismatch,
     gen_datatype_mismatch_plumbing,
 )
+
+
 
 
 ### helper functions
@@ -3659,6 +3665,96 @@ class TestUnwrap(unittest.TestCase):
         wf = UnwrapTestWF()
         self.wf = do_preprocessing_workflow(wf)
 
+    def test_process_basics(self) -> None:
+        # prescript (BWA_Index) If Operator: make prescript line rather than in script
+        step = self.wf.step_nodes["basics_step"]
+        process = nextflow.generate.process.generate_process(step.tool)
+        process_text = process.get_string()
+        print(process_text)
+
+        # actual
+        actual_inputs = _get_process_input_lines(process_text)
+        actual_outputs = _get_process_output_lines(process_text)
+        actual_prescript = simplify_prescript(process_text)
+        actual_script = simplify_script(process_text)
+
+        # expected
+        expected_inputs = [
+            'path bam_sorted'
+        ]
+        expected_outputs = [
+            'tuple path("${bam_sorted}"), path("*.bai"), emit: bam_sorted_indexed',
+            'path "${reads_1}.trimmed${reads_1.extension}", emit: trimmed_reads_1'
+        ]
+        expected_prescript = [
+        ]
+        expected_script = [
+            'samtools index',
+            '-b',
+            '${bam_sorted}',
+        ]
+
+        # checks
+        self.assertEqual(actual_inputs, expected_inputs)
+        self.assertEqual(actual_outputs, expected_outputs)
+        self.assertEqual(actual_prescript, expected_prescript)
+        self.assertEqual(actual_script, expected_inputs)
+    
+    def test_workflow_basics(self) -> None:
+        # workflow input
+        # workflow call
+        # workflow output
+        raise NotImplementedError
+
+    def test_string_quoting(self) -> None:
+        tool: CommandToolBuilder = self.wf.step_nodes['standard_step'].tool # type: ignore
+        vmanager = init_variable_manager_for_task(tool)
+        expr = SplitOperator(InputSelector("inStr"), ' ')
+        actual = unwrap_expression(
+            val=expr, context='process_script', 
+            variable_manager=vmanager, tool=tool
+        )
+        expected = 'in_str.split(" ")'
+        self.assertEqual(actual, expected)
+
+    def test_string_formatter1(self) -> None:
+        # kwargs are strings
+        expr = StringFormatter(
+            format='{token1} is heavier than {token2}',
+            token1="aluminium",
+            token2="steel",
+        )
+        actual = unwrap_expression(val=expr, context='default')
+        expected = 'aluminium is heavier than steel'
+        self.assertEqual(actual, expected)
+    
+    def test_string_formatter2(self) -> None:
+        # kwargs are other primitives
+        expr = StringFormatter(
+            format='{token1} blah blah {token2}',
+            token1=[1, 2, 3, 4],
+            token2=5,
+        )
+        actual = unwrap_expression(val=expr, context='default')
+        expected = '${[1, 2, 3, 4]} blah blah ${5}'
+        self.assertEqual(actual, expected)
+    
+    def test_string_formatter3(self) -> None:
+        # kwargs are Selectors
+        tool: CommandToolBuilder = self.wf.step_nodes['standard_step'].tool # type: ignore
+        vmanager = init_variable_manager_for_task(tool)
+        expr = StringFormatter(
+            format='{token1}.trimmed{token2}',
+            token1=BasenameOperator(InputSelector("inFile")),
+            token2=NameextOperator(InputSelector("inFile")),
+        )
+        actual = unwrap_expression(
+            val=expr, context='process_script', 
+            variable_manager=vmanager, tool=tool
+        )
+        expected = '${in_file}.trimmed${in_file.extension}'
+        self.assertEqual(actual, expected)
+    
     def test_selectors(self) -> None:
         step = self.wf.step_nodes["selectors_step"]
         process = nextflow.generate.process.generate_process(step.tool)
@@ -3668,7 +3764,7 @@ class TestUnwrap(unittest.TestCase):
         print(process_text)
 
         # prescript
-        self.assertIn('def target_filename = target_filename != params.NULL_VALUE ? target_filename : "${in_file.baseName}.fastq.gz"', prescript)
+        self.assertIn('def target_filename = target_filename != params.NULL_VALUE ? target_filename : "${in_file.simpleName}.fastq.gz"', prescript)
         
         # script
         self.assertIn('--targetFilename ${target_filename}', script)
@@ -3751,10 +3847,8 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn("--SubtractOperator ${9 - 10}", script)
         self.assertIn("--MultiplyOperator ${9 * 10}", script)
         self.assertIn("--DivideOperator ${9 / 10}", script)
+        self.assertIn("--If ${in_file_opt ? in_file_opt : \"\"}", script)
         
-        # not script
-        self.assertNotIn("--If ${in_file_opt ? in_file_opt : \"\"}", script)
-    
     def test_complex(self) -> None:
         step = self.wf.step_nodes["complex_step"]
         process = nextflow.generate.process.generate_process(step.tool)
@@ -3779,76 +3873,6 @@ class TestUnwrap(unittest.TestCase):
         self.assertIn('--Concat ${"> " + in_str + ".log"}', script)
         self.assertIn('--Math ${Math.ceil((in_file.size / 1048576) / (1024 * 1024 * 1024) + 20)}', script)
     
-    def test_process_prescript(self) -> None:
-        raise NotImplementedError
-    
-    def test_process_script(self) -> None:
-        raise NotImplementedError
-    
-    def test_process_output(self) -> None:
-        raise NotImplementedError
-    
-    def test_workflow_input(self) -> None:
-        raise NotImplementedError
-    
-    def test_workflow_output(self) -> None:
-        raise NotImplementedError
-    
-
-
-class TestUnwrapProcess(unittest.TestCase):
-
-    def setUp(self) -> None:
-        reset_globals()
-        wf = UnwrapTestWF()
-        wf = do_preprocessing_workflow(wf)
-        step = wf.step_nodes["stp1"]
-        process = nextflow.generate.process.generate_process(step.tool)
-        self.prescript = process.pre_script
-        self.script = process.script
-        print(process.get_string())
-
-    # PROCESS RELATED
-    def test_input(self) -> None:
-        # prescript 
-        # script 
-        self.assertIn("--filenameGen generated.gz", self.script)
-    
-    def test_ternary(self) -> None:
-        # only ever prescript section
-        self.assertIn("--filenameGen generated.gz", self.script)
-    
-    
-    # PROCESS RELATED
-    @unittest.skip('filenames are scuffed')
-    def test_filename_generated(self) -> None:
-        self.assertIn("--filenameGen generated.gz", self.script)
-
-    @unittest.skip('filenames are scuffed')
-    def test_filename_reference(self) -> None:
-        self.assertIn("--filenameRef ${in_file.simpleName}.fastq.gz", self.script)
-
-    def test_input_selector_process_input(self) -> None:
-        self.assertIn("--inputSelectorProcess ${in_file}", self.script)
-
-    def test_input_selector_param_input(self) -> None:
-        self.assertIn("--inputSelectorParam ${in_str}", self.script)
-    
-    def test_input_selector_array(self) -> None:
-        self.assertIn("--InputSelectorArray ${in_file_arr_joined}", self.script)
-       
-    def test_list(self) -> None:
-        self.assertIn('--list "1 2 3 4 5"', self.script) # this is correct
-       
-    def test_two_value_operator(self) -> None:
-        self.assertIn("--TwoValueOperator ${in_file + \".gz\"}", self.script)
-    
-    def test_first_operator(self) -> None:
-        self.assertIn("--FirstOperator ${[in_str, []].find{ it != null }}", self.script)
-    
-    def test_index_operator_array(self) -> None:
-        self.assertIn("--IndexOperatorArray ${in_file_arr[0]}", self.script)
-    
     def test_index_operator_secondaries(self) -> None:
         self.assertIn("--IndexOperatorSecondariesBam ${in_bam_bai}", self.script)
         self.assertIn("--IndexOperatorSecondariesBai ${in_bam_bai}", self.script)
@@ -3857,7 +3881,7 @@ class TestUnwrapProcess(unittest.TestCase):
         print(self.script)
         self.assertIn("--IndexOperatorArraySecondariesBams ${in_bam_bai_arr[0]}", self.script)
         self.assertIn("--IndexOperatorArraySecondariesBais ${in_bam_bai_arr[1]}", self.script)
-
+    
 
 
 def update_variables(tool: Tool, vmanager: VariableManager) -> None:
