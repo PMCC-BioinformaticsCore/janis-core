@@ -19,9 +19,7 @@ MAX_LINE_WIDTH = 80
 TEMPLATE = """\
 
 nextflow.enable.dsl = 2
-singularity.enabled = true
-singularity.autoMounts = true
-singularity.cacheDir = "$HOME/.singularity/cache"
+docker.enabled = true
 
 params {{
     

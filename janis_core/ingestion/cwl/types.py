@@ -3,6 +3,7 @@ import regex as re
 import sys
 import inspect
 
+from janis_core.ingestion.cwl.identifiers import get_id_entity
 from janis_core.messages import ErrorCategory
 from janis_core.messages import log_warning
 from janis_core.utils.errors import UnsupportedError
@@ -161,6 +162,10 @@ class CWLTypeParser:
         self.secondaries = secondaries
         self.tool_uuid = tool_uuid
         self.secondary_patterns: list[str] = self.preprocess_secondary_file_patterns(secondaries)
+
+    @property 
+    def entity_name(self) -> str:
+        return get_id_entity(self.cwl_entity.id)
     
     def preprocess_secondary_file_patterns(self, secondaries: Optional[str | list[str]]) -> list[str]:
         out: list[str] = []
@@ -223,7 +228,7 @@ class CWLTypeParser:
         if len(filetypes) > 1:
             filetypes.sort(key=lambda x: file_priorities.get(x.__name__, 999))
             ftype = filetypes[0]
-            msg = f'entity supports multiple edam formats. selected {ftype.__name__} as fallback.'
+            msg = f'{self.entity_name}: supports multiple edam formats. selected {ftype.__name__} as fallback.'
             log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
             return ftype()
         
@@ -274,7 +279,7 @@ class CWLTypeParser:
                 inner = Int()
             else:
                 if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
-                    msg = f"unsupported datatype: {cwl_type}. treated as generic File."
+                    msg = f"{self.entity_name}: unsupported datatype {cwl_type}. treated as generic File."
                     log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                     inner = File()
                 else:
@@ -327,7 +332,7 @@ class CWLTypeParser:
                     selected = dtypes_w_categories[0][1]
                 
                 # print user message
-                msg = f'entity supports multiple datatypes: {dtype_names}. selected {selected.__class__.__name__} as fallback.'
+                msg = f'{self.entity_name}: supports multiple datatypes {dtype_names}. selected {selected.__class__.__name__} as fallback.'
                 log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                 return selected
             
@@ -348,7 +353,7 @@ class CWLTypeParser:
 
         else:
             if settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES:
-                msg = f"Unsupported datatype: {type(cwl_type).__name__}. Treated as a file."
+                msg = f"{self.entity_name}: unsupported datatype {type(cwl_type).__name__}. Treated as a file."
                 log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
                 return File(optional=False)
             else:
@@ -382,7 +387,7 @@ class CWLTypeParser:
             # if success:
             #     raise NotImplementedError
             # else:
-            msg = f'could not parse secondaries format from javascript expression. treated as generic File with secondaries.'
+            msg = f'{self.entity_name}: Could not parse datatype from javascript expression. Treated as generic File with secondaries.'
             log_warning(self.tool_uuid, msg, ErrorCategory.DATATYPE)
             return GenericFileWithSecondaries(secondaries=[])
         

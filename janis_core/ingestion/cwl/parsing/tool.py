@@ -670,7 +670,7 @@ class CLTArgumentParser(CLTEntityParser):
     def do_parse(self) -> Optional[ToolArgument]: 
         # I don't know when a clt argument would be a string
         if isinstance(self.entity, str):
-            res, success = parse_expression(self.entity, self.tool_uuid)
+            res, success = parse_expression(self.entity, self.tool_uuid, implicit_wrapping=True)
             if res is None:
                 return None
             arg = ToolArgument(res)
@@ -797,18 +797,23 @@ class CLTOutputParser(CLTEntityParser):
         # datatype
         dtype = ingest_cwl_type(self.entity.type, self.cwl_utils, self.entity, self.tool_uuid, secondaries=self.entity.secondaryFiles)
 
-        if isinstance(dtype, Stdout):
-            return self.do_parse_stdout(identifier, dtype)
+        if isinstance(dtype, Stdout | Stderr):
+            return self.do_parse_streams(identifier, dtype)
         else:
             return self.do_parse_generic(identifier, dtype)
 
-    def do_parse_stdout(self, identifier: str, dtype: DataType) -> ToolOutput:
+    def do_parse_streams(self, identifier: str, dtype: DataType) -> ToolOutput:
         selector = None
         
         if self.clt.stdout is not None:
             expr, success = parse_expression(self.clt.stdout, self.tool_uuid)
-            dtype = File()
-            selector = expr
+        elif self.clt.stderr is not None:
+            expr, success = parse_expression(self.clt.stderr, self.tool_uuid)
+        else:
+            raise RuntimeError
+        
+        dtype = File()
+        selector = expr
             
         out = ToolOutput(
             tag=identifier, 
@@ -823,15 +828,15 @@ class CLTOutputParser(CLTEntityParser):
         if hasattr(self.entity, 'janis_collection_override'):
             selector = self.entity.janis_collection_override
 
-        elif self.entity.outputBinding:
-            if self.entity.outputBinding.glob:
+        elif self.entity.outputBinding is not None:
+            if self.entity.outputBinding.glob is not None:
                 res, success = parse_expression(self.entity.outputBinding.glob, self.tool_uuid)
                 if isinstance(res, str) and not res.startswith('__TOKEN'):
                     selector = WildcardSelector(res)
                 else:
                     selector = res
             
-            elif self.entity.outputBinding.outputEval:
+            elif self.entity.outputBinding.outputEval is not None:
                 res, success = parse_expression(self.entity.outputBinding.outputEval, self.tool_uuid)
                 if isinstance(res, str) and not res.startswith('__TOKEN'):
                     selector = WildcardSelector(res)

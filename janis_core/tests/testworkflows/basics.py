@@ -1,15 +1,29 @@
 
-
+from typing import Optional
 from janis_core import (
     Workflow,
+    ToolInput,
+    ToolArgument,
+    ToolOutput,
+    CommandToolBuilder,
+    WorkflowBuilder,
+    CeilOperator,
+    FileSizeOperator,
+    MultiplyOperator,
+    DivideOperator,
+    InputSelector,
+    AddOperator,
 )
+
+
 
 from janis_core.types import (
     String,
     File,
     Array,
     Int,
-    Float
+    Float,
+    Stdout
 )
 from janis_core.tests.testtools import (
     FileTestTool,
@@ -18,7 +32,6 @@ from janis_core.tests.testtools import (
     WildcardSelectorTestTool,
     FileInputSelectorTestTool,
     StringInputSelectorTestTool,
-    ResourcesTestTool,
     ArrayFileTestTool,
     ArrayIntTestTool,
     ArrayStringTestTool,
@@ -126,35 +139,34 @@ class InputSelectorTestWF(Workflow):
         return self.__class__.__name__
 
 
-# directives
-class DirectivesTestWF(Workflow):
+# DIRECTIVES
+resources_tool = CommandToolBuilder(
+    tool="ResourcesTestToolCB",
+    version="TEST",
+    base_command="echo",
+    inputs=[
+        ToolInput("inp", File, position=1), 
+        ToolInput("threads", Int)
+    ],
+    outputs=[ToolOutput("out", Stdout)],
+    container="quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0",
+    disk=CeilOperator(
+            AddOperator(
+                DivideOperator(
+                    FileSizeOperator(InputSelector('inp')), 
+                    MultiplyOperator(MultiplyOperator(1024, 1024), 1024)), 
+                20)),
+    memory=MultiplyOperator(15, 1024),
+    cpus=1,
+    time=60,
+)
 
-    def constructor(self):
-        self.input('inFile', File)
-
-        self.step(
-            "stp1", 
-            ResourcesTestTool(
-                inp=self.inFile,
-                threads=4
-            )
-        )
-        self.step(
-            "stp2", 
-            FileTestTool(inp=self.inFile)
-        )
-
-        self.output("outFile", File, source=self.stp1.out)
-        self.output("outFile2", File, source=self.stp2.out)
-
-    def friendly_name(self):
-        return "TEST: DirectivesTestWF"
-
-    def id(self) -> str:
-        return self.__class__.__name__
-
-
-
+direcs_wf = WorkflowBuilder("DirectivesTestWF")
+direcs_wf.input("inFile", File)
+direcs_wf.step("stp1", resources_tool(inp=direcs_wf.inFile, threads=4))
+direcs_wf.output("outFile", source=direcs_wf.stp1.out)
+DirectivesTestWF = direcs_wf
+    
 
 # -------- #
 #  ARRAYS  #

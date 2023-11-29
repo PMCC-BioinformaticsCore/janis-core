@@ -290,7 +290,7 @@ class DirnameOperator(Operator):
         return f"os.path.dirname({file_obj})"
 
     def to_wdl(self, unwrap_operator, *args):
-        file_obj, separator = [unwrap_operator(a) for a in self.args]
+        file_obj = unwrap_operator(self.args[0])
         Logger.warn(
             f"File.Dirname() is not implemented in WDL, will return the input File"
         ) 
@@ -374,7 +374,7 @@ class NameextOperator(Operator):
         return f"os.path.splitext(os.path.basename({file_obj}))[1:]"
 
     def to_wdl(self, unwrap_operator, *args):
-        file_obj, separator = [unwrap_operator(a) for a in self.args]
+        file_obj = unwrap_operator(self.args[0])
         Logger.warn(
             f"File.Extension() is not implemented in WDL, will return the input File"
         ) 
@@ -386,7 +386,7 @@ class NameextOperator(Operator):
     
     def to_nextflow(self, unwrap_operator, *args):
         file_obj = unwrap_operator(args[0])
-        return f"{file_obj}.extension"
+        return f'"." + {file_obj}.extension'
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -666,7 +666,7 @@ class FileSizeOperator(Operator):
 
     def to_nextflow(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
-        return f"({f}.size / 1048576)"
+        return f"{f}.size / 1048576"
 
     def evaluate(self, inputs):
         from os.path import getsize

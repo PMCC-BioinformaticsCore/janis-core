@@ -419,6 +419,10 @@ class AsFloatOperator(SingleValueOperator):
     @staticmethod
     def cwl_symbol():
         return "Number"
+    
+    @staticmethod
+    def nextflow_symbol():
+        return ""
 
     @staticmethod
     def apply_to(value):

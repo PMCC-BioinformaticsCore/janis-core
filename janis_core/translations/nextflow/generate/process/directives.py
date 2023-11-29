@@ -2,11 +2,13 @@
 
 from typing import Any
 
-from janis_core import CommandTool, PythonTool, Selector
+from janis_core import CommandToolBuilder, PythonTool, Selector, StringFormatter
 from janis_core.types import Int
 from janis_core import settings
+from janis_core.translations.nextflow.unwrap import unwrap_expression
 
 from ... import params
+from ...variables import VariableManager
 
 from ...model.process.directives import (
     NFProcessDirective,
@@ -24,7 +26,7 @@ from ...model.process.directives import (
 # why? the module acts as an enum. currently can access directives via `directives.ProcessDirective`  etc - GH Dec 2022
 
 
-def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[str, Any]) -> list[NFProcessDirective]:
+def gen_nf_process_directives(tool: CommandToolBuilder | PythonTool, vmanager: VariableManager) -> list[NFProcessDirective]:
     nf_directives: dict[str, NFProcessDirective] = {}
     
     # publishDir
@@ -38,7 +40,6 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
     uri = None
     if settings.translate.WITH_CONTAINER and tool.container():
         uri = tool.container()
-        # unwrap_expression()? 
         nf_directives['container'] = NFContainerDirective(uri)
 
     if uri is None and not settings.translate.ALLOW_EMPTY_CONTAINER:
@@ -48,41 +49,77 @@ def gen_nf_process_directives(tool: CommandTool | PythonTool, resources: dict[st
             f"'allow_empty_container=True' or --allow-empty-container"
         )
 
-    # directives from input resources
-    for res, val in resources.items():
-        if res.endswith("runtime_cpu"):
-            param = params.add(tinput_id='cpus', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['cpus'] = NFCpusDirective(param)
+    # # directives from input resources
+    # for res, val in resources.items():
+    #     if res.endswith("runtime_cpu"):
+    #         param = params.add(tinput_id='cpus', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
+    #         nf_directives['cpus'] = NFCpusDirective(param)
         
-        elif res.endswith("runtime_memory"):
-            param = params.add(tinput_id='memory', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['memory'] = NFMemoryDirective(param)
+    #     elif res.endswith("runtime_memory"):
+    #         param = params.add(tinput_id='memory', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
+    #         nf_directives['memory'] = NFMemoryDirective(param)
         
-        elif res.endswith("runtime_seconds"):
-            param = params.add(tinput_id='time', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['time'] = NFTimeDirective(param)
+    #     elif res.endswith("runtime_seconds"):
+    #         param = params.add(tinput_id='time', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
+    #         nf_directives['time'] = NFTimeDirective(param)
         
-        elif res.endswith("runtime_disk"):
-            param = params.add(tinput_id='disk', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['disk'] = NFDiskDirective(param)
+    #     elif res.endswith("runtime_disk"):
+    #         param = params.add(tinput_id='disk', task_id=tool.id(), default=val, janis_dtype=Int(), subtype='sub_tool')
+    #         nf_directives['disk'] = NFDiskDirective(param)
     
     # directives from tool resources
     if settings.translate.nextflow.ENTITY == 'workflow':
-        if 'cpus' not in nf_directives and tool.cpus({}) is not None:    
-            param = params.add(tinput_id='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['cpus'] = NFCpusDirective(param)
+        if 'cpus' not in nf_directives and tool.cpus({}) is not None: 
+            cpus = tool.cpus({})
+            if isinstance(cpus, Selector):
+                res = unwrap_expression(val=cpus, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
+                if isinstance(cpus, StringFormatter):
+                    res = f'{res}'
+                else:
+                    res = f'${{{res}}}'
+                nf_directives['cpus'] = NFCpusDirective(res)
+            else:
+                param = params.add(tinput_id='cpus', task_id=tool.id(), default=tool.cpus({}), janis_dtype=Int(), subtype='sub_tool')
+                nf_directives['cpus'] = NFCpusDirective(param)
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
-            param = params.add(tinput_id='memory', task_id=tool.id(), default=tool.memory({}), janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['memory'] = NFMemoryDirective(param)
+            memory = tool.memory({})
+            if isinstance(memory, Selector):
+                res = unwrap_expression(val=memory, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
+                if isinstance(memory, StringFormatter):
+                    res = f'{res} MB'
+                else:
+                    res = f'${{{res}}} MB'
+                nf_directives['memory'] = NFMemoryDirective(res)
+            else:
+                param = params.add(tinput_id='memory', task_id=tool.id(), default=tool.memory({}), janis_dtype=Int(), subtype='sub_tool')
+                nf_directives['memory'] = NFMemoryDirective(param)
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
-            param = params.add(tinput_id='disk', task_id=tool.id(), default=tool.disk({}), janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['disk'] = NFDiskDirective(param)
+            disk = tool.disk({})
+            if isinstance(disk, Selector):
+                res = unwrap_expression(val=disk, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
+                if isinstance(disk, StringFormatter):
+                    res = f'{res} MB'
+                else:
+                    res = f'${{{res}}} MB'
+                nf_directives['disk'] = NFDiskDirective(res)
+            else:
+                param = params.add(tinput_id='disk', task_id=tool.id(), default=tool.disk({}), janis_dtype=Int(), subtype='sub_tool')
+                nf_directives['disk'] = NFDiskDirective(param)
         
         if 'time' not in nf_directives and tool.time({}) is not None:
-            param = params.add(tinput_id='time', task_id=tool.id(), default=tool.time({}), janis_dtype=Int(), subtype='sub_tool')
-            nf_directives['time'] = NFTimeDirective(param)
+            time = tool.time({})
+            if isinstance(time, Selector):
+                res = unwrap_expression(val=time, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
+                if isinstance(time, StringFormatter):
+                    res = f'{res}'
+                else:
+                    res = f'${{{res}}}'
+                nf_directives['time'] = NFTimeDirective(res)
+            else:
+                param = params.add(tinput_id='time', task_id=tool.id(), default=tool.time({}), janis_dtype=Int(), subtype='sub_tool')
+                nf_directives['time'] = NFTimeDirective(param)
     
     final_directives: list[NFProcessDirective] = []
     for direc in nf_directives.values():

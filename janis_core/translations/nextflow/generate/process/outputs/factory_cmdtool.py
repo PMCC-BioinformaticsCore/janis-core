@@ -120,29 +120,7 @@ class CmdtoolProcessOutputFactory:
             # ToolInput is Filename type
             if isinstance(tinput.intype, Filename):
                 return FmtType.FILENAME 
-                # entity_counts = trace.trace_entity_counts(tinput.intype, tool=self.tool)
-                # entities = set(entity_counts.keys())
-                # filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
-                # filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
-            
-                # # ToolInput does not refer to another ToolInput
-                # # This must be first as less specific
-                # if entities.issubset(filename_gen_whitelist):
-                #     if tinput.id() in task_inputs.task_inputs(self.tool.id()):
-                #         return FmtType.FILENAME
-                #     elif tinput.id() in task_inputs.param_inputs(self.tool.id()):
-                #         return FmtType.FILENAME
-                #     else:
-                #         return FmtType.FILENAME_GEN
                 
-                # # ToolInput refers to another ToolInput
-                # elif entities.issubset(filename_ref_whitelist):
-                #     return FmtType.FILENAME_REF
-                
-                # # ToolInput uses complex logic
-                # else:
-                #     return FmtType.COMPLEX
-            
             # ToolInput is not Filename type (direct reference)
             else:
                 # TInput with static value for process

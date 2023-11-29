@@ -155,6 +155,7 @@ class TestTypeWithAlternateAndSecondary(File):
         return ["^.file"]
 
 
+
 class TestWdl(unittest.TestCase):
     def setUp(self) -> None:
         reset_global_settings()
@@ -165,6 +166,9 @@ class TestWdl(unittest.TestCase):
         self.assertIsInstance(wdl, wdlgen.WdlType)
         self.assertTrue(wdl.optional)
         self.assertEqual("Array[File]?", wdl.get_string())
+
+
+
 
 
 class TestWdlComments(unittest.TestCase):
@@ -264,7 +268,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
         w.input("wsec", SecondaryTestType, default="test.ext")
         # w._add_input(Input("wsec", TestTypeWithSecondary(), value="test.ext"))
         settings.translate.MERGE_RESOURCES = False
-        inpsdict = WdlTranslator().build_inputs_dict(w)
+        inpsdict = WdlTranslator().build_inputs_file(w)
         self.assertEqual("test.ext", inpsdict.get("tst.wsec"))
         self.assertEqual("test.txt", inpsdict.get("tst.wsec_txt"))
 
@@ -272,7 +276,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
         w = WorkflowBuilder("tst")
         w.input("wsec", Array(SecondaryTestType()), default=["test.ext"])
         settings.translate.MERGE_RESOURCES = False
-        inpsdict = WdlTranslator().build_inputs_dict(w)
+        inpsdict = WdlTranslator().build_inputs_file(w)
         self.assertListEqual(["test.ext"], inpsdict.get("tst.wsec"))
         self.assertListEqual(["test.txt"], inpsdict.get("tst.wsec_txt"))
 
@@ -557,7 +561,7 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
 
     def test_input_in_input_value_nooptional_default(self):
@@ -566,7 +570,7 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
 
     def test_input_in_input_value_optional_nodefault(self):
@@ -575,7 +579,7 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
 
     def test_input_in_input_value_optional_default(self):
@@ -584,7 +588,7 @@ class TestWdlGenerateInput(unittest.TestCase):
 
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
 
     def test_input_in_input_novalue_nooptional_nodefault(self):
@@ -594,7 +598,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         # included because no value, no default, and not optional
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": None},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
 
     def test_input_in_input_novalue_nooptional_default(self):
@@ -604,7 +608,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         # new interpretation: defaults appear in inputs
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "2"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
         # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
@@ -613,7 +617,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         wf.input("inpId", String(optional=True))
 
         settings.translate.ADDITIONAL_INPUTS = {"inpId": "2"}
-        actual_inputs = self.translator.build_inputs_dict(wf)
+        actual_inputs = self.translator.build_inputs_file(wf)
         settings.translate.ADDITIONAL_INPUTS = None
         expected_inputs = {"test_input_in_inputfile.inpId": "2"}
 
@@ -625,7 +629,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         wf.input("inpId", String(optional=True), default="2")
 
         settings.translate.ADDITIONAL_INPUTS = {"inpId": "4"}
-        actual_inputs = self.translator.build_inputs_dict(wf)
+        actual_inputs = self.translator.build_inputs_file(wf)
         settings.translate.ADDITIONAL_INPUTS = None
         expected_inputs = {"test_input_in_inputfile.inpId": "4"}
 
@@ -636,7 +640,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True))
 
-        self.assertDictEqual({}, self.translator.build_inputs_dict(wf))
+        self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
     def test_input_in_input_novalue_optional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
@@ -645,7 +649,7 @@ class TestWdlGenerateInput(unittest.TestCase):
         # new interpretation: defaults appear in inputs
         self.assertDictEqual(
             {"test_input_in_inputfile.inpId": "2"},
-            self.translator.build_inputs_dict(wf),
+            self.translator.build_inputs_file(wf),
         )
         # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
 
@@ -851,7 +855,7 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_cores(self):
         tool = BasicTestTool()
-        resources = WdlTranslator.build_resources_input(
+        resources = WdlTranslator._build_resources_dict(
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
@@ -862,7 +866,7 @@ class TestWdlMaxResources(unittest.TestCase):
         tool = BasicTestTool()
         wf = tool.wrapped_in_wf()
         settings.translate.MAX_CORES = 1
-        resources = WdlTranslator.build_resources_input(wf, {}, is_root=True)
+        resources = WdlTranslator._build_resources_dict(wf, {}, is_root=True)
         settings.translate.MAX_CORES = None
         self.assertEqual(
             1, resources["BasicTestToolWf.basictesttool_runtime_cpu"]
@@ -870,7 +874,7 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_memory(self):
         tool = BasicTestTool()
-        resources = WdlTranslator.build_resources_input(
+        resources = WdlTranslator._build_resources_dict(
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
@@ -881,7 +885,7 @@ class TestWdlMaxResources(unittest.TestCase):
         tool = BasicTestTool()
         wf = tool.wrapped_in_wf()
         settings.translate.MAX_MEM = 1
-        resources = WdlTranslator.build_resources_input(wf, {}, is_root=True)
+        resources = WdlTranslator._build_resources_dict(wf, {}, is_root=True)
         settings.translate.MAX_MEM = None
         self.assertEqual(
             1, resources["BasicTestToolWf.basictesttool_runtime_memory"]

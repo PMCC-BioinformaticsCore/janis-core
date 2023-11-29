@@ -811,6 +811,12 @@ class TestParseExpression(unittest.TestCase):
         self.assertIsInstance(result, GroupOperator)
         self.assertIsInstance(result.args[0], AddOperator)
 
+        filepath = f'{CWL_TESTDATA_DIR}/tools/picard_SortSam.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTArgumentParser(cwl_utils, clt=clt, entity=clt.arguments[0], tool_uuid='test')
+        targ = parser.parse()
+        self.assertEqual(str(targ.value), '((inputs.sort_order == "coordinate")) ? ((inputs.alignments.nameroot) + ".bam") : ((inputs.alignments.nameroot) + ".sam")')
+
     # logical - two value
     def test_and(self):
         expr = '$(inputs.filelist && inputs.filelist_mates)'
@@ -1125,7 +1131,7 @@ class TestParseExpression(unittest.TestCase):
         actual = str(result)
         self.assertEqual(actual, expected)
 
-    def test_clt_output(self):
+    def test_clt_output1(self):
         filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/outputs.cwl'
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[0], tool_uuid='test')
@@ -1138,3 +1144,11 @@ class TestParseExpression(unittest.TestCase):
         self.assertIsInstance(tout.selector, StringFormatter)
         self.assertEqual(tout.selector._format, '{token1}.trimmed.fastq')
         self.assertIsInstance(tout.selector.kwargs['token1'], ReplaceOperator)
+    
+    def test_clt_output2(self):
+        filepath = f'{CWL_TESTDATA_DIR}/tools/expressions/picard_MarkDuplicates.cwl'
+        clt, cwl_utils = _load_cwl_doc(filepath)
+        parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[2], tool_uuid='test')
+        tout = parser.parse()
+        self.assertIsInstance(tout.selector, StringFormatter)
+

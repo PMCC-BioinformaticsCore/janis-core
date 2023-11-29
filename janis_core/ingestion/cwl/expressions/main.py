@@ -6,6 +6,8 @@ from lark import Tree
 from lark import Token
 from typing import Tuple, Any, Optional
 import regex as re
+from copy import deepcopy
+
 import janis_core as j
 from janis_core.messages import log_error
 from janis_core.messages import load_loglines
@@ -82,7 +84,10 @@ def parse_implicit_expr(
     tool_uuid: str, 
     error_token_override: Optional[str]=None
     ) -> Any:
-    new_expr = f'$({expr})'
+    if '$(' not in expr and '${' not in expr:
+        new_expr = f'$({expr})'
+    else:
+        new_expr = deepcopy(expr)
     result, success = ExpressionParser().parse(new_expr)
 
     # is expression

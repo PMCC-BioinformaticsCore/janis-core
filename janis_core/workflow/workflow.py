@@ -647,7 +647,7 @@ class WorkflowBase(Tool):
         from janis_core.translations.translationbase import TranslatorBase
 
         return super().all_input_keys() + list(
-            TranslatorBase.build_resources_input(tool=self, hints={}).keys()
+            TranslatorBase._build_resources_dict(tool=self, hints={}).keys()
         )
 
     def verify_output_source_type(
@@ -983,7 +983,7 @@ class WorkflowBase(Tool):
         if with_resource_overrides:
             from janis_core.translations import CwlTranslator
 
-            d.update(CwlTranslator().build_resources_input(self, hints))
+            d.update(CwlTranslator()._build_resources_dict(self, hints))
 
         return d
 

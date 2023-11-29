@@ -1411,22 +1411,27 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
         self.destfmt = 'nextflow'
         reset_globals()
 
-    def test_directives(self) -> None:
+    def test_directives_basic(self) -> None:
         wf = DirectivesTestWF()
         _, _, subtasks = translate(wf, dest_fmt=self.destfmt, export_path='./translated')
         subtasks.sort(key=lambda x: x[0])
-        actual_lines = _get_process_directive_lines(subtasks[1][1])
+        actual_lines = _get_process_directive_lines(subtasks[0][1])
+        
+        # math import statement
+        self.assertIn('import java.lang.Math', subtasks[0][1])
+        
+        # directives
         expected_directives = {
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
-            'publishDir "${params.outdir}/resources_test_tool"',
-            'cpus "${params.resources_test_tool.cpus}"',
-            'disk "${params.resources_test_tool.disk}"',
-            'memory "${params.resources_test_tool.memory}"',
-            'time "${params.resources_test_tool.time}"'
+            'publishDir "${params.outdir}/resources_test_tool_cb"',
+            'cpus "${params.resources_test_tool_cb.cpus}"',
+            'disk "${Math.ceil(inp.size / 1048576 / 1024 * 1024 * 1024 + 20)} MB"',
+            'memory "${15 * 1024} MB"',
+            'time "${params.resources_test_tool_cb.time}"'
         }
         for direc in expected_directives:
             self.assertIn(direc, actual_lines)
-    
+
     @unittest.skip('not implemented')
     def test_translate_commandtool(self) -> None:
         raise NotImplementedError
@@ -1634,6 +1639,18 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "myfile.txt", emit: out'
+        ]
+        self.assertEqual(len(actual_lines), len(expected_lines))
+        for inp in expected_lines:
+            self.assertIn(inp, actual_lines)
+    
+    def test_expression(self) -> None:
+        wf = OutputCollectionTestWF()
+        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in subtasks if x[0] == 'modules/expression_test_tool.nf'][0]
+        actual_lines = _get_process_output_lines(process)
+        expected_lines = [
+            'path "${inp.simpleName}_markduplicates.metrics", emit: out'
         ]
         self.assertEqual(len(actual_lines), len(expected_lines))
         for inp in expected_lines:
@@ -2566,7 +2583,7 @@ class TestTranslateHelperFiles(unittest.TestCase):
     def test_python_tool_helpers(self) -> None:
         # first test wf
         wf = InputsPythonToolTestWF()
-        helper_files = translator.translate_helper_files(wf)
+        helper_files = translator.build_helper_files(wf)
         actual_paths = list(helper_files.keys())
         expected_paths = [
             'templates/MultiTypesInputPythonTool.py',
@@ -2582,7 +2599,7 @@ class TestTranslateHelperFiles(unittest.TestCase):
         
         # second test wf
         wf = OutputsPythonToolTestWF()
-        helper_files = translator.translate_helper_files(wf)
+        helper_files = translator.build_helper_files(wf)
         actual_paths = list(helper_files.keys())
         expected_paths = [
             'templates/FileOutputPythonTestTool.py',
@@ -2595,7 +2612,7 @@ class TestTranslateHelperFiles(unittest.TestCase):
  
     def test_template_helpers(self) -> None:
         wf = FilesDirectoriesToCreateTestWF()
-        helper_files = translator.translate_helper_files(wf)
+        helper_files = translator.build_helper_files(wf)
         actual_paths = list(helper_files.keys())
         expected_paths = [
             'templates/myscript.sh',

@@ -39,6 +39,19 @@ class NFFile:
         return "\n\n".join(components)
 
 
+class NFMessageBlock:
+    def __init__(self, heading: str, lines: list[str]):
+        self.heading = heading
+        self.lines = lines
+
+    def get_string(self) -> str:
+        outstr = f'// {self.heading}\n'
+        for line in self.lines[:-1]:
+            outstr += f'{line}\n'
+        outstr += f'{self.lines[-1]}'
+        return outstr
+
+
 class NFImportItem:
     def __init__(self, name: str, alias: Optional[str] = None):
         self.name = name

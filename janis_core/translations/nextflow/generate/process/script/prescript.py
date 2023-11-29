@@ -375,6 +375,10 @@ class FilePairArrayFormatter(PreScriptFormatter):
 class FileArrayFormatter(GenericArrayFormatter):
 
     COND_CHECK_FMT = '{src}[0] != {null}'
+    
+    ARR_JOIN_BASIC = '{src}'
+    ARR_JOIN_PREFIX = '"{prefix}{spacer}${{{src}}}"'
+    ARR_JOIN_PREFIXEACH = '{src}.collect{{ \"{prefix}{spacer}${{it}}\" }}'
 
     def cond_check(self) -> str:
         # eg: adapters[0] != null

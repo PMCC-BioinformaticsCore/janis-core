@@ -94,6 +94,13 @@ def _log_message(level: ErrorLevel, category: Optional[ErrorCategory], msg: str,
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
     # or you could generate a file in the output folder for the user to show this info. 
+
+    # check the same message isn't already present
+    for ll in logfile.lines:
+        if ll.category == category and ll.message == msg and ll.tool_uuid == tool_uuid and ll.subsection == subsection:
+            return
+    
+    # log the new message
     if tool_uuid is None:
         tool_uuid = 'general'
     logfile.add(level=level, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)

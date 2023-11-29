@@ -72,8 +72,7 @@ class CmdToolProcessGenerator:
 
     def generate(self) -> NFProcess:
         # directives
-        resources = {}
-        process_directives = gen_nf_process_directives(self.tool, resources)
+        process_directives = gen_nf_process_directives(self.tool, self.vmanager)
 
         # inputs
         process_inputs = gen_nf_process_inputs(self.tool)

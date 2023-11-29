@@ -61,13 +61,13 @@ from janis_core.ingestion.galaxy.janis_mapping.tool import to_janis_tool_output
 from janis_core.ingestion.galaxy.janis_mapping.tool import to_janis_tool
 
 # mock objects
-from .mock.mock_components import MOCK_POSITIONAL1
-from .mock.mock_components import MOCK_FLAG1
-from .mock.mock_components import MOCK_OPTION2
-from .mock.mock_components import MOCK_REDIRECT_OUTPUT
-from .mock.mock_entities import MOCK_WORKFLOW_INPUT1
-from .mock.mock_tool import MOCK_TOOL_ABRICATE
-from .mock.mock_workflow import MOCK_WORKFLOW
+from .mock.galaxy import MOCK_POSITIONAL1
+from .mock.galaxy import MOCK_FLAG1
+from .mock.galaxy import MOCK_OPTION2
+from .mock.galaxy import MOCK_REDIRECT_OUTPUT
+from .mock.galaxy import MOCK_WORKFLOW_INPUT1
+from .mock.galaxy import MOCK_TOOL_ABRICATE
+from .mock.galaxy import MOCK_WORKFLOW
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
@@ -317,14 +317,14 @@ class TestResolveDependencies(unittest.TestCase):
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/abricate:1.0.1'
+        expected = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_2'
         self.assertEqual(actual, expected)
         
         filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/fastqc-3d0c7bdf12f5/rgFastQC.xml')
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/fastqc:0.11.9'
+        expected = 'quay.io/biocontainers/fastqc:0.11.9--hdfd78af_1'
         self.assertEqual(actual, expected)
 
     def test_multiple_requirements(self) -> None:

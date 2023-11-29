@@ -43,7 +43,8 @@ from janis_core.operators import (
     AliasSelector,
     ForEachSelector,
 )
-from janis_core.tool.commandtool import CommandTool, ToolInput, ToolArgument, ToolOutput, TInput
+from janis_core.tool.commandtool import CommandToolBuilder, ToolInput, ToolArgument, ToolOutput, TInput
+from janis_core import WorkflowBuilder
 from janis_core.tool.tool import Tool, ToolType
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.translations.translationbase import (
@@ -108,25 +109,11 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
     def __init__(self):
         super().__init__(name="wdl")
 
-    @staticmethod
-    def stringify_translated_workflow(wf):
-        return wf.get_string()
+    
+    ### JANIS -> OUTPUT MODEL MAPPING ###
 
-    @staticmethod
-    def stringify_translated_tool(tool):
-        return tool.get_string()
-
-    @staticmethod
-    def stringify_translated_inputs(inputs):
-        return json.dumps(inputs, sort_keys=True, indent=4, separators=(",", ": "))
-
-    @staticmethod
-    def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
-        return ["java", "-jar", "$womtooljar", "validate", wfpath]
-
-    @classmethod
     #@try_catch_translate(type="workflow")
-    def translate_workflow_internal(cls, wfi: Any, is_nested_tool: bool=False) -> Tuple[wdl.Workflow, dict[str, Any]]:
+    def translate_workflow_internal(self, wf: Any, is_nested_tool: bool=False) -> None:
         """
         Translate the workflow into wdlgen classes!
         :param with_resource_overrides:
@@ -134,13 +121,16 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         :param is_nested_tool:
         :return:
         """
+        # check we haven't already translated this
+        if self.get_subworkflow(wf) is not None:
+            return
 
         # Import needs to be here, otherwise we end up circularly importing everything
         # I need the workflow for type comparison
-        # ^you could have used TYPE_CHECKING, or fixed the larger architecture issue. - GH
+        # ^you could have used TYPE_CHECKING, or fixed the larger architecture issues. - GH
         from janis_core.workflow.workflow import Workflow
 
-        wf: Workflow = wfi
+        wf: WorkflowBuilder = wf
 
         # Notes:
         #       All wdlgen classes have a .get_string(**kwargs) function
@@ -270,14 +260,11 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             if t.versioned_id() not in wtools:
                 if t.type() == ToolType.Workflow:
-                    wf_wdl, wf_tools = cls.translate_workflow_internal(t, is_nested_tool=True)
-                    wtools[t.versioned_id()] = wf_wdl
-                    wtools.update(wf_tools)
-
-                elif isinstance(t, CommandTool):
-                    wtools[t.versioned_id()] = cls.translate_tool_internal(t)
+                    self.translate_workflow_internal(t, is_nested_tool=True)
+                elif isinstance(t, CommandToolBuilder):
+                    self.translate_tool_internal(t)
                 elif isinstance(t, CodeTool):
-                    wtools[t.versioned_id()] = cls.translate_code_tool_internal(t)
+                    self.translate_code_tool_internal(t)
 
             resource_overrides = {}
 
@@ -296,11 +283,18 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
 
             w.calls.append(call)
 
-        return w, wtools
+        # add the translated workflow
+        if is_nested_tool:
+            self.add_subworkflow(wf, w)
+        else:
+            assert self.main is None
+            self.main = (wf, w)
 
-    @classmethod
-    @try_catch_translate(type="command tool")
-    def translate_tool_internal(cls, tool: CommandTool) -> Any:
+    # @try_catch_translate(type="command tool")
+    def translate_tool_internal(self, tool: CommandToolBuilder) -> None:
+        # check we haven't already translated this
+        if self.get_tool(tool) is not None:
+            return
 
         # if not Validators.validate_identifier(tool.id()):
         #     raise Exception(
@@ -309,7 +303,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         #         f"numbers or an underscore)"
         #     )
 
-        inputs: List[ToolInput] = [*cls.get_resource_override_inputs(), *tool.inputs()]
+        inputs: List[ToolInput] = [*self.get_resource_override_inputs(), *tool.inputs()]
         toolouts = tool.outputs()
         inmap = {i.id(): i for i in inputs}
 
@@ -325,15 +319,15 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 f"There are {len(outdups)} duplicate values in  {tool.id()}'s outputs: {outdups}"
             )
 
-        ins: List[wdl.Input] = cls.translate_tool_inputs(inputs)
-        outs: List[wdl.Output] = cls.translate_tool_outputs(toolouts, inmap, tool=tool)
-        command_args = cls.translate_tool_args(tool.arguments(), inmap, tool=tool, toolId=tool.id())
-        command_ins = cls.build_command_from_inputs(tool.inputs())
+        ins: List[wdl.Input] = self.translate_tool_inputs(inputs)
+        outs: List[wdl.Output] = self.translate_tool_outputs(toolouts, inmap, tool=tool)
+        command_args = self.translate_tool_args(tool.arguments(), inmap, tool=tool, toolId=tool.id())
+        command_ins = self.build_command_from_inputs(tool.inputs())
 
         commands = [wdl.Task.Command("set -e")]
 
         # generate directories / file to create commands
-        commands.extend(cls.build_commands_for_file_to_create(tool))
+        commands.extend(self.build_commands_for_file_to_create(tool))
 
         env = tool.env_vars()
         if env:
@@ -377,17 +371,21 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
 
         # These runtime kwargs cannot be optional, but we've enforced non-optionality when we create them
-        cls.add_runtimefield_overrides_for_wdl(
+        self.add_runtimefield_overrides_for_wdl(
             runtime_block=r,
             tool=tool,
             inmap=inmap,
         )
 
-        return wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+        tool_wdl = wdl.Task(tool.id(), ins, outs, commands, r, version="development")
+        self.add_tool(tool, tool_wdl)
 
-    @classmethod
     @try_catch_translate(type="code tool")
-    def translate_code_tool_internal(cls, tool: CodeTool) -> Any:
+    def translate_code_tool_internal(self, tool: CodeTool) -> Any:
+        # check we haven't already translated this
+        if self.get_tool(tool) is not None:
+            return
+        
         # if not Validators.validate_identifier(tool.id()):
         #     raise Exception(
         #         f"The identifier '{tool.id()}' for class '{tool.__class__.__name__}' was not validated by "
@@ -395,7 +393,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
         #         f"numbers or an underscore)"
         #     )
 
-        ins = cls.get_resource_override_inputs() + [
+        ins = self.get_resource_override_inputs() + [
             ToolInput(
                 t.id(),
                 input_type=t.intype,
@@ -406,7 +404,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             for t in tool.tool_inputs()
         ]
 
-        tr_ins = cls.translate_tool_inputs(ins)
+        tr_ins = self.translate_tool_inputs(ins)
 
         outs = []
         for t in tool.tool_outputs():
@@ -422,7 +420,7 @@ class WdlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 )
             )
 
-        tr_outs = cls.translate_tool_outputs(outs, {}, tool=tool)
+        tr_outs = self.translate_tool_outputs(outs, {}, tool=tool)
 
         commands = []
 
@@ -437,7 +435,7 @@ EOT"""
             )
         )
 
-        command_ins = cls.build_command_from_inputs(ins)
+        command_ins = self.build_command_from_inputs(ins)
         bc = tool.base_command()
         bcs = " ".join(bc) if isinstance(bc, list) else bc
         commands.append(wdl.Task.Command(bcs, command_ins, []))
@@ -459,9 +457,10 @@ EOT"""
                 )
 
         inmap = {t.id(): t for t in ins}
-        cls.add_runtimefield_overrides_for_wdl(r, tool=tool, inmap=inmap)
+        self.add_runtimefield_overrides_for_wdl(r, tool=tool, inmap=inmap)
 
-        return wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
+        tool_wdl = wdl.Task(tool.id(), tr_ins, tr_outs, commands, r, version="development")
+        self.add_tool(tool, tool_wdl)
 
     @staticmethod
     def wrap_if_string_environment(value, string_environment: bool):
@@ -872,6 +871,9 @@ EOT"""
                             )
                         exp.append(inner_exp)
 
+                elif s.startswith('^'):
+                    exp = [f'glob("*{s[1:]}")[0]']
+                
                 else:
                     raise Exception(
                         f"Unsure how to handle secondary file '{s}' for the tool output '{out.id()}' (ToolId={toolid})"
@@ -926,7 +928,7 @@ EOT"""
 
     @classmethod
     def build_commands_for_file_to_create(
-        cls, tool: CommandTool
+        cls, tool: CommandToolBuilder
     ) -> List[wdl.Task.Command]:
         commands = []
         inputsdict = {t.id(): t for t in tool.inputs()}
@@ -992,8 +994,7 @@ EOT"""
 
         runtime_block.kwargs["preemptible"] = 2
 
-    @classmethod
-    def build_inputs_dict(cls, tool: Tool, recursive: bool=False) -> dict[str, Any]:
+    def build_inputs_file(self, entity: WorkflowBuilder | CommandToolBuilder | CodeTool) -> None:
         """
         Recursive is currently unused, but eventually input overrides could be generated the whole way down
         a call chain, including subworkflows: https://github.com/openwdl/wdl/issues/217
@@ -1006,23 +1007,22 @@ EOT"""
 
         inp = {}
         values_provided_from_tool = {}
-        is_workflow = tool.type() == ToolType.Workflow
 
-        if is_workflow:
+        if isinstance(entity, WorkflowBuilder):
             values_provided_from_tool = {
                 i.id(): i.value or i.default
-                for i in tool.input_nodes.values()
+                for i in entity.input_nodes.values()
                 if i.value is not None
                 or (i.default is not None and not isinstance(i.default, Selector))
             }
 
         ad = {**values_provided_from_tool, **(additional_inputs or {})}
 
-        for i in tool.tool_inputs():
+        for i in entity.tool_inputs():
 
-            inp_key = f"{tool.id()}.{i.id()}" if is_workflow else i.id()
+            inp_key = f"{entity.id()}.{i.id()}" if isinstance(entity, WorkflowBuilder) else i.id()
             value = ad.get(i.id())
-            if cls.inp_can_be_skipped(i, value):
+            if self.inp_can_be_skipped(i, value):
                 continue
 
             inp_val = value
@@ -1046,9 +1046,10 @@ EOT"""
                     )
 
         if settings.translate.MERGE_RESOURCES:
-            inp.update(cls.build_resources_input(tool, inputs=ad, is_root=True))
-
-        return inp
+            inp.update(self._build_resources_dict(entity, inputs=ad, is_root=True))
+        
+        inputs_str = json.dumps(inp, sort_keys=True, indent=4, separators=(",", ": "))
+        self.inputs_file = inputs_str
     
     @staticmethod
     def inp_can_be_skipped(inp, override_value=None):
@@ -1059,8 +1060,13 @@ EOT"""
             and (inp.intype.optional and inp.default is None)
         )
 
+    def build_resources_file(self, entity: WorkflowBuilder | CommandToolBuilder | CodeTool) -> None:
+        resources_dict = self._build_resources_dict(entity)
+        resources_str = json.dumps(resources_dict, sort_keys=True, indent=4, separators=(",", ": "))
+        self.resources_file = resources_str
+
     @classmethod
-    def build_resources_input( 
+    def _build_resources_dict( 
         cls,
         tool: Tool, 
         inputs: Optional[dict[str, Any]]=None,
@@ -1069,7 +1075,7 @@ EOT"""
     ) -> dict[str, Any]:
 
         is_workflow = tool.type() == ToolType.Workflow
-        d = super().build_resources_input(
+        d = super()._build_resources_dict(
             tool=tool,
             prefix=prefix or "",
             inputs=inputs,
@@ -1078,8 +1084,20 @@ EOT"""
             return {f"{tool.id()}.{k}": v for k, v in d.items()}
         return d
 
+
+    ### STRINGIFY ###
+    
+    def stringify_translated_workflow(self, internal: WorkflowBuilder, translated: wdl.Workflow) -> str:
+        return translated.get_string()
+
+    def stringify_translated_tool(self, internal: CommandToolBuilder | CodeTool, translated: wdl.Task) -> str:
+        return translated.get_string()
+
+
+    ### FILENAMES ###
+
     @staticmethod
-    def workflow_filename(workflow):
+    def workflow_filename(workflow: WorkflowBuilder, is_main: Optional[bool]=False) -> str:
         return workflow.versioned_id() + ".wdl"
 
     @staticmethod
@@ -1093,6 +1111,14 @@ EOT"""
     @staticmethod
     def resources_filename(workflow):
         return workflow.id() + "-resources.json"
+
+
+    ### VALIDATION ###
+
+    @staticmethod
+    def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):
+        return ["java", "-jar", "$womtooljar", "validate", wfpath]
+
 
 
 def prepare_escaped_string(value: str):
@@ -1448,7 +1474,7 @@ def translate_step_node(
     inputs_details: dict[str, dict[str, Any]] = {}
     if isinstance(step.tool, Workflow):
         input_positions = get_workflow_input_positions(list(step.tool.input_nodes.values()))
-    elif isinstance(step.tool, CommandTool):
+    elif isinstance(step.tool, CommandToolBuilder):
         input_positions = get_tool_input_positions_cmdtool(step.tool.inputs())
     elif isinstance(step.tool, CodeTool):
         input_positions = get_tool_input_positions_codetool(step.tool.inputs())
@@ -1579,7 +1605,7 @@ def translate_step_node(
             
             # prefix
             prefix = None
-            if isinstance(step.tool, CommandTool):
+            if isinstance(step.tool, CommandToolBuilder):
                 prefix = tool_input.prefix
                 if isinstance(prefix, str):
                     prefix = prefix.rstrip('=')
@@ -2149,7 +2175,7 @@ def build_resource_override_maps_for_tool(tool, prefix=None) -> List[wdl.Input]:
     else:
         prefix += "_"
 
-    if isinstance(tool, (CommandTool, CodeTool)):
+    if isinstance(tool, (CommandToolBuilder, CodeTool)):
         inputs.extend(
             [
                 wdl.Input(wdl.WdlType.parse_type("Int?"), prefix + "runtime_memory"),

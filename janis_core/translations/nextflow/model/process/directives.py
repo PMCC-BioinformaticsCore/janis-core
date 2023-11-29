@@ -55,28 +55,36 @@ class NFDebugDirective(NFProcessDirective):
 
 @dataclass
 class NFCpusDirective(NFProcessDirective):
-    param: Param
+    value: Param | str
 
     def get_string(self) -> str:
-        return f'cpus \"${{params.{self.param.name}}}\"'
+        if isinstance(self.value, Param):
+            return f'cpus "${{params.{self.value.name}}}"'
+        return f'cpus "{self.value}"'
 
 @dataclass
 class NFDiskDirective(NFProcessDirective):
-    param: Param
+    value: Param | str
     
     def get_string(self) -> str:
-        return f'disk \"${{params.{self.param.name}}}\"'
+        if isinstance(self.value, Param):
+            return f'disk "${{params.{self.value.name}}}"'
+        return f'disk "{self.value}"'
 
 @dataclass
 class NFMemoryDirective(NFProcessDirective):
-    param: Param
+    value: Param | str
     
     def get_string(self) -> str:
-        return f'memory \"${{params.{self.param.name}}}\"'
+        if isinstance(self.value, Param):
+            return f'memory "${{params.{self.value.name}}}"'
+        return f'memory "{self.value}"'
 
 @dataclass
 class NFTimeDirective(NFProcessDirective):
-    param: Param
+    value: Param | str
     
     def get_string(self) -> str:
-        return f'time \"${{params.{self.param.name}}}\"'
+        if isinstance(self.value, Param):
+            return f'time "${{params.{self.value.name}}}"'
+        return f'time "{self.value}"'

@@ -21,10 +21,10 @@ from .mock_params import (
     MOCK_OUTPARAM1
 )
 
-MOCK_POSIT2 = Positional()
-MOCK_POSIT2.values.add('abricate')
-MOCK_POSIT2.cmd_pos = 0
-MOCK_POSIT2.before_opts = True
+MOCK_POSITIONAL2 = Positional()
+MOCK_POSITIONAL2.values.add('abricate')
+MOCK_POSITIONAL2.cmd_pos = 0
+MOCK_POSITIONAL2.before_opts = True
 
 
 

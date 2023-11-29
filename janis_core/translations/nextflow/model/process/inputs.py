@@ -40,7 +40,8 @@ class NFPathProcessInput(NFProcessInput):
         if self.presents_as:
             expr = f", stageAs: '{self.presents_as}'"
         elif dtt == DTypeType.FILE_ARRAY and self.dtype.optional:
-            expr = f", stageAs: '{self.name}??/*'"
+            expr = f", stageAs: '{self.name}/*'"
+            # expr = f", stageAs: '{self.name}??/*'"
         elif dtt == DTypeType.SECONDARY and self.dtype.optional:
             expr = f", stageAs: '{self.name}/*'"
         elif dtt == DTypeType.FILE and self.dtype.optional:

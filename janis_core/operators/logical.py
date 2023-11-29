@@ -196,8 +196,9 @@ class GroupOperator(Operator):
         return f"({arg})"
 
     def to_nextflow(self, unwrap_operator, *args):
+        # note: nextflow doesn't like brackets :/ 
         arg = unwrap_operator(self.args[0])
-        return f"({arg})"
+        return f"{arg}"
 
     def to_python(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])

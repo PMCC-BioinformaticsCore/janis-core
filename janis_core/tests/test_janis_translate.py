@@ -9,6 +9,7 @@ from janis_core.ingestion import ingest
 from janis_core.translations import translate
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
+from janis_core.tests.testtools import FastqcTestTool
 from janis_core.tests.testworkflows import PruneFlatTW
 from janis_core.tests.testworkflows import PruneNestedTW
 from janis_core.tests.testworkflows import AssemblyTestWF
@@ -20,10 +21,13 @@ from janis_core.redefinitions.workflows import WGSGermlineMultiCallers
 from janis_core import CommandToolBuilder
 from janis_core import WorkflowBuilder
 from janis_core import CodeTool
+from janis_core import StepOutputSelector
+from janis_core import InputNodeSelector
 
 from janis_core.translations import nextflow
 from janis_core.translations.common import to_builders
 from janis_core.translations.common import prune_workflow
+from janis_core.translations.common import wrap_tool_in_workflow
 from janis_core import settings
 
 import os 
@@ -229,6 +233,60 @@ class TestTranslationEndpoints(unittest.TestCase):
 
     def test_str_big_workflow(self):
         WGSGermlineMultiCallers().translate("janis")
+
+
+
+### ----- MESSAGES ----- ###
+
+class TestMessages(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_scripting1(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure heading
+        self.assertIn('// ERROR: UNTRANSLATED EXPRESSIONS', mainstr)
+        # ignore tokens which no longer appear in file
+        self.assertNotIn('__TOKEN1__ = "$([inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0])"', mainstr)
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN2__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', mainstr)
+        self.assertIn('-C __TOKEN2__', mainstr)
+        
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure heading
+        self.assertIn('// ERROR: UNTRANSLATED EXPRESSIONS', mainstr)
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN1__ = "$(self[0].contents)"', mainstr)
+        self.assertIn('path "__TOKEN1__", emit: out4', mainstr)
+    
+    def test_datatypes1(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure heading
+        self.assertIn('// WARNING: DATATYPES', mainstr)
+        # ensure messages 
+        self.assertIn('// out2: Could not parse datatype from javascript expression. Treated as generic File with secondaries.', mainstr)
+    
+    def test_fallbacks(self) -> None:
+        raise NotImplementedError
+    
+    def test_experimental(self) -> None:
+        raise NotImplementedError
+    
+    def test_version(self) -> None:
+        raise NotImplementedError
+    
+
+
 
 
 
@@ -879,6 +937,41 @@ class TestPreprocessingToBuilders(unittest.TestCase):
 
 
 
+# ---- PREPROCESSING: AS_WORKFLOW ------------------------------
+
+class TestPreprocessingAsWorkflow(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_tool_fastqc(self):
+        tool: CommandToolBuilder = FastqcTestTool()
+        wf = wrap_tool_in_workflow(tool)
+
+        # basics
+        self.assertIsInstance(wf, WorkflowBuilder)
+        self.assertEqual(len(wf.input_nodes), 11)
+        self.assertEqual(len(wf.step_nodes), 1)
+        self.assertEqual(len(wf.output_nodes), 2)
+        
+        # checking step input sources
+        step = wf.step_nodes['fastqc_step']
+        for inp in tool._inputs:
+            self.assertIn(inp.id(), step.sources)
+            source = step.sources[inp.id()].source_map[0].source
+            self.assertIsInstance(source, InputNodeSelector)
+            self.assertEqual(source.input_node, wf.input_nodes[inp.id()])
+
+        # checking workflow output sources
+        for out in tool._outputs:
+            self.assertIn(out.id(), wf.output_nodes)
+            source = wf.output_nodes[out.id()].source
+            self.assertIsInstance(source, StepOutputSelector)
+            self.assertEqual(source.node, step)
+            self.assertEqual(source.tag, out.id())
+
+
+
 # ---- FROM CWL ---------------------------
 
 class TestCwlToWdl(unittest.TestCase):
@@ -888,6 +981,21 @@ class TestCwlToWdl(unittest.TestCase):
         self.dest = 'wdl'
         _reset_global_settings()
 
+    def test_tool_bwa_index(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/BWA-Index.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
+    def test_tool_cutadapt(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/cutadapt-paired.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
+    def test_tool_picard_markduplicates(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/picard_MarkDuplicates.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
     def test_tool_fastqc2(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
@@ -977,6 +1085,14 @@ class TestCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     # Tools
+    def test_tool_picard_markduplicates(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/picard_MarkDuplicates.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        self.assertIn('path "${alignments.simpleName}.markduplicates.log", emit: log', mainstr)
+        self.assertIn('OUTPUT=${alignments.simpleName}_markduplicates${"." + alignments.extension}', mainstr)
+        print(mainstr)
+        print()
+    
     def test_tool_samtools_flagstat(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)

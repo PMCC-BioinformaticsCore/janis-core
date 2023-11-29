@@ -8,6 +8,7 @@ from .files import (
     NFImport,
     NFImportItem,
     NFImportsBlock,
+    NFMessageBlock,
 )
 
 from .channels import NFChannelDefinition

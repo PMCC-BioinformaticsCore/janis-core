@@ -6,13 +6,29 @@ from abc import ABC, abstractmethod, abstractproperty
 
 import WDL
 
+from typing import Any
 import regex as re
 from ..expressions import parse_expr
 from ..patterns import FLAG, OPTION
 from .cmdline import CmdLine
 
+
+input_types = (
+    WDL.Type.Boolean,
+    WDL.Type.Int,
+    WDL.Type.Float,
+    WDL.Type.String,
+    WDL.Type.File,
+    WDL.Type.Directory,
+    WDL.Type.Array,
+    WDL.Type.Map,
+    WDL.Type.Pair,
+    WDL.Type.StructInstance
+)
+
 class ComponentParser(ABC):
-    def __init__(self, ctoken: str | WDL.Expr.Placeholder, ntoken: str | WDL.Expr.Placeholder) -> None:
+    def __init__(self, task: WDL.Tree.Task, ctoken: str | WDL.Expr.Placeholder, ntoken: str | WDL.Expr.Placeholder) -> None:
+        self.task = task
         self.ctoken = ctoken
         self.ntoken = ntoken
     
@@ -22,46 +38,72 @@ class ComponentParser(ABC):
     @abstractmethod
     def update_command_tool(self, internal: CommandToolBuilder, ptr: int) -> int: ...
 
+    def is_input(self, token: Any) -> bool:
+        if self.task.inputs is None:
+            return False
+        if not isinstance(token, WDL.Expr.Ident):
+            return False
+        for inp in self.task.inputs:
+            if inp.name == token.name:
+                return True
+        return False
+        
+
 class PrefixExprOptionParser(ComponentParser):
-    # linked to input
 
     def passes_check(self) -> bool:
-        return False
         if isinstance(self.ctoken, str) and isinstance(self.ntoken, WDL.Expr.Placeholder):
             if re.match(OPTION, self.ctoken):
-                expr = parse_expr(self.ntoken)
-                if is_positional_expr(self.ntoken):
-                    return True
+                if isinstance(self.ntoken, WDL.Expr.Placeholder):
+                    if isinstance(self.ntoken.expr, WDL.Expr.Get):
+                        if self.is_input(self.ntoken.expr.expr):
+                            return True
         return False
     
     def update_command_tool(self, internal: CommandToolBuilder, ptr: int) -> int:
         raise NotImplementedError
+
 
 class ExprOptionParser(ComponentParser):
-    # linked to input
 
     def passes_check(self) -> bool:
         return False
     
     def update_command_tool(self, internal: CommandToolBuilder, ptr: int) -> int:
         raise NotImplementedError
+
 
 class FlagParser(ComponentParser):
-    # linked to input
-
-    def passes_check(self) -> bool:
-        return False
-    
-    def update_command_tool(self, internal: CommandToolBuilder, ptr: int) -> int:
-        raise NotImplementedError
-
-class PositionalParser(ComponentParser):
-    # linked to input
 
     def passes_check(self) -> bool:
         if isinstance(self.ctoken, WDL.Expr.Placeholder):
             if isinstance(self.ctoken.expr, WDL.Expr.Get):
-                if isinstance(self.ctoken.expr.expr, WDL.Expr.Ident):
+                if self.is_input(self.ctoken.expr.expr):
+                    if isinstance(self.ctoken.expr.type, WDL.Type.Boolean):
+                        return True
+        return False
+    
+    def update_command_tool(self, internal: CommandToolBuilder, ptr: int) -> int:
+        input_name = str(self.ctoken.expr.expr.name)
+        tinput = [inp for inp in internal._inputs if inp.id() == input_name][0]
+        truevalue = self.ctoken.options['true'] if self.ctoken.options['true'] != '' else None
+        falsevalue = self.ctoken.options['false'] if self.ctoken.options['false'] != '' else None
+        if truevalue is not None and falsevalue is not None:
+            raise RuntimeError
+        elif truevalue is not None:
+            tinput.prefix = truevalue
+        else:
+            tinput.prefix = falsevalue
+        tinput.position = ptr + 1
+        return 1
+
+
+class PositionalParser(ComponentParser):
+
+    def passes_check(self) -> bool:
+        if isinstance(self.ctoken, WDL.Expr.Placeholder):
+            if isinstance(self.ctoken.expr, WDL.Expr.Get):
+                if self.is_input(self.ctoken.expr.expr):
                     return True
         return False
     
@@ -70,6 +112,7 @@ class PositionalParser(ComponentParser):
         tinput = [inp for inp in internal._inputs if inp.id() == input_name][0]
         tinput.position = ptr + 1
         return 1  # move to next token
+
 
 class ArgumentParser(ComponentParser):
     # not linked to input
@@ -111,6 +154,7 @@ class NativeCommandParser:
     def validate_parser(self) -> None:
         local_cmds = [c for c in self.cmds if not c.is_set_command]
         assert len(local_cmds) == 1                     # only allow single cmd
+        # TODO expand this to multiple commands/tools? 
         assert isinstance(local_cmds[0].elems[0], str)  # cmd must start with string
         assert local_cmds[0].elems[0] != ''             # cmd must not start with ''
         
@@ -165,7 +209,7 @@ class NativeCommandParser:
             
             parsed = False
             for parser_c in parsers:
-                parser = parser_c(ctoken, ntoken)
+                parser = parser_c(self.task, ctoken, ntoken)
                 if parser.passes_check():
                     ptr += parser.update_command_tool(self.internal, ptr)
                     parsed = True
