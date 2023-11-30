@@ -5,7 +5,7 @@ from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 from uuid import uuid4
 
-from janis_core.messages import log_error
+from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
 from janis_core import settings
@@ -756,13 +756,13 @@ class WorkflowBase(Tool):
             if any(f not in ins for f in fields):
                 if settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
                     msg = f"This task is supposed to run in parallel across {fields}, but some of these are not task inputs."
-                    log_error(self.uuid, msg, ErrorCategory.PLUMBING)
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     # if there is a field not in the input map, we have a problem
                     extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
                     msg = f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' " +\
                           f"as they are not inputs to the tool '{tool.id()}'"
-                    log_error(self.uuid, msg, ErrorCategory.FATAL)
+                    log_message(self.uuid, msg, ErrorCategory.FATAL)
                     raise RuntimeError(msg)
 
         tool.workflow = self

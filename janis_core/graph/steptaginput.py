@@ -8,7 +8,7 @@ from janis_core.tool.tool import TInput
 from janis_core.utils import first_value
 from janis_core.utils.logger import Logger
 from janis_core import settings
-from janis_core.messages import log_warning
+from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 from uuid import uuid4
 
@@ -47,7 +47,7 @@ class Edge:
             if self.ftag not in self.finish.inputs():
                 if settings.graph.ALLOW_UNKNOWN_SOURCE:
                     msg = "Could not connect this input to its data source"
-                    log_warning(self.uuid, msg, ErrorCategory.PLUMBING)
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     raise Exception(
                         f"Could not find the tag '{self.ftag}' in the outputs of '{self.finish.id()}': {list(self.finish.inputs().keys())}"
@@ -71,7 +71,7 @@ class Edge:
             if not stype.is_array():
                 if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
                     msg = f"This task is supposed to run in parallel across this input ({ftoolin.id()}), but the data source is not an array."
-                    log_warning(self.uuid, msg, ErrorCategory.PLUMBING)
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     raise Exception(
                         f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
@@ -91,7 +91,7 @@ class Edge:
         if not self.compatible_types:
             if settings.graph.ALLOW_INCOMPATIBLE_TYPES:
                 msg = f"The data source for this input is a {stype.id()}, but the input is a {ftoolin.intype.id()}"
-                log_warning(self.uuid, msg, ErrorCategory.DATATYPE)
+                log_message(self.uuid, msg, ErrorCategory.DATATYPES)
             else:
                 s = str(self.source)
                 f = full_dot(self.finish, self.ftag)
@@ -148,7 +148,7 @@ class StepTagInput:
             if not stype.is_array():
                 if settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT:
                     msg = f"This task is supposed to run in parallel across this input ({tinput.id()}), but the data source is not an array."
-                    log_warning(self.uuid, msg, ErrorCategory.PLUMBING)
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     raise Exception(
                         f"Scatter was required for '{operator} → '{self.finish.id()}.{self.ftag}' but "
@@ -162,7 +162,7 @@ class StepTagInput:
             if not ftype.is_array():
                 if settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES:
                     msg = "This input has multiple data sources, but should only have one (it is not an array)."
-                    log_warning(self.uuid, msg, ErrorCategory.PLUMBING)
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     raise Exception(
                         f"Adding multiple inputs to '{self.finish.id()}' "

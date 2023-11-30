@@ -9,7 +9,7 @@ import regex as re
 from copy import deepcopy
 
 import janis_core as j
-from janis_core.messages import log_error
+from janis_core.messages import log_message
 from janis_core.messages import load_loglines
 from janis_core.messages import LogLine
 from janis_core.messages import ErrorCategory
@@ -64,11 +64,11 @@ def parse_explicit_expr(
     # expr already has token
     if error_token_override:
         msg = f'{error_token_override}: {expr}'
-        log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+        log_message(tool_uuid, msg, ErrorCategory.SCRIPTING)
         # this is shit
         return None, False
 
-    loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool_uuid)
+    loglines = load_loglines(category=ErrorCategory.SCRIPTING, tool_uuid=tool_uuid)
     token = get_token_for_expr(expr, loglines)
     if token:
         return token, False
@@ -76,7 +76,7 @@ def parse_explicit_expr(
     # expr needs new token
     token = f'__TOKEN{len(loglines) + 1}__'
     msg = f'{token} = "{expr}"'
-    log_error(tool_uuid, msg, ErrorCategory.SCRIPT)
+    log_message(tool_uuid, msg, ErrorCategory.SCRIPTING)
     return token, False
 
 def parse_implicit_expr(

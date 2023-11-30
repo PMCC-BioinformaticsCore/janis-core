@@ -9,7 +9,7 @@ from functools import cached_property
 from janis_core import ToolInput, ToolArgument, ToolOutput, WildcardSelector, CommandToolBuilder, CommandTool, Selector
 from janis_core.types import File, Stdout, Stderr, Directory, DataType
 from janis_core import settings
-from janis_core.messages import log_error
+from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
 from ..types import ingest_cwl_type
@@ -63,7 +63,7 @@ class CLTParser:
 
         # log message
         msg = 'error parsing tool. returned minimal tool definition as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
 
         inputs = [self.ingest_command_tool_input(inp) for inp in self.entity.inputs]
         outputs = [self.ingest_command_tool_output(out) for out in self.entity.outputs]
@@ -178,7 +178,7 @@ class CLTParser:
             filename, success = parse_expression(entity.stderr, self.tool_uuid)
             # if not success:
             #     msg = 'error parsing tool. returned minimal tool definition as fallback'
-            #     log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+            #     log_message(self.tool_uuid, msg, ErrorCategory.FALLBACK)
             #     filename = 'stderr.txt'
             #     self.error_msgs.append('untranslated javascript expression in stderr filename. used stderr.txt as fallback')
             arg = ToolArgument(prefix='2>', value=filename, position=n + 1)
@@ -281,7 +281,7 @@ class CLTRequirementsParser(CLTEntityParser):
     def fallback(self) -> dict[str, Any]:
         # log message
         msg = 'error parsing tool requirements. ignored requirements as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
 
         # fallback
         return {
@@ -504,7 +504,7 @@ class InitialWorkDirRequirementParser:
     
     def fallback(self) -> None:
         msg = 'error parsing InitialWorkDirRequirement. ignored as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
         self.files_to_create = [] 
         self.directories_to_create = [] 
 
@@ -664,7 +664,7 @@ class CLTArgumentParser(CLTEntityParser):
 
     def fallback(self) -> None:
         msg = 'error parsing CommandLineTool Argument. ignored as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
         return None
 
     def do_parse(self) -> Optional[ToolArgument]: 
@@ -699,7 +699,7 @@ class CLTInputParser(CLTEntityParser):
     def fallback(self) -> ToolInput:
         identifier = get_id_entity(self.entity.id) # hope the error isnt here lol
         msg = 'error parsing CommandLineTool Input. returned generic optional File input as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
 
         return ToolInput(
             tag=identifier,
@@ -782,7 +782,7 @@ class CLTOutputParser(CLTEntityParser):
         # log message
         identifier = get_id_entity(self.entity.id) # hope the error isnt here lol
         msg = 'error parsing CommandLineTool output. returned generic File output as fallback'
-        log_error(self.tool_uuid, msg, ErrorCategory.FALLBACK)
+        log_message(self.tool_uuid, msg, ErrorCategory.FALLBACKS)
 
         # fallback
         return ToolOutput(

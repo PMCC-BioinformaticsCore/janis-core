@@ -1472,7 +1472,7 @@ def translate_step_node(
     #       fieldName: sourceCall.Output
 
     inputs_details: dict[str, dict[str, Any]] = {}
-    if isinstance(step.tool, Workflow):
+    if isinstance(step.tool, WorkflowBuilder):
         input_positions = get_workflow_input_positions(list(step.tool.input_nodes.values()))
     elif isinstance(step.tool, CommandToolBuilder):
         input_positions = get_tool_input_positions_cmdtool(step.tool.inputs())
@@ -1592,7 +1592,7 @@ def translate_step_node(
 
             # get tool input to derive additional information. 
             # used to render comments.
-            if isinstance(step.tool, Workflow):
+            if isinstance(step.tool, WorkflowBuilder):
                 tool_input = [x for x in step.tool.input_nodes.values() if x.id() == k][0]
             else:
                 tool_input = [x for x in step.tool.inputs() if x.id() == k][0]
@@ -1632,7 +1632,8 @@ def translate_step_node(
     for key, val in resource_overrides.items():
         inputs_details[key] = {'value': val}
 
-    messages = load_loglines(step.id())   # uuid is currently using janis-core identifiers
+    # messages = load_loglines(step.id())   # uuid is currently using janis-core identifiers
+    messages = []
     render_comments = settings.translate.RENDER_COMMENTS
     call = wdl.WorkflowCall(step_identifier, step.id(), inputs_details, messages, render_comments)
 

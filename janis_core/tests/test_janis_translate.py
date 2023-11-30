@@ -5,11 +5,16 @@ import pytest
 from typing import Any
 
 from janis_core import settings
+from janis_core.messages import configure_logging
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
+from janis_core.tests.testtools import EchoTestTool
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
 from janis_core.tests.testtools import FastqcTestTool
+from janis_core.tests.testworkflows import BasicIOTestWF
 from janis_core.tests.testworkflows import PruneFlatTW
 from janis_core.tests.testworkflows import PruneNestedTW
 from janis_core.tests.testworkflows import AssemblyTestWF
@@ -127,6 +132,7 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
     return out
 
 def _reset_global_settings() -> None:
+    configure_logging()    # reset the messages logfile
     nextflow.task_inputs.clear()
     nextflow.params.clear()
     settings.ingest.SAFE_MODE = False
@@ -242,6 +248,113 @@ class TestMessages(unittest.TestCase):
     
     def setUp(self) -> None:
         _reset_global_settings()
+
+    ### TOOLS ###
+
+    def test_injection_cwl_tool(self) -> None:
+        tool = EchoTestTool()
+        tool = to_builders(tool)
+        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        mainstr = translate(tool, 'cwl', export_path='./translated')
+        print(mainstr)
+
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        level, cat = ErrorCategory.METADATA.value
+        self.assertIn(f'# [{level}][{cat}] test message2', msgs_header)
+        level, cat = ErrorCategory.FALLBACKS.value
+        self.assertIn(f'# [{level}][{cat}] test message3', msgs_header)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        self.assertIn(f'# [{level}][{cat}] test message4', msgs_header)
+        self.assertNotIn('# UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('# test message5', msgs_header)
+    
+    def test_injection_nextflow_tool(self) -> None:
+        tool = EchoTestTool()
+        tool = to_builders(tool)
+        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        mainstr = translate(tool, 'nextflow', export_path='./translated')
+        print(mainstr)
+
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        self.assertIn(f'// {ErrorCategory.DATATYPES.value}\n// test message1', msgs_header)
+        self.assertIn(f'// {ErrorCategory.METADATA.value}\n// test message2', msgs_header)
+        self.assertIn(f'// {ErrorCategory.FALLBACKS.value}\n// test message3', msgs_header)
+        self.assertIn(f'// {ErrorCategory.EXPERIMENTAL.value}\n// test message4', msgs_header)
+        self.assertNotIn('// {ErrorCategory.SCRIPTING.value}\n// test message5', msgs_header)
+
+    def test_injection_wdl_tool(self) -> None:
+        tool = EchoTestTool()
+        tool = to_builders(tool)
+        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        mainstr = translate(tool, 'wdl', export_path='./translated')
+        print(mainstr)
+
+        msgs_header = mainstr.split('version development')[0]
+
+        self.assertIn(f'# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
+        self.assertIn(f'# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
+        self.assertIn(f'# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
+        self.assertIn(f'# {ErrorCategory.EXPERIMENTAL.value}\n# test message4', msgs_header)
+        self.assertNotIn('# {ErrorCategory.SCRIPTING.value}\n# test message5', msgs_header)
+
+    ### WORKFLOWS ###
+
+    def test_injection_cwl_workflow(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        wf = BasicIOTestWF()
+        wf = to_builders(wf)
+        log_message(entity_uuid=wf.uuid, msg='test message1', category=ErrorCategory.DATATYPES, subsection='general')
+        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA, subsection='inputs')
+        log_message(entity_uuid=wf.uuid, msg='test message3', category=ErrorCategory.FALLBACKS, subsection='outputs')
+        log_message(entity_uuid=wf.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL, subsection='stp1')
+        log_message(entity_uuid=wf.uuid, msg='test message5', category=ErrorCategory.SCRIPTING, subsection='stp1')
+        mainstr, _, _, _ = translate(wf, 'cwl', export_path='./translated')
+
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        self.assertIn(f'# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
+        self.assertIn(f'# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
+        self.assertIn(f'# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
+        
+        # check step experimental message in correct location
+        matches = list(re.finditer(f'steps:\s+# {ErrorCategory.EXPERIMENTAL.value}\n# test message4', mainstr))
+        self.assertEqual(len(matches), 1)
+        # check unnecessary script message is not in file
+        self.assertNotIn('# {ErrorCategory.SCRIPTING.value}\n# test message5', mainstr)
+    
+    def test_injection_cwl_workflow_subsections(self) -> None:
+        settings.messages.USE_SUBSECTIONS = True
+        wf = BasicIOTestWF()
+        wf = to_builders(wf)
+        log_message(entity_uuid=wf.uuid, msg='test message1', category=ErrorCategory.DATATYPES, subsection='general')
+        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA, subsection='inputs')
+        log_message(entity_uuid=wf.uuid, msg='test message3', category=ErrorCategory.FALLBACKS, subsection='outputs')
+        mainstr, _, _, _ = translate(wf, 'cwl', export_path='./translated')
+        print(mainstr)
+
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        self.assertIn(f'### GENERAL ###\n\n# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
+        self.assertIn(f'### INPUTS ###\n\n# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
+        self.assertIn(f'### OUTPUTS ###\n\n# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
+    
+    def test_injection_cwl_subworkflow(self) -> None:
+        raise NotImplementedError
+    
+    def test_injection_cwl_workflow_splitsections(self) -> None:
+        raise NotImplementedError
 
     def test_scripting1(self) -> None:
         filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
@@ -1111,6 +1224,7 @@ class TestCwlToNextflow(unittest.TestCase):
     
     # Workflows
     def test_wf_align_sort_markdup(self):
+        settings.ingest.SAFE_MODE = True
         filepath = f'{CWL_TESTDATA_PATH}/workflows/align_sort_markdup/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)

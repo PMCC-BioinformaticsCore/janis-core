@@ -1,29 +1,38 @@
+
 import os
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, Any, Optional
 import functools
-import shutil
 
+from janis_core import (
+    CommandToolBuilder, 
+    CodeTool, 
+    WorkflowBuilder, 
+    Tool, 
+    InputSelector, 
+    Selector,
+    SupportedTranslation, 
+    ToolInput,
+    ToolType,
+    File, 
+    Directory, 
+    Int,
+)
 
-from path import Path
-from janis_core import CommandToolBuilder, CodeTool, WorkflowBuilder, Tool
-from janis_core.code.codetool import CodeTool
-from janis_core.tool.commandtool import ToolInput
-from janis_core.tool.tool import ToolType
 from janis_core.translation_deps.exportpath import ExportPathKeywords
-from janis_core.types.common_data_types import Int
 from janis_core.utils.logger import Logger
-from janis_core.operators.selectors import Selector
 from janis_core import settings
-from .todisk import write_tool_to_console
-from .todisk import write_tool_to_disk
-from .todisk import write_workflow_to_console
-from .todisk import write_workflow_to_disk
+
+from janis_core.messages import inject_messages_tool
+from janis_core.messages import inject_messages_workflow
+from .common.todisk import write_tool_to_console
+from .common.todisk import write_tool_to_disk
+from .common.todisk import write_workflow_to_console
+from .common.todisk import write_workflow_to_disk
 
 class TranslationError(Exception):
     def __init__(self, message: str, inner: Exception):
         super().__init__(message, inner)
-        # self.inner = inner
 
 
 kwargstoignore = {"container_override"}
@@ -178,21 +187,24 @@ class TranslatorBase(ABC):
         internal, translated = self.main
         fn_main = self.workflow_filename(wf, is_main=True)
         str_main = self.stringify_translated_workflow(internal, translated)
+        str_main = inject_messages_workflow(internal, str_main)
         tup_main = (fn_main, str_main)
 
         # stringify tools (commandtools, pythontools)
         tup_tools = []
         for internal, translated in self.tools:
             filename = self.tool_filename(internal)
-            str_trans = self.stringify_translated_tool(internal, translated)
-            tup_tools.append((filename, str_trans))
+            str_tool = self.stringify_translated_tool(internal, translated)
+            str_tool = inject_messages_tool(internal, str_tool)
+            tup_tools.append((filename, str_tool))
         
         # stringify subworkflows
         tup_subworkflows = []
         for internal, translated in self.subworkflows:
             filename = self.workflow_filename(internal)
-            str_trans = self.stringify_translated_workflow(internal, translated)
-            tup_subworkflows.append((filename, str_trans))
+            str_subwf = self.stringify_translated_workflow(internal, translated)
+            str_subwf = inject_messages_workflow(internal, str_subwf)
+            tup_subworkflows.append((filename, str_subwf))
 
         # stringify input config file
         fn_inputs = self.inputs_filename(wf)
@@ -221,7 +233,7 @@ class TranslatorBase(ABC):
                 self.OUTDIR_STRUCTURE
             )
 
-        return tup_main[1], tup_inputs[1], tup_tools
+        return tup_main[1], tup_inputs[1], tup_subworkflows, tup_tools
 
     def translate_tool(self, internal: CommandToolBuilder) -> str:
         """
@@ -239,14 +251,15 @@ class TranslatorBase(ABC):
         
         # stringify output model
         str_tool = self.stringify_translated_tool(internal, translated)
+        str_tool = inject_messages_tool(internal, str_tool)
         
         # write to stdout / disk
         if settings.translate.TO_CONSOLE:
             write_tool_to_console(str_tool)
         if settings.translate.TO_DISK:
             filename = self.tool_filename(internal)
-            helpers = self.build_helper_files(internal)
-            write_tool_to_disk(str_tool, filename, helpers)
+            self.build_helper_files(internal)
+            write_tool_to_disk(str_tool, filename, self.helper_files)
 
         return str_tool 
 
@@ -260,10 +273,11 @@ class TranslatorBase(ABC):
         Returns string purely for testing purposes
         """
         translated = self.translate_code_tool_internal(internal)
-        trans_str = self.stringify_translated_tool(internal, translated)
+        str_tool = self.stringify_translated_tool(internal, translated)
+        str_tool = inject_messages_tool(internal, str_tool)
 
         if settings.translate.TO_CONSOLE:
-            print(trans_str)
+            print(str_tool)
 
         if settings.translate.TO_DISK:
             d = ExportPathKeywords.resolve(
@@ -274,14 +288,14 @@ class TranslatorBase(ABC):
             fn_tool = self.tool_filename(internal)
             with open(os.path.join(d, fn_tool), "w+") as wf:
                 Logger.log(f"Writing {fn_tool} to disk")
-                wf.write(trans_str)
+                wf.write(str_tool)
                 Logger.log(f"Wrote {fn_tool}  to disk")
 
-        return trans_str
+        return str_tool
 
     # Resource overrides?? what for???
     @staticmethod
-    def get_resource_override_inputs() -> List[ToolInput]:
+    def get_resource_override_inputs() -> list[ToolInput]:
         """not really sure what this does / why is needed"""
         return [
             ToolInput("runtime_cpu", Int(optional=True)),  # number of CPUs
@@ -302,6 +316,92 @@ class TranslatorBase(ABC):
             return container_override.get(tool.versioned_id().lower())
         elif "*" in container_override:
             return container_override["*"]
+
+    def build_helper_files(self, tool: CommandToolBuilder | CodeTool | WorkflowBuilder) -> None:
+        """
+        Generate a dictionary of helper files to run Nextflow.
+        Key of the dictionary is the filename, the value is the file content
+
+        :param tool:
+        :type tool:
+        :return:
+        :rtype:
+        """
+        code_files = self._gen_python_code_files(tool)
+        template_files = self._gen_template_files(tool)
+        helpers = template_files | code_files
+        helpers = [(k, v) for k, v in helpers.items()]
+        self.helper_files = helpers
+    
+    def _gen_python_code_files(self, tool: CommandToolBuilder | CodeTool | WorkflowBuilder) -> dict[str, str]:
+        # Python files for Python code tools
+        files: dict[str, str] = {}
+
+        if isinstance(tool, CodeTool):
+            # helpers["__init__.py"] = ""
+            #helpers[f"{tool.versioned_id()}.py"] = self.gen_python_script(tool)
+            filename = f'{tool.id()}.py'
+
+            st = SupportedTranslation.from_str(self.name)
+            contents = tool.prepared_script(st)
+            assert contents is not None
+            files[filename] = contents
+
+        elif isinstance(tool, WorkflowBuilder):
+            for step in tool.step_nodes.values():
+                step_code_files = self._gen_python_code_files(step.tool)
+                files = files | step_code_files # merge dicts
+        
+        return files
+
+    def _gen_template_files(self, tool: CommandToolBuilder | CodeTool | WorkflowBuilder) -> dict[str, str]:
+        # files from tool.files_to_create
+        files: dict[str, str] = {}
+
+        if isinstance(tool, CommandToolBuilder):
+            if tool.files_to_create():
+                for name, contents in tool.files_to_create().items():
+                    if not isinstance(name, str):
+                        # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
+                        raise NotImplementedError()
+                    
+                    if isinstance(contents, str):
+                        assert(not name.startswith('unnamed_'))
+                        if '<js>' in contents:
+                            # ignore, print error message for user
+                            raise NotImplementedError()
+                            pass
+                        else:
+                            # create file
+                            files[name] = contents
+                    
+                    elif isinstance(contents, InputSelector):
+                        tinput_name = contents.input_to_select
+                        tinput = tool.inputs_map()[tinput_name]
+                        if isinstance(tinput.intype, File | Directory):
+                            raise NotImplementedError()
+                            print('ignored staging File into process')
+                        else:
+                            raise NotImplementedError()
+                            print('ignored staging String into process')
+                        # # js evaluates to a file: add referenced file to output directory
+                        # if name.startswith('unnamed_'):
+                        #     # dont override filename
+                        #     pass
+                        # else:
+                        #     # override filename
+                        #     pass
+                        # print()
+                    
+                    else:
+                        raise NotImplementedError
+        
+        elif isinstance(tool, WorkflowBuilder):
+            for step in tool.step_nodes.values():
+                step_template_files = self._gen_template_files(step.tool)
+                files = files | step_template_files # merge dicts
+
+        return files
 
 
     ### JANIS ->  OUTPUT MODEL MAPPING ###
@@ -438,10 +538,6 @@ class TranslatorBase(ABC):
             new_inputs.update(step_inputs)
 
         return new_inputs
-
-    def build_helper_files(self, tool: CommandToolBuilder | CodeTool | WorkflowBuilder) -> Dict[str, str]:
-        """TODO this should be abstract"""
-        return {}
 
     @classmethod
     @abstractmethod

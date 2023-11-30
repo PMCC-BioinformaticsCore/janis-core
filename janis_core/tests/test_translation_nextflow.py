@@ -4,6 +4,7 @@ import os
 import regex as re
 from typing import Any, Optional
 
+from janis_core.translations.common import to_builders
 from janis_core.translations.common import trace
 from janis_core.tests.testtools import (
     InputQualityTestTool,
@@ -1084,24 +1085,29 @@ class TestFiles(unittest.TestCase):
 
     def test_files_created(self) -> None:
         wf = SubworkflowTestWF()
-        mainstr, _, subtask_dict = translate(wf, dest_fmt='nextflow')
+        mainstr, _, subworkflows, processes = translate(wf, dest_fmt='nextflow')
         
-        # check correct number of subtasks created
-        self.assertEqual(len(subtask_dict), 6)
+        # check correct processes created
         expected_filepaths = set([
-            'modules/file_test_tool.nf',
-            'modules/string_test_tool.nf',
-            'modules/int_test_tool.nf',
-            'modules/string_opt_test_tool.nf',
-            'subworkflows/oranges_workflow.nf',
-            'subworkflows/apples_workflow.nf',
+            'file_test_tool.nf',
+            'string_test_tool.nf',
+            'int_test_tool.nf',
+            'string_opt_test_tool.nf',
         ])
-        actual_filepaths = set([x[0] for x in subtask_dict])
+        actual_filepaths = set([x[0] for x in processes])
+        self.assertSetEqual(actual_filepaths, expected_filepaths)
+        
+        # check correct subworkflows created
+        expected_filepaths = set([
+            'oranges_workflow.nf',
+            'apples_workflow.nf',
+        ])
+        actual_filepaths = set([x[0] for x in subworkflows])
         self.assertSetEqual(actual_filepaths, expected_filepaths)
 
     def test_main_workflow_format(self) -> None:
         wf = AssemblyTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         expected = [
             "nextflow.enable.dsl=2",
@@ -1130,8 +1136,8 @@ class TestFiles(unittest.TestCase):
     @unittest.skip("Nextflow translation rewrites expected output, need a new test")
     def test_process_format(self) -> None:
         wf = AssemblyTestWF()
-        mainstr, _, subtasks = translate(wf, dest_fmt='nextflow', to_console=False)
-        process = [x[1] for x in subtasks if x[0] == 'modules/fastqc.nf'][0]
+        mainstr, _, _, processes = translate(wf, dest_fmt='nextflow', to_console=False)
+        process = [x[1] for x in processes if x[0] == 'fastqc.nf'][0]
         print(process)
         actual_lines = simplify_file(process)
         expected_lines = [
@@ -1187,8 +1193,8 @@ class TestFiles(unittest.TestCase):
     
     def test_subworkflow_format(self) -> None:
         wf = SubworkflowTestWF()
-        mainstr, _, subtasks = translate(wf, dest_fmt='nextflow', to_console=False)
-        process = [x[1] for x in subtasks if x[0] == 'subworkflows/apples_workflow.nf'][0]
+        mainstr, _, subworkflows, processes = translate(wf, dest_fmt='nextflow', to_console=False)
+        process = [x[1] for x in subworkflows if x[0] == 'apples_workflow.nf'][0]
         print(process)
         actual_lines = simplify_file(process)
         expected_lines = [
@@ -1224,13 +1230,11 @@ class TestFiles(unittest.TestCase):
     def test_config_format(self) -> None:
         # TODO expand this to subworkflow with subworkflow, process specific params
         wf = SubworkflowTestWF()
-        _, config, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        _, config, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         actual_lines = split_to_lines(config)
         expected_lines = [
             'nextflow.enable.dsl = 2',
-            'singularity.enabled = true',
-            'singularity.autoMounts = true',
-            'singularity.cacheDir = "$HOME/.singularity/cache"',
+            'docker.enabled = true',
             'params {',
             '// Placeholder for null values.',
             '// Do not alter unless you know what you are doing.',
@@ -1253,16 +1257,14 @@ class TestFiles(unittest.TestCase):
         # test_nonfile
         # string, int, bool
         wf = AllInputTypesTestWF()
-        maintask, config, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        maintask, config, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(maintask)
         actual_lines = split_to_lines(config)
         for ln in actual_lines:
             print(ln)
         expected_lines = [
             'nextflow.enable.dsl = 2',
-            'singularity.enabled = true',
-            'singularity.autoMounts = true',
-            'singularity.cacheDir = "$HOME/.singularity/cache"',
+            'docker.enabled = true',
             'params {',
             '// Placeholder for null values.',
             '// Do not alter unless you know what you are doing.',
@@ -1300,15 +1302,13 @@ class TestFiles(unittest.TestCase):
         # string, int, bool
         
         wf = InputsPythonToolTestWF()
-        _, config, _ = translate(wf, dest_fmt='nextflow', to_console=False, export_path='translated')
+        _, config, _, _ = translate(wf, dest_fmt='nextflow', to_console=False, export_path='translated')
         actual_lines = split_to_lines(config)
         for ln in actual_lines:
             print(ln)
         expected_lines = [
             'nextflow.enable.dsl = 2',
-            'singularity.enabled = true',
-            'singularity.autoMounts = true',
-            'singularity.cacheDir = "$HOME/.singularity/cache"',
+            'docker.enabled = true',
             'params {',
             '// Placeholder for null values.',
             '// Do not alter unless you know what you are doing.',
@@ -1322,11 +1322,11 @@ class TestFiles(unittest.TestCase):
             'in_str             = NULL_VALUE  // (MANDATORY string)',
             'in_str_arr         = NULL_VALUE  // (MANDATORY array)         eg. [string1, ...]',
             '// PROCESS: JOIN_ARRAY_PYTHON_TEST_TOOL',
-            f'join_array_python_test_tool.code_file  = "{TRANSLATED_DIR}/templates/JoinArrayPythonTestTool.py"',
+            f'join_array_python_test_tool.code_file  = "templates/JoinArrayPythonTestTool.py"',
             '// PROCESS: MULTI_TYPES_INPUT_PYTHON_TOOL',
-            f'multi_types_input_python_tool.code_file  = "{TRANSLATED_DIR}/templates/MultiTypesInputPythonTool.py"',
+            f'multi_types_input_python_tool.code_file  = "templates/MultiTypesInputPythonTool.py"',
             '// PROCESS: SECONDARY_INPUT_PYTHON_TEST_TOOL',
-            f'secondary_input_python_test_tool.code_file  = "{TRANSLATED_DIR}/templates/SecondaryInputPythonTestTool.py"',
+            f'secondary_input_python_test_tool.code_file  = "templates/SecondaryInputPythonTestTool.py"',
             '}',
         ]
         self.assertEqual(len(actual_lines), len(expected_lines))
@@ -1339,7 +1339,7 @@ class TestFiles(unittest.TestCase):
         '.ifEmpty(null)' should appear in the channel string definition.
         """
         wf = AllInputTypesTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         actual_lines = simplify_file(mainstr)
         actual_lines = [ln for ln in actual_lines if 'Channel.' in ln]
         expected_lines = [
@@ -1353,7 +1353,7 @@ class TestFiles(unittest.TestCase):
 
     def test_variable_declarations(self) -> None:
         wf = AllInputTypesTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         actual_lines = simplify_file(mainstr)
         actual_lines = [ln for ln in actual_lines if 'file(' in ln]
         expected_lines = [
@@ -1373,7 +1373,7 @@ class TestFiles(unittest.TestCase):
 
     def test_duplicate_tool_usage(self) -> None:
         wf = DuplicateTasksTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
 
         # main workflow fmt
         actual_lines = simplify_file(mainstr)
@@ -1413,12 +1413,12 @@ class TestCmdtoolProcessDirectives(unittest.TestCase):
 
     def test_directives_basic(self) -> None:
         wf = DirectivesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.destfmt, export_path='./translated')
-        subtasks.sort(key=lambda x: x[0])
-        actual_lines = _get_process_directive_lines(subtasks[0][1])
+        _, _, _, processes = translate(wf, dest_fmt=self.destfmt, export_path='./translated')
+        processes.sort(key=lambda x: x[0])
+        actual_lines = _get_process_directive_lines(processes[0][1])
         
         # math import statement
-        self.assertIn('import java.lang.Math', subtasks[0][1])
+        self.assertIn('import java.lang.Math', processes[0][1])
         
         # directives
         expected_directives = {
@@ -1455,8 +1455,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_secondaries(self) -> None:
         wf = SecondariesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'secondaries_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'path bam1',
@@ -1469,8 +1469,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_secondaries_optional(self) -> None:
         wf = SecondariesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_optional_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'secondaries_optional_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             "path bam1, stageAs: 'bam1/*'"
@@ -1481,8 +1481,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_secondaries_array(self) -> None:
         wf = SecondariesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_array_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'secondaries_array_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'path bams1_flat',
@@ -1495,8 +1495,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_secondaries_array_optional(self) -> None:
         wf = SecondariesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/secondaries_array_optional_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'secondaries_array_optional_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             "path bams1_flat",
@@ -1507,8 +1507,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_file_pair(self) -> None:
         wf = FilePairsTestWF0()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_test_tool0.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_pair_test_tool0.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'tuple path(reads1), path(reads2)',
@@ -1519,8 +1519,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
 
     def test_file_pair_optional(self) -> None:
         wf = FilePairsOptionalTestWF0()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_optional_test_tool0.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_pair_optional_test_tool0.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'tuple path(reads1), path(reads2)',
@@ -1531,8 +1531,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_file_pair_array(self) -> None:
         wf = FilePairsArrayTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_array_test_tool1.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_pair_array_test_tool1.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'path read_pairs_flat',
@@ -1543,8 +1543,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     
     def test_file_pair_array_optional(self) -> None:
         wf = FilePairsArrayOptionalTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_pair_array_optional_test_tool1.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_pair_array_optional_test_tool1.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'path read_pairs_flat',
@@ -1556,8 +1556,8 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     # a rather weak test
     def test_generics(self) -> None:
         wf = ComponentsMandatoryTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/components_mandatory_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'components_mandatory_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             'path pos_basic',
@@ -1574,10 +1574,10 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
     # @unittest.skip('filenames are scuffed')
     def test_filenames(self) -> None:
         wf = FilenameTestWF1()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
         
         # basic
-        process = [x[1] for x in subtasks if x[0] == 'modules/filename_test_tool.nf'][0]
+        process = [x[1] for x in processes if x[0] == 'filename_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
             "path inp1",
@@ -1589,7 +1589,7 @@ class TestCmdtoolProcessInputs(unittest.TestCase):
             self.assertIn(inp, actual_lines)
         
         # filename using input selector
-        process = [x[1] for x in subtasks if x[0] == 'modules/filename_input_selector_test_tool.nf'][0]
+        process = [x[1] for x in processes if x[0] == 'filename_input_selector_test_tool.nf'][0]
         print(process)
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
@@ -1622,8 +1622,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_stdout(self):
         wf = BasicIOTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "out", emit: out',
@@ -1634,8 +1634,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_wildcard(self) -> None:
         wf = OutputCollectionTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/wildcard_selector_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'wildcard_selector_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "myfile.txt", emit: out'
@@ -1646,8 +1646,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_expression(self) -> None:
         wf = OutputCollectionTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/expression_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'expression_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "${inp.simpleName}_markduplicates.metrics", emit: out'
@@ -1658,8 +1658,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     
     def test_wildcard_array(self) -> None:
         wf = WildcardSelectorOutputTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/array_wildcard_selector_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'array_wildcard_selector_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "*.txt", emit: out'
@@ -1670,8 +1670,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
     def test_input_selector(self) -> None:
         wf = InputSelectorTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/file_input_selector_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'file_input_selector_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path inp, emit: out'
@@ -1682,8 +1682,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
 
     def test_input_selector_param(self) -> None:
         wf = OutputCollectionTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/input_selector_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'input_selector_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path output_filename, emit: out'
@@ -1694,8 +1694,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
         
     def test_input_selector_array(self) -> None:
         wf = InputSelectorTestWF()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/array_input_selector_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'array_input_selector_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path inp, emit: out'
@@ -1707,8 +1707,8 @@ class TestCmdtoolProcessOutputs(unittest.TestCase):
     @unittest.skip('filenames are boofed')
     def test_filenames_generated(self) -> None:
         wf = FilenameTestWF2()
-        _, _, subtasks = translate(wf, dest_fmt=self.dest, export_path='./translated')
-        process = [x[1] for x in subtasks if x[0] == 'modules/filename_collection_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt=self.dest, export_path='./translated')
+        process = [x[1] for x in processes if x[0] == 'filename_collection_test_tool.nf'][0]
         actual_lines = _get_process_output_lines(process)
         expected_lines = [
             'path "${inp1.baseName + ".csv"}", emit: out3',
@@ -1973,12 +1973,9 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         # pre-script
         actual_prescript = simplify_prescript(process.pre_script)
         expected_prescript = [
-            'def pos_basic_arr_joined = pos_basic_arr.join(\' \')',
-            'def opt_basic_arr_joined = opt_basic_arr.join(\' \')',
-            'def opt_basic_arr_prefixeach_joined = opt_basic_arr_prefixeach.collect{ "--opt-basic-prefixeach ${it}" }.join(\' \')',
-            'def opt_default_arr_joined = opt_default_arr != params.NULL_VALUE ? opt_default_arr.join(\' \') : "100 200 300"',
-            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach != params.NULL_VALUE ? opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \') : "--opt-default-prefixeach "hi" --opt-default-prefixeach "there""',
-            'def pos_default_arr_joined = pos_default_arr != params.NULL_VALUE ? pos_default_arr.join(\' \') : "1 2"',
+            'def opt_default_arr = opt_default_arr == params.NULL_VALUE ? [100, 200, 300] : opt_default_arr',
+            'def opt_default_arr_prefixeach_joined = opt_default_arr_prefixeach == params.NULL_VALUE ? opt_default_arr_prefixeach : ["hi", "there"]',
+            'def pos_default_arr = pos_default_arr == params.NULL_VALUE ? [1, 2] : pos_default_arr',
         ]
         self.assertEqual(len(actual_prescript), len(expected_prescript))
         for ln in actual_prescript:
@@ -1988,12 +1985,12 @@ class TestCmdtoolProcessScript(unittest.TestCase):
         actual_script = simplify_script(process.script)
         expected_script = [
             'echo',
-            '${pos_basic_arr_joined}',
-            '${pos_default_arr_joined}',
-            '--opt-basic ${opt_basic_arr_joined}',
-            '--opt-default ${opt_default_arr_joined}',
-            '${opt_basic_arr_prefixeach_joined}',
-            '${opt_default_arr_prefixeach_joined}',
+            '${pos_basic_arr}',
+            '${pos_default_arr.join(\' \')}',
+            '--opt-basic ${opt_basic_arr.join(\' \')}',
+            '--opt-default ${opt_default_arr.join(\' \')}',
+            '${opt_basic_arr_prefixeach.collect{ "--opt-basic-prefixeach ${it}" }.join(\' \')}',
+            '${opt_default_arr_prefixeach.collect{ "--opt-default-prefixeach ${it}" }.join(\' \')}',
             '> out'
         ]
         self.assertEqual(len(actual_script), len(expected_script))
@@ -2523,7 +2520,9 @@ class TestTranslateWorkflowInternal(unittest.TestCase):
     def test_assembly(self) -> None:
         wf = AssemblyTestWF()
         wf = do_preprocessing_workflow(wf, ignore_task_inputs=True)
-        maintask, _ = translator.translate_workflow_internal(wf)
+        translator = NextflowTranslator()
+        translator.translate_workflow_internal(wf)
+
 
 
 
@@ -2583,14 +2582,15 @@ class TestTranslateHelperFiles(unittest.TestCase):
     def test_python_tool_helpers(self) -> None:
         # first test wf
         wf = InputsPythonToolTestWF()
-        helper_files = translator.build_helper_files(wf)
-        actual_paths = list(helper_files.keys())
+        translator = NextflowTranslator()
+        translator.build_helper_files(wf)
+        actual_paths = [x[0] for x in translator.helper_files]
         expected_paths = [
-            'templates/MultiTypesInputPythonTool.py',
-            'templates/JoinArrayPythonTestTool.py',
-            'templates/SecondaryInputPythonTestTool.py'
+            'MultiTypesInputPythonTool.py',
+            'JoinArrayPythonTestTool.py',
+            'SecondaryInputPythonTestTool.py'
         ]
-        for filepath, filecontents in helper_files.items():
+        for filepath, filecontents in translator.helper_files:
             print(f'\n--- {filepath} ---')
             print(filecontents)
         self.assertEqual(len(actual_paths), len(expected_paths))
@@ -2599,12 +2599,14 @@ class TestTranslateHelperFiles(unittest.TestCase):
         
         # second test wf
         wf = OutputsPythonToolTestWF()
-        helper_files = translator.build_helper_files(wf)
-        actual_paths = list(helper_files.keys())
+        wf = to_builders(wf)
+        translator = NextflowTranslator()
+        translator.build_helper_files(wf)
+        actual_paths = [x[0] for x in translator.helper_files]
         expected_paths = [
-            'templates/FileOutputPythonTestTool.py',
-            'templates/FileInputPythonTestTool.py',
-            'templates/SplitTextPythonTestTool.py'
+            'FileOutputPythonTestTool.py',
+            'FileInputPythonTestTool.py',
+            'SplitTextPythonTestTool.py'
         ]
         self.assertEqual(len(actual_paths), len(expected_paths))
         for path in actual_paths:
@@ -2612,12 +2614,14 @@ class TestTranslateHelperFiles(unittest.TestCase):
  
     def test_template_helpers(self) -> None:
         wf = FilesDirectoriesToCreateTestWF()
-        helper_files = translator.build_helper_files(wf)
-        actual_paths = list(helper_files.keys())
+        wf = to_builders(wf)
+        translator = NextflowTranslator()
+        translator.build_helper_files(wf)
+        actual_paths = [x[0] for x in translator.helper_files]
         expected_paths = [
-            'templates/myscript.sh',
-            'templates/check_value.js',
-            'templates/MultiTypesInputPythonTool.py'
+            'myscript.sh',
+            'check_value.js',
+            'MultiTypesInputPythonTool.py'
         ]
         self.assertEqual(len(actual_paths), len(expected_paths))
         for path in actual_paths:
@@ -2642,11 +2646,11 @@ class TestPythontoolProcessInputs(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
         wf = InputsPythonToolTestWF()
-        self.mainstr, _, self.subtasks = translate(wf, dest_fmt='nextflow')
+        self.mainstr, _, _, self.processes = translate(wf, dest_fmt='nextflow')
 
     def test_file_inputs(self) -> None:
         # File, String, Int input types
-        process = [x[1] for x in self.subtasks if x[0] == 'modules/multi_types_input_python_tool.nf'][0]
+        process = [x[1] for x in self.processes if x[0] == 'multi_types_input_python_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = {
             "path code_file",
@@ -2660,7 +2664,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
 
     def test_generic_array_inputs(self) -> None:
         # Array(String) input type
-        process = [x[1] for x in self.subtasks if x[0] == 'modules/join_array_python_test_tool.nf'][0]
+        process = [x[1] for x in self.processes if x[0] == 'join_array_python_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = {
             "path code_file",
@@ -2672,7 +2676,7 @@ class TestPythontoolProcessInputs(unittest.TestCase):
         
     def test_secondaries_inputs(self) -> None:
         # File (secondaries) input type
-        process = [x[1] for x in self.subtasks if x[0] == 'modules/secondary_input_python_test_tool.nf'][0]
+        process = [x[1] for x in self.processes if x[0] == 'secondary_input_python_test_tool.nf'][0]
         actual_lines = _get_process_input_lines(process)
         expected_lines = {
             "path code_file",
@@ -2728,10 +2732,10 @@ class TestPythontoolProcess(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
         wf = InputsPythonToolTestWF()
-        self.mainstr, _, self.subtasks = translate(wf, dest_fmt='nextflow', to_console=False)
+        self.mainstr, _, _, self.processes = translate(wf, dest_fmt='nextflow', to_console=False)
 
     def test_format(self) -> None:
-        process = [x[1] for x in self.subtasks if x[0] == 'modules/multi_types_input_python_tool.nf'][0]
+        process = [x[1] for x in self.processes if x[0] == 'multi_types_input_python_tool.nf'][0]
         actual_lines = simplify_file(process)
         expected_lines = [
             'nextflow.enable.dsl=2',
@@ -3128,7 +3132,7 @@ class TestPlumbingTypeMismatch(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
         wf = PlumbingTypeMismatchTestWF()
-        self.mainstr, _, _ = translate(wf, dest_fmt='nextflow')
+        self.mainstr, _, _, _ = translate(wf, dest_fmt='nextflow')
         print(self.mainstr)
 
     def test_secondary_single_mismatch(self):
@@ -3201,7 +3205,7 @@ class TestPlumbingScatter(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
         wf = ComprehensiveScatterTestWF()
-        self.mainstr, _, _ = translate(wf, dest_fmt='nextflow')
+        self.mainstr, _, _, _ = translate(wf, dest_fmt='nextflow')
         print(self.mainstr)
 
     def test_scatter_to_scatter(self):
@@ -3289,7 +3293,7 @@ class TestPlumbingBasic(unittest.TestCase):
     # workflow input step inputs
     def test_python_tool_inputs(self):
         wf = InputsPythonToolTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         actual = _get_task_call_lines(mainstr, 'STP0')
         expected = [
@@ -3302,7 +3306,7 @@ class TestPlumbingBasic(unittest.TestCase):
 
     def test_workflow_inputs(self):
         wf = CallWFInputTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
 
         actual = _get_task_call_lines(mainstr, 'STP1')
@@ -3435,7 +3439,7 @@ class TestPlumbingBasic(unittest.TestCase):
     @unittest.skip('this needs to be updated for prune / task inputs')
     def test_static_inputs(self):
         wf = CallStaticTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         
         actual = _get_task_call_lines(mainstr, 'STP1')
@@ -3493,7 +3497,7 @@ class TestPlumbingBasic(unittest.TestCase):
 
     def test_filename_types(self) -> None:
         wf = FilenameTestWF1()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         
         actual = _get_task_call_lines(mainstr, 'STP1')
@@ -3506,9 +3510,9 @@ class TestPlumbingBasic(unittest.TestCase):
 
     def test_subworkflow(self) -> None:
         wf = DataSourceTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
-        
+         
         actual = _get_task_call_lines(mainstr, 'STP1')
         expected = [
             "in_file1,",
@@ -3595,7 +3599,7 @@ class TestPlumbingEdgeCases(unittest.TestCase):
 
     def test_pythontool_array_string_output(self) -> None:
         wf = PlumbingEdgeCaseTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         actual = _get_task_call_lines(mainstr, 'STP2')
         expected = [
@@ -3650,7 +3654,7 @@ class TestPlumbingExpressions(unittest.TestCase):
 
     def test_first_selector(self):
         wf = ConditionStepTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         actual = _get_task_call_lines(mainstr, 'PRINT')
         expected = [
@@ -3662,7 +3666,7 @@ class TestPlumbingExpressions(unittest.TestCase):
 
     def test_with_expression(self):
         wf = StepInputExpressionTestWF()
-        mainstr, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
+        mainstr, _, _, _ = translate(wf, dest_fmt='nextflow', to_console=False)
         print(mainstr)
         actual = _get_task_call_lines(mainstr, 'PRINT')
         expected = [
@@ -3702,7 +3706,7 @@ class TestUnwrap(unittest.TestCase):
         ]
         expected_outputs = [
             'tuple path("${bam_sorted}"), path("*.bai"), emit: bam_sorted_indexed',
-            'path "${reads_1}.trimmed${reads_1.extension}", emit: trimmed_reads_1'
+            'path "${reads_1}.trimmed${"." + reads_1.extension}", emit: trimmed_reads_1'
         ]
         expected_prescript = [
             'def in_filename = in_filename != params.NULL_VALUE ? in_filename : "generated"',
@@ -3773,7 +3777,7 @@ class TestUnwrap(unittest.TestCase):
             val=expr, context='process_script', 
             variable_manager=vmanager, tool=tool
         )
-        expected = '${in_file}.trimmed${in_file.extension}'
+        expected = '${in_file}.trimmed${"." + in_file.extension}'
         self.assertEqual(actual, expected)
     
     def test_selectors(self) -> None:
@@ -3802,7 +3806,6 @@ class TestUnwrap(unittest.TestCase):
         # prescript
         self.assertIn('def in_bam_bai_arr = get_primary_files(in_bam_bai_arr_flat, 2)', prescript)
         self.assertIn("def in_bam_bai_arr_joined = in_bam_bai_arr.join(' ')", prescript)
-        self.assertIn('def in_bam_bai = in_bam_bai[0]', prescript)
         self.assertIn('def in_file_arr_joined = in_file_arr.join(\' \')', prescript)
         self.assertIn('def in_int_opt = in_int_opt != params.NULL_VALUE ? in_int_opt : ""', prescript)
         self.assertIn('def in_str_opt = in_str_opt != params.NULL_VALUE ? in_str_opt : ""', prescript)
@@ -4141,7 +4144,7 @@ class TestOrdering(unittest.TestCase):
     def setUp(self) -> None:
         reset_globals()
         wf = OrderingTestWF()
-        self.mainstr, _, self.subtasks = translate(wf, dest_fmt='nextflow', to_console=False)
+        self.mainstr, _, self.subworkflows, self.processes = translate(wf, dest_fmt='nextflow', to_console=False)
 
     def test_process_call(self) -> None:
         # from workflow inputs
@@ -4181,7 +4184,7 @@ class TestOrdering(unittest.TestCase):
         self.assertEqual(expected, actual)
 
     def test_process_inputs(self) -> None:
-        process = [x[1] for x in self.subtasks if x[0] == 'modules/multi_type_test_tool.nf'][0]
+        process = [x[1] for x in self.processes if x[0] == 'multi_type_test_tool.nf'][0]
         print(process)
         actual_lines = _get_process_input_lines(process)
         expected_lines = [
@@ -4196,17 +4199,17 @@ class TestOrdering(unittest.TestCase):
 
     def test_process_directives(self) -> None:
         wf = DirectivesTestWF()
-        _, _, subtasks = translate(wf, dest_fmt='nextflow', to_console=False)
-        process = [x[1] for x in subtasks if x[0] == 'modules/resources_test_tool.nf'][0]
+        _, _, _, processes = translate(wf, dest_fmt='nextflow', to_console=False)
+        process = [x[1] for x in processes if x[0] == 'resources_test_tool_cb.nf'][0]
         print(process)
         actual_order = _get_process_directive_lines(process)
         expected_order = [
             'container "quay.io/biocontainers/bedtools:2.29.2--hc088bd4_0"',
-            'publishDir "${params.outdir}/resources_test_tool"',
-            'cpus "${params.resources_test_tool.cpus}"',
-            'disk "${params.resources_test_tool.disk}"',
-            'memory "${params.resources_test_tool.memory}"',
-            'time "${params.resources_test_tool.time}"',
+            'publishDir "${params.outdir}/resources_test_tool_cb"',
+            'cpus "${params.resources_test_tool_cb.cpus}"',
+            'disk "${Math.ceil(inp.size / 1048576 / 1024 * 1024 * 1024 + 20)} MB"',
+            'memory "${15 * 1024} MB"',
+            'time "${params.resources_test_tool_cb.time}"',
         ]
         for actual, expected in zip(actual_order, expected_order):
             self.assertEqual(actual, expected)
@@ -4248,7 +4251,7 @@ class TestOrdering(unittest.TestCase):
         self.assertEqual(expected, actual)
     
     def test_subworkflow_inputs(self) -> None:
-        subwf = [x[1] for x in self.subtasks if x[0] == 'subworkflows/multi_type_test_wf.nf'][0]
+        subwf = [x[1] for x in self.subworkflows if x[0] == 'multi_type_test_wf.nf'][0]
         actual_inputs = _lines_within_section(subwf, 'take:', 'main:')
         expected_inputs = [
             'ch_in_fastq',

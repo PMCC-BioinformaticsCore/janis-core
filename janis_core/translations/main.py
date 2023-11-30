@@ -4,7 +4,7 @@ from typing import Optional, Any
 from inspect import isclass
 
 from janis_core import settings
-from janis_core import CodeTool, CommandTool, CommandToolBuilder, WorkflowBase, WorkflowBuilder
+from janis_core import CodeTool, CommandToolBuilder, WorkflowBase, WorkflowBuilder
 from janis_core import Tool
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation

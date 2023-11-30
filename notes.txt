@@ -1,4 +1,45 @@
 
+
+--------------
+--- GENERAL ---
+---------------
+DONE (to test)
+- messages NXF output
+- messages CWl ingest
+- WDL runtime duration removed
+- NXF tool translate wrap in workflow to create config etc
+- CWL ingest edam formats
+- NEXT translate reflects new TranslatorBase interface
+
+DOING
+- messages CWl output (tool, workflow)
+- messages WDL output (tool, workflow)
+- messages NXF output (workflow)
+- messages WDL ingest
+- messages Galaxy ingest
+- make nextflow translate prescript & script better
+    - prescript should handle getting the right values:
+        - input default      def input == params.NULL ? "default value" : input
+        - input optionality  def input == params.NULL ? "" : input
+        - secondaries        def in_bam_bai = in_bam_bai[0]
+        - secondary arrays   def bam_bai_arr = get_primary_files(bam_bai_arr_flat, 2)
+        - filepair arrays    def filepair_arr = get_primary_files(filepair_arr_flat, 2)
+    - script should handle everything else:
+        - prefix
+        - prefixeach
+        - arr joins for non-file (generic) input types
+        - stringformatters 
+        - Operators in general
+- WDL rename variables to avoid keywords 
+- WDL rename variables with 2+ uses (eg "bam" input & "bam" output not allowed)
+- wdl parser
+- wdl remove implied resources
+- CWL parse self exprs
+- CWL translate_workflow_to_all_in_one()??
+- bugs 
+    - cwl inputs config file boofed for one test
+
+
 --------------------
 --- ARCHITECTURE ---
 --------------------
@@ -191,37 +232,7 @@ CWL -> NXF hard
 
 
 
----------------
---- GENERAL ---
----------------
-DONE (to test)
-- messages NXF output
-- messages CWl ingest
-- WDL runtime duration removed
-- NXF tool translate wrap in workflow to create config etc
-- CWL ingest edam formats
-
-DOING
-- CWL translate_workflow_to_all_in_one()??
-- make nextflow translate reflect new TranslatorBase interface [partially done]
-
-
-- messages CWl output (tool, workflow)
-- messages WDL output (tool, workflow)
-- messages NXF output (workflow)
-- messages WDL ingest
-- messages Galaxy ingest
-- modify CWL output for new CWL expression parsing
-- modify NXF output for new CWL expression parsing
-- modify WDL output for new CWL expression parsing
-- NXF If operator -> move to prescript
-- WDL rename variables to avoid keywords 
-- WDL rename variables with 2+ uses (eg "bam" input & "bam" output not allowed)
-- bugfixes 
-- wdl parser
-- wdl remove implied resources
-- CWL parse self exprs
-
+-
 
 ------------------
 --- CWL INGEST ---

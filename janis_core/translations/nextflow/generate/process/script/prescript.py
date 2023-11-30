@@ -26,6 +26,11 @@ NULL_VALUE = settings.translate.nextflow.NULL_VALUE
 NULL_PATH = 'null'
 
 
+"""
+prescript should only handle ternary logic (default or optional)
+
+"""
+
 
 def gen_prescript_lines(tool: CommandToolBuilder, vmanager: VariableManager) -> list[str]:
     lines: list[str] = []
@@ -179,7 +184,7 @@ class GenericArrayFormatter(PreScriptFormatter):
         self.prescript.append(line)
 
     def join_declaration(self) -> str:
-        new_varname = f'{naming.process.generic(self.tinput)}_joined'
+        new_varname = f'{naming.process.generic(self.tinput)}'
         self.update_variable(new_varname)
         if self.attributes.optional or self.attributes.default:
             return self.join_declaration_optional()

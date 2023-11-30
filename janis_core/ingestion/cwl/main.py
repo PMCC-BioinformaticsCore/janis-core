@@ -14,7 +14,7 @@ CommandLineTool = CommandLineTool_1_0 | CommandLineTool_1_1 | CommandLineTool_1_
 
 from janis_core.workflow.workflow import StepNode, OutputNode
 from janis_core.utils.errors import UnsupportedError
-from janis_core.messages import log_warning
+from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
 from .identifiers import get_id_filename
@@ -201,7 +201,7 @@ class CWlParser:
         clt = self.parse_etool_to_cltool(etool)
         tool = self.ingest_command_line_tool(clt, is_expression_tool=True)
         msg = 'Translation of CWL ExpressionTools is currently an experimental feature of janis translate'
-        log_warning(tool.uuid, msg, ErrorCategory.EXPERIMENTAL)
+        log_message(tool.uuid, msg, ErrorCategory.EXPERIMENTAL)
         return tool
     
     def parse_etool_to_cltool(self, etool: Any) -> Any:

@@ -30,11 +30,6 @@ def generate_file_process(process: NFProcess, tool: CommandToolBuilder | CodeToo
     """generates nextflow file for nextflow process derived from CommandToolBuilder"""
     nf_file = NFFile(subtype='process', name=process.name)
 
-    # item: messages
-    message_items = gen_message_items_for_process_file(tool, process)
-    if message_items:
-        nf_file.items += message_items
-
     # groovy library imports & groovy functions used in process
     # item: imports
     imports_item = gen_imports_for_process_file(tool)
@@ -50,63 +45,6 @@ def generate_file_process(process: NFProcess, tool: CommandToolBuilder | CodeToo
     nf_file.items.append(process)
 
     return nf_file
-
-def gen_message_items_for_process_file(tool: CommandToolBuilder | CodeTool, process: NFProcess) -> list[NFMessageBlock]:
-    message_items = []
-
-    # fallbacks
-    loglines = load_loglines(category=ErrorCategory.FALLBACK, tool_uuid=tool.uuid)
-    if loglines:
-        message_items.append(NFMessageBlock(
-            heading='ERROR: PARSING FALLBACKS',
-            lines=[f'// {x.message}' for x in loglines]
-        ))
-    
-    # datatypes
-    loglines = load_loglines(category=ErrorCategory.DATATYPE, tool_uuid=tool.uuid)
-    if loglines:
-        # TODO handle updated variable names here?
-        message_items.append(NFMessageBlock(
-            heading='WARNING: DATATYPES',
-            lines=[f'// {x.message}' for x in loglines]
-        ))
-    
-    # version
-    loglines = load_loglines(category=ErrorCategory.VERSION, tool_uuid=tool.uuid)
-    if loglines:
-        message_items.append(NFMessageBlock(
-            heading='WARNING: VERSION',
-            lines=[f'// {x.message}' for x in loglines]
-        ))
-    
-    # experimental
-    loglines = load_loglines(category=ErrorCategory.EXPERIMENTAL, tool_uuid=tool.uuid)
-    if loglines:
-        message_items.append(NFMessageBlock(
-            heading='WARNING: EXPERIMENTAL FEATURES',
-            lines=[f'// {x.message}' for x in loglines]
-        ))
-    
-    # untranslated expressions
-    loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=tool.uuid)
-    if loglines:
-        messages = [x.message for x in loglines]
-        filtered = []
-        
-        # filter to messages where __TOKEN__ still is in the process text
-        for msg in messages:
-            token = msg.split(' = ', 1)[0]
-            if token in process.get_string():
-                filtered.append(msg)
-        
-        # create block & append
-        if filtered:
-            message_items.append(NFMessageBlock(
-                heading='ERROR: UNTRANSLATED EXPRESSIONS',
-                lines=filtered
-            ))
-
-    return message_items
 
 def gen_imports_for_process_file(tool: CommandToolBuilder | CodeTool) -> Optional[NFImportsBlock]:
     imports: list[str] = []

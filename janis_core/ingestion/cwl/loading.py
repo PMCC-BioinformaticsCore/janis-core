@@ -2,7 +2,7 @@
 import ruamel.yaml
 from typing import Any, Optional
 from janis_core import settings
-from janis_core.messages import log_warning
+from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 from .preprocessing import convert_cwl_types_to_python
 from .preprocessing import handle_inline_cltool_identifiers
@@ -27,7 +27,7 @@ def load_cwl_version(doc: str) -> str:
             raise Exception(f"Couldn't find cwlVersion in tool {doc}")
         else:
             msg = f'no cwl version was specified in {doc}. fell back to cwl v1.2 for ingestion.'
-            log_warning(tool_uuid='loading error', msg=msg, category=ErrorCategory.VERSION, subsection=None)
+            log_message(entity_uuid='loading error', msg=msg, category=ErrorCategory.METADATA, subsection=None)
             return DEFAULT_PARSER_VERSION
     
     # return version

@@ -144,7 +144,7 @@ class ExpressionToolTestTool(CommandTool):
         return [
             ToolArgument(
                 StringFormatter(
-                    format="'{{\"inp1\": {inp1}, \"inp2\": {inp2}, \"inp3\": {inp3}}}'", 
+                    format="'\"inp1\": {inp1}, \"inp2\": {inp2}, \"inp3\": {inp3}'", 
                     inp1=InputSelector('inp1'),
                     inp2=InputSelector('inp2'),
                     inp3=InputSelector('inp3'),

@@ -571,7 +571,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         parser = CLTRequirementsParser(cwl_utils, clt=clt, entity=clt, tool_uuid='test')
         requirements = parser.parse()
 
-        lines = load_loglines(tool_uuid='test', category=ErrorCategory.SCRIPT)
+        lines = load_loglines(tool_uuid='test', category=ErrorCategory.SCRIPTING)
         msgs = [x.message for x in lines]
         
         self.assertEqual(requirements["memory"], '__TOKEN1__')

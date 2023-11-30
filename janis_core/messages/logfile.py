@@ -2,22 +2,22 @@
 from typing import Optional
 from pathlib import Path
 from dataclasses import dataclass
-from .enums import ErrorLevel
 from .enums import ErrorCategory
 
 
 @dataclass
 class LogLine:
-    level: ErrorLevel
     message: str
     category: Optional[ErrorCategory]
     tool_uuid: Optional[str]
     subsection: Optional[str]
 
     def __str__(self) -> str:
-        level = self.level.value
-        category = self.category.value if self.category is not None else None
-        return f'{level}\t{category}\t{self.tool_uuid}\t{self.subsection}\t{self.message}'
+        if self.category is not None:
+            level, cat = self.category.value
+        else:
+            level, cat = None, None
+        return f'{level}\t{cat}\t{self.tool_uuid}\t{self.subsection}\t{self.message}'
 
 
 class LogFile:
@@ -28,7 +28,6 @@ class LogFile:
 
     def add(
         self, 
-        level: ErrorLevel, 
         category: Optional[ErrorCategory], 
         tool_uuid: Optional[str], 
         msg: str, 
@@ -41,7 +40,6 @@ class LogFile:
 
         # create logline
         logline = LogLine(
-            level=level, 
             message=message, 
             category=category, 
             tool_uuid=tool_uuid, 
@@ -70,10 +68,12 @@ class LogFile:
 
     def string_to_logline(self, line: str) -> LogLine:
         str_level, str_cat, str_tool_uuid, str_subsection, str_message = line.strip('\n').split('\t')
-        level = ErrorLevel(str_level)
-        category = None if str_cat == 'None' else ErrorCategory(str_cat)
+        if str_cat == 'None':
+            category = None
+        else:
+            category = ErrorCategory.from_str(str_cat)
         tool_uuid = None if str_tool_uuid == 'None' else str_tool_uuid
         subsection = None if str_subsection == 'None' else str_subsection
-        return LogLine(level, str_message, category, tool_uuid, subsection)
+        return LogLine(str_message, category, tool_uuid, subsection)
 
     

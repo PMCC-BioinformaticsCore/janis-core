@@ -3,10 +3,9 @@
 from logging import getLogger, config
 from .logfile import LogFile
 from .logfile import LogLine
-from .enums import ErrorLevel
 from .enums import ErrorCategory
 
-from typing import Optional
+from typing import Optional, Any
 import os
 import warnings
 import yaml
@@ -89,7 +88,7 @@ def info_ingesting_tool(spec: str, name: str) -> None:
 # to file
 # -------
 
-def _log_message(level: ErrorLevel, category: Optional[ErrorCategory], msg: str,  tool_uuid: Optional[str], subsection: Optional[str]) -> None:
+def log_message(entity_uuid: Optional[str], msg: str, category: ErrorCategory, subsection: Any=None) -> None:
     logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
@@ -97,45 +96,33 @@ def _log_message(level: ErrorLevel, category: Optional[ErrorCategory], msg: str,
 
     # check the same message isn't already present
     for ll in logfile.lines:
-        if ll.category == category and ll.message == msg and ll.tool_uuid == tool_uuid and ll.subsection == subsection:
+        if ll.category == category and ll.message == msg and ll.tool_uuid == entity_uuid and ll.subsection == subsection:
             return
     
     # log the new message
-    if tool_uuid is None:
-        tool_uuid = 'general'
-    logfile.add(level=level, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
-
-def log_info(msg: str) -> None:
-    """logs a message which is considered INFO to the logfile"""
-    _log_message(ErrorLevel.INFO, tool_uuid=None, category=None, msg=msg, subsection=None)
-
-def log_warning(tool_uuid: str, msg: str, category: ErrorCategory, subsection: Optional[str]=None) -> None:
-    """logs a message which is considered a WARNING to the logfile"""
-    _log_message(ErrorLevel.WARNING, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
-
-def log_error(tool_uuid: str, msg: str, category: ErrorCategory, subsection: Optional[str]=None) -> None:
-    """logs a message which is considered an ERROR to the logfile"""
-    _log_message(ErrorLevel.ERROR, tool_uuid=tool_uuid, category=category, msg=msg, subsection=subsection)
+    if entity_uuid is None:
+        entity_uuid = 'general'
+    logfile.add(tool_uuid=entity_uuid, category=category, msg=msg, subsection=subsection)
 
 def load_loglines(
-    level: Optional[ErrorLevel]=None, 
-    category: Optional[ErrorCategory]=None, 
-    tool_uuid: Optional[str]=None, 
-    subsection: Optional[str]=None
+    category: Optional[ErrorCategory]|bool=False,
+    tool_uuid: Optional[str]|bool=False,
+    subsections: Optional[list[Any]]=None,
     ) -> list[LogLine]:
+    # Type hinting ugly as hell 
+    # Trying to express that None can be provided alongside an actual value. 
+    # If None, specifically filters for loglines where the attribute is None. 
 
     logfile = LogFile(MESSAGE_LOG_PATH)
     loglines = logfile.lines
     
     # filters
-    if level is not None:
-        loglines = [x for x in loglines if x.level.value == level.value]
-    if category is not None:
-        loglines = [x for x in loglines if x.category is not None and x.category.value == category.value]
-    if tool_uuid is not None:
+    if category != False:
+        loglines = [x for x in loglines if x.category.value == category.value]
+    if tool_uuid != False:
         loglines = [x for x in loglines if x.tool_uuid == tool_uuid]
-    if subsection is not None:
-        loglines = [x for x in loglines if x.subsection == subsection]
+    if isinstance(subsections, list):
+        loglines = [x for x in loglines if x.subsection in subsections]
     
     return loglines
 

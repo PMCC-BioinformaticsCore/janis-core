@@ -2,7 +2,7 @@
 from typing import Any
 
 from janis_core import settings
-from janis_core import CommandTool, PythonTool, Workflow
+from janis_core import CommandToolBuilder, PythonTool, WorkflowBuilder
 from janis_core.types import DataType, Array, Int, Float, Double, Boolean
 NoneType = type(None)
 
@@ -18,23 +18,23 @@ from ...variables import init_variable_manager_for_task
 from ...variables import VariableType
 
 
-def generate_processes(wf: Workflow) -> dict[str, NFProcess]:
-    """for each CommandTool | PythonTool in workflow, generate a nextflow process"""
+def generate_processes(wf: WorkflowBuilder) -> dict[str, NFProcess]:
+    """for each CommandToolBuilder | PythonTool in workflow, generate a nextflow process"""
     process_dict = {}
     return do_generate_processes(wf, process_dict)
 
-def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> dict[str, NFProcess]:
+def do_generate_processes(wf: WorkflowBuilder, process_dict: dict[str, NFProcess]) -> dict[str, NFProcess]:
     for step in wf.step_nodes.values():
         
         # create process for each cmdtool / pytool if not already done
-        if isinstance(step.tool, CommandTool) or isinstance(step.tool, PythonTool):
+        if isinstance(step.tool, CommandToolBuilder) or isinstance(step.tool, PythonTool):
             tool_id = step.tool.id()
             if tool_id not in process_dict:
                 process = generate_process(step.tool)
                 process_dict[tool_id] = process
         
         # recursively do for subworkflows 
-        elif isinstance(step.tool, Workflow):
+        elif isinstance(step.tool, WorkflowBuilder):
             process_dict = do_generate_processes(step.tool, process_dict)
         
         else:
@@ -42,15 +42,15 @@ def do_generate_processes(wf: Workflow, process_dict: dict[str, NFProcess]) -> d
     
     return process_dict
 
-def generate_process(tool: CommandTool | PythonTool) -> NFProcess:
-    if isinstance(tool, CommandTool):
+def generate_process(tool: CommandToolBuilder | PythonTool) -> NFProcess:
+    if isinstance(tool, CommandToolBuilder):
         return generate_process_cmdtool(tool)
     elif isinstance(tool, PythonTool):  # type: ignore
         return generate_process_pythontool(tool)
     else:
         raise RuntimeError
 
-def generate_process_cmdtool(tool: CommandTool) -> NFProcess:
+def generate_process_cmdtool(tool: CommandToolBuilder) -> NFProcess:
     generator = CmdToolProcessGenerator(tool)
     return generator.generate()
 
@@ -62,7 +62,7 @@ def generate_process_pythontool(tool: PythonTool) -> NFProcess:
 
 # helper class
 class CmdToolProcessGenerator:
-    def __init__(self, tool: CommandTool) -> None:
+    def __init__(self, tool: CommandToolBuilder) -> None:
         self.tool = tool
         self.vmanager = init_variable_manager_for_task(self.tool)
 

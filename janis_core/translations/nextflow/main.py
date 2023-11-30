@@ -21,7 +21,7 @@ from .generate.workflow import generate_workflows
 # from .generate.files import generate_files 
 from .generate.files import generate_file_process 
 from .generate.files import generate_file_workflow 
-
+from .casefmt import to_case
 from . import generate
 from . import preprocessing
 
@@ -152,91 +152,6 @@ class NextflowTranslator(TranslatorBase):
         """
         self.resources_file = None
 
-    def build_helper_files(self, tool: Tool) -> dict[str, str]:
-        """
-        Generate a dictionary of helper files to run Nextflow.
-        Key of the dictionary is the filename, the value is the file content
-
-        :param tool:
-        :type tool:
-        :return:
-        :rtype:
-        """
-        code_files = self.gen_python_code_files(tool)
-        template_files = self.gen_template_files(tool)
-        helpers = template_files | code_files
-        return helpers
-    
-    def gen_python_code_files(self, tool: Tool) -> dict[str, str]:
-        # Python files for Python code tools
-        files: dict[str, str] = {}
-
-        if isinstance(tool, PythonTool):
-            # helpers["__init__.py"] = ""
-            #helpers[f"{tool.versioned_id()}.py"] = self.gen_python_script(tool)
-            subdir = settings.translate.nextflow.TEMPLATES_OUTDIR
-            filename = f'{tool.id()}.py'
-            filepath = os.path.join(subdir, filename)
-            files[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
-
-        elif isinstance(tool, WorkflowBase):
-            for step in tool.step_nodes.values():
-                step_code_files = self.gen_python_code_files(step.tool)
-                files = files | step_code_files # merge dicts
-        
-        return files
-
-    def gen_template_files(self, tool: Tool) -> dict[str, str]:
-        # files from tool.files_to_create
-        files: dict[str, str] = {}
-
-        if isinstance(tool, CommandToolBuilder):
-            if tool.files_to_create():
-                for name, contents in tool.files_to_create().items():
-                    if not isinstance(name, str):
-                        # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
-                        raise NotImplementedError()
-                        print()
-                    
-                    if isinstance(contents, str):
-                        assert(not name.startswith('unnamed_'))
-                        if '<js>' in contents:
-                            # ignore, print error message for user
-                            raise NotImplementedError()
-                            pass
-                        else:
-                            # create file
-                            path = f'{settings.translate.nextflow.TEMPLATES_OUTDIR}/{name}'
-                            files[path] = contents
-                    
-                    elif isinstance(contents, InputSelector):
-                        tinput_name = contents.input_to_select
-                        tinput = tool.inputs_map()[tinput_name]
-                        if isinstance(tinput.intype, File | Directory):
-                            raise NotImplementedError()
-                            print('ignored staging File into process')
-                        else:
-                            raise NotImplementedError()
-                            print('ignored staging String into process')
-                        # # js evaluates to a file: add referenced file to output directory
-                        # if name.startswith('unnamed_'):
-                        #     # dont override filename
-                        #     pass
-                        # else:
-                        #     # override filename
-                        #     pass
-                        # print()
-                    
-                    else:
-                        raise NotImplementedError
-        
-        elif isinstance(tool, WorkflowBase):
-            for step in tool.step_nodes.values():
-                step_template_files = self.gen_template_files(step.tool)
-                files = files | step_template_files # merge dicts
-
-        return files
-
     @classmethod
     def unwrap_expression(cls, expression: Any) -> Any:
         pass
@@ -292,7 +207,8 @@ class NextflowTranslator(TranslatorBase):
         """
         if is_main:
             return settings.translate.nextflow.MAIN_WORKFLOW_NAME
-        return workflow.id() + ".nf"
+        basename = to_case(workflow.id(), settings.translate.nextflow.NF_FILE_CASE)
+        return basename + ".nf"
 
     @staticmethod
     def inputs_filename(workflow: Workflow) -> str:
@@ -308,12 +224,9 @@ class NextflowTranslator(TranslatorBase):
 
     @staticmethod
     def tool_filename(tool: str | Tool) -> str:
-        prefix: str = '' 
-        if isinstance(tool, Tool):
-            prefix = tool.id()
-        else:
-            prefix = tool
-        return prefix + ".nf"
+        toolname = tool if isinstance(tool, str) else tool.id()
+        basename = to_case(toolname, settings.translate.nextflow.NF_FILE_CASE)
+        return basename + ".nf"
 
     @staticmethod
     def resources_filename(workflow: Workflow) -> str:

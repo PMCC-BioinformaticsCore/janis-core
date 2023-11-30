@@ -719,7 +719,7 @@ class TestCwlSingleToMultipleInput(unittest.TestCase):
         w = WorkflowBuilder("test_add_single_to_array_edge")
         w.input("inp1", str)
         w.step("stp1", ArrayStepTool(inp=w.inp1))
-        c, _, _ = translate(w, 'cwl')
+        c, _, _, _ = translate(w, 'cwl')
         self.assertEqual(cwl_multiinput, c)
 
 
@@ -794,7 +794,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
     def test_step_input(self):
         self.maxDiff = None
 
-        ret, _, _ = StepInputExpressionTestWF().translate(
+        ret, _, _, _ = StepInputExpressionTestWF().translate(
             "cwl", to_console=False
         )
         self.assertEqual(cwl_stepinput, ret)
@@ -816,7 +816,7 @@ class TestCWLCompleteOperators(unittest.TestCase):
 
         wf.output("out", source=wf.print)
 
-        ret, _, _ = wf.translate("cwl")
+        ret, _, _, _ = wf.translate("cwl")
         self.maxDiff = None
         self.assertEqual(cwl_arraystepinput, ret)
 

@@ -8,6 +8,7 @@ from janis_core import settings
 from janis_core.translation_deps.exportpath import ExportPathKeywords
 
 
+
 def write_workflow_to_console(
     tup_workflow: Tuple[str, str], 
     tup_tools: list[Tuple[str, str]], 
@@ -77,6 +78,27 @@ def write_workflow_to_disk(
     for tup_helper in tup_helpers:
         _write_file(tup_helper, basedir, 'helpers', outdir_structure['helpers'])
 
+    # writing galaxy source files (specific to galaxy)
+    if settings.ingest.SOURCE == 'galaxy':
+        _write_galaxy_source_files_to_disk(basedir)
+
+
+def _write_file(tup_file: Tuple[str, str], basedir: str, ftype: str, fsubdir: str | None) -> None:
+    filename, contents = tup_file
+    
+    # format outdir using basedir and subdir if provided
+    outdir = os.path.join(basedir, fsubdir) if fsubdir is not None else basedir
+    os.makedirs(outdir, exist_ok=True)
+
+    # write to disk
+    Logger.info(f"Writing {ftype} to '{outdir}'")
+    with open(os.path.join(outdir, filename), "w+") as f:
+        Logger.log(f"Writing {filename} to disk")
+        f.write(contents)
+        Logger.log(f"Written {filename} to disk")
+
+
+def _write_galaxy_source_files_to_disk(basedir: str) -> None:
     # copying source files - this one is a bit weird & specific to galaxy.  
     if settings.general.SOURCE_FILES is not None:
         # create source folder in basedir
@@ -91,25 +113,11 @@ def write_workflow_to_disk(
             shutil.copy2(src, dest)
 
 
-def _write_file(tup_file: Tuple[str, str], basedir: str, ftype: str, fsubdir: str | None) -> None:
-    filename, contents = tup_file
-    
-    # format outdir using basedir and subdir if provided
-    outdir = os.path.join(basedir, fsubdir) if fsubdir is not None else basedir
-
-    # write to disk
-    Logger.info(f"Writing {ftype} to '{outdir}'")
-    with open(os.path.join(outdir, filename), "w+") as f:
-        Logger.log(f"Writing {filename} to disk")
-        f.write(contents)
-        Logger.log(f"Written {filename} to disk")
-
-
 def write_tool_to_console(str_tool: str) -> None:
     print(str_tool)
 
 
-def write_tool_to_disk(str_tool: str, filename: str, helpers: dict[str, str]) -> None:
+def write_tool_to_disk(str_tool: str, filename: str, tup_helpers: list[Tuple[str, str]]) -> None:
     # set output folder
     basedir = ExportPathKeywords.resolve(
         settings.translate.EXPORT_PATH, 
@@ -121,33 +129,14 @@ def write_tool_to_disk(str_tool: str, filename: str, helpers: dict[str, str]) ->
         os.makedirs(basedir)
 
     # write tool file
-    with open(os.path.join(basedir, filename), "w+") as wf:
-        Logger.log(f"Writing {filename} to disk")
-        wf.write(str_tool)
-        Logger.log(f"Wrote {filename}  to disk")
+    _write_file((filename, str_tool), basedir, 'tool', None)
 
     # write helper files (files_to_create scripts)
-    helpers = {fn.split('/')[-1]: fc for fn, fc in helpers.items()}
-    for (filename, filecontents) in helpers.items():
-        with open(os.path.join(basedir, filename), "w+") as helperfp:
-            Logger.log(f"Writing {filename} to disk")
-            helperfp.write(filecontents)
-            Logger.log(f"Written {filename} to disk")
+    for tup_helper in tup_helpers:
+        _write_file(tup_helper, basedir, 'helper', None)
 
-    # writing source files to output folder (specifically galaxy tool wrappers)
-    # copying source files 
-    if settings.general.SOURCE_FILES is not None:
-        # create source folder in basedir
-        source_dir = os.path.join(basedir, 'source')
-        if not os.path.isdir(source_dir):
-            os.mkdir(source_dir)
-        
-        # copy files
-        for src, dest in settings.general.SOURCE_FILES:
-            dest = os.path.join(source_dir, dest)
-            if not os.path.isdir(os.path.dirname(dest)):
-                os.mkdir(os.path.dirname(dest))
-            shutil.copy2(src, dest)
+
+
 
     
 

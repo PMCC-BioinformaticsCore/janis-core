@@ -882,7 +882,7 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
             formatted = cwl_format(formatted)
 
         # adding messages
-        loglines = load_loglines(category=ErrorCategory.SCRIPT, tool_uuid=internal.uuid)
+        loglines = load_loglines(category=ErrorCategory.SCRIPTING, tool_uuid=internal.uuid)
 
         return formatted
 
