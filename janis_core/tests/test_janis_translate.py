@@ -5,8 +5,10 @@ import pytest
 from typing import Any
 
 from janis_core import settings
+from janis_core.messages import gather_uuids
 from janis_core.messages import configure_logging
 from janis_core.messages import log_message
+from janis_core.messages import FormatCategory
 from janis_core.messages import ErrorCategory
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
@@ -14,10 +16,13 @@ from janis_core.tests.testtools import EchoTestTool
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
 from janis_core.tests.testtools import FastqcTestTool
+from janis_core.tests.testtools import MessagingTestTool
+from janis_core.tests.testtools import FileInputPythonTestTool
 from janis_core.tests.testworkflows import BasicIOTestWF
 from janis_core.tests.testworkflows import PruneFlatTW
 from janis_core.tests.testworkflows import PruneNestedTW
 from janis_core.tests.testworkflows import AssemblyTestWF
+from janis_core.tests.testworkflows import SubworkflowTestWF
 from janis_core.redefinitions.tools import Cat
 from janis_core.redefinitions.tools import GenerateVardictHeaderLines
 from janis_core.redefinitions.workflows import BwaAligner
@@ -244,14 +249,65 @@ class TestTranslationEndpoints(unittest.TestCase):
 
 ### ----- MESSAGES ----- ###
 
-class TestMessages(unittest.TestCase):
-    
+class TestMessageModule(unittest.TestCase):
+
     def setUp(self) -> None:
         _reset_global_settings()
 
-    ### TOOLS ###
+    def test_gather_uuids_tool(self) -> None:
+        ### codetool ###
+        codetool = FileInputPythonTestTool()
+        uuid_map = gather_uuids(codetool)
+        self.assertEqual(uuid_map[codetool.uuid], FormatCategory.MAIN)
+        
+        ### cmdtoolbuilder ###
+        cmdtool = MessagingTestTool() # type: ignore
+        cmdtool: CommandToolBuilder = to_builders(cmdtool) # type: ignore
+        uuid_map = gather_uuids(cmdtool)
+        tinp = cmdtool.inputs()[0]
+        targ = cmdtool.arguments()[0]
+        tout = cmdtool.outputs()[0]
+        self.assertEqual(uuid_map[cmdtool.uuid], FormatCategory.MAIN)
+        self.assertEqual(uuid_map[tinp.uuid], FormatCategory.INPUT)
+        self.assertEqual(uuid_map[targ.uuid], FormatCategory.ARGUMENT)
+        self.assertEqual(uuid_map[tout.uuid], FormatCategory.OUTPUT)
 
-    def test_injection_cwl_tool(self) -> None:
+    def test_gather_uuids_workflow(self) -> None:
+        ### workflowbuilder ###
+        workflow = AssemblyTestWF()
+        workflow = to_builders(workflow)
+        uuid_map = gather_uuids(workflow)
+        winp = workflow.input_nodes['inForwardReads']
+        wstep = workflow.step_nodes['fastqc1']
+        wout = workflow.output_nodes['fastqc1_outHtmlFile']
+        self.assertEqual(uuid_map[workflow.uuid], FormatCategory.MAIN)
+        self.assertEqual(uuid_map[winp.uuid], FormatCategory.INPUT)
+        self.assertEqual(uuid_map[wstep.uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['adapters'].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['contaminants'].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['contaminants'].source_map[0].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wout.uuid], FormatCategory.OUTPUT)
+        
+
+class TestMessageInjection(unittest.TestCase):
+
+    """
+    - CWL tool
+    - NXF tool
+    - WDL tool
+    - CWL workflow
+    - CWL subworkflow
+    - NXF workflow
+    - NXF subworkflow
+    - WDL workflow
+    - NXF subworkflow
+    - split_sections
+    - expressions
+    - 
+    """
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
         tool = EchoTestTool()
         tool = to_builders(tool)
         log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
@@ -259,104 +315,259 @@ class TestMessages(unittest.TestCase):
         log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
         log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
         log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
-        mainstr = translate(tool, 'cwl', export_path='./translated')
+        self.tool = tool
+
+        wf = BasicIOTestWF()
+        wf = to_builders(wf)
+        winp = list(wf.input_nodes.values())[0]
+        wstep = list(wf.step_nodes.values())[0]
+        wout = list(wf.output_nodes.values())[0]
+        log_message(entity_uuid=winp.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=wout.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=wstep.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=wf.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        self.wf = wf
+
+    ### TOOLS ###
+
+    def test_tool_injection_cwl(self) -> None:
+        mainstr = translate(self.tool, 'cwl', export_path='./translated')
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
         print(mainstr)
 
+        # banner
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+    
+    def test_tool_injection_nextflow(self) -> None:
+        mainstr = translate(self.tool, 'nextflow', export_path='./translated')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+
+        # banner
+        self.assertIn(f'// {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'// [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+
+    def test_tool_injection_wdl(self) -> None:
+        mainstr = translate(self.tool, 'wdl', export_path='./translated')
+        msgs_header = mainstr.split('version development')[0]
+        print(mainstr)
+
+        # banner
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+
+
+    ### WORKFLOWS ###
+
+    def test_workflow_injection_cwl(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'cwl', export_path='./translated')
         msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'steps:\s*# \[{level}\]\[{cat}\] test message4'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+
+    def test_workflow_injection_nextflow(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'nextflow', export_path='./translated')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'// {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'// [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        self.assertNotIn(f'test message4', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'    // \[{level}\]\[{cat}\] test message4\n    STP1()'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+    
+    def test_workflow_injection_wdl(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'wdl', export_path='./translated')
+        msgs_header = mainstr.split('version development')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        self.assertNotIn(f'test message4', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'  # \[{level}\]\[{cat}\] test message4\n  call F.FileTestTool as stp1 {{'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+    
+    ### MISC ###
+
+    def test_misc_injection_subsections(self) -> None:
+        # using cwl, assuming all other specs work
+        settings.messages.USE_SUBSECTIONS = True
+        mainstr, _, _, _ = translate(self.wf, 'cwl', export_path='./translated')
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(mainstr)
+
+        level, cat = ErrorCategory.METADATA.value
+        self.assertIn(f'# GENERAL\n# [{level}][{cat}] test message2', msgs_header)
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# INPUTS\n# [{level}][{cat}] test message1', msgs_header)
+        level, cat = ErrorCategory.FALLBACKS.value
+        self.assertIn(f'# OUTPUTS\n# [{level}][{cat}] test message3', msgs_header)
+    
+    def test_misc_injection_subworkflow(self) -> None:
+        # using cwl, assuming all other specs work
+        settings.messages.USE_SUBSECTIONS = False
+        wf = SubworkflowTestWF()
+        wf = to_builders(wf)
+
+        subwf = wf.step_nodes['apples_subworkflow'].tool
+        subinp = list(subwf.input_nodes.values())[0]
+        substep = list(subwf.step_nodes.values())[0]
+        subout = list(subwf.output_nodes.values())[0]
+        log_message(entity_uuid=subinp.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=subout.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=substep.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        mainstr, _, subworkflows, _ = translate(wf, 'cwl', export_path='./translated')
+        subwfstr = subworkflows[1][1]
+        msgs_header = subwfstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(subwfstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
         level, cat = ErrorCategory.DATATYPES.value
         self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
         level, cat = ErrorCategory.METADATA.value
         self.assertIn(f'# [{level}][{cat}] test message2', msgs_header)
+
+        # step messages present but not in header (steps)
         level, cat = ErrorCategory.FALLBACKS.value
-        self.assertIn(f'# [{level}][{cat}] test message3', msgs_header)
-        level, cat = ErrorCategory.EXPERIMENTAL.value
-        self.assertIn(f'# [{level}][{cat}] test message4', msgs_header)
-        self.assertNotIn('# UNTRANSLATED EXPRESSIONS', msgs_header)
-        self.assertNotIn('# test message5', msgs_header)
-    
-    def test_injection_nextflow_tool(self) -> None:
-        tool = EchoTestTool()
-        tool = to_builders(tool)
-        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
-        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
-        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
-        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
-        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
-        mainstr = translate(tool, 'nextflow', export_path='./translated')
-        print(mainstr)
+        self.assertNotIn(f'# [{level}][{cat}] test message3', msgs_header)
+        self.assertIn(f'# [{level}][{cat}] test message3', subwfstr)
 
-        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
-        self.assertIn(f'// {ErrorCategory.DATATYPES.value}\n// test message1', msgs_header)
-        self.assertIn(f'// {ErrorCategory.METADATA.value}\n// test message2', msgs_header)
-        self.assertIn(f'// {ErrorCategory.FALLBACKS.value}\n// test message3', msgs_header)
-        self.assertIn(f'// {ErrorCategory.EXPERIMENTAL.value}\n// test message4', msgs_header)
-        self.assertNotIn('// {ErrorCategory.SCRIPTING.value}\n// test message5', msgs_header)
-
-    def test_injection_wdl_tool(self) -> None:
-        tool = EchoTestTool()
-        tool = to_builders(tool)
-        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
-        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
-        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
-        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
-        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
-        mainstr = translate(tool, 'wdl', export_path='./translated')
-        print(mainstr)
-
-        msgs_header = mainstr.split('version development')[0]
-
-        self.assertIn(f'# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
-        self.assertIn(f'# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
-        self.assertIn(f'# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
-        self.assertIn(f'# {ErrorCategory.EXPERIMENTAL.value}\n# test message4', msgs_header)
-        self.assertNotIn('# {ErrorCategory.SCRIPTING.value}\n# test message5', msgs_header)
-
-    ### WORKFLOWS ###
-
-    def test_injection_cwl_workflow(self) -> None:
-        settings.messages.USE_SUBSECTIONS = False
-        wf = BasicIOTestWF()
-        wf = to_builders(wf)
-        log_message(entity_uuid=wf.uuid, msg='test message1', category=ErrorCategory.DATATYPES, subsection='general')
-        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA, subsection='inputs')
-        log_message(entity_uuid=wf.uuid, msg='test message3', category=ErrorCategory.FALLBACKS, subsection='outputs')
-        log_message(entity_uuid=wf.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL, subsection='stp1')
-        log_message(entity_uuid=wf.uuid, msg='test message5', category=ErrorCategory.SCRIPTING, subsection='stp1')
-        mainstr, _, _, _ = translate(wf, 'cwl', export_path='./translated')
-
-        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
-        self.assertIn(f'# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
-        self.assertIn(f'# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
-        self.assertIn(f'# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
-        
-        # check step experimental message in correct location
-        matches = list(re.finditer(f'steps:\s+# {ErrorCategory.EXPERIMENTAL.value}\n# test message4', mainstr))
+        # step messages in correct location & formatted correctly (steps)
+        pattern = fr'steps:\s*# \[{level}\]\[{cat}\] test message3'
+        matches = list(re.finditer(pattern, subwfstr))
         self.assertEqual(len(matches), 1)
-        # check unnecessary script message is not in file
-        self.assertNotIn('# {ErrorCategory.SCRIPTING.value}\n# test message5', mainstr)
-    
-    def test_injection_cwl_workflow_subsections(self) -> None:
-        settings.messages.USE_SUBSECTIONS = True
-        wf = BasicIOTestWF()
-        wf = to_builders(wf)
-        log_message(entity_uuid=wf.uuid, msg='test message1', category=ErrorCategory.DATATYPES, subsection='general')
-        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA, subsection='inputs')
-        log_message(entity_uuid=wf.uuid, msg='test message3', category=ErrorCategory.FALLBACKS, subsection='outputs')
-        mainstr, _, _, _ = translate(wf, 'cwl', export_path='./translated')
+
+    def test_misc_injection_scripting(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
         print(mainstr)
+        
+        # ensure heading
+        self.assertIn(f'// {settings.messages.SCRIPTING_BANNER}', mainstr)
+        # ignore tokens which no longer appear in file
+        self.assertNotIn('__TOKEN1__ = "$([inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0])"', mainstr)
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN2__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', mainstr)
+        self.assertIn('-C __TOKEN2__', mainstr)
+        
 
-        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
-        self.assertIn(f'### GENERAL ###\n\n# {ErrorCategory.DATATYPES.value}\n# test message1', msgs_header)
-        self.assertIn(f'### INPUTS ###\n\n# {ErrorCategory.METADATA.value}\n# test message2', msgs_header)
-        self.assertIn(f'### OUTPUTS ###\n\n# {ErrorCategory.FALLBACKS.value}\n# test message3', msgs_header)
+
     
-    def test_injection_cwl_subworkflow(self) -> None:
+class TestMessageLoggingCWL(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_fallbacks(self) -> None:
         raise NotImplementedError
     
-    def test_injection_cwl_workflow_splitsections(self) -> None:
+    def test_datatypes(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure heading
+        self.assertIn('// WARNING: DATATYPES', mainstr)
+        # ensure messages 
+        self.assertIn('// out2: Could not parse datatype from javascript expression. Treated as generic File with secondaries.', mainstr)
+    
+    def test_plumbing(self) -> None:
+        raise NotImplementedError
+    
+    def test_metadata(self) -> None:
+        # includes container errors
+        raise NotImplementedError
+    
+    def test_experimental(self) -> None:
         raise NotImplementedError
 
-    def test_scripting1(self) -> None:
+    def test_scripting(self) -> None:
+        # nextflow used. can assume consistent for other specs. 
+        ## TODO update 
+        # UNTRANSLATED EXPRESSIONS
+        # __TOKEN1__ = 'hello'
+
         filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
         mainstr = _run(filepath, 'cwl', 'nextflow')
         print(mainstr)
@@ -379,27 +590,22 @@ class TestMessages(unittest.TestCase):
         self.assertIn('__TOKEN1__ = "$(self[0].contents)"', mainstr)
         self.assertIn('path "__TOKEN1__", emit: out4', mainstr)
     
-    def test_datatypes1(self) -> None:
-        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
-        mainstr = _run(filepath, 'cwl', 'nextflow')
-        print(mainstr)
-        
-        # ensure heading
-        self.assertIn('// WARNING: DATATYPES', mainstr)
-        # ensure messages 
-        self.assertIn('// out2: Could not parse datatype from javascript expression. Treated as generic File with secondaries.', mainstr)
-    
-    def test_fallbacks(self) -> None:
-        raise NotImplementedError
-    
-    def test_experimental(self) -> None:
-        raise NotImplementedError
-    
-    def test_version(self) -> None:
-        raise NotImplementedError
-    
 
 
+class TestMessageLoggingGalaxy(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+
+
+class TestMessageLoggingWDL(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    
+    
 
 
 

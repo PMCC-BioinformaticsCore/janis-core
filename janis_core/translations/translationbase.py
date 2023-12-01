@@ -23,8 +23,7 @@ from janis_core.translation_deps.exportpath import ExportPathKeywords
 from janis_core.utils.logger import Logger
 from janis_core import settings
 
-from janis_core.messages import inject_messages_tool
-from janis_core.messages import inject_messages_workflow
+from janis_core.messages import inject_messages
 from .common.todisk import write_tool_to_console
 from .common.todisk import write_tool_to_disk
 from .common.todisk import write_workflow_to_console
@@ -187,7 +186,7 @@ class TranslatorBase(ABC):
         internal, translated = self.main
         fn_main = self.workflow_filename(wf, is_main=True)
         str_main = self.stringify_translated_workflow(internal, translated)
-        str_main = inject_messages_workflow(internal, str_main)
+        str_main = inject_messages(internal, str_main)
         tup_main = (fn_main, str_main)
 
         # stringify tools (commandtools, pythontools)
@@ -195,7 +194,7 @@ class TranslatorBase(ABC):
         for internal, translated in self.tools:
             filename = self.tool_filename(internal)
             str_tool = self.stringify_translated_tool(internal, translated)
-            str_tool = inject_messages_tool(internal, str_tool)
+            str_tool = inject_messages(internal, str_tool)
             tup_tools.append((filename, str_tool))
         
         # stringify subworkflows
@@ -203,7 +202,7 @@ class TranslatorBase(ABC):
         for internal, translated in self.subworkflows:
             filename = self.workflow_filename(internal)
             str_subwf = self.stringify_translated_workflow(internal, translated)
-            str_subwf = inject_messages_workflow(internal, str_subwf)
+            str_subwf = inject_messages(internal, str_subwf)
             tup_subworkflows.append((filename, str_subwf))
 
         # stringify input config file
@@ -251,7 +250,7 @@ class TranslatorBase(ABC):
         
         # stringify output model
         str_tool = self.stringify_translated_tool(internal, translated)
-        str_tool = inject_messages_tool(internal, str_tool)
+        str_tool = inject_messages(internal, str_tool)
         
         # write to stdout / disk
         if settings.translate.TO_CONSOLE:
@@ -274,7 +273,7 @@ class TranslatorBase(ABC):
         """
         translated = self.translate_code_tool_internal(internal)
         str_tool = self.stringify_translated_tool(internal, translated)
-        str_tool = inject_messages_tool(internal, str_tool)
+        str_tool = inject_messages(internal, str_tool)
 
         if settings.translate.TO_CONSOLE:
             print(str_tool)

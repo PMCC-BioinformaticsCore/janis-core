@@ -106,7 +106,7 @@ class TestBasicFunctionality(unittest.TestCase):
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTParser(cwl_utils=cwl_utils, clt=clt, entity=clt)
         tool = parser.parse()
-        msgs = load_loglines(tool_uuid=tool.uuid)
+        msgs = load_loglines(entity_uuids=set(tool.uuid))
         
         self.assertEqual(len(msgs), 0)
         self.assertEqual(tool.id(), 'BWA_Index')
@@ -218,7 +218,7 @@ class TestRequirementsParsing(unittest.TestCase):
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_expression_lib')
         reqs = parser.parse()
-        lines = load_loglines(tool_uuid='test_expression_lib')
+        lines = load_loglines(entity_uuids=set('test_expression_lib'))
         msgs = [x.message for x in lines]
         self.assertIn('__TOKEN1__ = "$(var get_label = function(i) { var rootname = inputs.molecule_info_h5[i].basename.split(\'.\').slice(0,-1).join(\'.\'); rootname = (rootname=="")?inputs.molecule_info_h5[i].basename:rootname; return inputs.gem_well_labels?inputs.gem_well_labels[i].replace(/,/g, "_"):rootname; };)"', msgs)
 
@@ -231,7 +231,7 @@ class TestRequirementsParsing(unittest.TestCase):
         self.assertEqual(len(reqs['files_to_create']), 1)
         self.assertIn('setup_vars.sh', reqs['files_to_create'])
         self.assertIn('export AA_DATA_REPO', reqs['files_to_create']['setup_vars.sh'])
-        msgs = load_loglines(tool_uuid='test')
+        msgs = load_loglines(entity_uuids=set('test'))
         self.assertEqual(len(msgs), 1)
 
     @unittest.skip('how does this work for janis?')
@@ -418,7 +418,7 @@ class TestErrorHandlingFallbacks(unittest.TestCase):
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTRequirementsParser(cwl_utils=cwl_utils, clt=clt, entity=clt, tool_uuid='test_files_to_create4')
         reqs = parser.parse()
-        lines = load_loglines(tool_uuid='test_files_to_create4')
+        lines = load_loglines(entity_uuids=set('test_files_to_create4'))
         msgs = [x.message for x in lines]
         print()
 
@@ -520,7 +520,7 @@ class TestErrorHandlingDatatypes(unittest.TestCase):
         cwl_type = ['null', 'File', 'string']
         dtype = ingest_cwl_type(cwl_type, cwl_utils, None, tool_uuid='test', secondaries=None)
         self.assertIsInstance(dtype, File)
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertIn("entity supports multiple datatypes: ['File', 'String']. selected File as fallback.", msgs)
     
@@ -530,7 +530,7 @@ class TestErrorHandlingDatatypes(unittest.TestCase):
         cwl_type = 'kitten'
         dtype = ingest_cwl_type(cwl_type, cwl_utils, None, tool_uuid='test', secondaries=None)
         self.assertIsInstance(dtype, File)
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertIn('unsupported datatype: kitten. treated as generic File.', msgs)
     
@@ -540,7 +540,7 @@ class TestErrorHandlingDatatypes(unittest.TestCase):
         cwl_type = f'file://{CWL_TESTDATA_DIR}/tools/gatk_haplotype_tool.cwl#annotation_type'
         dtype = ingest_cwl_type(cwl_type, cwl_utils, None, tool_uuid='test', secondaries=None)
         self.assertIsInstance(dtype, File)
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertIn('unsupported datatype: file:///home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl#annotation_type. treated as generic File.', msgs)
 
@@ -551,13 +551,13 @@ class TestErrorHandlingDatatypes(unittest.TestCase):
         cinp = clt.inputs[1]
         dtype = ingest_cwl_type(cinp.type, cwl_utils, None, tool_uuid='test', secondaries=cinp.secondaryFiles)
         self.assertIsInstance(dtype, GenericFileWithSecondaries)
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertIn("could not parse secondaries format from javascript expression. treated as generic File with secondaries.", msgs)
 
 
 
-
+ 
 class TestErrorHandlingExpressions(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -571,7 +571,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         parser = CLTRequirementsParser(cwl_utils, clt=clt, entity=clt, tool_uuid='test')
         requirements = parser.parse()
 
-        lines = load_loglines(tool_uuid='test', category=ErrorCategory.SCRIPTING)
+        lines = load_loglines(entity_uuids=set('test'), category=ErrorCategory.SCRIPTING)
         msgs = [x.message for x in lines]
         
         self.assertEqual(requirements["memory"], '__TOKEN1__')
@@ -590,7 +590,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         jtool = parser.parse()
         self.assertIsNone(jtool.files_to_create())
         
-        lines = load_loglines(tool_uuid=jtool.uuid)
+        lines = load_loglines(entity_uuids=set(jtool.uuid))
         msgs = [x.message for x in lines]
         self.assertEqual(len(msgs), 3)
         self.assertIn('error parsing InitialWorkDirRequirement. ignored as fallback', msgs)
@@ -602,7 +602,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[1], tool_uuid='test')
         tinput = parser.parse()
         self.assertIsInstance(tinput.input_type, GenericFileWithSecondaries)
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         expected_msg = 'could not parse secondaries format from javascript expression. treated as generic File with secondaries.'
         self.assertIn(expected_msg, msgs)
@@ -614,7 +614,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         
         parser = CLTInputParser(cwl_utils, clt=clt, entity=clt.inputs[5], tool_uuid='test')
         tinput = parser.parse()
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         expected_msg = '__TOKEN1__ = "$([inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0])"'
         self.assertEqual(tinput.value, '__TOKEN1__')
@@ -626,7 +626,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         
         parser = CLTArgumentParser(cwl_utils, clt=clt, entity=clt.arguments[5], tool_uuid='test')
         arg = parser.parse()
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertEqual(arg.value, '__TOKEN1__')
         self.assertIn('__TOKEN1__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', msgs)
@@ -637,7 +637,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         clt, cwl_utils = _load_cwl_doc(filepath)
         parser = CLTOutputParser(cwl_utils, clt=clt, entity=clt.outputs[3], tool_uuid='test')
         tout = parser.parse()
-        lines = load_loglines(tool_uuid='test')
+        lines = load_loglines(entity_uuids=set('test'))
         msgs = [x.message for x in lines]
         self.assertEqual(tout.selector, '__TOKEN1__')
         self.assertIn('__TOKEN1__ = "$(self[0].contents)"', msgs)
@@ -645,7 +645,7 @@ class TestErrorHandlingExpressions(unittest.TestCase):
     def test_step_input(self):
         filepath = f'{CWL_TESTDATA_DIR}/workflows/expressions.cwl'
         wf = parse_cwl(filepath)
-        lines = load_loglines(tool_uuid=wf.uuid)
+        lines = load_loglines(entity_uuids=set(wf.uuid))
         msgs = [x.message for x in lines]
 
         self.assertIn('could not parse secondaries format from javascript expression. treated as generic File with secondaries.', msgs)

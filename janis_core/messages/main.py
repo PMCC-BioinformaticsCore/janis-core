@@ -88,7 +88,7 @@ def info_ingesting_tool(spec: str, name: str) -> None:
 # to file
 # -------
 
-def log_message(entity_uuid: Optional[str], msg: str, category: ErrorCategory, subsection: Any=None) -> None:
+def log_message(entity_uuid: Optional[str], msg: str, category: ErrorCategory) -> None:
     logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
@@ -96,18 +96,17 @@ def log_message(entity_uuid: Optional[str], msg: str, category: ErrorCategory, s
 
     # check the same message isn't already present
     for ll in logfile.lines:
-        if ll.category == category and ll.message == msg and ll.tool_uuid == entity_uuid and ll.subsection == subsection:
+        if ll.category == category and ll.message == msg and ll.entity_uuid == entity_uuid:
             return
     
     # log the new message
     if entity_uuid is None:
         entity_uuid = 'general'
-    logfile.add(tool_uuid=entity_uuid, category=category, msg=msg, subsection=subsection)
+    logfile.add(entity_uuid=entity_uuid, category=category, msg=msg)
 
 def load_loglines(
     category: Optional[ErrorCategory]|bool=False,
-    tool_uuid: Optional[str]|bool=False,
-    subsections: Optional[list[Any]]=None,
+    entity_uuids: Optional[set[str]]=None,
     ) -> list[LogLine]:
     # Type hinting ugly as hell 
     # Trying to express that None can be provided alongside an actual value. 
@@ -119,10 +118,7 @@ def load_loglines(
     # filters
     if category != False:
         loglines = [x for x in loglines if x.category.value == category.value]
-    if tool_uuid != False:
-        loglines = [x for x in loglines if x.tool_uuid == tool_uuid]
-    if isinstance(subsections, list):
-        loglines = [x for x in loglines if x.subsection in subsections]
-    
+    if entity_uuids is not None:
+        loglines = [x for x in loglines if x.entity_uuid in entity_uuids]
     return loglines
 

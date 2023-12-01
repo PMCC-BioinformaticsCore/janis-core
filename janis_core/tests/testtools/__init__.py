@@ -53,6 +53,7 @@ from .misc_commandtools import (
     ReplacedSecondaryOutputTestTool,
     SecondaryInputTestTool,
     InputQualityTestTool,
+    MessagingTestTool,
 )
 
 from .components import (

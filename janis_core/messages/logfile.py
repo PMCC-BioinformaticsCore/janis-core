@@ -9,15 +9,14 @@ from .enums import ErrorCategory
 class LogLine:
     message: str
     category: Optional[ErrorCategory]
-    tool_uuid: Optional[str]
-    subsection: Optional[str]
+    entity_uuid: Optional[str]
 
     def __str__(self) -> str:
         if self.category is not None:
             level, cat = self.category.value
         else:
             level, cat = None, None
-        return f'{level}\t{cat}\t{self.tool_uuid}\t{self.subsection}\t{self.message}'
+        return f'{level}\t{cat}\t{self.entity_uuid}\t{self.message}'
 
 
 class LogFile:
@@ -29,9 +28,8 @@ class LogFile:
     def add(
         self, 
         category: Optional[ErrorCategory], 
-        tool_uuid: Optional[str], 
+        entity_uuid: Optional[str], 
         msg: str, 
-        subsection: Optional[str]
         ) -> None:
 
         # format message 
@@ -42,8 +40,7 @@ class LogFile:
         logline = LogLine(
             message=message, 
             category=category, 
-            tool_uuid=tool_uuid, 
-            subsection=subsection
+            entity_uuid=entity_uuid, 
         )
         
         # write to file
@@ -67,13 +64,12 @@ class LogFile:
                 self.lines.append(logline)
 
     def string_to_logline(self, line: str) -> LogLine:
-        str_level, str_cat, str_tool_uuid, str_subsection, str_message = line.strip('\n').split('\t')
+        str_level, str_cat, str_uuid, str_message = line.strip('\n').split('\t')
         if str_cat == 'None':
             category = None
         else:
             category = ErrorCategory.from_str(str_cat)
-        tool_uuid = None if str_tool_uuid == 'None' else str_tool_uuid
-        subsection = None if str_subsection == 'None' else str_subsection
-        return LogLine(str_message, category, tool_uuid, subsection)
+        entity_uuid = None if str_uuid == 'None' else str_uuid
+        return LogLine(str_message, category, entity_uuid)
 
     

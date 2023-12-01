@@ -5,7 +5,6 @@ import os
 from typing import Any, Optional
 import janis_core as j
 
-
 DEFAULT_PARSER_VERSION = "v1.2"
 from cwl_utils.parser.cwl_v1_0 import CommandLineTool as CommandLineTool_1_0
 from cwl_utils.parser.cwl_v1_1 import CommandLineTool as CommandLineTool_1_1
@@ -97,16 +96,16 @@ class CWlParser:
             self.ingest_workflow_input(wf, inp)
 
         # first step ingest pass
-        for step in workflow.steps:
-            self.ingest_workflow_step(wf, step)
+        for cwl_step in workflow.steps:
+            j_step = self.ingest_workflow_step(wf, cwl_step)
         
         # second step ingest pass
-        for step in workflow.steps:
-            self.ingest_workflow_step_attributes(wf, step)
+        for cwl_step in workflow.steps:
+            self.ingest_workflow_step_attributes(wf, j_step, cwl_step)
         
         # third step ingest pass
-        for step in workflow.steps:
-            self.ingest_workflow_step_inputs(wf, step)
+        for cwl_step in workflow.steps:
+            self.ingest_workflow_step_inputs(wf, j_step, cwl_step)
         
         for out in workflow.outputs:
             self.ingest_workflow_output(wf, out)
@@ -114,15 +113,14 @@ class CWlParser:
         return wf
     
     def ingest_workflow_input(self, wf: j.Workflow, inp: Any) -> j.InputNodeSelector:
-        parser = WorkflowInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=wf, tool_uuid=wf.uuid)
+        parser = WorkflowInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=wf, entity_uuid=wf.uuid)
         return parser.parse()
 
     def ingest_workflow_output(self, wf: j.Workflow, out: Any) -> OutputNode:
-        parser = WorkflowOutputParser(cwl_utils=self.cwl_utils, entity=out, wf=wf, tool_uuid=wf.uuid)
+        parser = WorkflowOutputParser(cwl_utils=self.cwl_utils, entity=out, wf=wf, entity_uuid=wf.uuid)
         return parser.parse()
 
     def ingest_workflow_step(self, wf: j.Workflow, cwlstp: Any) -> StepNode:
-        tool_uuid = wf.uuid # TODO error handling
         step_identifier = get_id_entity(cwlstp.id)
         
         if isinstance(cwlstp.run, (self.cwl_utils.CommandLineTool, self.cwl_utils.Workflow)):
@@ -140,11 +138,8 @@ class CWlParser:
             ignore_missing=True
         ) 
         
-    def ingest_workflow_step_attributes(self, wf: j.Workflow, cwlstp: Any) -> None:
-        step_identifier = get_id_entity(cwlstp.id)
-        jstep = wf.step_nodes[step_identifier]
-
-        parser = WorkflowStepAttributesParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, tool_uuid=wf.uuid)
+    def ingest_workflow_step_attributes(self, wf: j.Workflow, j_step: Any, cwlstp: Any) -> None:
+        parser = WorkflowStepAttributesParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, entity_uuid=j_step.uuid)
         parser.parse()
 
         if parser.scatter is not None:
@@ -154,12 +149,9 @@ class CWlParser:
         if parser.when is not None:
             jstep.when = parser.when
 
-    def ingest_workflow_step_inputs(self, wf: j.Workflow, cwlstp: Any) -> None:
-        parser = WorkflowStepInputsParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, tool_uuid=wf.uuid)
+    def ingest_workflow_step_inputs(self, wf: j.Workflow, j_step: Any, cwlstp: Any) -> None:
+        parser = WorkflowStepInputsParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, entity_uuid=j_step.uuid)
         inputs_dict = parser.parse()
-
-        step_identifier = get_id_entity(cwlstp.id)
-        jstep = wf.step_nodes[step_identifier]
         jstep.tool.connections = inputs_dict
         add_step_edges_to_graph(jstep, wf)
         self.ingest_workflow_step_inputs_pickvalue(jstep, cwlstp)

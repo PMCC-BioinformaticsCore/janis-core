@@ -3,6 +3,14 @@
 --------------
 --- GENERAL ---
 ---------------
+
+Translate units documentation: 
+- tell new user that for messaging to work, must generate CommandToolBuilder or CodeTool or WorkflowBuilder only!
+- cannot use CommandTool or Workflow or WorkflowBase. 
+
+
+GO BACK TO: "if self.finish.node_type == NodeType.STEP:"
+
 DONE (to test)
 - messages NXF output
 - messages CWl ingest
@@ -11,12 +19,34 @@ DONE (to test)
 - CWL ingest edam formats
 - NEXT translate reflects new TranslatorBase interface
 
-DOING
-- messages CWl output (tool, workflow)
-- messages WDL output (tool, workflow)
-- messages NXF output (workflow)
-- messages WDL ingest
-- messages Galaxy ingest
+doing
+- WDL ingest
+    - do basic task parsing: inputs and outputs only. no command / base_command etc. 
+    - keep workflow parsing as-is 
+    - make the above work, add error handling (fallbacks) and message logging. 
+    - once this is done, move to Task parsing (below). 
+- WDL Task parsing
+    - this seems very doable. 
+    - uses a Lexer
+    - potentially after stringifying the WDL.Task.Command if this simplifies intermediate vars etc
+    - should have a parent func parse_task() which contains fallback
+    - TaskParserDefault:
+        - can_parse(): checks whether there are no temp variables and 1 command 
+        - do_parse():  parses into typical janis structure with base_command etc. 
+    - TaskParserArguments:
+        - can_parse(): always True 
+        - do_parse():  inputs=super basic, no base_command, everything is arguments  
+        - maybe this style is applicable for Galaxy?
+    - Note: result can also contain scripting similar to nextflow. can refernece any input or temp var in task scope.
+- WDL Workflow parsing
+- Adapt CWL translation: ShellCommandRequirement for relevant Janis tools (ingested via WDL TaskParserArguments)
+- 
+
+- messages WDL tool ingest
+- messages WDL workflow ingest
+- messages Galaxy tool ingest
+- messages Galaxy workflow ingest
+
 - make nextflow translate prescript & script better
     - prescript should handle getting the right values:
         - input default      def input == params.NULL ? "default value" : input

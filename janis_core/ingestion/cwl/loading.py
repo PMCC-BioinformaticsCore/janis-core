@@ -27,7 +27,7 @@ def load_cwl_version(doc: str) -> str:
             raise Exception(f"Couldn't find cwlVersion in tool {doc}")
         else:
             msg = f'no cwl version was specified in {doc}. fell back to cwl v1.2 for ingestion.'
-            log_message(entity_uuid='loading error', msg=msg, category=ErrorCategory.METADATA, subsection=None)
+            log_message(entity_uuid=None, msg=msg, category=ErrorCategory.METADATA)
             return DEFAULT_PARSER_VERSION
     
     # return version

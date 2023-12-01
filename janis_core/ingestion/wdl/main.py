@@ -52,6 +52,7 @@ class WdlParser:
         return tasks[0]
 
     def from_loaded_object(self, obj: WDL.SourceNode):
+        """Main ingest entry point"""
         if isinstance(obj, WDL.Task):
             return self.from_loaded_task(obj)
         elif isinstance(obj, WDL.Workflow):
@@ -60,6 +61,7 @@ class WdlParser:
             raise RuntimeError(f"Unhandled WDL object type: {type(obj)}")
 
     def from_loaded_workflow(self, obj: WDL.Workflow):
+        """Workflow ingest entry point"""
         wf = j.WorkflowBuilder(identifier=obj.name)
 
         for inp in obj.inputs:
@@ -240,34 +242,52 @@ class WdlParser:
         raise Exception(f"Couldn't recognise memory requirement '{value}'")
 
     def from_loaded_task(self, obj: WDL.Task):
-        rt = obj.runtime
-        translated_script = self.translate_expr(obj.command)
-        inputs = obj.inputs
+        """Tool ingest entry point"""
+        # TODO everything here needs error handling & logging.
+        # TODO structure like cwl parsing, except for command (should parse all base_command, inputs, outputs)
+        cmdtool = j.CommandToolBuilder(
+            tool=obj.name,
+            version='DEV',
+            container='ubuntu:latest',
+            base_command=None,
+            inputs=[],
+            outputs=[]
+        )
+        # TODO something like this:
+        # parser = CommandParser()
+        # cmdtool._inputs, cmdtool.base_command, cmdtool._outputs = parser.parse()
 
-        cpus = self.translate_expr(rt.get("cpu"))
-        # if cpus is not None and not isinstance(cpus, j.Selector) and not isinstance(cpus, (int, float)):
+        cmdtool._base_command = self.parse_command_tool_base_command(obj) # type: ignore
+        cmdtool._container = self.container_from_runtime(obj.runtime, inputs=obj.inputs) # type: ignore
+        
+        # inputs
+        for wdl_inp in obj.inputs:
+            if wdl_inp.name.startswith("runtime_"):
+                continue
+            j_inp = self.parse_command_tool_input(wdl_inp)
+            if j_inp is not None:
+                cmdtool._inputs.append(j_inp)
+        
+        # outputs
+        for wdl_out in obj.outputs:
+            j_out = self.parse_command_tool_output(wdl_out)
+            if j_out is not None:
+                cmdtool._outputs.append(j_out)
+        
+        # files to create
+        cmdtool._files_to_create = {"script.sh": self.translate_expr(obj.command)}
+        cmdtool._memory = self.parse_memory_requirement(obj.runtime.get("memory"))
+        cpus = self.translate_expr(obj.runtime.get("cpu"))
         if isinstance(cpus, str):
             cpus = int(cpus)
+        cmdtool._cpus = cpus
+        cmdtool._disk = self.parse_disk_requirement(obj.runtime.get("disks"))
 
-        c = j.CommandToolBuilder(
-            tool=obj.name,
-            base_command=["sh", "script.sh"],
-            container=self.container_from_runtime(rt, inputs=inputs),
-            version="DEV",
-            inputs=[
-                self.parse_command_tool_input(i)
-                for i in obj.inputs
-                if not i.name.startswith("runtime_")
-            ],
-            outputs=[self.parse_command_tool_output(o) for o in obj.outputs],
-            files_to_create={"script.sh": translated_script},
-            memory=self.parse_memory_requirement(rt.get("memory")),
-            cpus=cpus,
-            disk=self.parse_disk_requirement(rt.get("disks")),
-        )
+        return cmdtool
 
-        return c
-
+    def parse_command_tool_base_command(self, obj: WDL.Task) -> list[str]:
+        return ["sh", "script.sh"]
+    
     def translate_expr(
         self, expr: WDL.Expr.Base, input_selector_getter: Callable[[str], any] = None
     ) -> Optional[Union[j.Selector, List[j.Selector], int, str, float, bool]]:

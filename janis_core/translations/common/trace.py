@@ -58,17 +58,17 @@ from janis_core.operators.selectors import (
 )
 from janis_core.operators.stringformatter import StringFormatter
 from janis_core.workflow.workflow import InputNode
-from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool, CommandTool, CodeTool
+from janis_core import ToolInput, TInput, ToolArgument, ToolOutput, Tool, CommandTool, CommandToolBuilder, CodeTool
 from janis_core import translation_utils as utils
 
 
 def trace_entities(entity: Any, tool: Optional[Tool]=None) -> list[Any]:
-    tracer = EntityTracer(tool)
+    tracer = CompleteEntityTracer(tool)
     tracer.trace(entity)
     return tracer.entities
 
 def trace_entity_counts(entity: Any, tool: Optional[Tool]=None) -> dict[str, int]:
-    tracer = EntityTracer(tool)
+    tracer = CompleteEntityTracer(tool)
     tracer.trace(entity)
     counter: dict[str, int] = defaultdict(int)
     for e in tracer.entities:
@@ -117,7 +117,6 @@ def trace_referenced_variables(entity: Any, tool: Optional[Tool]=None) -> set[st
         tracer.trace(entity)
 
     return tracer.variables
-
 
 
 class Tracer(ABC):
@@ -310,7 +309,7 @@ class Tracer(ABC):
 
 
 
-class EntityTracer(Tracer):
+class CompleteEntityTracer(Tracer):
 
     def __init__(self, tool: Optional[Tool]=None):
         super().__init__(tool)
@@ -318,13 +317,7 @@ class EntityTracer(Tracer):
         self.is_first_call = True
     
     def trace(self, entity: Any) -> None:
-        ### CLASS SPECIFIC ###
-        # if self.is_first_call:
-        #     self.is_first_call = False
-        # else:
         self.entities.append(entity)
-        
-        ### CONTINUE TRACING ###
         self.do_trace(entity)
 
 

@@ -6,15 +6,19 @@ if TYPE_CHECKING:
 
 from Levenshtein import distance as levenshtein_distance
 import regex as re
-from typing import Optional, Any, Tuple
+from typing import Optional, Tuple
+from abc import ABC, abstractmethod
 
 from janis_core import settings
+from janis_core.tool.tool import ToolType
 from .logfile import ErrorCategory
 from .main import load_loglines
+from .gather import gather_uuids
+from .enums import FormatCategory
 
-### COMMENTERS ###
+### MISC CONSTANTS ###
 
-commenter_map = {
+COMMENTER_MAP = {
     'nextflow': '//',
     'cwl': '#',
     'wdl': '#',
@@ -22,98 +26,243 @@ commenter_map = {
 
 ### PUBLIC ###
 
-def inject_messages_tool(internal: CommandToolBuilder | CodeTool, translated: str) -> str:
+def inject_messages(internal: WorkflowBuilder | CommandToolBuilder | CodeTool, translated: str) -> str:
     """
-    Injects messages into the translated workflow file.
-    Messages need to be logged during ingest to use this feature.
+    Injects messages into the translated file text.
     
-    When logging messages during ingest you need to provide the unique tool_uuid. 
-    This enables the right messages to be written to the right output files. 
-    Examples:
+    Note: 
+    - Messages need to be logged during ingest to use this feature.
+    - When logging messages during ingest you need to provide the unique entity_uuid. 
+    - This enables the right messages to be written to the right output files. 
+    - Example:
         log_message(tool.uuid, msg=="couldn't parse datatype...", category=ErrorCategory.DATATYPE)
-
     """
-    messages = _gen_block(internal, translated)
-    if messages:
-        translated = messages + '\n\n' + translated
-    return translated
-
-def inject_messages_workflow(internal: WorkflowBuilder, translated: str) -> str:
-    """
-    Injects messages into the translated workflow file.
-    Default behaviour is to dump workflow messages at the top of the file, and step specific  
-    messages above the relevant step call. 
-
-    If split_categories=True, the messages at the top of the file are split into sections based on their category.
-    There are three main sections - general, inputs, outputs. 
-    If you want to use this feature, make sure the ingest unit is providing the subsection=[section] argument 
-    when logging messages. Eg:
-        log_message(tool_uuid, msg, category, subsection='general')
-        log_message(tool_uuid, msg, category, subsection='inputs')
-        log_message(tool_uuid, msg, category, subsection='outputs')
-    
-    Relies on workflow step names being almost equivalent to the step call in the translated file.
-    """
-    if settings.messages.USE_SUBSECTIONS:
-        translated = _inject_workflow_header_messages_subsections(internal, translated)
+    if internal.type() in [ToolType.CommandTool, ToolType.CodeTool]:
+        return ToolInjector(internal, translated).inject()          # type: ignore
+    elif internal.type() == ToolType.Workflow and settings.messages.USE_SUBSECTIONS:
+        return WorkflowInjectorSplit(internal, translated).inject() # type: ignore
+    elif internal.type() == ToolType.Workflow:
+        return WorkflowInjector(internal, translated).inject()      # type: ignore
     else:
-        translated = _inject_workflow_header_messages_default(internal, translated)
-    translated = _inject_workflow_step_messages(internal, translated)
-    return translated
+        raise RuntimeError(f"Can't inject messages into {internal.type()}")
 
 
 ### PRIVATE ###
 
-def _inject_workflow_header_messages_default(internal: WorkflowBuilder, translated: str) -> str:
-    messages = _gen_block(internal, translated, subsections=[None, 'general', 'inputs', 'outputs'])
-    if messages:
-        translated = messages + '\n\n' + translated
-    return translated
+class MessageInjector(ABC):
 
-def _inject_workflow_header_messages_subsections(internal: WorkflowBuilder, translated: str) -> str:
-    general = _gen_block(internal, translated, heading='general', subsections=['general'])
-    inputs = _gen_block(internal, translated, heading='inputs', subsections=['inputs'])
-    outputs = _gen_block(internal, translated, heading='outputs', subsections=['outputs'])
-    messages = '\n\n'.join([x for x in [general, inputs, outputs] if x is not None])
-    if messages:
-        translated = messages + '\n\n' + translated
-    return translated
+    @abstractmethod
+    def inject(self) -> str:
+        ...
 
-def _inject_workflow_step_messages(internal: WorkflowBuilder, translated: str) -> str:
-    """
-    This is horrendous.
-    For each step: 
-    - get messages
-    - if messages, find step call
-    - if found, get indent
-    - inject message block above step call with correct indent
-    """
-
-    for sname in internal.step_nodes.keys():
-        # get message block for this step if step has messages
-        messages = _gen_block(internal, translated, subsections=[sname])
-        if not messages:
-            continue
+    def _gen_block(self, heading: Optional[str]=None, uuids: Optional[set[str]]=None, is_scripting: bool=False) -> Optional[str]:
+        # text for this block
+        msgs = self._gen_block_lines(uuids, is_scripting)
+        if msgs:
+            # add extra component (the heading) for this block when using subsections
+            if heading is not None: 
+                msgs = [heading.upper()] + msgs
+            
+            # comment each line & return as string
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            msgs = [f'{commenter} {ln}' for ln in msgs]
+            return '\n'.join(msgs)
         
-        # get step location in translated text
-        loc = _get_step_loc(sname, translated)
-        if loc is None:
-            raise NotImplementedError
-        
-        # get indent for the step call - awful in general
-        indent = translated[:loc].split('\n')[-1]
-        lines = messages.split('\n')
-        first = lines[0]
-        other = [indent + ln for ln in lines[1:]]
-        lines = [first] + other
-        messages = '\n'.join(lines)
+        return None
 
-        # inject message block above step call with correct indent
-        translated = translated[:loc] + messages + '\n' + indent + translated[loc:]
+    def _gen_block_lines(self, uuids: Optional[set[str]]=None, is_scripting: bool=False) -> list[str]:
+        msgs: list[str] = []
+
+        # scripting block
+        if is_scripting:
+            cat = ErrorCategory.SCRIPTING
+            loglines = load_loglines(category=cat, entity_uuids=uuids)
+            if loglines:
+                messages = [x.message for x in loglines]
+                
+                # filter to messages where __TOKEN__ still is in the process text
+                filtered = []
+                for msg in messages:
+                    token = msg.split(' = ', 1)[0]
+                    if token in self.translated: # type: ignore
+                        filtered.append(msg) 
+                if filtered:
+                    # have to add comment for cwl otherwise invalid syntax. 
+                    if settings.translate.DEST == 'cwl':
+                        filtered = [f'{msg}' for msg in filtered]
+                    msgs += filtered
+            return msgs
+
+        # normal block
+        for cat in ErrorCategory:
+            # we do this later - its weird. 
+            if cat == ErrorCategory.SCRIPTING:
+                continue
+            loglines = load_loglines(category=cat, entity_uuids=uuids)
+            if loglines:
+                msgs += [f'[{cat.value[0]}][{cat.value[1]}] {x.message}' for x in loglines]
+        return msgs 
+
+
+
+class ToolInjector(MessageInjector):
     
-    return translated
+    def __init__(self, internal: CommandToolBuilder | CodeTool, translated: str) -> None:
+        self.internal = internal
+        self.translated = translated
+        self.entity_uuids_map = gather_uuids(internal)
+
+    def inject(self) -> str:
+        uuids = set(self.entity_uuids_map.keys())
+        
+        # scripting messages
+        messages = self._gen_block(uuids=uuids, is_scripting=True)
+        if messages:
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.SCRIPTING_BANNER}\n{messages}\n\n{self.translated}'
+
+        # normal messages
+        messages = self._gen_block(uuids=uuids)
+        if messages: 
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.MESSAGES_BANNER}\n{messages}\n\n{self.translated}'
+        return self.translated
+
+
+class WorkflowInjector(MessageInjector):
+    """
+    Dumps messages to top of file, except for step specific messages which are dumped 
+    above the relevant step call.
+    """
+    
+    def __init__(self, internal: WorkflowBuilder, translated: str) -> None:
+        self.internal = internal
+        self.translated = translated
+        self.entity_uuids_map = gather_uuids(internal)
+    
+    def inject(self) -> str:
+        self.inject_header_messages()
+        self.inject_step_messages()
+        return self.translated
+
+    def inject_header_messages(self) -> None:
+        uuids = set([uuid for uuid, fcat in self.entity_uuids_map.items() if fcat != FormatCategory.STEP])
+        
+        # scripting messages
+        messages = self._gen_block(uuids=uuids, is_scripting=True)
+        if messages:
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.SCRIPTING_BANNER}\n{messages}\n\n{self.translated}'
+        
+        # normal messages
+        messages = self._gen_block(uuids=uuids)
+        if messages:
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.MESSAGES_BANNER}\n{messages}\n\n{self.translated}'
+        
+    def inject_step_messages(self) -> None:
+        """
+        Note: No headings or subheadings for step-related messages, except scripting.
+        For each step: 
+        - get messages
+        - if messages, find step call
+        - if found, get indent
+        - inject message block above step call with correct indent
+        """
+        for sname, step in self.internal.step_nodes.items():
+            step_uuids_map = gather_uuids(step)
+            
+            # sanity check
+            assert all([fcat == FormatCategory.STEP for fcat in step_uuids_map.values()])
+
+            # get message block for this step if step has messages
+            uuids = set(step_uuids_map.keys())
+            normal_messages = self._gen_block(uuids=uuids)
+            scripting_messages = self._gen_block(uuids=uuids, is_scripting=True)
+            if not normal_messages and not scripting_messages:
+                continue
+
+            # get step location in translated text
+            loc = _get_step_loc(sname, self.translated)
+            if loc is None:
+                print(self.translated)
+                raise NotImplementedError
+            
+            # get indent for the step call - awful in general but works
+            # split file into top and bottom pivoting on the match location
+            top = self.translated[:loc]
+            bottom = self.translated[loc:]
+
+            # get the indent level of the step call
+            if not bottom.startswith(' ') and not bottom.startswith('\t'):
+                indent = ''
+            else:
+                indent = re.findall(r'[ \t]+', bottom)[0]
+
+            # apply indent to each line of the message block
+            if normal_messages:
+                msg_lines = normal_messages.split('\n')
+                msg_lines = [indent + ln for ln in msg_lines]
+                normal_messages = '\n'.join(msg_lines)
+            
+            if scripting_messages:
+                # add special header
+                msg_lines = ['UNTRANSLATED EXPRESSIONS']
+                msg_lines += scripting_messages.split('\n')
+                msg_lines = [indent + ln for ln in msg_lines]
+                scripting_messages = '\n'.join(msg_lines)
+
+            messages = ''
+            if normal_messages:
+                messages += normal_messages
+            if scripting_messages:
+                messages += f'\n\n{scripting_messages}'
+            
+            # inject indented message block above step call
+            self.translated = top + messages + '\n' + bottom
+        
+
+
+class WorkflowInjectorSplit(WorkflowInjector):
+    """
+    Instead of dumping all header messages together at top of file, organises header into 
+    GENERAL, INPUTS, OUTPUTS sections, followed by UNTRANSLATED EXPRESSIONS
+    """
+
+    # single override method for this class
+    def inject_header_messages(self) -> None:
+        main_uuids = set([uuid for uuid, fcat in self.entity_uuids_map.items() if fcat == FormatCategory.MAIN])
+        input_uuids = set([uuid for uuid, fcat in self.entity_uuids_map.items() if fcat == FormatCategory.INPUT])
+        output_uuids = set([uuid for uuid, fcat in self.entity_uuids_map.items() if fcat == FormatCategory.OUTPUT])
+        
+        # get the messages for header subheadings as blocks
+        main = self._gen_block(heading='general', uuids=main_uuids)
+        inputs = self._gen_block(heading='inputs', uuids=input_uuids) 
+        outputs = self._gen_block(heading='outputs', uuids=output_uuids)
+        
+        # get the messages for header scripting as block
+        all_uuids = main_uuids | input_uuids | output_uuids
+        scripting = self._gen_block(heading='outputs', uuids=all_uuids, is_scripting=True)
+        
+        # write scripting
+        if scripting:
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.SCRIPTING_BANNER}\n{scripting}\n\n{self.translated}'
+        
+        # write normal messages
+        messages = '\n\n'.join([x for x in [main, inputs, outputs] if x is not None])
+        if messages:
+            commenter = COMMENTER_MAP[settings.translate.DEST]
+            self.translated = f'{commenter} {settings.messages.MESSAGES_BANNER}\n{messages}\n\n{self.translated}'
+
 
 def _get_step_loc(step_name: str, translated: str) -> Optional[int]:
+    """
+    returned loc should be the first character of the target line, not the start of the step symbol
+    eg nextflow process call:
+        "               MINIMAP2("
+         ^ loc is here, ^ not here 
+    """ 
 
     # get loc, step call name for all step calls in translated text
     if settings.translate.DEST == 'cwl':
@@ -141,6 +290,7 @@ def _standardise_symbol(symbol: str) -> str:
     return symbol.replace('_', '').replace('-', '').upper()
 
 def _get_step_call_starts_cwl(translated: str) -> list[Tuple[int, str]]:
+    # AN: this is ew
     # gather things which look like entity names
     # [ \t]+ included to get the location for the start of the line.
     PATTERN_FMT1 = r'(?<!(in:|out:|run:|requirements:|hints:|label:|doc:|scatter:|scatterMethod:)[\s]+)[ \t]*- ?id: ?([\w]+)[ \t]*\n'
@@ -162,6 +312,7 @@ def _get_step_call_starts_cwl(translated: str) -> list[Tuple[int, str]]:
             elif m.group(3) is not None:
                 name = m.group(3)
             else:
+                # TODO downgrade this to a warning? or just ignore?
                 raise RuntimeError('No group found') 
             # line start and correct group for each match
             out.append((m.start(), name))
@@ -170,7 +321,7 @@ def _get_step_call_starts_cwl(translated: str) -> list[Tuple[int, str]]:
 def _get_step_call_starts_nextflow(translated: str) -> list[Tuple[int, str]]:
     # this is weak compared to CWL 
     # [ \t]+ included to get the location for the start of the line. 
-    PATTERN = r'[ \t]+([A-Z_]+)\('
+    PATTERN = r'[ \t]+([A-Z0-9_]+)\('
     matches = re.finditer(PATTERN, translated)
     
     # return the line start and correct group for each match
@@ -196,93 +347,6 @@ def _get_step_call_starts_wdl(translated: str) -> list[Tuple[int, str]]:
             out.append((m.start(), name))
     return out
 
-def _gen_block(
-    internal: WorkflowBuilder| CommandToolBuilder | CodeTool, 
-    translated: str,
-    heading: Optional[str]=None,
-    subsections: Optional[list[Any]]=None
-    ) -> Optional[str]:
 
-    # TODO HERE USE THESE FORMATS INSTEAD ----
-    # Tool / Workflow default:
-        
-        ### MESSAGES ###
-
-        # [WARNING][DATATYPES] test message1
-        # [WARNING][METADATA] test message2
-        # [WARNING][EXPERIMENTAL] test message4
-        # [ERROR][FALLBACKS] test message3
-
-        # UNTRANSLATED EXPRESSIONS
-        # __TOKEN1__ = 'hello'
-    
-    # Workflow split:
-
-        ### MESSAGES ###
-
-        # GENERAL
-        # [WARNING][DATATYPES] test message1
-
-        # INPUTS
-        # [WARNING][METADATA] test message2
-
-        # OUTPUTS
-        # [ERROR][FALLBACKS] test message3
-
-        # UNTRANSLATED EXPRESSIONS
-        # __TOKEN1__ = 'hello'
-        
-    # text for this block
-    components = _gen_block_components(internal, translated, subsections)
-    if components:
-        # add extra component (the heading) for this block when using subsections
-        commenter = commenter_map[settings.translate.DEST]
-        if heading is not None: 
-            if commenter == '#':
-                heading = f'### {heading.upper()} ###'
-            else:
-                heading = f'{commenter} ### {heading.upper()} ###'
-            components = [heading] + components
-        return '\n\n'.join(components)
-    return None
-
-def _gen_block_components(    
-    internal: WorkflowBuilder| CommandToolBuilder | CodeTool, 
-    translated: str,
-    subsections: Optional[list[Any]]=None
-    ) -> list[str]:
-    
-    components: list[str] = []
-    commenter = commenter_map[settings.translate.DEST]
-    
-    for cat in ErrorCategory:
-        # we do this later - its weird. 
-        if cat == ErrorCategory.SCRIPTING:
-            continue
-        loglines = load_loglines(category=cat, tool_uuid=internal.uuid, subsections=subsections)
-        if loglines:
-            lines = [f'{commenter} [{cat.value[0]}][{cat.value[1]}] {x.message}\n' for x in loglines]
-            components.append('\n'.join(lines))
-
-    cat = ErrorCategory.SCRIPTING
-    loglines = load_loglines(category=cat, tool_uuid=internal.uuid, subsections=subsections)
-    if loglines:
-        messages = [x.message for x in loglines]
-        
-        # filter to messages where __TOKEN__ still is in the process text
-        filtered = []
-        for msg in messages:
-            token = msg.split(' = ', 1)[0]
-            if token in translated:
-                filtered.append(msg) 
-        if filtered:
-            header = f'{commenter} UNTRANSLATED EXPRESSIONS'
-            # have to add comment for cwl otherwise invalid syntax. 
-            if settings.translate.DEST == 'cwl':
-                filtered = [f'{commenter} {msg}' for msg in filtered]
-            component = '\n'.join([header] + filtered)
-            components.append(component)
-
-    return components 
 
 

@@ -68,7 +68,7 @@ def parse_explicit_expr(
         # this is shit
         return None, False
 
-    loglines = load_loglines(category=ErrorCategory.SCRIPTING, tool_uuid=tool_uuid)
+    loglines = load_loglines(category=ErrorCategory.SCRIPTING)
     token = get_token_for_expr(expr, loglines)
     if token:
         return token, False
