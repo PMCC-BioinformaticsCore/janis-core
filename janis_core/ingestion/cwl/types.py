@@ -3,7 +3,7 @@ import regex as re
 import sys
 import inspect
 
-from janis_core.ingestion.cwl.identifiers import get_id_entity
+from janis_core.ingestion.common.identifiers import get_id_entity
 from janis_core.messages import ErrorCategory
 from janis_core.messages import log_message
 from janis_core.utils.errors import UnsupportedError
@@ -165,6 +165,8 @@ class CWLTypeParser:
 
     @property 
     def entity_name(self) -> str:
+        if self.cwl_entity is None:
+            return 'entity'
         return get_id_entity(self.cwl_entity.id)
     
     def preprocess_secondary_file_patterns(self, secondaries: Optional[str | list[str]]) -> list[str]:

@@ -331,6 +331,10 @@ class AsStringOperator(SingleValueOperator):
     @staticmethod
     def wdl_symbol():
         return ""
+    
+    @staticmethod
+    def nextflow_symbol():
+        return ""
 
     @staticmethod
     def cwl_symbol():
@@ -386,6 +390,10 @@ class AsIntOperator(SingleValueOperator):
 
     @staticmethod
     def wdl_symbol():
+        return ""
+    
+    @staticmethod
+    def nextflow_symbol():
         return ""
 
     @staticmethod

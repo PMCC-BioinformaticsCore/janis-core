@@ -1563,26 +1563,33 @@ class TestWdlToNextflow(unittest.TestCase):
         self.src = 'wdl'
         self.dest = 'nextflow'
         _reset_global_settings()
+        settings.ingest.SAFE_MODE = True
 
-    @unittest.skip('need injest fixes')
+    def test_wf_atac(self):
+        filepath = f'{WDL_TESTDATA_PATH}/ATAC.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
+    def test_wf_mutect2(self):
+        filepath = f'{WDL_TESTDATA_PATH}/mutect2.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
     def test_wf_multisample_jointgt_gatk4(self):
         filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
     def test_wf_reads2map_preprocessing(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
     def test_wf_reads2map_reads2map(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    @unittest.skip('need injest fixes')
     def test_wf_reads2map_snp_calling(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)

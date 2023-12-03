@@ -11,8 +11,7 @@ reverse_reads  = file( params.reverse_reads )
 
 workflow {
 
-    // ERROR: PARSING FALLBACKS
-    // this is a test
+    // [ERROR][FALLBACKS] this is a test
     NGTAX(
         forward_reads,          // forward_reads
         mapping_file,           // mapping_file

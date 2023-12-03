@@ -86,6 +86,7 @@ def non_blank_lines_list(text: str) -> list[str]:
 def non_blank_lines_str(text: str) -> str:
     lines = text.splitlines()
     lines = [ln for ln in lines if not ln == '']
+    lines = [ln for ln in lines if '# [' not in ln]
     outstr = '\n'.join(lines)
     return outstr
 

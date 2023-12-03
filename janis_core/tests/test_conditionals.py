@@ -4,7 +4,7 @@ from janis_core.translations import WdlTranslator
 from janis_core.workflow.workflow import WorkflowBuilder
 
 from janis_core.redefinitions.tools import Echo, Cat
-
+from janis_core.translations.common import to_builders
 
 
 class TestConditionals(unittest.TestCase):
@@ -40,8 +40,12 @@ class TestConditionals(unittest.TestCase):
         )
 
         w.output("out", source=w.echoswitch)
+        w = to_builders(w)
 
-        _, wdl_tools = WdlTranslator.translate_workflow_internal(w)
+        translator = WdlTranslator()
+        translator.translate_workflow_internal(w)
+        assert translator.main is not None
+        wdltool = translator.main[1]
         expected = """\
 version development
 
@@ -83,7 +87,7 @@ workflow echoswitch {
 
 }"""
 
-        echoswitch = wdl_tools["echoswitch"].get_string()
+        echoswitch = wdltool.get_string()
         print(echoswitch)
         self.assertEqual(expected, echoswitch)
 

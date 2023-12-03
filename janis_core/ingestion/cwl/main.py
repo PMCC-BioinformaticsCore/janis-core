@@ -16,20 +16,20 @@ from janis_core.utils.errors import UnsupportedError
 from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
-from .identifiers import get_id_filename
-from .identifiers import get_id_entity
+from ..common.identifiers import get_id_filename
+from ..common.identifiers import get_id_entity
 from .loading import load_cwl_version
 from .loading import load_cwl_utils_from_version
 from .loading import load_cwl_document
 from .loading import convert_etool_to_cltool
 
-from .graph import add_step_edges_to_graph
+from ..common.graph import add_step_edges_to_graph
 
 from .parsing.tool import CLTParser
 from .parsing.workflow import WorkflowInputParser
 from .parsing.workflow import WorkflowOutputParser
 from .parsing.workflow import WorkflowStepInputsParser
-from .parsing.workflow import WorkflowStepAttributesParser
+from .parsing.workflow import WorkflowStepModifierParser
 
 
 
@@ -97,15 +97,18 @@ class CWlParser:
 
         # first step ingest pass
         for cwl_step in workflow.steps:
-            j_step = self.ingest_workflow_step(wf, cwl_step)
+            self.ingest_workflow_step(wf, cwl_step)
         
         # second step ingest pass
         for cwl_step in workflow.steps:
-            self.ingest_workflow_step_attributes(wf, j_step, cwl_step)
+            j_step = wf.step_nodes[get_id_entity(cwl_step.id)]
+            self.ingest_workflow_step_inputs(wf, j_step, cwl_step)
         
         # third step ingest pass
         for cwl_step in workflow.steps:
-            self.ingest_workflow_step_inputs(wf, j_step, cwl_step)
+            j_step = wf.step_nodes[get_id_entity(cwl_step.id)]
+            self.ingest_workflow_step_modifiers(wf, j_step, cwl_step)
+        
         
         for out in workflow.outputs:
             self.ingest_workflow_output(wf, out)
@@ -138,25 +141,24 @@ class CWlParser:
             ignore_missing=True
         ) 
         
-    def ingest_workflow_step_attributes(self, wf: j.Workflow, j_step: Any, cwlstp: Any) -> None:
-        parser = WorkflowStepAttributesParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, entity_uuid=j_step.uuid)
+    def ingest_workflow_step_modifiers(self, wf: j.Workflow, j_step: Any, cwlstp: Any) -> None:
+        parser = WorkflowStepModifierParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, entity_uuid=j_step.uuid)
         parser.parse()
 
         if parser.scatter is not None:
-            jstep.scatter = parser.scatter
+            j_step.scatter = parser.scatter
             wf.has_scatter = True
         
         if parser.when is not None:
-            jstep.when = parser.when
+            j_step.when = parser.when
 
     def ingest_workflow_step_inputs(self, wf: j.Workflow, j_step: Any, cwlstp: Any) -> None:
         parser = WorkflowStepInputsParser(cwl_utils=self.cwl_utils, entity=cwlstp, wf=wf, entity_uuid=j_step.uuid)
         inputs_dict = parser.parse()
-        jstep.tool.connections = inputs_dict
-        add_step_edges_to_graph(jstep, wf)
-        self.ingest_workflow_step_inputs_pickvalue(jstep, cwlstp)
+        add_step_edges_to_graph(j_step, inputs_dict, wf)
+        self.ingest_workflow_step_inputs_pickvalue(j_step, cwlstp)
 
-    def ingest_workflow_step_inputs_pickvalue(self, jstep: StepNode, cwlstp: Any) -> None:
+    def ingest_workflow_step_inputs_pickvalue(self, j_step: StepNode, cwlstp: Any) -> None:
         operator_map = {
             'first_non_null': j.FirstOperator,
             'the_only_non_null': j.FirstOperator,
@@ -166,11 +168,11 @@ class CWlParser:
         # new: multiple input sources with selection method
         for inp in cwlstp.in_:
             inp_identifier = get_id_entity(inp.id)
-            if inp_identifier not in jstep.sources:
+            if inp_identifier not in j_step.sources:
                 continue 
             
             # must have more than one source
-            sti = jstep.sources[inp_identifier]
+            sti = j_step.sources[inp_identifier]
             if len(sti.source_map) <= 1:
                 continue 
 

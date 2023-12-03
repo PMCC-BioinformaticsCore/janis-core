@@ -13,8 +13,8 @@ from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
 from ..types import ingest_cwl_type
-from ..identifiers import get_id_entity
-from ..identifiers import get_id_filename
+from janis_core.ingestion.common.identifiers import get_id_entity
+from janis_core.ingestion.common.identifiers import get_id_filename
 from ..expressions import parse_expression
 
 
@@ -486,7 +486,6 @@ class InitialWorkDirRequirementParser:
             self.r_name, self.r_name_ok = None, True
         
         # want to calculate these fields
-        self.error_msgs: list[str] = []
         self.files_to_create: list[Tuple[str, str | Selector]] = []
         self.directories_to_create: list[str | Selector] = []
 
@@ -810,7 +809,10 @@ class CLTOutputParser(CLTEntityParser):
         elif self.clt.stderr is not None:
             expr, success = parse_expression(self.clt.stderr, self.tool_uuid)
         else:
-            raise RuntimeError
+            if dtype == Stdout:
+                expr = 'stdout.txt'
+            else:
+                expr = 'stderr.txt'
         
         dtype = File()
         selector = expr

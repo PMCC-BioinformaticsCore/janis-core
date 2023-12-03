@@ -1,5 +1,6 @@
 version 1.0
 
+
 # trim read 1 and read 2 adapter sequeunce with cutadapt
 task TrimAdapters {
   input {

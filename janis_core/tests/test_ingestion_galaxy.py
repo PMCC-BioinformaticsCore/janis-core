@@ -309,7 +309,7 @@ class TestResolveDependencies(unittest.TestCase):
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/coreutils:8.25'
+        expected = 'quay.io/biocontainers/coreutils:8.25--1'
         self.assertEqual(actual, expected)
     
     def test_single_requirement(self) -> None:

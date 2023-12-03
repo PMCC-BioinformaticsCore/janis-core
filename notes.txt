@@ -1,3 +1,12 @@
+miniwdl                   1.11.0
+
+conditional 
+    scatter 
+        step1
+        step2
+        step3
+
+step1 conditions, scatter
 
 
 --------------
@@ -9,8 +18,6 @@ Translate units documentation:
 - cannot use CommandTool or Workflow or WorkflowBase. 
 
 
-GO BACK TO: "if self.finish.node_type == NodeType.STEP:"
-
 DONE (to test)
 - messages NXF output
 - messages CWl ingest
@@ -19,7 +26,11 @@ DONE (to test)
 - CWL ingest edam formats
 - NEXT translate reflects new TranslatorBase interface
 
-doing
+TODO 
+- all translation units messages
+- all translation units functional
+- all translation units passing tests 
+
 - WDL ingest
     - do basic task parsing: inputs and outputs only. no command / base_command etc. 
     - keep workflow parsing as-is 

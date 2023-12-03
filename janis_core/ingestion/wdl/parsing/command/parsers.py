@@ -1,16 +1,84 @@
 
 
-from janis_core import CommandToolBuilder
-from janis_core import ToolArgument
 from abc import ABC, abstractmethod, abstractproperty
-
-import WDL
-
 from typing import Any
 import regex as re
+import WDL
+
+from janis_core import CommandToolBuilder, Selector
+from janis_core import ToolArgument
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
 from ..expressions import parse_expr
 from ..patterns import FLAG, OPTION
 from .cmdline import CmdLine
+from ..EntityParser import TaskParser
+
+
+class CommandParser(TaskParser):
+
+    def __init__(self, task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> None:
+        super().__init__(task, cmdtool)
+        self.base_command = None
+        self.env_vars: dict[str, Any] = {}
+        self.files_to_create: dict[str, Any] = {}
+        self.directories_to_create: list[str | Selector] = []
+
+
+class NativeSimpleParser(CommandParser):
+
+    def do_parse(self) -> None:
+        raise NotImplementedError
+    
+    def fallback(self) -> None:
+        msg = f'Error parsing tool command natively. Fellback to using shell command.'
+        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        return None
+
+
+class NativeArgumentParser(CommandParser):
+
+    def do_parse(self) -> None:
+        raise NotImplementedError
+    
+    def fallback(self) -> None:
+        msg = f'Error parsing tool command natively. Fellback to using shell command.'
+        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        return None
+ 
+
+class ShellCommandParser(CommandParser):
+
+    def do_parse(self) -> None:
+        self.base_command = self.parse_base_command()
+        self.env_vars = self.parse_env_vars()
+        self.files_to_create = self.parse_files_to_create()
+        self.directories_to_create = self.parse_dirs_to_create()
+        self.success = True
+    
+    def parse_base_command(self) -> list[str]:
+        return ["sh", "script.sh"]
+    
+    def parse_env_vars(self) -> dict[str, Any]:
+        return {}
+    
+    def parse_files_to_create(self) -> dict[str, Any]:
+        translated_script = parse_expr(self.task.command, self.task, self.cmdtool)
+        return {"script.sh": translated_script}
+    
+    def parse_dirs_to_create(self) -> list[str | Selector]:
+        return []
+    
+    def fallback(self) -> None:
+        msg = f'Error parsing tool command. Output is not correct.'
+        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        return None
+
+
+
+
+
+
 
 
 input_types = (
@@ -247,7 +315,7 @@ class NativeCommandParser:
 
 
     
-class ShellCommandParser:
+class ShellCommandParserDep:
     """
     parses WDL command into a CommandToolBuilder object.
     uses ShellCommandRequirement. 
@@ -283,20 +351,3 @@ class ShellCommandParser:
     def update_base_command(self) -> None:
         raise NotImplementedError
 
-
-class ShellScriptParser:
-    """
-    parses WDL command into a CommandToolBuilder object.
-    creates shell script. 
-    """
-    def __init__(self, internal: CommandToolBuilder, task: WDL.Tree.Task, cmds: list[CmdLine]):
-        self.internal = internal
-        self.task = task
-        self.cmds = cmds
-
-    @property
-    def can_parse(self) -> bool:
-        return True
-
-    def parse(self) -> None:
-        raise NotImplementedError

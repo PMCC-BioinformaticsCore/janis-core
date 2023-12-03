@@ -1,26 +1,8 @@
 
 import WDL
-from janis_core import CommandToolBuilder
-
-from .parsers import NativeCommandParser, ShellCommandParser, ShellScriptParser
 from .cmdline import CmdLine
 import regex as re
 
-
-def parse_command(internal: CommandToolBuilder, task: WDL.Tree.Task) -> CommandToolBuilder:
-    lines = split_newlines(task)
-    cmds = split_cmdlines(lines)
-    cmds = remove_comments(cmds)
-    
-    for parser_c in [NativeCommandParser, ShellCommandParser, ShellScriptParser]:
-        try:
-            parser = parser_c(internal, task, cmds)
-            parser.parse()
-            return parser.internal
-        except Exception as e:
-            pass
-
-    return internal
 
 def split_newlines(task: WDL.Tree.Task) -> list[str | WDL.Expr.Placeholder]:
     """does what"""

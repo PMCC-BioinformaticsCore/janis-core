@@ -129,6 +129,8 @@ class StepTagInput:
         stype = get_instantiated_type(operator.returntype())
 
         if self.ftag:
+            if self.ftag not in self.finish.inputs():
+                raise RuntimeError(f'no step exists with tag: {self.ftag}')
             tinput = self.finish.inputs()[self.ftag]
         else:
             tinput = first_value(self.finish.inputs())        
