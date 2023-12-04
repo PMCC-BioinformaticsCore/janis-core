@@ -21,7 +21,8 @@ def parse_expression(
     tool_uuid: str, 
     implicit_wrapping: bool=False,
     error_token_override: Optional[str]=None,
-    context: str = 'tool'  # tool | workflow
+    context: str = 'tool',   # tool | workflow
+    workflow: Optional[j.WorkflowBuilder]=None  # for InputNodeSelector
     ) -> Any:
 
     # don't parse None
@@ -38,12 +39,12 @@ def parse_expression(
     
     # has '$' wrapping 
     if expr.startswith('$(') or expr.startswith('${'):
-        return parse_explicit_expr(expr, tool_uuid, error_token_override, context)
+        return parse_explicit_expr(expr, tool_uuid, error_token_override, context, workflow)
 
     # no '$' wrapping but in this cwl context may still be valid expression
     # add '$' and attempt parse.
     elif implicit_wrapping:
-        return parse_implicit_expr(expr, tool_uuid, error_token_override, context)
+        return parse_implicit_expr(expr, tool_uuid, error_token_override, context, workflow)
 
     # its just a string
     else:
@@ -53,10 +54,11 @@ def parse_explicit_expr(
     expr: str, 
     tool_uuid: str, 
     error_token_override: Optional[str]=None,
-    context: str = 'tool'  # tool | workflow
+    context: str = 'tool',  # tool | workflow
+    workflow: Optional[j.WorkflowBuilder]=None  # for InputNodeSelector
     ) -> Any:
 
-    result, success = ExpressionParser(context).parse(expr)
+    result, success = ExpressionParser(context, workflow).parse(expr)
     # successful parse
     if success:
         return result, True
@@ -84,13 +86,14 @@ def parse_implicit_expr(
     expr: str, 
     tool_uuid: str, 
     error_token_override: Optional[str]=None,
-    context: str = 'tool'  # tool | workflow
+    context: str = 'tool',  # tool | workflow
+    workflow: Optional[j.WorkflowBuilder]=None  # for InputNodeSelector
     ) -> Any:
     if '$(' not in expr and '${' not in expr:
         new_expr = f'$({expr})'
     else:
         new_expr = deepcopy(expr)
-    result, success = ExpressionParser(context).parse(new_expr)
+    result, success = ExpressionParser(context, workflow).parse(new_expr)
 
     # is expression
     if success:
@@ -112,8 +115,9 @@ def get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
 
 class ExpressionParser:
 
-    def __init__(self, context: str):
+    def __init__(self, context: str, workflow: Optional[j.WorkflowBuilder]=None):
         self.context = context
+        self.workflow = workflow
 
     file_attr_map = {
         'attr_basename': j.BasenameOperator,
@@ -211,7 +215,11 @@ class ExpressionParser:
             if self.context == 'tool':
                 return j.InputSelector(i_name)
             elif self.context == 'workflow':
-                return j.InputNodeSelector(i_name)
+                assert isinstance(self.workflow, j.WorkflowBuilder)
+                inp = self.workflow.input_nodes[i_name]
+                return j.InputNodeSelector(inp)
+            elif self.context == 'when':
+                raise NotImplementedError
         elif t_name == 'rt_outdir':
             return '.'
         elif t_name == 'rt_tmpdir':

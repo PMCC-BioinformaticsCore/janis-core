@@ -260,7 +260,7 @@ class WorkflowStepInputParser(WorkflowEntityParser):
         value = None
 
         if inp.valueFrom is not None:
-            value, success = parse_expression(inp.valueFrom, self.entity_uuid, context='workflow')
+            value, success = parse_expression(inp.valueFrom, self.entity_uuid, context='workflow', workflow=self.wf)
             # if 'self.' in inp.valueFrom:
             #     if isinstance(source, InputNodeSelector):
             #         replacement = f'inputs.{source.input_node.id()}.'
@@ -307,7 +307,7 @@ class WorkflowStepModifierParser(WorkflowEntityParser):
 
     def parse_when(self) -> Any:
         if hasattr(self.entity, 'when') and self.entity.when is not None:
-            res, success = parse_expression(self.entity.when, self.entity_uuid, context='workflow')
+            res, success = parse_expression(self.entity.when, self.entity_uuid, context='workflow', workflow=self.wf)
             return res
         return None
 
