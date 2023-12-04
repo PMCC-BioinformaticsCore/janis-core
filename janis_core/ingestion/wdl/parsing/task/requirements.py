@@ -20,7 +20,7 @@ class TaskContainerParser(TaskParser):
         container = self.task.runtime.get("container", self.task.runtime.get("docker"))
         if isinstance(container, WDL.Expr.Get):
             # relevant input
-            print(str(container.expr))
+            # print(str(container.expr))
             inp = [i.expr for i in self.task.inputs if i.name == str(container.expr)]
             if len(inp) > 0:
                 container = inp[0]
@@ -53,7 +53,7 @@ class TaskCpusParser(TaskParser):
         value = self.task.runtime.get("cpu")
         if value is None:
             return None
-        cpus = parse_expr(value, self.task, self.cmdtool)
+        cpus, success = parse_expr(value, self.task, self.cmdtool)
         # if cpus is not None and not isinstance(cpus, j.Selector) and not isinstance(cpus, (int, float)):
         if isinstance(cpus, str):
             cpus = int(cpus)
@@ -71,7 +71,7 @@ class TaskMemoryParser(TaskParser):
         value = self.task.runtime.get("memory")
         if value is None:
             return None
-        s = parse_expr(value, self.task, self.cmdtool)
+        s, success = parse_expr(value, self.task, self.cmdtool)
         if s is None:
             return None
         elif isinstance(s, str):
@@ -109,7 +109,7 @@ class TaskDiskParser(TaskParser):
         value = self.task.runtime.get("disks")
         if value is None:
             return None
-        s = parse_expr(value, self.task, self.cmdtool)
+        s, success = parse_expr(value, self.task, self.cmdtool)
         if s is None:
             return None
         if isinstance(s, str):

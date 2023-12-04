@@ -175,12 +175,15 @@ class WorkflowStepInputsParser(WorkflowEntityParser):
 
     def do_parse(self) -> dict[str, Any]: 
         step_identifier = get_id_entity(self.entity.id)
-        log_message(self.entity_uuid, 'this is a test', ErrorCategory.FALLBACKS)
+        if settings.testing.TESTMODE:
+            # TODO get rid of this. 
+            log_message(self.entity_uuid, 'this is a test', ErrorCategory.FALLBACKS)
 
-        # valid_step_inputs = self.get_valid_step_inputs(self.entity, jstep)
+        jstep = self.wf.step_nodes[step_identifier]
+        valid_step_inputs = self.get_valid_step_inputs(self.entity, jstep)
 
         inputs_dict = {}
-        for inp in self.entity.in_:
+        for inp in valid_step_inputs:
             inp_identifier = get_id_entity(inp.id)
             parser = WorkflowStepInputParser(cwl_utils=self.cwl_utils, entity=inp, wf=self.wf, entity_uuid=self.wf.uuid)
             parser.step_name = step_identifier
@@ -190,18 +193,17 @@ class WorkflowStepInputsParser(WorkflowEntityParser):
         return inputs_dict
 
     # this may have been a mistake to comment out
-    # def get_valid_step_inputs(self, cwlstp: Any, jstep: StepNode) -> list[Any]:
-    #     return [x for x in cwlstp.in_ if self.is_valid_step_input(x, jstep)]
+    def get_valid_step_inputs(self, cwlstp: Any, jstep: StepNode) -> list[Any]:
+        return [x for x in cwlstp.in_ if self.is_valid_step_input(x, jstep)]
 
-    # def is_valid_step_input(self, inp: Any, jstep: StepNode) -> bool:
-    #     inp_identifier = get_id_entity(inp.id)
-    #     if inp_identifier in jstep.tool.inputs_map():
-    #         return True
-    #     else:
-    #         raise RuntimeError
-    #         # msg = f'{jstep.tool.id()} task has no input named "{inp_identifier}". Ignored as fallback.'
-    #         # self.error_msgs.append(msg)
-    #         # return False
+    def is_valid_step_input(self, inp: Any, jstep: StepNode) -> bool:
+        inp_identifier = get_id_entity(inp.id)
+        if inp_identifier in jstep.tool.inputs_map():
+            return True
+        else:
+            msg = f'{jstep.tool.id()} has no input named "{inp_identifier}". Ignored as fallback.'
+            log_message(self.entity_uuid, msg, ErrorCategory.PLUMBING)
+            return False
         
     
 
@@ -258,24 +260,25 @@ class WorkflowStepInputParser(WorkflowEntityParser):
         value = None
 
         if inp.valueFrom is not None:
-            if 'self.' in inp.valueFrom:
-                if isinstance(source, InputNodeSelector):
-                    replacement = f'inputs.{source.input_node.id()}.'
-                    inp.valueFrom = inp.valueFrom.replace('self.', replacement)
-                elif isinstance(source, StepOutputSelector):
-                    replacement = f'steps.{source.node.id()}.{source.tag}.'
-                    inp.valueFrom = inp.valueFrom.replace('self.', replacement)
-                else:
-                    raise NotImplementedError
+            value, success = parse_expression(inp.valueFrom, self.entity_uuid, context='workflow')
+            # if 'self.' in inp.valueFrom:
+            #     if isinstance(source, InputNodeSelector):
+            #         replacement = f'inputs.{source.input_node.id()}.'
+            #         inp.valueFrom = inp.valueFrom.replace('self.', replacement)
+            #     elif isinstance(source, StepOutputSelector):
+            #         replacement = f'steps.{source.node.id()}.{source.tag}.'
+            #         inp.valueFrom = inp.valueFrom.replace('self.', replacement)
+            #     else:
+            #         raise NotImplementedError
 
             # we do not want to unwrap inp.valueFrom. doesnt translate to nextflow correctly.
             # just mark it as untranslated javascript after the 'self.' has been changed to something
             # more meaningful
-            value = f'<js>{inp.valueFrom}</js>'
+            # value = f'<js>{inp.valueFrom}</js>'
             
-            inp_identifier = get_id_entity(inp.id)
-            msg = f"'{inp_identifier}' input value contains untranslated javascript expression: {value}"
-            log_message(self.entity_uuid, msg, ErrorCategory.SCRIPTING)
+            # inp_identifier = get_id_entity(inp.id)
+            # msg = f"'{inp_identifier}' input value contains untranslated javascript expression: {value}"
+            # log_message(self.entity_uuid, msg, ErrorCategory.SCRIPTING)
 
         return value
 
@@ -304,7 +307,7 @@ class WorkflowStepModifierParser(WorkflowEntityParser):
 
     def parse_when(self) -> Any:
         if hasattr(self.entity, 'when') and self.entity.when is not None:
-            res, success = parse_expression(self.entity.when, self.entity_uuid)
+            res, success = parse_expression(self.entity.when, self.entity_uuid, context='workflow')
             return res
         return None
 

@@ -114,6 +114,8 @@ def parse_command(task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> CommandTo
     
     #try native approach
     for p_class in p_classes:
+        sfmode = settings.ingest.SAFE_MODE
+        settings.ingest.SAFE_MODE = True
         parser = p_class(task, cmdtool)
         parser.parse()
         if parser.success:
@@ -122,6 +124,7 @@ def parse_command(task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> CommandTo
             cmdtool._files_to_create = parser.files_to_create
             cmdtool._directories_to_create = parser.directories_to_create
             return cmdtool
+        settings.ingest.SAFE_MODE = sfmode
 
     # TODO error handling here
     raise RuntimeError

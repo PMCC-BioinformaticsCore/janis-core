@@ -88,7 +88,6 @@ class WFGenerator(ABC):
 
     def __post_init__(self) -> None:
         self.vmanager = init_variable_manager_for_task(self.wf)
-        print()
     
     @property
     def name(self) -> str:

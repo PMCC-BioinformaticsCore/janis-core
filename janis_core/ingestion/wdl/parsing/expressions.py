@@ -1,18 +1,85 @@
 
 import WDL 
-from typing import Any
+from typing import Any, Optional, Tuple
 from types import LambdaType
+import regex as re 
+
 import janis_core as j
+from janis_core import settings
+from janis_core.messages import load_loglines
+from janis_core.messages import LogLine
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
+from .workflow.explore import CallContext
+from .workflow.explore import OutputContext
+from copy import deepcopy
+
+### WDL EXPR -> STRING ###
+
+def expr_as_str(expr: WDL.Expr.Base) -> str:
+    with open(expr.pos.abspath, 'r') as fp:
+        doclines = fp.readlines()
+        doclines = [x.rstrip('\n') for x in doclines]
+    lines = doclines[expr.pos.line - 1: expr.pos.end_line]
+    lines[-1] = lines[-1][:expr.pos.end_column - 1]
+    lines[0] = lines[0][expr.pos.column - 1:]
+    text = '\n'.join(lines)
+    return text
 
 
-def parse_expr(expr: WDL.Expr.Base, wdl_entity: WDL.Tree.Task | WDL.Tree.Workflow, j_entity: j.CommandToolBuilder | j.WorkflowBuilder) -> Any:
-    parser = WDlExprParser(wdl_entity, j_entity)
-    return parser.parse(expr)
+
+### WDL -> JANIS MAPPING ###
+
+def parse_expr(
+    expr: WDL.Expr.Base, 
+    wdl_entity: WDL.Tree.Task | WDL.Tree.Workflow, 
+    j_entity: j.CommandToolBuilder | j.WorkflowBuilder,
+    node_context: Optional[CallContext | OutputContext]=None
+    ) -> Tuple[Any, bool]:
+    
+    if settings.ingest.SAFE_MODE == True:
+        try:
+            parser = WDlExprParser(wdl_entity, j_entity, node_context)
+            return parser.parse(expr), True
+        
+        except Exception as e:
+            expr_str = str(expr)
+            loglines = load_loglines(category=ErrorCategory.SCRIPTING, entity_uuids=set([j_entity.uuid]))
+            
+            # expr already has token?
+            token = _get_token_for_expr(expr_str, loglines)
+            if token:
+                return token, False
+            
+            # expr needs new token
+            token = f'__TOKEN{len(loglines) + 1}__'
+            msg = f'{token} = "{expr}"'
+            log_message(j_entity.uuid, msg, ErrorCategory.SCRIPTING)
+            return token, False
+    else:
+        parser = WDlExprParser(wdl_entity, j_entity, node_context)
+        return parser.parse(expr), True
+
+def _get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
+    token_p = r'__TOKEN\d+__'
+    for line in loglines:
+        if re.match(token_p, line.message):
+            token, expr = line.message.split(' = ', 1)
+            if expr.strip('"') == expr:
+                return token
+    return None
+
 
 class WDlExprParser:
-    def __init__(self, wdl_entity: WDL.Tree.Task | WDL.Tree.Workflow, j_entity: j.CommandToolBuilder | j.WorkflowBuilder):
-        self.wdl_entity = wdl_entity    # wdl task or workflow
-        self.j_entity = j_entity        # respective janis cmdtoolbuilder or workflowbuilder
+    def __init__(
+        self, 
+        wdl_entity: WDL.Tree.Task | WDL.Tree.Workflow, 
+        j_entity: j.CommandToolBuilder | j.WorkflowBuilder,
+        node_context: Optional[CallContext | OutputContext]=None
+        ) -> None:
+        self.wdl_entity = wdl_entity     # wdl task or workflow
+        self.j_entity = j_entity         # respective janis cmdtoolbuilder or workflowbuilder
+        self.node_context = node_context # contextual information about scoped vars / scatter available in this scope
 
     def parse(self, expr: WDL.Expr.Base) -> Any:
         if expr is None:
@@ -39,25 +106,84 @@ class WDlExprParser:
             expr = expr.expr
         assert isinstance(expr.expr, WDL.Expr.Ident)
 
-        # tool - input | temp var?
+        # task
         if isinstance(self.wdl_entity, WDL.Tree.Task):
-            assert isinstance(self.j_entity, j.CommandToolBuilder)
-            return j.InputSelector(str(expr.expr.name))
-        
-        # workflow - input | step | step output | temp var?
+            return self.parse_get_task(expr)
+        # workflow step
         elif isinstance(self.wdl_entity, WDL.Tree.Workflow):
-            assert isinstance(self.j_entity, j.WorkflowBuilder)
-            expr_str = str(expr.expr.name)
-            if "." in expr_str:
-                node, *tag = expr_str.split(".")
-                if len(tag) > 1:
-                    raise Exception(f"Couldn't parse source ID: {expr_str} - too many '.'")
-                return self.j_entity[node][tag[0]]
-            return self.j_entity[expr_str]
-
+            return self.parse_get_workflow(expr)
         else:
             raise RuntimeError
+        
+    def parse_get_task(self, expr: WDL.Expr.Get):
+        # tool - input | temp var?
+        assert isinstance(self.j_entity, j.CommandToolBuilder)
+        return j.InputSelector(str(expr.expr.name))
+    
+    def parse_get_workflow(self, expr: WDL.Expr.Get):
+        # workflow - input | step | step output | scatter target | temp var
+        expr_str = str(expr.expr.name)
 
+        if self.is_scatter_target(expr_str):
+            return self.parse_get_scatter_target(expr_str)
+        elif self.is_scoped_var(expr_str):
+            return self.parse_get_scoped_var(expr_str)
+        # condition (when)?
+        elif "." in expr_str:
+            return self.parse_get_stepout_ref(expr_str)
+        else:
+            return self.parse_get_input_ref(expr_str)
+
+    def is_scatter_target(self, expr: str):
+        assert isinstance(self.j_entity, j.WorkflowBuilder)
+        if not isinstance(self.node_context, CallContext):
+            return False 
+        if self.node_context.scatter is None:
+            return False
+        if self.node_context.scatter.variable == expr:
+            return True
+        return False
+    
+    def is_scoped_var(self, expr: str):
+        assert isinstance(self.j_entity, j.WorkflowBuilder)
+        if self.node_context is None:
+            return False
+        for tempvar in self.node_context.scopedvars:
+            if tempvar.name == expr:
+                return True
+        return False
+    
+    def parse_get_scatter_target(self, expr: str):
+        # TODO maybe call parse_expr() rather than self.parse? want the largest traceback.
+        assert isinstance(self.node_context, CallContext)
+        assert self.node_context is not None
+        assert self.node_context.scatter is not None
+        return self.parse(self.node_context.scatter.expr)
+    
+    def parse_get_scoped_var(self, expr: str):
+        assert self.node_context is not None
+        tempvar = [x for x in self.node_context.scopedvars if x.name == expr][0]
+        return self.parse(tempvar.expr)
+
+    def parse_get_stepout_ref(self, expr: str):
+        assert isinstance(self.j_entity, j.WorkflowBuilder)
+        assert '.' in expr 
+        stp_id, *tag = expr.split(".")
+        if len(tag) > 1:
+            raise Exception(f"Couldn't parse source ID: {expr} - too many '.'")
+        assert stp_id in self.j_entity.step_nodes
+        stp = self.j_entity.step_nodes[stp_id]
+        sout = tag[0]
+        selector = stp.get_item(sout)
+        return selector
+        
+    def parse_get_input_ref(self, expr: str):
+        assert isinstance(self.j_entity, j.WorkflowBuilder)
+        if expr in self.j_entity.input_nodes:
+            node = self.j_entity.input_nodes[expr]
+            return j.InputNodeSelector(node)
+        raise NotImplementedError
+    
     def parse_string(self, s: WDL.Expr.String):
         if s.literal is not None:
             return str(s.literal).lstrip('"').rstrip('"')
@@ -70,7 +196,7 @@ class WDlExprParser:
             if isinstance(placeholder, (str, bool, int, float)):
                 continue
 
-            token = f"JANIS_WDL_TOKEN_{counter}"
+            token = f"TOKEN{counter}"
             if str(placeholder) not in _format:
                 # if the placeholder came up again
                 continue
@@ -117,52 +243,109 @@ class WDlExprParser:
         if len(args) > 0:
             retval = retval.replace(args[0], "")
         return retval
-
+    
+    def parse_prefix(self, src, *args):
+        raise NotImplementedError
+    
+    def parse_read_lines(self, src, *args):
+        if len(args) > 0:
+            raise NotImplementedError
+        return j.SplitOperator(j.ReadContents(src), '\n')
+    
+    def parse_read_int(self, src, *args):
+        if len(args) > 0:
+            raise NotImplementedError
+        return j.AsIntOperator(j.ReadContents(src))
+    
+    def parse_read_float(self, src, *args):
+        if len(args) > 0:
+            raise NotImplementedError
+        return j.AsFloatOperator(j.ReadContents(src))
+    
+    def parse_read_boolean(self, src, *args):
+        if len(args) > 0:
+            raise NotImplementedError
+        return j.AsBoolOperator(j.ReadContents(src))
+    
     def parse_apply(self, expr: WDL.Expr.Apply) -> j.Selector | list[j.Selector]:
+        args = [self.parse(e) for e in expr.arguments]
+
+        fn_map = {
+            'read_lines': self.parse_read_lines,
+            'read_tsv': None,
+            'read_json': j.ReadJsonOperator,
+            'read_map': None,
+            'read_object': None,
+            'read_objects': None,
+            'read_string': j.ReadContents,
+            'read_int': self.parse_read_int,
+            'read_float': self.parse_read_float,
+            'read_boolean': self.parse_read_boolean,
+            'write_lines': None,
+            'write_tsv': None,
+            'write_json': None,
+            'write_map': None,
+            'write_object': None,
+            'write_objects': None,
+            "range": j.RangeOperator,
+            'transpose': j.TransposeOperator,
+            'zip': None,
+            'cross': None,
+            "length": j.LengthOperator,
+            'flatten': j.FlattenOperator,
+            'prefix': self.parse_prefix,
+            "select_first": j.FirstOperator,
+            'select_all': j.FilterNullOperator,
+            'defined': j.IsDefined,
+            "basename": self.parse_basename,
+            'floor': j.FloorOperator,
+            "sep": j.JoinOperator,
+            "stdout": j.Stdout,
+            "glob": j.WildcardSelector,
+            "size": self.parse_file_size,
+            "ceil": j.CeilOperator,
+            "sub": j.ReplaceOperator,
+            "round": j.RoundOperator,
+            
+            "_lor": j.OrOperator,
+            "_eqeq": j.EqualityOperator,
+            "_land": j.AndOperator,
+            "_gt": j.GtOperator,
+            "_gte": j.GteOperator,
+            "_lt": j.LtOperator,
+            "_lte": j.LteOperator,
+            "_add": j.AddOperator,
+            "_interpolation_add": j.AddOperator,
+            "_add": j.AddOperator,
+            "_mul": j.MultiplyOperator,
+            "_div": j.DivideOperator,
+            "_at": j.IndexOperator,
+            "_negate": j.NotOperator,
+            "_sub": j.SubtractOperator,
+        }
+        # TODO 
+        # CWL flatten: https://github.com/common-workflow-library/cwl-patterns/blob/main/javascript_snippets/flatten-nestedarray.cwl
 
         # special case for select_first of array with one element
         if expr.function_name == "select_first" and len(expr.arguments) > 0:
             inner = expr.arguments[0]
             if isinstance(inner, WDL.Expr.Array) and len(inner.items) == 1:
                 return self.parse(inner.items[0]).assert_not_null()
-
-        args = [self.parse(e) for e in expr.arguments]
-
-        fn_map = {
-            "_land": j.AndOperator,
-            "defined": j.IsDefined,
-            "select_first": j.FilterNullOperator,
-            "basename": self.parse_basename,
-            "length": j.LengthOperator,
-            "_gt": j.GtOperator,
-            "_gte": j.GteOperator,
-            "_lt": j.LtOperator,
-            "_lte": j.LteOperator,
-            "sep": j.JoinOperator,
-            "_add": j.AddOperator,
-            "_interpolation_add": j.AddOperator,
-            "stdout": j.Stdout,
-            "_add": j.AddOperator,
-            "_mul": j.MultiplyOperator,
-            "_div": j.DivideOperator,
-            "glob": j.WildcardSelector,
-            "range": j.RangeOperator,
-            "_at": j.IndexOperator,
-            "_negate": j.NotOperator,
-            "_sub": j.SubtractOperator,
-            "size": self.parse_file_size,
-            "ceil": j.CeilOperator,
-            "select_all": j.FilterNullOperator,
-            "sub": j.ReplaceOperator,
-            "round": j.RoundOperator,
-            "write_lines": lambda exp: f"JANIS: write_lines({exp})",
-            "read_tsv": lambda exp: f"JANIS: j.read_tsv({exp})",
-            "read_boolean": lambda exp: f"JANIS: j.read_boolean({exp})",
-            "read_lines": lambda exp: f"JANIS: j.read_lines({exp})",
-        }
-        fn = fn_map.get(expr.function_name)
-        if fn is None:
+        
+        # uncaught error.  
+        # log message and bail
+        if expr.function_name not in fn_map:
             raise Exception(f"Unhandled WDL apply function_name: {expr.function_name}")
+        
+        fn = fn_map[expr.function_name]
+        
+        # caught error.  we can't parse this func. ignore, log a message, keep going.
+        if fn is None:
+            arg = self.parse(expr.arguments[0])
+            msg = f"Function {expr.function_name}({arg}) not supported. Ignored function."
+            log_message(self.j_entity.uuid, msg, ErrorCategory.SCRIPTING)
+            return arg
+
         if isinstance(fn, LambdaType):
             return fn(args)
         return fn(*args)

@@ -20,9 +20,9 @@ def parse_expression(
     expr: Any, 
     tool_uuid: str, 
     implicit_wrapping: bool=False,
-    error_token_override: Optional[str]=None
+    error_token_override: Optional[str]=None,
+    context: str = 'tool'  # tool | workflow
     ) -> Any:
-    print(type(expr))
 
     # don't parse None
     if expr is None:
@@ -38,12 +38,12 @@ def parse_expression(
     
     # has '$' wrapping 
     if expr.startswith('$(') or expr.startswith('${'):
-        return parse_explicit_expr(expr, tool_uuid, error_token_override)
+        return parse_explicit_expr(expr, tool_uuid, error_token_override, context)
 
     # no '$' wrapping but in this cwl context may still be valid expression
     # add '$' and attempt parse.
     elif implicit_wrapping:
-        return parse_implicit_expr(expr, tool_uuid, error_token_override)
+        return parse_implicit_expr(expr, tool_uuid, error_token_override, context)
 
     # its just a string
     else:
@@ -52,10 +52,11 @@ def parse_expression(
 def parse_explicit_expr(
     expr: str, 
     tool_uuid: str, 
-    error_token_override: Optional[str]=None
+    error_token_override: Optional[str]=None,
+    context: str = 'tool'  # tool | workflow
     ) -> Any:
 
-    result, success = ExpressionParser().parse(expr)
+    result, success = ExpressionParser(context).parse(expr)
     # successful parse
     if success:
         return result, True
@@ -82,13 +83,14 @@ def parse_explicit_expr(
 def parse_implicit_expr(
     expr: str, 
     tool_uuid: str, 
-    error_token_override: Optional[str]=None
+    error_token_override: Optional[str]=None,
+    context: str = 'tool'  # tool | workflow
     ) -> Any:
     if '$(' not in expr and '${' not in expr:
         new_expr = f'$({expr})'
     else:
         new_expr = deepcopy(expr)
-    result, success = ExpressionParser().parse(new_expr)
+    result, success = ExpressionParser(context).parse(new_expr)
 
     # is expression
     if success:
@@ -109,6 +111,10 @@ def get_token_for_expr(expr: str, loglines: list[LogLine]) -> Optional[str]:
 
 
 class ExpressionParser:
+
+    def __init__(self, context: str):
+        self.context = context
+
     file_attr_map = {
         'attr_basename': j.BasenameOperator,
         'attr_dirname': j.DirnameOperator,
@@ -202,7 +208,10 @@ class ExpressionParser:
         # objects
         elif t_name == 'input':
             i_name = self.parse_node(node.children[0])
-            return j.InputSelector(i_name)
+            if self.context == 'tool':
+                return j.InputSelector(i_name)
+            elif self.context == 'workflow':
+                return j.InputNodeSelector(i_name)
         elif t_name == 'rt_outdir':
             return '.'
         elif t_name == 'rt_tmpdir':

@@ -342,7 +342,7 @@ class SimpleSelectAnnotator:
     def looks_like_compound_option_selector(self, param: XMLSelectParam) -> bool:
         appearence = analysis.get_cmdstr_appearences(self.main_stmt, param, filter_to=CmdstrReferenceType.INLINE_PLAIN_TEXT)[0]
         if analysis.is_compound_option(appearence.text):
-            print('--- FOUND COMPOUND OPTION ---')
+            # print('--- FOUND COMPOUND OPTION ---')
             return True
         return False
     

@@ -39,7 +39,6 @@ class EvaluationMetrics:
         print(f'success blocks: {success_percent:0.1f}%')
         for btype_name, count in self.block_types.items():
             print(f'{btype_name}: {count}')
-        print()
 
 
 class PartialCheetahEvaluator:
@@ -58,7 +57,7 @@ class PartialCheetahEvaluator:
             eval_lines = self.lines
 
         # report metrics & return
-        self.metrics.report()
+        # self.metrics.report()
         return eval_lines
 
     def evaluation_worker(self) -> list[str]:

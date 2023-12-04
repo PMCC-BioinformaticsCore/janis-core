@@ -826,7 +826,10 @@ class CwlTranslator(TranslatorBase, metaclass=TranslatorMeta):
                 inp[k] = ad.get(k, v)
 
         # convert to string & assign to self.inputs
-        inputs_str = ruamel.yaml.dump(inp, default_flow_style=False)
+        if inp:
+            inputs_str = ruamel.yaml.dump(inp, default_flow_style=False)
+        else:
+            inputs_str = ''
         self.inputs_file = inputs_str
 
     def build_resources_file(self, entity: WorkflowBuilder | CommandToolBuilder | CodeTool) -> None:

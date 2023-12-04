@@ -6,7 +6,8 @@ import functools
 
 from janis_core import (
     CommandToolBuilder, 
-    CodeTool, 
+    CodeTool,
+    PythonTool, 
     WorkflowBuilder, 
     Tool, 
     InputSelector, 
@@ -271,7 +272,10 @@ class TranslatorBase(ABC):
         Once translation is complete, writes to stdout and/or disk.
         Returns string purely for testing purposes
         """
-        translated = self.translate_code_tool_internal(internal)
+        self.translate_code_tool_internal(internal)
+        assert len(self.tools) == 1
+        translated = self.tools[0][1]
+        
         str_tool = self.stringify_translated_tool(internal, translated)
         str_tool = inject_messages(internal, str_tool)
 
@@ -336,7 +340,7 @@ class TranslatorBase(ABC):
         # Python files for Python code tools
         files: dict[str, str] = {}
 
-        if isinstance(tool, CodeTool):
+        if isinstance(tool, PythonTool):
             # helpers["__init__.py"] = ""
             #helpers[f"{tool.versioned_id()}.py"] = self.gen_python_script(tool)
             filename = f'{tool.id()}.py'

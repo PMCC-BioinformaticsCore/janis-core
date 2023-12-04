@@ -115,6 +115,8 @@ class CmdtoolProcessOutputFactory:
 
         # output uses InputSelector
         elif isinstance(selector, InputSelector):
+            # if selector.input_to_select not in self.tool.inputs_map():
+            #     print()
             tinput = self.tool.inputs_map()[selector.input_to_select]
             
             # ToolInput is Filename type

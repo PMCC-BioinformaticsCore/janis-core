@@ -63,8 +63,10 @@ class ShellCommandParser(CommandParser):
         return {}
     
     def parse_files_to_create(self) -> dict[str, Any]:
-        translated_script = parse_expr(self.task.command, self.task, self.cmdtool)
-        return {"script.sh": translated_script}
+        res, success = parse_expr(self.task.command, self.task, self.cmdtool)
+        if success:
+            return {"script.sh": res}
+        raise RuntimeError
     
     def parse_dirs_to_create(self) -> list[str | Selector]:
         return []

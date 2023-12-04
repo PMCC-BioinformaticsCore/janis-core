@@ -62,10 +62,6 @@ def eval_cmdline_targ(
     else:
         cmdline = f'{value}'
 
-    if tool.id() == 'BwaMemSamtoolsView' and arg.prefix == '-R':
-        print(cmdline)
-        print()
-
     return cmdline
 
 

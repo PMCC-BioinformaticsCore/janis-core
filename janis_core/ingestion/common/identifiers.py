@@ -25,8 +25,6 @@ def _get_id_entity_cwl(identifier: str) -> str:
 def get_id_filename(identifier: str) -> str:
     if settings.ingest.SOURCE == 'cwl':
         cwl_ref = get_cwl_reference(identifier)
-        if not cwl_ref.filename:
-            print()
         assert(cwl_ref.filename)
         return cwl_ref.filename
     else:

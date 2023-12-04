@@ -1,46 +1,33 @@
-miniwdl                   1.11.0
-
-conditional 
-    scatter 
-        step1
-        step2
-        step3
-
-step1 conditions, scatter
 
 
 --------------
 --- GENERAL ---
 ---------------
 
-Translate units documentation: 
+DOCUMENTATION
 - tell new user that for messaging to work, must generate CommandToolBuilder or CodeTool or WorkflowBuilder only!
 - cannot use CommandTool or Workflow or WorkflowBase. 
 
-
 DONE (to test)
-- messages NXF output
-- messages CWl ingest
+- CWL ingest edam formats
 - WDL runtime duration removed
 - NXF tool translate wrap in workflow to create config etc
-- CWL ingest edam formats
-- NEXT translate reflects new TranslatorBase interface
+- NXF translate reflects new TranslatorBase interface
+- WDL ingest operational
+- messages CWL output
+- messages NXF output
+- messages WDL output
+- messages CWl ingest
+- messages WDL ingest
 
 TODO 
-- all translation units messages
-- all translation units functional
-- all translation units passing tests 
-
-- WDL ingest
-    - do basic task parsing: inputs and outputs only. no command / base_command etc. 
-    - keep workflow parsing as-is 
-    - make the above work, add error handling (fallbacks) and message logging. 
-    - once this is done, move to Task parsing (below). 
+- messages GXY ingest
+- WDL rename variables to avoid keywords 
+- WDL rename variables with 2+ uses (eg "bam" input & "bam" output not allowed)
+- WDL remove implied resources
+- WDL docs / annotations from param_metadata
 - WDL Task parsing
     - this seems very doable. 
-    - uses a Lexer
-    - potentially after stringifying the WDL.Task.Command if this simplifies intermediate vars etc
-    - should have a parent func parse_task() which contains fallback
     - TaskParserDefault:
         - can_parse(): checks whether there are no temp variables and 1 command 
         - do_parse():  parses into typical janis structure with base_command etc. 
@@ -49,16 +36,13 @@ TODO
         - do_parse():  inputs=super basic, no base_command, everything is arguments  
         - maybe this style is applicable for Galaxy?
     - Note: result can also contain scripting similar to nextflow. can refernece any input or temp var in task scope.
-- WDL Workflow parsing
-- Adapt CWL translation: ShellCommandRequirement for relevant Janis tools (ingested via WDL TaskParserArguments)
-- 
 
-- messages WDL tool ingest
-- messages WDL workflow ingest
-- messages Galaxy tool ingest
-- messages Galaxy workflow ingest
+- CWL parse self exprs
+- CWL translate_workflow_to_all_in_one()??
+- CWL adapt translation
+    - ShellCommandRequirement for relevant Janis tools (ingested via WDL TaskParserArguments)
 
-- make nextflow translate prescript & script better
+- NXF make prescript & script better
     - prescript should handle getting the right values:
         - input default      def input == params.NULL ? "default value" : input
         - input optionality  def input == params.NULL ? "" : input
@@ -71,14 +55,7 @@ TODO
         - arr joins for non-file (generic) input types
         - stringformatters 
         - Operators in general
-- WDL rename variables to avoid keywords 
-- WDL rename variables with 2+ uses (eg "bam" input & "bam" output not allowed)
-- wdl parser
-- wdl remove implied resources
-- CWL parse self exprs
-- CWL translate_workflow_to_all_in_one()??
-- bugs 
-    - cwl inputs config file boofed for one test
+
 
 
 --------------------

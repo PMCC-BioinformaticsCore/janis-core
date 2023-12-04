@@ -259,8 +259,8 @@ class ParamGrouper:
             name = f'SUBWORKFLOW: {to_case(param.task_id, settings.translate.nextflow.NF_PROCESS_CASE)}'
         elif param.subtype == 'sub_tool':
             name = f'PROCESS: {to_case(param.task_id, settings.translate.nextflow.NF_PROCESS_CASE)}'
-        else:
-            print()
+        # else:
+        #     print()
         return name
 
  

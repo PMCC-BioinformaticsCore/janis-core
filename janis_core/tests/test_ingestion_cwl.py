@@ -650,8 +650,6 @@ class TestErrorHandlingExpressions(unittest.TestCase):
         msgs = [x.message for x in lines]
 
         self.assertIn('bambai_pair2: Could not parse datatype from javascript expression. Treated as generic File with secondaries.', msgs)
-        self.assertIn("error parsing data source for 'text'. Returned None as fallback.", msgs)
-        self.assertIn("error parsing data source for 'target_filename'. Returned None as fallback.", msgs)
         self.assertIn('out3: Could not parse datatype from javascript expression. Treated as generic File with secondaries.', msgs)
 
 

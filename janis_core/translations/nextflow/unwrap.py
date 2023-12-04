@@ -32,6 +32,8 @@ from janis_core.types import (
     DataType
 )
 
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
 from janis_core.operators.operator import (
     IndexOperator,
     AsStringOperator,
@@ -221,6 +223,9 @@ class Unwrapper:
     def get_input_by_id(self, input_id: str) -> ToolInput:
         assert(self.tool is not None)
         inputs = [x for x in self.tool.inputs() if x.id() == input_id]
+        # if not inputs:
+        #     msg = f"Could not find input with id '{input_id}' in tool '{self.tool.id()}'"
+        #     log_message(self.tool.uuid, msg, ErrorCategory.PLUMBING)
         return inputs[0]
     
     def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
@@ -573,17 +578,17 @@ class Unwrapper:
         # tinputs which have static value
         elif var.vtype == VariableType.STATIC:
             expr = self.unwrap(var.value)
-            print()
+            # print()
 
         # tinputs which are ignored in process but have default value
         elif var.vtype == VariableType.IGNORED and inp.default is not None:
             expr = self.unwrap(inp.default)
-            print()
+            # print()
         
         # tinputs which are ignored in process and have no default value
         else:
             expr = None
-            print()
+            # print()
 
         ### applying modifiers ###
         # special case: remove file extension

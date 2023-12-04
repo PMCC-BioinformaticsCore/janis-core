@@ -21,7 +21,8 @@ class TaskInputParser(TaskParser):
     def do_parse(self) -> ToolInput:
         default = None
         if self.wdl_inp.expr:
-            default = parse_expr(self.wdl_inp.expr, self.task, self.cmdtool)
+            res, success = parse_expr(self.wdl_inp.expr, self.task, self.cmdtool)
+            default = res
         tinput = ToolInput(self.wdl_inp.name, parse_type(self.wdl_inp.type, self.task, uuid=self.wdl_inp.name), default=default)
         return tinput
     
@@ -40,8 +41,8 @@ class TaskOutputParser(TaskParser):
     def do_parse(self) -> ToolOutput:
         if self.wdl_out.expr is None:
             raise Exception(f"Output {self.wdl_out.name} has no expression")
-        sel = parse_expr(self.wdl_out.expr, self.task, self.cmdtool)
-        tout = ToolOutput(self.wdl_out.name, parse_type(self.wdl_out.type, self.task, uuid=self.wdl_out.name), selector=sel)
+        res, success = parse_expr(self.wdl_out.expr, self.task, self.cmdtool)
+        tout = ToolOutput(self.wdl_out.name, parse_type(self.wdl_out.type, self.task, uuid=self.wdl_out.name), selector=res)
         return tout
     
     def fallback(self) -> ToolOutput:

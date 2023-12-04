@@ -363,6 +363,10 @@ class AsBoolOperator(SingleValueOperator):
     @staticmethod
     def wdl_symbol():
         return ""
+    
+    @staticmethod
+    def nextflow_symbol():
+        return ""
 
     @staticmethod
     def cwl_symbol():

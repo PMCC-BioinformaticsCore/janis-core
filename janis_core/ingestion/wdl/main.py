@@ -5,7 +5,7 @@ import os
 import WDL
 from typing import Any
 
-from .parsing.workflow.explore import get_entities
+from .parsing.workflow.explore import get_entities_flat
 from janis_core import WorkflowBuilder, CommandToolBuilder
 from janis_core.workflow.workflow import InputNode, StepNode, OutputNode
 
@@ -67,7 +67,7 @@ class WdlParser:
     
     def ingest_workflow(self, wdl_wf) -> WorkflowBuilder:
         """Workflow ingest entry point"""
-        entities = get_entities(wdl_wf)
+        entities = get_entities_flat(wdl_wf)
         janis_wf = WorkflowBuilder(identifier=wdl_wf.name)
         self.ingest_workflow_inputs(wdl_wf, janis_wf, entities)
         self.ingest_workflow_steps(wdl_wf, janis_wf, entities)
@@ -75,7 +75,7 @@ class WdlParser:
         return janis_wf
 
     def ingest_workflow_inputs(self, wdl_wf, janis_wf, entities) -> None:
-        for inp in entities["input"]:
+        for inp in entities["inputs"]:
             self.ingest_workflow_input(wdl_wf, janis_wf, inp)
 
     def ingest_workflow_input(self, wdl_wf, janis_wf, wdl_inp) -> InputNode:
@@ -83,15 +83,15 @@ class WdlParser:
         return parser.parse()
     
     def ingest_workflow_steps(self, wdl_wf, janis_wf, entities) -> None:
-        for inv_call in entities['call']:
-            self.ingest_workflow_step(wdl_wf, janis_wf, inv_call)
-        for inv_call in entities['call']:
-            self.ingest_workflow_step_inputs(wdl_wf, janis_wf, inv_call)
-        for inv_call in entities['call']:
-            self.ingest_workflow_step_modifiers(wdl_wf, janis_wf, inv_call)
+        for flatcall in entities['calls']:
+            self.ingest_workflow_step(wdl_wf, janis_wf, flatcall)
+        for flatcall in entities['calls']:
+            self.ingest_workflow_step_inputs(wdl_wf, janis_wf, flatcall)
+        for flatcall in entities['calls']:
+            self.ingest_workflow_step_modifiers(wdl_wf, janis_wf, flatcall)
 
-    def ingest_workflow_step(self, wdl_wf, janis_wf, inv_call) -> StepNode:
-        call = inv_call.call
+    def ingest_workflow_step(self, wdl_wf, janis_wf, flatcall) -> StepNode:
+        call = flatcall.entity
         task = self.ingest(call.callee)
         return janis_wf.step(
             identifier=call.name,
@@ -99,24 +99,22 @@ class WdlParser:
             ignore_missing=True
         )
             
-    def ingest_workflow_step_inputs(self, wdl_wf, janis_wf, inv_call) -> StepNode:
-        call = inv_call.call
+    def ingest_workflow_step_inputs(self, wdl_wf, janis_wf, flatcall) -> StepNode:
+        call = flatcall.entity
         inp_map = {}
         for k, v in call.inputs.items():
-            parser = WorkflowStepInputParser(wdl_wf, janis_wf, v)  
+            parser = WorkflowStepInputParser(wdl_wf, janis_wf, v, flatcall)  
             inp_map[k] = parser.parse()
-        if call.name == 'samples':
-            print()
         inputs_dict = inp_map
         jstep = janis_wf[call.name]
         add_step_edges_to_graph(jstep, inputs_dict, janis_wf) 
         return jstep
 
-    def ingest_workflow_step_modifiers(self, wdl_wf, janis_wf, inv_call) -> StepNode:
-        parser = WorkflowStepModifierParser(wdl_wf, janis_wf, inv_call) 
+    def ingest_workflow_step_modifiers(self, wdl_wf, janis_wf, flatcall) -> StepNode:
+        parser = WorkflowStepModifierParser(wdl_wf, janis_wf, flatcall) 
         parser.parse()
         
-        jstep = janis_wf[inv_call.call.name]
+        jstep = janis_wf[flatcall.entity.name]
         if parser.scatter is not None:
             jstep.scatter = parser.scatter
             janis_wf.has_scatter = True
@@ -126,11 +124,11 @@ class WdlParser:
         return jstep
 
     def ingest_workflow_outputs(self, wdl_wf, janis_wf, entities) -> None:
-        for out in entities["output"]:
-            self.ingest_workflow_output(wdl_wf, janis_wf, out)
+        for flatout in entities["outputs"]:
+            self.ingest_workflow_output(wdl_wf, janis_wf, flatout)
 
-    def ingest_workflow_output(self, wdl_wf, janis_wf, wd_out) -> OutputNode:
-        parser = WorkflowOutputParser(wdl_wf, janis_wf, wd_out) 
+    def ingest_workflow_output(self, wdl_wf, janis_wf, flatout) -> OutputNode:
+        parser = WorkflowOutputParser(wdl_wf, janis_wf, flatout) 
         return parser.parse()
 
 

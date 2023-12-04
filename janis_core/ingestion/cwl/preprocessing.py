@@ -132,8 +132,6 @@ class CWLTypeConverter:
         binding.outputBinding.outputEval = cast_cwl_type_to_python(binding.outputBinding.outputEval)
 
     def _convert_types_clt(self, clt: Any) -> Any:
-        if not hasattr(clt, 'baseCommand'):
-            print()
         clt.baseCommand = cast_cwl_type_to_python(clt.baseCommand)
         clt.stderr = cast_cwl_type_to_python(clt.stderr)
         clt.stdout = cast_cwl_type_to_python(clt.stdout)

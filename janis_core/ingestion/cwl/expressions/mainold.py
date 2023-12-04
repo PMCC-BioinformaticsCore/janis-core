@@ -83,8 +83,6 @@ class ExpressionParser:
         single_expression_match = single_expression_matcher.match(expr)
         inline_expression_matches = list(inline_expression_matcher.findall(expr)) # non-full length expressions "$(expr1).fastq" etc
         
-        if '/foo/bar/baz' in expr:
-            print()
         # if only single $(expr) 
         if single_token_match:
             res = self.convert_javascript_token(single_token_match.groups()[0])

@@ -47,6 +47,11 @@ from janis_core import settings
 from . import mock
 
 
+def _strip_comments(text: str) -> str:
+    lines = text.split("\n")
+    return "\n".join([l for l in lines if not l.strip().startswith("#")])
+
+
 def reset_global_settings() -> None:
     settings.validation.STRICT_IDENTIFIERS = True 
     settings.translate.MODE = 'regular'
@@ -637,7 +642,7 @@ class TestCwlGenerateInput(unittest.TestCase):
         wf.input("inpId", String(optional=True))
         self.translator.build_inputs_file(wf)
         inputs_file = self.translator.inputs_file
-        self.assertEqual(inputs_file, "inpId: null\n")
+        self.assertEqual(inputs_file, "")
 
     def test_input_in_input_novalue_optional_default(self):
         wf = WorkflowBuilder("test_cwl_input_in_input_novalue_optional_default")
@@ -797,6 +802,8 @@ class TestCWLCompleteOperators(unittest.TestCase):
         ret, _, _, _ = StepInputExpressionTestWF().translate(
             "cwl", to_console=False
         )
+        ret = _strip_comments(ret)
+        print(ret)
         self.assertEqual(cwl_stepinput, ret)
 
     def test_array_step_input(self):
@@ -817,6 +824,8 @@ class TestCWLCompleteOperators(unittest.TestCase):
         wf.output("out", source=wf.print)
 
         ret, _, _, _ = wf.translate("cwl")
+        ret = _strip_comments(ret)
+        print(ret)
         self.maxDiff = None
         self.assertEqual(cwl_arraystepinput, ret)
 
@@ -1296,7 +1305,6 @@ id: test_add_single_to_array_edge
 """
 
 cwl_stepinput = """\
-#!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.2
 label: 'TEST: WorkflowWithStepInputExpression'
@@ -1337,7 +1345,6 @@ id: StepInputExpressionTestWF
 """
 
 cwl_arraystepinput = """\
-#!/usr/bin/env cwl-runner
 class: Workflow
 cwlVersion: v1.2
 

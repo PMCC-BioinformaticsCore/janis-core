@@ -71,7 +71,7 @@ def gen_nf_process_directives(tool: CommandToolBuilder | PythonTool, vmanager: V
     if settings.translate.nextflow.ENTITY == 'workflow':
         if 'cpus' not in nf_directives and tool.cpus({}) is not None: 
             cpus = tool.cpus({})
-            if isinstance(cpus, Selector):
+            if isinstance(cpus, Selector) and not settings.ingest.SOURCE == 'wdl':
                 res = unwrap_expression(val=cpus, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
                 if isinstance(cpus, StringFormatter):
                     res = f'{res}'
@@ -84,7 +84,7 @@ def gen_nf_process_directives(tool: CommandToolBuilder | PythonTool, vmanager: V
         
         if 'memory' not in nf_directives and tool.memory({}) is not None:
             memory = tool.memory({})
-            if isinstance(memory, Selector):
+            if isinstance(memory, Selector) and not settings.ingest.SOURCE == 'wdl':
                 res = unwrap_expression(val=memory, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
                 if isinstance(memory, StringFormatter):
                     res = f'{res} MB'
@@ -97,7 +97,7 @@ def gen_nf_process_directives(tool: CommandToolBuilder | PythonTool, vmanager: V
         
         if 'disk' not in nf_directives and tool.disk({}) is not None:
             disk = tool.disk({})
-            if isinstance(disk, Selector):
+            if isinstance(disk, Selector) and not settings.ingest.SOURCE == 'wdl':  # bandaid fix for wdl
                 res = unwrap_expression(val=disk, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
                 if isinstance(disk, StringFormatter):
                     res = f'{res} MB'
@@ -110,7 +110,7 @@ def gen_nf_process_directives(tool: CommandToolBuilder | PythonTool, vmanager: V
         
         if 'time' not in nf_directives and tool.time({}) is not None:
             time = tool.time({})
-            if isinstance(time, Selector):
+            if isinstance(time, Selector) and not settings.ingest.SOURCE == 'wdl':
                 res = unwrap_expression(val=time, context='process_script', variable_manager=vmanager, tool=tool, apply_braces=False)
                 if isinstance(time, StringFormatter):
                     res = f'{res}'

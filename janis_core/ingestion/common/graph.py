@@ -23,6 +23,8 @@ from .identifiers import get_id_path
 def add_step_edges_to_graph(jstep: StepNode, inputs_dict: dict[str, Any], wf: Workflow) -> None:
     jstep.tool.connections = inputs_dict
     tinputs = jstep.tool.inputs_map()
+    if jstep.sources:
+        raise RuntimeError("Step already has sources??")
     jstep.sources = {}
     
     added_edges = []

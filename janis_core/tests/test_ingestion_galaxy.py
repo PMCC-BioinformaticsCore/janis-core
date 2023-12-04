@@ -984,7 +984,7 @@ class TestJanisToolMapping(unittest.TestCase):
         # check attributes are correct
         self.assertEquals(jinp1.tag, 'file_input')
         self.assertEquals(jinp1.prefix, None)
-        self.assertEquals(jinp1.separate_value_from_prefix, True)
+        self.assertEquals(jinp1.separate_value_from_prefix, None)
         self.assertIsInstance(jinp1.input_type, File)
         
         self.assertEquals(jinp2.tag, 'noheader')

@@ -44,7 +44,6 @@ def split_text_statements(text: str) -> list[str]:
                 statements.append(current_stmt)
                 current_stmt = ''
                 offset = m.end()
-                print()
         current_stmt += f'{line[offset:]}\n'
 
     statements.append(current_stmt)
