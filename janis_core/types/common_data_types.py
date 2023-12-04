@@ -183,6 +183,48 @@ class String(DataType):
         return f"Value was of type {type(meta)}, expected string"
 
 
+class Enum(DataType):
+    def __init__(self, items: list[str | float | int], optional=False):
+        self.items = items 
+        self.optional = optional if optional is not None else False
+        self.is_prim = False
+            
+    @staticmethod
+    def name():
+        return "Enum"
+
+    @staticmethod
+    def primitive():
+        return NativeTypes.kStr
+
+    @staticmethod
+    def doc():
+        return "An enum"
+
+    def input_field_from_input(self, meta):
+        return next(iter(meta.values()))
+
+    def can_receive_from(self, other, source_has_default=False):
+        if isinstance(other, String):
+            return True
+        return super().can_receive_from(other, source_has_default=source_has_default)
+
+    def validate_value(self, meta: Any, allow_null_if_not_optional: bool):
+        if meta is None:
+            return self.optional or allow_null_if_not_optional
+        return isinstance(meta, (str, float, int)) and meta in self.items
+
+    def coerce_value_if_possible(self, value):
+        return [value]
+
+    def invalid_value_hint(self, meta):
+        if meta is None:
+            return "value was null"
+        if self.validate_value(meta, True):
+            return None
+        return f"Value was of type {type(meta)}, expected string"
+
+
 class Filename(String):
     def __init__(
         self, prefix="generated", suffix=None, extension: str = None, optional=None

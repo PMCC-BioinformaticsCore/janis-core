@@ -3,7 +3,7 @@
 from typing import Any
 from abc import ABC, abstractmethod
 
-from janis_core import ToolInput, CommandTool, DataType
+from janis_core import ToolInput, CommandToolBuilder, DataType, Filename, Selector, StringFormatter
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
 
@@ -26,8 +26,13 @@ NULL_VALUE = settings.translate.nextflow.NULL_VALUE
 NULL_PATH = 'null'
 
 
+"""
+prescript should only handle ternary logic (default or optional)
 
-def gen_prescript_lines(tool: CommandTool, vmanager: VariableManager) -> list[str]:
+"""
+
+
+def gen_prescript_lines(tool: CommandToolBuilder, vmanager: VariableManager) -> list[str]:
     lines: list[str] = []
     tinputs = selection.prescript_inputs(tool, vmanager)
     tinputs = ordering.prescript_inputs(tinputs)
@@ -38,7 +43,7 @@ def gen_prescript_lines(tool: CommandTool, vmanager: VariableManager) -> list[st
 
 def gen_prescript_lines_for_input(
     tinput: ToolInput,
-    tool: CommandTool,
+    tool: CommandToolBuilder,
     vmanager: VariableManager,
 ) -> list[str]:
     
@@ -90,7 +95,7 @@ class PreScriptFormatter(ABC):
     def __init__(
         self, 
         tinput: ToolInput,
-        tool: CommandTool,
+        tool: CommandToolBuilder,
         vmanager: VariableManager,
     ) -> None:
         self.tool = tool
@@ -179,7 +184,7 @@ class GenericArrayFormatter(PreScriptFormatter):
         self.prescript.append(line)
 
     def join_declaration(self) -> str:
-        new_varname = f'{naming.process.generic(self.tinput)}_joined'
+        new_varname = f'{naming.process.generic(self.tinput)}'
         self.update_variable(new_varname)
         if self.attributes.optional or self.attributes.default:
             return self.join_declaration_optional()
@@ -375,6 +380,10 @@ class FilePairArrayFormatter(PreScriptFormatter):
 class FileArrayFormatter(GenericArrayFormatter):
 
     COND_CHECK_FMT = '{src}[0] != {null}'
+    
+    ARR_JOIN_BASIC = '{src}'
+    ARR_JOIN_PREFIX = '"{prefix}{spacer}${{{src}}}"'
+    ARR_JOIN_PREFIXEACH = '{src}.collect{{ \"{prefix}{spacer}${{it}}\" }}'
 
     def cond_check(self) -> str:
         # eg: adapters[0] != null
@@ -481,11 +490,9 @@ class FilenameFormatter(GenericFormatter):
     def default_str(self, apply_prefix: bool=False) -> str:
         expr = unwrap_expression(
             val=self.dtype,
-            context='process_output',
+            context='process_prescript',
             variable_manager=self.vmanager,
             tool=self.tool,
-            in_shell_script=True,
-            quote_strings=False
         )
         if not expr.startswith('"') and not expr.endswith('"'):
             expr = f'"{expr}"'

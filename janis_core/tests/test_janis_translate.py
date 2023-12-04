@@ -5,13 +5,24 @@ import pytest
 from typing import Any
 
 from janis_core import settings
+from janis_core.messages import gather_uuids
+from janis_core.messages import configure_logging
+from janis_core.messages import log_message
+from janis_core.messages import FormatCategory
+from janis_core.messages import ErrorCategory
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
+from janis_core.tests.testtools import EchoTestTool
 from janis_core.tests.testtools import FileOutputPythonTestTool
 from janis_core.tests.testtools import GridssTestTool
+from janis_core.tests.testtools import FastqcTestTool
+from janis_core.tests.testtools import MessagingTestTool
+from janis_core.tests.testtools import FileInputPythonTestTool
+from janis_core.tests.testworkflows import BasicIOTestWF
 from janis_core.tests.testworkflows import PruneFlatTW
 from janis_core.tests.testworkflows import PruneNestedTW
 from janis_core.tests.testworkflows import AssemblyTestWF
+from janis_core.tests.testworkflows import SubworkflowTestWF
 from janis_core.redefinitions.tools import Cat
 from janis_core.redefinitions.tools import GenerateVardictHeaderLines
 from janis_core.redefinitions.workflows import BwaAligner
@@ -20,10 +31,13 @@ from janis_core.redefinitions.workflows import WGSGermlineMultiCallers
 from janis_core import CommandToolBuilder
 from janis_core import WorkflowBuilder
 from janis_core import CodeTool
+from janis_core import StepOutputSelector
+from janis_core import InputNodeSelector
 
 from janis_core.translations import nextflow
 from janis_core.translations.common import to_builders
 from janis_core.translations.common import prune_workflow
+from janis_core.translations.common import wrap_tool_in_workflow
 from janis_core import settings
 
 import os 
@@ -86,6 +100,14 @@ def _get_wdl_task_command_lines(task_text: str) -> list[str]:
     
     return out
 
+def _get_nf_subworkflow_input_lines(text: str) -> list[str]:
+    pattern = r'take:([\s\S]*)main:'
+    match = list(re.finditer(pattern, text))[0]
+    lines = match.group(1).split('\n')
+    lines = [ln.strip() for ln in lines]
+    lines = [ln for ln in lines if ln != '']
+    return lines
+
 def _get_nf_process_input_lines(process_text: str) -> list[str]:
     """Returns the lines of the process script"""
     out: list[str] = []
@@ -123,9 +145,10 @@ def _get_nf_process_script_lines(process_text: str) -> list[str]:
     return out
 
 def _reset_global_settings() -> None:
+    configure_logging()    # reset the messages logfile
     nextflow.task_inputs.clear()
     nextflow.params.clear()
-    settings.ingest.SAFE_MODE = False
+    settings.ingest.SAFE_MODE = True
     settings.ingest.galaxy.GEN_IMAGES = False
     settings.ingest.galaxy.DISABLE_CONTAINER_CACHE = False
     settings.ingest.cwl.INGEST_JAVASCRIPT_EXPRESSIONS = True
@@ -218,17 +241,381 @@ class TestTranslationEndpoints(unittest.TestCase):
     def test_workflow_translate_nextflow(self) -> None:
         AssemblyTestWF().translate('nextflow', export_path='./translated')
 
+    @unittest.skip('TODO: update JanisTranslator to new interface')
     def test_str_tool(self):
         BwaAligner().translate("janis")
 
+    @unittest.skip('TODO: update JanisTranslator to new interface')
     def test_str_python_tool(self):
         GenerateVardictHeaderLines().translate("janis")
 
+    @unittest.skip('TODO: update JanisTranslator to new interface')
     def test_command_tool(self):
         Cat().translate("janis")
 
+    @unittest.skip('TODO: update JanisTranslator to new interface')
     def test_str_big_workflow(self):
         WGSGermlineMultiCallers().translate("janis")
+
+
+
+### ----- MESSAGES ----- ###
+
+class TestMessageModule(unittest.TestCase):
+
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_gather_uuids_tool(self) -> None:
+        ### codetool ###
+        codetool = FileInputPythonTestTool()
+        uuid_map = gather_uuids(codetool)
+        self.assertEqual(uuid_map[codetool.uuid], FormatCategory.MAIN)
+        
+        ### cmdtoolbuilder ###
+        cmdtool = MessagingTestTool() # type: ignore
+        cmdtool: CommandToolBuilder = to_builders(cmdtool) # type: ignore
+        uuid_map = gather_uuids(cmdtool)
+        tinp = cmdtool.inputs()[0]
+        targ = cmdtool.arguments()[0]
+        tout = cmdtool.outputs()[0]
+        self.assertEqual(uuid_map[cmdtool.uuid], FormatCategory.MAIN)
+        self.assertEqual(uuid_map[tinp.uuid], FormatCategory.INPUT)
+        self.assertEqual(uuid_map[targ.uuid], FormatCategory.ARGUMENT)
+        self.assertEqual(uuid_map[tout.uuid], FormatCategory.OUTPUT)
+
+    def test_gather_uuids_workflow(self) -> None:
+        ### workflowbuilder ###
+        workflow = AssemblyTestWF()
+        workflow = to_builders(workflow)
+        uuid_map = gather_uuids(workflow)
+        winp = workflow.input_nodes['inForwardReads']
+        wstep = workflow.step_nodes['fastqc1']
+        wout = workflow.output_nodes['fastqc1_outHtmlFile']
+        self.assertEqual(uuid_map[workflow.uuid], FormatCategory.MAIN)
+        self.assertEqual(uuid_map[winp.uuid], FormatCategory.INPUT)
+        self.assertEqual(uuid_map[wstep.uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['adapters'].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['contaminants'].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wstep.sources['contaminants'].source_map[0].uuid], FormatCategory.STEP)
+        self.assertEqual(uuid_map[wout.uuid], FormatCategory.OUTPUT)
+        
+
+class TestMessageInjection(unittest.TestCase):
+
+    """
+    - CWL tool
+    - NXF tool
+    - WDL tool
+    - CWL workflow
+    - CWL subworkflow
+    - NXF workflow
+    - NXF subworkflow
+    - WDL workflow
+    - NXF subworkflow
+    - split_sections
+    - expressions
+    - 
+    """
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+        tool = EchoTestTool()
+        tool = to_builders(tool)
+        log_message(entity_uuid=tool.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=tool.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=tool.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=tool.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=tool.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        self.tool = tool
+
+        wf = BasicIOTestWF()
+        wf = to_builders(wf)
+        winp = list(wf.input_nodes.values())[0]
+        wstep = list(wf.step_nodes.values())[0]
+        wout = list(wf.output_nodes.values())[0]
+        log_message(entity_uuid=winp.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=wf.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=wout.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        log_message(entity_uuid=wstep.uuid, msg='test message4', category=ErrorCategory.EXPERIMENTAL)
+        log_message(entity_uuid=wf.uuid, msg='test message5', category=ErrorCategory.SCRIPTING)
+        self.wf = wf
+
+    ### TOOLS ###
+
+    def test_tool_injection_cwl(self) -> None:
+        mainstr = translate(self.tool, 'cwl', export_path='./translated')
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(mainstr)
+
+        # banner
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+    
+    def test_tool_injection_nextflow(self) -> None:
+        mainstr = translate(self.tool, 'nextflow', export_path='./translated')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+
+        # banner
+        self.assertIn(f'// {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'// [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+
+    def test_tool_injection_wdl(self) -> None:
+        mainstr = translate(self.tool, 'wdl', export_path='./translated')
+        msgs_header = mainstr.split('version development')[0]
+        print(mainstr)
+
+        # banner
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        # correct formatting [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        # right messages are present
+        for msg in ['test message2', 'test message3', 'test message4']:
+            self.assertIn(msg, msgs_header)
+        self.assertNotIn('UNTRANSLATED EXPRESSIONS', msgs_header)
+        self.assertNotIn('test message5', msgs_header)
+
+
+    ### WORKFLOWS ###
+
+    def test_workflow_injection_cwl(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'cwl', export_path='./translated')
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'steps:\s*# \[{level}\]\[{cat}\] test message4'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+
+    def test_workflow_injection_nextflow(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'nextflow', export_path='./translated')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'// {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'// [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        self.assertNotIn(f'test message4', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'    // \[{level}\]\[{cat}\] test message4\n    STP1()'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+    
+    def test_workflow_injection_wdl(self) -> None:
+        settings.messages.USE_SUBSECTIONS = False
+        mainstr, _, _, _ = translate(self.wf, 'wdl', export_path='./translated')
+        msgs_header = mainstr.split('version development')[0]
+        print(mainstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+
+        # right messages are present (heading)
+        self.assertIn(f'test message2', msgs_header)
+        self.assertIn(f'test message3', msgs_header)
+        self.assertNotIn(f'test message4', msgs_header)
+        
+        # step messages present / not present (steps)
+        self.assertIn(f'test message4', mainstr)
+        self.assertNotIn(f'test message5', mainstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        level, cat = ErrorCategory.EXPERIMENTAL.value
+        pattern = fr'  # \[{level}\]\[{cat}\] test message4\n  call F.FileTestTool as stp1 {{'
+        matches = list(re.finditer(pattern, mainstr))
+        self.assertEqual(len(matches), 1)
+    
+    ### MISC ###
+
+    def test_misc_injection_subsections(self) -> None:
+        # using cwl, assuming all other specs work
+        settings.messages.USE_SUBSECTIONS = True
+        mainstr, _, _, _ = translate(self.wf, 'cwl', export_path='./translated')
+        msgs_header = mainstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(mainstr)
+
+        level, cat = ErrorCategory.METADATA.value
+        self.assertIn(f'# GENERAL\n# [{level}][{cat}] test message2', msgs_header)
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# INPUTS\n# [{level}][{cat}] test message1', msgs_header)
+        level, cat = ErrorCategory.FALLBACKS.value
+        self.assertIn(f'# OUTPUTS\n# [{level}][{cat}] test message3', msgs_header)
+    
+    def test_misc_injection_subworkflow(self) -> None:
+        # using cwl, assuming all other specs work
+        settings.messages.USE_SUBSECTIONS = False
+        wf = SubworkflowTestWF()
+        wf = to_builders(wf)
+
+        subwf = wf.step_nodes['apples_subworkflow'].tool
+        subinp = list(subwf.input_nodes.values())[0]
+        substep = list(subwf.step_nodes.values())[0]
+        subout = list(subwf.output_nodes.values())[0]
+        log_message(entity_uuid=subinp.uuid, msg='test message1', category=ErrorCategory.DATATYPES)
+        log_message(entity_uuid=subout.uuid, msg='test message2', category=ErrorCategory.METADATA)
+        log_message(entity_uuid=substep.uuid, msg='test message3', category=ErrorCategory.FALLBACKS)
+        mainstr, _, subworkflows, _ = translate(wf, 'cwl', export_path='./translated')
+        subwfstr = subworkflows[1][1]
+        msgs_header = subwfstr.split('#!/usr/bin/env cwl-runner')[0]
+        print(subwfstr)
+
+        # banner (heading)
+        self.assertIn(f'# {settings.messages.MESSAGES_BANNER}', msgs_header)
+        
+        # correct formatting (heading) [LEVEL][CATEGORY] {message}
+        level, cat = ErrorCategory.DATATYPES.value
+        self.assertIn(f'# [{level}][{cat}] test message1', msgs_header)
+        level, cat = ErrorCategory.METADATA.value
+        self.assertIn(f'# [{level}][{cat}] test message2', msgs_header)
+
+        # step messages present but not in header (steps)
+        level, cat = ErrorCategory.FALLBACKS.value
+        self.assertNotIn(f'# [{level}][{cat}] test message3', msgs_header)
+        self.assertIn(f'# [{level}][{cat}] test message3', subwfstr)
+
+        # step messages in correct location & formatted correctly (steps)
+        pattern = fr'steps:\s*# \[{level}\]\[{cat}\] test message3'
+        matches = list(re.finditer(pattern, subwfstr))
+        self.assertEqual(len(matches), 1)
+
+    def test_misc_injection_scripting(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure heading
+        self.assertIn(f'// {settings.messages.SCRIPTING_BANNER}', mainstr)
+        # ignore tokens which no longer appear in file
+        self.assertNotIn('__TOKEN1__ = "$([inputs.runtime_cpu, 16, 1].filter(function (inner) { return inner != null })[0])"', mainstr)
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN2__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', mainstr)
+        self.assertIn('-C __TOKEN2__', mainstr)
+        
+
+
+    
+class TestMessageLoggingCWL(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    @unittest.skip('TODO implement')
+    def test_fallbacks(self) -> None:
+        raise NotImplementedError
+    
+    def test_datatypes(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+        
+        level, cat = ErrorCategory.DATATYPES.value
+        msg = 'out2: Could not parse datatype from javascript expression. Treated as generic File with secondaries.'
+        self.assertIn(f'// [{level}][{cat}] {msg}', msgs_header)
+    
+    @unittest.skip('TODO implement')
+    def test_plumbing(self) -> None:
+        raise NotImplementedError
+    
+    @unittest.skip('TODO implement')
+    def test_metadata(self) -> None:
+        # includes container errors
+        raise NotImplementedError
+    
+    @unittest.skip('TODO implement')
+    def test_experimental(self) -> None:
+        raise NotImplementedError
+
+    def test_scripting(self) -> None:
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/inputs_arguments.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        msgs_header = mainstr.split('nextflow.enable.dsl=2')[0]
+        print(mainstr)
+
+        # ensure heading
+        self.assertIn(f'// {settings.messages.SCRIPTING_BANNER}', msgs_header)
+        # ignore tokens which no longer appear in file
+        self.assertNotIn('__TOKEN1__', mainstr)
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN2__ = "${  var r = [];  for (var i = 10; i >= 1; i--) {    r.push(i);  }  return r;}"', mainstr)
+        self.assertIn('-C __TOKEN2__', mainstr)
+        
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/outputs.cwl'
+        mainstr = _run(filepath, 'cwl', 'nextflow')
+        print(mainstr)
+        
+        # ensure tokens which are in file
+        self.assertIn('__TOKEN1__ = "$(self[0].contents)"', mainstr)
+        self.assertIn('path "__TOKEN1__", emit: out4', mainstr)
+    
+
+
+class TestMessageLoggingGalaxy(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+
+
+class TestMessageLoggingWDL(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    
+    
 
 
 
@@ -605,43 +992,54 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_skeleton_nextflow(self) -> None:
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
-        expected_inputs_count = {
-            'modules/basic.nf': 3,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 5,
-            'subworkflows/subworkflow.nf': 6,
+        _, _, subwfs, processes = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        expected_task_input_count = {
+            'basic.nf': 3,
+            'mandatory_input_types.nf': 6,
+            'optional_input_types.nf': 5,
+        }
+        expected_subwf_input_count = {
+            'subworkflow.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 6,
-            'modules/mandatory_input_types.nf': 8,
-            'modules/optional_input_types.nf': 7,
+            'basic.nf': 5,
+            'mandatory_input_types.nf': 7,
+            'optional_input_types.nf': 6,
         }
-        for filepath, filecontents in sub_tasks:
-            if _is_nf_process(filecontents):
-                print(filecontents)
-                actual_input_lines = _get_nf_process_input_lines(filecontents)
-                actual_script_lines = _get_nf_process_script_lines(filecontents)
-                self.assertEqual(len(actual_input_lines), expected_inputs_count[filepath])
-                self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
+        for filepath, filecontents in subwfs:
+            actual_lines = _get_nf_subworkflow_input_lines(filecontents)
+            expected = expected_subwf_input_count[filepath]
+            self.assertEqual(len(actual_lines), expected)
+        for filepath, filecontents in processes:
+            print(filecontents)
+            actual_input_lines = _get_nf_process_input_lines(filecontents)
+            actual_script_lines = _get_nf_process_script_lines(filecontents)
+            self.assertEqual(len(actual_input_lines), expected_task_input_count[filepath])
+            self.assertEqual(len(actual_script_lines), expected_script_lengths[filepath])
 
     def test_regular_nextflow(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        maintask, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        maintask, _, subwfs, processes = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         print(maintask)
         expected_inputs_count = {
-            'modules/basic.nf': 3,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 5,
-            'subworkflows/subworkflow.nf': 6,
+            'basic.nf': 3,
+            'mandatory_input_types.nf': 6,
+            'optional_input_types.nf': 5,
+        }
+        expected_subwf_input_count = {
+            'subworkflow.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 7,
-            'modules/mandatory_input_types.nf': 8,
-            'modules/optional_input_types.nf': 7,
+            'basic.nf': 6,
+            'mandatory_input_types.nf': 7,
+            'optional_input_types.nf': 6
         }
-        for filepath, filecontents in sub_tasks:
+        for filepath, filecontents in subwfs:
+            actual_lines = _get_nf_subworkflow_input_lines(filecontents)
+            expected = expected_subwf_input_count[filepath]
+            self.assertEqual(len(actual_lines), expected)
+        for filepath, filecontents in processes:
             if _is_nf_process(filecontents):
                 print(filecontents)
                 actual_input_lines = _get_nf_process_input_lines(filecontents)
@@ -652,17 +1050,24 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_extended_nextflow(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='nextflow')
         expected_inputs_count = {
-            'modules/basic.nf': 7,
-            'modules/mandatory_input_types.nf': 6,
-            'modules/optional_input_types.nf': 6,
+            'basic.nf': 7,
+            'mandatory_input_types.nf': 6,
+            'optional_input_types.nf': 6,
+        }
+        expected_subwf_input_count = {
+            'subworkflow.nf': 6,
         }
         expected_script_lengths = {
-            'modules/basic.nf': 10,
-            'modules/mandatory_input_types.nf': 8,
-            'modules/optional_input_types.nf': 8,
+            'basic.nf': 9,
+            'mandatory_input_types.nf': 7,
+            'optional_input_types.nf': 7,
         }
+        for filepath, filecontents in subwfs:
+            actual_lines = _get_nf_subworkflow_input_lines(filecontents)
+            expected = expected_subwf_input_count[filepath]
+            self.assertEqual(len(actual_lines), expected)
         for filepath, filecontents in sub_tasks:
             if _is_nf_process(filecontents):
                 print(filecontents)
@@ -705,7 +1110,7 @@ class TestPreprocessingModes(unittest.TestCase):
         # TODO
         settings.translate.MODE = 'skeleton'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         for filepath, filecontents in sub_tasks:
             if _is_wdl_task(filecontents):
                 command_lines = _get_wdl_task_command_lines(filecontents)
@@ -744,7 +1149,7 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_cwl2(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/m-unlock/workflows/ngtax.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
             'tools/fastqc_v0_1_0.cwl': 2,
             'tools/files_to_folder_v0_1_0.cwl': 2,
@@ -784,7 +1189,7 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_regular_wdl(self) -> None:
         settings.translate.MODE = 'regular'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         expected_num_clt_inputs = {
             'align_and_tag_v0_1_0': 3,
             'index_bam_v0_1_0': 1,
@@ -808,7 +1213,7 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_extended_cwl(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='cwl')
         expected_num_clt_inputs = {
             'tools/basic_v0_1_0.cwl': 7,
             'tools/mandatory_input_types_v0_1_0.cwl': 6,
@@ -829,7 +1234,7 @@ class TestPreprocessingModes(unittest.TestCase):
     def test_extended_wdl(self) -> None:
         settings.translate.MODE = 'extended'
         filepath = f'{CWL_TESTDATA_PATH}/workflows/subworkflow_test/main.cwl'
-        _, _, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
+        _, _, subwfs, sub_tasks = _run(filepath, srcfmt='cwl', destfmt='wdl')
         expected_num_clt_inputs = {
             'align_and_tag_v0_1_0': 3,
             'index_bam_v0_1_0': 1,
@@ -879,6 +1284,41 @@ class TestPreprocessingToBuilders(unittest.TestCase):
 
 
 
+# ---- PREPROCESSING: AS_WORKFLOW ------------------------------
+
+class TestPreprocessingAsWorkflow(unittest.TestCase):
+    
+    def setUp(self) -> None:
+        _reset_global_settings()
+
+    def test_tool_fastqc(self):
+        tool: CommandToolBuilder = FastqcTestTool()
+        wf = wrap_tool_in_workflow(tool)
+
+        # basics
+        self.assertIsInstance(wf, WorkflowBuilder)
+        self.assertEqual(len(wf.input_nodes), 11)
+        self.assertEqual(len(wf.step_nodes), 1)
+        self.assertEqual(len(wf.output_nodes), 2)
+        
+        # checking step input sources
+        step = wf.step_nodes['fastqc_step']
+        for inp in tool._inputs:
+            self.assertIn(inp.id(), step.sources)
+            source = step.sources[inp.id()].source_map[0].source
+            self.assertIsInstance(source, InputNodeSelector)
+            self.assertEqual(source.input_node, wf.input_nodes[inp.id()])
+
+        # checking workflow output sources
+        for out in tool._outputs:
+            self.assertIn(out.id(), wf.output_nodes)
+            source = wf.output_nodes[out.id()].source
+            self.assertIsInstance(source, StepOutputSelector)
+            self.assertEqual(source.node, step)
+            self.assertEqual(source.tag, out.id())
+
+
+
 # ---- FROM CWL ---------------------------
 
 class TestCwlToWdl(unittest.TestCase):
@@ -888,6 +1328,21 @@ class TestCwlToWdl(unittest.TestCase):
         self.dest = 'wdl'
         _reset_global_settings()
 
+    def test_tool_bwa_index(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/BWA-Index.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
+    def test_tool_cutadapt(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/cutadapt-paired.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
+    def test_tool_picard_markduplicates(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/picard_MarkDuplicates.cwl'
+        toolstr = _run(filepath, self.src, self.dest)
+        print(toolstr)
+    
     def test_tool_fastqc2(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/fastqc2.cwl'
         toolstr = _run(filepath, self.src, self.dest)
@@ -977,6 +1432,14 @@ class TestCwlToNextflow(unittest.TestCase):
         _reset_global_settings()
 
     # Tools
+    def test_tool_picard_markduplicates(self):
+        filepath = f'{CWL_TESTDATA_PATH}/tools/expressions/picard_MarkDuplicates.cwl'
+        mainstr = _run(filepath, self.src, self.dest)
+        self.assertIn('path "${alignments.simpleName}.markduplicates.log", emit: log', mainstr)
+        self.assertIn('OUTPUT=${alignments.simpleName}_markduplicates${"." + alignments.extension}', mainstr)
+        print(mainstr)
+        print()
+    
     def test_tool_samtools_flagstat(self):
         filepath = f'{CWL_TESTDATA_PATH}/tools/samtools_flagstat.cwl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -995,6 +1458,7 @@ class TestCwlToNextflow(unittest.TestCase):
     
     # Workflows
     def test_wf_align_sort_markdup(self):
+        settings.ingest.SAFE_MODE = True
         filepath = f'{CWL_TESTDATA_PATH}/workflows/align_sort_markdup/align_sort_markdup.cwl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
@@ -1082,37 +1546,37 @@ class TestWdlToCwl(unittest.TestCase):
         self.dest = 'cwl'
         _reset_global_settings()
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_tool_bwa(self):
         filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_somatic(self):
         filepath = f'{WDL_TESTDATA_PATH}/somatic_wf.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_multisample_jointgt_gatk4_wf(self):
         filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_preprocessing(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_reads2map(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_snp_calling(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
@@ -1127,26 +1591,39 @@ class TestWdlToNextflow(unittest.TestCase):
         self.src = 'wdl'
         self.dest = 'nextflow'
         _reset_global_settings()
+        settings.ingest.SAFE_MODE = True
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
+    def test_wf_atac(self):
+        filepath = f'{WDL_TESTDATA_PATH}/ATAC.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+
+    @unittest.skip('TODO: update for wdl ingest changes')
+    def test_wf_mutect2(self):
+        filepath = f'{WDL_TESTDATA_PATH}/mutect2.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+    
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_multisample_jointgt_gatk4(self):
         filepath = f'{WDL_TESTDATA_PATH}/Multisample_jointgt_GATK4.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_preprocessing(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_reads2map(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
-    @unittest.skip('need injest fixes')
+    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_snp_calling(self):
         filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)

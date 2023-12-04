@@ -1,10 +1,9 @@
 
-from typing import Any, Optional
+from typing import Any
 import unittest
 import os 
 import json
-import xml.etree.ElementTree as et
-import pytest 
+import pytest  
 
 from janis_core.ingestion.main import ingest_galaxy
 
@@ -12,7 +11,6 @@ from janis_core.ingestion.galaxy.gxtool.text.simplification.main_statement impor
 from janis_core.ingestion.galaxy import runtime
 from janis_core.ingestion.galaxy.gxworkflow import load_tool_state
 from janis_core.ingestion.galaxy.gxtool.parsing import load_xmltool
-from janis_core.ingestion.galaxy.gxtool.parsing.nogx.main import load_xmltool_new
 from janis_core.ingestion.galaxy.gxtool.text.simplification.simplify import simplify_cmd
 
 from janis_core.ingestion.galaxy.gxworkflow.parsing.tool_step.metadata import parse_step_metadata
@@ -63,13 +61,13 @@ from janis_core.ingestion.galaxy.janis_mapping.tool import to_janis_tool_output
 from janis_core.ingestion.galaxy.janis_mapping.tool import to_janis_tool
 
 # mock objects
-from .mock.mock_components import MOCK_POSITIONAL1
-from .mock.mock_components import MOCK_FLAG1
-from .mock.mock_components import MOCK_OPTION2
-from .mock.mock_components import MOCK_REDIRECT_OUTPUT
-from .mock.mock_entities import MOCK_WORKFLOW_INPUT1
-from .mock.mock_tool import MOCK_TOOL_ABRICATE
-from .mock.mock_workflow import MOCK_WORKFLOW
+from .mock.galaxy import MOCK_POSITIONAL1
+from .mock.galaxy import MOCK_FLAG1
+from .mock.galaxy import MOCK_OPTION2
+from .mock.galaxy import MOCK_REDIRECT_OUTPUT
+from .mock.galaxy import MOCK_WORKFLOW_INPUT1
+from .mock.galaxy import MOCK_TOOL_ABRICATE
+from .mock.galaxy import MOCK_WORKFLOW
 from janis_core.ingestion import ingest
 from janis_core.translations import translate
 
@@ -142,7 +140,7 @@ class TestLoadXMLTool(unittest.TestCase):
     @unittest.skip('requires moving to new parser')
     def test_fastqc2(self) -> None:
         filepath = f'{GALAXY_TESTTOOL_PATH}/fastqc-5ec9f6bceaee/rgFastQC.xml'
-        tool = load_xmltool_new(filepath)
+        # tool = load_xmltool_new(filepath)
         print()
 
     @unittest.skip('requires moving to new parser')
@@ -311,7 +309,7 @@ class TestResolveDependencies(unittest.TestCase):
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/coreutils:8.25'
+        expected = 'quay.io/biocontainers/coreutils:8.25--1'
         self.assertEqual(actual, expected)
     
     def test_single_requirement(self) -> None:
@@ -319,14 +317,14 @@ class TestResolveDependencies(unittest.TestCase):
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/abricate:1.0.1'
+        expected = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_2'
         self.assertEqual(actual, expected)
         
         filepath = os.path.abspath(f'{GALAXY_TESTTOOL_PATH}/fastqc-3d0c7bdf12f5/rgFastQC.xml')
         runtime.tool.tool_path = filepath
         xmltool = load_xmltool(filepath)
         actual = resolve_dependencies_as_container(xmltool)
-        expected = 'quay.io/biocontainers/fastqc:0.11.9'
+        expected = 'quay.io/biocontainers/fastqc:0.11.9--hdfd78af_1'
         self.assertEqual(actual, expected)
 
     def test_multiple_requirements(self) -> None:
@@ -986,7 +984,7 @@ class TestJanisToolMapping(unittest.TestCase):
         # check attributes are correct
         self.assertEquals(jinp1.tag, 'file_input')
         self.assertEquals(jinp1.prefix, None)
-        self.assertEquals(jinp1.separate_value_from_prefix, True)
+        self.assertEquals(jinp1.separate_value_from_prefix, None)
         self.assertIsInstance(jinp1.input_type, File)
         
         self.assertEquals(jinp2.tag, 'noheader')

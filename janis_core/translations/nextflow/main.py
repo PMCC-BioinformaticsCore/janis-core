@@ -1,13 +1,8 @@
-from copy import deepcopy
+
 import os
-from collections import defaultdict
-from typing import Tuple, Optional, Any, Protocol
+from typing import Tuple, Any, Optional
 
-from janis_core.tool.commandtool import (
-    CommandTool,
-    Tool,
-)
-
+from janis_core.tool.commandtool import Tool
 from janis_core.code.codetool import CodeTool
 from janis_core.code.pythontool import PythonTool
 from janis_core.tool.commandtool import CommandToolBuilder
@@ -17,144 +12,103 @@ from janis_core.translation_deps.supportedtranslations import SupportedTranslati
 from janis_core import InputSelector, File, Directory
 from janis_core import settings
 
-from .model.files.files import NFFile
+from .model.workflow import NFWorkflow
+from .model.process import NFProcess
 
 from .generate.process import generate_processes
 from .generate.process import generate_process
 from .generate.workflow import generate_workflows
-from .generate.files import generate_files 
+# from .generate.files import generate_files 
 from .generate.files import generate_file_process 
-
-from . import params
+from .generate.files import generate_file_workflow 
+from .casefmt import to_case
 from . import generate
 from . import preprocessing
 
-from .scope import Scope
 
+# HELPERS
+def _get_tool(tool_id: str, wf: WorkflowBuilder) -> CommandToolBuilder | CodeTool:
+    """finds & returns workflow tool using tool_id"""
+    tool = _do_get_tool(tool_id, wf)
+    if not tool:
+        raise Exception(f"Tool '{tool_id}' not found in workflow")
+    return tool
 
-# class methods dont make sense. dislike this approach. 
-# whole approach is far too complex. no need for oop. 
-# should have just defined a translation interface (protocol class in python) 
-# specifying the method signatures each translator needs.
+def _do_get_tool(tool_id: str, wf: WorkflowBuilder) -> Optional[CommandToolBuilder | CodeTool]:
+    """finds & returns workflow tool using tool_id"""
+    for step in wf.step_nodes.values():
+        if step.tool.id() == tool_id:
+            return step.tool
 
-# class File:
-#     ...
+        if isinstance(step.tool, WorkflowBuilder):
+            tool = _do_get_tool(tool_id, step.tool)
+            if tool:
+                return tool
+    return None
 
-# def translate_workflow(workflow: Workflow) -> list[File]:
-#     """translates a janis workflow to nextflow format."""
-#     ...
+def _get_workflow(workflow_id: str, main_wf: WorkflowBuilder) -> WorkflowBuilder:
+    if main_wf.id() == workflow_id:
+        return main_wf
+    workflow = _do_get_workflow(workflow_id, main_wf)
+    if not workflow:
+        raise Exception(f"Workflow '{workflow_id}' not found in workflow")
+    return workflow
 
-# def translate_tool(tool: Tool) -> list[File]:
-#     """translates a janis tool to nextflow"""
-#     ...
+def _do_get_workflow(workflow_id: str, wf: WorkflowBuilder) -> Optional[WorkflowBuilder]:
+    """finds & returns workflow using workflow_id"""
+    for step in wf.step_nodes.values():
+        if step.tool.id() == workflow_id:
+            return step.tool
 
-# - GH Dec 2022
-
-
-class IGetStringMethod(Protocol):
-    def get_string(self) -> str:
-        ... 
-
-def dot_to_scope_notation(dot: str) -> list[str]:
-    return dot.split('.')
-
-
-class NFFileRegister:
-    """
-    Stores generated nf files. 
-    Organised by {scope: file}.
-    Each entity (ie workflow, subworkflow, tool) only belongs to 1 file.
-    Some entities (Tools / Workflows) may have multiple items (imports, function definitions, process / workflow body etc). 
-    """
-    def __init__(self):
-        self.files: dict[str, NFFile] = {}
-
-    def add(self, scope: Scope, nf_file: NFFile) -> None:
-        label = scope.to_string()
-        self.files[label] = nf_file
+        if isinstance(step.tool, Workflow):
+            workflow = _do_get_workflow(workflow_id, step.tool)
+            if workflow:
+                return workflow
     
-    def get(self, scope: Scope) -> NFFile:
-        label = scope.to_string()
-        return self.files[label]
+    return None
 
-    def get_children(self, scope: Scope, direct_only: bool=True) -> list[NFFile]:
-        # items with current scope
-        child_files: list[NFFile] = []
-        
-        # items with child scope
-        depth = len(scope.items)
-        for label, nf_file in self.files.items():
-            label_split = dot_to_scope_notation(label)
-            # ignore the main workflow file (it throws things off)
-            if label_split != [settings.translate.nextflow.NF_MAIN_NAME]:
-                # does the scope match the start of the label?
-                if label_split[:depth] == scope.labels:
-                    # if we only want direct children
-                    if not direct_only:
-                        child_files.append(nf_file)
-                    elif direct_only and len(label_split) == depth + 1:
-                        child_files.append(nf_file)
-        return child_files
-    
-
-class NFItemRegister:
-    """
-    Stores generated nf items. 
-    Organised by {scope: [items]}.
-    Some entities (Tools / Workflows) may have multiple items (imports, function definitions, process / workflow body etc). 
-    """
-    def __init__(self):
-        self.items: dict[str, list[IGetStringMethod]] = defaultdict(list)
-
-    def add(self, scope: Scope, nf_item: IGetStringMethod) -> None:
-        label = scope.to_string()
-        self.items[label].append(nf_item)
-
-    def get(self, scope: Scope) -> list[IGetStringMethod]:
-        # items with current scope
-        label = scope.to_string()
-        nf_items = deepcopy(self.items[label]) # ??? no idea why i did this but too scared to change
-        return nf_items
-    
 
 class NextflowTranslator(TranslatorBase):
-    DIR_TOOLS: str = '' # DO NOT ALTER
-    DIR_FILES: str = '' # DO NOT ALTER
-    SUBDIRS_TO_CREATE: list[str] = [
-        settings.translate.nextflow.PROCESS_OUTDIR,
-        settings.translate.nextflow.SUBWORKFLOW_OUTDIR,
-        settings.translate.nextflow.TEMPLATES_OUTDIR,
-    ]
-
-    file_register: NFFileRegister = NFFileRegister()
-    item_register: NFItemRegister = NFItemRegister()
+    
+    OUTDIR_STRUCTURE: dict[str, str | None] = {
+        'main': None,
+        'subworkflows': 'subworkflows',
+        'tools': 'modules',
+        'inputs': None,
+        'helpers': 'templates',
+        'resources': None,
+    }
 
     def __init__(self):
         super().__init__(name="nextflow")
 
-    def translate_workflow_internal(self, wf: Workflow) -> Tuple[Any, dict[str, Any]]:
-        # set class variables to avoid passing junk params
+
+    ### JANIS -> OUTPUT MODEL MAPPING ###
+
+    def translate_workflow_internal(self, wf: Workflow) -> None:
+        # set class variables to avoid passing junk data
         assert(isinstance(wf, WorkflowBuilder))
         settings.translate.nextflow.BASE_OUTDIR = self.basedir
 
         preprocessing.populate_task_inputs(wf, wf)
         processes = generate_processes(wf)
         workflows = generate_workflows(wf, processes)
-        files = generate_files(wf, processes, workflows)
+        
+        for tool_id, nf_process in processes.items():
+            tool = _get_tool(tool_id, wf)
+            self.add_tool(tool, nf_process)
+        
+        for wf_id, nf_workflow in workflows.items():
+            is_subworkflow = True if wf_id != wf.id() else False
+            janis_workflow = _get_workflow(wf_id, wf)
+            if is_subworkflow:
+                self.add_subworkflow(janis_workflow, nf_workflow)
+            else:
+                self.main = (janis_workflow, nf_workflow)
 
-        # get the main wf file and all sub files
-        main_file = files[wf.id()]
-        sub_files = [nf_file for tool_id, nf_file in files.items() if tool_id != wf.id()]
-
-        # return format (gen str for each file)
-        main_file_str = main_file.get_string()
-        sub_files_str = {sub_file.path: sub_file.get_string() for sub_file in sub_files}
-        return (main_file_str, sub_files_str)
-
-    @classmethod
-    def translate_tool_internal(cls, tool: CommandTool) -> str:
+    def translate_tool_internal(self, tool: CommandToolBuilder) -> None:
         """
-        Generate Nextflow process for Janis CommandTool
+        Generate Nextflow process for Janis CommandToolBuilder
 
         :param tool:
         :type tool:
@@ -162,14 +116,15 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         assert(isinstance(tool, CommandToolBuilder))
+        # check we haven't already translated this
+        if self.get_tool(tool) is not None:
+            return
         settings.translate.nextflow.ENTITY = 'tool'
         preprocessing.populate_task_inputs(tool)
-        process = generate_process(tool)
-        process_file = generate_file_process(process, tool)
-        return process_file.get_string()
+        tool_nxf = generate_process(tool)
+        self.add_tool(tool, tool_nxf)
 
-    @classmethod
-    def translate_code_tool_internal(cls, tool: CodeTool) -> str:
+    def translate_code_tool_internal(self, tool: CodeTool) -> None:
         """
         Generate Nextflow process for Janis CodeTool
 
@@ -179,190 +134,69 @@ class NextflowTranslator(TranslatorBase):
         :rtype:
         """
         assert(isinstance(tool, PythonTool))
+        # check we haven't already translated this
+        if self.get_tool(tool) is not None:
+            return
         settings.translate.nextflow.ENTITY = 'tool'
         preprocessing.populate_task_inputs(tool)
-        process = generate_process(tool)
-        process_file = generate_file_process(process, tool)
-        return process_file.get_string()
-
-    @classmethod
-    def translate_helper_files(cls, tool: Tool) -> dict[str, str]:
-        """
-        Generate a dictionary of helper files to run Nextflow.
-        Key of the dictionary is the filename, the value is the file content
-
-        :param tool:
-        :type tool:
-        :return:
-        :rtype:
-        """
-        code_files = cls.gen_python_code_files(tool)
-        template_files = cls.gen_template_files(tool)
-        helpers = template_files | code_files
-        return helpers
+        tool_nxf = generate_process(tool)
+        self.add_tool(tool, tool_nxf)
     
-    @classmethod
-    def gen_python_code_files(cls, tool: Tool) -> dict[str, str]:
-        # Python files for Python code tools
-        files: dict[str, str] = {}
-
-        if isinstance(tool, PythonTool):
-            # helpers["__init__.py"] = ""
-            #helpers[f"{tool.versioned_id()}.py"] = cls.gen_python_script(tool)
-            subdir = settings.translate.nextflow.TEMPLATES_OUTDIR
-            filename = f'{tool.id()}.py'
-            filepath = os.path.join(subdir, filename)
-            files[filepath] = tool.prepared_script(SupportedTranslation.NEXTFLOW)
-
-        elif isinstance(tool, WorkflowBase):
-            for step in tool.step_nodes.values():
-                step_code_files = cls.gen_python_code_files(step.tool)
-                files = files | step_code_files # merge dicts
-        
-        return files
-
-    @classmethod
-    def gen_template_files(cls, tool: Tool) -> dict[str, str]:
-        # files from tool.files_to_create
-        files: dict[str, str] = {}
-
-        if isinstance(tool, CommandTool):
-            if tool.files_to_create():
-                for name, contents in tool.files_to_create().items():
-                    if not isinstance(name, str):
-                        # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
-                        raise NotImplementedError()
-                        print()
-                    
-                    if isinstance(contents, str):
-                        assert(not name.startswith('unnamed_'))
-                        if '<js>' in contents:
-                            # ignore, print error message for user
-                            raise NotImplementedError()
-                            pass
-                        else:
-                            # create file
-                            path = f'{settings.translate.nextflow.TEMPLATES_OUTDIR}/{name}'
-                            files[path] = contents
-                    
-                    elif isinstance(contents, InputSelector):
-                        tinput_name = contents.input_to_select
-                        tinput = tool.inputs_map()[tinput_name]
-                        if isinstance(tinput.intype, File | Directory):
-                            raise NotImplementedError()
-                            print('ignored staging File into process')
-                        else:
-                            raise NotImplementedError()
-                            print('ignored staging String into process')
-                        # # js evaluates to a file: add referenced file to output directory
-                        # if name.startswith('unnamed_'):
-                        #     # dont override filename
-                        #     pass
-                        # else:
-                        #     # override filename
-                        #     pass
-                        # print()
-                    
-                    else:
-                        raise NotImplementedError
-        
-        elif isinstance(tool, WorkflowBase):
-            for step in tool.step_nodes.values():
-                step_template_files = cls.gen_template_files(step.tool)
-                files = files | step_template_files # merge dicts
-
-        return files
+    def build_inputs_file(self, entity: WorkflowBuilder | CommandToolBuilder | CodeTool) -> None:
+        """delegated to external function due to size / complexity"""
+        self.inputs_file = generate.config.generate_config()
+    
+    def build_resources_file(self, entity: WorkflowBuilder | CommandToolBuilder | CodeTool) -> None:
+        """
+        Always combined for nextflow.
+        """
+        self.resources_file = None
 
     @classmethod
     def unwrap_expression(cls, expression: Any) -> Any:
         pass
 
-    @classmethod
-    def build_inputs_dict(
-        cls,
-        tool: Workflow | CommandTool,
-        recursive: bool=False,
-        merge_resources: bool=False,
-        hints: Optional[dict[str, Any]]=None,
-        additional_inputs: Optional[dict[str, Any]]=None,
-        max_cores: Optional[int]=None,
-        max_mem: Optional[int]=None,
-        max_duration: Optional[int]=None,
-    ) -> dict[str, Any]:
-        """
-        Generate a dictionary containing input name and its values from users or
-        its default values if inputs not provided.
-        Builds using params - all params must be registered before they will appear! 
-        nfgen.params.register(Tool | Workflow)
 
-        :param tool:
-        :type tool:
-        :param recursive:
-        :type recursive:
-        :param merge_resources:
-        :type merge_resources:
-        :param hints:
-        :type hints:
-        :param additional_inputs:
-        :type additional_inputs:
-        :param max_cores:
-        :type max_cores:
-        :param max_mem:
-        :type max_mem:
-        :param max_duration:
-        :type max_duration:
-        :return:
-        :rtype:
-        """
-        # TODO?
-        return {}
-        raise NotImplementedError
-        scope: Scope = Scope()
-        if additional_inputs:
-            params.register_params_for_additional_inputs(additional_inputs, scope)
-        if merge_resources:
-            resources_input = cls.build_resources_input(
-                tool,
-                hints,
-                max_cores=max_cores,
-                max_mem=max_mem,
-                max_duration=max_duration,
-            )
-            params.register_params_for_resources(resources_input)
-        return params.serialize()
+    ### STRINGIFY ###
 
-    @staticmethod
-    def stringify_translated_workflow(wf):
-        return wf
-
-    @staticmethod
-    def stringify_translated_tool(tool):
-        return tool
-
-    @staticmethod
-    def stringify_translated_inputs(inputs):
-        """
-        convert dictionary inputs to string
+    def stringify_translated_workflow(self, internal: WorkflowBuilder, translated: NFWorkflow) -> str:
+        # need to get all translated workflows & processes to generate imports. 
+        # Can't remember why it needs to be dict - oh well
         
-        NOTE - this method does not do what it says. 
-
-        build_inputs_dict() and stringify_translated_inputs() must be 
-        implemented by any subclass of TranslationBase, but these don't
-        properly capture what we want to do for  
-
-        The fed inputs are ignored because we do not want a dict. 
-        Rather, we want the registered nfgen.params. We can use their 
-        properties to create a nicer config file structure.
+        # main workflow
+        nf_workflows = {}
+        assert self.main is not None
+        intnl_main, trans_main = self.main
+        nf_workflows[intnl_main.id()] = trans_main
         
-        :param inputs:
-        :type inputs:
-        :return:
-        :rtype:
-        """
-        return generate.config.generate_config()
+        # subworkflows
+        for intnl_subwf, nf_subwf in self.subworkflows:
+            nf_workflows[intnl_subwf.id()] = nf_subwf
+        
+        # processes
+        nf_processes = {}
+        for intnl_tool, nf_process in self.tools:
+            nf_processes[intnl_tool.id()] = nf_process
+
+        is_subworkflow = True if internal.id() == self.main[0].id() else False
+        nffile = generate_file_workflow(
+            translated, 
+            nf_processes, 
+            nf_workflows, 
+            internal, 
+            is_subworkflow
+        )
+        return nffile.get_string()
+
+    def stringify_translated_tool(self, internal: CommandToolBuilder | CodeTool, translated: NFProcess) -> str:
+        nffile = generate_file_process(translated, internal)
+        return nffile.get_string()
+
+    
+    ### FILENAMES ###
 
     @staticmethod
-    def workflow_filename(workflow: Workflow) -> str:
+    def workflow_filename(workflow: WorkflowBuilder, is_main: Optional[bool]=False) -> str:
         """
         Generate the main workflow filename
 
@@ -371,9 +205,10 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        #return workflow.versioned_id() + ".nf"
-        # return workflow.id() + ".nf"
-        return settings.translate.nextflow.MAIN_WORKFLOW_NAME
+        if is_main:
+            return settings.translate.nextflow.MAIN_WORKFLOW_NAME
+        basename = to_case(workflow.id(), settings.translate.nextflow.NF_FILE_CASE)
+        return basename + ".nf"
 
     @staticmethod
     def inputs_filename(workflow: Workflow) -> str:
@@ -385,31 +220,30 @@ class NextflowTranslator(TranslatorBase):
         :return:
         :rtype:
         """
-        #return workflow.versioned_id() + ".input.json"
         return settings.translate.nextflow.CONFIG_FILENAME
 
     @staticmethod
     def tool_filename(tool: str | Tool) -> str:
-        prefix: str = '' 
-        if isinstance(tool, Tool):
-            #prefix = tool.versioned_id()
-            prefix = tool.id()
-        else:
-            prefix = tool
-
-        return prefix + ".nf"
+        toolname = tool if isinstance(tool, str) else tool.id()
+        basename = to_case(toolname, settings.translate.nextflow.NF_FILE_CASE)
+        return basename + ".nf"
 
     @staticmethod
     def resources_filename(workflow: Workflow) -> str:
         """
-        Generate resoureces filename
+        Generate resoureces filename 
+        This should never be called.
 
         :param workflow:
         :type workflow:
         :return:
         :rtype:
         """
-        return workflow.id() + "-resources.json"
+        raise RuntimeError
+        # return workflow.id() + "-resources.json"
+
+    
+    ### VALIDATION ###
 
     @staticmethod
     def validate_command_for(wfpath, inppath, tools_dir_path, tools_zip_path):

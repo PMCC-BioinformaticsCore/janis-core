@@ -11,7 +11,9 @@ from janis_core import (
     InputSelector,
     WildcardSelector,
     FirstOperator,
-    IndexOperator
+    IndexOperator,
+    StringFormatter,
+    NamerootOperator,
 )
 from janis_core.types import (
     Filename,
@@ -29,6 +31,7 @@ class OutputCollectionTestWF(Workflow):
         self.input('inFile', File)
         self.input('inFileArray', Array(File))
 
+        self.step("stp0", ExpressionTestTool(inp=self.inFile))
         self.step("stp1", WildcardSelectorTestTool(inp=self.inFile))
         self.step("stp2", FilenameGenTestTool(inp=self.inFile))
         self.step("stp3", FilenameRefTestTool(inp=self.inFile))
@@ -58,6 +61,35 @@ class CatToolBase(CommandTool):
         
     def base_command(self) -> Optional[str | list[str]]:
         return 'cat'
+
+
+class ExpressionTestTool(CatToolBase):
+    
+    def friendly_name(self):
+        return "TEST: ExpressionTestTool"
+
+    def tool(self):
+        return "ExpressionTestTool"
+
+    def inputs(self):
+        return [
+            ToolInput("inp", File(), position=1),
+        ]
+    
+    def arguments(self):
+        return []
+
+    def outputs(self):
+        return [
+            ToolOutput(
+                "out",
+                File(),
+                selector=StringFormatter(
+                    format='{token1}_markduplicates.metrics',
+                    token1=NamerootOperator(InputSelector('inp'))
+                ),
+            )
+        ]
 
 
 class WildcardSelectorTestTool(CatToolBase):

@@ -23,8 +23,6 @@ def populate_task_inputs(tool: Tool, main_wf: Optional[WorkflowBuilder]=None) ->
     elif settings.translate.nextflow.ENTITY == 'workflow' and isinstance(main_wf, WorkflowBuilder):
         _populate_task_inputs_workflowmode(main_wf, main_wf)
     else:
-        print(type(tool))
-        print(tool.id())
         raise RuntimeError(f"{tool.id()}: {type(tool)}")
 
 def _populate_task_inputs_workflowmode(subwf: WorkflowBuilder, main_wf: WorkflowBuilder) -> None:

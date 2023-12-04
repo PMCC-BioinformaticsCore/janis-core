@@ -19,9 +19,7 @@ MAX_LINE_WIDTH = 80
 TEMPLATE = """\
 
 nextflow.enable.dsl = 2
-singularity.enabled = true
-singularity.autoMounts = true
-singularity.cacheDir = "$HOME/.singularity/cache"
+docker.enabled = true
 
 params {{
     
@@ -261,8 +259,8 @@ class ParamGrouper:
             name = f'SUBWORKFLOW: {to_case(param.task_id, settings.translate.nextflow.NF_PROCESS_CASE)}'
         elif param.subtype == 'sub_tool':
             name = f'PROCESS: {to_case(param.task_id, settings.translate.nextflow.NF_PROCESS_CASE)}'
-        else:
-            print()
+        # else:
+        #     print()
         return name
 
  

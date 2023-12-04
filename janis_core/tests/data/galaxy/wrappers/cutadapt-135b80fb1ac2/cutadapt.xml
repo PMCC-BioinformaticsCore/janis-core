@@ -186,7 +186,7 @@ $read_mod_options.zero_cap
             </param>
 
             <when value="single">
-                <param name="input_1" format="@FASTQ_TYPES@" type="data" label="FASTQ/A file" help="Should be of datatype &quot;fastq.gz&quot; or &quot;fasta&quot;" />
+                <param name="input_1" format="@FASTQ_TYPES@" type="data" optional="True" label="FASTQ/A file" help="Should be of datatype &quot;fastq.gz&quot; or &quot;fasta&quot;" />
                 <expand macro="single_end_options" />
             </when>
 

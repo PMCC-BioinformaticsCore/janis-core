@@ -20,7 +20,6 @@ from janis_core.types import (
     Boolean,
 )
 
-
 class StdoutTestTool(CommandTool):
     def tool(self) -> str:
         return "StdoutTestTool"

@@ -1,5 +1,6 @@
 
 
+from galaxy.tool_util.deps.mulled.util import quay_versions
 from galaxy.tool_util.deps.mulled.util import v2_image_name
 from galaxy.tool_util.deps.mulled.util import build_target
 
@@ -21,7 +22,9 @@ def resolve_dependencies_as_container(xmltool: XMLTool) -> str:
     
     elif len(xmltool.metadata.requirements) == 1:
         req = xmltool.metadata.requirements[0]
-        return f'quay.io/biocontainers/{req.name}:{req.version}'
+        tags = quay_versions('biocontainers', req.name)
+        version_tags = [x for x in tags if x.startswith(req.version)]
+        return f'quay.io/biocontainers/{req.name}:{version_tags[0]}'
     
     else:
         items = [build_target(req.name, version=req.version) for req in xmltool.metadata.requirements]

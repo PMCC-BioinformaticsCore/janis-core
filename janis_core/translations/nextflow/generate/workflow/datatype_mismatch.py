@@ -126,7 +126,7 @@ def generate_secondary_secondary_mismatch_pumbing(srctype: DataType, desttype: D
         elif ext in srctype_exts:
             index = srctype_exts.index(ext)
         else:
-            print(f"Secondary tuple mapping failed for {ext}. Made a best guess.")
+            # print(f"Secondary tuple mapping failed for {ext}. Made a best guess.")
             index = i
 
         indices.append(index)

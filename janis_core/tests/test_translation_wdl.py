@@ -5,6 +5,7 @@ from typing import Optional, Any
 import wdlgen
 from janis_core.types import UnionType
 
+from janis_core.translations.common import to_builders
 from janis_core.translations import translate
 from janis_core import settings
 import janis_core.translations.wdl as wdl
@@ -85,6 +86,7 @@ def non_blank_lines_list(text: str) -> list[str]:
 def non_blank_lines_str(text: str) -> str:
     lines = text.splitlines()
     lines = [ln for ln in lines if not ln == '']
+    lines = [ln for ln in lines if '# [' not in ln]
     outstr = '\n'.join(lines)
     return outstr
 
@@ -155,6 +157,7 @@ class TestTypeWithAlternateAndSecondary(File):
         return ["^.file"]
 
 
+
 class TestWdl(unittest.TestCase):
     def setUp(self) -> None:
         reset_global_settings()
@@ -167,16 +170,21 @@ class TestWdl(unittest.TestCase):
         self.assertEqual("Array[File]?", wdl.get_string())
 
 
+
+
+
 class TestWdlComments(unittest.TestCase):
     def setUp(self):
         reset_global_settings()
         w = WorkflowBuilder("sbmf")
         w.input("inp1", str)
         w.input("inp2", str)
-        self.step = w.step(
+        w.step(
             "testTool",
             SingleTestTool(input1=w.inp1, input2=w.inp2),
         )
+        w = to_builders(w)
+        self.step = w.step_nodes["testTool"]
 
     def test_wdl_comments(self):
         settings.translate.RENDER_COMMENTS = True
@@ -217,7 +225,8 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
 
     def test_stringify_workflow(self):
         wdlobj = wdlgen.Workflow("wid", version="development")
-        wdlstr = self.translator.stringify_translated_workflow(wdlobj)
+
+        wdlstr = self.translator.stringify_translated_workflow(None, wdlobj)
         wdlstr = non_blank_lines_str(wdlstr)
         self.assertEqual(
             "version development\nworkflow wid {\n}",
@@ -228,13 +237,7 @@ class TestWdlTranslatorOverrides(unittest.TestCase):
         wdlobj = wdlgen.Task("tid", version="development")
         self.assertEqual(
             "version development\n\ntask tid {\n\n}",
-            self.translator.stringify_translated_tool(wdlobj),
-        )
-
-    def test_stringify_inputs(self):
-        d = {"wid.inp1": 1}
-        self.assertEqual(
-            '{\n    "wid.inp1": 1\n}', self.translator.stringify_translated_inputs(d)
+            self.translator.stringify_translated_tool(None, wdlobj),
         )
 
     def test_workflow_filename(self):
@@ -264,17 +267,27 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
         w.input("wsec", SecondaryTestType, default="test.ext")
         # w._add_input(Input("wsec", TestTypeWithSecondary(), value="test.ext"))
         settings.translate.MERGE_RESOURCES = False
-        inpsdict = WdlTranslator().build_inputs_dict(w)
-        self.assertEqual("test.ext", inpsdict.get("tst.wsec"))
-        self.assertEqual("test.txt", inpsdict.get("tst.wsec_txt"))
+        translator = WdlTranslator()
+        translator.build_inputs_file(w)
+        self.assertIn('"tst.wsec": "test.ext",', translator.inputs_file)
+        self.assertIn('"tst.wsec_txt": "test.txt"', translator.inputs_file)
 
     def test_inputs_generator_array_of_secondary_files(self):
         w = WorkflowBuilder("tst")
         w.input("wsec", Array(SecondaryTestType()), default=["test.ext"])
         settings.translate.MERGE_RESOURCES = False
-        inpsdict = WdlTranslator().build_inputs_dict(w)
-        self.assertListEqual(["test.ext"], inpsdict.get("tst.wsec"))
-        self.assertListEqual(["test.txt"], inpsdict.get("tst.wsec_txt"))
+        translator = WdlTranslator()
+        translator.build_inputs_file(w)
+        print(translator.inputs_file)
+        expected = """{
+    "tst.wsec": [
+        "test.ext"
+    ],
+    "tst.wsec_txt": [
+        "test.txt"
+    ]
+}"""    
+        self.assertEqual(expected, translator.inputs_file)
 
     def test_translate_single_to_array_edge(self):
         w = WorkflowBuilder("wf")
@@ -283,7 +296,7 @@ class TestWdlTranslatorBuilders(unittest.TestCase):
         stp2 = w.step(
             "stp2", BasicTestTool(arrayInp=stp1.std, testtool=w.inp), ignore_missing=True
         )
-
+        w = to_builders(w)
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(stp2, stp2.id(), {}, set(), None)
         outp_str = outp.get_string()
@@ -493,9 +506,13 @@ class TestWdlSelectorsAndGenerators(unittest.TestCase):
         self.assertEqual("~{tumorInputName}:~{normalInputName}", res)
 
     def test_escaped_characters(self):
-        trans = wdl.WdlTranslator
-        translated = trans.translate_tool_internal(BasicTestTool())
-        arg = translated.command[-1].arguments[0]
+        tool = BasicTestTool()
+        tool = to_builders(tool)
+        translator = WdlTranslator()
+        translator.translate_tool_internal(tool)
+        assert len(translator.tools) == 1
+        tool_wdl = translator.tools[0][1]
+        arg = tool_wdl.command[-1].arguments[0]
         self.assertEqual("'test:\\t:escaped:\\n:characters\"'", arg.value)
 
     # test removed as optional placeholders don't throw errors anymore
@@ -555,102 +572,91 @@ class TestWdlGenerateInput(unittest.TestCase):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(), default="1")
 
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
-        )
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "1"', translator.inputs_file)
 
     def test_input_in_input_value_nooptional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(), default="1")
 
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
-        )
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "1"', translator.inputs_file)
 
     def test_input_in_input_value_optional_nodefault(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True), default="1")
 
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
-        )
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "1"', translator.inputs_file)
 
     def test_input_in_input_value_optional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True), default="1")
 
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "1"},
-            self.translator.build_inputs_dict(wf),
-        )
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "1"', translator.inputs_file)
 
     def test_input_in_input_novalue_nooptional_nodefault(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String())
 
         # included because no value, no default, and not optional
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": None},
-            self.translator.build_inputs_dict(wf),
-        )
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": null', translator.inputs_file)
 
     def test_input_in_input_novalue_nooptional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(), default="2")
 
         # new interpretation: defaults appear in inputs
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "2"},
-            self.translator.build_inputs_dict(wf),
-        )
-        # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "2"', translator.inputs_file)
 
     def test_overrided_input_optional_nodefault(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True))
 
         settings.translate.ADDITIONAL_INPUTS = {"inpId": "2"}
-        actual_inputs = self.translator.build_inputs_dict(wf)
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
         settings.translate.ADDITIONAL_INPUTS = None
-        expected_inputs = {"test_input_in_inputfile.inpId": "2"}
-
-        # new interpretation: defaults appear in inputs
-        self.assertDictEqual(actual_inputs, expected_inputs)
+        self.assertIn('"test_input_in_inputfile.inpId": "2"', translator.inputs_file)
 
     def test_overrided_input_optional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True), default="2")
 
         settings.translate.ADDITIONAL_INPUTS = {"inpId": "4"}
-        actual_inputs = self.translator.build_inputs_dict(wf)
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
         settings.translate.ADDITIONAL_INPUTS = None
-        expected_inputs = {"test_input_in_inputfile.inpId": "4"}
-
-        # new interpretation: defaults appear in inputs
-        self.assertDictEqual(actual_inputs, expected_inputs)
+        self.assertIn('"test_input_in_inputfile.inpId": "4"', translator.inputs_file)
 
     def test_input_in_input_novalue_optional_nodefault(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True))
 
-        self.assertDictEqual({}, self.translator.build_inputs_dict(wf))
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        print(translator.inputs_file)
+        self.assertEqual('{}', translator.inputs_file)
 
     def test_input_in_input_novalue_optional_default(self):
         wf = WorkflowBuilder("test_input_in_inputfile")
         wf.input("inpId", String(optional=True), default="2")
 
         # new interpretation: defaults appear in inputs
-        self.assertDictEqual(
-            {"test_input_in_inputfile.inpId": "2"},
-            self.translator.build_inputs_dict(wf),
-        )
-        # self.assertDictEqual({}, self.translator.build_inputs_file(wf))
+        translator = WdlTranslator()
+        translator.build_inputs_file(wf)
+        self.assertIn('"test_input_in_inputfile.inpId": "2"', translator.inputs_file)
 
     def test_tool_output_with_input_selector(self):
-
         tool = TestToolWithSecondaryOutput()
         toolout = tool.outputs()[0]
         inmap = {t.id(): t for t in tool.inputs()}
@@ -840,9 +846,9 @@ class TestWdlEnvVar(unittest.TestCase):
         reset_global_settings()
 
     def test_environment1(self):
-        t = WdlTranslator().translate_tool_internal(tool=BasicTestTool())
-        s = t.get_string()
-        print(s)
+        tool = BasicTestTool()
+        out = translate(tool, 'wdl')
+        self.assertIn("export test1='~{testtool}'", out)
 
 
 class TestWdlMaxResources(unittest.TestCase):
@@ -851,7 +857,7 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_cores(self):
         tool = BasicTestTool()
-        resources = WdlTranslator.build_resources_input(
+        resources = WdlTranslator._build_resources_dict(
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
@@ -862,7 +868,7 @@ class TestWdlMaxResources(unittest.TestCase):
         tool = BasicTestTool()
         wf = tool.wrapped_in_wf()
         settings.translate.MAX_CORES = 1
-        resources = WdlTranslator.build_resources_input(wf, {}, is_root=True)
+        resources = WdlTranslator._build_resources_dict(wf, {}, is_root=True)
         settings.translate.MAX_CORES = None
         self.assertEqual(
             1, resources["BasicTestToolWf.basictesttool_runtime_cpu"]
@@ -870,7 +876,7 @@ class TestWdlMaxResources(unittest.TestCase):
 
     def test_memory(self):
         tool = BasicTestTool()
-        resources = WdlTranslator.build_resources_input(
+        resources = WdlTranslator._build_resources_dict(
             tool.wrapped_in_wf(), {}, is_root=True
         )
         self.assertEqual(
@@ -881,7 +887,7 @@ class TestWdlMaxResources(unittest.TestCase):
         tool = BasicTestTool()
         wf = tool.wrapped_in_wf()
         settings.translate.MAX_MEM = 1
-        resources = WdlTranslator.build_resources_input(wf, {}, is_root=True)
+        resources = WdlTranslator._build_resources_dict(wf, {}, is_root=True)
         settings.translate.MAX_MEM = None
         self.assertEqual(
             1, resources["BasicTestToolWf.basictesttool_runtime_memory"]
@@ -893,17 +899,17 @@ class TestWdlScatterByMultipleFields(unittest.TestCase):
         reset_global_settings()
 
     def test_scatter_single(self):
+        settings.translate.RENDER_COMMENTS = False
         w = WorkflowBuilder("sbmf")
         w.input("inp", Array(str))
         w.input("inp2", str)
-
-        step = w.step(
+        w.step(
             "dotTool",
             SingleTestTool(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(fields=["input1"], method=ScatterMethod.dot),
         )
-
-        settings.translate.RENDER_COMMENTS = False
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
         outp = wdl.translate_step_node(
             step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
         )
@@ -923,10 +929,11 @@ scatter (i in inp) {
         w = WorkflowBuilder("sbmf")
         w.input("inp", Array(str))
         w.input("inp2", str)
-
-        step = w.step(
+        w.step(
             "dotTool", SingleTestTool(input1=w.inp, input2=w.inp2), scatter="input1"
         )
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
 
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(
@@ -948,14 +955,15 @@ scatter (i in inp) {
         w = WorkflowBuilder("sbmf")
         w.input("inp", Array(str))
         w.input("inp2", Array(str))
-
-        step = w.step(
+        w.step(
             "dotTool",
             SingleTestTool(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
                 fields=["input1", "input2"], method=ScatterMethod.dot
             ),
         )
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
 
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(
@@ -978,14 +986,15 @@ scatter (Q in zip(inp, inp2)) {
         w.input("inp", Array(str))
         w.input("inp2", Array(str))
         w.input("inp3", Array(str))
-
-        step = w.step(
+        w.step(
             "dotTool",
             SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3),
             scatter=ScatterDescription(
                 fields=["input1", "input2", "input3"], method=ScatterMethod.dot
             ),
         )
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
 
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(
@@ -1010,8 +1019,7 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
         w.input("inp2", Array(str))
         w.input("inp3", Array(str))
         w.input("inp4", Array(str))
-
-        step = w.step(
+        w.step(
             "dotTool",
             SingleTestTool(input1=w.inp, input2=w.inp2, input3=w.inp3, input4=w.inp4),
             scatter=ScatterDescription(
@@ -1019,6 +1027,8 @@ scatter (Q in zip(inp, zip(inp2, inp3))) {
                 method=ScatterMethod.dot,
             ),
         )
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
 
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(
@@ -1042,14 +1052,15 @@ scatter (Q in zip(inp, zip(inp2, zip(inp3, inp4)))) {
         w = WorkflowBuilder("sbmf")
         w.input("inp", Array(TxtSecondary))
         w.input("inp2", Array(str))
-
-        step = w.step(
+        w.step(
             "dotTool",
             MultipleEcho(input1=w.inp, input2=w.inp2),
             scatter=ScatterDescription(
                 fields=["input1", "input2"], method=ScatterMethod.dot
             ),
         )
+        w = to_builders(w)
+        step = w.step_nodes["dotTool"]
         settings.translate.RENDER_COMMENTS = False
         outp = wdl.translate_step_node(
             step, "A.SingleTestTool", {}, {"inp", "inp2"}, None
@@ -1078,7 +1089,7 @@ class TestRuntimeOverrideGenerator(unittest.TestCase):
         w.step("echo", SingleTestTool(input1=w.inp))
         w.step("echo_2", SingleTestTool(input1=w.inp))
 
-        wf, _, _ = w.translate(
+        wf, _, _, _ = w.translate(
             "wdl",
             to_console=False,
             with_resource_overrides=True,
@@ -1093,29 +1104,27 @@ workflow wb {
     Int? echo_runtime_memory
     Int? echo_runtime_cpu
     Int? echo_runtime_disk
-    Int? echo_runtime_seconds
     Int? echo_2_runtime_memory
     Int? echo_2_runtime_cpu
     Int? echo_2_runtime_disk
-    Int? echo_2_runtime_seconds
   }
   call S.SingleTestTool as echo {
     input:
       input1=inp,
       runtime_memory=echo_runtime_memory,
       runtime_cpu=echo_runtime_cpu,
-      runtime_disk=echo_runtime_disk,
-      runtime_seconds=echo_runtime_seconds
+      runtime_disk=echo_runtime_disk
   }
   call S.SingleTestTool as echo_2 {
     input:
       input1=inp,
       runtime_memory=echo_2_runtime_memory,
       runtime_cpu=echo_2_runtime_cpu,
-      runtime_disk=echo_2_runtime_disk,
-      runtime_seconds=echo_2_runtime_seconds
+      runtime_disk=echo_2_runtime_disk
   }
 }"""
+        for ln in workflow_lines:
+            print(ln)
         self.assertEqual(_tooldef, '\n'.join(workflow_lines[2:]))
 
 
@@ -1177,7 +1186,7 @@ class WorkflowWdlInputDefaultOperator(unittest.TestCase):
         )
         wf.step("print", EchoTestTool(inp=wf.readGroupHeaderLine))
         wf.output("out", source=wf.print)
-        workflow_str, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1210,23 +1219,22 @@ class TestWdlContainerOverride(unittest.TestCase):
         tool = SingleTestTool()
         translated = translate(tool, 'wdl', container_override={tool.id(): expected_container})
 
-        line = non_blank_lines_list(translated)[-9].strip()
-        self.assertEqual(f'docker: "{expected_container}"', line)
+        lines = non_blank_lines_list(translated)
+        lines = [ln.strip() for ln in lines]
+        self.assertIn(f'docker: "{expected_container}"', lines)
 
     def test_tool_string_override(self):
         expected_container = "container/override"
-
+        
         tool = SingleTestTool()
-        translated = tool.translate(
-            "wdl", to_console=False, container_override=expected_container
-        )
+        translated = tool.translate("wdl", to_console=False, container_override=expected_container)
 
-        line = non_blank_lines_list(translated)[-9].strip()
-        self.assertEqual(f'docker: "{expected_container}"', line)
+        lines = non_blank_lines_list(translated)
+        lines = [ln.strip() for ln in lines]
+        self.assertIn(f'docker: "{expected_container}"', lines)
 
     def test_tool_override_casecheck(self):
         expected_container = "container/override"
-
         tool = SingleTestTool()
 
         # Assert that our tool id is not UPPER, so when we override with the
@@ -1237,8 +1245,10 @@ class TestWdlContainerOverride(unittest.TestCase):
             to_console=False,
             container_override={toolid_upper: expected_container},
         )
-        line = non_blank_lines_list(translated)[-9].strip()
-        self.assertEqual(f'docker: "{expected_container}"', line)
+
+        lines = non_blank_lines_list(translated)
+        lines = [ln.strip() for ln in lines]
+        self.assertIn(f'docker: "{expected_container}"', lines)
 
 
 class TestWDLRunRefs(unittest.TestCase):
@@ -1254,9 +1264,8 @@ class TestWDLRunRefs(unittest.TestCase):
         w.step("stp2", VersionTestTool(testtool=w.inp))
 
         settings.translate.RENDER_COMMENTS = False
-        w, _ = WdlTranslator.translate_workflow_internal(w)
-        workflow_str = w.get_string()
-        workflow_str = non_blank_lines_str(workflow_str)
+        mainstr, _, _, _ = translate(w, "wdl", to_console=False, render_comments=False)
+        mainstr = non_blank_lines_str(mainstr)
 
         expected = """\
 version development
@@ -1276,7 +1285,7 @@ workflow testTwoToolsWithSameId {
   }
 }"""
 
-        self.assertEqual(expected, workflow_str)
+        self.assertEqual(expected, mainstr)
 
 
 class TestWdlSecondaryTranslation(unittest.TestCase):
@@ -1287,7 +1296,7 @@ class TestWdlSecondaryTranslation(unittest.TestCase):
         wf = WorkflowBuilder("wf")
         wf.input("ref", SecondaryTestType)
         wf.step("stp", SecondaryInputTestTool(inp=wf.ref))
-        workflow_str, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1309,7 +1318,7 @@ workflow wf {
         wf = WorkflowBuilder("wf")
         wf.input("ref", Array(SecondaryTestType))
         wf.step("stp", SecondaryInputTestTool(inp=wf.ref), scatter="inp")
-        workflow_str, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = wf.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1331,8 +1340,12 @@ workflow wf {
 
     def test_workflow_secondary_outputs(self):
         wf = ArraysOfSecondaryFilesOutputsTestWF()
-        wfwdl, _ = WdlTranslator.translate_workflow_internal(wf)
-        outs = [o.get_string() for o in wfwdl.outputs]
+        wf = to_builders(wf)
+        translator = WdlTranslator()
+        translator.translate_workflow_internal(wf)
+        assert translator.main is not None
+        wf_wdl = translator.main[1]
+        outs = [o.get_string() for o in wf_wdl.outputs]
         self.assertEqual("Array[File] out = stp.out", outs[0])
         self.assertEqual("Array[File] out_txt = stp.out_txt", outs[1])
 
@@ -1448,7 +1461,7 @@ class TestCompleteOperators(unittest.TestCase):
         self.assertEqual('[1, 2, "three"]', exp)
 
     def test_step_input(self):
-        workflow_str, _, _ = StepInputExpressionTestWF().translate(
+        workflow_str, _, _, _ = StepInputExpressionTestWF().translate(
             "wdl", to_console=False, render_comments=False
         )
         workflow_str = non_blank_lines_str(workflow_str)
@@ -1501,7 +1514,7 @@ workflow StepInputExpressionTestWF {
         ),
 
         wf.output("out", source=wf.print)
-        workflow_str, _, _ = wf.translate("wdl", to_console=False, allow_empty_container=True, render_comments=False)
+        workflow_str, _, _, _ = wf.translate("wdl", to_console=False, allow_empty_container=True, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1547,7 +1560,7 @@ class TestWdlWorkflowInputToOutputConnection(unittest.TestCase):
         w = WorkflowBuilder("wf")
         w.input("inp", str)
         w.output("out", source=w.inp)
-        workflow_str, _, _ = w.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = w.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1565,7 +1578,7 @@ workflow wf {
         w = WorkflowBuilder("wf")
         w.input("inp", int, default=0)
         w.output("out", source=w.inp)
-        workflow_str, _, _ = w.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = w.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1578,12 +1591,12 @@ workflow wf {
   }
 }"""
         self.assertEqual(expected, workflow_str)
-
+ 
     def test_with_str_default(self):
         w = WorkflowBuilder("wf")
         w.input("inp", str, default="hello")
         w.output("out", source=w.inp)
-        workflow_str, _, _ = w.translate("wdl", to_console=False, render_comments=False)
+        workflow_str, _, _, _ = w.translate("wdl", to_console=False, render_comments=False)
         workflow_str = non_blank_lines_str(workflow_str)
         expected = """\
 version development
@@ -1604,40 +1617,23 @@ class TestWdlResourceOperators(unittest.TestCase):
 
     def test_1(self):
         settings.translate.WITH_RESOURCE_OVERRIDES = True
-        tool_wdl = WdlTranslator.translate_tool_internal(
-            OperatorResourcesTestTool()
-        ).get_string()
-        lines = non_blank_lines_list(tool_wdl)
-        cpus = lines[-12].strip()
-        time = lines[-9].strip()
-        memory = lines[-8].strip()
+        tool = OperatorResourcesTestTool()
+        tool_wdl = translate(tool, 'wdl', to_console=False)
 
-        self.assertEqual("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", cpus)
-        self.assertEqual(
+        self.assertIn("cpu: select_first([runtime_cpu, (2 * outputFiles), 1])", tool_wdl)
+        self.assertIn(
             'memory: "~{select_first([runtime_memory, if ((size(inputFile, "MB") > 1024)) then 4 else 2, 4])}G"',
-            memory,
+            tool_wdl,
         )
-        self.assertEqual("duration: select_first([runtime_seconds, 60, 86400])", time)
 
     def test_base(self):
         settings.translate.WITH_RESOURCE_OVERRIDES = True
-        tool_wdl = WdlTranslator.translate_tool_internal(EchoTestTool()).get_string()
-        lines = non_blank_lines_list(tool_wdl)
-        # print(tool_wdl)
-        cpus = lines[-12].strip()
-        disks = lines[-11].strip()
-        time = lines[-9].strip()
-        memory = lines[-8].strip()
+        tool = EchoTestTool()
+        tool_wdl = translate(tool, 'wdl', to_console=False)
 
-        self.assertEqual("cpu: select_first([runtime_cpu, 1])", cpus)
-
-        self.assertEqual('memory: "~{select_first([runtime_memory, 4])}G"', memory)
-
-        self.assertEqual("duration: select_first([runtime_seconds, 86400])", time)
-
-        self.assertEqual(
-            'disks: "local-disk ~{select_first([runtime_disk, 20])} SSD"', disks
-        )
+        self.assertIn("cpu: select_first([runtime_cpu, 1])", tool_wdl)
+        self.assertIn('memory: "~{select_first([runtime_memory, 4])}G"', tool_wdl)
+        self.assertIn('disks: "local-disk ~{select_first([runtime_disk, 20])} SSD"', tool_wdl)
 
 
 class TestReadContentsOperator(unittest.TestCase):
@@ -1768,7 +1764,11 @@ class ForEachTestWFSelectors(unittest.TestCase):
         #w, _ = WdlTranslator.translate_workflow(TestForEach())
         settings.translate.RENDER_COMMENTS = False
         wf = ForEachTestWF()
-        wf_trans, _ = WdlTranslator.translate_workflow_internal(wf)
+        wf = to_builders(wf)
+        translator = WdlTranslator()
+        translator.translate_workflow_internal(wf)
+        assert translator.main is not None
+        wf_trans = translator.main[1]
         settings.translate.RENDER_COMMENTS = False
         workflow_str = wf_trans.get_string()
         workflow_str = non_blank_lines_str(workflow_str)

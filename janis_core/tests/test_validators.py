@@ -1,9 +1,14 @@
 import unittest
 
 from janis_core.utils.validators import Validators
-
+from janis_core import settings
 
 class TestValidators(unittest.TestCase):
+
+    def setUp(self) -> None:
+        settings.validation.STRICT_IDENTIFIERS = True
+        settings.validation.VALIDATE_STRINGFORMATTERS = True
+
     def test_valid_identifiers(self):
         self.assertTrue(Validators.validate_identifier("test_workflow"))
 

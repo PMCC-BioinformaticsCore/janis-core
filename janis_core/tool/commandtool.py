@@ -271,11 +271,19 @@ class ToolOutput:
         return self.tag
 
     def __repr__(self):
-        attrs = ", ".join(
-            f"{k}={repr(v)}"
-            for k, v in self.__dict__.items()
-            if not k.startswith("_") and not callable(v) and v is not None
-        )
+        attrs = []
+        for k, v in self.__dict__.items():
+            k = repr(k)
+            if k.startswith("_"):
+                continue 
+            elif k == 'uuid':
+                continue
+            elif callable(v):
+                continue
+            elif v is None:
+                continue
+            else:
+                attrs.append(f"{k}={repr(v)}")
         return f"{self.__class__.__name__}({attrs})"
 
 

@@ -1,0 +1,89 @@
+
+
+### top level ###
+
+?the_text   : part+
+
+?part   : javascript
+        | text
+
+javascript  : "$(" expr ")"
+TEXT        : /[^$(]+/
+text        : TEXT
+
+
+### higher level constructs ###
+
+?expr   : object expr
+        | object 
+        | attribute expr
+        | attribute
+        | method_call+
+        | ternary
+        | group
+        | cond_check
+        | value  # may cause issues?
+
+ternary : expr "?" expr ":" expr
+group   : "(" expr ")"
+
+?cond_check : expr "===" expr -> deep_eq
+            | expr "!==" expr -> deep_ineq
+            | expr "==" expr  -> eq
+            | expr "!=" expr  -> ineq
+            | expr ">=" expr  -> gteq
+            | expr "<=" expr  -> lteq
+            | expr ">" expr   -> gt
+            | expr "<" expr   -> lt
+            | expr
+
+
+### objects, attributes, methods ###
+
+?object : "inputs." SYMBOL  -> input
+        | "runtime." SYMBOL -> runtime
+        | "self"            -> self
+
+?attribute  : ".basename"   -> attr_basename
+            | ".nameroot"   -> attr_nameroot
+            | ".nameext"    -> attr_nameext
+            | ".ext"        -> attr_ext
+            | ".format"     -> attr_format
+            | ".contents"   -> attr_contents
+            | ".length"     -> attr_length
+            | ".location"   -> attr_location
+
+?method_call: ".join(" method_args ")"  -> meth_join
+            | ".split(" method_args ")" -> meth_split
+            | ".slice(" method_args ")" -> meth_slice
+            | "[" SIGNED_NUMBER "]"     -> meth_array_index
+
+?method_args: value                             
+            | value ARGSEP value                
+            | value ARGSEP value ARGSEP value   
+
+ARGSEP     : /, *?/
+
+
+### primitives ###
+?value  : "true"        -> true
+        | "false"       -> false
+        | "null"        -> null
+        | SIGNED_NUMBER 
+        | QUOTED_STRING 
+        | SYMBOL        
+
+SYMBOL: /[a-zA-Z0-9_]+/
+
+_STRING_INNER: /.*?/
+_STRING_QUOT_INNER: _STRING_INNER /(?<!\\)(\\\\)*?/ 
+QUOTED_STRING : ( "\"" _STRING_QUOT_INNER "\"" ) | ( "'" _STRING_QUOT_INNER "'" )
+
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+
+
+
+
+

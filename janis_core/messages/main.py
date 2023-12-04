@@ -2,9 +2,10 @@
 
 from logging import getLogger, config
 from .logfile import LogFile
+from .logfile import LogLine
+from .enums import ErrorCategory
 
-
-from typing import Optional
+from typing import Optional, Any
 import os
 import warnings
 import yaml
@@ -43,8 +44,6 @@ currently, these janis entities have uuids:
 
 
 """
-
-
 
 # -------------
 # configuration
@@ -85,42 +84,41 @@ def info_ingesting_tool(spec: str, name: str) -> None:
     logger = getLogger('console')
     logger.info(f'ingesting {spec} tool - "{name}"')
 
-
 # -------
 # to file
 # -------
 
-def _log_message(level: str, uuid: Optional[str], msg: str) -> None:
+def log_message(entity_uuid: Optional[str], msg: str, category: ErrorCategory) -> None:
     logfile = LogFile(MESSAGE_LOG_PATH)
     # if no uuid provided, consider this a general message provided during ingestion / translation. 
     # these messages can be shown to the user at the top of the main parsed file (ie the main workflow / tool), 
     # or you could generate a file in the output folder for the user to show this info. 
-    if uuid is None:
-        uuid = 'general'
-    logfile.add(level, uuid, msg)
 
-def log_info(uuid: Optional[str], msg: str) -> None:
-    """logs a message which is considered INFO to the logfile"""
-    _log_message('INFO', uuid, msg)
-
-def log_warning(uuid: Optional[str], msg: str) -> None:
-    """logs a message which is considered a WARNING to the logfile"""
-    _log_message('WARNING', uuid, msg)
-
-def log_error(uuid: Optional[str], msg: str) -> None:
-    """logs a message which is considered an ERROR to the logfile"""
-    _log_message('ERROR', uuid, msg)
-
-def get_messages(uuid: str, level: Optional[str]=None) -> list[str]:
-    # get messages corresponding to this uuid from logfile
-    logfile = LogFile(MESSAGE_LOG_PATH)
-    loglines = logfile.messages[uuid]
+    # check the same message isn't already present
+    for ll in logfile.lines:
+        if ll.category == category and ll.message == msg and ll.entity_uuid == entity_uuid:
+            return
     
-    # filter for specific type of log message if 'level' supplied
-    valid_levels = ['INFO', 'WARNING', 'ERROR']
-    if level and level in valid_levels:
-        loglines = [x for x in loglines if x.level == level]
+    # log the new message
+    if entity_uuid is None:
+        entity_uuid = 'general'
+    logfile.add(entity_uuid=entity_uuid, category=category, msg=msg)
 
-    messages = [l.message for l in loglines]
-    return messages
+def load_loglines(
+    category: Optional[ErrorCategory]|bool=False,
+    entity_uuids: Optional[set[str]]=None,
+    ) -> list[LogLine]:
+    # Type hinting ugly as hell 
+    # Trying to express that None can be provided alongside an actual value. 
+    # If None, specifically filters for loglines where the attribute is None. 
+
+    logfile = LogFile(MESSAGE_LOG_PATH)
+    loglines = logfile.lines
+    
+    # filters
+    if category != False:
+        loglines = [x for x in loglines if x.category.value == category.value]
+    if entity_uuids is not None:
+        loglines = [x for x in loglines if x.entity_uuid in entity_uuids]
+    return loglines
 

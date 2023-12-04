@@ -7,12 +7,13 @@ from enum import Enum, auto
 from janis_core.types import DataType
 from janis_core import (
     ToolOutput, 
-    CommandTool,
+    CommandToolBuilder,
     WildcardSelector,
     InputSelector,
     Selector,
     Filename,
-    Stdout
+    Stdout,
+    StringFormatter,
 )
 from janis_core import translation_utils as utils
 from janis_core.translation_utils import DTypeType
@@ -48,14 +49,12 @@ def has_n_collectors(out: ToolOutput, n: int) -> bool:
 
 
 class FmtType(Enum):
-    REFERENCE    = auto()  # reference to process input or param
-    WILDCARD     = auto()  # regex based collection
-    FILENAME     = auto()  # filename TInput
-    FILENAME_REF = auto()  # filename referencing another TInput: process input or param
-    FILENAME_GEN = auto()  # filename referencing another TInput: internal input
-    STATIC       = auto()  # static value for TInput
-    COMPLEX      = auto()  # complex use of selectors / operators
-
+    STRINGFORMATTER = auto()  # string formatter
+    REFERENCE       = auto()  # reference to process input or param
+    WILDCARD        = auto()  # regex based collection
+    FILENAME        = auto()  # filename TInput
+    STATIC          = auto()  # static value for TInput
+    COMPLEX         = auto()  # complex use of selectors / operators
 
 
 ### CMDTOOL OUTPUTS ###
@@ -63,7 +62,7 @@ class CmdtoolProcessOutputFactory:
     def __init__(
         self, 
         out: ToolOutput, 
-        tool: CommandTool, 
+        tool: CommandToolBuilder, 
         variable_manager: VariableManager,
     ) -> None:
         self.out = out
@@ -82,9 +81,6 @@ class CmdtoolProcessOutputFactory:
             DTypeType.GENERIC_ARRAY: self.non_file_output,
             DTypeType.GENERIC: self.non_file_output,
         }
-        
-        self.add_braces: bool = False
-        self.quote_strings: bool = False
     
     # public method
     def create(self) -> NFProcessOutput:
@@ -111,45 +107,29 @@ class CmdtoolProcessOutputFactory:
         if isinstance(selector, str):
             return FmtType.WILDCARD
         
-        if isinstance(selector, WildcardSelector):
+        elif isinstance(selector, WildcardSelector):
             return FmtType.WILDCARD
+        
+        elif isinstance(selector, StringFormatter):
+            return FmtType.STRINGFORMATTER
 
         # output uses InputSelector
         elif isinstance(selector, InputSelector):
+            # if selector.input_to_select not in self.tool.inputs_map():
+            #     print()
             tinput = self.tool.inputs_map()[selector.input_to_select]
             
             # ToolInput is Filename type
             if isinstance(tinput.intype, Filename):
-                entity_counts = trace.trace_entity_counts(tinput.intype, tool=self.tool)
-                entities = set(entity_counts.keys())
-                filename_gen_whitelist = set(['Filename', 'str', 'NoneType'])
-                filename_ref_whitelist = set(['InputSelector', 'Filename', 'str', 'NoneType'])
-            
-                # ToolInput does not refer to another ToolInput
-                # This must be first as less specific
-                if entities.issubset(filename_gen_whitelist):
-                    if tinput.id() in task_inputs.task_inputs(self.tool.id()):
-                        return FmtType.FILENAME
-                    elif tinput.id() in task_inputs.param_inputs(self.tool.id()):
-                        return FmtType.FILENAME
-                    else:
-                        return FmtType.FILENAME_GEN
+                return FmtType.FILENAME 
                 
-                # ToolInput refers to another ToolInput
-                elif entities.issubset(filename_ref_whitelist):
-                    return FmtType.FILENAME_REF
-                
-                # ToolInput uses complex logic
-                else:
-                    return FmtType.COMPLEX
-            
             # ToolInput is not Filename type (direct reference)
             else:
                 # TInput with static value for process
                 task_input = task_inputs.get(self.tool.id(), tinput)
                 if task_input.ti_type == TaskInputType.STATIC:
                     return FmtType.STATIC
-                # TInput which is referenced by variable
+                # TInput which is directly referenced by variable
                 else:
                     return FmtType.REFERENCE
         
@@ -159,21 +139,20 @@ class CmdtoolProcessOutputFactory:
 
     def unwrap_collection_expression(self, expr: Any, ftype: FmtType) -> str:
         if ftype == FmtType.REFERENCE:
-            self.add_braces = False
-            self.quote_strings = False
-            expr = self.unwrap(expr)  
+            expr = self.unwrap(expr) 
         
-        elif ftype in (FmtType.WILDCARD, FmtType.STATIC, FmtType.FILENAME_GEN):
-            self.add_braces = False
-            self.quote_strings = True
+        elif ftype == FmtType.STRINGFORMATTER:
+            expr = self.unwrap(expr, apply_braces=False) 
+            expr = f'"{expr}"'
+        
+        elif ftype in (FmtType.WILDCARD, FmtType.STATIC):
             expr = self.unwrap(expr)
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         
-        elif ftype in (FmtType.FILENAME, FmtType.FILENAME_REF, FmtType.COMPLEX):
-            self.add_braces = True
-            self.quote_strings = True
-            expr = self.unwrap(expr)
+        # things which need unwrapping
+        elif ftype in (FmtType.FILENAME, FmtType.COMPLEX):
+            expr = self.unwrap(expr, apply_braces=True)
             if not expr.startswith('"') and not expr.endswith('"'):
                 expr = f'"{expr}"'
         
@@ -182,14 +161,13 @@ class CmdtoolProcessOutputFactory:
             raise NotImplementedError
         return expr
 
-    def unwrap(self, expr: Any):
+    def unwrap(self, expr: Any, apply_braces: bool=False):
         return unwrap_expression(
             val=expr,
             context='process_output',
             variable_manager=self.variable_manager,
             tool=self.tool,
-            in_shell_script=self.add_braces,
-            quote_strings=self.quote_strings,
+            apply_braces=apply_braces
         )
     
     # process output creation methods

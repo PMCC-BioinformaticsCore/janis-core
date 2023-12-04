@@ -17,7 +17,7 @@ def main() -> None:
 
 def do_translate(args: dict[str, str]) -> None:
     internal = ingest(args['infile'], args['from']) 
-    return translate(internal, args['to'], mode=args['mode'], export_path=args['outdir'])
+    return translate(internal, dest_fmt=args['to'], mode=args['mode'], export_path=args['outdir'], as_workflow=args['as_workflow'])
 
 def interpret_args(args: argparse.Namespace) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -32,6 +32,8 @@ def interpret_args(args: argparse.Namespace) -> dict[str, str]:
             out['infile'] = val
         elif key == 'output_dir':
             out['outdir'] = val
+        elif key == 'as_workflow':
+            out['as_workflow'] = val
     return out
 
 def parse_args(sysargs: list[str]) -> argparse.Namespace:
@@ -61,6 +63,11 @@ def parse_args(sysargs: list[str]) -> argparse.Namespace:
         default="translated"
     )
     parser.add_argument(
+        "--as-workflow",
+        action="store_true",
+        help="For tool translation: wraps output tool in workflow.",
+    )
+    parser.add_argument(
         "--mode",
         help="Translate mode (default: regular). Controls extent of tool translation\n\
         - skeleton: ignores inputs which aren't used in workflow. no CLI command generation.\n\
@@ -68,7 +75,7 @@ def parse_args(sysargs: list[str]) -> argparse.Namespace:
         - extended: full translation of all inputs & CLI command",
         type=str,
         choices=["skeleton", "regular", "extended"],
-        default="regular"
+        default="extended"
     )
 
     return parser.parse_args(sysargs)
