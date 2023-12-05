@@ -1,5 +1,17 @@
 
 
+WDL
+- container exprs 
+- runtime exprs nextflow
+- unwrap script.sh
+    - Nextflow ok. Create param
+    - CWL log message 
+    if not isinstance(container, str | None):
+        # TODO nextflow make param. 
+        msg = 'Container requirement uses expression. Please address'
+        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        container = str(container)
+
 --------------
 --- GENERAL ---
 ---------------

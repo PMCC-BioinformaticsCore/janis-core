@@ -15,9 +15,11 @@ from .requirements import (
     TaskDirsToCreateParser, 
 )
 from .io import TaskInputParser, TaskOutputParser
+from .graph import get_decl_refs
 from ..command import NativeSimpleParser, NativeArgumentParser, ShellCommandParser
 
 def parse_task(task: WDL.Tree.Task) -> CommandToolBuilder:
+    mark_ignored_inputs(task)
     cmdtool = CommandToolBuilder(
         tool=task.name,
         version='DEV',
@@ -41,6 +43,27 @@ def parse_task(task: WDL.Tree.Task) -> CommandToolBuilder:
     cmdtool._outputs = parse_outputs(task, cmdtool)
     cmdtool = parse_command(task, cmdtool)
     return cmdtool
+
+def mark_ignored_inputs(task: WDL.Tree.Task) -> None:
+    if task.inputs is None:
+        return 
+    decls = set([inp.name for inp in task.inputs])
+    decl_refs = get_decl_refs(task, decls)
+    ignore_inputs = set()
+    for inp in task.inputs:
+        if inp.name not in decl_refs:
+            raise RuntimeError
+        if decl_refs[inp.name]['inputs'] > 0:
+            continue
+        elif decl_refs[inp.name]['scopedvars'] > 0:
+            continue
+        elif decl_refs[inp.name]['command'] > 0:
+            continue
+        elif decl_refs[inp.name]['outputs'] > 0:
+            continue
+        else:
+            ignore_inputs.add(inp.name) 
+    task.ignored_inputs = ignore_inputs
 
 def parse_container_requirement(task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> str:
     parser = TaskContainerParser(task, cmdtool)
@@ -71,19 +94,34 @@ def parse_disk_requirement(task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> 
 #     return parser.parse()
 
 def parse_inputs(task: WDL.Tree.Task, cmdtool: CommandToolBuilder) -> list[ToolInput]:
+    valid_inputs = get_valid_inputs(task)
+    return [parse_input(task, cmdtool, wdl_inp) for wdl_inp in valid_inputs]
+
+def get_valid_inputs(task: WDL.Tree.Task) -> Any:
     # no inputs 
     if task.inputs is None:
         return []
-    
-    # parse each input
-    inputs = []
-    for wdl_inp in task.inputs:
-        if wdl_inp.name.startswith("runtime_"):
-            continue
-        inputs.append(parse_input(task, cmdtool, wdl_inp))
-    
-    # update cmdtool
-    return inputs
+    assert task.ignored_inputs is not None
+    normal_inputs = [decl for decl in task.inputs if decl.name not in task.ignored_inputs]
+    post_inputs = [decl for decl in task.postinputs if isinstance(decl, WDL.Tree.Decl)]
+    return normal_inputs + post_inputs
+    # decls = set([inp.name for inp in task.inputs])
+    # decl_refs = get_decl_refs(task, decls)
+    # valid_inps = []
+    # for inp in task.inputs:
+    #     if inp.name not in decl_refs:
+    #         raise RuntimeError
+    #     if decl_refs[inp.name]['inputs'] > 0:
+    #         valid_inps.append(inp)
+    #     elif decl_refs[inp.name]['scopedvars'] > 0:
+    #         valid_inps.append(inp)
+    #     elif decl_refs[inp.name]['command'] > 0:
+    #         valid_inps.append(inp)
+    #     elif decl_refs[inp.name]['outputs'] > 0:
+    #         valid_inps.append(inp)
+    #     else:
+    #         continue 
+    # return valid_inps
 
 def parse_input(task: WDL.Tree.Task, cmdtool: CommandToolBuilder, wdl_inp: WDL.Tree.Decl) -> ToolInput:
     parser = TaskInputParser(task, cmdtool, wdl_inp)

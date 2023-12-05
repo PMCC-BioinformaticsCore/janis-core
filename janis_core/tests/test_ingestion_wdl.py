@@ -99,14 +99,14 @@ class TestBasicFunctionality(unittest.TestCase):
         filepath = f'{WDL_TESTDATA_PATH}/fastqc.wdl'
         cmdtool = ingest(filepath, 'wdl')
         self.assertIsInstance(cmdtool, CommandToolBuilder)
-        self.assertEqual(len(cmdtool._inputs), 21)
+        self.assertEqual(len(cmdtool._inputs), 20)
         self.assertEqual(len(cmdtool._outputs), 5)
     
     def test_tool_trim_adapters(self) -> None:
         filepath = f'{WDL_TESTDATA_PATH}/TrimAdapters.wdl'
         cmdtool = ingest(filepath, 'wdl')
         self.assertIsInstance(cmdtool, CommandToolBuilder)
-        self.assertEqual(len(cmdtool._inputs), 8)
+        self.assertEqual(len(cmdtool._inputs), 11)
         self.assertEqual(len(cmdtool._outputs), 3)
     
     def test_workflow_io(self) -> None:
@@ -126,8 +126,8 @@ class TestBasicFunctionality(unittest.TestCase):
         self.assertEqual(len(wf.input_nodes), 17)
         self.assertEqual(len(wf.step_nodes), 13)
         self.assertEqual(len(wf.output_nodes), 4)
-    
 
+    
 
 
 class TestRequirements(unittest.TestCase):
@@ -143,6 +143,42 @@ class TestRequirements(unittest.TestCase):
             outputs=[]
         )
     
+    def test_ignore_inputs1(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/requirements/bwa.wdl'
+        task = WDL.load(filepath).tasks[0]
+        cmdtool = parse_task(task)
+        expected_tinputids = set([
+            'read1',
+            'read2',
+            'bwaIndex',
+            'outputPrefix',
+            'sixtyFour',
+            'usePostalt',
+            'sortMemoryPerThreadGb',
+            'compressionLevel',
+            'readgroup',
+            'sortThreads',
+            'threads',
+            'estimatedSortThreads',
+            'totalSortThreads',
+            'estimatedMemoryGb',
+        ])
+        actual_tinputids = set([tinp.id() for tinp in cmdtool._inputs])
+        self.assertSetEqual(actual_tinputids, expected_tinputids)
+    
+    def test_ignore_inputs2(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/requirements/alignment_metrics.wdl'
+        task = WDL.load(filepath).tasks[0]
+        cmdtool = parse_task(task)
+        expected_tinputids = set([
+            'aligned_bam',
+            'ref_fasta',
+            'primers_bed',
+            'out_basename',
+        ])
+        actual_tinputids = set([tinp.id() for tinp in cmdtool._inputs])
+        self.assertSetEqual(actual_tinputids, expected_tinputids)
+    
     def test_container1(self) -> None:
         filepath = f'{WDL_TESTDATA_PATH}/requirements/annotsv_filter.wdl'
         task = WDL.load(filepath).tasks[0]
@@ -155,6 +191,13 @@ class TestRequirements(unittest.TestCase):
         task = WDL.load(filepath).tasks[0]
         actual = parse_container_requirement(task, self.mocktool)
         expected = 'quay.io/biocontainers/mulled-v2-ad317f19f5881324e963f6a6d464d696a2825ab6:c59b7a73c87a9fe81737d5d628e10a3b5807f453-0'
+        self.assertEqual(actual, expected)
+    
+    def test_container3(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/requirements/alignment_metrics.wdl'
+        task = WDL.load(filepath).tasks[0]
+        actual = parse_container_requirement(task, self.mocktool)
+        expected = 'quay.io/broadinstitute/viral-core:2.1.33'
         self.assertEqual(actual, expected)
     
     def test_cpus1(self) -> None:
@@ -210,6 +253,8 @@ class TestRequirements(unittest.TestCase):
     
 
 
+
+
 ###############################
 ### DATATYPES / EXPRESSIONS ###
 ###############################
@@ -224,13 +269,6 @@ class TestExpressions(unittest.TestCase):
     
     def setUp(self) -> None:
         _do_setup_unsafe()
-
-
-class TestLexer(unittest.TestCase):
-    
-    def setUp(self) -> None:
-        _do_setup_unsafe()
-
 
 
 ###############
@@ -463,6 +501,7 @@ class TestShellCommandParser(unittest.TestCase):
         cmdtool = parse_task(task)
 
         self.assertIsInstance(cmdtool, CommandToolBuilder)
+        self.assertTrue(cmdtool.is_shell_script)
         self.assertEqual(cmdtool._base_command, ['sh', 'script.sh'])
         self.assertEqual(len(cmdtool._inputs), 2)
         self.assertEqual(cmdtool._inputs[0].id(), 'sourceFile')
@@ -486,6 +525,7 @@ class TestShellCommandParser(unittest.TestCase):
         cmdtool = parse_task(task)
         
         self.assertIsInstance(cmdtool, CommandToolBuilder)
+        self.assertTrue(cmdtool.is_shell_script)
         self.assertEqual(cmdtool._base_command, ['sh', 'script.sh'])
         self.assertEqual(len(cmdtool._inputs), 7)
         self.assertEqual(len(cmdtool._outputs), 5)
@@ -509,13 +549,66 @@ class TestShellCommandParser(unittest.TestCase):
         filepath = f'{WDL_TESTDATA_PATH}/fastqc.wdl'
         d = WDL.load(filepath)
         task = d.tasks[0]
-        parse_task(task)
+        cmdtool = parse_task(task)
+        self.assertTrue(cmdtool.is_shell_script)
     
     def test_bwa_mem(self) -> None:
         filepath = f'{WDL_TESTDATA_PATH}/bwa_mem.wdl'
         d = WDL.load(filepath)
         task = d.tasks[0]
-        parse_task(task)
+        cmdtool = parse_task(task)
+        self.assertTrue(cmdtool.is_shell_script)
+    
+    def test_script(self) -> None:
+        settings.ingest.wdl.COMMAND_PARSER = 'shell'
+        filepath = f'{WDL_TESTDATA_PATH}/TrimAdapters.wdl'
+        d = WDL.load(filepath)
+        task = d.tasks[0]
+        cmdtool = parse_task(task)
+        self.assertIsInstance(cmdtool, CommandToolBuilder)
+        self.assertTrue(cmdtool.is_shell_script)
+        actual_script = cmdtool._files_to_create['script.sh']
+        self.assertIsInstance(actual_script, StringFormatter)
+        actual_lines = _simple_lines(str(actual_script))
+        expected_lines = [
+            "set -euo pipefail",
+            "cutadapt \\",
+            "-f fastq \\",
+            "--minimum-length {inputs.min_length} \\",
+            "--quality-cutoff {inputs.quality_cutoff} \\",
+            "--adapter {inputs.adapter_seq_read1} \\",
+            "-A {inputs.adapter_seq_read2} \\",
+            "--output {inputs.fastq_trimmed_adapter_output_name_read1} \\",
+            "--paired-output {inputs.fastq_trimmed_adapter_output_name_read2} \\",
+            "{inputs.fastq_input_read1} {inputs.fastq_input_read2}",
+        ]
+        self.assertEqual(actual_lines, expected_lines)  
+
+
+class TestTasks(unittest.TestCase):
+    def test_inputs(self) -> None:
+        filepath = f'{WDL_TESTDATA_PATH}/TrimAdapters.wdl'
+        d = WDL.load(filepath)
+        task = d.tasks[0]
+        cmdtool = parse_task(task)
+
+        self.assertIsInstance(cmdtool, CommandToolBuilder)
+        actual_tinpids = set(list(cmdtool.inputs_map().keys()))
+        expected_tinpids = set([
+            'fastq_input_read1',
+            'fastq_input_read2',
+            'min_length',
+            'quality_cutoff',
+            'adapter_seq_read1',
+            'adapter_seq_read2',
+            'output_base_name',
+            'input_size',
+            'disk_size',
+            'fastq_trimmed_adapter_output_name_read1',
+            'fastq_trimmed_adapter_output_name_read2',
+        ])
+        self.assertSetEqual(actual_tinpids, expected_tinpids)
+
 
 
 class TestPlumbing(unittest.TestCase):

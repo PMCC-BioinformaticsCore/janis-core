@@ -368,34 +368,20 @@ class TranslatorBase(ABC):
                         # If name is a File or Directory, the entryname field overrides the value of basename of the File or Directory object 
                         raise NotImplementedError()
                     
+                    if name == 'script.sh' and tool.is_shell_script:
+                        # don't create externally passed script for shell tools
+                        continue 
+                    
                     if isinstance(contents, str):
-                        assert(not name.startswith('unnamed_'))
-                        if '<js>' in contents:
-                            # ignore, print error message for user
-                            raise NotImplementedError()
-                            pass
-                        else:
-                            # create file
-                            files[name] = contents
+                        files[name] = contents
                     
                     elif isinstance(contents, InputSelector):
                         tinput_name = contents.input_to_select
                         tinput = tool.inputs_map()[tinput_name]
                         if isinstance(tinput.intype, File | Directory):
                             raise NotImplementedError()
-                            print('ignored staging File into process')
                         else:
                             raise NotImplementedError()
-                            print('ignored staging String into process')
-                        # # js evaluates to a file: add referenced file to output directory
-                        # if name.startswith('unnamed_'):
-                        #     # dont override filename
-                        #     pass
-                        # else:
-                        #     # override filename
-                        #     pass
-                        # print()
-                    
                     else:
                         raise NotImplementedError
         

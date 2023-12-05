@@ -4,7 +4,7 @@ import janis_core as j
 import regex as re 
 from typing import Any , Optional
 
-from janis_core import Selector
+from janis_core import Selector, StringFormatter, InputSelector
 from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
@@ -16,31 +16,48 @@ DEFAULT_CONTAINER = "ubuntu:latest"
 
 class TaskContainerParser(TaskParser):
 
-    def do_parse(self) -> str:
+    def do_parse(self) -> Any:
         container = self.task.runtime.get("container", self.task.runtime.get("docker"))
-        if isinstance(container, WDL.Expr.Get):
-            # relevant input
-            # print(str(container.expr))
-            inp = [i.expr for i in self.task.inputs if i.name == str(container.expr)]
-            if len(inp) > 0:
-                container = inp[0]
-            else:
-                msg = f"Expression for determining containers was '{container}' but couldn't find input called {str(container.expr)}"
-                log_message(self.cmdtool.uuid, msg, category=ErrorCategory.SCRIPTING)
+        # from expr (NOTE: Janis doesn't really allow this. unsure if works for CWL / Nextflow)
+        if isinstance(container, WDL.Expr.Base):
+            res, success = parse_expr(container, self.task, self.cmdtool)
+            if not success:
                 raise RuntimeError
-        if isinstance(container, WDL.Expr.String):
-            container = container.literal
-        if isinstance(container, WDL.Value.String):
-            container = container.value
-        if container is None:
+            if isinstance(res, StringFormatter):
+                has_single_kwarg = True if len(res.kwargs) == 1 else False
+                has_single_format = True if res._format.startswith('{') and res._format.endswith('}') else False
+                if has_single_kwarg and has_single_format:
+                    arg = list(res.kwargs.values())[0]
+                    str_literal = self.get_string_literal_expr(arg)
+                    if str_literal is not None:
+                        container = str_literal
+                    else:
+                        container = str(arg)
+            else:
+                str_literal = self.get_string_literal_expr(res)
+                if str_literal is not None:
+                    container = str_literal
+                else:
+                    container = str(res)
+        # from string literal
+        elif isinstance(container, str):
+            container = container
+        # no container
+        elif container is None:
             container = DEFAULT_CONTAINER
-        if not isinstance(container, str):
-            # TODO improve this using parse expr
-            msg = f"Expression for determining containers ({container}) are not supported in Janis, using default container"
-            log_message(self.cmdtool.uuid, msg, category=ErrorCategory.SCRIPTING)
-            raise RuntimeError
+        else:
+            raise NotImplementedError
         return container
     
+    def get_string_literal_expr(self, sel: Selector) -> Optional[str]:
+        if isinstance(sel, InputSelector):
+            assert self.task.inputs is not None
+            for inp in self.task.inputs:
+                if isinstance(inp.expr, WDL.Expr.String):
+                    if isinstance(inp.expr.literal, WDL.Value.String):
+                        return inp.expr.literal.value
+        return None
+
     def fallback(self) -> str:
         msg = 'Error parsing container requirement'
         log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)

@@ -692,7 +692,12 @@ class CommandToolBuilder(CommandTool):
     def outputs(self) -> List[ToolOutput]:
         return self._outputs
 
-    def container(self) -> str:
+    def container(self) -> str | Any:
+        """
+        Allowing Any to support WDL container expressions.
+        Can translate to nextflow but not CWL.
+        log error for CWL.
+        """
         return self._container
 
     def version(self) -> str:
@@ -865,3 +870,4 @@ class CommandToolBuilder(CommandTool):
         self._directories_to_create = directories_to_create
         self._files_to_create = files_to_create
         self._doc = doc
+        self.is_shell_script = False 

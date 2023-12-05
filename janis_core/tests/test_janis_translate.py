@@ -1551,6 +1551,12 @@ class TestWdlToCwl(unittest.TestCase):
         filepath = f'{WDL_TESTDATA_PATH}/bwa.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
+
+    def test_wf_atac(self):
+        filepath = f'{WDL_TESTDATA_PATH}/ATAC.wdl'
+        mainstr = _run(filepath, self.src, self.dest)
+        print(mainstr)
+        print()
     
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_somatic(self):
@@ -1593,11 +1599,11 @@ class TestWdlToNextflow(unittest.TestCase):
         _reset_global_settings()
         settings.ingest.SAFE_MODE = True
 
-    @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_atac(self):
         filepath = f'{WDL_TESTDATA_PATH}/ATAC.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
+        print()
 
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_mutect2(self):

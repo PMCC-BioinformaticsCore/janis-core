@@ -101,8 +101,11 @@ class WdlParser:
             
     def ingest_workflow_step_inputs(self, wdl_wf, janis_wf, flatcall) -> StepNode:
         call = flatcall.entity
+        task = call.callee
         inp_map = {}
         for k, v in call.inputs.items():
+            if k in task.ignored_inputs:
+                continue 
             parser = WorkflowStepInputParser(wdl_wf, janis_wf, v, flatcall)  
             inp_map[k] = parser.parse()
         inputs_dict = inp_map

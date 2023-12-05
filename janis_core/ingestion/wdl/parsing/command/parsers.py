@@ -5,7 +5,7 @@ from typing import Any
 import regex as re
 import WDL
 
-from janis_core import CommandToolBuilder, Selector
+from janis_core import CommandToolBuilder, Selector, StringFormatter
 from janis_core import ToolArgument
 from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
@@ -31,8 +31,8 @@ class NativeSimpleParser(CommandParser):
         raise NotImplementedError
     
     def fallback(self) -> None:
-        msg = f'Error parsing tool command natively. Fellback to using shell command.'
-        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        # msg = f'Error parsing tool command natively. Fellback to using shell command.'
+        # log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
         return None
 
 
@@ -42,8 +42,8 @@ class NativeArgumentParser(CommandParser):
         raise NotImplementedError
     
     def fallback(self) -> None:
-        msg = f'Error parsing tool command natively. Fellback to using shell command.'
-        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        # msg = f'Error parsing tool command natively. Fellback to using shell command.'
+        # log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
         return None
  
 
@@ -54,7 +54,8 @@ class ShellCommandParser(CommandParser):
         self.env_vars = self.parse_env_vars()
         self.files_to_create = self.parse_files_to_create()
         self.directories_to_create = self.parse_dirs_to_create()
-        self.success = True
+        # mark as shell script cmdtool if successful parse
+        self.cmdtool.is_shell_script = True
     
     def parse_base_command(self) -> list[str]:
         return ["sh", "script.sh"]
@@ -64,9 +65,10 @@ class ShellCommandParser(CommandParser):
     
     def parse_files_to_create(self) -> dict[str, Any]:
         res, success = parse_expr(self.task.command, self.task, self.cmdtool)
-        if success:
-            return {"script.sh": res}
-        raise RuntimeError
+        if not success:
+            print(str(res))
+            raise RuntimeError
+        return {"script.sh": res}
     
     def parse_dirs_to_create(self) -> list[str | Selector]:
         return []
@@ -74,7 +76,7 @@ class ShellCommandParser(CommandParser):
     def fallback(self) -> None:
         msg = f'Error parsing tool command. Output is not correct.'
         log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
-        return None
+        return None 
 
 
 

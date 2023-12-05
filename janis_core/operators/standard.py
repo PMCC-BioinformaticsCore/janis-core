@@ -254,7 +254,7 @@ class BasenameOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         file_obj = unwrap_operator(
-            file_obj[0], add_path_suffix_to_input_selector_if_required=False
+            args[0], add_path_suffix_to_input_selector_if_required=False
         )
         return file_obj + ".basename"
 

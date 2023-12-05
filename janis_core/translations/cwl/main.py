@@ -1931,7 +1931,7 @@ def translate_to_cwl_glob(glob, inputsdict, tool, **debugkwargs):
                     return intype.generated_filename(), None
 
             expr = glob
-            if tinp.default:
+            if tinp.default is not None:
                 expr = If(IsDefined(glob), expr, tinp.default)
 
             return (

@@ -50,6 +50,11 @@ def populate_scripts(tool: CommandToolBuilder) -> None:
     for filename in tool._files_to_create.keys():  # type: ignore
         # get the file path to where the script will appear in the translation
         assert(isinstance(filename, str))
+
+        # ignoring shell script parsed from WDL
+        if tool.is_shell_script and filename == 'script.sh':
+            continue 
+
         path = os.path.join(settings.translate.nextflow.TEMPLATES_OUTDIR, filename)
         
         # generate a name for this input
