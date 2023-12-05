@@ -227,7 +227,7 @@ class TestTranslationEndpoints(unittest.TestCase):
 
     @unittest.skip('wdl ingest needs work')
     def test_from_wdl_to_nextflow_workflow(self) -> None:
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         _run(filepath, 'wdl', 'nextflow')
     
     # JANIS.TRANSLATE()
@@ -1594,19 +1594,19 @@ class TestWdlToCwl(unittest.TestCase):
 
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_preprocessing(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_reads2map(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/Empiricalreads2map/Empiricalreads2map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_snp_calling(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
@@ -1641,19 +1641,19 @@ class TestWdlToNextflow(unittest.TestCase):
 
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_preprocessing(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/PreprocessingReads/PreprocessingReads.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_reads2map(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/Empiricalreads2map/Empiricalreads2map.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
     
     @unittest.skip('TODO: update for wdl ingest changes')
     def test_wf_reads2map_snp_calling(self):
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl'
         mainstr = _run(filepath, self.src, self.dest)
         print(mainstr)
 

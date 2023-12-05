@@ -618,7 +618,7 @@ class TestPlumbing(unittest.TestCase):
 
     def test_step_inputs1(self) -> None:
         settings.ingest.wdl.COMMAND_PARSER = 'shell'
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/subworkflows/create_alignment_from_families_files.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/subworkflows/create_alignment_from_families_files.wdl'
         wf = ingest(filepath, 'wdl')
         self.assertIsInstance(wf, WorkflowBuilder)
         actual_steps = list(wf.step_nodes.keys())
@@ -669,7 +669,7 @@ class TestPlumbing(unittest.TestCase):
 
     def test_conditional_deps(self) -> None:
         settings.ingest.wdl.COMMAND_PARSER = 'shell'
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/subworkflows/create_alignment_from_read_simulations.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/subworkflows/create_alignment_from_read_simulations.wdl'
         wf = ingest(filepath, 'wdl')
         self.assertIsInstance(wf, WorkflowBuilder)
 
@@ -703,7 +703,7 @@ class TestPlumbing(unittest.TestCase):
     
     def test_scatter_deps(self) -> None:
         settings.ingest.wdl.COMMAND_PARSER = 'shell'
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/subworkflows/create_alignment_from_families_files.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/subworkflows/create_alignment_from_families_files.wdl'
         wf = ingest(filepath, 'wdl')
         self.assertIsInstance(wf, WorkflowBuilder)
         
@@ -714,7 +714,7 @@ class TestPlumbing(unittest.TestCase):
     
     def test_nested_deps(self) -> None:
         settings.ingest.wdl.COMMAND_PARSER = 'shell'
-        filepath = f'{WDL_TESTDATA_PATH}/Reads2Map/subworkflows/create_alignment_from_read_simulations.wdl'
+        filepath = f'{WDL_TESTDATA_PATH}/reads2map/subworkflows/create_alignment_from_read_simulations.wdl'
         wf = ingest(filepath, 'wdl')
         self.assertIsInstance(wf, WorkflowBuilder)
 
