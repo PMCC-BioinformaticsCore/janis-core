@@ -69,7 +69,8 @@ dependencies = [
     "cwl-utils==0.15",
     "graphviz",
     "nose",
-    "pydantic<2"
+    "pydantic<2",
+    "Levenshtein",
 ]
 requires-python = ">=3.10.5"
 

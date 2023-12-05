@@ -928,7 +928,7 @@ class TestJanisGeneralMapping(unittest.TestCase):
         self.assertIsInstance(jtype3, Array)
         self.assertIsInstance(jtype4, Stdout)
         # check attributes are correct
-        self.assertEquals(jtype2.optional, True)
+        self.assertEqual(jtype2.optional, True)
         self.assertIsInstance(jtype3.subtype(), Float)
         self.assertIsInstance(jtype4.subtype, File)
 
@@ -945,8 +945,8 @@ class TestJanisGeneralMapping(unittest.TestCase):
         self.assertIsInstance(jsel3, InputSelector)
         self.assertIsNone(jsel1)
         # check attributes are correct
-        self.assertEquals(jsel2.wildcard, 'report.txt')
-        self.assertEquals(jsel3.input_to_select, 'file_input')
+        self.assertEqual(jsel2.wildcard, 'report.txt')
+        self.assertEqual(jsel3.input_to_select, 'file_input')
 
 
 class TestJanisToolMapping(unittest.TestCase):
@@ -982,25 +982,25 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jinp3, ToolInput)
         self.assertIsInstance(jinp4, ToolInput)
         # check attributes are correct
-        self.assertEquals(jinp1.tag, 'file_input')
-        self.assertEquals(jinp1.prefix, None)
-        self.assertEquals(jinp1.separate_value_from_prefix, None)
+        self.assertEqual(jinp1.tag, 'file_input')
+        self.assertEqual(jinp1.prefix, None)
+        self.assertEqual(jinp1.separate_value_from_prefix, None)
         self.assertIsInstance(jinp1.input_type, File)
         
-        self.assertEquals(jinp2.tag, 'noheader')
-        self.assertEquals(jinp2.prefix, '--noheader')
+        self.assertEqual(jinp2.tag, 'noheader')
+        self.assertEqual(jinp2.prefix, '--noheader')
         self.assertIsInstance(jinp2.input_type, Boolean)
-        self.assertEquals(jinp2.input_type.optional, True)
+        self.assertEqual(jinp2.input_type.optional, True)
 
-        self.assertEquals(jinp3.tag, 'adv_min_dna_id')
-        self.assertEquals(jinp3.prefix, '--minid=')
-        self.assertEquals(jinp3.separate_value_from_prefix, False)
+        self.assertEqual(jinp3.tag, 'adv_min_dna_id')
+        self.assertEqual(jinp3.prefix, '--minid=')
+        self.assertEqual(jinp3.separate_value_from_prefix, False)
         self.assertIsInstance(jinp3.input_type, Array)
         
-        self.assertEquals(jinp4.tag, 'adv_db')
-        self.assertEquals(jinp4.prefix, '--db=')
-        self.assertEquals(jinp4.separate_value_from_prefix, False)
-        self.assertEquals(jinp4.default, 'resfinder')
+        self.assertEqual(jinp4.tag, 'adv_db')
+        self.assertEqual(jinp4.prefix, '--db=')
+        self.assertEqual(jinp4.separate_value_from_prefix, False)
+        self.assertEqual(jinp4.default, 'resfinder')
         self.assertIsInstance(jinp4.input_type, String)
 
     def test_to_janis_tool_output(self) -> None:
@@ -1017,18 +1017,18 @@ class TestJanisToolMapping(unittest.TestCase):
         self.assertIsInstance(jout3, ToolOutput)
         # check attributes are correct
         self.assertIsInstance(jout1.output_type, Stdout)
-        self.assertEquals(jout1.tag, 'out_report1')
+        self.assertEqual(jout1.tag, 'out_report1')
         self.assertIsNone(jout1.selector)
         
         self.assertIsInstance(jout2.output_type, File)
-        self.assertEquals(jout2.tag, 'out_report2')
+        self.assertEqual(jout2.tag, 'out_report2')
         self.assertIsInstance(jout2.selector, WildcardSelector)
-        self.assertEquals(jout2.selector.wildcard, 'report.txt')
+        self.assertEqual(jout2.selector.wildcard, 'report.txt')
         
         self.assertIsInstance(jout3.output_type, File)
-        self.assertEquals(jout3.tag, 'out_file_input')
+        self.assertEqual(jout3.tag, 'out_file_input')
         self.assertIsInstance(jout3.selector, InputSelector)
-        self.assertEquals(jout3.selector.input_to_select, 'file_input')
+        self.assertEqual(jout3.selector.input_to_select, 'file_input')
 
     def test_to_janis_metadata(self) -> None:
         """
@@ -1063,11 +1063,11 @@ class TestJanisWorkflowMapping(unittest.TestCase):
     
     def test_to_janis_inputs_dict(self) -> None:
         # single input, no value
-        self.assertEquals(self.jinputs['in_fasta'], None)
+        self.assertEqual(self.jinputs['in_fasta'], None)
         # single input, provided value
         self.internal.inputs[0].value = 'path/to/file.fasta'
         jinputs = to_janis_inputs_dict(self.internal)
-        self.assertEquals(jinputs['in_fasta'], 'path/to/file.fasta')
+        self.assertEqual(jinputs['in_fasta'], 'path/to/file.fasta')
 
     def test_janis_metadata(self) -> None:
         self.assertIsInstance(self.jworkflow.metadata, WorkflowMetadata)
@@ -1080,7 +1080,7 @@ class TestJanisWorkflowMapping(unittest.TestCase):
             'abricate_noheader',
         }
         actual_inputs = set(self.jworkflow.input_nodes.keys())
-        self.assertEquals(target_inputs, actual_inputs)
+        self.assertEqual(target_inputs, actual_inputs)
 
         jinp = self.jworkflow.input_nodes['in_fasta']
         self.assertIsInstance(jinp, InputNode)
@@ -1089,18 +1089,18 @@ class TestJanisWorkflowMapping(unittest.TestCase):
     def test_janis_outputs(self) -> None:
         target_outputs = {'abricate_out_report1'}
         actual_outputs = set(self.jworkflow.output_nodes.keys())
-        self.assertEquals(target_outputs, actual_outputs)
+        self.assertEqual(target_outputs, actual_outputs)
 
         jout = self.jworkflow.output_nodes['abricate_out_report1']
         self.assertIsInstance(jout, OutputNode)
         self.assertIsInstance(jout.datatype, Stdout)
         self.assertIsInstance(jout.datatype.subtype, File)
-        self.assertEquals(jout.doc.doc, 'report file')
+        self.assertEqual(jout.doc.doc, 'report file')
 
     def test_janis_steps(self) -> None:
         target_steps = {'abricate'}
         actual_steps = set(self.jworkflow.step_nodes.keys())
-        self.assertEquals(target_steps, actual_steps)
+        self.assertEqual(target_steps, actual_steps)
 
         # basic object checks
         jstep = self.jworkflow.step_nodes['abricate']
@@ -1114,8 +1114,8 @@ class TestJanisWorkflowMapping(unittest.TestCase):
         self.assertIn('adv_db', jstep.sources)
         
         # scatter 
-        self.assertEquals(jstep.scatter.fields, ['adv_min_dna_id'])
-        self.assertEquals(jstep.scatter.method, ScatterMethod.dot)
+        self.assertEqual(jstep.scatter.fields, ['adv_min_dna_id'])
+        self.assertEqual(jstep.scatter.method, ScatterMethod.dot)
 
 
 class TestDatatypeInference(unittest.TestCase):
@@ -1127,20 +1127,20 @@ class TestDatatypeInference(unittest.TestCase):
 
     def test_positional(self) -> None:
         dtype = datatypes.get(MOCK_POSITIONAL1)
-        self.assertEquals(dtype.classname, 'Fastq')
+        self.assertEqual(dtype.classname, 'Fastq')
      
     def test_flag(self) -> None:
-        self.assertEquals(datatypes.get(MOCK_FLAG1), bool_t)
+        self.assertEqual(datatypes.get(MOCK_FLAG1), bool_t)
     
     def test_option(self) -> None:
-        self.assertEquals(datatypes.get(MOCK_OPTION2), string_t)
+        self.assertEqual(datatypes.get(MOCK_OPTION2), string_t)
     
     def test_outputs(self) -> None:
         dtype = datatypes.get(MOCK_REDIRECT_OUTPUT)
-        self.assertEquals(dtype.classname, 'TextFile')
+        self.assertEqual(dtype.classname, 'TextFile')
     
     def test_workflow_input(self) -> None:
-        self.assertEquals(datatypes.get(MOCK_WORKFLOW_INPUT1), file_t)
+        self.assertEqual(datatypes.get(MOCK_WORKFLOW_INPUT1), file_t)
 
 
 class TestFromGalaxy(unittest.TestCase):
@@ -1153,21 +1153,21 @@ class TestFromGalaxy(unittest.TestCase):
         jtool = ingest_galaxy(filepath)
         assert(isinstance(jtool, CommandTool))
         
-        self.assertEquals(len(jtool.inputs()), 5)
-        self.assertEquals(len(jtool.outputs()), 1)
-        self.assertEquals(jtool.base_command(), ['abricate'])
+        self.assertEqual(len(jtool.inputs()), 5)
+        self.assertEqual(len(jtool.outputs()), 1)
+        self.assertEqual(jtool.base_command(), ['abricate'])
 
     def test_ingest_cutadapt_wf(self) -> None:
         filepath = os.path.abspath(f'{GALAXY_TESTWF_PATH}/cutadapt_wf.ga')
         jworkflow = ingest_galaxy(filepath)
         assert(isinstance(jworkflow, WorkflowBuilder))
 
-        self.assertEquals(len(jworkflow.input_nodes), 42)
+        self.assertEqual(len(jworkflow.input_nodes), 42)
         self.assertIn('in_forward', jworkflow.input_nodes)
         self.assertIn('in_reverse', jworkflow.input_nodes)
-        self.assertEquals(len(jworkflow.step_nodes), 1)
+        self.assertEqual(len(jworkflow.step_nodes), 1)
         self.assertIn('cutadapt', jworkflow.step_nodes)
-        self.assertEquals(len(jworkflow.output_nodes), 3)
+        self.assertEqual(len(jworkflow.output_nodes), 3)
         self.assertIn('cutadapt_out12', jworkflow.output_nodes)
         self.assertIn('cutadapt_out22', jworkflow.output_nodes)
         self.assertIn('cutadapt_out_report', jworkflow.output_nodes)
@@ -1178,8 +1178,8 @@ class TestFromGalaxy(unittest.TestCase):
         jworkflow = ingest_galaxy(filepath)
         assert(isinstance(jworkflow, WorkflowBuilder))
 
-        self.assertEquals(len(jworkflow.step_nodes), 6)
-        self.assertEquals(len(jworkflow.output_nodes), 7)
+        self.assertEqual(len(jworkflow.step_nodes), 6)
+        self.assertEqual(len(jworkflow.output_nodes), 7)
         self.assertIn('in_short_R1', jworkflow.input_nodes)
         self.assertIn('in_short_R2', jworkflow.input_nodes)
         self.assertIn('in_long', jworkflow.input_nodes)

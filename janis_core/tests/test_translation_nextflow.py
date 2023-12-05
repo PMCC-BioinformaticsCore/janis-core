@@ -991,73 +991,73 @@ class TestToGroovyStr(unittest.TestCase):
         inp = 'Hello'
         expected = '"Hello"'
         actual = to_groovy(inp, String())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_numeric(self) -> None:
         # int
         inp = 5
         expected = '5'
         actual = to_groovy(inp, Int())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
         # float
         inp = 5.2
         expected = '5.2'
         actual = to_groovy(inp, Float())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_bool(self) -> None:
         # true
         inp = True
         expected = 'true'
         actual = to_groovy(inp, Boolean())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
         # false
         inp = False
         expected = 'false'
         actual = to_groovy(inp, Boolean())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_none(self) -> None:
         inp = None
         expected = 'null'
         actual = to_groovy(inp, String())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_empty_array(self) -> None:
         inp = []
         expected = "[]"
         actual = to_groovy(inp, String())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_string_array(self) -> None:
         inp = ['Hello']
         expected = "['Hello']"
         actual = to_groovy(inp, String())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_numeric_array(self) -> None:
         # int
         inp = [1, 2, 3]
         expected = '[1, 2, 3]'
         actual = to_groovy(inp, Int())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
         # float
         inp = [1.1, 2.2, 3.3]
         expected = '[1.1, 2.2, 3.3]'
         actual = to_groovy(inp, Float())
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_bool_array(self) -> None:
         inp = [True, False]
         expected = '[true, false]'
         actual = to_groovy(inp)
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
     
     def test_none_array(self) -> None:
         inp = [None, None]
         expected = '[null, null]'
         actual = to_groovy(inp)
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
 
 
 
@@ -1067,12 +1067,12 @@ class TestSettings(unittest.TestCase):
         reset_globals()
 
     def test_get_settings(self):
-        # self.assertEquals(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
-        self.assertEquals(settings.translate.nextflow.CONFIG_FILENAME, 'nextflow.config')
+        # self.assertEqual(settings.translate.nextflow.LIB_FILENAME, 'lib.nf')
+        self.assertEqual(settings.translate.nextflow.CONFIG_FILENAME, 'nextflow.config')
     
     def test_set_settings(self):
         settings.translate.nextflow.MINIMAL_PROCESS = False
-        self.assertEquals(settings.translate.nextflow.MINIMAL_PROCESS, False)
+        self.assertEqual(settings.translate.nextflow.MINIMAL_PROCESS, False)
 
 
 
@@ -3566,7 +3566,7 @@ class TestPlumbingCombinations(unittest.TestCase):
         #     'in_alignments_bams': '[]',
         #     'in_alignments_bais': '[]',
         # }
-        # self.assertEquals(actual_params, expected_params)
+        # self.assertEqual(actual_params, expected_params)
         raise NotImplementedError
     
     @unittest.skip('not implemented')
