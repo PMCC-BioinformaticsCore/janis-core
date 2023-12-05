@@ -439,6 +439,7 @@ class TestCommandAnnotation(unittest.TestCase):
         cls.cutadapt_xmltool = _load_xmltool_for_step(cls.CUTADAPT_WF_FILEPATH, 2)
         _reset_global_settings()
         cls.limmavoom_xmltool = _load_xmltool_for_step(cls.LIMMAVOOM_WF_FILEPATH, 3)
+        _reset_global_settings()
     
     def setUp(self) -> None:
         _reset_global_settings()

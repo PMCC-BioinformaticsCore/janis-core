@@ -2,6 +2,7 @@
 import unittest
 import os
 from typing import Any, Tuple
+import regex as re 
 
 from janis_core import (
     InputSelector,
@@ -544,7 +545,9 @@ class TestErrorHandlingDatatypes(unittest.TestCase):
         self.assertIsInstance(dtype, File)
         lines = load_loglines(entity_uuids=set(['test']))
         msgs = [x.message for x in lines]
-        self.assertIn('entity: unsupported datatype file:///home/grace/work/pp/translation/janis-core/janis_core/tests/data/cwl/tools/gatk_haplotype_tool.cwl#annotation_type. treated as generic File.', msgs)
+        msg = [x for x in msgs if 'entity: unsupported datatype' in x][0]
+        matches = re.findall(r'entity: unsupported datatype (.*). treated as generic File.', msg) 
+        self.assertEqual(len(matches), 1)
 
     def test_unparseable_secondary_type(self):
         settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = True
