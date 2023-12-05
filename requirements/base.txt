@@ -28,3 +28,4 @@ cwl-utils==0.15
 graphviz
 nose
 pydantic<2
+Levenshtein
