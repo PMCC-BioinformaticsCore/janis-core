@@ -5,7 +5,7 @@ import tarfile
 from typing import Optional
 
 from janis_core import settings
-from janis_core.ingestion.galaxy.fileio import safe_init_folder
+from janis_core.ingestion.common import safe_init_folder
 
 
 class DownloadCache: 

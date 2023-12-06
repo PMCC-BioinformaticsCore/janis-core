@@ -13,8 +13,8 @@ from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
 from ..types import ingest_cwl_type
-from janis_core.ingestion.common.identifiers import get_id_entity
-from janis_core.ingestion.common.identifiers import get_id_filename
+from janis_core.ingestion.common import get_id_entity
+from janis_core.ingestion.common import get_id_filename
 from ..expressions import parse_expression
 
 

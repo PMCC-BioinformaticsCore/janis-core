@@ -10,9 +10,9 @@ from janis_core.operators import FirstOperator, FilterNullOperator
 from janis_core import ScatterDescription, ScatterMethod
 
 from ..types import ingest_cwl_type
-from janis_core.ingestion.common.identifiers import get_id_entity
-from janis_core.ingestion.common.identifiers import remove_output_name_from_output_source
-from janis_core.ingestion.common.graph import get_janis_wf_sources
+from janis_core.ingestion.common import get_id_entity
+from janis_core.ingestion.common import remove_output_name_from_output_source
+from janis_core.ingestion.common import get_janis_wf_sources
 from ..expressions import parse_expression
 
 from janis_core import settings

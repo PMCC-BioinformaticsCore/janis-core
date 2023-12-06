@@ -6,7 +6,32 @@ from typing import Tuple, Any,Optional
 from janis_core import Logger
 from janis_core import settings
 from janis_core.translation_deps.exportpath import ExportPathKeywords
+from janis_core.ingestion.common import safe_init_folder
 
+PERMISSIONS=0o777
+
+
+def write_tool_to_console(str_tool: str) -> None:
+    print(str_tool)
+
+
+def write_tool_to_disk(str_tool: str, filename: str, tup_helpers: list[Tuple[str, str]]) -> None:
+    # set output folder
+    basedir = ExportPathKeywords.resolve(
+        settings.translate.EXPORT_PATH, 
+        workflow_spec=settings.translate.DEST, 
+        workflow_name=None
+    )
+    # create output folder
+    if not os.path.exists(basedir):
+        os.makedirs(basedir)
+
+    # write tool file
+    _write_file((filename, str_tool), basedir, 'tool', None)
+
+    # write helper files (files_to_create scripts)
+    for tup_helper in tup_helpers:
+        _write_file(tup_helper, basedir, 'helper', None)
 
 
 def write_workflow_to_console(
@@ -46,9 +71,7 @@ def write_workflow_to_disk(
         workflow_spec=settings.translate.DEST,
         workflow_name=None
     )
-    if os.path.isdir(basedir):
-        shutil.rmtree(basedir)
-    os.makedirs(basedir, exist_ok=True)
+    safe_init_folder(basedir)
 
     # writing main workflow
     _write_file(tup_main, basedir, 'main', outdir_structure['main'])
@@ -83,22 +106,8 @@ def write_workflow_to_disk(
         _write_galaxy_source_files_to_disk(basedir)
 
 
-def _write_file(tup_file: Tuple[str, str], basedir: str, ftype: str, fsubdir: str | None) -> None:
-    filename, contents = tup_file
-    
-    # format outdir using basedir and subdir if provided
-    outdir = os.path.join(basedir, fsubdir) if fsubdir is not None else basedir
-    os.makedirs(outdir, exist_ok=True)
-
-    # write to disk
-    Logger.info(f"Writing {ftype} to '{outdir}'")
-    with open(os.path.join(outdir, filename), "w+") as f:
-        Logger.log(f"Writing {filename} to disk")
-        f.write(contents)
-        Logger.log(f"Written {filename} to disk")
-
-
 def _write_galaxy_source_files_to_disk(basedir: str) -> None:
+    # TODO permissions
     # copying source files - this one is a bit weird & specific to galaxy.  
     if settings.general.SOURCE_FILES is not None:
         # create source folder in basedir
@@ -113,75 +122,20 @@ def _write_galaxy_source_files_to_disk(basedir: str) -> None:
             shutil.copy2(src, dest)
 
 
-def write_tool_to_console(str_tool: str) -> None:
-    print(str_tool)
-
-
-def write_tool_to_disk(str_tool: str, filename: str, tup_helpers: list[Tuple[str, str]]) -> None:
-    # set output folder
-    basedir = ExportPathKeywords.resolve(
-        settings.translate.EXPORT_PATH, 
-        workflow_spec=settings.translate.DEST, 
-        workflow_name=None
-    )
-    # create output folder
-    if not os.path.exists(basedir):
-        os.makedirs(basedir)
-
-    # write tool file
-    _write_file((filename, str_tool), basedir, 'tool', None)
-
-    # write helper files (files_to_create scripts)
-    for tup_helper in tup_helpers:
-        _write_file(tup_helper, basedir, 'helper', None)
-
-
-
-
+def _write_file(tup_file: Tuple[str, str], basedir: str, ftype: str, fsubdir: str | None) -> None:
+    filename, contents = tup_file
     
-
-# DEPRECATED from write_workflow_to_disk()
-
-    # subfolders: list[str] = []
-    # subfolders.append(self.DIR_TOOLS)
-    # subfolders += self.SUBDIRS_TO_CREATE
-    # for subfolder in subfolders:
-    #     path = os.path.join(basedir, subfolder)
-    #     if not os.path.isdir(path):
-    #         os.makedirs(path, exist_ok=True)
-
-
-        # if settings.translate.SHOULD_VALIDATE:
-    #     with Path(basedir):
-
-    #         Logger.info(f"Validating outputted {self.name}")
-
-    #         enved_vcs = [
-    #             (os.getenv(x[1:]) if x.startswith("$") else x)
-    #             for x in self.validate_command_for(
-    #                 fn_workflow, fn_inputs, "tools/", "tools.zip"
-    #             )
-    #         ]
-
-    #         cwltool_result = subprocess.run(enved_vcs)
-    #         if cwltool_result.returncode == 0:
-    #             Logger.info(
-    #                 "Exported tool was validated by: " + " ".join(enved_vcs)
-    #             )
-    #         else:
-    #             Logger.critical(str(cwltool_result.stderr))
+    # format outdir using basedir and subdir if provided
+    outdir = os.path.join(basedir, fsubdir) if fsubdir is not None else basedir
+    safe_init_folder(outdir)
     
-    # # zipping tools file
-    # import subprocess
+    filepath = os.path.join(outdir, filename)
 
-    # if settings.translate.SHOULD_ZIP:
-    #     Logger.debug("Zipping tools")
-    #     with Path(basedir):
-    #         FNULL = open(os.devnull, "w")
-    #         zip_result = subprocess.run(
-    #             ["zip", "-r", "tools.zip", "tools/"], stdout=FNULL
-    #         )
-    #         if zip_result.returncode == 0:
-    #             Logger.debug("Zipped tools")
-    #         else:
-    #             Logger.critical(str(zip_result.stderr.decode()))
+    # write to disk
+    Logger.info(f"Writing {ftype} to '{outdir}'")
+    with open(filepath, "w+") as f:
+        Logger.log(f"Writing {filename} to disk")
+        f.write(contents)
+        Logger.log(f"Written {filename} to disk")
+        os.chmod(filepath, PERMISSIONS)
+

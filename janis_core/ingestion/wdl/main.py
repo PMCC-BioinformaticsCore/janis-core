@@ -9,7 +9,7 @@ from .parsing.workflow.explore import get_entities_flat
 from janis_core import WorkflowBuilder, CommandToolBuilder
 from janis_core.workflow.workflow import InputNode, StepNode, OutputNode
 
-from janis_core.ingestion.common.graph import add_step_edges_to_graph
+from janis_core.ingestion.common import add_step_edges_to_graph
 from .parsing import WorkflowInputParser
 from .parsing import WorkflowStepModifierParser
 from .parsing import WorkflowStepInputParser

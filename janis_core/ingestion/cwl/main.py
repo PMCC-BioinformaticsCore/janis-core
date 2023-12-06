@@ -16,14 +16,14 @@ from janis_core.utils.errors import UnsupportedError
 from janis_core.messages import log_message
 from janis_core.messages import ErrorCategory
 
-from ..common.identifiers import get_id_filename
-from ..common.identifiers import get_id_entity
+from ..common import get_id_filename
+from ..common import get_id_entity
 from .loading import load_cwl_version
 from .loading import load_cwl_utils_from_version
 from .loading import load_cwl_document
 from .loading import convert_etool_to_cltool
 
-from ..common.graph import add_step_edges_to_graph
+from ..common import add_step_edges_to_graph
 
 from .parsing.tool import CLTParser
 from .parsing.workflow import WorkflowInputParser

@@ -3,7 +3,7 @@ import regex as re
 import sys
 import inspect
 
-from janis_core.ingestion.common.identifiers import get_id_entity
+from janis_core.ingestion.common import get_id_entity
 from janis_core.messages import ErrorCategory
 from janis_core.messages import log_message
 from janis_core.utils.errors import UnsupportedError

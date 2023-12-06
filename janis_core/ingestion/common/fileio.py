@@ -1,6 +1,8 @@
 
-import os
 
+import os 
+import shutil
+PERMISSIONS=0o777
 
 def safe_init_file(path: str, override: bool=False, contents: str='') -> None:
     dirname = os.path.dirname(path)
@@ -9,6 +11,7 @@ def safe_init_file(path: str, override: bool=False, contents: str='') -> None:
         fp.write(contents)
 
 def safe_init_folder(path: str, override: bool=False) -> None:
-    if not os.path.isdir(path):
-        os.makedirs(path)
-
+    if override:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+    os.makedirs(path, PERMISSIONS, exist_ok=True)
