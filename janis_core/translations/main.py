@@ -4,12 +4,13 @@ from typing import Optional, Any
 from inspect import isclass
 
 from janis_core import settings
-from janis_core import CodeTool, CommandTool, WorkflowBase, WorkflowBuilder
+from janis_core import CodeTool, CommandToolBuilder, WorkflowBase, WorkflowBuilder
 from janis_core import Tool
 from janis_core.utils import lowercase_dictkeys
 from janis_core.translation_deps.supportedtranslations import SupportedTranslation
 from janis_core.translations.common import to_builders
 from janis_core.translations.common import prune_workflow
+from janis_core.translations.common import wrap_tool_in_workflow
 from .translationbase import TranslatorBase
 
 
@@ -21,6 +22,7 @@ def translate(
     # file io
     to_disk: Optional[bool] = None,
     export_path: Optional[str] = None,
+    as_workflow: Optional[bool] = None,
     should_zip: Optional[bool] = None,   
     to_console: Optional[bool] = None,
     tool_to_console: Optional[bool] = None,
@@ -104,13 +106,16 @@ def translate(
         assert(isinstance(entity, WorkflowBuilder))
         prune_workflow(entity)
 
+    if as_workflow and isinstance(entity, CommandToolBuilder):
+        entity = wrap_tool_in_workflow(entity)
+
     # select the translation unit 
     translator = get_translator(dest_fmt)
 
     # do translation 
-    if isinstance(entity, WorkflowBase):
+    if isinstance(entity, WorkflowBuilder):
         return translator.translate_workflow(entity)
-    elif isinstance(entity, CommandTool):
+    elif isinstance(entity, CommandToolBuilder):
         return translator.translate_tool(entity)
     elif isinstance(entity, CodeTool):
         return translator.translate_code_tool(entity)
@@ -123,6 +128,9 @@ def get_translator(translation: str | SupportedTranslation) -> TranslatorBase:
         translation = SupportedTranslation(translation)
     return translation.get_translator()
 
+
+# standalone funcs for just building inputs, rather than doing full translation. 
+# doesn't really work or make sense. 
 def build_resources_input(
     workflow: WorkflowBase,
     translation: str | SupportedTranslation,
@@ -141,7 +149,7 @@ def build_resources_input(
         settings.translate.MAX_MEM = max_mem
 
     translator = get_translator(translation)
-    inputs_dict = translator.build_resources_input(workflow)
+    inputs_dict = translator._build_resources_dict(workflow)
     return inputs_dict
 
 def build_resources_file(

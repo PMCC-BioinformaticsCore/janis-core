@@ -14,11 +14,22 @@ from janis_core import (
 )
 from janis_core.graph.steptaginput import StepTagInput, first_value, Edge
 from janis_core.tests.testtools import SingleTestTool, ArrayStepTool
-
+from janis_core import settings
 
 class TestWorkflow(TestCase):
     def setUp(self):
         Logger.mute()
+        settings.validation.STRICT_IDENTIFIERS = True
+        settings.validation.VALIDATE_STRINGFORMATTERS = True
+        settings.general.SHOULD_VALIDATE = True
+        settings.testing.TESTMODE = False
+        settings.ingest.SAFE_MODE = False
+        settings.datatypes.ALLOW_UNPARSEABLE_DATATYPES = False
+        settings.graph.ALLOW_NON_ARRAY_SCATTER_INPUT = False
+        settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS = False
+        settings.graph.ALLOW_INCORRECT_NUMBER_OF_SOURCES = False
+        settings.graph.ALLOW_INCOMPATIBLE_TYPES = False
+        settings.graph.ALLOW_UNKNOWN_SOURCE = False
 
     def tearDown(self):
         Logger.unmute()

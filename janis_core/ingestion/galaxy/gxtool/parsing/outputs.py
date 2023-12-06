@@ -1,8 +1,7 @@
 
 
 from abc import ABC, abstractmethod
-from typing import Optional
-from galaxy.tool_util.parser.output_objects import ToolOutput as GxOutput
+from typing import Optional, Any
 
 from ... import regex_to_glob
 from ..model import XMLParamRegister
@@ -18,12 +17,12 @@ from janis_core.ingestion.galaxy.expressions.patterns import WILDCARD_GROUP
 
 class Factory(ABC):
     @abstractmethod
-    def create(self, gxout: GxOutput, inputs: XMLParamRegister)  -> XMLOutputParam:
+    def create(self, gxout: Any, inputs: XMLParamRegister)  -> XMLOutputParam:
         """parses galaxy output to return an XMLOutputParam"""
         ...
 
 class DataOutputFactory(Factory):
-    def create(self, gxout: GxOutput, inputs: XMLParamRegister)  -> XMLOutputParam:
+    def create(self, gxout: Any, inputs: XMLParamRegister)  -> XMLOutputParam:
         param = XMLDataOutputParam(gxout.name)
         param.label = str(gxout.label).rsplit('}', 1)[-1].strip(': ')
         param.formats = fetch_format(gxout, inputs)
@@ -32,7 +31,7 @@ class DataOutputFactory(Factory):
         return param
 
 class CollectionOutputFactory(Factory):
-    def create(self, gxout: GxOutput, inputs: XMLParamRegister)  -> XMLOutputParam:
+    def create(self, gxout: Any, inputs: XMLParamRegister)  -> XMLOutputParam:
         param = XMLCollectionOutputParam(gxout.name)
         param.label = str(gxout.label).rsplit('}', 1)[-1].strip(': ')
         if gxout.structure.collection_type != '':
@@ -41,13 +40,13 @@ class CollectionOutputFactory(Factory):
         param.discover_pattern = get_discover_pattern(gxout)
         return param
 
-def get_from_workdir_pattern(gxout: GxOutput) -> Optional[str]:
+def get_from_workdir_pattern(gxout: Any) -> Optional[str]:
     # from_work_dir is a glob pattern
     if has_from_workdir(gxout):
         return gxout.from_work_dir
     return None
 
-def get_discover_pattern(gxout: GxOutput) -> Optional[str]:
+def get_discover_pattern(gxout: Any) -> Optional[str]:
     # dataset_collectors are regex patterns
     if not has_dataset_collector(gxout):
         return None
@@ -83,8 +82,8 @@ factory_map = {
     'collection': CollectionOutputFactory
 }
 
-def parse_output_param(gxout: GxOutput, inputs: XMLParamRegister) -> list[XMLOutputParam]:
-    galaxy_params: list[GxOutput] = []
+def parse_output_param(gxout: Any, inputs: XMLParamRegister) -> list[XMLOutputParam]:
+    galaxy_params: list[Any] = []
     internal_params: list[XMLOutputParam] = []
 
     # split collection of defined outputs to list 
@@ -103,40 +102,40 @@ def parse_output_param(gxout: GxOutput, inputs: XMLParamRegister) -> list[XMLOut
         internal_params.append(i_param)
     return internal_params
 
-def is_defined_collection(gxout: GxOutput) -> bool:
+def is_defined_collection(gxout: Any) -> bool:
     if hasattr(gxout, 'outputs') and len(gxout.outputs) > 0:  # type: ignore
         return True
     return False
 
-def fetch_format(gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+def fetch_format(gxout: Any, inputs: XMLParamRegister) -> list[str]:
     strategy: FetchStrategy = select_fetcher(gxout)
     return strategy.fetch(gxout, inputs)
 
-def has_format(gxout: GxOutput) -> bool:
+def has_format(gxout: Any) -> bool:
     if hasattr(gxout, 'format'):
         if gxout.format and gxout.format != 'data':
             return True
     return False
 
-def has_default_format(gxout: GxOutput) -> bool:
+def has_default_format(gxout: Any) -> bool:
     if hasattr(gxout, 'default_format'): 
         if gxout.default_format and gxout.default_format != 'data':
             return True
     return False
 
-def has_format_source(gxout: GxOutput) -> bool:
+def has_format_source(gxout: Any) -> bool:
     if hasattr(gxout, 'format_source'):
         if gxout.format_source:
             return True
     return False
 
-def has_from_workdir(gxout: GxOutput) -> bool:
+def has_from_workdir(gxout: Any) -> bool:
     if gxout.output_type == 'data': # type: ignore
         if hasattr(gxout, 'from_work_dir') and gxout.from_work_dir: # type: ignore
             return True
     return False
 
-def has_dataset_collector(gxout: GxOutput) -> bool:
+def has_dataset_collector(gxout: Any) -> bool:
     if hasattr(gxout, 'dynamic_structure') and gxout.dynamic_structure: # type: ignore
         if hasattr(gxout, 'dataset_collector_descriptions'):
             return True
@@ -145,37 +144,37 @@ def has_dataset_collector(gxout: GxOutput) -> bool:
 # helper classes 
 class FetchStrategy(ABC):
     @abstractmethod
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         """gets the galaxy datatype formats for this galaxy output"""
         ...
 
 class FormatFetchStrategy(FetchStrategy):
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         return str(gxout.format).split(',')
 
 class DefaultFormatFetchStrategy(FetchStrategy):
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         return str(gxout.default_format).split(',')
 
 class FormatSourceFetchStrategy(FetchStrategy):
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         param = inputs.get(gxout.format_source, strategy='lca')
         if param:
             return param.formats
         return []
 
 class CollectorFetchStrategy(FetchStrategy):
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         coll = gxout.dataset_collector_descriptions[0]
         if coll.default_ext:
             return str(coll.default_ext).split(',')
         return []
 
 class FallbackFetchStrategy(FetchStrategy):
-    def fetch(self, gxout: GxOutput, inputs: XMLParamRegister) -> list[str]:
+    def fetch(self, gxout: Any, inputs: XMLParamRegister) -> list[str]:
         return []
 
-def select_fetcher(gxout: GxOutput) -> FetchStrategy:
+def select_fetcher(gxout: Any) -> FetchStrategy:
     if has_format(gxout):
         return FormatFetchStrategy()
     elif has_default_format(gxout):

@@ -46,6 +46,7 @@ dependencies = [
     "regex",
     "tabulate",
     "path",
+    "packaging==21.3",
     "galaxy-app==22.1.1",
     "galaxy-auth==22.1.1",
     "galaxy-config==22.1.1",
@@ -61,7 +62,6 @@ dependencies = [
     "galaxy-web-framework==22.1.1",
     "galaxy-web-stack==22.1.1",
     "pulsar-galaxy-lib==0.14.13",
-    "packaging==21.3",
     "miniwdl",
     "biopython==1.79",
     "filelock==3.7.0",
@@ -69,14 +69,14 @@ dependencies = [
     "cwl-utils==0.15",
     "graphviz",
     "nose",
-    "pydantic<2"
+    "pydantic<2",
+    "Levenshtein",
 ]
 requires-python = ">=3.10.5"
 
 [project.urls]
 repository      = "https://github.com/PMCC-BioinformaticsCore/janis-core"
 documentation   = "https://janis.readthedocs.io/en/latest/"
-
 
 [tool.setuptools]
 include-package-data = true
@@ -89,9 +89,13 @@ janis_core = [
     "ingestion/data/galaxy/*.json",
     "ingestion/data/galaxy/*.yaml",
     "ingestion/data/galaxy/*.xml.sample",
+    "ingestion/cwl/expressions/grammar.ebnf",
 ]
 
 [tool.setuptools.packages.find]
 where = ["./"]
 include = ["janis_core*"]
 namespaces = false
+
+[project.scripts]
+janis-translate = "janis_core.cli:main"

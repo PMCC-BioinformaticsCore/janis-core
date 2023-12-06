@@ -5,7 +5,9 @@ from inspect import isclass
 from typing import List, Union, Optional, Dict, Tuple, Any, Set, Iterable, Type
 from uuid import uuid4
 
-from janis_core.messages import log_warning
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
+
 from janis_core import settings
 from janis_core.graph.node import Node, NodeType
 from janis_core.graph.steptaginput import StepTagInput
@@ -299,6 +301,7 @@ class OutputNode(Node):
         self.output_folder = output_folder
         self.output_name = output_name
         self.extension = extension
+        self.operator: Optional[Operator] = None
 
     def inputs(self) -> Dict[str, TInput]:
         # Program will just grab first value anyway
@@ -644,7 +647,7 @@ class WorkflowBase(Tool):
         from janis_core.translations.translationbase import TranslatorBase
 
         return super().all_input_keys() + list(
-            TranslatorBase.build_resources_input(tool=self, hints={}).keys()
+            TranslatorBase._build_resources_dict(tool=self, hints={}).keys()
         )
 
     def verify_output_source_type(
@@ -753,15 +756,14 @@ class WorkflowBase(Tool):
             if any(f not in ins for f in fields):
                 if settings.graph.ALLOW_UNKNOWN_SCATTER_FIELDS:
                     msg = f"This task is supposed to run in parallel across {fields}, but some of these are not task inputs."
-                    log_warning(self.uuid, msg)
-                    raise Exception("should this be checked?")
+                    log_message(self.uuid, msg, ErrorCategory.PLUMBING)
                 else:
                     # if there is a field not in the input map, we have a problem
                     extra_keys = ", ".join(f"'{f}'" for f in (fields - ins))
-                    raise Exception(
-                        f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' "
-                        f"as they are not inputs to the tool '{tool.id()}'"
-                    )
+                    msg = f"Couldn't scatter the field(s) {extra_keys} for step '{identifier}' " +\
+                          f"as they are not inputs to the tool '{tool.id()}'"
+                    log_message(self.uuid, msg, ErrorCategory.FATAL)
+                    raise RuntimeError(msg)
 
         tool.workflow = self
         inputs = tool.inputs_map()
@@ -981,7 +983,7 @@ class WorkflowBase(Tool):
         if with_resource_overrides:
             from janis_core.translations import CwlTranslator
 
-            d.update(CwlTranslator().build_resources_input(self, hints))
+            d.update(CwlTranslator()._build_resources_dict(self, hints))
 
         return d
 

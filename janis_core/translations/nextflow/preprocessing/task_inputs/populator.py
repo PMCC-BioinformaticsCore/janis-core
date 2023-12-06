@@ -24,7 +24,7 @@ def populate_code_file(tool: PythonTool) -> None:
     if not isinstance(tool, PythonTool):
         return 
     
-    path = f'{settings.translate.nextflow.BASE_OUTDIR}{os.sep}{settings.translate.nextflow.TEMPLATES_OUTDIR}{os.sep}{tool.id()}.py'
+    path = f'{settings.translate.nextflow.TEMPLATES_OUTDIR}{os.sep}{tool.id()}.py'
     params.add(
         task_id=tool.id(),
         tinput_id=settings.translate.nextflow.PYTHON_CODE_FILE,
@@ -50,7 +50,12 @@ def populate_scripts(tool: CommandToolBuilder) -> None:
     for filename in tool._files_to_create.keys():  # type: ignore
         # get the file path to where the script will appear in the translation
         assert(isinstance(filename, str))
-        path = os.path.join(settings.translate.nextflow.BASE_OUTDIR, settings.translate.nextflow.TEMPLATES_OUTDIR, filename)
+
+        # ignoring shell script parsed from WDL
+        if tool.is_shell_script and filename == 'script.sh':
+            continue 
+
+        path = os.path.join(settings.translate.nextflow.TEMPLATES_OUTDIR, filename)
         
         # generate a name for this input
         if len(tool._files_to_create) == 1:        # type: ignore

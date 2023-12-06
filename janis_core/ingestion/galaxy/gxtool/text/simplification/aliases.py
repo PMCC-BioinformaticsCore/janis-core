@@ -96,14 +96,13 @@ class AliasResolver:
     def resolve(self, cmdstr: str) -> str:
         self.register_aliases(cmdstr)
         cmdstr = self.resolve_aliases(cmdstr)
-        self.report()
+        # self.report()
         return cmdstr
     
     def report(self) -> None:
         print('--- ALIASES ---')
         print(f'discovered {len(self.register.aliases.keys())} aliases')
         print(f'resolved {self.resolution_count} aliases')
-        print()
 
     def register_aliases(self, cmdstr: str) -> None:
         lines = cmdstr.split('\n')

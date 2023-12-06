@@ -14,8 +14,6 @@ def prune_tools_and_sources(main_wf: WorkflowBuilder, tools: dict[str, CommandTo
 
 def prune(main_wf: WorkflowBuilder, tool: CommandToolBuilder) -> None:
     # for each tool input, get all sources from each wf step which feed this input 
-    if tool.id() == 'cutadapt':
-        print()
     collector = TaskInputCollector(tool)
     collector.collect(main_wf)
 

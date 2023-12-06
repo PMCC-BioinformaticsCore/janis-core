@@ -4,6 +4,7 @@ from janis_core import (
     ToolInput, 
     TInput,
     CommandTool,
+    CommandToolBuilder,
     PythonTool,
     File, 
     DataType
@@ -70,9 +71,15 @@ class ProcessInputGenerator:
         self.process_inputs.append(new_input)
 
     def generate_files_to_create_inputs(self) -> None:
-        if isinstance(self.tool, CommandTool) and not settings.ingest.SOURCE == 'galaxy':
+        if isinstance(self.tool, CommandToolBuilder) and not settings.ingest.SOURCE == 'galaxy':
             if self.tool._files_to_create:
+                assert isinstance(self.tool._files_to_create, dict)
                 for filename, filecontents in self.tool._files_to_create.items():
+                    
+                    # ignoring shell script parsed from WDL
+                    if self.tool.is_shell_script and filename == 'script.sh':
+                        continue 
+
                     # generate a name for this input
                     if len(self.tool._files_to_create) == 1:
                         name = 'script'

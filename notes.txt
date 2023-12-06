@@ -1,4 +1,614 @@
 
+errs 
+
+WDL
+- container exprs 
+- runtime exprs nextflow
+- unwrap script.sh
+    - Nextflow ok. Create param
+    - CWL log message 
+    if not isinstance(container, str | None):
+        # TODO nextflow make param. 
+        msg = 'Container requirement uses expression. Please address'
+        log_message(self.cmdtool.uuid, msg, category=ErrorCategory.FALLBACKS)
+        container = str(container)
+
+--------------
+--- GENERAL ---
+---------------
+
+DOCUMENTATION
+- tell new user that for messaging to work, must generate CommandToolBuilder or CodeTool or WorkflowBuilder only!
+- cannot use CommandTool or Workflow or WorkflowBase. 
+
+DONE (to test)
+- CWL ingest edam formats
+- WDL runtime duration removed
+- NXF tool translate wrap in workflow to create config etc
+- NXF translate reflects new TranslatorBase interface
+- WDL ingest operational
+- messages CWL output
+- messages NXF output
+- messages WDL output
+- messages CWl ingest
+- messages WDL ingest
+
+TODO 
+- messages GXY ingest
+- WDL rename variables to avoid keywords 
+- WDL rename variables with 2+ uses (eg "bam" input & "bam" output not allowed)
+- WDL remove implied resources
+- WDL docs / annotations from param_metadata
+- WDL Task parsing
+    - this seems very doable. 
+    - TaskParserDefault:
+        - can_parse(): checks whether there are no temp variables and 1 command 
+        - do_parse():  parses into typical janis structure with base_command etc. 
+    - TaskParserArguments:
+        - can_parse(): always True 
+        - do_parse():  inputs=super basic, no base_command, everything is arguments  
+        - maybe this style is applicable for Galaxy?
+    - Note: result can also contain scripting similar to nextflow. can refernece any input or temp var in task scope.
+
+- CWL parse self exprs
+- CWL translate_workflow_to_all_in_one()??
+- CWL adapt translation
+    - ShellCommandRequirement for relevant Janis tools (ingested via WDL TaskParserArguments)
+
+- NXF make prescript & script better
+    - prescript should handle getting the right values:
+        - input default      def input == params.NULL ? "default value" : input
+        - input optionality  def input == params.NULL ? "" : input
+        - secondaries        def in_bam_bai = in_bam_bai[0]
+        - secondary arrays   def bam_bai_arr = get_primary_files(bam_bai_arr_flat, 2)
+        - filepair arrays    def filepair_arr = get_primary_files(filepair_arr_flat, 2)
+    - script should handle everything else:
+        - prefix
+        - prefixeach
+        - arr joins for non-file (generic) input types
+        - stringformatters 
+        - Operators in general
+
+
+
+--------------------
+--- ARCHITECTURE ---
+--------------------
+
+
+1. Read file into memory (input files)
+    - Reads the textfile into some representation
+    - cwl-utils, miniwdl, galaxy
+
+2. Preprocess in-memory data? 
+    - cwl-utils objects get types cast from yml to python types
+
+3. Map in-memory data to Janis objects 
+    - Galaxy Tool -> Janis CommandTool 
+    - CWL CommandInputParameter -> Janis ToolInput
+    - involves mapping the data into Janis format 
+    - eg Janis ToolInput:
+        tag: str
+        input_type: ParseableType
+        position: Optional[int] = None
+        prefix: Optional[str] = None
+        separate_value_from_prefix: Optional[bool] = None
+        prefix_applies_to_all_elements: Optional[bool] = None
+        presents_as: Optional[str] = None
+        secondaries_present_as: Optional[dict[str, str]] = None
+        separator: Optional[str] = None
+        shell_quote: Optional[bool] = None
+        localise_file: Optional[bool] = None
+        default: Any = None
+        doc: Optional[Union[str, InputDocumentation]] = None
+        value: Optional[str]=None
+    - Expression casting
+    - Datatype casting
+
+4. Perform simplification if necessary 
+    - mainly for galaxy input  
+    - mode == 'skeleton' | 'regular'
+    - prune workflow / prune tool 
+    - modifies the Janis model to remove unnecessary:
+        - tool inputs
+        - step inputs
+        - other information like CLI bindings
+
+5. Map Janis objects to model representing output
+    - CWL: cwl-utils 
+    - Nextflow: internal model
+    - WDL: illusional.wdlgen
+    - Expression casting
+    - Datatype casting
+
+6. Render the model to text (output files) 
+    - uses model methods to generate string representation
+
+-------------------------
+--- TRANSLATION TABLE ---
+-------------------------
+
+TODO TEST 
+- nextflow translate: change all singularity nextflow.config text to just "docker.enabled = true"
+- nextflow translate: Boolean types should have default=false in nextflow.config
+- nextflow translate: remove brackets for script expressions (GroupOperator was causing the issues)
+- nextflow translate: NameextOperator needs a "." before the arg. 
+- nextflow translate: expressions for runtime variables can't be in params.
+- nextflow translate: Array(File(optional=True)) not properly handled in input & prescript. may be due to new expression parsing. 
+
+TODO IMPLEMENT
+- nextflow translate: Directory() types need new handling. 
+- nextflow translate: some inputs not handled correctly as bools 
+
+- cwl ingest: some expressions not being parsed.
+- cwl ingest: CWL tool inputs have implicit position. this includes optional - they're just not rendered. 
+
+- janis: add SelfOperator
+    - BWA-Mem.cwl
+      (CWL): valueFrom: $(self.dirname)/$(self.nameroot)
+      -> 
+      (NXF): def index = index[0]
+    - 
+      (CWL): valueFrom: $(self.path.replace(/\.fa/i,""))
+      -> 
+      (NXF): def reference_index = reference_index.replaceAll("/\.fa/i", "")
+
+CWL -> NXF
+easy
+- [0] BWA_Index.cwl
+- [0] BWA_Mem.cwl
+- [0] cutadapt-paired.cwl
+- [0] fastqc_2.cwl
+- [0] samtools_index.cwl
+
+med
+- [0] kraken2.cwl
+- [0] minimap2.cwl
+- [0] nanoplot.cwl
+- [0] picard_MarkDuplicates.cwl
+- [0] picard_SortSam.cwl
+
+hard 
+- [0] bamtools_stats.cwl
+- [0] bowtie2.cwl
+- [0] picard_AddOrReplaceReadGroups.cwl
+- [0] unicycler.cwl
+
+
+CWL -> NXF easy
+- [1] BWA_Index.cwl:        
+    - If operator moved to prescript NO! just remove the brackets!!!
+- [1] BWA_Mem.cwl:          
+    - def index = index[0]  ->  def index = index[0].simpleName
+      due to self. in CWL valueFrom
+- [2] cutadapt-paired.cwl:  
+    - added cli binding for read inputs. 
+      due to CWL tool not specifying input position. I guess we need to parse these.
+    - added "." before each NameextOperator. I guess this is what CWL does. 
+- [0] fastqc_2.cwl
+- [0] samtools_index.cwl
+
+
+CWL -> NXF med
+- [2] kraken2.cwl:
+    - dir type issues. 
+      main.nf:
+        database  = file( params.database )
+        -> 
+        ch_database         = Channel.fromPath( params.database, type: 'dir' )  
+      kraken2.nf:
+        --db ${database} \
+        -> 
+        --db data \  
+    - nextflow.config: bool values should be automatically false unless default=true
+
+- [2] minimap2.cwl:
+    - expressions for runtime variables can't be in params! 
+        (nextflow.config) minimap2_paf.disk   = ceil(((file_size(inputs.target) / (((1024 * 1024) * 1024))) + 20))
+        (nextflow.config) minimap2_paf.memory = (15 * 1024)
+        -> 
+        (minimap2.nf)     disk "${Math.ceil((target.size() / (1024 * 1024 * 1024)) + 20)} MB"
+        (minimap2.nf)     memory "${(15 * 1024)} MB"
+    - __TOKEN1__ and __TOKEN2__ -> "${target.simpleName}.paf"
+
+- [1] nanoplot.cwl 
+    - Array(File(optional=True)) not properly handled in input & prescript. may be due to new expression parsing. 
+        (input)     path fasta_files, stageAs: 'fasta_files??/*'
+        (prescript) def fasta_files_joined = fasta_files[0] != null ? "--fasta " + fasta_files.join(' ') : ""
+        ->
+        (input)     path fasta_files, stageAs: 'fasta_files/*'
+        (prescript) def fasta_files_joined = fasta_files[0] != null ? "--fasta " + fasta_files : ""
+
+- [6] picard_MarkDuplicates.cwl
+    - some things not being actually translated. probably issue with cwl parse_expression()
+    - some inputs not handled correctly as bools 
+        - added: def remove_duplicates = remove_duplicates != false ? "REMOVE_DUPLICATES=TRUE" : ""
+        - added: def alignments_are_sorted = alignments_are_sorted != false ? "ASSUME_SORTED=TRUE" : ""
+
+- [1] picard_SortSam.cwl
+    - again, need to remove brackets from If() operator
+        OUTPUT=${(sort_order == "coordinate") ? (alignments.simpleName) + ".bam" : (alignments.simpleName) + ".sam"}
+        ->
+        OUTPUT=${sort_order == "coordinate" ? alignments.simpleName + ".bam" : alignments.simpleName + ".sam"}
+
+CWL -> NXF hard 
+- [0] bamtools_stats.cwl
+- [4] bowtie2.cwl
+    - again, remove brackets 
+        ${(is_paired_end) ? "-1" : "-U"} \
+        -> 
+        ${is_paired_end ? "-1" : "-U"} \
+    - weird shit with bools in prescript 
+        def is_paired_end = is_paired_end == false ? "" : ""
+        ->
+        removed. could also move the logic here. 
+    - again, reference index basename shit 
+        def reference_index = reference_index[0]
+        ->
+        def reference_index = reference_index[0].simpleName
+    - again, some expressions not parsed. weirdly it's parsed correctly in the script section, but not output collection. 
+        path "{inputs.fastq1.nameroot}.bowtie2_stderr", emit: bowtie2_log
+        ->
+        path "${fastq1.simpleName}.bowtie2_stderr", emit: bowtie2_log
+- [1] picard_AddOrReplaceReadGroups.cwl
+    - again, untranslated string in script. 
+      this is weird since NXF has no tmpdir. should just be './'.
+      check the translation comes out right after making sure this expr is parsed.
+      TMP_DIR=$(runtime.tmpdir)
+      ->
+      TMP_DIR=./
+- [inf] unicycler.cwl
+    - required shell script "unicycler_launch.sh" is dynamic based on inputs. 
+
+
+
+
+-
+
+------------------
+--- CWL INGEST ---
+------------------
+
+
+---------------------
+--- NXF TRANSLATE ---
+---------------------
+
+CWL -> NXF boofed 
+- bwa index:
+    whenever there is a Janis IfOperator the operator should be moved to prescript. See below. 
+    script:
+    """
+    ${(${(${index_name != None}) ? index_name : sequences.simpleName})} \
+    """
+
+unwrap 
+- 
+
+misc 
+- Janis BasenameOperator -> Nextflow updated to no mods. This isn't doing normal janis unwrapping so didnt work.
+- curly brace unwrapping boofed 
+
+---------------------
+--- WDL TRANSLATE ---
+---------------------
+
+misc 
+- string + int interpolation? 
+- inputs which are secondary files getting split into individual inputs (may be fine to leave as-is)
+- remove runtime_seconds from inputs 
+
+CWL -> WDL failed 
+- bwa index 
+- cutadapt paired 
+
+CWL -> WDL Boofed
+- samtools index: wtf is this?
+    """
+    set -e
+    cat <<EOT >> 'inputs.bam_sorted'
+    ~{bam_sorted}
+    EOT
+    samtools index \
+    """
+
+
+----------------
+--- MESSAGES ---
+----------------
+CWL TODO
+- main.py -> workflow parsing?
+- VERSION
+- EXPERIMENTAL
+- FATAL
+
+WORKFLOW 
+
+### untranslated javascript ###
+__TOKEN1__ = "$(inputs.myfile)"
+__TOKEN2__ = "$(inputs.reads2)"
+
+### errors / warnings ###
+# inputs ---
+# error:    [FALLBACK] reads1: parse failed. used fallback.
+# warning:  [DATATYPE] reads2: WDL structs unsupported, used File instead.
+# warning:  [DATAFLOW] reads2: unused input
+
+# step1 ---
+# error: [FALLBACK] step1:          parse failed. used fallback.
+# error: [DATAFLOW] step1,reads2:   could not connect sources.
+
+-----------------------
+--- CWL UNSUPPORTED ---
+-----------------------
+- linkMerge
+- WorkflowStepInput:valueFrom
+- Any JS Expression using "self"
+- [Workflow] InlineJavascriptRequirement:expressionLib?
+
+------------------
+--- CWL BOOFED ---
+------------------
+
+Can InputNodeSelectors be InputSelectors instead?
+
+JS
+- undefined vs null?
+
+get basic functionality back online 
+- workflow parsing
+- InitalWorkDirRequirement
+
+misc
+- move entity ids to non-janis keywords
+- ingestion.cwl.parsing.workflow.resolve_source()?
+
+--------------
+--- CWL JS ---
+--------------
+
+InitialWorkDirRequirement
+- log to top of screen without __TOKEN__.
+- eg: unparsed expression for file / directory staging: ${JS}
+
+
+locations: CommandLineTool
+- InitialWorkDirRequirement
+- InitialWorkDirRequirement:Dirent:entry
+- InitialWorkDirRequirement:Dirent:entryname
+- InlineJavascriptRequirement:expressionLib
+
+js expressions: translators 
+- ensure correct unwrapping with new format. 
+
+js expressions: self
+- $(self.dirname)/$(self.nameroot)        # just weird?
+- $(self.location.split('/'))
+- $(self.location.split('/').slice(-1)[0])
+- $(self.path.split('.').slice(0,-2).join('.'))
+- $(self === "name" ? true : false)
+- $(self === 'name' ? true : false).fastq
+- $(self === "name" ? true : false).fastq$(inputs.index_name.ext)
+- $(inputs.graph.nameroot).$(self)            # wtf?
+- $(default_output_filename(".bw"))           # defined function call
+
+
+-----------------
+--- WDL-lexer ---
+-----------------
+
+Motivation: 
+- wdl2cwl produces .sh script to run. Not very native CWL. 
+- does a good job at interpreting local vars? look into how this is done. 
+- if in some situations we can do native CWL parsing of shell, this is better? 
+- should result in much more native looking CWL and Nextflow 
+
+TODO
+Command Parsing
+- split text into commands: list[str | WDL.Expr.Placeholder]
+- how do we handle local scope variables?
+- decide how to parse command 
+    - if there are multiple non-linux-env-var-set commands, use ShellCommandParser
+    - else, use BasicCommandParser
+
+BasicCommandParser
+- remove comments
+- remove env var set commands
+- extract stdout redirects
+- interpret position, prefix, separator, delim for each component (use galaxy as reference)
+- each WDL.Expr.Placeholder needs to be evaluated (look at how wdl2cwl does it)
+
+ShellCommandParser
+- remove comments
+- each line becomes ToolArgument
+- each WDL.Expr.Placeholder needs to be evaluated (look at how wdl2cwl does it)
+
+
+
+
+---------------------
+--- USER COMMENTS ---
+---------------------
+
+
+
+
+
+----------------------------------
+--- REDUCING TEST SUITE WEIGHT ---
+----------------------------------
+
+TIMES 
+
+full suite: 58 sec (base), 215 sec (release)
+
+test_commandtool: 2 sec
+test_conditionals: 2 sec
+test_generics_util: 2 sec
+test_ingestion_cwl: 3 sec
+test_ingestion_galaxy: 30 sec
+test_ingestion_wdl: 2 sec
+test_janis_translate: 81 sec
+    - TestCwlToNextflow: 9 sec
+    - TestCwlToWdl: 5 sec
+    - TestFromGalaxy: 26 sec (base), 81 sec (release)
+    - TestJanisToNextflow: 5 sec
+    - TestJanisToWdl: 4 sec
+    - TestPreprocessingModes: 3 sec
+    - TestPreprocessingPrune: 3 sec
+    - TestPreprocessingToBuilders: 3 sec
+    - TestTranslationEndpoints: 15 sec
+test_logger: 3 sec
+test_metadata: 2 sec
+test_operators: 2 sec
+test_python_tool: 2 sec
+test_receivefrom: 2 sec
+test_secondary: 2 sec
+test_stringbuilder: 2 sec
+test_test_runner: 2 sec
+test_tools: 2 sec
+test_translation_cwl: 3 sec
+test_translation_modules: 2 sec
+test_translation_nextflow: 3 sec
+test_translation_wdl: 2 sec
+test_types: 2 sec
+test_validateinputvalues: 2 sec
+test_validators: 2 sec
+test_workflow: 2 sec
+
+LOCAL SUPPLY ALL TOOLSHED FILES FOR TEST 
+- 
+
+QUAY API CALLS -> DETERMINISTIC URI
+- swap quay.io API calls to deterministic uri
+
+MULLED BUILD -> MULLED HASH
+- swap mulled build to mulled hash
+
+
+
+general 
+- it's all galaxy 
+- all tools needed for workflow tests could be stored locally as package data. 
+- need to reduce the amount of times tools are loaded. 
+- reinstate cache with pickle
+
+test_ingestion_galaxy.py (galaxy)
+- most tests do full ingest(). 
+- could store these on the class, then tests just check attributes on the janis entities.
+
+test_janis_translate.py (galaxy)
+- can have basic group, and extended group (CI)
+- basic group just 2 tests: single tool, single workflow
+
+pytest 
+- `@pytest.mark.<markername>` to mark tests 
+- `pytest -m <markername> -v` to run tests in group (change pytest command in github actions)
+- "publish" github action stays the same
+- "unit_tests" github action changed to using test group
+- tried locally, works 
+
+
+
+
+------------------------------------
+--- GENERAL RUNTIME IMPROVEMENTS ---
+------------------------------------
+
+REMOVE QUAY.IO API CALLS 
+- biocontainers uri can be directly calculated for single requirement tools
+    eg.
+    - <package version="3.1">samtools</package>
+    -> quay.io/biocontainers/samtools:3.1
+
+- mulled-hash can be used to calculate hash for tools
+    - galaxy.tool_util.deps.mulled.util.v1_image_name()
+    - galaxy.tool_util.deps.mulled.util.v2_image_name()
+    eg
+    - <package version="1.3.1">samtools</package>
+    - <package version="1.1">bowtie2</package>
+    - v2_image_name([build_target("samtools", version="1.3.1"), build_target("bowtie2", version="1.1")])
+    - -> mulled-v2-ad09g8sag8dhw908gdwhw9a08dawjcaskfffsfa
+    - quay.io/biocontainers/mulled-v2-ad09g8sag8dhw908gdwhw9a08dawjcaskfffsfa
+
+can toolshed api calls be reduced / removed?
+- may be able to reduce using cached wrappers for popular tools
+- may be able to reduce (to almost zero) by knowing direct mapping of location to tool uris 
+
+migrate galaxy tool xml parsing into janis
+- few days work 
+- looks doable
+
+
+
+
+
+----------------------------
+--- GALAXY DEPENDENCIES  ---
+----------------------------
+
+GALAXY DEPENDENCIES 
+- creating MockApp
+- from galaxy.util import unicodify
+
+
+gxtool.inputs
+gxtool.outputs
+gxtool.name
+gxtool.id
+gxtool.version
+gxtool.description
+gxtool.raw_help
+gxtool.creator
+gxtool.requirements
+gxtool.containers
+gxtool.xrefs
+gxtool.tool_source.xml_tree.findall('citations')
+gxtool.command
+gxtool.config_files
+gxtool.tests
+
+
+self.profile = float(tool_source.parse_profile())
+self.id = tool_source.parse_id()
+
+
+
+
+
+
+app = _get_app()
+tool_source = get_tool_source(path)
+    - tree, macro_paths = load_tool_with_refereces(xml_path)
+    - XmlToolSource(tree, source_path=xml_path, macro_paths=macro_paths)
+        - look at imports at top of file
+tool = create_tool_from_source(app, tool_source)
+    - Tool(config_file, tool_source, app, **kwds)
+tool.assert_finalized() # may be unnecessary
+
+
+
+Files with Galaxy dependencies 
+- [✓] janis_core.ingestion.galaxy.gxtool.mock
+- [✓] janis_core.ingestion.galaxy.gxtool.parsing.main
+- [✓] janis_core.ingestion.galaxy.gxtool.parsing.param_flattener
+    - used to check type of param (isinstance / case). 
+    - can probably just change this to check attributes. 
+
+Files which have been migrated to janis versions of galaxy code
+- [✓] janis_core.ingestion.galaxy.gxtool.text.cheetah.blocks
+
+Files which just used type hints which have been changed
+- [x] janis_core.ingestion.galaxy.gxtool.parsing.inputs
+- [x] janis_core.ingestion.galaxy.gxtool.parsing.outputs
+
+remove these:
+- [x] janis_core.ingestion.galaxy.gxtool.parsing.tests.custom_ops
+- [x] janis_core.ingestion.galaxy.gxtool.parsing.tests.TestFactoryOld
+- [x] janis_core.ingestion.galaxy.gxwrappers.scraping.wrappers
+
+
+
 
 SMALL BUGS
 - get_execution_paths() is returning 2 paths, when it should return 1

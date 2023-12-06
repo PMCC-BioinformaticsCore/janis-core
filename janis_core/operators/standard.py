@@ -1,5 +1,7 @@
+
 from copy import copy
-from typing import List
+import regex as re
+from typing import List, Optional
 
 from janis_core.utils.logger import Logger
 from janis_core.types import (
@@ -79,9 +81,12 @@ class ReadJsonOperator(Operator):
         return f"JSON.parse({fp}.contents)"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        arg = unwrap_operator(self.args[0])
+        PATTERN = r'^[\'"](.*)[\'"]$'
+        if isinstance(arg, str) and re.match(PATTERN, arg):
+            match = re.match(PATTERN, arg)
+            arg = match.group(1)
+        return f'jsonSlurper.parseText(file("${{task.workDir}}/{arg}").text)'
 
     def requires_contents(self):
         return True
@@ -144,27 +149,118 @@ class JoinOperator(Operator):
         return str(separator).join((str(el) for el in iterable))
 
 
+# TODO test. currently untested. 
+class SplitOperator(Operator):
+    def __init__(self, iterable, separator):
+        super().__init__(iterable, separator)
+
+    @staticmethod
+    def friendly_signature():
+        return "String, String -> Array[String]"
+
+    def argtypes(self):
+        return [String, String]
+
+    def returntype(self):
+        return Array(String)
+
+    def to_python(self, unwrap_operator, *args):
+        string_obj, separator = [unwrap_operator(a) for a in self.args]
+        return f"{string_obj}.split({separator})"
+
+    def to_wdl(self, unwrap_operator, *args):
+        string_obj, separator = [unwrap_operator(a) for a in self.args]
+        Logger.warn(
+            f"String.Split() is not implemented in WDL, will return the input string"
+        ) 
+        return string_obj
+
+    def to_cwl(self, unwrap_operator, *args):
+        string_obj, separator = [unwrap_operator(a) for a in self.args]
+        return f"{string_obj}.split({separator})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        string_obj, separator = [unwrap_operator(a) for a in self.args]
+        return f"{string_obj}.split({separator})"
+
+    def evaluate(self, inputs):
+        string_obj, separator = self.evaluate_arg(self.args, inputs)
+        return string_obj.split(separator)
+
+
+# TODO test. currently untested. 
+class SliceOperator(Operator):
+    def __init__(self, iterable, start, stop):
+        super().__init__(iterable, start, stop)
+
+    @staticmethod
+    def friendly_signature():
+        return "Array, Int, Optional[Int] -> Array"
+
+    def argtypes(self):
+        return [Array, Int, Optional[Int]]
+
+    def returntype(self):
+        return Array(AnyType)
+
+    def to_python(self, unwrap_operator, *args):
+        iterable, start, stop = [unwrap_operator(a) for a in self.args]
+        if stop is not None:
+            return f"{iterable}[{start}:{stop}]"
+        else:
+            return f"{iterable}[{start}:]"
+
+    def to_wdl(self, unwrap_operator, *args):
+        iterable, start, stop = [unwrap_operator(a) for a in self.args]
+        Logger.warn(
+            f"Array slices not implemented in WDL, will return the input Array"
+        ) 
+        return iterable
+
+    def to_cwl(self, unwrap_operator, *args):
+        iterable, start, stop = [unwrap_operator(a) for a in self.args]
+        if stop is not None:
+            return f"{iterable}.slice({start},{stop})"
+        else:
+            return f"{iterable}.slice({start})"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        iterable, start, stop = [unwrap_operator(a) for a in self.args]
+        if stop is not None:
+            return f"{iterable}[{start}..{stop}]"
+        else:
+            return f"{iterable}[{start}..-1]"
+
+    def evaluate(self, inputs):
+        iterable, start, stop = [unwrap_operator(a) for a in self.args]
+        if stop is not None:
+            return iterable[start:stop]
+        else:
+            return iterable[start:]
+    
+
 class BasenameOperator(Operator):
     @staticmethod
     def friendly_signature():
         return "Union[File, Directory] -> String"
 
     def to_python(self, unwrap_operator, *args):
-        arg = unwrap_operator(args[0])
-        return f"os.path.basename({arg})"
+        file_obj = unwrap_operator(args[0])
+        return f"os.path.basename({file_obj})"
 
     def to_wdl(self, unwrap_operator, *args):
-        arg = unwrap_operator(args[0])
-        return f"basename({arg})"
+        file_obj = unwrap_operator(args[0])
+        return f"basename({file_obj})"
 
     def to_cwl(self, unwrap_operator, *args):
-        arg = unwrap_operator(
+        file_obj = unwrap_operator(
             args[0], add_path_suffix_to_input_selector_if_required=False
         )
-        return arg + ".basename"
+        return file_obj + ".basename"
 
     def to_nextflow(self, unwrap_operator, *args):
-        return f"{unwrap_operator(args[0])}.name"
+        file_obj = unwrap_operator(args[0])
+        return f"{file_obj}"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -180,8 +276,49 @@ class BasenameOperator(Operator):
 
     def evaluate(self, inputs):
         from os.path import basename
-
         return basename(self.evaluate_arg(self.args[0], inputs))
+
+
+# TODO test. currently untested.
+class DirnameOperator(Operator):
+    @staticmethod
+    def friendly_signature():
+        return "Union[File, Directory] -> String"
+
+    def to_python(self, unwrap_operator, *args):
+        file_obj = unwrap_operator(args[0])
+        return f"os.path.dirname({file_obj})"
+
+    def to_wdl(self, unwrap_operator, *args):
+        file_obj = unwrap_operator(self.args[0])
+        Logger.warn(
+            f"File.Dirname() is not implemented in WDL, will return the input File"
+        ) 
+        return file_obj
+
+    def to_cwl(self, unwrap_operator, *args):
+        file_obj = unwrap_operator(args[0], add_path_suffix_to_input_selector_if_required=False)
+        return f"{file_obj}.dirname"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        file_obj = unwrap_operator(args[0])
+        return f"{file_obj}.parent"
+
+    def argtypes(self):
+        return [UnionType(File, Directory)]
+
+    def returntype(self):
+        return String()
+
+    def __str__(self):
+        return str(self.args[0]) + ".dirname"
+
+    def __repr__(self):
+        return str(self)
+
+    def evaluate(self, inputs):
+        import os
+        return os.path.dirname(self.evaluate_arg(self.args[0], inputs))
 
 
 # TODO test. currently untested. 
@@ -191,23 +328,22 @@ class NamerootOperator(Operator):
         return "File -> String"
 
     def to_python(self, unwrap_operator, *args):
-        arg = unwrap_operator(args[0])
-        return f"os.path.splitext(os.path.basename({arg}))[0]"
+        file_obj = unwrap_operator(args[0])
+        return f"os.path.splitext(os.path.basename({file_obj}))[0]"
 
     def to_wdl(self, unwrap_operator, *args):
-        # ext = args[0].split('.')[-1]
-        arg = unwrap_operator(args[0])
-        return f"basename({arg}, \".*\")"
+        file_obj = unwrap_operator(args[0])
+        return f"basename({file_obj}, \".*\")"
 
     def to_cwl(self, unwrap_operator, *args):
-        arg = unwrap_operator(
+        file_obj = unwrap_operator(
             args[0], add_path_suffix_to_input_selector_if_required=False
         )
-        return arg + ".nameroot"
+        return file_obj + ".nameroot"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError
-        return f"{unwrap_operator(args[0])}.baseName"
+        file_obj = unwrap_operator(args[0])
+        return f"{file_obj}.simpleName"
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -234,16 +370,23 @@ class NameextOperator(Operator):
         return "File -> String"
 
     def to_python(self, unwrap_operator, *args):
-        raise NotImplementedError
+        file_obj = unwrap_operator(args[0])
+        return f"os.path.splitext(os.path.basename({file_obj}))[1:]"
 
     def to_wdl(self, unwrap_operator, *args):
-        raise NotImplementedError
+        file_obj = unwrap_operator(self.args[0])
+        Logger.warn(
+            f"File.Extension() is not implemented in WDL, will return the input File"
+        ) 
+        return file_obj
 
     def to_cwl(self, unwrap_operator, *args):
-        raise NotImplementedError
-
+        file_obj = unwrap_operator(args[0])
+        return f"{file_obj}.nameext"
+    
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError
+        file_obj = unwrap_operator(args[0])
+        return f'"." + {file_obj}.extension'
 
     def argtypes(self):
         return [UnionType(File, Directory)]
@@ -252,16 +395,15 @@ class NameextOperator(Operator):
         return String()
 
     def __str__(self):
-        return str(self.args[0]) + ".nameroot"
+        return str(self.args[0]) + ".nameext"
 
     def __repr__(self):
         return str(self)
 
     def evaluate(self, inputs):
-        raise NotImplementedError
-        # from os.path import basename
-        # from os.path import splitext
-        # return splitext(basename(self.evaluate_arg(self.args[0], inputs)))[0]
+        from os.path import basename
+        from os.path import splitext
+        return splitext(basename(self.evaluate_arg(self.args[0], inputs)))[1:]
 
 
 class TransposeOperator(Operator):
@@ -286,7 +428,8 @@ class TransposeOperator(Operator):
         return f"[[{iterable}[j][i] for j in range(len({iterable}))] for i in range(len({iterable}[0]))]"
 
     def to_wdl(self, unwrap_operator, *args):
-        return f"transform({unwrap_operator(args[0])})"
+        iterable = unwrap_operator(self.args[0])
+        return f"transform({iterable})"
 
     def to_cwl(self, unwrap_operator, *args):
         return (
@@ -295,9 +438,8 @@ class TransposeOperator(Operator):
         )
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.transpose()"
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -322,25 +464,24 @@ class LengthOperator(Operator):
         return str(self)
 
     def to_python(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"len({arg})"
+        iterable = unwrap_operator(self.args[0])
+        return f"len({iterable})"
 
     def to_wdl(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"length({arg})"
+        iterable = unwrap_operator(self.args[0])
+        return f"length({iterable})"
 
     def to_cwl(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"{arg}.length"
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.length"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.size()"
 
     def evaluate(self, inputs):
-        ar = self.evaluate_arg(self.args[0], inputs)
-        return len(ar)
+        iterable = self.evaluate_arg(self.args[0], inputs)
+        return len(iterable)
 
 
 class RangeOperator(Operator):
@@ -370,8 +511,12 @@ class RangeOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         arg = unwrap_operator(self.args[0])
-        return f"Array.from({{ length: {arg} + 1 }}, (_, i) => i)"
+        return f"Array.from({{length: {arg}}}, (x, i) => i)"
         # return f"{arg}.length"
+
+    def to_nextflow(self, unwrap_operator, *args):
+        arg = unwrap_operator(self.args[0])
+        return f"0..{arg}"
 
     def evaluate(self, inputs):
         ar = self.evaluate_arg(self.args[0], inputs)
@@ -387,7 +532,7 @@ class FlattenOperator(Operator):
         return [Array(Array(AnyType))]
 
     def returntype(self):
-        return Array(self.args[0].returntype().subtype().subtype())
+        return Array(self.args[0].returntype())
 
     def __str__(self):
         return f"flatten({self.args[0]})"
@@ -396,25 +541,24 @@ class FlattenOperator(Operator):
         return str(self)
 
     def to_python(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"[el for sublist in {arg} for el in sublist]"
+        iterable = unwrap_operator(self.args[0])
+        return f"[el for sublist in {iterable} for el in sublist]"
 
     def to_wdl(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"flatten({arg})"
+        iterable = unwrap_operator(self.args[0])
+        return f"flatten({iterable})"
 
     def to_cwl(self, unwrap_operator, *args):
-        arg = unwrap_operator(self.args[0])
-        return f"{arg}.flat()"
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.flat()"
 
     def to_nextflow(self, unwrap_operator, *args):
-        raise NotImplementedError(
-            f"There is no Nextflow translation for {self.__class__.__name__}"
-        )
+        iterable = unwrap_operator(self.args[0])
+        return f"{iterable}.flatten()"
 
     def evaluate(self, inputs):
-        ar = self.evaluate_arg(self.args[0], inputs)
-        return [el for sl in ar for el in sl]
+        iterable = self.evaluate_arg(self.args[0], inputs)
+        return [el for sl in iterable for el in sl]
 
 
 class ApplyPrefixOperator(Operator):
@@ -445,11 +589,12 @@ class ApplyPrefixOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
-        return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
+        return f"{iterable}.map(x => {prefix} + x)"
+        # return f"{iterable}.map(function (inner) {{ return {prefix} + inner; }})"
 
     def to_nextflow(self, unwrap_operator, *args):
         prefix, iterable = [unwrap_operator(a) for a in self.args]
-        return f"{iterable}.map{{item -> {prefix} + item}}"
+        return f"{iterable}.map{{it -> {prefix} + it}}"
 
     def evaluate(self, inputs):
         prefix, iterable = self.evaluate_arg(self.args, inputs)
@@ -521,7 +666,7 @@ class FileSizeOperator(Operator):
 
     def to_nextflow(self, unwrap_operator, *args):
         f = unwrap_operator(self.args[0])
-        return f"({f}.size / 1048576)"
+        return f"{f}.size / 1048576"
 
     def evaluate(self, inputs):
         from os.path import getsize
@@ -565,11 +710,11 @@ class FirstOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
+        # return f"{iterable}[0]"
         return f"{iterable}.filter(function (inner) {{ return inner != null }})[0]"
 
     def to_nextflow(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
-
         return f"{iterable}.first()"
 
     def evaluate(self, inputs):
@@ -622,11 +767,11 @@ class FilterNullOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
-        return f"{iterable}.filter(function (inner) {{ return inner != null }})"
+        return f"{iterable}.filter(x => x)"
 
     def to_nextflow(self, unwrap_operator, *args):
         iterable = unwrap_operator(self.args[0])
-        return f"{iterable}.filter{{item -> item != null}}"
+        return f"{iterable}.filter{{it -> it != null}}"
 
     def evaluate(self, inputs):
         iterable = self.evaluate_arg(self.args[0], inputs)
@@ -653,7 +798,11 @@ class ReplaceOperator(Operator):
 
     def to_cwl(self, unwrap_operator, *args):
         base, pattern, replacement = [unwrap_operator(a) for a in self.args]
-        return f"{base}.replace(new RegExp({pattern}), {replacement})"
+        return f"{base}.replace({pattern}, {replacement})"
+    
+    def to_nextflow(self, unwrap_operator, *args):
+        base, pattern, replacement = [unwrap_operator(a) for a in self.args]
+        return f"{base}.replaceAll({pattern}, {replacement})"
 
     def to_python(self, unwrap_operator, *args):
         base, pattern, replacement = [unwrap_operator(a) for a in self.args]

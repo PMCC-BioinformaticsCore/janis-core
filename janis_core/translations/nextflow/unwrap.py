@@ -5,19 +5,22 @@ from __future__ import annotations
 # if TYPE_CHECKING:
 #     from .parsing.process.VariableManager import VariableManager
 
+from enum import Enum
+
 from .variables import VariableManager
 from .variables import VariableType
 from .variables import Variable
 
 from copy import deepcopy
-from typing import Any, Optional, Type
+from typing import Any, Optional
 NoneType = type(None)
 import re
 
 from janis_core import (
-    CommandTool, 
+    CommandToolBuilder, 
     ToolInput, 
-    Operator
+    Operator,
+    ReadJsonOperator,
 )
 from janis_core.graph.steptaginput import Edge, StepTagInput
 from janis_core.operators.operator import IndexOperator
@@ -29,38 +32,14 @@ from janis_core.types import (
     DataType
 )
 
-from janis_core.operators.logical import (
-    IsDefined,
-    If,
-    AssertNotNull,
-    FloorOperator,
-    CeilOperator,
-    RoundOperator
-)
-from janis_core.operators.standard import (
-    ReadContents,
-    ReadJsonOperator,
-    JoinOperator,
-    BasenameOperator,
-    NamerootOperator,
-    NameextOperator,
-    TransposeOperator,
-    LengthOperator,
-    RangeOperator,
-    FlattenOperator,
-    ApplyPrefixOperator,
-    FileSizeOperator,
-    FirstOperator,
-    FilterNullOperator,
-    ReplaceOperator
-)
+from janis_core.messages import log_message
+from janis_core.messages import ErrorCategory
 from janis_core.operators.operator import (
     IndexOperator,
     AsStringOperator,
     AsBoolOperator,
     AsIntOperator,
     AsFloatOperator,
-    TwoValueOperator
 )
 from janis_core.operators.selectors import (
     InputNodeSelector, 
@@ -81,51 +60,50 @@ from janis_core.translation_utils import DTypeType
 from . import naming
 from . import nfgen_utils
 
-# from .plumbing import cartesian_cross_subname
-from .expressions import stringformatter_matcher
 
 """
-NOTE: 
-only unwrapping simple references for step inputs. 
+BRACES 
 
-reason: 
-InputNodeSelector(input_fasta).name
---/-> 
-ch_input_fasta.name
+1.  StringFormatter(format{token1} some text {token2}, token1=[1, 2, 3], token2=4)
+    - expr: {token1} some text {token2} - apply_braces=False, inside_braces=False, outcome=False
+    - expr: [1, 2, 3]                   - apply_braces=True,  inside_braces=False, outcome=True
+    - expr: 1                           - apply_braces=False, inside_braces=True,  outcome=False
 
-nextflow wants to provide process inputs as channels.
-cant do channel.name etc, doesn't make sense. 
-this stuff is supposed to be done inside the process. 
 """
+
 
 def unwrap_expression(
     val: Any,
-    # scope: Scope,
-    context: str='general',
+    context: str,
     variable_manager: Optional[VariableManager]=None,
-    tool: Optional[CommandTool]=None,
+    tool: Optional[CommandToolBuilder]=None,
+    
+    apply_braces: bool=False,
+    strquote_override: Optional[bool]=None,
     
     scatter_target: bool=False,
     scatter_method: Optional[ScatterMethod]=None,
-
-    in_shell_script: bool=False,
-    quote_strings: Optional[bool]=None,
     ) -> Any:
 
+    context_e = UnwrapContext(context)
     unwrapper = Unwrapper(
-        # scope=scope,
-        context=context,
+        context_e=context_e,
         variable_manager=variable_manager,
         tool=tool,
-
+        apply_braces=apply_braces,
+        strquote_override=strquote_override,
         scatter_target=scatter_target,
         scatter_method=scatter_method,
-
-        in_shell_script=in_shell_script,
-        quote_strings=quote_strings,
     )
     return unwrapper.unwrap(val)
 
+
+class UnwrapContext(Enum):
+    DEFAULT             = 'default'
+    PROCESS_PRESCRIPT   = 'process_prescript'
+    PROCESS_SCRIPT      = 'process_script'
+    PROCESS_OUTPUT      = 'process_output'
+    WORKFLOW            = 'workflow'
 
 
 class Unwrapper:
@@ -134,40 +112,23 @@ class Unwrapper:
     """
     def __init__(
         self,
-        # scope: Scope,
-        context: str,
+        context_e: UnwrapContext,
         variable_manager: Optional[VariableManager],
-        tool: Optional[CommandTool],
-         
+        tool: Optional[CommandToolBuilder],
+        apply_braces: bool,
+        strquote_override: Optional[bool],
         scatter_target: bool,
         scatter_method: Optional[ScatterMethod], 
-        
-        in_shell_script: bool, 
-        quote_strings: Optional[bool],
     ) -> None:
-        # self.scope = scope
-        self.context = context
+        self.context_e = context_e
         self.vmanager = variable_manager
         self.tool = tool
+        self.apply_braces = apply_braces
+        self.strquote_override = strquote_override
         self.scatter_target = scatter_target
         self.scatter_method = scatter_method
-        self.quote_strings = quote_strings
-        self.in_shell_script = in_shell_script
 
-        self.operator_stack: list[str] = []
-        self.operator_stack_ignore: list[Type[Any]] = [
-            WildcardSelector,
-            AliasSelector,
-            InputNodeSelector,
-            StepOutputSelector,
-            StringFormatter,
-            MemorySelector,
-            CpuSelector,
-            DiskSelector,
-            TimeSelector,
-        ]
-
-        self.func_switchboard = {
+        self.unwrap_overrides = {
             # primitives
             NoneType: self.unwrap_null,
             str: self.unwrap_str,
@@ -176,37 +137,13 @@ class Unwrapper:
             float: self.unwrap_float,
             list: self.unwrap_list,
 
-            # logical operators
-            IsDefined: self.unwrap_is_defined_operator,
-            If: self.unwrap_if_operator,
-            AssertNotNull: self.unwrap_assert_not_null_operator,
-            FloorOperator: self.unwrap_floor_operator,
-            CeilOperator: self.unwrap_ceil_operator,
-            RoundOperator: self.unwrap_round_operator,
-
             # operator operators
             IndexOperator: self.unwrap_index_operator,
             AsStringOperator: self.unwrap_as_string_operator,
             AsBoolOperator: self.unwrap_as_bool_operator,
             AsIntOperator: self.unwrap_as_int_operator,
             AsFloatOperator: self.unwrap_as_float_operator,
-            
-            # standard operators
-            ReadContents: self.unwrap_read_contents_operator,
             ReadJsonOperator: self.unwrap_read_json_operator,
-            JoinOperator: self.unwrap_join_operator,
-            BasenameOperator: self.unwrap_basename_operator,
-            NamerootOperator: self.unwrap_nameroot_operator,
-            NameextOperator: self.unwrap_nameext_operator,
-            TransposeOperator: self.unwrap_transpose_operator,
-            LengthOperator: self.unwrap_length_operator,
-            RangeOperator: self.unwrap_range_operator,
-            FlattenOperator: self.unwrap_flatten_operator,
-            ApplyPrefixOperator: self.unwrap_apply_prefix_operator,
-            FileSizeOperator: self.unwrap_file_size_operator,
-            FirstOperator: self.unwrap_first_operator,
-            FilterNullOperator: self.unwrap_filter_null_operator,
-            ReplaceOperator: self.unwrap_replace_operator,
             
             # selectors
             AliasSelector: self.unwrap_alias_selector,
@@ -225,14 +162,11 @@ class Unwrapper:
             StringFormatter: self.unwrap_string_formatter,
             Filename: self.unwrap_filename,
             InputNode: self.unwrap_input_node,
+            
         }
     
     def unwrap(self, val: Any) -> Any:
         """main public method"""
-
-        # add to operator stack if entity is a Selector
-        self.update_operator_stack(val, life_cycle='start')
-
         # do the unwrap  
         expr = self.unwrap_entity(val)
 
@@ -241,25 +175,19 @@ class Unwrapper:
             expr = f'"{expr}"'
 
         # apply nextflow curly braces if needed
-        if self.should_apply_curly_braces(val):
+        if self.apply_braces:
             expr = f'${{{expr}}}'
-
-        # pop from operator stack if entity is a Selector
-        self.update_operator_stack(val, life_cycle='end')
+        
         return expr
-
+    
     def unwrap_entity(self, entity: Any) -> Any:
         """switchboard to delegate unwrap based on entity type."""
 
-        # most entities: custom unwrap function
+        # entity has custom unwrap function override
         etype = type(entity)
-        if etype in self.func_switchboard:
-            func = self.func_switchboard[etype]
+        if etype in self.unwrap_overrides:
+            func = self.unwrap_overrides[etype]
             expr = func(entity)
-
-        # TwoValueOperators: shared unwrap function
-        elif isinstance(entity, TwoValueOperator):
-            expr = self.unwrap_two_value_operator(entity)
 
         # anything else with a .to_nextflow() method
         elif callable(getattr(entity, "to_nextflow", None)):
@@ -278,73 +206,26 @@ class Unwrapper:
 
         return expr
 
-
-    ### OPERATOR STACK 
-    
-    """
-    --- operator_stack ---
-
-    keeps track of how deep we are into Janis operators. 
-    This is needed to properly enclose curly braces. For example: 
-        
-    Janis:      InputSelector("read", remove_file_extension=True) + "_fastqc.zip"
-    ->
-    Nextflow:   "${read.simpleName}_fastqc.zip"
-    
-    The InputSelector function should appear in curly braces, while the "_fastqc.zip" should not.
-    We apply curly braces for the outermost context of janis operators. 
-    eg Operator(Operator(Operator)) would apply curly braces only for the outermost Operator, not for each.
-    """
-    
-    def update_operator_stack(self, val: Any, life_cycle: str='start') -> None:
-        if isinstance(val, Selector) and type(val) not in self.operator_stack_ignore:
-            # start of main unwrap() function
-            if life_cycle == 'start':
-                self.operator_stack.append(val.__class__.__name__)
-            
-            # end of main unwrap() function
-            elif life_cycle == 'end':
-                if self.operator_stack[-1] == val.__class__.__name__:
-                    self.operator_stack.pop(-1)
-            else:
-                raise NotImplementedError
-
-
     ### HELPERS ###
-    def should_apply_curly_braces(self, val: Any) -> bool:
-        if self.in_shell_script:
-            if len(self.operator_stack) == 1:
-                if self.operator_stack[0] == val.__class__.__name__:
-                    return True
-        return False
 
     def should_quote(self, val: Any, expr: Any) -> bool:
+        if not isinstance(val, str):
+            return False
         # only quote strings
-        if not isinstance(val, str) or not isinstance(expr, str):
-            return False
+        if self.strquote_override is not None:
+            return self.strquote_override
         # dont quote if already quoted
-        if expr.startswith('"') or expr.endswith('"'):
+        PATTERN = r'(^\'[\s\S]*\'$)|(^"[\s\S]*"$)'
+        if re.match(PATTERN, expr):
             return False
-        # # dont quote if wrapped isn't string & context is workflow
-        # if not isinstance(val, str) and self.context == 'workflow':
-        #     return False
-        # master override - set when calling unwrap_expression.
-        # some sort of external context means the expr should be quoted. 
-        if self.quote_strings == True:
-            return True
-        if self.quote_strings == False:
-            return False
-        # string within curly braces
-        if len(self.operator_stack) > 0:
-            return True
-        # stringformatter within shell script
-        elif self.in_shell_script and isinstance(val, StringFormatter):
-            return True
-        return False
+        return True
 
     def get_input_by_id(self, input_id: str) -> ToolInput:
         assert(self.tool is not None)
         inputs = [x for x in self.tool.inputs() if x.id() == input_id]
+        # if not inputs:
+        #     msg = f"Could not find input with id '{input_id}' in tool '{self.tool.id()}'"
+        #     log_message(self.tool.uuid, msg, ErrorCategory.PLUMBING)
         return inputs[0]
     
     def get_channel_expression(self, channel_name: str, upstream_dtype: DataType) -> str:
@@ -370,15 +251,14 @@ class Unwrapper:
             'runtime_disk': self.tool.disk({}),
         }
 
-
-    ### LOGIC ###
+    ### UNWRAP OVERRIDES ###
 
     # primitives
     def unwrap_str(self, val: str) -> str:
         return val
     
-    def unwrap_null(self, val: None) -> None:
-        return None
+    def unwrap_null(self, val: None) -> str:
+        return 'null'
     
     def unwrap_bool(self, val: bool) -> str:
         if val == True:
@@ -392,51 +272,15 @@ class Unwrapper:
         return str(val)
     
     def unwrap_list(self, val: list[Any]) -> str:
+        ab_temp = deepcopy(self.apply_braces)
+        self.apply_braces = False
         elements: list[Any] = []
         for elem in val:
             el = self.unwrap(val=elem)
             elements.append(str(el))
         list_representation = f"[{', '.join(elements)}]"
+        self.apply_braces = ab_temp
         return list_representation
-
-
-    # logical operators
-    def unwrap_is_defined_operator(self, op: IsDefined) -> str:
-        # this is a little weird. not a 1:1 mapping. 
-        # assume everything is defined and set to null at least. 
-        arg = self.unwrap(op.args[0])
-        # return f"{arg} != null"
-        return f"{arg}"
-        
-    def unwrap_if_operator(self, op: If) -> str:
-        cond = self.unwrap(op.args[0])
-        v1 = self.unwrap(op.args[1])
-        v2 = self.unwrap(op.args[2])
-        return f"{cond} ? {v1} : {v2}"
-
-    def unwrap_assert_not_null_operator(self, op: AssertNotNull) -> str:
-        arg = self.unwrap(op.args[0])
-        return f'assert {arg[0]} != null'
-
-    def unwrap_floor_operator(self, op: FloorOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"Math.floor({arg})"
-
-    def unwrap_ceil_operator(self, op: CeilOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"Math.ceil({arg})"
-
-    def unwrap_round_operator(self, op: RoundOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"Math.round({arg})"
-
-    def unwrap_two_value_operator(self, op: TwoValueOperator) -> str:
-        # self.add_quotes_to_strs = True
-        arg1 = self.unwrap(op.args[0])
-        arg2 = self.unwrap(op.args[1])
-        # self.add_quotes_to_strs = False
-        return f'{arg1} {op.nextflow_symbol()} {arg2}'
-
 
     # operator operators
     def unwrap_index_operator(self, op: IndexOperator) -> str:
@@ -486,86 +330,28 @@ class Unwrapper:
         arg = self.unwrap(op.args[0])
         return f"Float.valueOf({arg})"
     
-    
-    # standard operators
-    def unwrap_read_contents_operator(self, op: ReadContents) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"{arg}.text"
-        
     def unwrap_read_json_operator(self, op: ReadJsonOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        if isinstance(arg, str) and arg.startswith('"') and arg.endswith('"'):
-            arg = arg.strip('"')
+        arg = unwrap_expression(
+            op.args[0], 
+            context=self.context_e.value,
+            variable_manager=self.vmanager,
+            tool=self.tool,
+            apply_braces=True,
+            strquote_override=True
+        )
         return f'jsonSlurper.parseText(file("${{task.workDir}}/{arg}").text)'
-    
-    def unwrap_join_operator(self, op: JoinOperator) -> str:
-        iterable = self.unwrap(op.args[0])
-        separator = self.unwrap(op.args[1])
-        return f"{iterable}.join({separator})"
-    
-    def unwrap_basename_operator(self, op: BasenameOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"{arg}.name"
-    
-    def unwrap_nameroot_operator(self, op: NamerootOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"{arg}.simpleName"
-    
-    def unwrap_nameext_operator(self, op: NameextOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"{arg}.extension"
-    
-    def unwrap_transpose_operator(self, op: TransposeOperator) -> str:
-        raise NotImplementedError
-    
-    def unwrap_length_operator(self, op: LengthOperator) -> str:
-        arg = self.unwrap(op.args[0])
-        return f"{arg}.size"
-    
-    def unwrap_range_operator(self, op: RangeOperator) -> str:
-        ceil = self.unwrap(op.args[0])
-        return f'0..{ceil}'
-    
-    def unwrap_flatten_operator(self, op: FlattenOperator) -> str:
-        # TODO VALIDATE
-        arg = self.unwrap(op.args[0])
-        return f'{arg}.flatten()'
-    
-    def unwrap_apply_prefix_operator(self, op: ApplyPrefixOperator) -> str:
-        prefix = self.unwrap(op.args[0])
-        iterable = self.unwrap(op.args[1])
-        return f"{iterable}.map{{item -> {prefix} + item}}"
-    
-    def unwrap_file_size_operator(self, op: FileSizeOperator) -> str:
-        fbytes = self.unwrap(op.args[0])
-        return f"({fbytes}.size / 1048576)"
-    
-    def unwrap_first_operator(self, op: FirstOperator) -> str:
-        resolved_list = self.unwrap(op.args[0])
-        return f'{resolved_list}.find{{ it != null }}'
-    
-    def unwrap_filter_null_operator(self, op: FilterNullOperator) -> str:
-        iterable = self.unwrap(op.args[0])
-        return f"{iterable}.filter{{item -> item != null}}"
-    
-    def unwrap_replace_operator(self, op: ReplaceOperator) -> str:
-        base = self.unwrap(op.args[0])
-        pattern = self.unwrap(op.args[1])
-        replacement = self.unwrap(op.args[2])
-        return f"{base}.replaceAll({pattern}, {replacement})"
 
     # other operators
     def unwrap_operator(self, op: Operator) -> str:
+
         unwrap_expression_wrap = lambda x: unwrap_expression(
             val=x,
-            # scope=self.scope,
-            context=self.context,
+            context=self.context_e.value,
             variable_manager=self.vmanager,
             tool=self.tool,
-            in_shell_script=self.in_shell_script,
 
             scatter_target=self.scatter_target,
-            scatter_method=self.scatter_method
+            scatter_method=self.scatter_method,
         )
         return op.to_nextflow(unwrap_expression_wrap, *op.args)
 
@@ -578,15 +364,7 @@ class Unwrapper:
         """
         Translate Janis StringFormatter data type to Nextflow
         """
-        if self.context == 'process_script' or self.context == 'process_output':
-            assert(self.tool)
-            assert(self.vmanager)
-            expr = self.unwrap_string_formatter_process(selector)
-        elif self.context == 'workflow':
-            expr = self.unwrap_string_formatter_workflow(selector)
-        else:
-            raise RuntimeError
-        return expr
+        return self.unwrap_string_formatter_process(selector)
         
     def unwrap_string_formatter_process(self, selector: StringFormatter) -> str:
         # assert(self.tool)  # n
@@ -596,59 +374,29 @@ class Unwrapper:
         kwarg_replacements: dict[str, Any] = {}
 
         for k, v in selector.kwargs.items():
-            kwarg_replacements[k] = self.unwrap(v)
+            # no need to add curly braces, don't quote the string. 
+            if isinstance(v, str):
+                kwarg_replacements[k] = v
+
+            # must add curly braces & unwrap
+            else:
+                kwarg_replacements[k] = unwrap_expression(
+                    v, 
+                    context=self.context_e.value, 
+                    variable_manager=self.vmanager,
+                    tool=self.tool,
+                    apply_braces=True,
+                    strquote_override=True,
+                )
 
         arg_val = selector._format
         for k in selector.kwargs:
             arg_val = arg_val.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
 
-        if self.in_shell_script:
+        if self.context_e == UnwrapContext.PROCESS_SCRIPT:
             arg_val = arg_val.replace('\\', '\\\\')
 
-        return self.unwrap(arg_val)
-        
-    def unwrap_string_formatter_workflow(self, selector: StringFormatter) -> str:
-        if len(selector.kwargs) == 0:
-            return self.unwrap(selector._format)
-
-        kwarg_replacements: dict[str, Any] = {}
-        for k, v in selector.kwargs.items():
-            kwarg_replacements[k] = self.unwrap(v)
-
-        # workaround for channels 
-        # need .first() at the moment to grab the value from a channel which only has a single value, 
-        # but should guarantee in future this is correct for the channel
-        for key, val in kwarg_replacements.items():
-            if val.startswith('ch_'):
-                kwarg_replacements[key] = f'{val}.first()'
-
-        # reformat the selector format to be correct groovy syntax for use in workflow scope
-        text_format = self.reformat_stringformatter_format_for_workflow_scope(selector._format)
-
-        # substitute in unwrapped var values
-        for k in selector.kwargs:
-            text_format = text_format.replace(f"{{{k}}}", f"{kwarg_replacements[k]}")
-        
-        return self.unwrap(text_format)
-
-    def reformat_stringformatter_format_for_workflow_scope(self, old_format: str) -> str:
-        # reformat the selector format to be correct groovy syntax for use in workflow scope
-        # eg: '{tumor}--{normal}' -> '{tumor} + "--" + {normal}'
-        new_format: str = ''
-        matches = re.findall(stringformatter_matcher, old_format)
-
-        # replace each segment of the old_format, adding '+' and double quotes if needed
-        for filler_text, var_text in matches:
-            if filler_text != '':
-                new_format += f' + "{filler_text}"'
-            elif var_text != '':
-                new_format += f' + {var_text}'
-            else:
-                raise RuntimeError
-        
-        # remove any beginning whitespace and '+'
-        new_format = new_format.lstrip(' +')
-        return new_format
+        return arg_val
 
     def unwrap_filename(self, fn: Filename, varname: Optional[str]=None) -> str:
         """
@@ -659,59 +407,39 @@ class Unwrapper:
         ${"generated.fastq.gz"}
         etc
         """
-        prefix = self.unwrap(fn.prefix) or ''
-        varname = varname or ''
-        suffix = self.unwrap(fn.suffix) or ''
-        extension = self.unwrap(fn.extension) or ''
-
-        # special prefix formatting - where ref is present
-        if varname != '' and prefix.strip('"') == 'generated':
-            prefix = ''
-
-        # special suffix formatting
-        quote_suffix = True if suffix.startswith('"') and suffix.endswith('"') else False
-        suffix = suffix.strip('"')
-        if suffix != '':
-            if str(suffix).startswith("."):
-                suffix = str(suffix)
-            else:
-                suffix = f'-{suffix}'
-        if quote_suffix:
-            suffix = f'"{suffix}"'
-
-        # inside curly braces (each component wrapped in string)
-        if len(self.operator_stack) > 0:
-            items = [prefix, varname, suffix, extension]
-            grouped_words = self.group_quoted_strings_in_list(items)
-            expr = ' + '.join(grouped_words)
-            return expr
-
-        # not inside curly braces
-        if varname != '':
-            return f'{prefix}${{{varname}}}{suffix}{extension}'
-        else:
-            return f'{prefix}{suffix}{extension}'
-
-    def group_quoted_strings_in_list(self, the_list: list[str]) -> list[str]:
-        groups: list[str] = []
-        current_group: list[str] = []
-        
-        for word in the_list:
-            if word != '':
-                if word.startswith('"') and word.endswith('"'):
-                    current_group.append(word.strip('"'))
+        if any([isinstance(x, Selector) for x in [fn.prefix, fn.suffix, fn.extension]]):
+            kwargs = {}
+            fmt = ''
+            if fn.prefix is not None:
+                if isinstance(fn.prefix, str):
+                    fmt += f'{fn.prefix}'
                 else:
-                    if len(current_group) > 0:
-                        groups.append(f"\"{''.join(current_group)}\"")
-                    groups.append(word)
-                    current_group = []
-        
-        # still words in current_group by time we reach end of list
-        if len(current_group) > 0:
-            groups.append(f"\"{''.join(current_group)}\"")
-        
-        return groups
+                    fmt += '{prefix}'
+                    kwargs['prefix']=fn.prefix
+            if fn.suffix is not None:
+                if isinstance(fn.suffix, str):
+                    fmt += f'{fn.suffix}'
+                else:
+                    fmt += '{suffix}'
+                    kwargs['suffix']=fn.suffix
+            if fn.extension is not None:
+                if isinstance(fn.extension, str):
+                    fmt += f'{fn.extension}'
+                else:
+                    fmt += '{extension}'
+                    kwargs['extension']=fn.extension
 
+            val = StringFormatter(fmt, **kwargs)
+            expr = unwrap_expression(
+                val=val,
+                context=self.context_e.value,
+                variable_manager=self.vmanager,
+                tool=self.tool,
+            )
+        else:
+            expr = fn.generated_filename()
+        return expr
+    
 
     ### PROCESSES ###
 
@@ -751,7 +479,7 @@ class Unwrapper:
         assert(self.vmanager)
         dtt = utils.get_dtt(inp.input_type)
         
-        if self.context == 'process_script':
+        if self.context_e == UnwrapContext.PROCESS_SCRIPT:
             if dtt == DTypeType.SECONDARY_ARRAY:
                 if index is None:
                     var = self.vmanager.get(inp.id()).items[2]  # bams_joined
@@ -764,10 +492,6 @@ class Unwrapper:
                 var = self.vmanager.get(inp.id()).items[1]
                 var_copy = deepcopy(var)
             
-            elif dtt == DTypeType.FILE_PAIR_ARRAY:
-                var = self.vmanager.get(inp.id()).items[2]  # always read_pairs_joined
-                var_copy = deepcopy(var)
-            
             elif dtt == DTypeType.FILE_PAIR:
                 if index is None:
                     var = self.vmanager.get(inp.id()).items[1]   # reads_joined
@@ -777,19 +501,15 @@ class Unwrapper:
                     var_copy = deepcopy(var)
                     var_copy.value = var_copy.value[index]   # reads1 or reads2
             
-            elif dtt == DTypeType.FILE_ARRAY:
-                if index is None:
-                    var = self.vmanager.get(inp.id()).items[1]   # file_array_joined
-                    var_copy = deepcopy(var)
-                else:
-                    var = self.vmanager.get(inp.id()).original   # file_array
-                    var_copy = deepcopy(var)
+            elif dtt in [DTypeType.FILE_PAIR_ARRAY, DTypeType.FILE_ARRAY]:
+                var = self.vmanager.get(inp.id()).original   
+                var_copy = deepcopy(var)
             
             else:
                 var = self.vmanager.get(inp.id()).current
                 var_copy = deepcopy(var)
         
-        elif self.context == 'process_output':
+        elif self.context_e == UnwrapContext.PROCESS_PRESCRIPT or self.context_e == UnwrapContext.PROCESS_OUTPUT:
             # always referring to the original process input
             var = self.vmanager.get(inp.id()).original
             var_copy = deepcopy(var)
@@ -858,23 +578,23 @@ class Unwrapper:
         # tinputs which have static value
         elif var.vtype == VariableType.STATIC:
             expr = self.unwrap(var.value)
-            print()
+            # print()
 
         # tinputs which are ignored in process but have default value
         elif var.vtype == VariableType.IGNORED and inp.default is not None:
             expr = self.unwrap(inp.default)
-            print()
+            # print()
         
         # tinputs which are ignored in process and have no default value
         else:
             expr = None
-            print()
+            # print()
 
         ### applying modifiers ###
         # special case: remove file extension
         if isinstance(basetype, File) and sel.remove_file_extension:
-            # expr = f'{expr}.simpleName'
-            expr = f'{expr}.baseName'
+            # expr = f'{expr}.baseName'
+            expr = f'{expr}.simpleName'
         
         return expr
         
@@ -901,19 +621,17 @@ class Unwrapper:
         return self.unwrap(sel.input_node)
             
     def unwrap_input_node(self, node: InputNode) -> Any:
-        if self.context != 'workflow':
+        if self.context_e != UnwrapContext.WORKFLOW:
             raise RuntimeError
         assert(self.vmanager)
         cvar = self.vmanager.get(node.id()).current
         if cvar.vtype == VariableType.STATIC:
-            # TODO debug make breakpoint. test = test_static_inputs()
-            should_quote = self.should_quote(cvar.value, cvar.value)
-            return nfgen_utils.to_groovy(cvar.value, quote_override=should_quote)
+            return nfgen_utils.to_groovy(cvar.value, quote_override=self.strquote_override)
         else:
-            qs_temp = deepcopy(self.quote_strings)
-            self.quote_strings = False
+            qs_temp = deepcopy(self.strquote_override)
+            self.strquote_override = False
             expr = self.unwrap(cvar.value)
-            self.quote_strings = qs_temp
+            self.strquote_override = qs_temp
             return expr
 
     def unwrap_step_tag_input(self, val: StepTagInput) -> Any:

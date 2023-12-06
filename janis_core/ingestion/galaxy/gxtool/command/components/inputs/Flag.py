@@ -32,7 +32,7 @@ class Flag(InputComponent):
             elif not self.gxparam.checked and self.gxparam.falsevalue == "":
                 return False
         elif isinstance(self.gxparam, XMLSelectParam):
-            print()
+            pass
 
         return False
     

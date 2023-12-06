@@ -13,6 +13,13 @@ class SupportedTranslation(Enum):
 
     def __eq__(self, other):
         return str(self) == str(other)
+    
+    @staticmethod
+    def from_str(label):
+        for st in SupportedTranslation:
+            if st.value == label:
+                return st
+        raise RuntimeError(f"Could not find SupportedTranslation for {label}")
 
     def get_translator(self) -> Any:
         if self == SupportedTranslation.CWL:

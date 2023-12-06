@@ -3,11 +3,9 @@ from typing import List, Optional
 
 from janis_core.translations import CwlTranslator
 from janis_core.types import String, Boolean, Float, Int, File, Array, Filename
-
 from janis_core.code.pythontool import PythonTool
-
 from janis_core.tool.tool import TOutput, TInput
-
+from janis_core.translations.common import to_builders
 
 class PythonEchoTool(PythonTool):
     @staticmethod
@@ -72,8 +70,13 @@ class PythonToolCodeBuilderTests(unittest.TestCase):
         # self.assertEqual(wdl, out)
 
     def test_whole2(self):
-        test = CwlTranslator.translate_code_tool_internal(PythonEchoTool())
-        print(test)
+        codetool = PythonEchoTool()
+        codetool = to_builders(codetool)
+        translator = CwlTranslator()
+        translator.translate_code_tool_internal(codetool)
+        self.assertEqual(len(translator.tools), 1)
+        cwltool = translator.tools[0][1]
+        print(cwltool)
 
     # def test_build_code_block(self):
     #     script = PythonEchoTool().prepared_script()

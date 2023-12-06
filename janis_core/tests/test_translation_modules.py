@@ -3,7 +3,10 @@ from os import getcwd
 import os.path
 
 from janis_core.translation_deps.exportpath import ExportPathKeywords
-
+from janis_core.ingestion import ingest
+from janis_core.translations import CwlTranslator
+from janis_core.translations import NextflowTranslator
+from janis_core.translations import WdlTranslator
 
 
 class TestExportPath(unittest.TestCase):

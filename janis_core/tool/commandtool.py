@@ -271,11 +271,19 @@ class ToolOutput:
         return self.tag
 
     def __repr__(self):
-        attrs = ", ".join(
-            f"{k}={repr(v)}"
-            for k, v in self.__dict__.items()
-            if not k.startswith("_") and not callable(v) and v is not None
-        )
+        attrs = []
+        for k, v in self.__dict__.items():
+            k = repr(k)
+            if k.startswith("_"):
+                continue 
+            elif k == 'uuid':
+                continue
+            elif callable(v):
+                continue
+            elif v is None:
+                continue
+            else:
+                attrs.append(f"{k}={repr(v)}")
         return f"{self.__class__.__name__}({attrs})"
 
 
@@ -684,7 +692,12 @@ class CommandToolBuilder(CommandTool):
     def outputs(self) -> List[ToolOutput]:
         return self._outputs
 
-    def container(self) -> str:
+    def container(self) -> str | Any:
+        """
+        Allowing Any to support WDL container expressions.
+        Can translate to nextflow but not CWL.
+        log error for CWL.
+        """
         return self._container
 
     def version(self) -> str:
@@ -857,3 +870,4 @@ class CommandToolBuilder(CommandTool):
         self._directories_to_create = directories_to_create
         self._files_to_create = files_to_create
         self._doc = doc
+        self.is_shell_script = False 

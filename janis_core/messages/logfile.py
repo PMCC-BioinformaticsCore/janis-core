@@ -1,32 +1,54 @@
 
-
+from typing import Optional
 from pathlib import Path
-from collections import defaultdict
 from dataclasses import dataclass
+from .enums import ErrorCategory
 
 
 @dataclass
 class LogLine:
-    level: str
-    uuid: str
     message: str
+    category: Optional[ErrorCategory]
+    entity_uuid: Optional[str]
+
+    def __str__(self) -> str:
+        if self.category is not None:
+            level, cat = self.category.value
+        else:
+            level, cat = None, None
+        return f'{level}\t{cat}\t{self.entity_uuid}\t{self.message}'
 
 
 class LogFile:
     def __init__(self, filepath: str):
         self.filepath = filepath
-        self.messages: dict[str, list[LogLine]] = defaultdict(list)
+        self.lines: list[LogLine] = []
         self.load()
 
-    def add(self, level: str, uuid: str, message: str) -> None:
-        # add to file
-        message = message.replace('\n', '')
+    def add(
+        self, 
+        category: Optional[ErrorCategory], 
+        entity_uuid: Optional[str], 
+        msg: str, 
+        ) -> None:
+
+        # format message 
+        message = msg.replace('\n', '')
         message = fr'{message}'
+
+        # create logline
+        logline = LogLine(
+            message=message, 
+            category=category, 
+            entity_uuid=entity_uuid, 
+        )
+        
+        # write to file
         with open(self.filepath, 'a') as fp:
-            fp.write(f'{level}\t{uuid}\t{message}\n')
-        # add to in-memory
-        logline = LogLine(level, uuid, message)
-        self.messages[uuid].append(logline)
+            fp.write(f'{str(logline)}\n')
+
+        # add to in-memory?
+        self.lines.append(logline)
 
     def load(self) -> None:
         # check file exists
@@ -35,10 +57,19 @@ class LogFile:
             path.touch()
 
         # load messages in file
+        self.lines = []
         with open(self.filepath, 'r') as fp:
             for line in fp.readlines():
-                level, uuid, message = line.strip('\n').split('\t')
-                logline = LogLine(level, uuid, message)
-                self.messages[uuid].append(logline)
+                logline = self.string_to_logline(line)
+                self.lines.append(logline)
+
+    def string_to_logline(self, line: str) -> LogLine:
+        str_level, str_cat, str_uuid, str_message = line.strip('\n').split('\t')
+        if str_cat == 'None':
+            category = None
+        else:
+            category = ErrorCategory.from_str(str_cat)
+        entity_uuid = None if str_uuid == 'None' else str_uuid
+        return LogLine(str_message, category, entity_uuid)
 
     

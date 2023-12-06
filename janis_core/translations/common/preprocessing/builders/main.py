@@ -1,10 +1,10 @@
 
 from janis_core import Workflow, WorkflowBuilder
-from janis_core import CommandTool, CommandToolBuilder
+from janis_core import CommandTool, CommandToolBuilder, CodeTool
 from janis_core import Tool
 
 
-def to_builders(entity: Tool) -> Tool:
+def to_builders(entity: Tool) -> CommandToolBuilder | CodeTool | WorkflowBuilder:
     if isinstance(entity, Workflow):
         for step in entity.step_nodes.values():
             step.tool = to_builders(step.tool)
@@ -12,7 +12,7 @@ def to_builders(entity: Tool) -> Tool:
             entity = to_workflow_builder(entity)
     elif isinstance(entity, CommandTool) and not isinstance(entity, CommandToolBuilder):
         entity = to_commandtool_builder(entity)
-    return entity
+    return entity # type: ignore
 
 def to_workflow_builder(workflow: Workflow) -> WorkflowBuilder:
     # init WorkflowBuilder

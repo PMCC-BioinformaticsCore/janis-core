@@ -95,6 +95,8 @@ class ScriptFormatter(ABC):
     def format(self) -> list[str]:
         ...
 
+
+
 ### CMDLINE INPUT REFERENCE ###
 
 class InputReferenceFormatter:

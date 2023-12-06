@@ -1,3 +1,4 @@
 
 
+TESTMODE: bool = False
 TESTING_USE_DEFAULT_CONTAINER: bool = False

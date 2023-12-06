@@ -7,6 +7,7 @@ from typing import Optional
 from uuid import uuid4
 
 from janis_core.ingestion.galaxy import tags
+from janis_core.ingestion.galaxy.gxtool.model import XMLTool
 from janis_core.ingestion.galaxy.gxtool.model import XMLConfigfile
 from janis_core.ingestion.galaxy.gxtool.model import XMLScript
 from janis_core.ingestion.galaxy.gxtool.model import XMLMetadata
@@ -21,6 +22,7 @@ class ITool:
     a Tool() is the final representation of the software tool
     a galaxy XML wrapper is running. Includes metadata, inputs, outputs, a container to execute the tool, base command etc. 
     """
+    xmltool: XMLTool
     metadata: XMLMetadata
     configfiles: list[XMLConfigfile]
     scripts: list[XMLScript]

@@ -88,7 +88,6 @@ class WFGenerator(ABC):
 
     def __post_init__(self) -> None:
         self.vmanager = init_variable_manager_for_task(self.wf)
-        print()
     
     @property
     def name(self) -> str:
@@ -221,7 +220,6 @@ class SubWFGenerator(WFGenerator):
                 val=out.source, 
                 context='workflow',
                 variable_manager=self.vmanager,
-                in_shell_script=True
             )
             emit_item = NFWorkflowEmit(outname, expression)
             emit.append(emit_item)

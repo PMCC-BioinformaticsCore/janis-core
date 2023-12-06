@@ -1,0 +1,12 @@
+{
+    "main.inFile": "../../infile1.bam",
+    "main.inInt": 1, 
+    "main.inFloat": 3.14, 
+    "main.inStr": "hello", 
+    "main.inBool": true,
+    "main.inFileOpt": "../../infile2.bam",
+    "main.inIntOpt": 2, 
+    "main.inFloatOpt": 2.72,
+    "main.inStrOpt": "friend!", 
+    "main.inBoolOpt": true
+}

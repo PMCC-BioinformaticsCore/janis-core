@@ -28,15 +28,15 @@ from janis_core.ingestion.galaxy.gxtool.model import (
 )
 
 from .tool import ITool
+from .containers import resolve_dependencies_as_container
 
 
 def gen_tool(
     xmltool: XMLTool, 
     command: Command, 
-    container: Optional[str], 
     gxstep: Optional[dict[str, Any]]=None
     ) -> ITool:
-    tfactory = ToolFactory(xmltool, command, container, gxstep)
+    tfactory = ToolFactory(xmltool, command, gxstep)
     tool = tfactory.create()
     return tool
 
@@ -46,19 +46,18 @@ class ToolFactory:
         self, 
         xmltool: XMLTool, 
         command: Command, 
-        container: Optional[str],
         gxstep: Optional[dict[str, Any]]=None
         ) -> None:
     
         self.xmltool = xmltool
         self.command = command
-        self.container = container
         self.gxstep = gxstep
 
     def create(self) -> ITool:
         tool = ITool(
+            xmltool=self.xmltool,
             metadata=self.xmltool.metadata,
-            container=self.container,
+            container=resolve_dependencies_as_container(self.xmltool),
             base_command=self.get_base_command(),
             configfiles=self.xmltool.configfiles,
             scripts=self.xmltool.scripts,
@@ -130,7 +129,7 @@ class InputExtractor:
         unlinked_params: list[XMLParam] = []
         uncaptured_inputs: list[InputComponent] = []
 
-        tool_state = load_tool_state(self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
+        tool_state = load_tool_state(self.xmltool, self.gxstep, additional_filters=['Flatten', 'DeNestClass'])
         for pname, pvalue in tool_state.items():
             param = self.xmltool.inputs.get(pname)
             if param:
@@ -143,16 +142,16 @@ class InputExtractor:
                 component = self.create_uncaptured_input(param, pvalue)
                 uncaptured_inputs.append(component)
 
-        if unlinked_params:
-            print('\n--- UNLINKED PARAMS ---')
-            for param in unlinked_params:
-                print(f'{param.name}: {param.__class__.__name__}')
+        # if unlinked_params:
+        #     print('\n--- UNLINKED PARAMS ---')
+        #     for param in unlinked_params:
+        #         print(f'{param.name}: {param.__class__.__name__}')
 
-        if uncaptured_inputs:
-            print('\n--- UNCAPTURED INPUTS ---')
-            for component in uncaptured_inputs:
-                assert(component.gxparam)
-                print(f'{component.__class__.__name__}: {component.gxparam.name}')
+        # if uncaptured_inputs:
+        #     print('\n--- UNCAPTURED INPUTS ---')
+        #     for component in uncaptured_inputs:
+        #         assert(component.gxparam)
+        #         print(f'{component.__class__.__name__}: {component.gxparam.name}')
 
         if uncaptured_inputs:
             if self.can_link_uncaptured_positionals(uncaptured_inputs):
@@ -248,7 +247,7 @@ class InputExtractor:
         unlinked_positionals = [x for x in self.inputs if isinstance(x, Positional) and not x.gxparam]
         uncaptured_positionals = [x for x in uncaptured_inputs if isinstance(x, Positional)]
         if len(uncaptured_positionals) == len(unlinked_positionals):
-            print('\nLINKING UNCAPTURED POSITIONALS POSSIBLE!')
+            # print('\nLINKING UNCAPTURED POSITIONALS POSSIBLE!')
             return True
         return False
 
@@ -307,7 +306,7 @@ class InputExtractor:
         
         duplicates = True if any([len(components) > 1 for components in gxparam_dict.values()]) else False
         if duplicates:
-            print('\n---DUPLICATE GXPARAM ---')
+            # print('\n---DUPLICATE GXPARAM ---')
             for gxparam, components in gxparam_dict.items():
                 if len(components) > 1:
                     for component in components:
@@ -319,16 +318,16 @@ class InputExtractor:
                             details = f'[positional] {component.cmd_pos}'
                         elif isinstance(component, OutputComponent):
                             details = f'[output] {component.name}'
-                        print(f'{gxparam}: {details}')
+                        # print(f'{gxparam}: {details}')
 
     def resolve_duplicate_prefix_components(self) -> None:
         flags = set([x.prefix for x in self.inputs if isinstance(x, Flag)])
         options = set([x.prefix for x in self.inputs if isinstance(x, Option)])
         intersection = flags & options
-        if intersection:
-            print('\n--- DUPLICATE FLAG / OPTION PREFIXES ---')
-            for prefix in intersection:
-                print(prefix) 
+        # if intersection:
+        #     print('\n--- DUPLICATE FLAG / OPTION PREFIXES ---')
+        #     for prefix in intersection:
+        #         print(prefix) 
 
         # whitelisted_uuids = [x.uuid for x in self.inputs]
         
@@ -429,7 +428,7 @@ class OutputExtractor:
 
         for out in self.whitelisted_outputs:
             if out.name not in data_structure:
-                print()
+                pass
             possible = data_structure[out.name]
             possible_sorted = sorted(possible, key=lambda x: priorities[x[0]])
             prioritised.append(possible_sorted[0][1])

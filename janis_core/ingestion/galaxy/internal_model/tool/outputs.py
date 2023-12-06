@@ -66,7 +66,7 @@ class OutputExtractor:
 
         for out in self.whitelisted_outputs:
             if out.name not in data_structure:
-                print()
+                pass
             possible = data_structure[out.name]
             possible_sorted = sorted(possible, key=lambda x: priorities[x[0]])
             prioritised.append(possible_sorted[0][1])

@@ -269,3 +269,25 @@ class InputQualityTestTool(CommandTool):
     def version(self) -> str:
         return "TEST"
 
+
+class MessagingTestTool(CommandTool):
+    def tool(self) -> str:
+        return "MessagingTestTool"
+
+    def base_command(self) -> Optional[Union[str, List[str]]]:
+        return "echo"
+
+    def arguments(self) -> List[ToolArgument]:
+        return [ToolArgument("arg", position=0)] 
+    
+    def inputs(self) -> List[ToolInput]:
+        return [ToolInput("inp", str, position=0)]
+
+    def outputs(self):
+        return [ToolOutput("out", Stdout)]
+
+    def container(self) -> str:
+        return "ubuntu:latest"
+
+    def version(self) -> str:
+        return "TEST"
