@@ -89,6 +89,7 @@ janis_core = [
     "ingestion/data/galaxy/*.json",
     "ingestion/data/galaxy/*.yaml",
     "ingestion/data/galaxy/*.xml.sample",
+    "ingestion/cwl/expressions/grammar.ebnf",
 ]
 
 [tool.setuptools.packages.find]
