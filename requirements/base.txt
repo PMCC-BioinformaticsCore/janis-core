@@ -22,7 +22,7 @@ pulsar-galaxy-lib==0.14.13
 packaging==21.3
 miniwdl
 biopython==1.79
-filelock==3.7.0
+filelock==3.20.3
 cwlformat==2020.5.19
 cwl-utils==0.15
 graphviz
